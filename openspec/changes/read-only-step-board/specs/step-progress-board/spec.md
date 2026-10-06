@@ -95,6 +95,54 @@ Retry SHALL use the existing runtime read boundary, never create a second feed.
 - **WHEN** it has leaves but no steps
 - **THEN** it explains that no project steps exist and offers return to Plan
 
+### Requirement: Visiting Board preserves unsent Plan edits without submission
+
+Moving focus to the Board selector, activating Board and returning to Plan SHALL
+NOT submit an unsent Plan field edit. A suspended unsent draft SHALL retain its
+typed text and original baseline despite losing focus, later plan deliveries or
+remounting its field face while its identity survives. Merely returning to Plan
+SHALL NOT release or submit it. Refocusing the field SHALL resume existing Plan
+commit, ordinary leave and abandon behavior. Untouched fields SHALL continue to
+reflect delivered values, and Board SHALL show delivered values rather than drafts.
+Already-issued requests SHALL retain their existing completion/refusal behavior
+without duplication. Suspension SHALL remain local to the current project runtime;
+withdrawal or authoritative deletion of its cell identity SHALL discard that hold
+without submission or reuse for another identity. Ordinary Plan editing outside
+this view handoff SHALL remain unchanged.
+
+#### Scenario: Pointer and keyboard handoff do not submit
+
+- **GIVEN** a Plan cell contains an unsubmitted edit
+- **WHEN** pointer or keyboard focus moves to the Board selector, with or without activation
+- **THEN** its switch-related blur submits no command and retains the draft
+- **WHEN** Board is activated and Plan is subsequently selected
+- **THEN** the draft is still present and no command was caused by either view change
+
+#### Scenario: Later delivery cannot erase an unfocused draft
+
+- **GIVEN** a suspended draft and an untouched field in the same plan
+- **WHEN** a peer changes their server values while Board is selected or after Plan returns before the draft is refocused
+- **THEN** the suspended text and original baseline survive, the untouched field updates, and Board uses delivered values
+- **AND** refocusing and deliberately committing the draft uses the existing Plan write behavior exactly once
+
+#### Scenario: A surviving field remounts while Board is selected
+
+- **WHEN** a step-column or responsive-renderer change remounts a suspended field with the same identity
+- **THEN** its draft and original baseline remain available on return to Plan without submission
+- **WHEN** its row or step is actually deleted and recreated with another identity
+- **THEN** the former draft is not restored into that replacement
+
+#### Scenario: An already-issued command finishes during the visit
+
+- **WHEN** a Plan command submitted before switching is acknowledged or refused while Board is selected
+- **THEN** existing completion/refusal handling applies without resending or cancelling it
+- **AND** an acknowledged update appears in Board through the existing plan delivery
+
+#### Scenario: A suspended draft cannot cross runtime withdrawal
+
+- **WHEN** the project runtime is withdrawn and another is opened, including the same project again
+- **THEN** the suspended draft is discarded without submission and cannot appear in the new runtime
+
 ### Requirement: Board interactions are read-only and accessible
 
 The project page SHALL offer Plan and Board view buttons with a discernible
@@ -104,6 +152,8 @@ name, step name and separate work-item status as text, with no drag handles or
 progress-edit controls. Pointer and keyboard interactions SHALL issue no plan
 mutation. At narrow widths columns SHALL stack in the same order without clipping
 card text or requiring hover to read it.
+The hidden Plan SHALL NOT handle global undo/redo or open its interaction controls
+while Board is selected; hiding or making its DOM inert alone is insufficient.
 
 #### Scenario: Board selection and attempted dragging
 

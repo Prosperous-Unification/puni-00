@@ -188,6 +188,10 @@ for every leaf and step whether or not anything is stored for it. Not a work ite
 tree position, title, type or number of its own. A parent has no step nodes.
 _Avoid_: sub-item, step item, task, cell (which is only its table drawing)
 
+**Suspended unsent draft**:
+An unsubmitted edit to a Plan field retained while its author visits Board, together with the value on which the edit began. It is distinct from an edit awaiting a response or one the server refused.
+_Avoid_: rejected draft, queued command, saved draft
+
 **Board card**:
 A view of one step node in a project's progress board. Its subject stays the same
 when the work item is renumbered or the step is renamed.
