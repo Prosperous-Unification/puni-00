@@ -2815,3 +2815,38 @@ On the ledger and source bytes above, seven-path Prettier check passed
 strict passed 1/1 and all passed 148/148
 (`/tmp/shared-people-6jd-initial-final-{strict,all}2.log`), and
 `git diff --check` exited 0 (`/tmp/shared-people-6jd-initial-final-diff2.log`).
+
+The independent exact-`20416b48` eight-file rerun passed 170/170,
+19,367 assertions (`/tmp/shared-people-6jd-astra-20416b48-eight.log`). Review
+found two proof gaps, with no product behavior finding. The installed closed
+admission test now asserts the actual gateway call after B's durable event.
+Removing envelopes only for the non-reserved decision left B's event intact
+but made the gateway-call assertion fail
+(`/tmp/shared-people-6jd-initial-closed-envelope-omission-red.log`);
+restoring the source passed 1/1, 7 assertions
+(`/tmp/shared-people-6jd-initial-closed-envelope-restored-green.log`). The
+same test passed before injection with the new assertion
+(`/tmp/shared-people-6jd-initial-closed-push-baseline-green.log`).
+
+A separate split-commit fault inserted `COMMIT; BEGIN IMMEDIATE` between raw
+reservation and event recording on the borrowed connection. The existing D
+event trigger fired only after B's first row had been inserted; its rollback
+then left A/C deleted, their slots gone and the X reservation present. The
+full-state snapshot assertion failed at that residue
+(`/tmp/shared-people-6jd-initial-split-commit-omission-red.log`), rather than
+at an incidental transaction exception. Restoring the exact pre-fault source
+passed the identical case 1/1, 8 assertions
+(`/tmp/shared-people-6jd-initial-split-commit-restored-green.log`). Adjacent
+Proof comments identify both faults. This follow-up changes only the mounted
+test assertion, proof comments and this ledger; the owner algorithm is
+unchanged.
+
+On the follow-up bytes, the same literal eight-file Bun command above passed
+170/170, 19,368 assertions
+(`/tmp/shared-people-6jd-initial-followup-eight.log`). Direct ESLint on the
+changed source/test, combined core/store/backend `tsc --build --force`, and
+the backend Bun bundle passed (1,374 modules)
+(`/tmp/shared-people-6jd-initial-followup-{eslint,type,build-be}.log`).
+Three-path Prettier check passed; pinned OpenSpec 1.12.0 strict passed 1/1,
+all passed 148/148, and `git diff --check` exited 0
+(`/tmp/shared-people-6jd-initial-followup-{format,strict,all,diff}.log`).

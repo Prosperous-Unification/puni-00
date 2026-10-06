@@ -42,6 +42,8 @@ export function createInitialReservationOwner(
 
       const finished = new Set<string>();
       const admission = reserveSolverSlot(db, request, ({ projectId }) => finished.add(projectId));
+      // Proof: splitting COMMIT/BEGIN here before recording let the second
+      // event-insert fault leave A/C deleted and their slots reclaimed.
       const envelopes: CommittedProjectEvent[] = [];
       for (const [organizationId, oldObservation] of before) {
         // Proof: dropping finished causes lost B's selected-contract event
@@ -65,6 +67,8 @@ export function createInitialReservationOwner(
         // Proof: returning commit:false left A's expired slot intact and
         // discarded the new reservation and event rows together.
         commit: true,
+        // Proof: dropping envelopes only for a closed admission preserved B's
+        // event row but lost its installed gateway delivery.
         value: { decision: reservationOf(admission, request.budgetMs), envelopes },
       };
     });

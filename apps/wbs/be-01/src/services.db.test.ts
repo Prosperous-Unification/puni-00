@@ -692,7 +692,7 @@ describe('buildServices', () => {
     const requesterRef: { projectId?: string } = {};
     let closed = false;
     let launches = 0;
-    const { db, path, services } = bootstrap(
+    const { db, path, services, pushUrls } = bootstrap(
       {
         solverVersion: '0.2.0',
         budgetMs: 1000,
@@ -746,6 +746,9 @@ describe('buildServices', () => {
     expect(
       (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
     ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    // Proof: dropping the committed envelopes on a closed admission made this
+    // installed gateway call disappear even though B's event row committed.
+    expect(pushUrls).toEqual(['http://gw.invalid/internal/push']);
   });
 
   for (const fault of ['after-capture', 'event-insert'] as const) {
