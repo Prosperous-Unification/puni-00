@@ -2512,3 +2512,74 @@ OpenSpec 1.12.0 strict validation passed 1/1 and all passed 148/148
 check and staged diff check exited 0
 (`/tmp/shared-people-6jc-final-all-format.log`,
 `/tmp/shared-people-6jc-final-diff.log`).
+
+### 6j.d first checkpoint: exact-token release owner and child callers
+
+This checkpoint binds only the source-owned release path. The composed
+`OptimizationLifecycle.releaseSlot` captures the addressed organization before
+raw token deletion, contract retirement and project finish, records the
+comparison in that same borrowed UoW, then delivers after writer release.
+`buildServices` installs this release on the production optimizer repository;
+its uncomposed repository factory remains available to isolated SQLite tests.
+Initial reservation, Retry, dequeue/global reclaim and reconciliation owners
+are **not** implemented or claimed by this checkpoint. Task 6j.d remains open.
+
+The installed release acceptance was first RED because the lifecycle had no
+`releaseSlot` (`/tmp/shared-people-6jd-release-owner-initial-red.log`), then
+passed 1/1, 5 assertions after adding the owner
+(`/tmp/shared-people-6jd-release-owner-corrected-green.log`). Its first
+post-owner fixture expected an `open` contract retirement, but project drain
+marks that contract draining; the actual answer was `finished`
+(`/tmp/shared-people-6jd-release-owner-first-green.log`). Correcting only that
+expectation gave the cited GREEN. The mounted terminal-child test then failed
+with no B event while the production repository still used raw release
+(`/tmp/shared-people-6jd-composition-binding-red.log`); the composed binding
+passed 1/1, 3 assertions
+(`/tmp/shared-people-6jd-composition-binding-green.log`).
+
+| Watched production fault or boundary          | RED/observation                                                                                                                                                                   | Restored GREEN                                                                             |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Omit production release-owner binding         | `/tmp/shared-people-6jd-r5-omit-composition-release-red.log`: terminal child deleted A but recorded no `(B,A)`                                                                    | `/tmp/shared-people-6jd-r5-omit-composition-release-restored-green.log`: 1/1, 3 assertions |
+| Replace composed owner with raw release       | `/tmp/shared-people-6jd-r5-omit-release-owner-red.log`: event-insert trigger did not reject, so token and graph committed without comparison                                      | `/tmp/shared-people-6jd-r5-omit-release-owner-restored-green.log`: 1/1, 6 assertions       |
+| Stale exact token before valid last release   | `/tmp/shared-people-6jd-stale-token-green.log`: stale release returned false/waiting, no B event; valid release produced one B seq0                                               | Same 1/1, 7 assertions                                                                     |
+| Selected-ready contract-only last release     | `/tmp/shared-people-6jd-selected-release-green.log`: Fast start0 vs selected start1; A retained, contract retired and B received `(B,A)`                                          | 1/1, 6 assertions                                                                          |
+| Fail recipient event insert at final release  | `/tmp/shared-people-6jd-release-event-rollback-green.log`: complete slot and populated graph snapshot restored, no push; retry succeeded with B seq0                              | 1/1, 6 assertions                                                                          |
+| Fail after-capture at final release           | `/tmp/shared-people-6jd-capture-rollback-green.log`: token, graph and sequence restored, zero delivery; retry succeeded                                                           | 1/1, 5 assertions                                                                          |
+| Hold then reject transport after last release | `/tmp/shared-people-6jd-held-replay-green.log`: A already deleted, second writer succeeded, completion held; HTTP400 contained and original B seq0 replay retained                | 1/1, 10 assertions                                                                         |
+| Child cancellation before terminal evidence   | `/tmp/shared-people-6jd-cancelled-terminal-evidence-green.log`: project and slot remained after kill until exit was supplied; then composed release deleted A and recorded B seq0 | 1/1, 7 assertions                                                                          |
+
+Normal terminal exit reaches the same installed binding in
+`/tmp/shared-people-6jd-composition-binding-green.log`. An initial cancellation
+fixture used Bun's default 5-second timeout while the actual heartbeat interval
+is 5 seconds (`/tmp/shared-people-6jd-cancelled-child-green.log`); the bounded
+12-second fixture passed (`/tmp/shared-people-6jd-cancelled-child-timeout-corrected.log`)
+before the stronger held-terminal-evidence assertion above. This timeout is a
+test-harness mistake, not a product failure. The unchanged five caller awaits
+retain the independent 6j.b omission RED/GREEN records: normal and cancellation
+child release, inner and outer queued-unlaunched cleanup, and initial/Retry
+preflight release-before-pump at the paths listed in the 6j.b table above.
+Those tests prove awaiting persistence; this first 6j.d slice proves the
+installed release owner. Additional installed queued/preflight and all global
+reclaim owner proofs remain pending before 6j.d completion.
+
+An earlier four-file affected suite before the final cancellation witness passed
+154/154, 766 assertions (`/tmp/shared-people-6jd-release-slice-four-file.log`).
+The final expanded suite passed 158/158, 794 assertions
+(`/tmp/shared-people-6jd-release-suite-final.log`) while changed-file ESLint
+reported eight import, async-spawner, void-expression and unbound-method
+findings (`/tmp/shared-people-6jd-release-lint-final.log`); explicit fixes made
+the changed-file ESLint pass
+(`/tmp/shared-people-6jd-release-lint-corrected.log`). Corrected combined
+core/store/BE TypeScript build passed
+(`/tmp/shared-people-6jd-release-type-final.log`). On final source/test bytes,
+the exact four-file Bun command above passed 158/158, 794 assertions
+(`/tmp/shared-people-6jd-release-final-byte-suite.log`); complete BE-source
+ESLint and combined core/store/BE TypeScript build exited 0
+(`/tmp/shared-people-6jd-release-final-{lint,type}.log`). The BE Bun bundle
+passed, 1,373 modules
+(`/tmp/shared-people-6jd-release-final-build.log`). Pinned OpenSpec 1.12.0
+strict passed 1/1 and all passed 148/148, changed-path Prettier passed, and
+`git diff --check` exited 0
+(`/tmp/shared-people-6jd-release-final-{strict,all,format,diff}.log`). The
+exact-SHA host gate, CI, 6j.d global reclaim owners, 6j.e and publication are
+not claimed by this local release checkpoint.

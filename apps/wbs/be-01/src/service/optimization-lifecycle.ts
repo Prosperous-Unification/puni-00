@@ -8,6 +8,9 @@ import {
   beginOptimizationDrain,
   finishOptimizationDrain,
   type OptimizationDrainFinish,
+  releaseSolverSlot,
+  type SolverSlotRelease,
+  type SolverSlotReleaseOutcome,
   type SqliteSource,
 } from '@wbs/store-sqlite';
 
@@ -15,6 +18,7 @@ import {
 export interface OptimizationLifecycle {
   beginDrain(projectId: string, stamp: WriteStamp, contractVersion?: string): Promise<number>;
   finishDrain(projectId: string, contractVersion?: string): Promise<OptimizationDrainFinish>;
+  releaseSlot(slot: SolverSlotRelease): Promise<SolverSlotReleaseOutcome>;
 }
 
 /** Captures and records on one borrowed writer, then delivers after its turn releases. */
@@ -70,5 +74,8 @@ export function createOptimizationLifecycle(
       own(projectId, () => beginOptimizationDrain(db, projectId, stamp, contractVersion)),
     finishDrain: (projectId, contractVersion) =>
       own(projectId, () => finishOptimizationDrain(db, projectId, contractVersion)),
+    // Proof: omitting the composed release owner left a populated last-slot
+    // deletion with no old-cause event in the installed lifecycle test.
+    releaseSlot: (slot) => own(slot.projectId, () => releaseSolverSlot(db, slot)),
   };
 }

@@ -169,14 +169,24 @@ export function buildServices(options: ServicesOptions): BeServices {
       planEventRetentionDays: PLAN_EVENT_RETENTION_DAYS,
     },
   });
+  const optimizationLifecycle = createOptimizationLifecycle(
+    source.db,
+    boundSource.uow,
+    graph.committedFanout,
+  );
   if (options.optimizer !== undefined) {
     const optimizer = options.optimizer;
     coordinator = installOptimization({
-      repository: createOptimizationRepository(
-        source.db,
-        new DrizzleEventLogStore(source.db, source.gate),
-        source.gate,
-      ),
+      repository: {
+        ...createOptimizationRepository(
+          source.db,
+          new DrizzleEventLogStore(source.db, source.gate),
+          source.gate,
+        ),
+        // Proof: omitting this installed binding made the mounted terminal
+        // child delete A without B's old-cause event.
+        releaseSlot: (slot) => optimizationLifecycle.releaseSlot(slot),
+      },
       contractVersion: contractVersionOf(optimizer.solverVersion),
       solverVersion: optimizer.solverVersion,
       budgetMs: optimizer.budgetMs,
@@ -206,11 +216,7 @@ export function buildServices(options: ServicesOptions): BeServices {
     optimizer: coordinator,
     // Proof: omitting the unconditional binding left the mounted lifecycle
     // undefined when this process had no active solver runtime.
-    optimizationLifecycle: createOptimizationLifecycle(
-      source.db,
-      boundSource.uow,
-      graph.committedFanout,
-    ),
+    optimizationLifecycle,
     gate: source.gate,
     projectRanks: standaloneRankStore(publicRanks, boundSource.uow, graph.committedFanout),
   };

@@ -267,6 +267,7 @@ async function seedReadyRetirement(
   offset: number,
 ): Promise<{
   contractVersion: string;
+  generation: number;
   inputHash: string;
   fastStart: number | undefined;
   selectedStart: number | undefined;
@@ -330,10 +331,39 @@ async function seedReadyRetirement(
     .run();
   return {
     contractVersion,
+    generation,
     inputHash,
     fastStart: fast.slices.get(sliceKey('A', 'A-step'))?.earliestStart,
     selectedStart: selected.slices.get(sliceKey('A', 'A-step'))?.earliestStart,
   };
+}
+
+function seedLifecycleSlot(
+  db: ReturnType<typeof openDrizzle>,
+  contractVersion = contractVersionOf('0.2.0'),
+  generation = allocateGeneration(db, 'A', contractVersion, 'release-input', 1),
+) {
+  const slot = {
+    projectId: 'A',
+    contractVersion,
+    generation,
+    objective: 'pri' as const,
+    budgetMs: 1000,
+    attemptToken: 'release-A',
+  };
+  db.insert(solverSlot)
+    .values({
+      ...slot,
+      ownerId: 'own-1',
+      lifecycle: 'running',
+      pid: 4242,
+      startedAt: 1,
+      heartbeatAt: 1,
+      cancelRequestedAt: null,
+      admittedDeadlineAt: 1001,
+    })
+    .run();
+  return slot;
 }
 
 describe('buildServices', () => {
@@ -359,6 +389,288 @@ describe('buildServices', () => {
     expect(await services.optimizationLifecycle.finishDrain('A')).toBe('absent');
     expect(await events.rangeSince('project:B', -1)).toEqual(downstream);
     expect(pushUrls).toHaveLength(1);
+  });
+
+  it('releases the last counted child through the installed owner and records the old cause', async () => {
+    const { db, path, services, pushUrls } = bootstrap();
+    seedSharedLifecycle(path);
+    const slot = seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    expect(
+      await services.optimizationLifecycle.releaseSlot({ ...slot, attemptToken: 'stale-A' }),
+    ).toEqual({ released: false, retirement: 'waiting', deletion: 'waiting' });
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(await services.optimizationLifecycle.releaseSlot(slot)).toEqual({
+      released: true,
+      retirement: 'finished',
+      deletion: 'finished',
+    });
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    expect(pushUrls).toHaveLength(1);
+  });
+
+  it('routes a terminal optimizer child through the composed release owner', async () => {
+    const bound = signal();
+    let finishChild: (code: number) => void = () => {
+      throw new Error('solver child was never spawned');
+    };
+    const exited = new Promise<number>((resolve) => {
+      finishChild = resolve;
+    });
+    const emptyStream = (): ReadableStream<Uint8Array> =>
+      new ReadableStream<Uint8Array>({
+        start: (controller) => {
+          controller.close();
+        },
+      });
+    const { db, path, services } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () =>
+        Promise.resolve({
+          pid: 4242,
+          stdout: emptyStream(),
+          stderr: emptyStream(),
+          exited,
+          verdict: () => {
+            bound.resolve();
+          },
+          kill: () => undefined,
+        }),
+    });
+    seedSharedLifecycle(path);
+    await seedReadyRetirement(db, services, 1);
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('shared input was not scheduled');
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    await optimizer.readPlan({
+      projectId: 'A',
+      objective: 'time',
+      input: captured.input,
+      enabled: true,
+    });
+    await bound.promise;
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    finishChild(1);
+    await optimizer.drain();
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+  });
+
+  it('routes a cancelled child through the composed release only after kill and exit', async () => {
+    const bound = signal();
+    const killedChild = signal();
+    let finishChild: (code: number) => void = () => {
+      throw new Error('solver child was never spawned');
+    };
+    const exited = new Promise<number>((resolve) => {
+      finishChild = resolve;
+    });
+    const emptyStream = (): ReadableStream<Uint8Array> =>
+      new ReadableStream<Uint8Array>({
+        start: (controller) => {
+          controller.close();
+        },
+      });
+    let killed = false;
+    const { db, path, services } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () =>
+        Promise.resolve({
+          pid: 4242,
+          stdout: emptyStream(),
+          stderr: emptyStream(),
+          exited,
+          verdict: () => {
+            bound.resolve();
+          },
+          kill: () => {
+            killed = true;
+            killedChild.resolve();
+          },
+        }),
+    });
+    seedSharedLifecycle(path);
+    await seedReadyRetirement(db, services, 1);
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('shared input was not scheduled');
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    await optimizer.readPlan({
+      projectId: 'A',
+      objective: 'time',
+      input: captured.input,
+      enabled: true,
+    });
+    await bound.promise;
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    await killedChild.promise;
+    expect(db.select().from(solverSlot).all()).toHaveLength(1);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    finishChild(143);
+    await optimizer.drain();
+    expect(killed).toBe(true);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+  }, 12000);
+
+  it('restores the exact last slot and populated graph when release event recording fails', async () => {
+    const { db, path, services, pushUrls } = bootstrap();
+    seedSharedLifecycle(path);
+    const slot = seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    const before = lifecycleTables(db);
+    const failure = openDatabase(path);
+    try {
+      failure.run(
+        `CREATE TRIGGER fail_release_event BEFORE INSERT ON event_log
+         WHEN NEW.subscription = 'project:B'
+         BEGIN SELECT RAISE(ABORT, 'last-slot event failed'); END`,
+      );
+    } finally {
+      failure.close();
+    }
+    expect(await rejectedMessage(services.optimizationLifecycle.releaseSlot(slot))).toContain(
+      'project:B',
+    );
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(pushUrls).toEqual([]);
+    const restored = openDatabase(path);
+    try {
+      restored.run('DROP TRIGGER fail_release_event');
+    } finally {
+      restored.close();
+    }
+    expect(await services.optimizationLifecycle.releaseSlot(slot)).toEqual({
+      released: true,
+      retirement: 'finished',
+      deletion: 'finished',
+    });
+    expect(
+      (await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).map(
+        ({ seq, message }) => [seq, message],
+      ),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+  });
+
+  it('retires only the selected contract after its exact last-slot release', async () => {
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('retirement fixture must not launch')),
+    });
+    seedSharedLifecycle(path);
+    const { contractVersion, generation, fastStart, selectedStart } = await seedReadyRetirement(
+      db,
+      services,
+      1,
+    );
+    expect([fastStart, selectedStart]).toEqual([0, 1]);
+    const slot = seedLifecycleSlot(db, contractVersion, generation);
+    expect(
+      await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' }, contractVersion),
+    ).toBe(1);
+    expect(await services.optimizationLifecycle.releaseSlot(slot)).toEqual({
+      released: true,
+      retirement: 'finished',
+      deletion: 'open',
+    });
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    expect(pushUrls).toHaveLength(1);
+  });
+
+  it('commits last-slot deletion before held delivery and replays after transport refusal', async () => {
+    const deliveryEntered = signal();
+    const releaseDelivery = signal();
+    const calls: string[] = [];
+    const { db, path, services } = bootstrap(undefined, undefined, (url) => {
+      calls.push(url);
+      deliveryEntered.resolve();
+      return releaseDelivery.promise.then(() => new Response('gateway refused', { status: 400 }));
+    });
+    seedSharedLifecycle(path);
+    const slot = seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    let settled = false;
+    const releasing = services.optimizationLifecycle.releaseSlot(slot).then((outcome) => {
+      settled = true;
+      return outcome;
+    });
+    await deliveryEntered.promise;
+    const events = new DrizzleEventLogStore(db, OPEN);
+    const replay = await events.rangeSince('project:B', -1);
+    expect(replay.map(({ seq, message }) => [seq, message])).toEqual([
+      [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+    ]);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(settled).toBe(false);
+    const second = openDatabase(path);
+    let writerFailure: unknown;
+    try {
+      second.run('PRAGMA busy_timeout = 50');
+      second.run("UPDATE project SET name = 'writer entered' WHERE id = 'B'");
+    } catch (cause) {
+      writerFailure = cause;
+    } finally {
+      second.close();
+      releaseDelivery.resolve();
+    }
+    expect(writerFailure).toBeUndefined();
+    expect(await releasing).toEqual({
+      released: true,
+      retirement: 'finished',
+      deletion: 'finished',
+    });
+    expect(calls).toHaveLength(1);
+    expect(await events.rangeSince('project:B', -1)).toEqual(replay);
+    expect(await services.optimizationLifecycle.releaseSlot(slot)).toEqual({
+      released: false,
+      retirement: 'absent',
+      deletion: 'absent',
+    });
+    expect(await events.rangeSince('project:B', -1)).toEqual(replay);
+  });
+
+  it('rolls back last-slot deletion and token when after-capture fails', async () => {
+    let captures = 0;
+    let failRelease = false;
+    const { db, path, services, pushUrls } = bootstrap(undefined, () => {
+      if (failRelease && ++captures === 2) throw new Error('release after-capture failed');
+    });
+    seedSharedLifecycle(path);
+    const slot = seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    const before = lifecycleTables(db);
+    captures = 0;
+    failRelease = true;
+    expect(await rejectedMessage(services.optimizationLifecycle.releaseSlot(slot))).toContain(
+      'release after-capture failed',
+    );
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(pushUrls).toEqual([]);
+    failRelease = false;
+    expect(await services.optimizationLifecycle.releaseSlot(slot)).toEqual({
+      released: true,
+      retirement: 'finished',
+      deletion: 'finished',
+    });
   });
 
   it('removes a populated project graph while retaining shared and bystander rows', async () => {
