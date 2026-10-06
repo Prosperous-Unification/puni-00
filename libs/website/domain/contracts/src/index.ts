@@ -102,4 +102,5 @@ export interface ConceptView {
   revision: 0 | 1;
 }
 export * from './brief';
+export * from './browser-check';
 export * from './reply-stream';
