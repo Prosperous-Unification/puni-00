@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 
 import { reasoningEfforts } from './conversation/stream';
+import { describeAlertWebhook } from './guardrail-alerts';
 import { readWebsiteApiConfig } from './runtime-config';
 
 test('the reasoning effort is unset or one of the four allowed efforts', () => {
@@ -35,4 +36,22 @@ test('the conversation completion cap defaults to 400 and accepts integers from 
     expect(() => readWebsiteApiConfig({ OPENROUTER_MAX_COMPLETION_TOKENS: tokens })).toThrow(
       'OPENROUTER_MAX_COMPLETION_TOKENS',
     );
+});
+
+test('the alert webhook is unset, or an https URL; anything else throws', () => {
+  expect(readWebsiteApiConfig({}).guardrailWebhookUrl).toBeUndefined();
+  expect(readWebsiteApiConfig({ GUARDRAIL_WEBHOOK_URL: '' }).guardrailWebhookUrl).toBeUndefined();
+  expect(
+    readWebsiteApiConfig({ GUARDRAIL_WEBHOOK_URL: 'https://ntfy.sh/puni-topic-0123456789abcdef' })
+      .guardrailWebhookUrl,
+  ).toBe('https://ntfy.sh/puni-topic-0123456789abcdef');
+  // Proof: accepting http in readWebhookUrl let the first of these pass without throwing.
+  for (const url of ['http://ntfy.sh/topic', 'ntfy.sh/topic', 'ftp://example.test/x'])
+    expect(() => readWebsiteApiConfig({ GUARDRAIL_WEBHOOK_URL: url })).toThrow(
+      'GUARDRAIL_WEBHOOK_URL',
+    );
+  expect(describeAlertWebhook(undefined)).toBe('guardrail alerts: webhook unset');
+  expect(describeAlertWebhook('https://ntfy.sh/secret-topic')).toBe(
+    'guardrail alerts: webhook set',
+  );
 });

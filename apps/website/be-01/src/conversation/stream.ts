@@ -170,6 +170,8 @@ export interface ConfirmedReplyOptions {
   complete(reply: string, actualMicroUsd: number, truncated: boolean): boolean;
   /** Settles an operation whose final usage is unknown; see the store's ceiling settlement. */
   markUnknown(): void;
+  /** Told of each provider failure (5xx, timeout, non-refusal stream error), not of a stop. */
+  onProviderFailure?(): void;
   /** The user-facing `errorText` when the reply ends without confirmed usage. */
   interruptedText: string;
   /** Present when a refusal completes the operation; absent, a refusal is an interrupted reply. */
@@ -202,6 +204,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     completion.resolve(true);
   };
   const deadline = setTimeout(() => {
+    options.onProviderFailure?.();
     options.markUnknown();
     completion.resolve(true);
     abort.abort();
@@ -309,6 +312,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
       // A refusal error is followed by the finish, which settles it as a decline.
       // Proof: marking unknown here as before failed the mounted 200-with-refusal-error test.
       if (decline && refusal) return;
+      if (!abort.signal.aborted) options.onProviderFailure?.();
       options.markUnknown();
       release();
     },

@@ -29,6 +29,7 @@ import {
 } from './conversation-store';
 import {
   clearSourceLoginFailures,
+  countDeclinedCompletions,
   countDraft,
   countProposal,
   DraftCapReached,
@@ -37,6 +38,7 @@ import {
   type GuardrailOverview,
   hashEmailKey,
   type InferencePause,
+  markAlertDelivery,
   openInferencePause,
   ProposalCapReached,
   type ProposalCapRefusal,
@@ -44,6 +46,7 @@ import {
   readLoginLock,
   readLoginLocks,
   readSiteSpend,
+  recordGuardrailAlert,
   recordLoginFailure,
   resumeInferencePause,
   tripInferencePause,
@@ -494,6 +497,26 @@ export class WebsiteStore {
   /** See {@link readGuardrailOverview}; the ceiling is `conversationAllowance.siteDayMicroUsd`. */
   readGuardrailOverview(now: number): GuardrailOverview {
     return readGuardrailOverview(this.database, now, conversationAllowance.siteDayMicroUsd);
+  }
+
+  /** See {@link recordGuardrailAlert}. */
+  recordGuardrailAlert(
+    kind: string,
+    dedupeKey: string,
+    detail: string,
+    now: number,
+  ): { kind: 'inserted'; id: string } | { kind: 'duplicate' } {
+    return recordGuardrailAlert(this.database, kind, dedupeKey, detail, now);
+  }
+
+  /** See {@link markAlertDelivery}. */
+  markAlertDelivery(id: string, delivery: 'sent' | 'failed', now: number): void {
+    markAlertDelivery(this.database, id, delivery, now);
+  }
+
+  /** See {@link countDeclinedCompletions}; the UTC day of `now`. */
+  countDeclinedCompletions(now: number): number {
+    return countDeclinedCompletions(this.database, utcDayOf(now));
   }
 
   /** See {@link readSiteSpend}; the UTC day of `now`. */

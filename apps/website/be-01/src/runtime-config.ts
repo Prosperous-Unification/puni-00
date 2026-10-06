@@ -1,5 +1,6 @@
 import { defaultConversationReplyTokens } from './conversation/request';
 import { isReasoningEffort, type ReasoningEffort } from './conversation/stream';
+import { readWebhookUrl } from './guardrail-alerts';
 import type { WebsiteApiConfig } from './server';
 
 type Environment = Record<string, string | undefined>;
@@ -49,7 +50,7 @@ function readMaxCompletionTokens(environment: Environment): number {
 
 /**
  * Reads the API configuration from the process environment. Malformed flags, rates, proxy
- * hops, reasoning efforts and completion caps throw instead of disabling a feature; absent provider settings leave the provider
+ * hops, reasoning efforts, completion caps and a non-`https` alert webhook throw instead of disabling a feature; absent provider settings leave the provider
  * disabled, which `GET /conversation` reports.
  */
 export function readWebsiteApiConfig(environment: Environment): WebsiteApiConfig {
@@ -79,5 +80,6 @@ export function readWebsiteApiConfig(environment: Environment): WebsiteApiConfig
     oidcClientId: environment['OIDC_CLIENT_ID'],
     oidcClientSecret: environment['OIDC_CLIENT_SECRET'],
     oidcRedirectUri: environment['OIDC_REDIRECT_URI'],
+    guardrailWebhookUrl: readWebhookUrl(environment['GUARDRAIL_WEBHOOK_URL']),
   };
 }

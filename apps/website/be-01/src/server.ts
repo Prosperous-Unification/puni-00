@@ -12,6 +12,7 @@ import {
 } from '@website/contracts';
 import {
   type ConversationAdmission,
+  conversationAllowance,
   type ConversationPricing,
   type DraftCapRefusal,
   guardrailAllowance,
@@ -39,6 +40,12 @@ import {
   streamConfirmedReply,
 } from './conversation/stream';
 import { providerDeclineReply, salesPromptVersion } from './conversation/system-prompt';
+import {
+  deliverAlert,
+  FloodCounter,
+  type GuardrailAlertKind,
+  readWebhookUrl,
+} from './guardrail-alerts';
 
 export interface WebsiteApiConfig {
   databasePath: string;
@@ -75,6 +82,10 @@ export interface WebsiteApiConfig {
   oidcClientSecret?: string;
   oidcRedirectUri?: string;
   oidcFetch?: ProviderFetch;
+  /** `GUARDRAIL_WEBHOOK_URL`: an `https` ntfy-style target for alerts; unset records alerts only. */
+  guardrailWebhookUrl?: string;
+  /** Sends the alert webhook; tests pass a fake receiver. Defaults to the global `fetch`. */
+  alertFetch?: ProviderFetch;
   /** The operator password check; tests count calls. Defaults to Argon2id `Bun.password.verify`. */
   verifyPassword?: (password: string, hash: string) => Promise<boolean>;
   /** The request clock in epoch milliseconds; tests move it. Defaults to `Date.now`. */
@@ -200,6 +211,8 @@ function readCookie(request: Request, name: string): string | null {
  */
 export function createWebsiteApi(config: WebsiteApiConfig): {
   fetch(request: Request, clientAddress?: string): Promise<Response>;
+  /** Waits for every alert webhook attempt in flight. */
+  settleAlerts(): Promise<void>;
   close(): void;
 } {
   if (!config.publicOrigin || !config.appOrigin || !config.appManualUrl)
@@ -248,6 +261,16 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     config.databasePath,
   );
   const clock = config.clock ?? Date.now;
+  /** Set by close(); a stream deadline that fires later must not touch the closed store. */
+  let isClosed = false;
+  const webhookUrl = readWebhookUrl(config.guardrailWebhookUrl);
+  const sendAlert: ProviderFetch =
+    config.alertFetch ?? ((input, init) => globalThis.fetch(new Request(input, init)));
+  /** Dedupe keys this process already raised, so a repeated trigger costs no write. */
+  const raisedAlerts = new Set<string>();
+  const alertDeliveries = new Set<Promise<void>>();
+  const providerFailures = new FloodCounter(10);
+  const rateRefusals = new FloodCounter(60);
   const verifyPassword =
     config.verifyPassword ??
     ((password: string, hash: string) => Bun.password.verify(password, hash));
@@ -368,8 +391,108 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     return address === null ? null : hashSource(address, now);
   }
 
+  /**
+   * Records one alert under its dedupe key, then, when a webhook is set, makes its one delivery
+   * attempt in the background and records `sent` or `failed`. A delivery never fails the request
+   * that raised the alert; {@link settleAlerts} waits for pending deliveries.
+   */
+  function raiseAlert(kind: GuardrailAlertKind, dedupeKey: string, detail: string): void {
+    if (raisedAlerts.has(dedupeKey)) return;
+    raisedAlerts.add(dedupeKey);
+    // Proof: delivering before this insert sent two webhook calls in the double-crossing dedupe test.
+    const recorded = store.recordGuardrailAlert(kind, dedupeKey, detail, clock());
+    if (recorded.kind === 'duplicate' || webhookUrl === undefined) return;
+    const delivery = deliverAlert(sendAlert, webhookUrl, kind, detail).then((outcome) => {
+      store.markAlertDelivery(recorded.id, outcome, clock());
+    });
+    alertDeliveries.add(delivery);
+    void delivery.finally(() => alertDeliveries.delete(delivery));
+  }
+
+  function utcDayOf(now: number): string {
+    return new Date(now).toISOString().slice(0, 10);
+  }
+
+  function utcHourOf(now: number): string {
+    return new Date(now).toISOString().slice(0, 13);
+  }
+
+  /** Raises `site_spend_half` once the site's UTC-day spend reaches half the ceiling. */
+  function noteSiteSpend(now: number): void {
+    const day = utcDayOf(now);
+    if (raisedAlerts.has(`site_spend_half:${day}`)) return;
+    const spent = store.readSiteSpend(now);
+    if (spent >= guardrailAllowance.halfSpendMicroUsd)
+      raiseAlert(
+        'site_spend_half',
+        `site_spend_half:${day}`,
+        `site spend ${String(spent)} micro-USD of ${String(conversationAllowance.siteDayMicroUsd)} on ${day}`,
+      );
+  }
+
+  function notePause(pauseId: string | null, reason: 'site_spend' | 'operator', now: number) {
+    if (pauseId === null) return;
+    // A spend pause implies the half mark was passed, even when no admission saw it start.
+    if (reason === 'site_spend') noteSiteSpend(now);
+    raiseAlert(
+      'inference_paused',
+      `inference_paused:${pauseId}`,
+      `inference paused (${reason}) at site spend ${String(store.readSiteSpend(now))} micro-USD on ${utcDayOf(now)}`,
+    );
+  }
+
+  /** Raises the half and full marks of a site-wide daily cap at the exact count that reaches them. */
+  function noteSiteCount(scope: 'draft' | 'proposal', siteCount: number, now: number): void {
+    const cap =
+      scope === 'draft' ? guardrailAllowance.draftSiteDay : guardrailAllowance.proposalSiteDay;
+    const day = utcDayOf(now);
+    const mark = siteCount === cap ? 'full' : siteCount === cap / 2 ? 'half' : null;
+    if (mark === null) return;
+    raiseAlert(
+      `${scope}_cap_${mark}`,
+      `${scope}_cap_${mark}:${day}`,
+      `${String(siteCount)} ${scope}s of ${String(cap)} on ${day}`,
+    );
+  }
+
+  /** Counts a provider 5xx, timeout or non-refusal stream error; five in ten minutes alert. */
+  function noteProviderFailure(): void {
+    const now = clock();
+    const count = providerFailures.record(now);
+    // Proof: firing from the fifth on, with the raised-key set removed, made the sixth failure write again in the provider-failures test.
+    if (count === 5)
+      raiseAlert(
+        'provider_failures',
+        `provider_failures:${utcHourOf(now)}`,
+        `${String(count)} provider failures in 10 minutes, hour ${utcHourOf(now)}`,
+      );
+  }
+
+  /** Counts declined completions of the UTC day after one is stored; ten alert. */
+  function noteDeclined(): void {
+    const now = clock();
+    const day = utcDayOf(now);
+    if (raisedAlerts.has(`refusals:${day}`)) return;
+    const count = store.countDeclinedCompletions(now);
+    if (count >= 10)
+      raiseAlert('refusals', `refusals:${day}`, `${String(count)} declined completions on ${day}`);
+  }
+
+  /** Counts a window or lockout refusal in memory; 500 in an hour write one alert row. */
+  function noteRateRefusal(now: number): void {
+    const count = rateRefusals.record(now);
+    // Proof: writing a row per refusal counted 500 rows in the rate-limit flood test.
+    if (count === 500)
+      raiseAlert(
+        'rate_limited',
+        `rate_limited:${utcHourOf(now)}`,
+        `${String(count)} refused requests in 60 minutes, hour ${utcHourOf(now)}`,
+      );
+  }
+
   /** 429 `rate_limited` with `Retry-After` in whole seconds. */
   function rateRefusal(outcome: { retryAfterSeconds: number }): Response {
+    noteRateRefusal(clock());
     return json({ code: 'rate_limited' }, 429, {
       // Proof: deleting this header failed the Retry-After assertion in the windowless-route test.
       'Retry-After': String(outcome.retryAfterSeconds),
@@ -785,8 +908,10 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     if (admitted.kind === 'started') return admitted;
     if (admitted.kind === 'completed')
       return { kind: 'response', response: attachCors(replayReply(admitted.reply), origin) };
-    if (admitted.kind === 'paused')
+    if (admitted.kind === 'paused') {
+      notePause(admitted.openedPauseId, 'site_spend', clock());
       return { kind: 'response', response: attachCors(failure('provider_paused', 503), origin) };
+    }
     const code =
       admitted.kind === 'provider_unavailable'
         ? paid
@@ -843,11 +968,15 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       accounting === 'direct'
         ? store.reserveProviderCall(accountId, requestId, reservedMicroUsd, now)
         : null;
-    if (reservation?.kind === 'paused') return { code: 'provider_paused', status: 503 };
+    if (reservation?.kind === 'paused') {
+      notePause(reservation.openedPauseId, 'site_spend', now);
+      return { code: 'provider_paused', status: 503 };
+    }
     // Proof: replacing this reservation guard with false made the unsettled-usage test fail on the second paid call.
     if (reservation?.kind === 'refused')
       return { code: 'provider_budget_or_unsettled', status: 429 };
     const callId = reservation?.id ?? null;
+    if (callId !== null) noteSiteSpend(now);
     const abort = new AbortController();
     const deadline = setTimeout(() => {
       abort.abort();
@@ -873,11 +1002,13 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           provider: providerRouting(String(config.openRouterProvider), rates),
         }),
       });
-      if (!response.ok)
+      if (!response.ok) {
+        if (response.status >= 500) noteProviderFailure();
         return {
           code: response.status === 429 ? 'provider_rate_limited' : 'provider_failed',
           status: response.status === 429 ? 429 : 502,
         };
+      }
       const payload: unknown = await response.json();
       if (
         !isRecord(payload) ||
@@ -908,6 +1039,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         return { code: 'provider_usage_exceeded_reservation', status: 502 };
       return { reply: content, actualMicroUsd };
     } catch (error) {
+      noteProviderFailure();
       if (error instanceof Error && error.name === 'AbortError')
         return { code: 'provider_timeout_unsettled', status: 504 };
       return { code: 'provider_unknown_unsettled', status: 502 };
@@ -1138,6 +1270,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       );
       // Proof: answering 201 with the claim cookie here put a Set-Cookie on the mounted draft-cap refusal.
       if (created.kind !== 'created') return attachSiteCors(capRefusal(created.kind, now));
+      noteSiteCount('draft', created.siteCount, now);
       const signedIn = prospectSession(request, now);
       // Proof: disabling signed-in attachment made the second-intake test resume the old request.
       if (signedIn) store.attachDraft(signedIn.id, digest(claim), now);
@@ -1317,6 +1450,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         browserCheck,
         now,
       });
+      if (admitted.kind === 'paused') notePause(admitted.openedPauseId, 'site_spend', now);
       if (admitted.kind !== 'started') {
         const response = conversationRefusal(admitted, provider.kind);
         response.headers.set('Cache-Control', 'no-store');
@@ -1333,6 +1467,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       // Proof: the injected broken-store conversation test fails when this invariant is removed.
       if (provider.kind !== 'paid')
         throw new Error('Unavailable provider admitted a new conversation operation');
+      noteSiteSpend(now);
       const outbound = composeConversationRequest(admitted.history, message, admitted.stage);
       const response = streamConfirmedReply({
         pin: {
@@ -1358,19 +1493,24 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
             truncated,
           ),
         markUnknown: () => {
-          store.markConversationOperationUnknown(admitted.id);
+          // After close, startup recovery settles this operation at its ceiling just the same.
+          if (!isClosed) store.markConversationOperationUnknown(admitted.id);
         },
+        onProviderFailure: noteProviderFailure,
         interruptedText: 'The reply stopped before it was confirmed. You can retry.',
         decline: {
           reply: providerDeclineReply,
-          complete: (refusal, actualMicroUsd) =>
-            store.completeDeclinedConversationOperation(
+          complete: (refusal, actualMicroUsd) => {
+            const declined = store.completeDeclinedConversationOperation(
               admitted.id,
               providerDeclineReply,
               actualMicroUsd,
               Date.now(),
               refusal,
-            ),
+            );
+            if (declined) noteDeclined();
+            return declined;
+          },
         },
         recordGeneration: (generationId) => {
           store.recordConversationGeneration(admitted.id, generationId);
@@ -1496,6 +1636,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
               )
             : { kind: 'unavailable' as const };
       if (outcome.kind === 'limited') return attachCors(capRefusal(outcome.code, now), origin);
+      if (outcome.kind === 'created') noteSiteCount('proposal', outcome.siteCount, now);
       if (outcome.kind === 'conflict')
         return attachCors(failure('idempotency_conflict', 409), origin);
       if (outcome.kind === 'unavailable')
@@ -1689,6 +1830,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         paid,
       );
       if (admitted.kind === 'response') return admitted.response;
+      if (preparedProvider.kind === 'paid') noteSiteSpend(now);
       if (preparedProvider.kind === 'demo') {
         const questions = [
           'Who will use this first, and what do they need to accomplish?',
@@ -1723,7 +1865,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         complete: (reply, actualMicroUsd, truncated) =>
           store.completeChatOperation(admitted.id, reply, actualMicroUsd, Date.now(), truncated),
         markUnknown: () => {
-          store.markChatOperationUnknown(admitted.id);
+          // After close, startup marks this operation unknown just the same.
+          if (!isClosed) store.markChatOperationUnknown(admitted.id);
         },
         interruptedText: 'The response could not be confirmed. Your allowance remains on hold.',
         isCompleted: () =>
@@ -1795,8 +1938,10 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           : null,
         now,
       );
-      if (legacyOperation.kind === 'paused')
+      if (legacyOperation.kind === 'paused') {
+        notePause(legacyOperation.openedPauseId, 'site_spend', now);
         return attachCors(failure('provider_paused', 503), origin);
+      }
       if (legacyOperation.kind !== 'started')
         return attachCors(
           failure(
@@ -1967,20 +2112,28 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       // The lock is read before any Argon2id work; the body never says which scope locked.
       // Proof: moving this check after the verify counted a verifier call on the sixth locked guess.
       const lockedUntil = store.readLoginLock(source, now);
-      if (lockedUntil !== null)
+      if (lockedUntil !== null) {
+        noteRateRefusal(now);
         return attachCors(
           json({ code: 'login_locked' }, 429, {
             'Retry-After': String(Math.max(1, Math.ceil((lockedUntil - now) / 1000))),
           }),
           origin,
         );
+      }
       const body = await readBody(request);
       const password = body && textField(body['password'], 256);
       if (!password) return attachCors(failure('invalid_credentials', 401), origin);
       // Proof: bypassing this Argon2id verifier made the wrong-password route test issue a session.
       operatorPasswordHash ??= Bun.password.hash(operatorPassword, 'argon2id');
       if (!(await verifyPassword(password, await operatorPasswordHash))) {
-        store.recordLoginFailure(source, now);
+        const recorded = store.recordLoginFailure(source, now);
+        if (recorded.accountLockOpenedAt !== null)
+          raiseAlert(
+            'operator_locked',
+            `operator_locked:${String(recorded.accountLockOpenedAt)}`,
+            `operator login locked after ${String(guardrailAllowance.accountLoginFailures)} failures in 60 minutes on ${utcDayOf(now)}`,
+          );
         return attachCors(failure('invalid_credentials', 401), origin);
       }
       store.clearSourceLoginFailures(source);
@@ -2037,6 +2190,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         );
       const pauseId = store.openInferencePause('operator', 'operator', now);
       if (pauseId === null) return attachCors(failure('already_paused', 409), origin);
+      notePause(pauseId, 'operator', now);
       return attachCors(json({ paused: true }, 201, { 'Cache-Control': 'no-store' }), origin);
     }
     if (path === '/operator/submissions' && request.method === 'GET') {
@@ -2066,7 +2220,11 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
 
   return {
     fetch,
+    settleAlerts: async () => {
+      await Promise.all(alertDeliveries);
+    },
     close: () => {
+      isClosed = true;
       store.close();
     },
   };

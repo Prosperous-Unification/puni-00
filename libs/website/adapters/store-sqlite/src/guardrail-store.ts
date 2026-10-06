@@ -439,3 +439,49 @@ export function readGuardrailOverview(
     alerts: listRecentAlerts(database, 50),
   };
 }
+
+/**
+ * Records one alert under its dedupe key before any delivery attempt, as `recorded`. A key
+ * already present writes nothing and returns `duplicate`, so blue and green raise each alert once.
+ */
+export function recordGuardrailAlert(
+  database: Database,
+  kind: string,
+  dedupeKey: string,
+  detail: string,
+  now: number,
+): { kind: 'inserted'; id: string } | { kind: 'duplicate' } {
+  const id = crypto.randomUUID();
+  const write = database
+    .query(
+      "INSERT OR IGNORE INTO guardrail_alert (id, kind, dedupe_key, detail, created_at, delivery) VALUES (?, ?, ?, ?, ?, 'recorded')",
+    )
+    .run(id, kind, dedupeKey, detail, now);
+  return write.changes === 1 ? { kind: 'inserted', id } : { kind: 'duplicate' };
+}
+
+/** Records the one webhook attempt's outcome on a recorded alert. */
+export function markAlertDelivery(
+  database: Database,
+  id: string,
+  delivery: 'sent' | 'failed',
+  now: number,
+): void {
+  const write = database
+    .query(
+      "UPDATE guardrail_alert SET delivery = ?, delivered_at = ? WHERE id = ? AND delivery = 'recorded'",
+    )
+    .run(delivery, now, id);
+  if (write.changes !== 1) throw new Error('Guardrail alert delivery was recorded twice');
+}
+
+/** Declined (`content_filter` or `provider_refusal`) conversation completions of one UTC day. */
+export function countDeclinedCompletions(database: Database, utcDay: string): number {
+  const row = database
+    .query<{ count: number }, [string]>(
+      'SELECT count(*) AS count FROM conversation_operation WHERE refusal IS NOT NULL AND utc_day = ?',
+    )
+    .get(utcDay);
+  if (!row) throw new Error('Declined completion count query returned no row');
+  return row.count;
+}

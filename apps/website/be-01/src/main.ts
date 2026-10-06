@@ -1,3 +1,4 @@
+import { describeAlertWebhook } from './guardrail-alerts';
 import { readWebsiteApiConfig } from './runtime-config';
 import { createWebsiteApi } from './server';
 
@@ -15,3 +16,4 @@ Bun.serve({
   fetch: (request, server) => api.fetch(request, server.requestIP(request)?.address),
 });
 console.info(`Website API listening on port ${String(port)}`);
+console.info(describeAlertWebhook(config.guardrailWebhookUrl));

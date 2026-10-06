@@ -22,6 +22,7 @@ function mountApi(config: WebsiteApiConfig): ReturnType<typeof createWebsiteApi>
   const api = createWebsiteApi(config);
   return {
     fetch: (request, clientAddress = '127.0.0.1') => api.fetch(request, clientAddress),
+    settleAlerts: () => api.settleAlerts(),
     close: () => {
       api.close();
     },
@@ -1485,5 +1486,271 @@ test('later turns and a retried initial attempt need no check', async () => {
   expect(later.status).toBe(200);
   await later.text();
   expect(fake.bodies).toHaveLength(3);
+  api.close();
+});
+
+interface AlertRow {
+  kind: string;
+  dedupe_key: string;
+  detail: string;
+  delivery: string;
+  delivered_at: number | null;
+}
+
+function alerts(databasePath: string): AlertRow[] {
+  const database = new Database(databasePath, { readonly: true });
+  try {
+    return database
+      .query<AlertRow, []>(
+        'SELECT kind, dedupe_key, detail, delivery, delivered_at FROM guardrail_alert ORDER BY rowid',
+      )
+      .all();
+  } finally {
+    database.close();
+  }
+}
+
+/** A fake ntfy receiver: records each webhook body and title, answering `status`. */
+function fakeWebhook(status = 200) {
+  const received: { title: string | null; body: string; contentType: string | null }[] = [];
+  const alertFetch: ProviderFetch = (input, init) => {
+    if (input !== 'https://ntfy.example.test/puni-guardrails') throw new Error(`Webhook ${input}`);
+    const headers = new Headers(init.headers);
+    received.push({
+      title: headers.get('title'),
+      body: typeof init.body === 'string' ? init.body : '',
+      contentType: headers.get('content-type'),
+    });
+    return new Response('', { status });
+  };
+  return { alertFetch, received, guardrailWebhookUrl: 'https://ntfy.example.test/puni-guardrails' };
+}
+
+/** Spends today's site day to `spentMicroUsd` without resuming any pause. */
+function spendSiteDay(databasePath: string, spentMicroUsd: number): void {
+  const store = new WebsiteStore(databasePath);
+  const account = store.createProspect('spender@example.test', Date.now());
+  store.ensureBlankRequest(account.id, Date.now());
+  const request = store.findAccountRequest(account.id);
+  const reservation = request
+    ? store.reserveProviderCall(account.id, request.id, 1, Date.now())
+    : null;
+  if (reservation?.kind !== 'reserved') throw new Error('Account reservation refused');
+  store.close();
+  const database = new Database(databasePath);
+  database
+    .query('UPDATE provider_call SET reserved_micro_usd = ?1, settled_micro_usd = ?1')
+    .run(spentMicroUsd);
+  database.close();
+}
+
+test('a pause alert with no webhook is recorded and sends nothing', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
+  let webhookCalls = 0;
+  const config = paidConfig(fake.providerFetch, {
+    alertFetch: () => {
+      webhookCalls += 1;
+      return new Response('');
+    },
+  });
+  spendSiteDay(config.databasePath, 7_999_000);
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  const paused = await sendInitial(api, visitor);
+  expect(paused.status).toBe(503);
+  expect(await paused.json()).toEqual({ code: 'provider_paused' });
+  await api.settleAlerts();
+  expect(alerts(config.databasePath)).toMatchObject([
+    { kind: 'site_spend_half', delivery: 'recorded' },
+    { kind: 'inference_paused', delivery: 'recorded', delivered_at: null },
+  ]);
+  expect(webhookCalls).toBe(0);
+  expect(fake.bodies).toHaveLength(0);
+  api.close();
+});
+
+test('a failing webhook records failed and the visitor still gets its typed answer', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
+  const webhook = fakeWebhook(500);
+  const config = paidConfig(fake.providerFetch, {
+    operatorPassword,
+    alertFetch: webhook.alertFetch,
+    guardrailWebhookUrl: webhook.guardrailWebhookUrl,
+  });
+  spendSiteDay(config.databasePath, 7_999_000);
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  const paused = await sendInitial(api, visitor);
+  // Proof: letting a webhook failure throw surfaced an unhandled rejection in this test.
+  expect(paused.status).toBe(503);
+  expect(await paused.json()).toEqual({ code: 'provider_paused' });
+  await api.settleAlerts();
+  expect(alerts(config.databasePath).map(({ kind, delivery }) => [kind, delivery])).toEqual([
+    ['site_spend_half', 'failed'],
+    ['inference_paused', 'failed'],
+  ]);
+  expect(webhook.received[1]).toMatchObject({
+    title: 'PUNI guardrail: inference_paused',
+    contentType: 'text/plain; charset=utf-8',
+  });
+  const operator = await signInOperator(api);
+  const overview = (await (
+    await api.fetch(
+      new Request('http://localhost:3101/operator/guardrails', {
+        headers: { origin: appOrigin, cookie: operator.cookie },
+      }),
+    )
+  ).json()) as { alerts: { kind: string; delivery: string }[] };
+  expect(overview.alerts.map(({ kind, delivery }) => [kind, delivery])).toEqual([
+    ['inference_paused', 'failed'],
+    ['site_spend_half', 'failed'],
+  ]);
+  api.close();
+});
+
+test('half the site ceiling raised by two processes writes one row and one webhook message', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Who will book the repairs?' }));
+  const webhook = fakeWebhook();
+  const config = paidConfig(fake.providerFetch, {
+    alertFetch: webhook.alertFetch,
+    guardrailWebhookUrl: webhook.guardrailWebhookUrl,
+  });
+  spendSiteDay(config.databasePath, 5_000_000);
+  const blue = mountApi(config);
+  const green = mountApi(config);
+  for (const [api, address] of [
+    [blue, '203.0.113.21'],
+    [green, '203.0.113.22'],
+    [blue, '203.0.113.23'],
+  ] as const) {
+    const visitor = await beginVisitor(api);
+    const reply = await sendInitial(api, visitor, address);
+    expect(reply.status).toBe(200);
+    await reply.text();
+  }
+  await blue.settleAlerts();
+  await green.settleAlerts();
+  // Proof: delivering before the insert sent a second webhook message from green here.
+  expect(alerts(config.databasePath).map(({ kind, delivery }) => [kind, delivery])).toEqual([
+    ['site_spend_half', 'sent'],
+  ]);
+  expect(webhook.received).toHaveLength(1);
+  blue.close();
+  green.close();
+});
+
+test('five provider failures in ten minutes write one alert and a sixth writes nothing', async () => {
+  const fake = fakeOpenRouter(() => ({ status: 502 }));
+  const calls = { alerts: 0 };
+  const config = paidConfig(fake.providerFetch, {
+    openStore: (path) =>
+      new Proxy(new WebsiteStore(path), {
+        get(target, property, receiver) {
+          const value: unknown = Reflect.get(target, property, receiver);
+          if (property === 'recordGuardrailAlert' && typeof value === 'function')
+            return (...parameters: unknown[]): unknown => {
+              calls.alerts += 1;
+              const answer: unknown = Reflect.apply(value, target, parameters);
+              return answer;
+            };
+          if (typeof value !== 'function') return value;
+          return (...parameters: unknown[]): unknown => {
+            const answer: unknown = Reflect.apply(value, target, parameters);
+            return answer;
+          };
+        },
+      }),
+  });
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    const failed = await sendInitial(api, visitor);
+    expect(failed.status).toBe(200);
+    expect(await failed.text()).toContain('"type":"error"');
+    expect(calls.alerts).toBe(attempt < 5 ? 0 : 1);
+  }
+  expect(alerts(config.databasePath).map(({ kind }) => kind)).toEqual(['provider_failures']);
+  api.close();
+});
+
+test('500 refused requests in an hour write exactly one rate_limited row', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  const read = () =>
+    api.fetch(
+      new Request('http://localhost:3101/conversation', {
+        headers: { origin: appOrigin, cookie: visitor.cookie },
+      }),
+      visitorAddress,
+    );
+  let admitted = 0;
+  while ((await read()).status === 200) admitted += 1;
+  expect(admitted).toBeGreaterThan(100);
+  for (let refusal = 2; refusal <= 500; refusal += 1) {
+    expect((await read()).status).toBe(429);
+    // Proof: writing a row per refusal counted a row here from the first refusal on.
+    expect(count(config.databasePath, 'SELECT count(*) AS count FROM guardrail_alert')).toBe(
+      refusal < 500 ? 0 : 1,
+    );
+  }
+  expect((await read()).status).toBe(429);
+  expect(alerts(config.databasePath).map(({ kind }) => kind)).toEqual(['rate_limited']);
+  api.close();
+});
+
+test('the account lock, the cap marks and ten declines each raise their alert', async () => {
+  let step: Step = { contentFilter: true };
+  const fake = fakeOpenRouter(() => step);
+  const config = paidConfig(fake.providerFetch, { operatorPassword });
+  const api = mountApi(config);
+  for (let index = 0; index < 20; index += 1)
+    await api.fetch(
+      new Request('http://localhost:3101/operator/session', {
+        method: 'POST',
+        headers: { origin: appOrigin, 'content-type': 'application/json' },
+        body: JSON.stringify({ password: 'wrong-password' }),
+      }),
+      `198.51.100.${String(index)}`,
+    );
+  for (let index = 0; index < 10; index += 1) {
+    const visitor = await beginVisitor(api);
+    const declined = await sendInitial(api, visitor, `192.0.2.${String(index + 1)}`);
+    await declined.text();
+  }
+  step = { reply: 'Who will book the repairs?' };
+  const seed = new Database(config.databasePath);
+  seed.run("UPDATE admission_count SET count = 999 WHERE scope = 'draft:site'");
+  seed.close();
+  await beginVisitor(api);
+  const full = new Database(config.databasePath);
+  full.run("UPDATE admission_count SET count = 1999 WHERE scope = 'draft:site'");
+  full.close();
+  const visitor = await beginVisitor(api);
+  const proposalSeed = new Database(config.databasePath);
+  proposalSeed.run(
+    "INSERT INTO admission_count (scope, key_hash, utc_day, count) VALUES ('proposal:site', '*', strftime('%Y-%m-%d', 'now'), 99)",
+  );
+  proposalSeed.close();
+  expect(
+    (
+      await api.fetch(
+        post('/proposals', visitor, {
+          email: 'owner@example.test',
+          brief: 'A calendar',
+          idempotencyKey: 'proposal-key-1',
+        }),
+        visitorAddress,
+      )
+    ).status,
+  ).toBe(201);
+  expect(alerts(config.databasePath).map(({ kind }) => kind)).toEqual([
+    'operator_locked',
+    'refusals',
+    'draft_cap_half',
+    'draft_cap_full',
+    'proposal_cap_half',
+  ]);
   api.close();
 });
