@@ -1,0 +1,36 @@
+{
+  "name": "twilight-dash",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/twilight-structure/twilight-dash/cli/src",
+  "projectType": "application",
+  "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:twilight-dash"],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test src --timeout=30000",
+        "cwd": "apps/twilight-structure/twilight-dash/cli"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint apps/twilight-structure/twilight-dash/cli/src"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
+      "options": {
+        "command": "bun build src/entrypoint.ts --target=bun --outdir=dist",
+        "cwd": "apps/twilight-structure/twilight-dash/cli"
+      }
+    }
+  }
+}

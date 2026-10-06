@@ -19,6 +19,7 @@ const EXPECTED_PRODUCT_PROJECTS = [
   // `['apps/twilight-structure/twilight-burokrat/cli', 'twilight-burokrat']` tuple, and the
   // product-axis case below on its `product:twilight-burokrat` companion (2026-09-25).
   ['apps/twilight-structure/twilight-burokrat/cli', 'twilight-burokrat'],
+  ['apps/twilight-structure/twilight-dash/cli', 'twilight-dash'],
   ['apps/wbs/be-01', 'wbs-be-01'],
   ['apps/wbs/fe-01', 'wbs-fe-01'],
   ['apps/wbs/gw-01', 'wbs-gw-01'],
@@ -51,6 +52,11 @@ const ALLOWED_INFRA_TO_PRODUCT_EDGES = [
   ['@wbs/contracts/solver/supervisor-protocol', 'wbs-solver-supervisor-protocol'],
   ['@wbs/domain', 'wbs-domain'],
 ] as const;
+
+// Proof: omitting this sole app-to-infra pair made the real graph oracle report
+// `twilight-dash -> tool-fleet`. The product-local lint permits only the exact
+// @tools/fleet-plan specifier from cli.ts; its sibling-infra negative still fails.
+const ALLOWED_DASH_TO_FLEET_EDGE = ['twilight-dash', 'tool-fleet'] as const;
 
 /** Every `from '…';` specifier under `root`, skipping comment lines that merely name one. */
 async function importSpecifiersOf(root: string): Promise<readonly string[]> {
@@ -420,6 +426,12 @@ describe('productConstraints', () => {
         const target = graph.nodes[dependency.target];
         if (
           constraint.onlyDependOnLibsWithTags.some((allowed) => target.data.tags?.includes(allowed))
+        ) {
+          continue;
+        }
+        if (
+          project.name === ALLOWED_DASH_TO_FLEET_EDGE[0] &&
+          target.name === ALLOWED_DASH_TO_FLEET_EDGE[1]
         ) {
           continue;
         }
