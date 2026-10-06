@@ -734,10 +734,23 @@ export class WebsiteStore {
       .get(tokenHash, now);
   }
 
-  createOidcLogin(stateHash: string, verifier: string, nonce: string, expiresAt: number): void {
-    this.database
-      .query('INSERT INTO oidc_login (state_hash, verifier, nonce, expires_at) VALUES (?, ?, ?, ?)')
-      .run(stateHash, verifier, nonce, expiresAt);
+  /** Records one OIDC login and, in the same transaction, deletes every login expired at `now`. */
+  createOidcLogin(
+    stateHash: string,
+    verifier: string,
+    nonce: string,
+    expiresAt: number,
+    now: number,
+  ): void {
+    this.database.transaction(() => {
+      // Proof: removing this sweep left two oidc_login rows in the eleven-minute OIDC test.
+      this.database.query('DELETE FROM oidc_login WHERE expires_at <= ?').run(now);
+      this.database
+        .query(
+          'INSERT INTO oidc_login (state_hash, verifier, nonce, expires_at) VALUES (?, ?, ?, ?)',
+        )
+        .run(stateHash, verifier, nonce, expiresAt);
+    })();
   }
 
   consumeOidcLogin(stateHash: string, now: number): { verifier: string; nonce: string } | null {

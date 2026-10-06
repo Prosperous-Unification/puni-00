@@ -70,6 +70,10 @@ export interface WebsiteApiConfig {
   oidcClientSecret?: string;
   oidcRedirectUri?: string;
   oidcFetch?: ProviderFetch;
+  /** The request clock in epoch milliseconds; tests move it. Defaults to `Date.now`. */
+  clock?: () => number;
+  /** Opens the store; tests wrap it to observe calls. Defaults to `new WebsiteStore(path)`. */
+  openStore?: (databasePath: string) => WebsiteStore;
 }
 
 interface AdmissionWindow {
@@ -77,8 +81,17 @@ interface AdmissionWindow {
   count: number;
 }
 
-/** Request windows per path: per source or claim, and a global backstop across all sources. */
-const requestRate = { windowMilliseconds: 60_000, keyPerMinute: 30, globalPerMinute: 300 };
+/**
+ * Request windows: the general window over every route but `GET /health` (per source and global)
+ * and the per-path windows (per source or claim, and a global backstop across all sources).
+ */
+const requestRate = {
+  windowMilliseconds: 60_000,
+  keyPerMinute: 30,
+  globalPerMinute: 300,
+  generalSourcePerMinute: 120,
+  generalGlobalPerMinute: 3_000,
+};
 
 const draftLifetime = 24 * 60 * 60 * 1000;
 const sessionLifetime = 8 * 60 * 60 * 1000;
@@ -224,7 +237,10 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
   if (new URL(config.appOrigin).protocol === 'https:' && config.trustedProxyHops === undefined)
     throw new Error('trustedProxyHops (TRUSTED_PROXY_HOPS) is required for an https app origin');
   const trustedProxyHops = config.trustedProxyHops ?? 0;
-  const store = new WebsiteStore(config.databasePath);
+  const store = (config.openStore ?? ((path: string) => new WebsiteStore(path)))(
+    config.databasePath,
+  );
+  const clock = config.clock ?? Date.now;
   // Proof: a random per-process salt made the two-process source test store different sources.
   const hashSource = createSourceHasher((utcDay) => store.readSourceSalt(utcDay));
   const draftCookie = config.secureCookies ? '__Host-puni_draft' : 'puni_draft';
@@ -244,38 +260,20 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
   let windowsSweptAt = 0;
 
   /**
-   * Fixed one-minute request windows per path: a global backstop of
-   * {@link requestRate.globalPerMinute} and {@link requestRate.keyPerMinute} for the hashed
-   * source and each extra key (the draft claim on `/conversation/*`). A request counts against
-   * every window only when all of them admit it, so one refused source cannot drain the global
-   * window for everyone else. Returns `source_unavailable`, never a shared fallback key, when the
-   * client address cannot be determined.
+   * Counts one request against fixed one-minute windows, each `[key, limit]`. The request counts
+   * against every window only when all of them admit it, so one refused source cannot drain a
+   * global window for everyone else. A refusal names the whole seconds until the latest refusing
+   * window ends.
    */
-  function admitRequestRate(
-    path: string,
-    request: Request,
-    clientAddress: string | undefined,
+  function admitWindows(
+    limits: [string, number][],
     now: number,
-    extraKeys: string[] = [],
-  ): 'admitted' | 'limited' | 'source_unavailable' {
-    const address = selectClientAddress(
-      request.headers.get('x-forwarded-for'),
-      clientAddress,
-      trustedProxyHops,
-    );
-    if (address === null) return 'source_unavailable';
+  ): { kind: 'admitted' } | { kind: 'limited'; retryAfterSeconds: number } {
     if (now - windowsSweptAt >= requestRate.windowMilliseconds) {
       for (const [key, window] of admission)
         if (now - window.openedAt >= requestRate.windowMilliseconds) admission.delete(key);
       windowsSweptAt = now;
     }
-    // Proof: keying only on the path made the second source's intake answer 429 in the per-source rate test.
-    // Proof: removing the global window let the 301st intake from a new source answer 201 in the backstop test.
-    const limits: [string, number][] = [
-      [`${path}|*`, requestRate.globalPerMinute],
-      [`${path}|source:${hashSource(address, now)}`, requestRate.keyPerMinute],
-      ...extraKeys.map((key): [string, number] => [`${path}|${key}`, requestRate.keyPerMinute]),
-    ];
     const windows = limits.map(([key, limit]) => {
       const current = admission.get(key);
       const window =
@@ -284,10 +282,66 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           : { openedAt: now, count: 0 };
       return { key, limit, window };
     });
-    if (windows.some(({ limit, window }) => window.count >= limit)) return 'limited';
+    const refusing = windows.filter(({ limit, window }) => window.count >= limit);
+    if (refusing.length > 0)
+      return {
+        kind: 'limited',
+        retryAfterSeconds: Math.max(
+          1,
+          ...refusing.map(({ window }) =>
+            Math.ceil((window.openedAt + requestRate.windowMilliseconds - now) / 1000),
+          ),
+        ),
+      };
     for (const { key, window } of windows)
       admission.set(key, { ...window, count: window.count + 1 });
-    return 'admitted';
+    return { kind: 'admitted' };
+  }
+
+  /** Takes back one count from windows a request was admitted to before a later window refused it. */
+  function releaseWindows(keys: string[], now: number): void {
+    for (const key of keys) {
+      const window = admission.get(key);
+      if (window && now - window.openedAt < requestRate.windowMilliseconds && window.count > 0)
+        admission.set(key, { ...window, count: window.count - 1 });
+    }
+  }
+
+  function generalWindowKeys(source: string): [string, number][] {
+    return [
+      ['*|*', requestRate.generalGlobalPerMinute],
+      [`*|source:${source}`, requestRate.generalSourcePerMinute],
+    ];
+  }
+
+  /**
+   * The per-path windows: a global backstop of {@link requestRate.globalPerMinute} and
+   * {@link requestRate.keyPerMinute} for the hashed source and each extra key (the draft claim on
+   * `/conversation/*`). A refusal here also releases this request's general-window count, so a
+   * refused request counts against no window.
+   */
+  function admitRequestRate(
+    path: string,
+    source: string,
+    now: number,
+    extraKeys: string[] = [],
+  ): { kind: 'admitted' } | { kind: 'limited'; retryAfterSeconds: number } {
+    // Proof: keying only on the path made the second source's intake answer 429 in the per-source rate test.
+    // Proof: removing the global window let the 301st intake from a new source answer 201 in the backstop test.
+    const outcome = admitWindows(
+      [
+        [`${path}|*`, requestRate.globalPerMinute],
+        [`${path}|source:${source}`, requestRate.keyPerMinute],
+        ...extraKeys.map((key): [string, number] => [`${path}|${key}`, requestRate.keyPerMinute]),
+      ],
+      now,
+    );
+    if (outcome.kind === 'limited')
+      releaseWindows(
+        generalWindowKeys(source).map(([key]) => key),
+        now,
+      );
+    return outcome;
   }
 
   /** The salted source hash of a request, or null when its client address is undeterminable. */
@@ -304,10 +358,12 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     return address === null ? null : hashSource(address, now);
   }
 
-  function rateRefusal(outcome: 'limited' | 'source_unavailable'): Response {
-    return outcome === 'limited'
-      ? failure('rate_limited', 429)
-      : failure('source_unavailable', 400);
+  /** 429 `rate_limited` with `Retry-After` in whole seconds. */
+  function rateRefusal(outcome: { retryAfterSeconds: number }): Response {
+    return json({ code: 'rate_limited' }, 429, {
+      // Proof: deleting this header failed the Retry-After assertion in the windowless-route test.
+      'Retry-After': String(outcome.retryAfterSeconds),
+    });
   }
 
   function attachCors(response: Response, origin: string | null): Response {
@@ -856,9 +912,17 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     const url = new URL(request.url);
     const path = url.pathname;
     const origin = request.headers.get('origin');
-    const now = Date.now();
+    const now = clock();
     if (path === '/health' && request.method === 'GET')
       return json({ ok: true, service: 'puni-website-api' });
+    const withCors = (response: Response) =>
+      origin === config.publicOrigin ? attachSiteCors(response) : attachCors(response, origin);
+    const source = requestSource(request, clientAddress, now);
+    if (source === null) return withCors(failure('source_unavailable', 400));
+    // The general window runs before any store read; the day salt behind `source` is cached.
+    // Proof: keying the general window on the path admitted the 121st request in the windowless-route test.
+    const general = admitWindows(generalWindowKeys(source), now);
+    if (general.kind !== 'admitted') return withCors(rateRefusal(general));
     if (path === '/entry' && request.method === 'GET') {
       // Proof: the foreign-origin entry test fails if this exact-origin guard is removed.
       if (origin !== config.publicOrigin && origin !== config.appOrigin)
@@ -892,6 +956,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     }
     if (path === '/session/oidc/start' && request.method === 'GET') {
       if (origin && origin !== config.appOrigin) return failure('origin_forbidden', 403);
+      const rate = admitRequestRate('/session/oidc/start', source, now);
+      if (rate.kind !== 'admitted') return rateRefusal(rate);
       if (!oidcReady()) return failure('oidc_unconfigured', 503);
       const redirectUri = config.oidcRedirectUri;
       if (!redirectUri) throw new Error('OIDC redirect missing after admission');
@@ -915,7 +981,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const nonce = secret();
       const verifier = randomBytes(32).toString('base64url');
       const challenge = createHash('sha256').update(verifier).digest('base64url');
-      store.createOidcLogin(digest(state), verifier, nonce, now + 10 * 60_000);
+      store.createOidcLogin(digest(state), verifier, nonce, now + 10 * 60_000, now);
       const target = new URL(metadata.authorizationEndpoint);
       target.searchParams.set('response_type', 'code');
       target.searchParams.set('client_id', config.oidcClientId ?? '');
@@ -938,6 +1004,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       (path === '/session/oidc/callback' || path === '/api/session/oidc/callback') &&
       request.method === 'GET'
     ) {
+      const rate = admitRequestRate('/session/oidc/callback', source, now);
+      if (rate.kind !== 'admitted') return rateRefusal(rate);
       if (!oidcReady()) return failure('oidc_unconfigured', 503);
       const state = url.searchParams.get('state');
       const code = url.searchParams.get('code');
@@ -1013,15 +1081,13 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     if (path === '/intakes' && request.method === 'POST') {
       // Proof: replacing this Origin guard with false made the forged-origin intake test fail.
       if (origin !== config.publicOrigin) return failure('origin_forbidden', 403);
-      const rate = admitRequestRate('/intakes', request, clientAddress, now);
-      if (rate !== 'admitted') return rateRefusal(rate);
+      const rate = admitRequestRate('/intakes', source, now);
+      if (rate.kind !== 'admitted') return rateRefusal(rate);
       const body = await readBody(request);
       const description = body && textField(body['description'], 2000);
       if (!description) return failure('invalid_description', 400);
       const priorClaim = draftClaim(request);
       const claim = secret();
-      const source = requestSource(request, clientAddress, now);
-      if (source === null) return failure('source_unavailable', 400);
       const created = store.createDraft(
         crypto.randomUUID(),
         description,
@@ -1132,16 +1198,10 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       // Proof: removing this CSRF check made the missing-CSRF conversation stream test answer 200.
       if (!validDraftCsrf(request, claim))
         return attachCors(failure('csrf_forbidden', 403), origin);
-      const rate = admitRequestRate('/conversation/stream', request, clientAddress, now, [
+      const rate = admitRequestRate('/conversation/stream', source, now, [
         `claim:${digest(claim)}`,
       ]);
-      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
-      const address = selectClientAddress(
-        request.headers.get('x-forwarded-for'),
-        clientAddress,
-        trustedProxyHops,
-      );
-      if (address === null) return attachCors(failure('source_unavailable', 400), origin);
+      if (rate.kind !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const suppliedKey = body?.['idempotencyKey'];
       if (typeof suppliedKey !== 'string' || !/^[A-Za-z0-9:_-]{8,120}$/.test(suppliedKey))
@@ -1173,7 +1233,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
             : { kind: 'closed' };
       const admitted = store.admitConversationOperation({
         claimHash: digest(claim),
-        sourceHash: hashSource(address, now),
+        sourceHash: source,
         idempotencyKey,
         bodyHash: digest(`${initial ? 'initial' : 'message'}:${message}`),
         message,
@@ -1296,8 +1356,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           : !claim || !validDraftCsrf(request, claim)
       )
         return attachCors(failure('csrf_forbidden', 403), origin);
-      const rate = admitRequestRate('/brief', request, clientAddress, now);
-      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
+      const rate = admitRequestRate('/brief', source, now);
+      if (rate.kind !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const brief = body && textField(body['brief'], 8000);
       if (!brief) return attachCors(failure('invalid_brief', 400), origin);
@@ -1320,8 +1380,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const replayCsrf = priorClaim !== null && validDraftCsrf(request, priorClaim);
       if (session ? !validSessionCsrf(request, session.csrfHash) : !currentCsrf && !replayCsrf)
         return attachCors(failure('csrf_forbidden', 403), origin);
-      const rate = admitRequestRate('/proposals', request, clientAddress, now);
-      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
+      const rate = admitRequestRate('/proposals', source, now);
+      if (rate.kind !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const email = body && emailField(body['email']);
       const brief = body && textField(body['brief'], 8000);
@@ -1335,8 +1395,6 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         : { kind: 'unavailable' as const };
       if (!session && priorReplay.kind !== 'unavailable' && !replayCsrf)
         return attachCors(failure('csrf_forbidden', 403), origin);
-      const source = requestSource(request, clientAddress, now);
-      if (source === null) return attachCors(failure('source_unavailable', 400), origin);
       const outcome = session
         ? store.submitAccount(
             session.id,
@@ -1402,8 +1460,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     if (path === '/session/demo' && request.method === 'POST') {
       if (!config.demoAuth || !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
         return attachCors(failure('demo_auth_unavailable', 503), origin);
-      const rate = admitRequestRate('/session/demo', request, clientAddress, now);
-      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
+      const rate = admitRequestRate('/session/demo', source, now);
+      if (rate.kind !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const email = body && emailField(body['email']);
       if (!email) return attachCors(failure('invalid_email', 400), origin);
@@ -1472,8 +1530,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       // Proof: the missing-CSRF stream test fails if this check is removed before reservation.
       if (!validSessionCsrf(request, session.csrfHash))
         return attachCors(failure('csrf_forbidden', 403), origin);
-      const rate = admitRequestRate('/chat/stream', request, clientAddress, now);
-      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
+      const rate = admitRequestRate('/chat/stream', source, now);
+      if (rate.kind !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const initial = body?.['initial'] === true;
       const suppliedKey = body?.['idempotencyKey'];
@@ -1606,8 +1664,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       // Proof: removing this check makes the missing-CSRF session test persist a forged chat turn.
       if (!validSessionCsrf(request, session.csrfHash))
         return attachCors(failure('csrf_forbidden', 403), origin);
-      const rate = admitRequestRate('/chat', request, clientAddress, now);
-      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
+      const rate = admitRequestRate('/chat', source, now);
+      if (rate.kind !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const message = body && textField(body['message'], 4000);
       if (!message) return attachCors(failure('invalid_message', 400), origin);
@@ -1806,8 +1864,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     if (path === '/operator/session' && request.method === 'POST') {
       const operatorPassword = config.operatorPassword;
       if (!operatorPassword) return attachCors(failure('operator_unconfigured', 503), origin);
-      const rate = admitRequestRate('/operator/session', request, clientAddress, now);
-      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
+      const rate = admitRequestRate('/operator/session', source, now);
+      if (rate.kind !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const password = body && textField(body['password'], 256);
       if (!password) return attachCors(failure('invalid_credentials', 401), origin);

@@ -53,7 +53,10 @@ async function beginConversation(api: ReturnType<typeof createWebsiteApi>) {
   if (!cookie) throw new Error('Intake set no claim cookie');
   const view = (await (
     await api.fetch(
-      new Request('http://localhost:3101/conversation', { headers: { origin: appOrigin, cookie } }),
+      new Request('http://localhost:3101/conversation', {
+        headers: { origin: appOrigin, cookie, 'x-forwarded-for': '198.51.100.200' },
+      }),
+      '127.0.0.1',
     )
   ).json()) as { csrfToken: string; initialOperation: { idempotencyKey: string } };
   return { cookie, csrf: view.csrfToken, key: view.initialOperation.idempotencyKey };

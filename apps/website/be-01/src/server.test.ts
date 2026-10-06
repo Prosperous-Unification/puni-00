@@ -2461,3 +2461,179 @@ test('POST /draft/discard refuses a foreign origin, missing CSRF and a foreign c
   expect(draft.status).toBe(200);
   api.close();
 });
+
+/** A store whose method calls are counted, to prove a refused request never reaches it. */
+function countingStore(calls: { count: number }) {
+  return (path: string) =>
+    new Proxy(new WebsiteStore(path), {
+      get(target, property, receiver) {
+        const value: unknown = Reflect.get(target, property, receiver);
+        if (typeof value !== 'function') return value;
+        return (...parameters: unknown[]): unknown => {
+          calls.count += 1;
+          const answer: unknown = Reflect.apply(value, target, parameters);
+          return answer;
+        };
+      },
+    });
+}
+
+function fromSource(
+  url: string,
+  method: string,
+  origin: string,
+  address: string,
+  cookie?: string,
+): Request {
+  return new Request(`http://localhost:3101${url}`, {
+    method,
+    headers: { origin, 'x-forwarded-for': address, ...(cookie ? { cookie } : {}) },
+  });
+}
+
+test('the general window bounds a windowless route per source before any store call', async () => {
+  const { config } = fixture();
+  const calls = { count: 0 };
+  let now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const api = mountApi({
+    ...config,
+    trustedProxyHops: 1,
+    clock: () => now,
+    openStore: countingStore(calls),
+  });
+  const intake = await api.fetch(
+    new Request('http://localhost:3101/intakes', {
+      method: 'POST',
+      headers: {
+        origin: config.publicOrigin,
+        'content-type': 'application/json',
+        'x-forwarded-for': '203.0.113.9',
+      },
+      body: JSON.stringify({ description: 'A booking tool' }),
+    }),
+  );
+  expect(intake.status).toBe(201);
+  const cookie = intake.headers.get('set-cookie')?.split(';')[0];
+  expect(
+    (await api.fetch(fromSource('/conversation', 'OPTIONS', config.appOrigin, '203.0.113.9')))
+      .status,
+  ).toBe(204);
+  expect(
+    (await api.fetch(fromSource('/entry', 'GET', config.appOrigin, '203.0.113.9', cookie))).status,
+  ).toBe(200);
+  for (let index = 0; index < 117; index += 1)
+    expect(
+      (await api.fetch(fromSource('/conversation', 'GET', config.appOrigin, '203.0.113.9', cookie)))
+        .status,
+    ).toBe(200);
+  now += 15_000;
+  const before = calls.count;
+  const limited = await api.fetch(
+    fromSource('/conversation', 'GET', config.appOrigin, '203.0.113.9', cookie),
+  );
+  expect(limited.status).toBe(429);
+  expect(await limited.json()).toEqual({ code: 'rate_limited' });
+  // Proof: deleting the Retry-After header from rateRefusal failed this assertion.
+  expect(limited.headers.get('retry-after')).toBe('45');
+  expect(calls.count).toBe(before);
+  // Proof: keying the general window on the path admitted the 121st request above.
+  expect(
+    (await api.fetch(fromSource('/conversation', 'GET', config.appOrigin, '198.51.100.7', cookie)))
+      .status,
+  ).toBe(200);
+  now += 45_000;
+  expect(
+    (await api.fetch(fromSource('/conversation', 'GET', config.appOrigin, '203.0.113.9', cookie)))
+      .status,
+  ).toBe(200);
+  api.close();
+});
+
+test('the global general window refuses a new source once full and exempts health', async () => {
+  const { config } = fixture();
+  let now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const api = mountApi({ ...config, trustedProxyHops: 1, clock: () => now });
+  const address = (index: number) =>
+    `10.${String(Math.floor(index / 62_500))}.${String(Math.floor(index / 250) % 250)}.${String(index % 250)}`;
+  for (let index = 0; index < 2_999; index += 1)
+    expect(
+      (await api.fetch(fromSource('/entry', 'GET', config.publicOrigin, address(index)))).status,
+    ).toBe(200);
+  for (let index = 0; index < 5; index += 1) {
+    const health = await api.fetch(new Request('http://localhost:3101/health'));
+    expect(health.status).toBe(200);
+  }
+  expect(
+    (await api.fetch(fromSource('/entry', 'GET', config.publicOrigin, address(2_999)))).status,
+  ).toBe(200);
+  const refused = await api.fetch(fromSource('/entry', 'GET', config.publicOrigin, '192.0.2.1'));
+  expect(refused.status).toBe(429);
+  expect(refused.headers.get('retry-after')).toBe('60');
+  now += 60_000;
+  expect(
+    (await api.fetch(fromSource('/entry', 'GET', config.publicOrigin, address(0)))).status,
+  ).toBe(200);
+  api.close();
+});
+
+function oidcConfig(config: WebsiteApiConfig): Partial<WebsiteApiConfig> {
+  const issuer = 'https://identity.example.test';
+  return {
+    oidcIssuer: issuer,
+    oidcClientId: 'puni-website',
+    oidcRedirectUri: 'http://localhost:3101/session/oidc/callback',
+    oidcFetch: (input) => {
+      if (input.endsWith('/.well-known/openid-configuration'))
+        return Response.json({
+          issuer,
+          authorization_endpoint: `${issuer}/authorize`,
+          token_endpoint: `${issuer}/token`,
+          jwks_uri: `${issuer}/keys`,
+        });
+      throw new Error(`Unexpected OIDC call for ${config.appOrigin}`);
+    },
+  };
+}
+
+function countRows(databasePath: string, table: string): number {
+  const database = new Database(databasePath, { readonly: true });
+  try {
+    return (
+      database.query<{ count: number }, []>(`SELECT count(*) AS count FROM ${table}`).get()
+        ?.count ?? -1
+    );
+  } finally {
+    database.close();
+  }
+}
+
+test('the OIDC start window refuses the 31st start without a login row', async () => {
+  const { config } = fixture();
+  const now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const api = mountApi({ ...config, ...oidcConfig(config), clock: () => now });
+  for (let index = 0; index < 30; index += 1)
+    expect((await api.fetch(request('/session/oidc/start', 'GET', config.appOrigin))).status).toBe(
+      302,
+    );
+  const limited = await api.fetch(request('/session/oidc/start', 'GET', config.appOrigin));
+  expect(limited.status).toBe(429);
+  expect(limited.headers.get('retry-after')).toBe('60');
+  expect(countRows(config.databasePath, 'oidc_login')).toBe(30);
+  api.close();
+});
+
+test('an admitted OIDC start sweeps logins expired eleven minutes later', async () => {
+  const { config } = fixture();
+  let now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const api = mountApi({ ...config, ...oidcConfig(config), clock: () => now });
+  expect((await api.fetch(request('/session/oidc/start', 'GET', config.appOrigin))).status).toBe(
+    302,
+  );
+  now += 11 * 60_000;
+  expect((await api.fetch(request('/session/oidc/start', 'GET', config.appOrigin))).status).toBe(
+    302,
+  );
+  // Proof: removing the sweep from createOidcLogin left two rows here.
+  expect(countRows(config.databasePath, 'oidc_login')).toBe(1);
+  api.close();
+});

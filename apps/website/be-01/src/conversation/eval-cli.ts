@@ -360,7 +360,9 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
       if (intake.status !== 201 || !cookie)
         throw new Error(`Script ${script.name}: intake answered ${String(intake.status)}`);
       const view: unknown = await (
-        await fetch(`${base}/conversation`, { headers: { origin: config.appOrigin, cookie } })
+        await fetch(`${base}/conversation`, {
+          headers: { origin: config.appOrigin, cookie, 'x-forwarded-for': visitor },
+        })
       ).json();
       const initialOperation = isRecord(view) ? view['initialOperation'] : undefined;
       if (
@@ -403,7 +405,9 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
       }
       results.push({ script: script.name, assertion: 'confirmedReplies', passed: confirmed });
       const stored: unknown = await (
-        await fetch(`${base}/conversation`, { headers: { origin: config.appOrigin, cookie } })
+        await fetch(`${base}/conversation`, {
+          headers: { origin: config.appOrigin, cookie, 'x-forwarded-for': visitor },
+        })
       ).json();
       results.push({
         script: script.name,
