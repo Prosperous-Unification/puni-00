@@ -1,7 +1,7 @@
 # Tasks 1.1–1.2 — projection and mounted view
 
-Tasks 1.1 and 1.2 are implemented. Project-page integration, browser proofs,
-full gate and integration remain pending. No API or wire contract changed.
+At the original tasks 1.1–1.2 checkpoint, those tasks were implemented while
+project-page integration, browser proofs, full gate and integration remained pending. No API or wire contract changed.
 The delivered workItems order and each delivered PlanRead.steps array order are
 preserved. Card identity uses formatStepNodeId, independently of labels.
 
@@ -168,7 +168,7 @@ Planning validation for this amendment:
 No product tests were rerun for this planning-only commit. Implementation proofs
 and the live/browser/full-gate obligations above remain pending.
 
-## Task 2.1 local implementation checkpoint — independent review pending
+## Task 2.1 local implementation checkpoint — historical pre-review record
 
 The selected `ProjectRuntime` now owns one Plan/Board choice and one Plan
 interaction scope. Plan is initial, its table remains mounted while hidden and
@@ -256,7 +256,7 @@ Independent Astra review cleared the task 2.1 implementation and the pointer-can
 follow-up on 2026-10-06. Task 2.1 is now checked; 2.2 browser acceptance,
 3.1 final review and 3.2 exact-head gate remain pending.
 
-### Task 2.2 authenticated Chromium acceptance — review pending
+### Task 2.2 authenticated Chromium acceptance — historical review checkpoint
 
 `bun run tools/dev/setup.ts` exited 0 (`/tmp/board22-setup.log`). With the
 coordinator's reserved `E2E_PORT_SHIFT=1900`, Bun bind probes found be/gw/fe
@@ -361,4 +361,89 @@ affected `wbs-fe-01:lint` Nx target passed without cache
 (`/tmp/board22-review-{e2e-typecheck,format,openspec}.log`). Product code did
 not change during task 2.2. The earlier 231/231 mounted, 8/8 node, FE
 typecheck/build and two watched browser faults remain applicable; an
-independent follow-up review is pending before any commit.
+at that historical checkpoint an independent follow-up review was pending before any commit.
+The amended browser slice was subsequently committed as
+`fa39a39e944575cfeb2179c5c90a2e3818d8d6a9`. Astra reviewed the runtime source at
+that exact SHA without a defect or architecture mismatch; this is source review,
+not a new acceptance-run claim. Final task 3.1 review remains separate below.
+
+## Task 3.1 consolidated local acceptance — exact review pending
+
+Starting worktree `.worktrees/board-page-view`, branch `feat/board-page-view`,
+clean exact HEAD `fa39a39e944575cfeb2179c5c90a2e3818d8d6a9`. This slice changes
+only this evidence ledger. The complete board/draft-suspension diff, callers,
+projection, per-runtime scope, field sync/leave/restoration and issued-command
+paths, hidden keyboard/portal guards and browser completion witnesses were reviewed
+against the accepted spec/design. Ordinary Plan blur, estimate drafts and native
+traversal through intervening controls retain their existing behavior. No safety
+behavior changed, so existing individual watched mutations were inspected rather
+than reinjected. Astra separately reviewed the runtime at the starting exact SHA
+with no defect or architecture mismatch; final evidence-commit review is pending.
+
+All commands below were fresh on the starting exact runtime bytes. Vitest commands
+ran from `apps/wbs/fe-01`; browser and Nx commands ran from the worktree root.
+
+| Command                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Fresh terminal evidence                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `TZ=UTC bunx vitest run --config vitest.node.config.ts src/components/board/step-board.test.ts src/test-tiers.test.ts`                                                                                                                                                                                                                                                                                                                                        | Exit 0, two files, 14/14 tests (`/tmp/board31-node-final.log`)                                                              |
+| `TZ=UTC bunx vitest run --config vitest.node.config.ts src/components/wbs/estimate-draft.test.ts`                                                                                                                                                                                                                                                                                                                                                             | Exit 0, 26/26 tests (`/tmp/board31-estimate-final.log`)                                                                     |
+| `TZ=UTC bunx vitest run --config vitest.node.config.ts src/runtime/project-runtime.model.test.ts`                                                                                                                                                                                                                                                                                                                                                             | Exit 0, 1/1 property test (`/tmp/board31-runtime-model-final.log`)                                                          |
+| `TZ=UTC bunx vitest run src/components/wbs/project-page.test.tsx src/components/wbs/live-editing.test.tsx src/components/wbs/project-replacement.test.tsx src/components/wbs/plan-read-and-write.test.tsx src/components/wbs/plan-cells.test.tsx src/components/wbs/plan-keyboard.test.tsx src/components/board/step-board-view.test.tsx src/app-router.test.tsx --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 --reporter=dot` | Exit 0, all eight files, 473/473 tests in 214.42 seconds (`/tmp/board31-mounted-final.log`)                                 |
+| `CI=1 E2E_PORT_SHIFT=2400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts step-board.spec.ts --project=chromium`                                                                                                                                                                                                                                                                                                                            | Exit 0, 6/6 Chromium cases, 1.1 minutes (`/tmp/board31-browser-final.log`)                                                  |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/nx-board31 bunx nx run-many -t lint,typecheck,build -p wbs-fe-01 --skip-nx-cache --outputStyle=static`                                                                                                                                                                                                                                                                                           | Exit 0; FE lint/typecheck/build and module dependency explicitly executed, cache skipped (`/tmp/board31-targets-final.log`) |
+| `bunx tsc --noEmit -p apps/wbs/fe-01/tsconfig.e2e.json`                                                                                                                                                                                                                                                                                                                                                                                                       | Exit 0 (`/tmp/board31-e2e-typecheck-final.log`)                                                                             |
+
+The coordinator knew no competing reservation for shift 2400. Before harness
+startup, actual Bun bind probes reported ports 5500, 5600 and 6600 free
+(`/tmp/board31-port-probes.log`). Playwright created its own authenticated
+disposable projects and database. Dev setup reported existing local env files
+left intact (`/tmp/board31-setup.log`); no credential contents were logged.
+The mounted run emitted existing React `act` warnings, Vitest emitted its existing
+native-config warning, and the intentional browser socket outage emitted Vite
+proxy EPIPE warnings. All named commands above reached passing terminal summaries.
+
+Astra's complete hard-negative checklist maps to these real production paths:
+
+| Contract / hard negative                                                                 | Fresh assertion coverage and retained watched fault                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Delivered order, leaves × steps, identity and valid progress                             | Pure projection/tier suite; original seven projection faults. Its raw transcript remains in `.worktrees/board-projection/.superpowers/sdd/tasks/task-1-mutations.log` and was inspected.                                                                                                                                               |
+| Tree-owned steps; malformed progress reaches Error Boundary                              | Mounted Board cases plus inspected `hybrid-steps-mutation.log` and `invalid-progress-mutation.log` under `/tmp/board-mounted-view-r5/`.                                                                                                                                                                                                |
+| Distinct first loading/failure/empty/no-steps; stale cards, disconnection and Retry      | Mounted Board and Chromium failure/outage cases; all eleven mounted-view mutation logs and two browser faults were inspected, retaining their exact earlier failure claims.                                                                                                                                                            |
+| No Board status/PlanCommands/undo/redo/help/drag writes; hidden portals inactive         | Mounted project-page, keyboard and Chromium watched-request interval; retained hidden-key and real `setStatus` route faults. No frontend `setProgress` route is invented.                                                                                                                                                              |
+| Dirty pointer/direct selector focus suppresses flush, including focus without activation | Real mounted focus/blur and Chromium pointer/direct-focus cases; retained selector-focus and leave-guard faults.                                                                                                                                                                                                                       |
+| Peer delivery preserves typed text and original baseline through unfocused return        | Mounted same-field peer updates before and after return, direct `LiveField` submission asserting literal `['Draft', 'Original']`, Chromium same-field and later bystander delivery; retained sync/return-release faults.                                                                                                               |
+| Surviving step/responsive face remount restores draft                                    | Mounted step/remount and responsive cases plus Chromium 390px change; retained restoration fault.                                                                                                                                                                                                                                      |
+| Row and step deletion discard holds                                                      | Mounted authoritative row deletion/restore and field step-prune tests; retained separate row/step pruning faults.                                                                                                                                                                                                                      |
+| Runtime withdrawal isolates drafts and late old answers                                  | Mounted withdrawal/replacement/router and Chromium `route.fulfill` completion witness; retained shared-scope/runtime fault and fresh runtime property suite. The mounted isolated-store old-project test alone does not break the lower current-runtime guard; `/tmp/board21-fault-current-owner.log` is its precise watched evidence. |
+| Already issued acknowledgment/refusal stays distinct from unsent hold                    | Mounted page/field acknowledgment/refusal and issued-exclusion cases; retained issued-command guard fault.                                                                                                                                                                                                                             |
+| Pointer cancellation followed by more typing                                             | Mounted and Chromium newest-draft case; retained pointercancel resume mutation.                                                                                                                                                                                                                                                        |
+| Native keyboard selection and ordinary Plan blur                                         | Chromium clean-selector Tab/Shift+Tab/Enter/Space and mounted keyboard/cell regressions. Direct dirty selector focus is programmatic; native traversal through intervening Plan controls remains ordinary commit-on-blur, not a dirty handoff claim.                                                                                   |
+| Desktop/390 text/geometry and full large fixture                                         | All six Chromium cases; exact geometry and 2500-card count below.                                                                                                                                                                                                                                                                      |
+
+Mandatory historical projection, mounted, draft-suspension, pointercancel and
+browser mutation logs were present and inspected; no fault remains in source.
+Restored paths passed the fresh suites above. Their original commands, failures
+and caveats remain in the earlier tables rather than being relabeled as new REDs.
+
+Five fresh browser artifacts were copied before any subsequent harness run could
+clear them: `/tmp/board31-artifacts/step-board-{desktop.png,390.png,geometry.json,500x5.png,500x5.json}`.
+Desktop column left edges are 16, 477.328125 and 938.65625; mobile column top
+edges are 181, 319 and 421. Every recorded card has equal scroll/client widths,
+and every column right edge lies within its viewport. The raw large-fixture
+measurement records clean starting SHA `fa39a39e944575cfeb2179c5c90a2e3818d8d6a9`,
+Chromium 153.0.8010.12, Linux/x64, 1400×900, 500 leaves × five steps = 2500 cards,
+10143 ms setup and 889.876801 ms click-through-render/two-frame paint. This is one
+local observation, not an SLA.
+
+Final scoped `bunx prettier --check` passed 23 paths: the paths changed since
+`f49cef02a` plus the projection source/test, node-tier registration and ADR 0035
+(`/tmp/board31-format-final.log`). Pinned `bunx @fission-ai/openspec@1.12.0 validate read-only-step-board --strict --json`
+passed 1/1, and `validate --all --json` passed 148/148
+(`/tmp/board31-openspec-{strict,all}-final.json`). `git diff --check` exited 0.
+Only this ledger differs from the starting SHA; implementation and other worktrees
+remain untouched.
+
+Task 3.1 stays unchecked until Astra reviews the exact final evidence SHA.
+Task 3.2 exact-SHA canonical h2puni gate, exact-head CI and coordinator integration
+remain open. WBS acceptance was not changed. No push, gate, PR, merge, richer
+step status or Backlog cutover is claimed.
