@@ -2127,3 +2127,38 @@ Planning validation: pinned strict OpenSpec exited 0 (1/1),
 `/tmp/shared-people-6jc-plan-all.json`. Four-file Prettier and `git diff --check` passed.
 Final-byte checks are repeated before the local commit. These results do not constitute
 independent architecture clearance or implementation verification.
+
+### 6j.c populated-project deletion contract amendment
+
+Astra's schema/caller review found that the previous raw-primitive preservation statement
+assumed a root deletion could finish a populated project. A fresh database migrated from this
+worktree disproved it: `beginOptimizationDrain` returned zero, while direct finish raised
+`FOREIGN KEY constraint failed` and retained the project with its delete marker and work item.
+The probe inspected actual `PRAGMA foreign_key_list` output, including the five restrictive
+project references and restrictive estimate/step references; its script and output are
+`/tmp/6jc-astra-fk-audit.ts` and `/tmp/6jc-astra-fk-audit.log`. Run from this worktree with
+`bun /tmp/6jc-astra-fk-audit.ts`; the temporary migrated database is removed afterwards.
+This is an observed defect, not an implementation GREEN.
+
+The normative amendment chooses explicit project-owned cleanup in the sole borrowed raw
+finalizer, preserving marker/zero-slot fences and contract-only retirement. It specifies
+schema-owned ordering, shared/bystander/audit/replay retention, cross-project corruption
+refusal, populated closure, omitted cleanup-family and ownership-predicate faults, partial
+cleanup/after-capture/later-event rollback, and the dependency on 6j.d/e encompassing owners.
+Refusing ordinary populated deletion would strand hidden projects; blanket cascades would
+weaken the existing protection of narrower estimate/step edits. The existing Project glossary
+entry now distinguishes its own work items/steps from shared organization directory entities;
+no new glossary term, retention policy, migration, route or task completion is introduced.
+
+This amendment changes documentation only. Its populated runtime proof matrix and all
+existing seven installed lifecycle groups remain implementation obligations; Sol's separate
+RED fixtures are not counted as passing evidence here. No host gate, CI, publication,
+activation or deployment is performed by this planning change.
+
+Planning validation for this amendment: `bunx @fission-ai/openspec@1.12.0 validate
+share-people-across-projects --strict --json` exited 0 (1/1), recorded in
+`/tmp/shared-people-6jc-cleanup-strict.json`; the same pinned `validate --all --json`
+exited 0 (148/148), recorded in `/tmp/shared-people-6jc-cleanup-all.json`.
+`bunx prettier --check` on `CONTEXT.md` and the four changed OpenSpec files passed
+(`/tmp/shared-people-6jc-cleanup-prettier.log`); `git diff --check` passed. These checks
+are repeated on final bytes before committing and do not establish runtime completion.

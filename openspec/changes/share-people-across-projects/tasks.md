@@ -317,12 +317,26 @@ compares both directions`, `directory edit has causes without project-row edits`
       and valid isolated silence. Repeat the resolver boundary for implicit global-reclaim victims.
       Install separate BeServices.optimizationLifecycle beginDrain/finishDrain from the same
       source connection, bound UoW and committed delivery even without optimizer runtime; no new
-      route or unused repository admin methods. Preserve raw synchronous primitives and their
-      outcomes. Complete the packet's seven direct-lifecycle proof groups: installed pending
+      route or unused repository admin methods. Preserve raw synchronous ownership/fences and
+      outcomes; repair populated project cleanup only in the shared raw finalizer's project arm.
+      Before production edits, run installed populated-finish REDs against migrated FKs: nested
+      work items, estimates, typed step endpoints, access, history/snapshots and placement, with
+      shared-directory and populated-bystander sentinels. Implement explicit ordered owned-row
+      cleanup under marker/zero-slot gates; no migration, FK disabling or dependency-refusal state.
+      Prove complete closure, clean foreign_key_check, retained shared/audit/replay state, waiting
+      contents and contract-only retirement. Watch omission of each new cleanup family and
+      broadening of each destructive ownership predicate fail independently. Add incoming and
+      outgoing cross-project corruption REDs before each required guard; fail before cleanup,
+      or prove schema exclusion for impossible shapes. Inject failure after partial cleanup,
+      separately after-capture failure and a later real event insert; assert complete rollback.
+      Complete the packet's populated-deletion matrix and seven direct-lifecycle groups: installed pending
       bridge/final old cause; selected/equal-display/nonselected retirement; full multi-event
       rollback; modeled no-ops; ownership/installation negatives; writer release/notifications;
       and durable event identity after rejected delivery. Watch each listed binding/cause/guard/
       transaction/delivery fault independently and retain all 6j.b serialization regressions.
+      Document the raw finalizer's explicit cleanup contract in JSDoc; record migrated-FK
+      inventory, populated coverage and exact restored R5 logs in verify.md. This direct checkpoint
+      does not authorize publication/activation of deletion before the 6j.d/e owners are bound.
 - [ ] 6j.d. **All release and implicit global-reclaim callers.** Bind and await normal exit, cancellation after terminal
       evidence, queued cleanup and initial/Retry preflight. Prove exact token and all prior fences,
       last-slot deletion atomicity, failure recovery and no early pump/completion. Independently
@@ -332,6 +346,9 @@ compares both directions`, `directory edit has causes without project-row edits`
       non-reserved commits, queue-loop/admitted-time cutoffs and reservation/queue/recovery-audit
       atomicity. Prove requester X with victims Y/Z, successful and closed/capacity-blocked outcomes,
       later queue cutoff, future deadline, full event-failure rollback and repeated silence.
+      Use populated victims and the same 6j.c raw cleanup under each actual enclosing owner;
+      verify child contents/cascades roll back with slot, reservation, queue, audit and fan-out.
+      Never preclean separately or recursively invoke the public lifecycle capability.
       Independently omit all three owners, restrict victim capture to requester/head/initial time,
       discard non-reserved delivery and move recording outside commit; watch each fail.
       For initial/dequeue/Retry reservations, hold then reject transport and prove the coordinator
@@ -342,7 +359,10 @@ compares both directions`, `directory edit has causes without project-row edits`
       generation-before-project ordering; acquire and recheck before capture. Prove persisted
       deadlines, later-sweep rollback with earlier commit retained, retry idempotence, awaited
       shutdown and both installed triggers. Independently omit each trigger, deadline/order and
-      tracking guard and watch the named negatives fail.
+      tracking guard and watch the named negatives fail. Include populated victims: shared raw
+      cleanup belongs to each sweep owner, and a later failed sweep restores its full contents
+      while earlier committed deletions/events remain. Close this and 6j.d before integration
+      claims or publication/activation of populated deletion through the new capability.
 - [ ] 6j.f. **Boundary regression closure.** Reconcile the full packet proof matrix and run
       affected import/drain/coordinator/child/command suites plus 6a–f release negatives. Physical
       capability stays isolated-only; shared restore refuses before write; space membership

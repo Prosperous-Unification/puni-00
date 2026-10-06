@@ -106,7 +106,8 @@ _Avoid_: active work, current tasks
 
 **Project**:
 One work breakdown structure and everything scoped to it — its work items, its steps and
-its restriction. Nothing is shared between projects.
+its restriction. Work items and steps belong to one project; organization directory entities,
+including people, can serve several projects and are not owned by any one of them.
 _Avoid_: workspace, board, plan
 
 **Work item**:

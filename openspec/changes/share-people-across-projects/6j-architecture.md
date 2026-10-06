@@ -161,12 +161,108 @@ Do not accept an arbitrary unrelated connection/UoW pairing; installation must u
 source's writer and the bound capture, with an overlap/borrowed-read witness.
 
 `libs/wbs/adapters/store-sqlite/src/optimization-drain.ts::{beginOptimizationDrain,
-finishOptimizationDrain,finishDrainIn}` keep their synchronous raw mutation and fence
-semantics. Existing exports remain low-level borrowed operations and fixture tools; they do
+finishOptimizationDrain,finishDrainIn}` keep their synchronous ownership, fence and outcome
+contracts. The project branch must additionally remove populated project state as specified
+below; the old single-row delete is not a working implementation of that contract. Existing
+exports remain low-level borrowed operations and fixture tools; they do
 not independently promise shared fan-out. No raw helper starts a new public owner, performs
 asynchronous capture or delivers events. Their synchronous transactions may nest as savepoints
 under the explicit async UoW; never pass an async callback to Drizzle. Document this boundary
 on the relevant symbols rather than implying every raw call emits events.
+
+### Populated project deletion belongs to the finalizer
+
+The existing scheduler contract requires eventual physical deletion after the durable marker
+and zero-slot observation. The migrated schema does not permit a populated project to be
+deleted by removing its root alone: `work_item`, `step`, `project_access`, `dependency` and
+`typed_dependency` have `NO ACTION` project references. Estimates reference work items and
+steps without cascade; actuals, progress, measures and typed endpoints also restrict step
+deletion. Even one ordinary work item therefore leaves a marked project permanently hidden
+when the current finalizer throws. This is an observed implementation defect, not a new
+`waiting` condition or permission to preserve an unusable hidden project indefinitely.
+
+**Decision:** make whole-project finish explicitly delete the project's owned contents in
+the same transaction as its root and fan-out. Keep `absent`, `open`, `waiting` and `finished`
+unchanged. Begin does not remove contents. Only the project arm of `finishDrainIn`, after
+rechecking the marker and zero affected slots, performs cleanup. Contract-version retirement
+continues to remove only that version's cache/generation and preserves all project contents.
+Do not introduce a dependency-refusal outcome, soft-delete retention policy, new deletion
+endpoint or force/cascade flag. Do not change the schema to blanket cascades: the existing
+estimate/step restrictions deliberately protect narrower edits, and need no migration to
+support an explicitly requested whole-project deletion.
+
+Keep this cleanup in the SQLite adapter, implemented by `finishDrainIn` or a narrowly scoped
+synchronous helper it alone calls with its borrowed transaction. No public store, separate
+UoW, recursive source gate, asynchronous callback or per-child command/announcement belongs
+inside it. Direct finish, exact-token release, global reclaim and reconciliation all reach
+this same finalizer; none may preclean or reproduce its SQL outside its enclosing owner.
+Update the raw finalizer JSDoc that currently says deleting the project row is the whole story.
+
+The migrated foreign-key graph owns the order. Inventory `PRAGMA foreign_key_list` against
+all applied migrations as well as the schema declarations; do not infer cascades from table
+names. Use explicit project/owned-ID predicates rather than a generic schema-driven deletion
+engine. With valid project-local references, a sufficient order is: delete the target's
+legacy/typed dependency rows and estimates for its work items; remove its access rows;
+delete all of its work items in one statement; delete its steps; finally delete the project.
+The single work-item statement includes parents and descendants, so their self-reference is
+checked at the statement boundary. Work-item cascades clear actuals/progress/measures,
+assignments and directory joins before step removal. If implementation uses another explicit
+order, prove the same closure on the migrated database. Keep foreign-key enforcement on; do
+not defer/disable it, null out foreign references or swallow a constraint failure.
+
+| Ownership boundary                 | Required final-project behavior                                                                                                                                                                                                                       |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Project-owned plan contents        | Remove all target work items, steps, estimates, actuals, progress, measures, assignments, legacy/typed dependencies and work-item directory joins.                                                                                                    |
+| Project-owned metadata and history | Remove target access rows, team capacities, priority bands, calendar markers, command journal, plan events, saved plans and their bodies/ownership. Existing project/saved-plan cascades remain authoritative; no new retention policy is introduced. |
+| Optimization and placement         | Remove target caches, generations and queue residue only after zero slots; cascade its project ownership, solution link, rank and space memberships. Do not delete the spaces or solution's unrelated resources.                                      |
+| Shared and unrelated state         | Preserve accounts, organizations, shared people/teams/services/tags/work-item types/external systems and their ownership/memberships, organization audit and every unrelated project's complete state.                                                |
+| Durable delivery                   | Preserve `event_log` and `event_sequencer`, including original subscriptions/identities required for replay. `plan_event` is project history, not this replay log. Record new surviving-recipient fan-out in the same finalization transaction.       |
+
+Stored cross-project edges are corruption, not an instruction to enlarge the deletion set.
+Before destructive cleanup, check relationships touching the target work items/steps whose
+referential actions could remove or rewrite another project's rows, particularly dependency
+and typed-dependency ownership/endpoints. They must agree with the owning project. Check
+incoming as well as outgoing references: filtering only by the target's `project_id` misses
+a foreign dependency pointing into it. Reject an inconsistency before any cleanup; do not
+silently cascade away a bystander's edge or repair trusted state. Other unexpected restrictive
+references must throw and roll back the owner. Use reachable guard negatives; a relationship
+the migrated schema already excludes needs a schema proof, not a redundant runtime guard.
+
+Capture the old populated topology before any cleanup and capture after the complete root
+deletion. Every cleanup statement, cascade and before/after comparison belongs to the actual
+enclosing owner, together with event rows and sequences. A cleanup, after-capture or later
+event failure restores all of them. A postcommit transport failure preserves the deletion
+and original replay envelopes. There are no intermediate per-child fan-out events.
+
+**Dependency on 6j.d/e:** fixing this shared raw finalizer immediately affects all its callers.
+6j.c proves the direct installed owner and raw cleanup contract; it does not prove that an
+existing raw release/reclaim/reconciliation caller now records fan-out. Those callers must
+receive the 6j.d/e encompassing owners, conservative victim captures and postcommit delivery
+before final deletion is considered integrated or 6j is checked complete. Do not publish or
+activate populated deletion through the new capability while those paths remain uncovered.
+Do not avoid this dependency by calling public `optimizationLifecycle.finishDrain` from a
+held release/admission/reconciliation owner. Preserve per-sweep reconciliation commits and
+the full reserve/dequeue/Retry transaction, including non-reserved reclaim outcomes.
+
+### Populated-deletion proof matrix within 6j.c
+
+These strengthen the seven direct-lifecycle groups below; they are not optional 6j.d cleanup
+work. Each installed test enters `buildServices(...).optimizationLifecycle` and starts from
+a migrated database with foreign keys enabled. Raw helper tests supplement that evidence.
+
+| Named production proof                                                     | Required witness and independently watched fault                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `installed finish deletes a populated project and preserves its neighbors` | Populate each cleanup/cascade family above, including nested items, typed step endpoints, access, snapshots/history and placement. Use populated bystanders and shared-directory sentinels. Finish returns `finished`, leaves no target-owned residue and passes `foreign_key_check`; sentinels/audit/replay are unchanged. Omit each new explicit cleanup family separately; the success or residue assertion must fail. Broaden each new destructive ownership predicate independently; preservation must fail. |
+| `pending child retains complete populated state`                           | Begin then waiting finish retains all contents, ownership and bridge while slots stay counted. Independently bypass the marker and zero-slot predicates; observe early deletion/capacity loss. Contract retirement controls retain all project contents and other contract versions; unchanged selected display remains silent.                                                                                                                                                                                   |
+| `cross-project dependency corruption refuses whole-project cleanup`        | Inject schema-representable incoming/outgoing legacy and typed relationships with conflicting project/endpoint ownership. Refuse before cleanup with complete state equality and no event/notification/push. Omit each new ownership guard independently and observe acceptance, lost foreign state or a later wrong failure boundary. Also prove schema-excluded shapes at their actual constraint.                                                                                                              |
+| `partial populated cleanup rolls back with its owner`                      | Fail a later real cleanup statement after an earlier explicit delete has executed. Restore all contents, cascades, marker/ownership/optimizer/history/events/sequences. Independently move cleanup outside its enclosing transaction and watch full equality fail. This is not a trigger that fires before any cleanup.                                                                                                                                                                                           |
+| `after-capture and later event failures restore populated deletion`        | First prove real old-bridge displacement and at least two recipient/cause pairs. Separately throw after mutation during after-capture and fail a later event insert after an earlier row. Assert complete pre-owner equality and zero delivery. Omit/move transactional comparison or recording independently; the same rollback assertions must fail.                                                                                                                                                            |
+| `committed populated deletion replays its original fan-out`                | Hold then reject transport after successful deletion. A second writer completes; notifications precede the network wait, and original recorded envelopes replay with unchanged sequences. Repeated finish is absent/silent. Delete replay state or reinsert during delivery independently and watch identity/replay fail.                                                                                                                                                                                         |
+
+Record the schema inventory, exact fixture coverage, RED/GREEN commands and each restored
+mutation in `verify.md`; add adjacent `Proof:` comments to changed production checks. A
+bare-project fixture does not prove populated cleanup, and a raw finalizing release followed
+by an absent direct finish does not prove the installed direct owner deleted anything.
 
 Implement the public begin/finish owner in this sequence:
 
