@@ -158,3 +158,111 @@ export function countDraft(database: Database, sourceHash: string, now: number):
   if (site === null) throw new DraftCapReached('draft_site_limit');
   return site;
 }
+
+/** The single operator credential's account key in `login_failure`. */
+const operatorAccountKey = 'operator';
+
+interface LoginFailureRow {
+  failures: number;
+  window_opened_at: number;
+  locked_until: number | null;
+}
+
+/**
+ * The end of the latest lock that applies to `sourceHash` or to the operator account at `now`,
+ * or null when neither is locked. Read before any password verification.
+ */
+export function readLoginLock(database: Database, sourceHash: string, now: number): number | null {
+  const row = database
+    .query<{ until: number | null }, [string, string, number]>(
+      "SELECT MAX(locked_until) AS until FROM login_failure WHERE ((scope = 'source' AND key_hash = ?1) OR (scope = 'account' AND key_hash = ?2)) AND locked_until > ?3",
+    )
+    .get(sourceHash, operatorAccountKey, now);
+  return row?.until ?? null;
+}
+
+function recordScopeFailure(
+  database: Database,
+  scope: 'source' | 'account',
+  keyHash: string,
+  now: number,
+  limits: { failures: number; windowMilliseconds: number; lockMilliseconds: number },
+): { lockOpened: boolean; windowOpenedAt: number } {
+  const current = database
+    .query<LoginFailureRow, [string, string]>(
+      'SELECT failures, window_opened_at, locked_until FROM login_failure WHERE scope = ? AND key_hash = ?',
+    )
+    .get(scope, keyHash);
+  // Proof: never resetting the window locked the source in the sixteen-minute window-reset test.
+  const isFresh = !current || now - current.window_opened_at >= limits.windowMilliseconds;
+  const failures = isFresh ? 1 : current.failures + 1;
+  const windowOpenedAt = isFresh ? now : current.window_opened_at;
+  const wasLocked = !isFresh && current.locked_until !== null;
+  const lockedUntil =
+    failures >= limits.failures
+      ? wasLocked
+        ? current.locked_until
+        : now + limits.lockMilliseconds
+      : null;
+  database
+    .query(
+      'INSERT INTO login_failure (scope, key_hash, failures, window_opened_at, locked_until) VALUES (?, ?, ?, ?, ?) ON CONFLICT(scope, key_hash) DO UPDATE SET failures = excluded.failures, window_opened_at = excluded.window_opened_at, locked_until = excluded.locked_until',
+    )
+    .run(scope, keyHash, failures, windowOpenedAt, lockedUntil);
+  return { lockOpened: lockedUntil !== null && !wasLocked, windowOpenedAt };
+}
+
+/**
+ * Records one failed operator password in the source scope and the account scope in one
+ * transaction. Five failures in 15 minutes lock the source for 15 minutes; twenty in an hour lock
+ * the account for an hour. Returns the account window's start when this failure opened the
+ * account lock, so the caller can raise one alert per lock.
+ */
+export function recordLoginFailure(
+  database: Database,
+  sourceHash: string,
+  now: number,
+): { accountLockOpenedAt: number | null } {
+  return database
+    .transaction(() => {
+      recordScopeFailure(database, 'source', sourceHash, now, {
+        failures: guardrailAllowance.sourceLoginFailures,
+        windowMilliseconds: guardrailAllowance.sourceLoginWindowMilliseconds,
+        lockMilliseconds: guardrailAllowance.sourceLockMilliseconds,
+      });
+      // Proof: skipping the account scope let the 21st guess from a fresh source in the twenty-source test answer 201.
+      const account = recordScopeFailure(database, 'account', operatorAccountKey, now, {
+        failures: guardrailAllowance.accountLoginFailures,
+        windowMilliseconds: guardrailAllowance.accountLoginWindowMilliseconds,
+        lockMilliseconds: guardrailAllowance.accountLockMilliseconds,
+      });
+      return { accountLockOpenedAt: account.lockOpened ? account.windowOpenedAt : null };
+    })
+    .immediate();
+}
+
+/** A successful login forgets its source's failures; the account row is left to its window. */
+export function clearSourceLoginFailures(database: Database, sourceHash: string): void {
+  database
+    .query("DELETE FROM login_failure WHERE scope = 'source' AND key_hash = ?")
+    .run(sourceHash);
+}
+
+/** The operator account lock's end and the number of locked sources at `now`. */
+export function readLoginLocks(
+  database: Database,
+  now: number,
+): { accountLockedUntil: number | null; lockedSources: number } {
+  const account = database
+    .query<{ locked_until: number | null }, [string, number]>(
+      "SELECT locked_until FROM login_failure WHERE scope = 'account' AND key_hash = ? AND locked_until > ?",
+    )
+    .get(operatorAccountKey, now);
+  const sources = database
+    .query<{ count: number }, [number]>(
+      "SELECT count(*) AS count FROM login_failure WHERE scope = 'source' AND locked_until > ?",
+    )
+    .get(now);
+  if (!sources) throw new Error('Source lock count query returned no row');
+  return { accountLockedUntil: account?.locked_until ?? null, lockedSources: sources.count };
+}

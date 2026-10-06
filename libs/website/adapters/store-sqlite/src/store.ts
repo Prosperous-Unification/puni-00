@@ -28,6 +28,7 @@ import {
   recoverConversationOperations,
 } from './conversation-store';
 import {
+  clearSourceLoginFailures,
   countDraft,
   countProposal,
   DraftCapReached,
@@ -35,6 +36,9 @@ import {
   hashEmailKey,
   ProposalCapReached,
   type ProposalCapRefusal,
+  readLoginLock,
+  readLoginLocks,
+  recordLoginFailure,
   utcDayOf,
 } from './guardrail-store';
 import { websiteMigrations } from './migration-catalogue';
@@ -462,6 +466,26 @@ export class WebsiteStore {
 
   close(): void {
     this.database.close();
+  }
+
+  /** See {@link readLoginLock}. */
+  readLoginLock(sourceHash: string, now: number): number | null {
+    return readLoginLock(this.database, sourceHash, now);
+  }
+
+  /** See {@link recordLoginFailure}. */
+  recordLoginFailure(sourceHash: string, now: number): { accountLockOpenedAt: number | null } {
+    return recordLoginFailure(this.database, sourceHash, now);
+  }
+
+  /** See {@link clearSourceLoginFailures}. */
+  clearSourceLoginFailures(sourceHash: string): void {
+    clearSourceLoginFailures(this.database, sourceHash);
+  }
+
+  /** See {@link readLoginLocks}. */
+  readLoginLocks(now: number): { accountLockedUntil: number | null; lockedSources: number } {
+    return readLoginLocks(this.database, now);
   }
 
   /**

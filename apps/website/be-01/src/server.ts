@@ -72,6 +72,8 @@ export interface WebsiteApiConfig {
   oidcClientSecret?: string;
   oidcRedirectUri?: string;
   oidcFetch?: ProviderFetch;
+  /** The operator password check; tests count calls. Defaults to Argon2id `Bun.password.verify`. */
+  verifyPassword?: (password: string, hash: string) => Promise<boolean>;
   /** The request clock in epoch milliseconds; tests move it. Defaults to `Date.now`. */
   clock?: () => number;
   /** Opens the store; tests wrap it to observe calls. Defaults to `new WebsiteStore(path)`. */
@@ -243,6 +245,9 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     config.databasePath,
   );
   const clock = config.clock ?? Date.now;
+  const verifyPassword =
+    config.verifyPassword ??
+    ((password: string, hash: string) => Bun.password.verify(password, hash));
   // Proof: a random per-process salt made the two-process source test store different sources.
   const hashSource = createSourceHasher((utcDay) => store.readSourceSalt(utcDay));
   const draftCookie = config.secureCookies ? '__Host-puni_draft' : 'puni_draft';
@@ -1878,13 +1883,26 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       if (!operatorPassword) return attachCors(failure('operator_unconfigured', 503), origin);
       const rate = admitRequestRate('/operator/session', source, now);
       if (rate.kind !== 'admitted') return attachCors(rateRefusal(rate), origin);
+      // The lock is read before any Argon2id work; the body never says which scope locked.
+      // Proof: moving this check after the verify counted a verifier call on the sixth locked guess.
+      const lockedUntil = store.readLoginLock(source, now);
+      if (lockedUntil !== null)
+        return attachCors(
+          json({ code: 'login_locked' }, 429, {
+            'Retry-After': String(Math.max(1, Math.ceil((lockedUntil - now) / 1000))),
+          }),
+          origin,
+        );
       const body = await readBody(request);
       const password = body && textField(body['password'], 256);
       if (!password) return attachCors(failure('invalid_credentials', 401), origin);
       // Proof: bypassing this Argon2id verifier made the wrong-password route test issue a session.
       operatorPasswordHash ??= Bun.password.hash(operatorPassword, 'argon2id');
-      if (!(await Bun.password.verify(password, await operatorPasswordHash)))
+      if (!(await verifyPassword(password, await operatorPasswordHash))) {
+        store.recordLoginFailure(source, now);
         return attachCors(failure('invalid_credentials', 401), origin);
+      }
+      store.clearSourceLoginFailures(source);
       const token = secret();
       const csrfToken = digest(`operator-csrf:${token}`);
       store.createOperatorSession(digest(token), digest(csrfToken), now + sessionLifetime);

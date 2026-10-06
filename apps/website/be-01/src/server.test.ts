@@ -2751,3 +2751,114 @@ async function beginDraftFrom(api: ReturnType<typeof createWebsiteApi>, address:
   const fields = (await draft.json()) as { csrfToken: string };
   return { cookie, csrf: fields.csrfToken };
 }
+
+function login(password: string): Request {
+  return request('/operator/session', 'POST', 'http://localhost:4201', { password });
+}
+
+function loginRows(databasePath: string) {
+  const database = new Database(databasePath, { readonly: true });
+  try {
+    return database
+      .query<
+        { scope: string; failures: number; window_opened_at: number; locked_until: number | null },
+        []
+      >('SELECT scope, failures, window_opened_at, locked_until FROM login_failure ORDER BY scope')
+      .all();
+  } finally {
+    database.close();
+  }
+}
+
+function lockoutApi(clock: () => number) {
+  const { config } = fixture();
+  const verifier = { calls: 0 };
+  const api = mountApi({
+    ...config,
+    clock,
+    verifyPassword: (password, hash) => {
+      verifier.calls += 1;
+      return Bun.password.verify(password, hash);
+    },
+  });
+  return { api, config, verifier };
+}
+
+test('the sixth guess from one source is locked out before verification, even when correct', async () => {
+  const now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const { api, config, verifier } = lockoutApi(() => now);
+  for (let index = 0; index < 5; index += 1)
+    expect((await api.fetch(login('wrong-password'), '203.0.113.9')).status).toBe(401);
+  expect(verifier.calls).toBe(5);
+  const locked = await api.fetch(login(config.operatorPassword), '203.0.113.9');
+  expect(locked.status).toBe(429);
+  expect(await locked.json()).toEqual({ code: 'login_locked' });
+  expect(locked.headers.get('retry-after')).toBe('900');
+  expect(locked.headers.get('set-cookie')).toBeNull();
+  // Proof: moving the lock check after the verify made this count 6.
+  expect(verifier.calls).toBe(5);
+  expect(countRows(config.databasePath, 'operator_session')).toBe(0);
+  expect((await api.fetch(login(config.operatorPassword), '198.51.100.7')).status).toBe(201);
+  api.close();
+});
+
+test('twenty failures from twenty sources lock the account but not an existing session', async () => {
+  const now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const { api, config } = lockoutApi(() => now);
+  const signedIn = await api.fetch(login(config.operatorPassword), '192.0.2.200');
+  expect(signedIn.status).toBe(201);
+  const operatorCookie = signedIn.headers.get('set-cookie')?.split(';')[0];
+  for (let index = 0; index < 20; index += 1)
+    expect((await api.fetch(login('wrong-password'), `203.0.113.${String(index)}`)).status).toBe(
+      401,
+    );
+  // Proof: skipping the account scope in recordLoginFailure answered 201 here.
+  const locked = await api.fetch(login(config.operatorPassword), '198.51.100.99');
+  expect(locked.status).toBe(429);
+  expect(await locked.json()).toEqual({ code: 'login_locked' });
+  expect(locked.headers.get('retry-after')).toBe('3600');
+  expect(
+    (
+      await api.fetch(
+        request('/operator/session', 'GET', config.appOrigin, undefined, operatorCookie),
+        '192.0.2.200',
+      )
+    ).status,
+  ).toBe(200);
+  api.close();
+});
+
+test('a source lock expires after fifteen minutes and a success clears only the source row', async () => {
+  let now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const { api, config } = lockoutApi(() => now);
+  for (let index = 0; index < 5; index += 1)
+    expect((await api.fetch(login('wrong-password'), '203.0.113.9')).status).toBe(401);
+  now += 15 * 60_000;
+  expect((await api.fetch(login(config.operatorPassword), '203.0.113.9')).status).toBe(201);
+  expect(loginRows(config.databasePath)).toEqual([
+    {
+      scope: 'account',
+      failures: 5,
+      window_opened_at: Date.UTC(2026, 9, 7, 12, 0, 0),
+      locked_until: null,
+    },
+  ]);
+  api.close();
+});
+
+test('a failure window resets after it ends', async () => {
+  let now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const { api, config } = lockoutApi(() => now);
+  for (let index = 0; index < 4; index += 1)
+    expect((await api.fetch(login('wrong-password'), '203.0.113.9')).status).toBe(401);
+  now += 16 * 60_000;
+  expect((await api.fetch(login('wrong-password'), '203.0.113.9')).status).toBe(401);
+  expect(loginRows(config.databasePath).find((row) => row.scope === 'source')).toEqual({
+    scope: 'source',
+    failures: 1,
+    window_opened_at: now,
+    locked_until: null,
+  });
+  expect((await api.fetch(login(config.operatorPassword), '203.0.113.9')).status).toBe(201);
+  api.close();
+});
