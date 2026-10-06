@@ -282,9 +282,15 @@ compares both directions`, `directory edit has causes without project-row edits`
 - [ ] 6j.a. **Import owner first.** Follow [6j architecture](6j-architecture.md): carry original
       actor/access, recheck current organization write authority before capture, preserve raw
       borrowed import graph, capture once around complete success and record before commit.
-      Prove real tied-creation-order import displacement/pairs, silent tail import, typed late
+      Prove real tied-creation-order import displacement/pairs, shared-person tail events only to
+      the new recipient, unused-person silence, typed late
       refusal, queued demotion and full multi-event rollback. Independently omit installer and
       owner bindings, move authority after capture, inject capture/event failure, and restore GREEN.
+      Add installed malformed-role and absent/demoted-membership negatives with independent role
+      validation/admission omission faults; corruption throws before capture/write/delivery.
+      Bind explicit actor/access `authorizeImport` on the borrowed capture capability; watch its
+      missing scoped binding throw before capture/write. Preserve explicit legacy fixtures and
+      refuse scoped sources lacking transactional authority rather than trust cached roles.
 - [ ] 6j.b. **Async persistence ownership prerequisite.** Make live optimizer persistence wait
       for the same source turn; propagate explicit asynchronous live scheduling and every
       mutation/observation caller while preserving non-admitting captured reads. Prove concurrent
@@ -296,10 +302,25 @@ compares both directions`, `directory edit has causes without project-row edits`
       actual selected retirement change, silent unchanged/nonselected/repeated finish, complete
       event-failure rollback and post-release delivery/replay rows. Independently remove old
       capture, addressed cause and transactional recording; watch each fail.
-- [ ] 6j.d. **All release callers.** Bind and await normal exit, cancellation after terminal
+      Prove missing/malformed scoped ownership and missing installed capability refuse before
+      observation/write; watch each new guard omission. Cover conflicting ownership where physically
+      representable or prove its schema exclusion; distinguish absent target, pre-activation/legacy
+      and valid isolated silence. Repeat the resolver boundary for implicit global-reclaim victims.
+- [ ] 6j.d. **All release and implicit global-reclaim callers.** Bind and await normal exit, cancellation after terminal
       evidence, queued cleanup and initial/Retry preflight. Prove exact token and all prior fences,
       last-slot deletion atomicity, failure recovery and no early pump/completion. Independently
       omit each binding/await and watch production caller assertions fail.
+      Bind initial reservation, dequeue and Retry around their enclosing global reclaim transactions,
+      capturing every potential victim organization and old cause before deletion. Preserve
+      non-reserved commits, queue-loop/admitted-time cutoffs and reservation/queue/recovery-audit
+      atomicity. Prove requester X with victims Y/Z, successful and closed/capacity-blocked outcomes,
+      later queue cutoff, future deadline, full event-failure rollback and repeated silence.
+      Independently omit all three owners, restrict victim capture to requester/head/initial time,
+      discard non-reserved delivery and move recording outside commit; watch each fail.
+      For initial/dequeue/Retry reservations, hold then reject transport and prove the coordinator
+      retains the committed token/decision and launches once or completes exact-token cleanup;
+      track/report delivery separately, retain replay rows and never re-admit. Watch delivery
+      before handoff and rejection-replaces-decision mutations fail without relying on expiry.
 - [ ] 6j.e. **Startup and periodic reconciliation.** Preserve per-sweep transactions and
       generation-before-project ordering; acquire and recheck before capture. Prove persisted
       deadlines, later-sweep rollback with earlier commit retained, retry idempotence, awaited

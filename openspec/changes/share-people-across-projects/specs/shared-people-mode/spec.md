@@ -130,7 +130,8 @@ completion or pumping newly available capacity, and shutdown SHALL await owned s
 - **GIVEN** dated imported A precedes existing B under the real unranked creation-time/ID order and both name the same person
 - **WHEN** the complete import changes B's incoming bookings
 - **THEN** its applicable `(B,A)` event commits atomically with the import
-- **AND** importing an unrelated or last-ranked project does not fabricate a downstream event
+- **AND** an unrelated import with no shared-person connection emits no fan-out
+- **AND** a last-ranked shared-person import emits no event to pre-existing projects, while retaining the normal event to the new recipient for its new incoming basis
 
 #### Scenario: contract retirement changes display at unchanged input
 
@@ -145,6 +146,35 @@ completion or pumping newly available capacity, and shutdown SHALL await owned s
 - **WHEN** the pass fails
 - **THEN** the earlier commit remains and the failing sweep restores its slot, cache, generation, project and event state
 - **AND** a subsequent pass converges without duplicating previously committed pairs
+
+#### Scenario: reservation finalizes drains in other organizations
+
+- **GIVEN** a requester belongs to X and expired slots belong to pending drains in Y and Z
+- **WHEN** initial admission, dequeue or Retry globally reclaims them inside its reservation transaction
+- **THEN** all applicable surviving recipients retain the old victim cause IDs and commit with that transaction
+- **AND** this holds even if the reservation result is closed or capacity-blocked
+- **AND** event failure restores reclaimed state, reservation, queue, recovery audit and event sequences together
+
+#### Scenario: a later dequeue entry advances the reclaim cutoff
+
+- **GIVEN** dequeue skips an earlier invalid or closed entry and a later entry has a greater admitted timestamp
+- **WHEN** its reservation reclaims another pending drain at that persisted cutoff
+- **THEN** that victim's organization and old cause were captured before deletion and its fan-out commits once
+- **AND** slots whose persisted deadline remains in the future are not reclaimed
+
+#### Scenario: transport fails after a reservation with final-drain events
+
+- **GIVEN** initial admission, dequeue or Retry committed a new reservation and victim fan-out
+- **WHEN** post-commit transport stalls or rejects
+- **THEN** the coordinator retains the exact committed decision and token and launches it once or explicitly completes unlaunched cleanup
+- **AND** delivery failure is tracked and reported separately, original event rows remain replayable and the admission is not retried
+
+#### Scenario: trusted ownership or membership is corrupt
+
+- **GIVEN** an installed import has malformed stored membership or a present scoped lifecycle victim lacks required ownership
+- **WHEN** the owning operation resolves authority and organization before capture
+- **THEN** it throws without observing shared state, mutating state or delivering events
+- **AND** explicit legacy/isolated operation and an absent target retain their distinct modeled outcomes
 
 #### Scenario: another optimizer operation arrives during capture
 

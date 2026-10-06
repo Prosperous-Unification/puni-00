@@ -47,6 +47,22 @@ outcome before directory enumeration, shared capture or writes. Do not infer aut
 an imported project's future owner, perform project recovery admission, or add an audit/grant.
 Legacy/pre-activation remains its explicit existing path; corrupt trusted membership throws.
 
+Use a source-bound callback on `Scope.fanoutCapture`, declared beside the existing authority
+callbacks in `ports/fanout-capture-store.ts`:
+`authorizeImport(actorId: string, access: ResourceAccess): Promise<{ ok: true } | { ok: false; reason: 'forbidden' }>`.
+Bind it in SQLite `source.ts::bindLivePlans` to a read-only adapter function over that UoW's
+connection, using `organizationMembership` plus `validateStoredRole` and the existing import
+write-role predicate. Invoke it inside `ImportTransaction.run` before capture and map refusal
+to the existing import outcome. Pass actor/access explicitly into that transaction interface;
+never resolve membership on the public store or outside the acquired writer. It records no
+audit or grant. A scoped call with a missing callback is a composition error and throws before
+capture/write, with a watched omission proof; it must not trust the cached role as fallback.
+Explicit `LEGACY_ACCESS` fixtures keep the existing raw import path without requiring an
+organization capture or this callback. The memory source's current import conformance is
+legacy and has no transactional membership source: do not invent membership from the supplied
+role or fabricate shared capture merely to keep a fixture green. A new scoped memory fixture
+must supply real staged authority capability or explicitly refuse unsupported scoped admission.
+
 Capture the addressed organization before the first directory/project write. Invoke the
 existing complete import with raw OPEN `batchServices`; never install 6i standalone directory
 facades in this graph. On `commit:false`, roll back without after-capture, fan-out or delivery.
@@ -62,7 +78,11 @@ real lower recipient: control the existing clock/ID fixture so imported A and ex
 B share a creation timestamp and A sorts before B by ID; both are dated and assigned the same
 existing person. Assert actual `orderIn`, displayed displacement and `(B,A)` before injecting
 faults. This exercises the existing creation-time/ID tie rule without importing rank, changing
-metadata or mocking fan-out. Also prove the ordinary tail/unused-person import is silent.
+metadata or mocking fan-out. Also prove a shared-person tail import changes no pre-existing recipient. Preserve the normal
+comparator's event to the newly imported project when its new incoming basis/availability
+requires one: with existing higher B and imported lower A, `(A,B)` is legitimate. Do not
+filter new recipients or claim this case has zero total events. A separate unused-person or
+no-connection import proves total fan-out silence; ordinary import announcements remain.
 
 An event insert failure after at least one real pair has been inserted must restore the full
 pre-import directory/project/history/ownership/optimizer/event/sequencer state. A typed late
@@ -113,6 +133,84 @@ awaiting transport and sends the exact recorded envelopes. A transport error can
 committed sweep or justify allocating another sequence. Process death before push is recovered
 through the existing durable event replay; no persistent push worker is added. An event error
 rolls back, propagates and leaves durable drain state recoverable by a later release/reconcile.
+
+## Implicit global reclaim inside admission transactions
+
+`optimization-admission.ts::reserveSolverSlotIn` calls unscoped
+`reclaimExpiredSolverSlotsIn(tx, request.now)` **before** requester eligibility and capacity
+checks. This may finalize unrelated projects/contracts in several organizations even when
+reservation returns closed, already-present or capacity-full. Existing enclosing paths are
+`readPlan → repository.reserveSlot → reserveSolverSlot`,
+`pumpQueue → repository.dequeueRequest → optimization-queue.ts::dequeueSolverRequest`, and
+`repository.admitRetry → reserveSolverSlotIn`. All are mandatory 6j final-drain owners;
+6k defers only their own admission display transition, never their deletion/retirement effects.
+
+Preserve each actual enclosing reservation/dequeue/Retry transaction. Do not move reclaim into
+a separate preliminary commit, replace global reclaim with requester-only reclaim, or treat a
+non-reserved return as `commit:false` when the existing transaction commits reclaimed state.
+Early Retry authorization/eligibility refusal before reservation still performs no global
+capture or writes. Retain the existing sole accepted-recovery audit, queue and reservation
+atomicity; use the original actor/access and do not create a second admission/audit path.
+
+Inside the acquired owner, before any possible reclaim, discover every potentially reclaimed
+project and retain its old ID and organization. A safe bounded initial implementation reads
+all existing slot project identities and their ownership on that borrowed writer and captures
+each distinct affected organization once. This conservatively covers every cutoff used in the
+raw operation: Retry uses `max(now, failure.createdAt + 1)` and dequeue can visit several entries
+with `max(now, entry.enqueuedAt)`. Capturing only the requester's organization, the first queue
+head or rows expired at the initial clock value is insufficient. Never discover a new victim
+organization only after its project/ownership has been deleted. Internal maintenance ownership
+does not grant the requesting human visibility of victim projects or add victim IDs to replies.
+
+Expose transaction-local reclamation effects from the raw helper (actual finished contract and
+project identities), without a nested owner, push or separately recorded event. Compare once
+around the whole enclosing act using those retained old causes and organizations; deduplicate
+pairs across multiple internal reservations/finishes. Actual persisted deadlines remain the
+only reclaim authority. Capture is conservative; emitting is not: untouched candidates,
+future-deadline slots and unchanged display stay silent. Own-request admission display effects
+remain 6k unless that project is itself a real finalized drain victim. Existing topology/local
+fact causes associated with a victim's removal still pass through the normal comparator.
+
+Record all victim fan-out before the encompassing commit and deliver only afterwards, including
+when the outward admission outcome is non-reserved. A later real event insert failure restores
+all reclaimed slots, retired caches/generations, deleted projects/mappings, consumed queue rows,
+new reservation, accepted recovery audit, earlier inserted events and sequences. It must not
+leave either reservation-without-fan-out or reclaim-without-reservation partial commits.
+
+Add production installed cases for initial admission, FIFO dequeue and Retry independently:
+requester in X, final-drain victims in Y and Z with surviving lower recipients; at least one
+persisted future-deadline slot survives. Cover successful and closed/capacity-blocked decisions,
+and a dequeue that skips an earlier invalid/closed entry then uses a later greater enqueuedAt
+cutoff. Assert exact old victim causes and no invented requester event. Independently omit each
+of the three owner bindings; restrict capture to requester/head/initial-cutoff separately; move
+recording outside the transaction; discard fan-out on non-reserved outcome. Each must fail its
+named pair, unchanged-state or rollback assertion. Retry unauthorized/stale-input negatives
+remain capture/write/audit-free. Repeated reclaim emits nothing once the victim is absent.
+
+### Committed reservation decisions survive transport failure
+
+For reservation/dequeue/Retry owners, the repository must hand the coordinator both the
+committed decision/token and the exact recorded fan-out envelopes after writer release,
+independently of network delivery. Reuse the existing `storeOutcome` pattern: register
+committed delivery as tracked work, report its rejection through the existing explicit error
+boundary, and retain the committed admission decision. Invoke required recipient optimizer
+notifications before awaiting transport, without holding the writer. A held or rejected push
+must not hide a reserved seat, a consumed queue entry or an accepted recovery audit behind an
+exception which leaves the coordinator unaware that admission committed.
+
+The coordinator either launches that exact committed reservation under existing bind/terminal
+rules or deliberately awaits exact-token unlaunched cleanup if launch is abandoned. It must
+not re-run the mutation to recover a delivery failure, allocate another token or claim the
+reservation rolled back. `stop`/`drain` track delivery work through its error boundary; replay
+retains the original durable rows and sequence. A transactional event-insert error is different:
+it rolls the whole act back and supplies no committed reservation to launch.
+
+For each initial admission, dequeue and Retry path, hold then reject actual post-commit fan-out
+transport. Prove writer release, availability of the original decision/token, exactly one
+launch or explicit completed cleanup, no duplicate reservation/audit, preserved queue semantics
+and replayable original event rows. Independently move delivery before decision handoff or make
+transport rejection replace the committed outcome; the production lifecycle assertion must
+fail. No test may pass merely by waiting for orphan expiry.
 
 ## Required async serialization seam
 
@@ -171,14 +269,18 @@ Each row starts with a named production-path RED, then implementation and GREEN.
 specific binding/check independently, watch the named assertion fail, restore it and add the
 adjacent `Proof:` comment. A fault which still passes is an incomplete proof.
 
-| Slice                 | Observable acceptance and R5 fault                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 6j.a import           | Mounted installed import creates actual `(B,A)` with displacement; silent tail import; late typed refusal; queued membership demotion before capture; raw borrowed graph. Omit installer/composition binding independently, move authority below capture, wrap raw directory graph, inject after-capture failure and fail the second real event insert. Assert complete rollback and zero delivery, not only status.                                                                       |
-| 6j.b serialization    | Hold a real source UoW at capture, invoke live admission, heartbeat, bind/queue/outcome and release/reconcile independently; none may settle/write within it. Abort the held owner, then prove each intended operation survives in its own committed turn. Independently bypass the gate for each mutating family and observe premature writes/rollback loss. Prove captured scheduling never calls the live port and an asynchronous live read still propagates refusal/ready invariants. |
-| 6j.c direct lifecycle | Installed owner begin/wait/final finish; old bridge removal preserves old cause and surviving lower recipients; repeated/absent finish silent; retirement of selected ready schedule changes bookings or availability at the same input hash; nonselected contract silent. Omit old capture, addressed cause, or transactional record separately. Event failure rolls back complete state; releasing a held push permits a second writer, and push failure retains replay rows.            |
-| 6j.d release          | Exact-token child exit, cancellation after kill+exit, queued-unlaunched cleanup and initial/Retry preflight cleanup all reach the composed release. Omit each binding/await independently: watched completion/next-dequeue/state assertions fail. Retain stale token, generation, cancellation, blue/green and alive-child capacity negatives. Inject event failure at final release and prove slot+project restoration, then successful reconciliation recovery without duplicate pairs.  |
-| 6j.e reconciliation   | Real installed startup and periodic callbacks each finish an expired pending deletion; deadline not reached stays waiting. Multiple sweep fixture: first commits, later real event insert fails and rolls back only that sweep; rerun converges without duplicating first events. Omit startup and interval bindings separately; remove deadline, ordering or awaited tracking separately. `stop` must not finish while an owned sweep is held.                                            |
-| 6j.f closure          | Rerun import, drain, slot, repository/coordinator, spawn handshake, command/directory and 6a–f regression suites. Physical capability remains exactly isolated-only and shared restore refuses before its first write. Space membership removal leaves the project and emits no deletion fan-out. Check durable ordered pairs/envelopes from every owner, then leave full cold replay/retention/authorization matrix to 6l.                                                                |
+| Slice                           | Observable acceptance and R5 fault                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6j.a import                     | Mounted installed import creates actual `(B,A)` with displacement; tail import with no pre-existing recipient but the normal new-recipient pair; unused-person silence; late typed refusal; queued membership demotion before capture; raw borrowed graph. Omit installer/composition binding independently, move authority below capture, wrap raw directory graph, inject after-capture failure and fail the second real event insert. Assert complete rollback and zero delivery, not only status. |
+| 6j.b serialization              | Hold a real source UoW at capture, invoke live admission, heartbeat, bind/queue/outcome and release/reconcile independently; none may settle/write within it. Abort the held owner, then prove each intended operation survives in its own committed turn. Independently bypass the gate for each mutating family and observe premature writes/rollback loss. Prove captured scheduling never calls the live port and an asynchronous live read still propagates refusal/ready invariants.            |
+| 6j.c direct lifecycle           | Installed owner begin/wait/final finish; old bridge removal preserves old cause and surviving lower recipients; repeated/absent finish silent; retirement of selected ready schedule changes bookings or availability at the same input hash; nonselected contract silent. Omit old capture, addressed cause, or transactional record separately. Event failure rolls back complete state; releasing a held push permits a second writer, and push failure retains replay rows.                       |
+| 6j.d release and global reclaim | Exact-token child exit, cancellation after kill+exit, queued-unlaunched cleanup and initial/Retry preflight cleanup all reach the composed release. Omit each binding/await independently: watched completion/next-dequeue/state assertions fail. Retain stale token, generation, cancellation, blue/green and alive-child capacity negatives. Inject event failure at final release and prove slot+project restoration, then successful reconciliation recovery without duplicate pairs.             |
+| 6j.e reconciliation             | Real installed startup and periodic callbacks each finish an expired pending deletion; deadline not reached stays waiting. Multiple sweep fixture: first commits, later real event insert fails and rolls back only that sweep; rerun converges without duplicating first events. Omit startup and interval bindings separately; remove deadline, ordering or awaited tracking separately. `stop` must not finish while an owned sweep is held.                                                       |
+| 6j.f closure                    | Rerun import, drain, slot, repository/coordinator, spawn handshake, command/directory and 6a–f regression suites. Physical capability remains exactly isolated-only and shared restore refuses before its first write. Space membership removal leaves the project and emits no deletion fan-out. Check durable ordered pairs/envelopes from every owner, then leave full cold replay/retention/authorization matrix to 6l.                                                                           |
+
+The 6j.d row also includes every implicit global-reclaim owner and watched fault in the
+preceding section; these are not optional 6k work. Its installed cross-organization and
+non-reserved cases must pass before 6j.d closes.
 
 Use actual SQLite transactions/events and mounted composition, not mocked expected fan-out.
 Relevant existing suites include `optimization-drain.db.test.ts`,
@@ -193,13 +295,32 @@ checkpoint. Report skips and infrastructure failures truthfully. Full host gate 
 approved published candidate and must use `bin/h2puni-gate.sh <sha>` under its canonical lock.
 No mutation logs or green results exist for this new packet yet.
 
+New trust-boundary checks require their own owner-path negatives, not only a generic full-suite
+claim. For import, inject an invalid membership role through the trusted adapter seam or an explicitly CHECK-bypassing SQLite fixture and prove the
+installed import throws before capture or mutation; bypass only the role validation and watch
+that assertion fail. Missing membership and a demoted non-writing role retain typed forbidden;
+move each admission check below capture or omit it independently and watch capture/write counts.
+For each lifecycle ownership resolver (including global reclaim victims), a present scoped
+project with missing ownership must throw before observation/mutation; omit its check and watch
+that case fail. Test conflicting ownership if the schema permits it; if a physical unique key
+makes it impossible, retain a real constraint negative and document the impossibility rather
+than claim a fictitious resolver mutation. Malformed persisted ownership/role values must not
+become absent, legacy, isolated or a silently skipped victim. Distinguish absent target (existing
+no-op), explicit pre-activation/legacy (permitted silent mode), and isolated ownership (valid
+silent projection). Prove rollback and zero delivery for corruption, and fail closed when a
+required installed capture/ownership capability is missing. Watch every new presence/validation
+guard's omission separately; an insertion rejected by schema is schema proof, not proof that an
+unreachable application guard works.
+
 ## Exclusions and next handoff
 
 First Sol checkpoint is **6j.a only**, including import admission and transactional proofs.
-Then independently review 6j.b before changing lifecycle callers. Import completion does not
+Then independently review 6j.b before changing lifecycle callers, including the three implicit
+global-reclaim admission owners. Import completion does not
 complete 6j. Do not defer direct finish, release, startup/periodic reconcile, contract retirement
 or serialization to a vaguely named later task. 6k still adds transactional fan-out around
-optimizer outcome and display-changing admission/Retry writes; 6j serialization alone does
+optimizer outcome and each admission/Retry operation’s own display change; final-drain effects
+inside those operations already belong to 6j. Serialization alone does
 not claim those events exist. 6l still closes replay, retention and the full inventory.
 
 No new booking/event table, migration, delete API, organization mode activation, rank import,

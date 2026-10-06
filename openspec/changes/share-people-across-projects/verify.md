@@ -2053,3 +2053,37 @@ Planning validation (2026-10-06):
   exited 0, 148/148; `/tmp/shared-people-6j-plan-all.json`.
 - `bunx prettier --check` on the five changed planning paths and `git diff --check`
   exited 0. Final-byte checks are repeated before the local commit.
+
+### 6j independent architecture review correction
+
+Review of the first planning checkpoint found that `reserveSolverSlotIn` performs unscoped
+reclaim before requester eligibility. Initial admission, FIFO dequeue and Retry can therefore
+finish unrelated drains in several organizations, even on a non-reserved return. The revised
+packet assigns those final-drain effects to their actual enclosing 6j owners; only their own
+admission display changes remain 6k. It requires conservative pre-write victim discovery across
+all possible queue/Retry cutoffs, retained old causes, complete reservation/queue/audit/event
+rollback, post-commit delivery and separate installed-binding faults. New membership/ownership
+checks now have explicit corrupt-state negatives and watched omission requirements; physically
+unrepresentable conflicting ownership must be evidenced at its schema boundary.
+
+This is a planning correction, not an observed runtime fault or implemented fix. All new
+production RED/GREEN and R5 evidence remains pending, and no task checkbox is advanced.
+
+The rereview also clarified shared-person tail imports: the existing comparator can legitimately
+emit to the newly imported lower project with an existing higher cause. Silence applies to
+pre-existing recipients, not all event rows; unused-person imports provide the separate total
+silence case. No comparator filtering is authorized. The import authority port is now explicit
+on the borrowed capture capability, including scoped missing-capability refusal and preserved
+legacy fixtures. The required proof cases remain pending.
+
+A further lifecycle review requires committed reservation/token handoff independently of
+post-commit transport. The packet now prescribes tracked delivery errors and exact launch or
+unlaunched cleanup for initial/dequeue/Retry reservations, with held/rejected transport and
+handoff omission faults. These are pending production proofs, not claims that cleanup already
+works after this new binding.
+
+Amended planning validation repeated the pinned strict command (1/1) and all command
+(148/148), both exit 0, with outputs `/tmp/shared-people-6j-plan-review-strict.json` and
+`/tmp/shared-people-6j-plan-review-all.json`. Four changed Markdown files passed Prettier
+check and `git diff --check` exited 0. Final-byte checks are repeated before local commit;
+no product tests or host gate are claimed by this amendment.
