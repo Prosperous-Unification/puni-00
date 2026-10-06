@@ -3240,10 +3240,10 @@ summaries passed BE/store lint and typecheck, BE module typecheck dependency,
 and BE build with supervisor-protocol dependency
 (`/tmp/shared-people-6je-followup-nx-{be,store}-{lint,type}.log`,
 `/tmp/shared-people-6je-followup-nx-be-build.log`). Store still declares no
-build target. This remains a local 6j.e checkpoint pending exact-SHA review;
-6j.f, activation and the host gate are not claimed.
+build target. At that local 6j.e checkpoint, exact-SHA review and 6j.f were
+pending; activation and the host gate were not claimed.
 
-### 6j.f installed boundary closure audit (local; independent review pending)
+### 6j.f installed boundary closure audit (independently reviewed)
 
 This audit started from reviewed `77d43e707c2c383d8f1e9ef5bea11730a7b353a4`. The real
 `buildServices` graph installs the import authority/capture binding and five optimizer owners
@@ -3263,7 +3263,7 @@ disqualified attempts; a disqualified fault is not counted here.
 | 6j.d Retry reclaim, including queue/nonaccepted | Retry preflight → one borrowed audit/reserve/queue/event UoW                                                | Early refusal capture-free; adjusted cutoff; one accepted audit; closed push; queued rollback                   | `/tmp/shared-people-6jd-retry-r5-queued-split-red.log` → `/tmp/shared-people-6jd-retry-r5-queued-split-green.log`                                                                                        | `f20666ca2`                            | optimizer/store groups                       |
 | 6j.d FIFO reclaim, including empty/capacity     | Installed queue pump → one UoW around entire raw loop                                                       | Later-head cutoff; exact token; actual cause; nonreserved push; full-loop rollback                              | `/tmp/shared-people-6jd-dequeue-r5-split-red.log` → `/tmp/shared-people-6jd-dequeue-r5-split-green.log`                                                                                                  | `f7cf3f03c`                            | optimizer/store groups                       |
 | 6j.e startup/periodic sweeps                    | Startup/timer → separate gated enumeration and target UoWs                                                  | Generation before project; deadline/recheck; earlier A/B commit survives failed C; stop awaits capture/delivery | `/tmp/shared-people-6je-project-split-red.log` → `/tmp/shared-people-6je-project-split-green.log`                                                                                                        | `77d43e707`                            | optimizer/store groups                       |
-| 6j.f release/space boundary                     | Capability CLI and pre-write restore; composed space DELETE → `SpaceRepository.removeProject` immediate UoW | Isolated-only, shared restore refused before write; only membership removed, graph/event/sequence/push retained | `/tmp/shared-people-6jf-physical-shared-advertised-red.log`, `/tmp/shared-people-6jf-restore-guard-bypass-red.log`, `/tmp/shared-people-6jf-space-project-delete-red.log` → matching restored GREEN logs | this unreviewed closure                | physical/restore cases; import/command group |
+| 6j.f release/space boundary                     | Capability CLI and pre-write restore; composed space DELETE → `SpaceRepository.removeProject` immediate UoW | Isolated-only, shared restore refused before write; only membership removed, graph/event/sequence/push retained | `/tmp/shared-people-6jf-physical-shared-advertised-red.log`, `/tmp/shared-people-6jf-restore-guard-bypass-red.log`, `/tmp/shared-people-6jf-space-project-delete-red.log` → matching restored GREEN logs | `025aa239f`                            | physical/restore cases; import/command group |
 
 The 6j.d initial/Retry/FIFO owner tests each include actual victim causes and accepted, nonreserved
 and failed transaction outcomes; their slice tables above identify independent binding, capture,
@@ -3322,8 +3322,12 @@ the clean exact-base 6j.e worktree, with the same lockfile. No package metadata 
 Disqualified historical faults remain explicitly excluded in their sections above, including
 6j.b short-window observation/reconcile awaits, 6j.c redundant dependency DELETE/absent cause,
 6j.d startup-masked FIFO rollback and 6j.e first enumeration-gate trial. The matrix cites only
-accepted faults. This closure does not yet check 6j.d/e/f complete or claim activation, 6k,
-full cold replay/retention/authorization (6l), host gate or CI.
+accepted faults. Astra independently reviewed exact clean `025aa239ffaffd755a55c2a357e56c5a4704d68c`
+and ran the three boundary files: 37/37 tests, 174 assertions, exit 0
+(`/tmp/shared-people-6jf-astra-025aa239-boundaries.log`). Its review cleared the
+6j.a–f local implementation and evidence; those six task checkboxes are now complete.
+The 6j parent, 6.1/6.2 umbrella, 6k and 6l remain open. Trusted activation is deferred;
+full cold replay/retention/authorization (6l), canonical host gate and CI are not claimed.
 
 Declared task validation on the closure bytes: the first `wbs-be-01:lint` run failed two
 test-only findings, an unnecessary `async` callback and unsafe stringification of the push

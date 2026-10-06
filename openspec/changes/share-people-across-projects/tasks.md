@@ -279,7 +279,7 @@ compares both directions`, `directory edit has causes without project-row edits`
       and `repeated finish records nothing`. R5: omit import binding, record at delete request
       only, drop old closure after delete, omit one release/reconcile path and record outside
       the final transaction. Space membership removal must not masquerade as project deletion.
-- [ ] 6j.a. **Import owner first.** Follow [6j architecture](6j-architecture.md): carry original
+- [x] 6j.a. **Import owner first.** Follow [6j architecture](6j-architecture.md): carry original
       actor/access, recheck current organization write authority before capture, preserve raw
       borrowed import graph, capture once around complete success and record before commit.
       Prove real tied-creation-order import displacement/pairs, shared-person tail events only to
@@ -291,7 +291,7 @@ compares both directions`, `directory edit has causes without project-row edits`
       Bind explicit actor/access `authorizeImport` on the borrowed capture capability; watch its
       missing scoped binding throw before capture/write. Preserve explicit legacy fixtures and
       refuse scoped sources lacking transactional authority rather than trust cached roles.
-- [ ] 6j.b. **Async persistence ownership prerequisite.** Make live optimizer persistence wait
+- [x] 6j.b. **Async persistence ownership prerequisite.** Make live optimizer persistence wait
       for the same source turn; propagate explicit asynchronous live scheduling and every
       mutation/observation caller while preserving non-admitting captured reads. Prove concurrent
       live admission, heartbeat, bind/queue/outcome and lifecycle operations cannot join an
@@ -306,7 +306,7 @@ compares both directions`, `directory edit has causes without project-row edits`
       intervening generation/disable/drain; awaited heartbeat/release/dequeue; captured command
       arrange/freeze including isolated fallback. Watch each named gate/fence/await/binding fault
       fail independently, preserve all existing lifecycle/cache regressions and review before 6j.c.
-- [ ] 6j.c. **Direct begin/finish and retirement.** Install source-bound owners over raw savepoints,
+- [x] 6j.c. **Direct begin/finish and retirement.** Install source-bound owners over raw savepoints,
       preserve pending old topology and addressed causes even at equal hash/local facts. Prove
       actual selected retirement change, silent unchanged/nonselected/repeated finish, complete
       event-failure rollback and post-release delivery/replay rows. Independently remove old
@@ -337,7 +337,7 @@ compares both directions`, `directory edit has causes without project-row edits`
       Document the raw finalizer's explicit cleanup contract in JSDoc; record migrated-FK
       inventory, populated coverage and exact restored R5 logs in verify.md. This direct checkpoint
       does not authorize publication/activation of deletion before the 6j.d/e owners are bound.
-- [ ] 6j.d. **All release and implicit global-reclaim callers.** Bind and await normal exit, cancellation after terminal
+- [x] 6j.d. **All release and implicit global-reclaim callers.** Bind and await normal exit, cancellation after terminal
       evidence, queued cleanup and initial/Retry preflight. Prove exact token and all prior fences,
       last-slot deletion atomicity, failure recovery and no early pump/completion. Independently
       omit each binding/await and watch production caller assertions fail.
@@ -355,7 +355,7 @@ compares both directions`, `directory edit has causes without project-row edits`
       retains the committed token/decision and launches once or completes exact-token cleanup;
       track/report delivery separately, retain replay rows and never re-admit. Watch delivery
       before handoff and rejection-replaces-decision mutations fail without relying on expiry.
-- [ ] 6j.e. **Startup and periodic reconciliation.** Preserve per-sweep transactions and
+- [x] 6j.e. **Startup and periodic reconciliation.** Preserve per-sweep transactions and
       generation-before-project ordering; acquire and recheck before capture. Prove persisted
       deadlines, later-sweep rollback with earlier commit retained, retry idempotence, awaited
       shutdown and both installed triggers. Independently omit each trigger, deadline/order and
@@ -363,7 +363,7 @@ compares both directions`, `directory edit has causes without project-row edits`
       cleanup belongs to each sweep owner, and a later failed sweep restores its full contents
       while earlier committed deletions/events remain. Close this and 6j.d before integration
       claims or publication/activation of populated deletion through the new capability.
-- [ ] 6j.f. **Boundary regression closure.** Reconcile the full packet proof matrix and run
+- [x] 6j.f. **Boundary regression closure.** Reconcile the full packet proof matrix and run
       affected import/drain/coordinator/child/command suites plus 6a–f release negatives. Physical
       capability stays isolated-only; shared restore refuses before write; space membership
       removal is not deletion. Record exact commands/fault logs and independent review before
