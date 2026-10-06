@@ -11,8 +11,11 @@ const enrollmentFlags = [
 
 type PlanEnrollment = (argv: readonly string[]) => Promise<void>;
 
+/** Preserve the fleet CLI enrollment guards, plan bytes and summary without execution. */
 async function runFleetPlan(argv: readonly string[]): Promise<void> {
   const { runPlan } = await import('@tools/fleet-plan');
+  // Proof: injecting kubectl apply after planning made the real-entrypoint equivalence
+  // test fail on its mutation canary despite matching plan bytes and an exit-zero planner.
   await runPlan(argv);
 }
 

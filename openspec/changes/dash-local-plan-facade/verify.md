@@ -38,3 +38,60 @@ Final changed-path `bunx prettier --check` passed (`/tmp/dash-08019-11-prettier-
 Astra's review found that the first product-local ESLint override reconstructed root `@nx/enforce-module-boundaries` options without the three `ring:*` constraints. The persistent effective-policy test compares the real `cli.ts` options with `entrypoint.ts`, allowing only the exact alias difference; it also lints an allowed planner import, a sibling infrastructure import in `cli.ts`, and the planner import from the wrong file. Before correction, `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test tools/tool-devsync/src/eslint-boundaries.test.ts -t 'keeps every root production boundary for the Dash planner'` failed 0/1 at the missing ring objects (`/tmp/dash-08019-11-rings-red.log`). Adding the root production ring constraints to the local override made the same test pass 1/1, six assertions (`/tmp/dash-08019-11-rings-green-first.log`). The graph-oracle exception is project-pair granularity; the ESLint effective-config test enforces its file and specifier limits.
 
 The first corrected-byte `tool-devsync` typecheck failed on a test-only Bun `expect().toEqual()` generic mismatch (`/tmp/dash-08019-11-review-devsync-targets.log`). Giving the normalized options an explicit `Readonly<Record<string, unknown>>` type corrected the assertion without changing runtime behavior; declared lint/typecheck then passed (`/tmp/dash-08019-11-review-devsync-targets-green.log`). The exact five-file focused command `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test apps/twilight-structure/twilight-dash/cli/src/cli.test.ts tools/tool-devsync/src/eslint-boundaries.test.ts tools/tool-devsync/src/workspace-projects.test.ts tools/tool-devsync/src/namespace-layout.test.ts tools/tool-devsync/src/workspace-targets.test.ts` passed 103/103, 276 assertions on the final test bytes (`/tmp/dash-08019-11-review-suite-final2.log`). Uncached Dash test/lint/typecheck/build passed with explicit target summary and 22/22 dispatcher tests (`/tmp/dash-08019-11-review-dash-targets.log`). Changed-path Prettier passed (`/tmp/dash-08019-11-review-prettier-final.log`), pinned strict OpenSpec passed 1/1 (`/tmp/dash-08019-11-review-openspec-strict.log`), all OpenSpec passed 148/148 (`/tmp/dash-08019-11-review-openspec-all.log`), and `git diff --check` exited 0.
+
+## Task 1.2 production entrypoint checkpoint
+
+The fixed adapter already connected `runPlan` in task 1.1. This slice adds real
+subprocess contracts and adjacent proofs without changing runtime behavior.
+`enrollment-plan.test.ts` supplies one synthetic worker cluster with a dedicated
+server and an exactly observed unenrolled agent. Dash and direct fleet entrypoints
+consume identical files with different unused output paths. The test compares
+complete plan bytes and stdout (including digest and summary), preserves both
+input files, checks the exact output names, and requires no mutation-canary log,
+common-Git authority directory/database or `.puni` state. The ten PATH canaries
+cover SSH/SCP, Ansible, Kubernetes, cloud, Terraform/Terragrunt, Docker, Dagger and
+Git; fixture Git initialization happens before the canaries are installed.
+
+Seven real Dash negatives preserve complete-observation, wrong machine identity,
+already-enrolled target, unresolved operator identity, malformed reviewed digest,
+wrong cluster and lab-provider/production-trait refusals. Each requires nonzero
+exit, an anchored actual Bun error diagnostic, empty stdout, unchanged input bytes,
+no output and no mutation/authority state. ANSI codes are removed before matching
+error lines, so source frames cannot satisfy the diagnostic assertion.
+
+The first two fixture runs failed 0/8 before the intended boundary because the
+synthetic workers cluster had no dedicated control-plane server; they are not
+implementation RED evidence (`/tmp/dash-08019-12-{first,fixture2}.log`). Fixture 3
+passed 7/8; its already-enrolled negative still lacked the required Kubernetes UID
+(`/tmp/dash-08019-12-fixture3.log`). Correcting that input produced the valid baseline
+8/8, 84 assertions (`/tmp/dash-08019-12-baseline-green.log`) before watched faults.
+
+Each injected fault ran separately against the production source, was restored,
+and has a separate passing named-case rerun. Adjacent `Proof:` comments name the
+same path and observation.
+
+| Production fault                                           | Observed RED                                                                                 | Restored GREEN                             |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| Dispatch `kubectl apply` after the real Dash planning call | Plan bytes still matched, but the mutation log existed (`Expected: false`, `Received: true`) | Equivalence case passes with zero canaries |
+| Omit `runPlan`'s `requireEnrollmentTarget` binding         | Wrong observed machine generated a plan and exited 0                                         | Wrong-target Dash refusal passes           |
+| Omit `runPlan`'s `requireLabFleet` binding                 | Lab-provider observation against a production-trait endpoint generated a plan and exited 0   | Lab/production Dash refusal passes         |
+
+Logs are `/tmp/dash-08019-12-r5-{mutation-dispatch,enrollment-binding,lab-binding}-{red,green}.log`.
+The restored complete integration suite passed 8/8, 84 assertions
+(`/tmp/dash-08019-12-r5-restored-green.log`). After explicit output-presence assertions,
+the five-file Dash dispatcher/integration and fleet CLI/plan/lab-provider regression
+run passed 54/54, 336 assertions (`/tmp/dash-08019-12-focused-restored-final.log`).
+
+The first uncached Dash lint/typecheck/build run passed lint/build but failed a
+test-only `process.env.PATH` index-signature access
+(`/tmp/dash-08019-12-nx-final.log`). After bracket access, typecheck/build/lint passed,
+but Nx's colored Bun stderr exposed seven diagnostic-normalization test failures
+(`/tmp/dash-08019-12-nx-restored-final.log`). Stripping ANSI before the anchored match
+fixed only the test parser. Final uncached Dash test/lint/typecheck/build and
+`tool-test-scratch:build` all executed and passed; Dash tests were 30/30, 152 assertions
+(`/tmp/dash-08019-12-nx-corrected-final.log`). Pinned strict OpenSpec 1/1 and all
+148/148 passed (`/tmp/dash-08019-12-{strict,all}.json`); diff checks passed.
+
+Task 1.2 remains unchecked pending independent review of this checkpoint. Task 1.3
+and acceptance 2.1–2.2 remain open. No host gate, CI, push, PR, merge, discovery,
+authority bootstrap, live host inventory or enrollment execution is claimed.

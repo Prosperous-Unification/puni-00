@@ -539,6 +539,7 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
   ) {
     // Proof: without this refusal a lab observation planned against infra/fleet/desired.yaml in
     // the lab-provider production CLI negative.
+    // Proof: omitting this binding made the real Dash lab/production refusal test exit 0.
     requireLabFleet(fleet, fleetPath, join(import.meta.dir, '../../..'));
   }
   const observation = decodeObservation(observationInput);
@@ -552,6 +553,8 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
       ? await requireReplacementAuthorization(outputPath, fleet, request)
       : undefined;
   if (request.kind === 'enroll') {
+    // Proof: omitting this binding made the real Dash wrong-target refusal test persist a
+    // plan and exit 0 for another observed machine identity.
     requireEnrollmentTarget(fleet, decodeFleetObservation(observationInput), request.nodeId);
   }
   let plan = planOperation(fleet, observation, request);
