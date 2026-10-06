@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { readReplyReplacement, replyReplacePart } from '@website/contracts';
 import { WebsiteStore } from '@website/store-sqlite';
 import { isTextUIPart, readUIMessageStream, type UIMessageChunk } from 'ai';
 import { Database } from 'bun:sqlite';
@@ -49,11 +50,13 @@ type Step =
     }
   | { status: number }
   | { hang: string }
-  | { contentFilter: true }
+  | { contentFilter: true; partial?: string }
   | {
       /** An HTTP 200 stream whose error chunk carries `metadata.error_type`, as OpenRouter sends it. */
       streamError: 'refusal' | 'provider_error';
       usagePlacement: 'error_chunk' | 'trailing_chunk';
+      /** Text the model streamed before the error chunk. */
+      partial?: string;
     };
 
 interface OutboundBody {
@@ -110,12 +113,13 @@ function fakeOpenRouter(next: (call: number) => Step) {
       });
     if ('contentFilter' in step)
       return stream(
-        event({
-          id: 'gen-1',
-          model: 'openai/gpt-4.1-mini',
-          choices: [{ index: 0, delta: {}, finish_reason: 'content_filter' }],
-          usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-        }),
+        (step.partial === undefined ? '' : delta(step.partial)) +
+          event({
+            id: 'gen-1',
+            model: 'openai/gpt-4.1-mini',
+            choices: [{ index: 0, delta: {}, finish_reason: 'content_filter' }],
+            usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+          }),
       );
     if ('streamError' in step) {
       const refusalUsage = { prompt_tokens: 927, completion_tokens: 23, total_tokens: 950 };
@@ -128,7 +132,7 @@ function fakeOpenRouter(next: (call: number) => Step) {
         },
       };
       return stream(
-        delta('') +
+        delta(step.partial ?? '') +
           event({
             id: 'gen-1',
             object: 'chat.completion.chunk',
@@ -715,7 +719,10 @@ function streamedText(stream: string): string {
     .join('');
 }
 
-/** The assistant text the browser's AI SDK client assembles from a UI message stream. */
+/**
+ * The assistant text an AI SDK client assembles from a UI message stream: text parts append and a
+ * `data-reply-replace` part replaces everything before it.
+ */
 async function assembleReply(stream: string): Promise<string> {
   const chunks = stream
     .split('\n')
@@ -729,10 +736,11 @@ async function assembleReply(stream: string): Promise<string> {
     },
   });
   for await (const message of readUIMessageStream({ stream: source, terminateOnError: true }))
-    text = message.parts
-      .filter(isTextUIPart)
-      .map((part) => part.text)
-      .join('');
+    text = message.parts.reduce(
+      (folded, part) =>
+        readReplyReplacement(part) ?? (isTextUIPart(part) ? folded + part.text : folded),
+      '',
+    );
   return text;
 }
 
@@ -752,6 +760,22 @@ const refusals = [
   {
     name: 'a 200 stream refusal error with usage on a trailing chunk',
     step: { streamError: 'refusal', usagePlacement: 'trailing_chunk' },
+    kind: 'provider_refusal',
+    cost: Math.ceil(927 * 0.44 + 23 * 1.76),
+  },
+  {
+    name: 'a content_filter finish after partial text',
+    step: { contentFilter: true, partial: 'I can’t help build' },
+    kind: 'content_filter',
+    cost: 0,
+  },
+  {
+    name: 'a 200 stream refusal error after partial text',
+    step: {
+      streamError: 'refusal',
+      usagePlacement: 'error_chunk',
+      partial: "I'm sorry, but I cannot assist with that request.",
+    },
     kind: 'provider_refusal',
     cost: Math.ceil(927 * 0.44 + 23 * 1.76),
   },
@@ -775,7 +799,17 @@ for (const refusal of refusals) {
     // filter or the raw-usage fallback in stream.ts each failed one of these cases (verify.md).
     expect(chunkTypes(streamed)).not.toContain('error');
     expect(chunkTypes(streamed)).toContain('finish');
-    expect(streamedText(streamed)).toBe(providerDeclineReply);
+    // The partial text (if any) streamed first; the replacement part carries the decline alone.
+    const partial = 'partial' in refusal.step ? refusal.step.partial : '';
+    expect(streamedText(streamed)).toBe(partial);
+    expect(chunkTypes(streamed).filter((type) => type === replyReplacePart)).toHaveLength(1);
+    const types = chunkTypes(streamed);
+    expect(types.filter((type) => type === 'text-end')).toHaveLength(
+      types.filter((type) => type === 'text-start').length,
+    );
+    // Proof: emitting the decline as text deltas again assembled "I can’t help buildI can't help
+    // with that request. …" in the partial-text cases; ignoring the replacement part in this fold
+    // assembled the partial text alone (verify.md).
     expect(await assembleReply(streamed)).toBe(providerDeclineReply);
     expect(operations(config.databasePath)[1]).toMatchObject({
       state: 'completed',

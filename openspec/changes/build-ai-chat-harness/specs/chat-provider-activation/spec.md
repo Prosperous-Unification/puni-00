@@ -39,7 +39,7 @@ The API SHALL read `OPENROUTER_REASONING_EFFORT` as unset (absent or empty) or o
 
 ### Requirement: Evaluation corpus runs on the production path
 
-The evaluation CLI SHALL drive the twelve scripted conversations through `POST /conversation/stream` on a loopback API, SHALL check only string-level assertions, SHALL print pass/fail and token totals, and SHALL print transcripts only with an explicit local flag. It SHALL refuse to run without the key and SHALL never write transcripts to disk.
+The evaluation CLI SHALL drive the twelve scripted conversations through `POST /conversation/stream` on a loopback API, SHALL check only string-level assertions, SHALL print pass/fail and token totals, and SHALL print transcripts only with an explicit local flag. For every script it SHALL also assert `streamEqualsStored`: each reply folded from the stream as the browser folds it equals the assistant turn `GET /conversation` stored for it. It SHALL refuse to run without the key and SHALL never write transcripts to disk.
 
 #### Scenario: Price assertion
 

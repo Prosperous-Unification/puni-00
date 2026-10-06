@@ -122,7 +122,12 @@ The API SHALL stream the reply as an AI SDK UI message stream and SHALL emit the
 
 ### Requirement: Provider refusal completes as a server-owned decline
 
-When the provider refuses a reply, either with a `content_filter` finish or with an in-stream error whose `metadata.error_type` is `refusal` (sent inside an HTTP 200 stream), the API SHALL complete the operation as a normal assistant turn whose text is a fixed, server-owned decline carrying no price, date or brief marker. It SHALL settle the operation at the provider-reported usage (0 when none was reported) with `settlement = 'usage'`, record the refusal kind (`content_filter` or `provider_refusal`) on the operation, stream the decline with a finish event and no error chunk, count the visitor turn, keep the conversation open, and never store the decline as the draft brief. Any other in-stream error SHALL keep the conservative settlement above.
+When the provider refuses a reply, either with a `content_filter` finish or with an in-stream error whose `metadata.error_type` is `refusal` (sent inside an HTTP 200 stream), the API SHALL complete the operation as a normal assistant turn whose text is a fixed, server-owned decline carrying no price, date or brief marker. It SHALL settle the operation at the provider-reported usage (0 when none was reported) with `settlement = 'usage'`, record the refusal kind (`content_filter` or `provider_refusal`) on the operation, stream the decline with a finish event and no error chunk, count the visitor turn, keep the conversation open, and never store the decline as the draft brief. Any other in-stream error SHALL keep the conservative settlement above. Because the model's partial text may already have streamed, the decline SHALL be streamed as a `data-reply-replace` part carrying the decline text after any open text part is ended, and the browser SHALL replace the live reply's text with it, so the streamed reply always equals the stored turn.
+
+#### Scenario: Refusal after partial text
+
+- **WHEN** the fake provider streams partial text, then a `content_filter` finish or an error chunk typed `refusal`
+- **THEN** the AI SDK client's folded message text equals exactly the decline, and the live reply in the browser shows the decline alone, never the partial text glued to it
 
 #### Scenario: Content filter
 

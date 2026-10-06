@@ -1,4 +1,5 @@
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { replyReplacePart } from '@website/contracts';
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
@@ -98,6 +99,17 @@ export function isRefusalChunk(rawValue: unknown): boolean {
   );
 }
 
+/**
+ * True for the SDK's stream error raised from an OpenRouter refusal chunk: its `data` is the
+ * chunk's `error` object. After partial text the SDK reports this error before the raw chunk
+ * reaches `onChunk`, so the error itself must be classified.
+ */
+export function isRefusalError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const data: unknown = Reflect.get(error, 'data');
+  return isRefusalChunk({ error: data });
+}
+
 /** The routing block every paid request carries: the pinned endpoint, privacy flags and price ceilings. */
 export function providerRouting(provider: string, rates: ProviderRates) {
   return {
@@ -175,6 +187,10 @@ export interface ConfirmedReplyOptions {
  * {@link ConfirmedReplyOptions.decline}, a provider refusal ({@link ProviderRefusal}) instead
  * completes with the decline reply at the provider-reported usage, or 0 when it reported none,
  * and streams that reply with a `stop` finish; the refusal's own error chunk is never forwarded.
+ * Partial text may already have streamed before the refusal, so the decline is sent as a
+ * `data-reply-replace` part ({@link replyReplacePart}) after every open text part is ended: the
+ * replacement supersedes the partial text and the folded stream equals the stored reply. Ordinary
+ * replies still stream token by token.
  */
 export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
   const abort = new AbortController();
@@ -286,7 +302,10 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
       options.markUnknown();
       release();
     },
-    onError: () => {
+    onError: ({ error }) => {
+      // Proof: without this classification the mounted refusal-after-partial-text test streamed an
+      // `error` and no finish, because the raw refusal chunk reaches onChunk after this callback.
+      if (decline && isRefusalError(error)) refusal = 'provider_refusal';
       // A refusal error is followed by the finish, which settles it as a decline.
       // Proof: marking unknown here as before failed the mounted 200-with-refusal-error test.
       if (decline && refusal) return;
@@ -301,8 +320,12 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
       // The pump runs on the server after browser disconnect; only settled turns get a finish event.
       void (async () => {
         let finishChunk: UIMessageChunk | null = null;
+        /** Text parts started and not yet ended; a decline ends them before replacing the text. */
+        const openTextIds = new Set<string>();
         try {
           for await (const chunk of wire) {
+            if (chunk.type === 'text-start') openTextIds.add(chunk.id);
+            else if (chunk.type === 'text-end') openTextIds.delete(chunk.id);
             if (chunk.type === 'finish') finishChunk = chunk;
             // Proof: forwarding this chunk put an `error` beside the decline's `finish` in the refusal tests.
             else if (chunk.type === 'error' && refusal) continue;
@@ -311,10 +334,10 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
           await completion.promise;
           if (connected) {
             if (declined && decline && options.isCompleted()) {
-              const id = crypto.randomUUID();
-              controller.enqueue({ type: 'text-start', id });
-              controller.enqueue({ type: 'text-delta', id, delta: decline.reply });
-              controller.enqueue({ type: 'text-end', id });
+              for (const id of openTextIds) controller.enqueue({ type: 'text-end', id });
+              // Proof: streaming the decline as appended text deltas instead glued it to the partial
+              // reply in the mounted partial-text refusal tests and in the browser regression.
+              controller.enqueue({ type: replyReplacePart, data: { text: decline.reply } });
               controller.enqueue({ type: 'finish', finishReason: 'stop' });
             } else if (options.isCompleted() && finishChunk) controller.enqueue(finishChunk);
             else

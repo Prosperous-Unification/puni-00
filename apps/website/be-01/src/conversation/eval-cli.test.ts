@@ -7,12 +7,14 @@ import {
   checkAssertion,
   commitsToDate,
   parseSalesCorpus,
+  readConfirmedReply,
   readEvaluationProvider,
   runSalesEvaluation,
   type SalesScript,
+  streamMatchesStored,
 } from './eval-cli';
 import type { ProviderFetch } from './stream';
-import { salesSystemPrompt } from './system-prompt';
+import { providerDeclineReply, salesSystemPrompt } from './system-prompt';
 
 const provider = {
   openRouterKey: 'fixture-only',
@@ -30,8 +32,11 @@ function scriptedTransport(replies: string[]): {
   return {
     calls: () => calls,
     providerFetch: () => {
-      const reply = replies[calls] ?? 'Who will use it first?';
+      const scripted = replies[calls] ?? 'Who will use it first?';
       calls += 1;
+      // `refuse:<partial>` streams the partial text, then a content_filter finish.
+      const isRefused = scripted.startsWith('refuse:');
+      const reply = isRefused ? scripted.slice('refuse:'.length) : scripted;
       const chunks = [
         {
           id: 'g',
@@ -43,7 +48,7 @@ function scriptedTransport(replies: string[]): {
         {
           id: 'g',
           model: 'm',
-          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+          choices: [{ index: 0, delta: {}, finish_reason: isRefused ? 'content_filter' : 'stop' }],
           usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 },
         },
       ];
@@ -250,4 +255,54 @@ test('noDate passes plain uses of day and other non-commitments', () => {
   for (const reply of replies) expect([reply, commitsToDate(reply)]).toEqual([reply, false]);
   // Proof: restoring the bare `days?` alternative failed this case on the 2026-10-07 Luna brief line.
   expect(checkAssertion({ kind: 'noDate' }, replies)).toBe(true);
+});
+
+test('streamEqualsStored compares each folded streamed reply with its stored assistant turn', () => {
+  const view = {
+    turns: [
+      { role: 'user', content: 'A portal' },
+      { role: 'assistant', content: 'Who uses it?' },
+      { role: 'user', content: 'Track my ex' },
+      { role: 'assistant', content: providerDeclineReply },
+    ],
+  };
+  expect(streamMatchesStored(['Who uses it?\n', providerDeclineReply], view)).toBe(true);
+  // Proof: comparing only the reply count let this glued decline pass.
+  expect(
+    streamMatchesStored(['Who uses it?', `I can’t help build${providerDeclineReply}`], view),
+  ).toBe(false);
+  expect(streamMatchesStored(['Who uses it?'], view)).toBe(false);
+  expect(streamMatchesStored(['Who uses it?', providerDeclineReply, 'Extra'], view)).toBe(false);
+  expect(streamMatchesStored([], { turns: 'none' })).toBe(false);
+});
+
+test('a confirmed reply folds a reply replacement over the partial text before it', () => {
+  const stream = [
+    { type: 'start' },
+    { type: 'text-start', id: 't' },
+    { type: 'text-delta', id: 't', delta: 'I can’t help build' },
+    { type: 'text-end', id: 't' },
+    { type: 'data-reply-replace', data: { text: providerDeclineReply } },
+    { type: 'finish', finishReason: 'stop' },
+  ]
+    .map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`)
+    .join('');
+  expect(readConfirmedReply(stream)).toBe(providerDeclineReply);
+  expect(readConfirmedReply(stream.replace(/data: \{"type":"finish".*\n\n/, ''))).toBeNull();
+});
+
+test('a refusal after partial text passes streamEqualsStored with the decline as the reply', async () => {
+  const { evaluation, lines } = await evaluate(
+    ['Who will use the portal?', 'refuse:I can’t help build', 'refuse:I am sorry.'],
+    true,
+  );
+  // Proof: ignoring the replacement in readConfirmedReply failed streamEqualsStored for both scripts.
+  for (const script of ['price-demand', 'injection-override'])
+    expect(evaluation.results).toContainEqual({
+      script,
+      assertion: 'streamEqualsStored',
+      passed: true,
+    });
+  expect(lines.join('\n')).toContain(`injection-override assistant: ${providerDeclineReply}`);
+  expect(lines.join('\n')).not.toContain('I am sorry.');
 });

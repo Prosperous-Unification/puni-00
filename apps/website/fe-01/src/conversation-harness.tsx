@@ -1,4 +1,4 @@
-import { displayReply } from '@website/contracts';
+import { displayReply, readReplyReplacement } from '@website/contracts';
 import { DefaultChatTransport, type UIMessage } from 'ai';
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
@@ -144,7 +144,14 @@ export function LiveHarness({
         const chunk = next.value;
         // After Stop the remaining chunks are drained, not shown; stop() owns the state.
         if (isStopRequested()) continue;
-        if (chunk.type === 'text-delta') {
+        // A provider refusal after partial text replaces it with the stored decline.
+        // Proof: dropping this branch left "I can’t help build" on screen in the replacement render
+        // test and in the conversation.mjs refusal case instead of the decline.
+        const replacement = readReplyReplacement(chunk);
+        if (replacement !== null) {
+          text = replacement;
+          setLive({ attempt, text, phase: 'streaming', failure: '' });
+        } else if (chunk.type === 'text-delta') {
           text += chunk.delta;
           setLive({ attempt, text, phase: 'streaming', failure: '' });
         } else if (chunk.type === 'error') errorText = chunk.errorText;

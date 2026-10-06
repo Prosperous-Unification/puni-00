@@ -476,3 +476,48 @@ invasive durable record. The private recovery list must learn `008_refusal`.
 | Bare `<n> weeks` pattern removed                                  | Positive noDate test failed on "Typically 6 to 8 weeks for a first release." |
 
 Each injected file was restored from a scratch copy and `git diff` showed no residue.
+
+## Streamed reply equals stored reply (2026-10-07)
+
+The second Luna run (`~/puni-site-dev/eval-20261007-luna/{diag2,diag3}.log` on h2puni) printed
+`harmful assistant: I can’t help buildI can't help with that request. …` and the same glue on both
+injection scripts: the model streamed partial text, then refused, and the server appended the
+decline as a second text part. The database held only the decline. Task 6.5; mechanism and the
+rejected alternative are in [design.md](design.md#provider-refusals-2026-10-06). No real key was
+used; the browser and mounted tests run the scripted transports.
+
+The partial-text refusal tests also exposed that a refusal error chunk after partial text was
+settled as an interrupted reply: the SDK calls `onError` before the raw chunk reaches `onChunk`.
+`onError` now classifies the error itself (`isRefusalError`).
+
+### Results
+
+- Uncached `env -u CLAUDECODE NX_DAEMON=false bunx nx run-many -t test,lint,typecheck,build -p website-be-01,website-fe-01,website-store-sqlite,website-contracts --skip-nx-cache`:
+  exit 0, 16 targets; be-01 112 pass, fe-01 60 pass, store-sqlite 66 pass, contracts 13 pass.
+- `bunx nx run website-be-01:test:package --skip-nx-cache`: exit 0.
+- `bun apps/website/fe-01/browser/conversation.mjs` (fixture stack 3120/4220, Chrome): exit 0. New
+  case 6: a message containing "refuse" streams `I can’t help build`, then an in-stream refusal
+  chunk; with the post-finish `GET /conversation` held, the live reply read exactly the decline,
+  the stored thread ended with the decline and no `help build`, and the composer accepted a new
+  message with Send enabled.
+- `bun apps/website/fe-01/browser/explicit-send.mjs` (demo stack 3118/4218): exit 0.
+- `PUNI_SCREENS_STRICT=1 bun apps/website/fe-01/browser/screens.mjs` (3118/4218 and 3119/4219,
+  `PUNI_OPERATOR_PASSWORD` set): exit 0, 62/62 OK.
+- `tools/tool-devsync` `bun test`: 391 pass, 0 fail (after staging the two new contracts files;
+  unstaged, the index checker refuses untracked paths).
+- `bunx prettier --check` on the touched files: clean. `openspec validate --all`: 145 passed.
+- The real-model corpus was not rerun; `streamEqualsStored` now runs on every script and needs the
+  real key (task 9.2).
+
+### R5 proofs
+
+| Injected fault                                                           | Observed failure                                                                                                                                                                  |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Decline streamed as appended text deltas instead of `data-reply-replace` | All five mounted refusal tests failed; the partial cases streamed `I can’t help buildI can't help with that request…`                                                             |
+| `isRefusalError` classification removed from `onError`                   | The 200-stream refusal-after-partial-text test failed (error chunk, no finish)                                                                                                    |
+| Replacement branch in `conversation-harness.tsx` disabled                | Harness render test: "never reached the expected state: I can’t help build"; `conversation.mjs` case 6: "The live refusal reply is not the decline alone: \"I can’t help build\"" |
+| Replacement ignored in `readConfirmedReply`                              | Eval fold test received `I can’t help build`; the eval refusal test's `streamEqualsStored` failed                                                                                 |
+| `streamMatchesStored` compares only the reply count                      | Assertion unit test accepted the glued decline                                                                                                                                    |
+| `readReplyReplacement` returns null for a replacement without text       | `reply-stream.test.ts` "throws on a replacement part without text" failed                                                                                                         |
+
+Each injected file was restored from a scratch copy; `cmp` or `git diff` showed no residue.

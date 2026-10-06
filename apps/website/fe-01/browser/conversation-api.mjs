@@ -8,7 +8,9 @@ import { createWebsiteApi } from '../../be-01/src/server.ts';
 // A loopback website API whose paid provider is a scripted OpenRouter stream: every admission,
 // reservation, cancel and settlement runs through the real API and store, and no network call or
 // key is used. Replies stream one word every `PUNI_FAKE_WORD_MS` milliseconds (default 45); a
-// visitor message containing "slowly" streams one word every 400 ms so a browser can press Stop.
+// visitor message containing "slowly" streams one word every 400 ms so a browser can press Stop;
+// one containing "refuse" streams a partial reply and then an in-stream refusal error chunk, as
+// OpenRouter sends a provider refusal mid-reply.
 const port = Number(env['WEBSITE_API_PORT'] ?? '3120');
 const appOrigin = env['APP_ORIGIN'] ?? 'http://localhost:4220';
 const publicOrigin = env['PUBLIC_ORIGIN'] ?? 'http://localhost:4320';
@@ -55,10 +57,22 @@ function chunk(id, delta, finish = null, usage = null) {
   })}\n\n`;
 }
 
+/** The refusal error chunk OpenRouter streams inside an HTTP 200 response. */
+function refusalChunk(id) {
+  return `data: ${JSON.stringify({
+    id,
+    object: 'chat.completion.chunk',
+    error: { code: 403, message: 'Upstream refused', metadata: { error_type: 'refusal' } },
+    choices: [{ index: 0, delta: { content: '' }, finish_reason: 'error' }],
+    usage: { prompt_tokens: 900, completion_tokens: 4, total_tokens: 904 },
+  })}\n\n`;
+}
+
 /** A scripted OpenRouter SSE response that honours the request's abort signal. */
 function providerFetch(_input, init) {
   const { stage, visitor } = readOutbound(init.body);
-  const words = replies[stage].split(/(?<= )/);
+  const isRefused = /refuse/i.test(visitor);
+  const words = (isRefused ? 'I can’t help build' : replies[stage]).split(/(?<= )/);
   const delay = /slowly/i.test(visitor) ? 400 : wordMilliseconds;
   const id = `gen-fixture-${String(Date.now())}`;
   const encoder = new globalThis.TextEncoder();
@@ -82,7 +96,13 @@ function providerFetch(_input, init) {
         if (aborted()) return;
         controller.enqueue(
           encoder.encode(
-            chunk(id, {}, 'stop', { prompt_tokens: 1200, completion_tokens: 80, total_tokens: 0 }),
+            isRefused
+              ? refusalChunk(id)
+              : chunk(id, {}, 'stop', {
+                  prompt_tokens: 1200,
+                  completion_tokens: 80,
+                  total_tokens: 0,
+                }),
           ),
         );
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));

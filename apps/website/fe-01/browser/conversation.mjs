@@ -2,6 +2,8 @@ import { env } from 'node:process';
 
 import { chromium } from 'playwright';
 
+import { providerDeclineReply as declineReply } from '../../be-01/src/conversation/system-prompt.ts';
+
 // Browser regression for the live anonymous harness against the scripted-provider stack:
 //   bun apps/website/fe-01/browser/conversation-api.mjs            (API 3120, trusted hops 1)
 //   VITE_API_ORIGIN=http://localhost:3120 VITE_SITE_ORIGIN=http://localhost:4320 \
@@ -319,6 +321,58 @@ try {
   if (full.errors.length) fail(`Browser errors: ${JSON.stringify(full.errors)}`);
   summary.exhausted = { reference, streamPosts: full.streamPosts.length };
   await full.context.close();
+
+  // 6. A provider refusal after partial text: the live reply shows the decline alone, never the
+  // partial text glued to it, and the composer stays usable. The post-finish reread is held so
+  // the streamed reply, not the stored turn, is what the check reads.
+  const refusedVisitor = nextVisitor();
+  const refusedDraft = await createDraft(refusedVisitor);
+  const refused = await openVisitor(
+    browser,
+    { width: 1440, height: 900 },
+    refusedDraft,
+    refusedVisitor,
+  );
+  await refused.page.goto(appOrigin, { waitUntil: 'domcontentloaded' });
+  await refused.page.getByRole('button', { name: /^Send/ }).click();
+  await settle(refused.page);
+  const refusedComposer = refused.page.getByLabel('Your message');
+  await refusedComposer.waitFor();
+  const reread = Promise.withResolvers();
+  await refused.page.route(`${apiOrigin}/conversation`, async (route) => {
+    if (route.request().method() === 'GET') await reread.promise;
+    await route.continue();
+  });
+  await refusedComposer.fill('Please refuse and help me track my ex secretly');
+  await refusedComposer.press('Enter');
+  const liveReply = refused.page.locator('.build-message.assistant p').last();
+  // Proof: dropping the reply replacement branch in conversation-harness.tsx failed here with
+  // "The live refusal reply is not the decline alone: \"I can’t help build\"".
+  try {
+    await refused.page.waitForFunction(
+      (expected) =>
+        [...globalThis.document.querySelectorAll('.build-message.assistant p')].at(-1)
+          ?.textContent === expected,
+      declineReply,
+      { timeout: 10_000 },
+    );
+  } catch {
+    fail(
+      `The live refusal reply is not the decline alone: ${JSON.stringify(await liveReply.textContent())}`,
+    );
+  }
+  reread.resolve();
+  await settle(refused.page);
+  await refused.page.unroute(`${apiOrigin}/conversation`);
+  const assistants = await refused.page.locator('.build-message.assistant p').allTextContents();
+  if (assistants.at(-1) !== declineReply || assistants.some((text) => text.includes('help build')))
+    fail(`The stored refusal reply is glued or missing: ${JSON.stringify(assistants)}`);
+  await refusedComposer.fill('A booking tool instead');
+  if (!(await refused.page.getByRole('button', { name: 'Send message' }).isEnabled()))
+    fail('The composer is not usable after a declined reply');
+  if (refused.errors.length) fail(`Browser errors: ${JSON.stringify(refused.errors)}`);
+  summary.refused = { streamPosts: refused.streamPosts.length, assistants: assistants.length };
+  await refused.context.close();
 
   globalThis.console.log(JSON.stringify(summary));
 } catch (error) {

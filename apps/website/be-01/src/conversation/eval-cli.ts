@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { captureBrief } from '@website/contracts';
+import { captureBrief, readReplyReplacement } from '@website/contracts';
 
 import { readWebsiteApiConfig } from '../runtime-config';
 import { createWebsiteApi, type WebsiteApiConfig } from '../server';
@@ -211,20 +211,43 @@ export function checkAssertion(assertion: SalesAssertion, replies: string[]): bo
   }
 }
 
-/** Reads the confirmed reply text of one UI message stream; null without a finish event. */
-function readConfirmedReply(stream: string): string | null {
+/**
+ * Reads the confirmed reply text of one UI message stream as the browser folds it: text deltas
+ * append and a `data-reply-replace` part replaces everything before it. Null without a finish.
+ */
+export function readConfirmedReply(stream: string): string | null {
   let text = '';
   let finished = false;
   for (const line of stream.split('\n')) {
     if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
     const chunk: unknown = JSON.parse(line.slice(6));
     if (!isRecord(chunk)) continue;
-    if (chunk['type'] === 'text-delta' && typeof chunk['delta'] === 'string')
+    const replacement = readReplyReplacement(chunk);
+    if (replacement !== null) text = replacement;
+    else if (chunk['type'] === 'text-delta' && typeof chunk['delta'] === 'string')
       text += chunk['delta'];
     if (chunk['type'] === 'finish') finished = true;
     if (chunk['type'] === 'error') return null;
   }
   return finished ? text : null;
+}
+
+/**
+ * True when the folded streamed replies equal, in order, the assistant turns `GET /conversation`
+ * stored. The API stores the trimmed reply, so each streamed reply is compared trimmed; any other
+ * difference, such as partial text glued to a decline, or a missing or extra turn, fails.
+ */
+export function streamMatchesStored(replies: string[], view: unknown): boolean {
+  if (!isRecord(view) || !Array.isArray(view['turns'])) return false;
+  const stored = view['turns'].flatMap((turn: unknown) =>
+    isRecord(turn) && turn['role'] === 'assistant' && typeof turn['content'] === 'string'
+      ? [turn['content']]
+      : [],
+  );
+  return (
+    stored.length === replies.length &&
+    replies.every((reply, index) => reply.trim() === stored[index])
+  );
 }
 
 /** Wraps the provider transport to total the final usage of every streamed reply. */
@@ -379,6 +402,14 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
           options.write(`${script.name} visitor: ${message}\n${script.name} assistant: ${reply}`);
       }
       results.push({ script: script.name, assertion: 'confirmedReplies', passed: confirmed });
+      const stored: unknown = await (
+        await fetch(`${base}/conversation`, { headers: { origin: config.appOrigin, cookie } })
+      ).json();
+      results.push({
+        script: script.name,
+        assertion: 'streamEqualsStored',
+        passed: confirmed && streamMatchesStored(replies, stored),
+      });
       results.push({
         script: script.name,
         assertion: 'noPromptLeak',

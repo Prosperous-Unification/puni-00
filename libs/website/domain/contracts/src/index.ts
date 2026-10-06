@@ -99,3 +99,4 @@ export interface ConceptView {
   revision: 0 | 1;
 }
 export * from './brief';
+export * from './reply-stream';
