@@ -1320,18 +1320,19 @@ this slice.
 
 Planning-only base: `73264fce66deff231c71b8a14f73da856e5fa811`, isolated worktree
 `.worktrees/shared-people-fanout-plan`, branch `plan/shared-people-fanout`. No production code,
-WBS record, runtime configuration or publication is changed. All 6g–6l implementation checks
-below are **pending**, not inferred from the earlier runtime/cache suites.
+WBS record, runtime configuration or publication is changed. At planning time all
+6g–6l implementation checks were pending; the reviewed 6g local checkpoint is
+recorded below, while later slices remain pending.
 
-| Slice   | Production fault required                                                                                                     | Named observation target                                                                   | Result                      |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------- |
-| 6g      | Fast substitution; equal-hash suppression; old-graph omission; mixed-edge traversal; duplicate pair; mode/organization bypass | Selected display, availability, removed bridge, false path and pair/authority tests        | Pending                     |
-| 6h      | Record after commit; push before commit; omitted binding/trigger; live admission                                              | Real command/undo/redo mutation, event sequence, push witness and optimizer-state equality | Pending                     |
-| 6i      | Independent rank/settings/directory binding omission; new-only usages; detached topology                                      | Mounted rank/settings/directory recipients and coherent observations                       | Pending                     |
-| 6j      | Import binding omission; request-only deletion; lost old closure; missed release/reconcile; detached recording                | Import rollback and final drain/delete event/ledger assertions                             | Pending                     |
-| 6k      | Any-insertion fan-out; input-only comparison; Fast substitution; detached read; missing atomic event                          | H1/H2 silence, selected display, availability and atomic cache/event rollback              | Pending                     |
-| 6l      | Missing durable row; push reinsertion; memory-only replay; authority bypass                                                   | Cold-process replay, stable sequence, retention and denied subscription                    | Pending                     |
-| Release | Advertise shared; bypass restore guard                                                                                        | Physical capability CLI and first-write restore trap                                       | Pending rerun after fan-out |
+| Slice   | Production fault required                                                                                                     | Named observation target                                                                   | Result                                                                   |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| 6g      | Fast substitution; equal-hash suppression; old-graph omission; mixed-edge traversal; duplicate pair; mode/organization bypass | Selected display, availability, removed bridge, false path and pair/authority tests        | Reviewed local checkpoint; 17 watched REDs; focused 32/32, 76 assertions |
+| 6h      | Record after commit; push before commit; omitted binding/trigger; live admission                                              | Real command/undo/redo mutation, event sequence, push witness and optimizer-state equality | Pending                                                                  |
+| 6i      | Independent rank/settings/directory binding omission; new-only usages; detached topology                                      | Mounted rank/settings/directory recipients and coherent observations                       | Pending                                                                  |
+| 6j      | Import binding omission; request-only deletion; lost old closure; missed release/reconcile; detached recording                | Import rollback and final drain/delete event/ledger assertions                             | Pending                                                                  |
+| 6k      | Any-insertion fan-out; input-only comparison; Fast substitution; detached read; missing atomic event                          | H1/H2 silence, selected display, availability and atomic cache/event rollback              | Pending                                                                  |
+| 6l      | Missing durable row; push reinsertion; memory-only replay; authority bypass                                                   | Cold-process replay, stable sequence, retention and denied subscription                    | Pending                                                                  |
+| Release | Advertise shared; bypass restore guard                                                                                        | Physical capability CLI and first-write restore trap                                       | Pending rerun after fan-out                                              |
 
 Execution commands: use `bun test <changed-test-path>` for each RED/GREEN and independent R5
 fault; retain exact command, assertion, exit and restored source evidence per fault. Run affected
