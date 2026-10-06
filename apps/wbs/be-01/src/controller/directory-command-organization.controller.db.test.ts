@@ -158,6 +158,14 @@ function snapshot(): unknown {
   ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all().map(withoutAudit));
 }
 
+function durableSnapshot(): unknown {
+  return {
+    directory: snapshot(),
+    events: h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all(),
+    sequences: h.sqlite.query('SELECT * FROM event_sequencer ORDER BY subscription').all(),
+  };
+}
+
 function withoutAudit(row: unknown): unknown {
   if (typeof row !== 'object' || row === null) return row;
   return Object.fromEntries(
@@ -323,6 +331,152 @@ describe('after activation', () => {
     expect(snapshot()).toEqual(before);
   });
 
+  it('rechecks foreign team membership after preflight on the owning writer before capture', async () => {
+    h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    const actorId = h.userId('ada');
+    const access = {
+      kind: 'scoped' as const,
+      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+    };
+    let racedState: unknown;
+    let racedEvents: unknown[] = [];
+    let racedSequences: unknown[] = [];
+    let pushes = 0;
+    pushDuringTest = () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    };
+    captureActive = true;
+    onOwnerAttempt = () => {
+      h.sqlite.run("INSERT INTO person_team (person_id, service_team_id) VALUES ('pe-b', 'tm-a')");
+      racedState = snapshot();
+      racedEvents = h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all();
+      racedSequences = h.sqlite.query('SELECT * FROM event_sequencer ORDER BY subscription').all();
+      onOwnerAttempt = null;
+    };
+    try {
+      expect(
+        (
+          await rejectedError(
+            h.removeStandaloneDirectoryWithin('teams', 'tm-a', actorId, true, access),
+          )
+        ).message,
+      ).toContain('reached from outside it');
+    } finally {
+      captureActive = false;
+      onOwnerAttempt = null;
+    }
+    expect(captureCalls).toBe(0);
+    expect(snapshot()).toEqual(racedState);
+    expect(h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all()).toEqual(
+      racedEvents,
+    );
+    expect(h.sqlite.query('SELECT * FROM event_sequencer ORDER BY subscription').all()).toEqual(
+      racedSequences,
+    );
+    expect(pushes).toBe(0);
+  });
+
+  for (const scenario of [
+    {
+      label: 'service-team link',
+      catalog: 'services' as const,
+      id: 'sv-a',
+      relation: "INSERT INTO team_service (team_id, service_id) VALUES ('tm-b', 'sv-a')",
+    },
+    {
+      label: 'tagged foreign work item',
+      catalog: 'tags' as const,
+      id: 'tg-a',
+      relation:
+        "INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('foreign-reach-row', 'tg-a')",
+    },
+    {
+      label: 'typed foreign work item',
+      catalog: 'workItemTypes' as const,
+      id: 'ty-a',
+      relation:
+        "INSERT INTO work_item_work_item_type (work_item_id, type_id) VALUES ('foreign-reach-row', 'ty-a')",
+    },
+  ]) {
+    it(`rechecks late foreign ${scenario.label} reach before capture`, async () => {
+      h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+      if (scenario.catalog !== 'services')
+        h.sqlite.run(
+          "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('foreign-reach-row', ?, NULL, 0, 'Foreign reach')",
+          [foreign],
+        );
+      const actorId = h.userId('ada');
+      let racedState: unknown;
+      captureActive = true;
+      onOwnerAttempt = () => {
+        h.sqlite.run(scenario.relation);
+        racedState = snapshot();
+        onOwnerAttempt = null;
+      };
+      try {
+        expect(
+          (
+            await rejectedError(
+              h.removeStandaloneDirectoryWithin(scenario.catalog, scenario.id, actorId, true, {
+                kind: 'scoped',
+                scope: { organizationId: 'org-a', userId: actorId, role: 'member' },
+              }),
+            )
+          ).message,
+        ).toContain('reached from outside it');
+      } finally {
+        onOwnerAttempt = null;
+        captureActive = false;
+      }
+      expect(captureCalls).toBe(0);
+      expect(snapshot()).toEqual(racedState);
+    });
+  }
+
+  it('rechecks an assignment foreign step after preflight on the owning writer', async () => {
+    const foreignStep = (
+      (await h.call('grace', 'GET', `/api/projects/${foreign}`)).body as {
+        steps: { id: string }[];
+      }
+    ).steps.at(0)?.id;
+    if (foreignStep === undefined) throw new Error('foreign step is missing');
+    h.sqlite.run(
+      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('own-reach-row', ?, NULL, 0, 'Own row')",
+      [own],
+    );
+    h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    const actorId = h.userId('ada');
+    let racedState: unknown;
+    captureActive = true;
+    onOwnerAttempt = () => {
+      h.sqlite.run('INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)', [
+        'own-reach-row',
+        foreignStep,
+        'pe-a',
+      ]);
+      racedState = snapshot();
+      onOwnerAttempt = null;
+    };
+    try {
+      expect(
+        (
+          await rejectedError(
+            h.removeStandaloneDirectoryWithin('people', 'pe-a', actorId, true, {
+              kind: 'scoped',
+              scope: { organizationId: 'org-a', userId: actorId, role: 'member' },
+            }),
+          )
+        ).message,
+      ).toContain('reached from outside it');
+    } finally {
+      onOwnerAttempt = null;
+      captureActive = false;
+    }
+    expect(captureCalls).toBe(0);
+    expect(snapshot()).toEqual(racedState);
+  });
+
   it('keeps standalone team and service link refusals typed before capture', async () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const actorId = h.userId('ada');
@@ -453,6 +607,15 @@ describe('after activation', () => {
         rowId,
         'tm-extra',
       ]);
+    const eventsBefore = h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all();
+    const sequencesBefore = h.sqlite
+      .query('SELECT * FROM event_sequencer ORDER BY subscription')
+      .all();
+    let pushes = 0;
+    pushDuringTest = () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    };
     const actorId = h.userId('ada');
     countOwners = true;
     countCaptures = true;
@@ -483,6 +646,13 @@ describe('after activation', () => {
       'org-a',
     ]);
     expect(capturedValues.map(({ observation }) => observation.mode)).toEqual(['shared', 'shared']);
+    expect(h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all()).toEqual(
+      eventsBefore,
+    );
+    expect(h.sqlite.query('SELECT * FROM event_sequencer ORDER BY subscription').all()).toEqual(
+      sequencesBefore,
+    );
+    expect(pushes).toBe(0);
   });
 
   it('keeps concurrent standalone directory invocation access bound to its own organization', async () => {
@@ -687,6 +857,259 @@ describe('after activation', () => {
       .map(({ message }) => JSON.parse(message) as { type: string });
     expect(messages.map(({ type }) => type)).toEqual(['directory_changed']);
     expect(pushes).toBe(1);
+  });
+
+  it('retains a team rename and one announcement when its second owner fails after capture', async () => {
+    await seedSharedStandalonePerson([own]);
+    h.sqlite.run(
+      "INSERT INTO work_item_team (work_item_id, team_id) VALUES ('standalone-person-row-0', 'tm-a')",
+    );
+    const actorId = h.userId('ada');
+    let pushes = 0;
+    pushDuringTest = () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    };
+    countOwners = true;
+    countCaptures = true;
+    failCapturedAfter = 4;
+    try {
+      expect(
+        (
+          await rejectedError(
+            h.publicDirectoryService().patchTeamWithin(
+              'tm-a',
+              actorId,
+              { name: 'Retained team', serviceIds: ['sv-a'] },
+              {
+                kind: 'scoped',
+                scope: { organizationId: 'org-a', userId: actorId, role: 'member' },
+              },
+            ),
+          )
+        ).message,
+      ).toContain('second-owner after-capture');
+    } finally {
+      countOwners = false;
+      countCaptures = false;
+      failCapturedAfter = null;
+    }
+    expect(ownerCalls).toBe(2);
+    expect(observedCaptures).toBe(4);
+    expect(
+      h.sqlite
+        .query<{ name: string }, []>(
+          "SELECT name FROM service_team_organization WHERE resource_id = 'tm-a'",
+        )
+        .get()?.name,
+    ).toBe('Retained team');
+    expect(h.sqlite.query("SELECT * FROM team_service WHERE team_id = 'tm-a'").all()).toEqual([]);
+    const messages = h.sqlite
+      .query<{ message: string }, [string]>(
+        'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+      )
+      .all(`project:${own}`)
+      .map(({ message }) => JSON.parse(message) as { type: string });
+    expect(messages.map(({ type }) => type)).toEqual(['directory_changed']);
+    expect(pushes).toBe(1);
+  });
+
+  it('returns typed late person and team link refusals after the first rename commits', async () => {
+    const actorId = h.userId('ada');
+    let pushes = 0;
+    pushDuringTest = () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    };
+    const access = {
+      kind: 'scoped' as const,
+      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+    };
+    for (const scenario of [
+      {
+        target: 'team',
+        remove: "DELETE FROM service WHERE id = 'sv-a'",
+        reason: 'unknown_service',
+        write: () =>
+          h
+            .publicDirectoryService()
+            .patchTeamWithin(
+              'tm-a',
+              actorId,
+              { name: 'Team retained', serviceIds: ['sv-a'] },
+              access,
+            ),
+        renamed: () =>
+          h.sqlite
+            .query<{ name: string }, []>(
+              "SELECT name FROM service_team_organization WHERE resource_id = 'tm-a'",
+            )
+            .get()?.name,
+        expectedName: 'Team retained',
+      },
+      {
+        target: 'person',
+        remove: "DELETE FROM service_team WHERE id = 'tm-a'",
+        reason: 'unknown_team',
+        write: () =>
+          h
+            .publicDirectoryService()
+            .patchPersonWithin(
+              'pe-a',
+              actorId,
+              { name: 'Person retained', teamIds: ['tm-a'] },
+              access,
+            ),
+        renamed: () =>
+          h.sqlite
+            .query<{ name: string }, []>(
+              "SELECT name FROM person_organization WHERE resource_id = 'pe-a'",
+            )
+            .get()?.name,
+        expectedName: 'Person retained',
+      },
+    ] as const) {
+      let afterRace: unknown;
+      countOwners = true;
+      countCaptures = true;
+      onOwnerAttempt = () => {
+        if (ownerCalls === 2) {
+          h.sqlite.run(scenario.remove);
+          afterRace = durableSnapshot();
+        }
+      };
+      try {
+        expect(await scenario.write()).toEqual({ ok: false, reason: scenario.reason });
+      } finally {
+        onOwnerAttempt = null;
+        countOwners = false;
+        countCaptures = false;
+      }
+      expect(ownerCalls).toBe(2);
+      expect(observedCaptures).toBe(2);
+      expect(scenario.renamed()).toBe(scenario.expectedName);
+      expect(durableSnapshot()).toEqual(afterRace);
+      expect(pushes).toBe(0);
+      ownerCalls = 0;
+      observedCaptures = 0;
+    }
+  });
+
+  it('returns typed late existing-person add refusal', async () => {
+    let afterRace: unknown;
+    const actorId = h.userId('ada');
+    let pushes = 0;
+    pushDuringTest = () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    };
+    const access = {
+      kind: 'scoped' as const,
+      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+    };
+    countOwners = true;
+    countCaptures = true;
+    onOwnerAttempt = () => {
+      h.sqlite.run("DELETE FROM service_team WHERE id = 'tm-a'");
+      afterRace = durableSnapshot();
+      onOwnerAttempt = null;
+    };
+    try {
+      expect(
+        await h.publicDirectoryService().addPersonWithin(actorId, 'pe-a', ['tm-a'], access),
+      ).toEqual({ ok: false, reason: 'unknown_team' });
+    } finally {
+      onOwnerAttempt = null;
+      countOwners = false;
+      countCaptures = false;
+    }
+    expect(ownerCalls).toBe(1);
+    expect(observedCaptures).toBe(0);
+    expect(durableSnapshot()).toEqual(afterRace);
+    expect(pushes).toBe(0);
+    expect(h.sqlite.query("SELECT * FROM person_team WHERE person_id = 'pe-a'").all()).toEqual([]);
+  });
+
+  it('returns typed late new-person link refusal after its earlier raw creates', async () => {
+    let afterRace: unknown;
+    const actorId = h.userId('ada');
+    let pushes = 0;
+    pushDuringTest = () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    };
+    const access = {
+      kind: 'scoped' as const,
+      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+    };
+    countOwners = true;
+    countCaptures = true;
+    onOwnerAttempt = () => {
+      if (ownerCalls !== 3) return;
+      h.sqlite.run("DELETE FROM service_team WHERE id = 'tm-a'");
+      afterRace = durableSnapshot();
+      onOwnerAttempt = null;
+    };
+    try {
+      expect(
+        await h.publicDirectoryService().addPersonWithin(actorId, 'New Ada', ['tm-a'], access),
+      ).toEqual({ ok: false, reason: 'unknown_team' });
+    } finally {
+      onOwnerAttempt = null;
+      countOwners = false;
+      countCaptures = false;
+    }
+    expect(ownerCalls).toBe(3);
+    expect(observedCaptures).toBe(4);
+    expect(durableSnapshot()).toEqual(afterRace);
+    expect(pushes).toBe(0);
+    const created = h.sqlite
+      .query<{ resource_id: string }, []>(
+        "SELECT resource_id FROM person_organization WHERE name = 'New Ada'",
+      )
+      .get()?.resource_id;
+    if (created === undefined) throw new Error('new person mapping was not retained');
+    expect(h.sqlite.query('SELECT * FROM person_team WHERE person_id = ?').all(created)).toEqual(
+      [],
+    );
+  });
+
+  it('returns typed late not_found for addressed person and team owner refusals', async () => {
+    const actorId = h.userId('ada');
+    const access = {
+      kind: 'scoped' as const,
+      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+    };
+    for (const scenario of [
+      {
+        root: 'person',
+        id: 'pe-a',
+        write: () =>
+          h.publicDirectoryService().patchPersonWithin('pe-a', actorId, { kind: 'agent' }, access),
+      },
+      {
+        root: 'service_team',
+        id: 'tm-a',
+        write: () =>
+          h.publicDirectoryService().patchTeamWithin('tm-a', actorId, { serviceIds: [] }, access),
+      },
+    ]) {
+      countOwners = true;
+      countCaptures = true;
+      onOwnerAttempt = () => {
+        h.sqlite.run(`DELETE FROM ${scenario.root} WHERE id = ?`, [scenario.id]);
+        onOwnerAttempt = null;
+      };
+      try {
+        expect(await scenario.write()).toEqual({ ok: false, reason: 'not_found' });
+      } finally {
+        countOwners = false;
+        countCaptures = false;
+        onOwnerAttempt = null;
+      }
+      expect(observedCaptures).toBe(0);
+      observedCaptures = 0;
+    }
   });
 
   it('announces a committed standalone rename once when the later link patch fails', async () => {
@@ -1128,6 +1551,102 @@ describe('after activation', () => {
     expect(
       (await directory('ada', [{ kind: 'deleteTeam', teamId: 'tm-a', cascade: true }])).status,
     ).toBe(200);
+  });
+
+  it('refreshes the mounted Working Plan after a team cascade before duplicating its leaf', async () => {
+    const later = await create('ada', 'Later A plan');
+    const ownRead = await h.call('ada', 'GET', `/api/projects/${own}`);
+    const laterRead = await h.call('ada', 'GET', `/api/projects/${later}`);
+    const ownStep = (ownRead.body as { steps: { id: string }[] }).steps.at(0)?.id;
+    const laterStep = (laterRead.body as { steps: { id: string }[] }).steps.at(0)?.id;
+    if (ownStep === undefined || laterStep === undefined) throw new Error('fixture step is absent');
+    for (const [projectId, rowId, stepId] of [
+      [own, 'reload-leaf', ownStep],
+      [later, 'reload-later', laterStep],
+    ]) {
+      h.sqlite.run(
+        "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+        [projectId],
+      );
+      h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
+        rowId,
+        projectId,
+        rowId,
+      ]);
+      h.sqlite.run(
+        'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
+        [rowId, stepId],
+      );
+      h.sqlite.run(
+        "INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, 'pe-a')",
+        [rowId, stepId],
+      );
+    }
+    h.sqlite.run(
+      "INSERT INTO work_item_team (work_item_id, team_id) VALUES ('reload-leaf', 'tm-a')",
+    );
+    h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    const before = await h.captureFanout('org-a');
+    const beforeLater = before.observation.projects.find((project) => project.projectId === later);
+    if (beforeLater?.outcome.kind !== 'scheduled') throw new Error('later plan is not scheduled');
+    expect(
+      [...beforeLater.outcome.fast.slices.values()]
+        .filter((slice) => slice.workItemId === 'reload-later' && slice.stepId === laterStep)
+        .map((slice) => slice.earliestStart),
+    ).toEqual([1]);
+    const batch = await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+      commands: [
+        {
+          kind: 'setEstimate',
+          workItemId: 'reload-leaf',
+          stepId: ownStep,
+          days: { optimistic: 1, realistic: 1, pessimistic: 1 },
+        },
+        { kind: 'deleteTeam', teamId: 'tm-a', cascade: true },
+        { kind: 'duplicateWorkItem', workItemId: 'reload-leaf', ref: 'copy' },
+        { kind: 'arrangeBySchedule' },
+      ],
+    });
+    expect(batch.status).toBe(200);
+    const copy = h.sqlite
+      .query<{ id: string }, [string]>(
+        "SELECT id FROM work_item WHERE project_id = ? AND name = 'reload-leaf (copy)'",
+      )
+      .get(own)?.id;
+    if (copy === undefined) throw new Error('duplicate command returned no copy');
+    expect(
+      h.sqlite
+        .query('SELECT * FROM work_item_team WHERE work_item_id IN (?, ?)')
+        .all('reload-leaf', copy),
+    ).toEqual([]);
+    expect(
+      h.sqlite
+        .query<{ person_id: string }, [string]>(
+          'SELECT person_id FROM assignment WHERE work_item_id = ? ORDER BY step_id',
+        )
+        .all(copy)
+        .map(({ person_id }) => person_id),
+    ).toEqual(['pe-a']);
+    const after = await h.captureFanout('org-a');
+    const afterLater = after.observation.projects.find((project) => project.projectId === later);
+    if (afterLater?.outcome.kind !== 'scheduled') throw new Error('later plan lost its schedule');
+    expect(
+      [...afterLater.outcome.fast.slices.values()]
+        .filter((slice) => slice.workItemId === 'reload-later' && slice.stepId === laterStep)
+        .map((slice) => slice.earliestStart),
+    ).toEqual([2]);
+    const sharedEvents = h.sqlite
+      .query<{ message: string }, [string]>(
+        'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+      )
+      .all(`project:${later}`)
+      .map(
+        ({ message }) =>
+          JSON.parse(message) as { type: string; projectId: string; causeProjectId?: string },
+      );
+    expect(sharedEvents.filter(({ type }) => type === 'elsewhere_changed')).toEqual([
+      { type: 'elsewhere_changed', projectId: later, causeProjectId: own },
+    ]);
   });
 
   it('fails closed on a directory entry a foreign project names', async () => {

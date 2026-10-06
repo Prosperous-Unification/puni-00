@@ -1,4 +1,4 @@
-import { readChain } from '@wbs/core';
+import { type DirectoryStore, readChain } from '@wbs/core';
 import type {
   BeforeProjectUpdate,
   BeforeRankMove,
@@ -106,8 +106,9 @@ export function authorizeRankMoveIn(db: Drizzle): BeforeRankMove {
 }
 
 /** Classifies the caller's directory address on the same borrowed writer as the mutation. */
-export function resolveDirectoryWriteIn(
+export async function resolveDirectoryWriteIn(
   db: Drizzle,
+  directory: DirectoryStore,
   address: DirectoryWriteAddress,
 ): Promise<DirectoryWriteResolution> {
   if (address.access.kind === 'legacy') return Promise.resolve({ ok: true, organizationIds: [] });
@@ -155,18 +156,20 @@ export function resolveDirectoryWriteIn(
     for (const serviceId of address.serviceIds ?? [])
       if (ownershipOf('services', serviceId) !== 'owned')
         return Promise.resolve({ ok: false, reason: 'unknown_service' });
-  if (addressed?.catalog === 'people') {
-    const reach = db.all<{ project_id: string; organization_id: string | null }>(sql`
-      SELECT work_item.project_id, project_organization.organization_id
-      FROM assignment
-      JOIN work_item ON work_item.id = assignment.work_item_id
-      LEFT JOIN project_organization ON project_organization.resource_id = work_item.project_id
-      WHERE assignment.person_id = ${addressed.resourceId}
-    `);
-    if (reach.some((row) => row.organization_id !== organizationId))
-      throw new Error(`person "${addressed.resourceId}" has corrupt cross-organization usage`);
+  if (addressed !== null) {
+    // Proof: omitting this owner-side recheck let A remove its team after a
+    // second connection linked B's person to it; capture ran and missed B.
+    const foreign = await directory.foreignReferencesTo(
+      addressed.catalog,
+      addressed.resourceId,
+      organizationId,
+    );
+    if (foreign.length > 0)
+      throw new Error(
+        `${addressed.catalog} entry "${addressed.resourceId}" of organization "${organizationId}" is reached from outside it: ${foreign.join(', ')}`,
+      );
   }
-  return Promise.resolve({ ok: true, organizationIds: [organizationId] });
+  return { ok: true, organizationIds: [organizationId] };
 }
 
 /** Reads staged writes on the borrowed transaction; it never owns or closes a connection. */

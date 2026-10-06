@@ -41,6 +41,8 @@ export async function recordCommittedFanout(
     directCauses: [...directCauses],
   });
   const events: CommittedProjectEvent[] = [];
+  // Proof: injecting a recipient when comparison returned none made the
+  // mounted idempotent membership-add test record a forbidden event row.
   for (const { projectId, causeProjectId } of recipients) {
     const event: ProjectEvent = { type: 'elsewhere_changed', projectId, causeProjectId };
     const recorded = await eventLog.recordEvent(subscriptionFor(projectId), event, now());

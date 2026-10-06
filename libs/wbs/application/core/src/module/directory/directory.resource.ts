@@ -1017,8 +1017,13 @@ export class DirectoryService {
         { serviceIds: patch.serviceIds },
         this.clock.stampFor(actorId),
       );
-      if (!written.ok)
-        throw new Error(`team "${teamId}" refused owned services: ${written.reason}`);
+      // Proof: a service removed after preflight but before this raw owner
+      // returned a generic error instead of unknown_service in the mounted race.
+      if (!written.ok) {
+        if (written.reason === 'taken')
+          throw new Error(`team "${teamId}" patch unexpectedly reported a taken name`);
+        return { ok: false, reason: written.reason };
+      }
     }
     const team = await this.ownEntry('teams', teamId, scope);
     if (team === undefined) throw new Error(`team "${teamId}" vanished mid-patch`);
@@ -1068,8 +1073,12 @@ export class DirectoryService {
           { teamIds: joined },
           stamp,
         );
-        if (!written.ok)
-          throw new Error(`person "${existing.id}" refused teams: ${written.reason}`);
+        if (!written.ok) {
+          if (written.reason === 'taken')
+            throw new Error(`person "${existing.id}" link patch reported a taken name`);
+          // Proof: throwing here made the queued existing-person add test lose unknown_team.
+          return { ok: false, reason: written.reason };
+        }
       }
       return { ok: true, value: { id: existing.id, name: existing.name, kind: existing.kind } };
     }
@@ -1094,8 +1103,12 @@ export class DirectoryService {
     await this.opts.directory.mapInOrganization('people', id, scope.organizationId, clean);
     if (teamIds.length > 0) {
       const joined = await this.opts.directory.patchPerson(id, { teamIds }, stamp);
+      // A team can disappear between service preflight and this later raw owner.
       if (!joined.ok) {
-        throw new Error(`person "${id}" refused teams already checked: ${joined.reason}`);
+        if (joined.reason === 'taken')
+          throw new Error(`person "${id}" link patch reported a taken name`);
+        // Proof: throwing here made the queued new-person link test lose unknown_team.
+        return { ok: false, reason: joined.reason };
       }
     }
     return { ok: true, value: { id, name: clean, kind: addedKind } };
@@ -1158,8 +1171,12 @@ export class DirectoryService {
         },
         this.clock.stampFor(actorId),
       );
-      if (!written.ok)
-        throw new Error(`person "${personId}" refused a checked patch: ${written.reason}`);
+      if (!written.ok) {
+        if (written.reason === 'taken')
+          throw new Error(`person "${personId}" patch unexpectedly reported a taken name`);
+        // Proof: throwing here made the queued person patch test lose unknown_team.
+        return { ok: false, reason: written.reason };
+      }
     }
     const person = await this.ownEntry('people', personId, scope);
     if (person === undefined) throw new Error(`person "${personId}" vanished mid-patch`);

@@ -123,7 +123,8 @@ function openSqliteSourceWithSeams(
             authorizeProjectUpdate: authorizeProjectFanoutIn(process.db),
             authorizeStepRemoval: authorizeStepFanoutIn(process.db),
             authorizeRankMove: authorizeRankMoveIn(process.db),
-            resolveDirectoryWrite: (address) => resolveDirectoryWriteIn(process.db, address),
+            resolveDirectoryWrite: (address) =>
+              resolveDirectoryWriteIn(process.db, admitted.directory, address),
           },
           options.onBorrowedUnitOfWork,
         ),

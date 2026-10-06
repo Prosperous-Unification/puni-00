@@ -1949,3 +1949,83 @@ mounted suite passed 26/26, 198 assertions
 (`/tmp/shared-people-6i-final-strict.json`); all validated 148/148, comprising 130 changes
 and 18 specs (`/tmp/shared-people-6i-final-all.json`). Final format and diff checks follow
 this ledger edit.
+
+### 6i independent review follow-up (candidate after `f931c348277e813c5d2dbb138a50a655841ef381`)
+
+Independent review identified three Important findings in that clean local checkpoint. The
+follow-up is scoped to the public standalone directory facade, transaction-bound reach check,
+and retained Working Plan reload proof. The prior disqualified Working Plan reload attempt above
+remains historical evidence; the mounted consequence below replaces its missing R5 proof.
+
+1. The public facade's second raw owner can observe a vanished link target or addressed entry
+   after the service's earlier preflight. Before the fix, the queued team-link race threw a
+   generic `unknown_service` Error (`/tmp/shared-people-6i-review-a-typed-red.log`). Scoped
+   person/team patch, existing-person add, new-person later link and addressed not_found now
+   preserve their declared typed refusal. The second connection changes the referenced root
+   just before `BEGIN IMMEDIATE`; the refusing owner captures zero values and leaves its
+   domain/event/sequence snapshot unchanged. A preceding rename remains committed. Focused
+   restored logs are `/tmp/shared-people-6i-review-a-typed-green.log`,
+   `/tmp/shared-people-6i-review-a-typed-expanded.log`, and
+   `/tmp/shared-people-6i-review-a-new-link-green.log`.
+2. The owner's resolver used to recheck only a person's assignment project. The A-team removal
+   race inserts B's person's membership after public preflight but before the owner; the
+   unfixed path reached the throwing capture spy rather than refusing corrupt reach
+   (`/tmp/shared-people-6i-review-b-team-race-red.log`). It now calls the existing complete
+   `admitted.directory.foreignReferencesTo` on the same OPEN writer before capture. Mounted
+   races cover team membership, service's foreign team, tag/type on a foreign work item and a
+   person's assignment on a foreign step (`/tmp/shared-people-6i-review-b-reach-matrix-green.log`,
+   5/5). The A-team race separately compares the full directory, event log and sequencer with
+   the state just after the second-connection insertion, asserts zero capture and zero delivery.
+   Removing only the owner-side foreign reach recheck fails by reaching capture
+   (`/tmp/shared-people-6i-review-b-owner-check-omission-red.log`); restored source passed the
+   12-case focused suite (`/tmp/shared-people-6i-review-followup-focused-green.log`, 65 assertions).
+3. Name-idempotent membership addition now asserts zero event rows, sequencer changes and push
+   despite its real raw write. Injecting a spurious recipient into the production recorder made
+   that mounted assertion RED on a durable `elsewhere_changed` row
+   (`/tmp/shared-people-6i-review-c-spurious-event-red.log`). The team second-owner after-capture
+   fault independently retains its first rename, one ordinary announcement, and no later link
+   (`/tmp/shared-people-6i-review-c-team-idempotent-green.log`, 2/2). A mounted mixed batch
+   performs `setEstimate` → `deleteTeam(cascade)` → `duplicateWorkItem` →
+   `arrangeBySchedule`. Restored production returns 200; original and copy have no deleted team,
+   copy keeps Ana, later project's addressed Fast slice starts at 2 instead of 1, and its exact
+   shared event names the first project as cause
+   (`/tmp/shared-people-6i-review-c-working-plan-restored-green.log`). Removing only
+   `await reloadPlan()` leaves the deleted team on the retained leaf. The later duplicate tries
+   to insert that stale team FK, so the mounted batch returns 500 instead of 200
+   (`/tmp/shared-people-6i-review-c-working-plan-reload-omission-red.log`). The first fixture
+   assertion included both default steps and failed before the batch; it was corrected to
+   inspect only the addressed step (`/tmp/shared-people-6i-review-c-working-plan-green-attempt.log`).
+
+All three injected production faults were restored before the focused GREEN. These logs do not
+claim a new gate, CI, push, merge, publication or activation. Task 6i stays unchecked pending
+independent follow-up review.
+
+The additional three typed-refusal arms were each faulted independently after the team RED:
+throwing instead of returning the existing-person add, new-person link and person-patch
+refusals respectively failed their mounted queued cases
+(`/tmp/shared-people-6i-review-a-existing-refusal-omission-red.log`,
+`/tmp/shared-people-6i-review-a-new-refusal-omission-red.log`,
+`/tmp/shared-people-6i-review-a-person-patch-refusal-omission-red.log`). Each source mutation was
+restored; the final typed focused run passed 4/4, 28 assertions and includes zero-delivery
+checks (`/tmp/shared-people-6i-review-a-final-green.log`).
+
+The post-follow-up six-file mounted/store suite passed 67/67, 419 assertions
+(`/tmp/shared-people-6i-review-six-file-final2.log`). First affected Nx lint/typecheck failed
+on six new test typing errors (`/tmp/shared-people-6i-review-nx-final.log`), which were fixed
+without changing assertions; direct BE `tsc --build --force` then passed
+(`/tmp/shared-people-6i-review-type-fix.log`). The next full run passed typecheck but failed
+store lint on the new import order (`/tmp/shared-people-6i-review-nx-final2.log`, targeted
+diagnosis `/tmp/shared-people-6i-review-store-eslint-diagnosis.log`). That import was sorted;
+full affected Nx lint/typecheck passed 8/8 (`/tmp/shared-people-6i-review-nx-final3.log`).
+The subsequent test-only zero-delivery assertions passed 4/4 and BE lint/typecheck passed
+(`/tmp/shared-people-6i-review-be-final-test-check.log`). Declared
+`wbs-core:build:portable` and `wbs-be-01:build` passed
+(`/tmp/shared-people-6i-review-core-build.log`, `/tmp/shared-people-6i-review-be-build.log`).
+
+Final changed-path Prettier, pinned strict OpenSpec 1/1, all OpenSpec 148/148 and diff check
+passed after the ledger reconciliation
+(`/tmp/shared-people-6i-review-final-ledger-format.log`,
+`/tmp/shared-people-6i-review-final-ledger-strict.json`,
+`/tmp/shared-people-6i-review-final-ledger-all.json`,
+`/tmp/shared-people-6i-review-final-ledger-diff.log`). The historical first format/type/lint
+failures above are retained; no blanket pass is inferred from their failed runs.
