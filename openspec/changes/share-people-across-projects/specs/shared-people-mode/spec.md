@@ -119,6 +119,26 @@ without reinsertion, and SHALL NOT create fan-out by replaying or delivering an 
 Transport failure SHALL retain the committed write, event and optimizer notification.
 This does not promise durable optimizer callback recovery across process failure.
 
+For admitted project/step routes, observation SHALL require fresh read-only authority within
+the owning UoW before capture. Supplied request scope alone SHALL NOT authorize observation.
+This check SHALL return typed `not_found` or `forbidden`, write no audit, grant or other state,
+and preserve each operation's existing recovery policy. It SHALL NOT replace the repository's
+final mutation guard/audit. The service SHALL await observation after its existing preflight
+refusals and before its write, and propagate an observation-authority refusal unchanged.
+
+#### Scenario: membership changes before the admitted turn
+
+- **GIVEN** request access was resolved before its actor was demoted or removed
+- **WHEN** the admitted route enters its UoW
+- **THEN** it returns the existing typed refusal without invoking shared capture or mutation
+- **AND** no downstream event, optimizer callback or recovery audit is produced
+
+#### Scenario: exactly one recovery audit
+
+- **WHEN** a currently authorized super-admin updates a restricted project through an admitted route
+- **THEN** old-state capture precedes the write and exactly the existing store recovery audit commits
+- **AND** the observation-authority check creates no grant or audit and step-removal policy is unchanged
+
 #### Scenario: mounted command on a cold process
 
 - **GIVEN** a shared chain is persisted and fresh services have served no plan reads

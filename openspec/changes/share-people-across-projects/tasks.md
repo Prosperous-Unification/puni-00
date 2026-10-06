@@ -204,7 +204,12 @@ silent`, and `isolated and foreign projects receive no shared fan-out`. Include 
       No adapter/event/route binding, DB writes, generation admission or persistent hash state.
 - [ ] 6h. **Command/UoW atomicity.** Follow the reviewed
       [architecture checkpoint](6h-architecture.md), including both core and mounted bindings
-      and the committed-delivery optimizer reaction. Integrate borrowed before/after capture and transactional
+      and the committed-delivery optimizer reaction. For admitted routes add the awaited beforeWrite
+      observation hook and fresh read-only authority check, with typed refusals and no audit/grant;
+      retain the repository final guard/audit. Prove queued demotion/foreign refusal invokes no
+      capture, recovery audits exactly once, hook omission/late placement fails and capture/event
+      failures roll back. Independently bypass the check, move capture ahead of it and substitute
+      auditing admission to observe RED. Integrate borrowed before/after capture and transactional
       event recording through `module/plan-commands/composition.ts`, `PlanCommandRunner` and
       `admitted-write.ts`; retain command history and scoped authority. Resolve committed-record
       delivery with composition and `optimizer-trigger-broadcaster.ts` without duplicate record

@@ -62,6 +62,60 @@ composition and transaction-boundary type tests valid.
    They become deliverable only after `run` succeeds and releases its writer turn. If COMMIT,
    derivation or any event insert fails, no delivery or optimizer notification may run.
 
+### Admitted route seam: fresh observation authority without a second audit
+
+The numbered admission step above has different owners for commands and admitted route
+services. `ProjectService.updateWithin` first classifies the supplied access, but
+`ProjectRepository.write` later rechecks current membership inside its write transaction.
+`StepService.removeWithin` performs its own project/step gate. A service hook after those
+initial checks alone does not prove current authority before organization capture. Do not
+pre-call `admitEditInOrganization`: it can insert a super-admin recovery audit, duplicating the
+project store's existing recovery record and changing step-removal permissions.
+
+Use a required composition-owned callback for the mapped admitted route graph. Recommended
+source-neutral contract (names may shorten while preserving this shape):
+
+```ts
+type BeforeAdmittedWrite = (ask: {
+  readonly kind: 'project-update' | 'step-remove';
+  readonly projectId: string;
+  readonly actorId: string;
+  readonly access: ResourceAccess;
+}) => Promise<
+  { readonly ok: true } | { readonly ok: false; readonly reason: 'not_found' | 'forbidden' }
+>;
+```
+
+This is a trusted capability supplied by composition, never an HTTP field or caller-provided
+callback. Bind it only to the admitted graph; unrelated direct service callers retain their
+existing contract. Production `createAdmittedWrites` must require the capability, with a
+negative for omission rather than an optional chaining no-op. A modeled isolated/legacy
+implementation remains explicit and does not scan shared organization facts.
+
+`ProjectService.updateWithin` awaits the hook after its existing edit classification and
+optimizer/depReach preflight refusals, immediately before `projects.update` or
+`editInOrganization`. `StepService.removeWithin` awaits it after its project/step gate,
+dependency/cycle and usage refusals, immediately before `steps.remove`. Propagate the hook's
+typed refusal unchanged; do not wrap it as a capture error or proceed to the write. Existing
+outer UoW `ok` handling decides rollback/commit as before.
+
+The callback first performs a **read-only fresh authority check on the borrowed UoW
+connection**: resolve current ownership, actor identity and current membership/role, preserving
+foreign/absent `not_found` equivalence and the exact operation's restriction/recovery policy.
+Project updates may authorize existing super-admin recovery; step removal must not acquire a
+recovery grant it did not already possess. This check records no audit, issues no grant, writes
+no state and does not call the auditing admission method. Reuse/extract the existing pure
+classification rules rather than inventing a parallel permission policy. Only after success
+may the callback observe mode and capture old shared fan-out facts, once for the UoW.
+
+Keep `ProjectRepository.write`'s final guard and existing recovery audit completely intact.
+The new check authorizes observation; it does not replace or cache authorization for mutation.
+Because the outer UoW holds `BEGIN IMMEDIATE`, the check/capture/write share the protected
+observation; do not open a fresh connection. Never await capture inside the repository's
+synchronous Drizzle transaction callback. A later modeled write refusal discards the captured
+before-state; a capture exception rolls back. Only a successful act captures after and records
+events. Successful UoW return is still required before delivery or optimizer notification.
+
 The adapter capture must provide everything 6g consumes, not merely reuse `readAggregate`'s
 human-facing summary. Capture rank, ownership, mode, assignments, local scheduling facts,
 selected display outcomes, canonical incoming basis and resource usages under one transaction.
@@ -156,6 +210,24 @@ Record exact commands/assertions in verify.md and adjacent `Proof:` comments at 
 | `admitted routes commit fan-out`, mounted step removal/project depReach                 | Omit each existing admitted binding independently; assert expected recipient row absent. A modeled route refusal changes neither rows nor sequence.                                                                                                                         |
 | `capture retains authoritative rank`, borrowed SQLite capture                           | Seed equal rank positions and unranked tail so insertion order differs; scramble/sort by metadata in capture: observe wrong recipient direction. Broken ownership/rank/required capture throws rather than skipping.                                                        |
 
+Additional admitted-route proofs are mandatory:
+
+- `refused admitted writes never capture`: forbidden, foreign/absent and a member demoted or
+  removed after request access resolution but before UoW entry all return their typed refusal;
+  capture, event and optimizer witnesses stay zero. Remove the fresh read-only authority check
+  or move capture before it independently: the denied request now reaches capture (plant a
+  throwing capture dependency to prove refusal precedence, not merely response shape).
+- `recovery observes once and audits once`: a permitted super-admin project recovery captures
+  old state and commits exactly one existing audit. Replace the read-only check with
+  `admitEditInOrganization`: the extra audit makes this test RED. A restricted step removal
+  retains its previous forbidden outcome and receives no new grant/audit.
+- `admitted observation precedes mutation`: inspect the old project settings/step while the
+  hook runs and the final recipient event after success. Move the hook after the write: old
+  state or expected event assertion fails. Omit project and step hooks/bindings independently.
+- `admitted capture and event failures roll back`: inject capture failure and later event
+  insertion failure separately; compare domain, recovery audit, journal where applicable,
+  event log and sequence state. The push and optimizer witnesses remain empty.
+
 Retain existing core `compose.test.ts`, `admitted-write.test.ts`, transaction-boundary types,
 optimizer-trigger and gateway tests; SQLite UoW/event-log/plan-commands tests; mounted
 `command-organization.controller.db.test.ts`, shared-plan and step-allowance regressions.
@@ -175,7 +247,8 @@ choose files near their owning boundary rather than introducing a second harness
 3. Add the command/undo/redo atomicity RED tests. Map capture/record through command composition
    and return committed envelopes without exposing `Scope` to the feature; integrate once around
    the whole act and exclude refusal/repair. Add admitted-write RED tests and integrate its two
-   existing routes under the same decision boundary.
+   existing routes under the same decision boundary. Implement the admitted-route hook and
+   read-only observation-authority check above; retain the sole auditing store path.
 4. Add delivery, trigger and mounted RED tests. Wire the required capability through
    `compose.ts`, `services.ts`, `boot.ts::writes`, `app.ts::mountedEndpoints` and relevant module
    checks/fixtures. Add typed event, reuse optimizer reaction policy, then deliver committed rows

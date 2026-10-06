@@ -1484,3 +1484,27 @@ Not run: product tests, fault injections, lint/typecheck/build, canonical exact-
 gate or CI. This is a documentation checkpoint, not implemented 6h or integration evidence.
 Every new 6h RED/restored-GREEN production proof in the packet remains pending; 6h and later
 slices remain unchecked. No push or merge.
+
+## 6h admitted observation authority clarification
+
+Planning-only amendment atop `618af6132e87f412efa8cddda8838fdfa6aed4e7`, on isolated
+`plan/shared-people-fanout-6h-architecture`. The normative packet now distinguishes the
+service's request-scope classification from the repository's fresh membership guard. The
+admitted beforeWrite hook must perform a read-only current-authority check before capture,
+without duplicating audit/grant admission. Product files and WBS remain untouched.
+
+| Required fault                                        | Decisive production-path negative                                                       | Result  |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------- | ------- |
+| Omit fresh authority check or capture before it       | Queued demotion/removal or foreign request reaches capture instead of its typed refusal | Pending |
+| Replace read-only check with auditing admission       | Super-admin recovery creates more than one audit; step recovery must not broaden        | Pending |
+| Move hook after mutation or omit either route binding | Old settings/step unavailable or expected downstream event absent                       | Pending |
+| Fail capture or later downstream insertion            | Domain/audit/history/event/sequence rollback and zero delivery/optimizer witnesses      | Pending |
+
+No product tests or R5 injections are claimed for this clarification. Targeted pinned strict
+OpenSpec, pinned all validation, four-file Prettier and diff checks are rerun before the local
+checkpoint; exact result logs are `/tmp/6h-authority-plan-{strict,all}.json` and
+`/tmp/6h-authority-plan-format.log`. Canonical gate, CI, publication and implementation remain
+pending. The new tasks are unchecked.
+
+Planning validation completed: pinned strict 1/1 and all 148/148 passed with zero failures;
+four-file Prettier and `git diff --check` passed. Final-byte reruns use the same logs.
