@@ -329,6 +329,10 @@ and organization boundaries remain unchanged; payloads contain no booking detail
 
 ### 6h–6k: original transaction, then delivery
 
+The normative [6h architecture checkpoint](6h-architecture.md) resolves the command/UoW
+committed-record handoff, borrowed capture contract, mounted bindings and Sol implementation
+sequence. Its implementation and R5 proofs remain pending.
+
 `AnnouncementCollector.send` runs after the UoW and calls `GatewayBroadcaster.publish`, which
 opens a new event-recording transaction. That existing path cannot provide this amendment's
 atomicity. Add a narrow transactional fan-out capability: derive before, mutate, derive after,
@@ -337,7 +341,7 @@ transaction-bound core store port. Return committed records for `pushRecorded` a
 release; never call `publish` again for those records. Preserve existing unrelated announcement
 behavior and the optimizer-trigger decorator's existing duties; bypassing `publish` for a
 recorded event must not silently drop required post-commit scheduling callbacks or create an
-invalidation loop. Settle that adapter handoff explicitly in 6h before broad binding.
+invalidation loop. The linked 6h checkpoint specifies that handoff before broader binding.
 
 `plan-commands/composition.ts`, `PlanCommandRunner` and `admitted-write.ts` own batch/undo/redo
 and admitted route UoWs. Observe once around the whole committed batch, not every intermediate

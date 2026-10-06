@@ -202,7 +202,9 @@ silent`, and `isolated and foreign projects receive no shared fan-out`. Include 
       outcomes. R5: substitute Fast, suppress equal-hash availability, omit old graph, traverse
       mixed edges, remove pair deduplication and remove organization/mode guards independently.
       No adapter/event/route binding, DB writes, generation admission or persistent hash state.
-- [ ] 6h. **Command/UoW atomicity.** Integrate borrowed before/after capture and transactional
+- [ ] 6h. **Command/UoW atomicity.** Follow the reviewed
+      [architecture checkpoint](6h-architecture.md), including both core and mounted bindings
+      and the committed-delivery optimizer reaction. Integrate borrowed before/after capture and transactional
       event recording through `module/plan-commands/composition.ts`, `PlanCommandRunner` and
       `admitted-write.ts`; retain command history and scoped authority. Resolve committed-record
       delivery with composition and `optimizer-trigger-broadcaster.ts` without duplicate record
