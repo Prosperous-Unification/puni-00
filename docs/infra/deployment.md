@@ -87,9 +87,14 @@ validate identity/admission → acquire Lease → persist intent → admit rollb
   [platform](platform.md#trusted-image-ownership)); the WBS manifests never carry that ConfigMap,
   so CD cannot regenerate it from Git.
 - **Before writes reopen**, any failure rolls back. The coordinator stops the writer, checks
-  that the `down.sql` hashes match what capture recorded, runs
-  `migrate-down-cli --to=<baseline>`, checks that the applied set equals the captured one,
-  restores the old digests, smoke-tests them, and only then reopens writes. A restart before `smoke-passed`
+  that the `down.sql` hashes match what capture recorded, runs the pinned backend image's
+  `migrate-down-cli --capture-file=<path> --capture-sha256=<digest> --target=<target>
+--attempt=<transaction> --candidate=<image>` against the captured applied/pending set,
+  then compares the complete restored name/hash ledger with the captured baseline. The
+  capture's original bytes and digest remain in the journal and the manual Job manifest;
+  neither path derives a new digest on resume. The target binds the observed cluster UID,
+  backend namespace, data PVC and database path; the attempt is the journal transaction ID.
+  The coordinator restores old digests, smoke-tests them, and only then reopens writes. A restart before `smoke-passed`
   rolls back. From `smoke-passed` on, a restart finishes the release.
 - **Flux after rollback.** Flux resumes only onto `flux.previousRevision`. If the deploy
   repository already serves the failed release, the run ends at `flux-revert-required`. The
@@ -100,6 +105,11 @@ validate identity/admission → acquire Lease → persist intent → admit rollb
   the snapshot, and the exact manual command, for example
   `kubectl --context <ctx> create -f <dir>/wbs-manual-rollback-<id>.json`. Every later run
   refuses with the same command.
+- **Existing in-flight journals.** Journal schema 2 carries the versioned exact-set capture.
+  Schema 1 or an unsupported capture is refused before taking a Lease or changing the journal;
+  finish that attempt with its prior compatible executor or a reviewed manual recovery. The
+  legacy backend `--to=` CLI remains available for that procedure, but new release rollback
+  Jobs use exact-set capture.
 - **After writes reopen**, a failure ends at `recovery-required`. The coordinator does not
   roll back to the old image, because that would drop writes users have already been told
   succeeded. Recovery is a new request with `recovers=<release id>`. It runs the whole

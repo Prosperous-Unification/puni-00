@@ -292,3 +292,105 @@ their focused case 1/1, 14 assertions
 164/164, 749 assertions (`/tmp/puni-07012-slice21-tests-review-final.log`). Astra found no
 remaining Critical, Important or Minor issue and cleared task 2.1 as a **local checkpoint**.
 Tasks 2.2, 3.1 and 3.2 and the canonical gate remain open.
+
+### Slice 2.2: Kubernetes exact-set caller (local checkpoint)
+
+RED: `bun test tools/tool-deploy/src/k8s/execute.test.ts -t ...` observed the
+older-stamp failed-health case end `rollback-failed` instead of `rolled-back`
+(`/tmp/puni-07012-slice22-older-red.log`), and an interrupted legacy capture
+entered the cluster/journal path instead of refusing before mutation
+(`/tmp/puni-07012-slice22-legacy-red.log`). The baseline four-file Kubernetes
+suite was 88/88, 355 assertions (`/tmp/puni-07012-slice22-baseline.log`).
+
+The new journal schema 2 carries an exact-set capture with complete applied
+and pending name/forward-hash/down-hash identities. Its serialized original
+bytes and SHA-256 are pinned once at capture. Expected target binds the request's
+cluster UID, backend namespace, fixed data PVC and database path; attempt is
+the durable transaction ID, and candidate is the pinned backend image. The
+coordinator and disk journal refuse legacy, missing, altered or foreign resumed captures
+before Lease/cluster/journal mutation; a newly observed capture is checked before
+its journal write. The backend Job writes those bytes to a
+0600 `/tmp` file and invokes the digest-pinned exact-set CLI; the rendered
+manual Job retains the same bytes, digest, image and identity. `rollbackSchema`
+returns complete observed name/hash rows; equality refuses changed or duplicate
+rows before writes reopen. Baseline name remains display-only.
+
+The real generated `BACKEND_TASK_SCRIPT` test used disposable SQLite with a
+newer pre-applied baseline and an older newly introduced candidate: migrate
+applied both, then exact-set rollback restored precisely the baseline name/hash
+and table. The same test executed environment values extracted from the actual
+printed manual Job manifest after repeating migrate. An intact manifest
+restored; changed bytes with the old pin refused, leaving the complete applied
+ledger unchanged. Coordinator tests cover wrong target, attempt and candidate,
+corrupted bytes, duplicate/reordered/malformed payload, missing capture,
+crash/resume, and zero-exit restored-hash mismatch retaining the writer fence.
+
+R5 watched faults were injected **independently**, each filtered production-path
+test exited 1 with a named failing test, and source was restored after each
+run. Raw command/output excerpts are in
+`/tmp/puni-07012-slice22-mutations.log`:
+
+| Removed or weakened guard                                        | Observed failing test/effect                                |
+| ---------------------------------------------------------------- | ----------------------------------------------------------- |
+| Resume preflight                                                 | Legacy capture reached rollback and rewrote the journal     |
+| Capture byte/digest presence                                     | Legacy capture lost the explicit prior-executor refusal     |
+| Journal schema-1 route                                           | Legacy journal lost its explicit prior-executor refusal     |
+| Capture-boundary validation                                      | Foreign capture persisted/promoted                          |
+| Disk journal validation                                          | Changed capture was returned as a journal record            |
+| Original-byte SHA check                                          | Whitespace-altered bytes resumed into rollback              |
+| Target/attempt/candidate comparison                              | Wrong target resumed into rollback                          |
+| Capture format/version and forward hash shape, separately        | Unsupported/malformed payload resumed                       |
+| Duplicate identity, pending order, envelope equality, separately | Corrupt captures passed preflight and reached rollback      |
+| Missing capture at a captured phase                              | Migration resumed and reported rolled-back with no capture  |
+| Restored full name/hash equality                                 | Changed baseline hash ended rolled-back and reopened writes |
+| Exact-set backend CLI call                                       | Legacy timestamp cutoff left older candidate applied        |
+| Adapter rollback/manual identity checks, separately              | Foreign capture reached kubectl or rendered manual manifest |
+| Adapter caller image/attempt check                               | Wrong image/attempt reached the adapter path                |
+| Manual manifest pin                                              | Rendered manifest contained an empty digest                 |
+| Backend captured-byte transport                                  | Generated script could not restore the older candidate      |
+| Backend required capture fields                                  | Generated script lost its exact-set input-boundary refusal  |
+| Manual command configured kubeconfig                             | Executed command omitted the pinned kubeconfig argument     |
+| Manual command shell quoting                                     | Executed command split a kubectl path containing spaces     |
+
+Astra's review found that the printed manual completion command omitted an
+explicit kubeconfig and did not quote shell arguments. The new production
+generation/execution regression uses a fake kubectl in a directory with spaces
+and an apostrophe, an explicit kubeconfig path with spaces, and a context with
+spaces. RED exited 1 because Bash returned 127 for the split kubectl path
+(`/tmp/puni-07012-slice22-kubeconfig-red.log`). After constructing the command
+from the adapter's existing pinned argv and quoting each argument, GREEN passed
+1/1 (`/tmp/puni-07012-slice22-kubeconfig-green.log`). Independently removing
+the kubeconfig option and removing quoting each made that test fail, with source
+restored after each fault (`/tmp/puni-07012-slice22-kubeconfig-mutations.log`).
+The row parser now uses discriminator overloads rather than unchecked result
+casts.
+
+The explicit duplicate restored-row check was removed as redundant: final
+full-identity array equality independently refuses extra rows, including
+duplicates, and `refuses duplicate restored identities before reopening writes`
+passes. The first full `tool-deploy:test` sandbox run reached 292 pass, six
+local-listener failures and one listener error; with listener access the next
+run exposed an accidental admission fixture version edit from this slice. That
+line was restored to its original version while the journal fixture stayed at
+version 2. An exact emitted-error assertion was then made robust to ANSI output
+without relying on source-context text, and its guard-removal test failed again.
+Final commands were `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run
+tool-deploy:test --skip-nx-cache` with local listener access, and `bun test
+tools/tool-deploy/src/k8s/{release,execute,journal,execute-adapter}.test.ts`
+(the four paths were passed explicitly). The target and scoped checks used the
+same final source after independent fault restoration.
+The final full target passed **301/301, 877 assertions**
+(`/tmp/puni-07012-slice22-tool-deploy-test-final5.log`). The earlier four-file
+focused suite passed **107/107, 438 assertions** before the added manual command
+regression (`/tmp/puni-07012-slice22-focused-final3.log`).
+`tool-deploy:typecheck`, `tool-deploy:lint` and `tool-deploy:build` passed
+(`/tmp/puni-07012-slice22-{typecheck,lint,build}-final3.log`);
+scoped source Prettier check passed (`/tmp/puni-07012-slice22-format-final3.log`),
+final `verify.md` Prettier check passed after formatting, OpenSpec strict
+validation passed 1/1 (`/tmp/puni-07012-slice22-openspec-final4.log`), and
+`git diff --check` passed.
+Astra independently reran the final four-file focused suite: **108/108, 441
+assertions** (`/tmp/astra-07012-slice22-final-review.log`), inspected the
+generated command and both watched fault logs, and cleared the 2.2 local
+checkpoint with no remaining Critical, Important or Minor findings. No k3s live
+rehearsal, canonical gate, push or #259 integration is claimed.

@@ -1,10 +1,11 @@
 import { closeSync, fsyncSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import { assertMigrationCapture, migrationIdentityOf } from './migration-capture';
 import { isReleasePhase, type ReleaseRequest, type ReleaseState, TERMINAL_PHASES } from './release';
 
 /** Bumped when a stored field changes meaning; an older coordinator refuses a newer journal. */
-const JOURNAL_SCHEMA = 1;
+const JOURNAL_SCHEMA = 2;
 
 /** One write of the journal: the request it binds and the state it reached. */
 export interface JournalRecord {
@@ -42,6 +43,13 @@ export function parseJournal(path: string, text: string): JournalRecord {
   } catch (cause) {
     throw new Error(`release journal ${path} is not JSON`, { cause });
   }
+  // Proof: bypassing this legacy-version route made `refuses a legacy in-flight journal`
+  // report a generic unsupported schema instead of the required prior-executor procedure.
+  if (isRecord(parsed) && parsed['schemaVersion'] === 1) {
+    throw new Error(
+      `release journal ${path} has a legacy migration capture; use the prior executor/manual recovery`,
+    );
+  }
   if (!isRecord(parsed) || parsed['schemaVersion'] !== JOURNAL_SCHEMA) {
     throw new Error(`release journal ${path} has an unsupported schema version`);
   }
@@ -61,6 +69,29 @@ export function parseJournal(path: string, text: string): JournalRecord {
   }
   if (typeof state['transactionId'] !== 'string' || state['transactionId'] === '') {
     throw new Error(`release journal ${path} names no transaction`);
+  }
+  if (state['capture'] !== null && state['capture'] !== undefined) {
+    const source = request['release'];
+    const cluster = request['cluster'];
+    const namespaces = request['namespaces'];
+    if (
+      !isRecord(source) ||
+      !isRecord(source['images']) ||
+      !isRecord(cluster) ||
+      !isRecord(namespaces) ||
+      typeof source['images']['backend'] !== 'string' ||
+      typeof cluster['uid'] !== 'string' ||
+      typeof namespaces['backend'] !== 'string'
+    ) {
+      throw new Error(`release journal ${path} has no capture request identity`);
+    }
+    // Boundary: the discriminated request fields above supply only the identity projection.
+    // Proof: bypassing this disk parser check made `rejects a changed capture from disk before
+    // returning a journal record` read altered bytes as a valid durable transaction.
+    assertMigrationCapture(
+      state['capture'],
+      migrationIdentityOf(request as unknown as ReleaseRequest, state['transactionId']),
+    );
   }
   // Boundary: the record was produced by `JSON.stringify` of these same types in `write`, and
   // the discriminating fields above were checked; the rest is carried verbatim.

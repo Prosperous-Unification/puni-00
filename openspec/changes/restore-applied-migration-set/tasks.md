@@ -31,7 +31,7 @@ migration identity. No dependency on host enrollment or completion of 070.09.
       SQLite at the command adapter boundary. Test `zero-exit rollback with changed ledger is not success` and `manual recovery command remains usable after candidate cleanup`.
       Remove capture-before-migrate and final equality separately to observe failures. Update
       `docs/runbook-prod-deploy.md`; do not alter routing/serving or snapshot-restore policy.
-- [ ] 2.2 Test then carry complete capture through
+- [x] 2.2 Test then carry complete capture through
       `tools/tool-deploy/src/k8s/{release,execute,journal}.ts`, `BACKEND_TASK_SCRIPT`, schema Job
       rendering and manual recovery. Tests in `release.test.ts`, `execute.test.ts` and journal
       tests: older-stamp restore, hash mismatch, wrong attempt, crash/resume, and unsupported
