@@ -1673,6 +1673,25 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         origin,
       );
     }
+    if (path === '/session' && request.method === 'DELETE') {
+      const session = prospectSession(request, now);
+      if (!session) return attachCors(failure('prospect_unauthorized', 401), origin);
+      // Proof: removing this check let the forged sign-out test end the session with 204.
+      if (!validSessionCsrf(request, session.csrfHash))
+        return attachCors(failure('csrf_forbidden', 403), origin);
+      if (!store.deleteProspectSession(digest(session.token)))
+        throw new Error('A found prospect session could not be deleted');
+      return attachCors(
+        new Response(null, {
+          status: 204,
+          headers: {
+            'Set-Cookie': cookie(prospectCookie, '', 0),
+            'Cache-Control': 'no-store',
+          },
+        }),
+        origin,
+      );
+    }
     if (path === '/session/demo' && request.method === 'POST') {
       if (!config.demoAuth || !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
         return attachCors(failure('demo_auth_unavailable', 503), origin);

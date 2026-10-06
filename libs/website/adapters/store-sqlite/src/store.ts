@@ -834,6 +834,14 @@ export class WebsiteStore {
   }
 
   /** Records one OIDC login and, in the same transaction, deletes every login expired at `now`. */
+  /** Ends one prospect session; returns false when no such session exists. */
+  deleteProspectSession(tokenHash: string): boolean {
+    return (
+      this.database.query('DELETE FROM prospect_session WHERE token_hash = ?').run(tokenHash)
+        .changes === 1
+    );
+  }
+
   createOidcLogin(
     stateHash: string,
     verifier: string,

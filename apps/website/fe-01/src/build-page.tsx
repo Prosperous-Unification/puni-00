@@ -26,7 +26,7 @@ import {
   startOverUrl,
 } from './build-contract';
 import { HeroMedia, SiteHeader, siteOrigin, useHeadingFocus, usePageTitle } from './chrome';
-import { LiveHarness, PausedHarness } from './conversation-harness';
+import { LiveHarness, PausedHarness, SignOut } from './conversation-harness';
 const pendingChatKey = 'puni_build_pending_chat';
 
 /** Renders corrupt local recovery state explicitly instead of treating it as a missing request. */
@@ -836,6 +836,11 @@ export function BuildPage() {
               setHandedOff(true);
             }}
           />
+        )}
+        {load.kind === 'account' && load.session.csrfToken && (
+          <div className="harness-bar">
+            <SignOut csrfToken={load.session.csrfToken} onSignedOut={() => void loadBuild()} />
+          </div>
         )}
         {load.kind === 'account' && (
           <Conversation

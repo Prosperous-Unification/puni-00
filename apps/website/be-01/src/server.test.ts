@@ -2864,3 +2864,82 @@ test('a failure window resets after it ends', async () => {
   expect((await api.fetch(login(config.operatorPassword), '203.0.113.9')).status).toBe(201);
   api.close();
 });
+
+async function signInDemo(api: ReturnType<typeof createWebsiteApi>, cookie: string) {
+  const response = await api.fetch(
+    request(
+      '/session/demo',
+      'POST',
+      'http://localhost:4201',
+      { email: 'owner@example.test' },
+      cookie,
+    ),
+  );
+  expect(response.status).toBe(201);
+  const session = response.headers.get('set-cookie')?.split(';')[0] ?? '';
+  const { csrfToken } = (await response.json()) as { csrfToken: string };
+  return { session, csrf: csrfToken };
+}
+
+test('a prospect signs out with CSRF and keeps the draft claim', async () => {
+  const { config } = fixture();
+  const api = mountApi({ ...config, demoAuth: true });
+  // Signed in from another tab before this draft existed, so the draft stays anonymous.
+  const signedIn = await signInDemo(api, '');
+  const draft = await beginDraft(api);
+  const both = `${draft.cookie}; ${signedIn.session}`;
+  const signedOut = await api.fetch(
+    request('/session', 'DELETE', config.appOrigin, undefined, both, signedIn.csrf),
+  );
+  expect(signedOut.status).toBe(204);
+  expect(signedOut.headers.get('cache-control')).toBe('no-store');
+  expect(signedOut.headers.get('set-cookie')).toBe(
+    'puni_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0',
+  );
+  const after = await api.fetch(request('/session', 'GET', config.appOrigin, undefined, both));
+  expect(((await after.json()) as { account: unknown }).account).toBeNull();
+  expect(
+    (await api.fetch(request('/draft', 'GET', config.appOrigin, undefined, draft.cookie))).status,
+  ).toBe(200);
+  expect(
+    (
+      await api.fetch(
+        request('/session', 'DELETE', config.appOrigin, undefined, both, signedIn.csrf),
+      )
+    ).status,
+  ).toBe(401);
+  api.close();
+});
+
+test('a forged sign-out is refused and the session still answers', async () => {
+  const { config } = fixture();
+  const api = mountApi({ ...config, demoAuth: true });
+  const draft = await beginDraft(api);
+  const signedIn = await signInDemo(api, draft.cookie);
+  // Proof: removing the sign-out CSRF check answered 204 here.
+  expect(
+    (await api.fetch(request('/session', 'DELETE', config.appOrigin, undefined, signedIn.session)))
+      .status,
+  ).toBe(403);
+  expect(
+    (
+      await api.fetch(
+        request(
+          '/session',
+          'DELETE',
+          'https://foreign.example',
+          undefined,
+          signedIn.session,
+          signedIn.csrf,
+        ),
+      )
+    ).status,
+  ).toBe(403);
+  const still = await api.fetch(
+    request('/session', 'GET', config.appOrigin, undefined, signedIn.session),
+  );
+  expect(((await still.json()) as { account: unknown }).account).toEqual({
+    email: 'owner@example.test',
+  });
+  api.close();
+});
