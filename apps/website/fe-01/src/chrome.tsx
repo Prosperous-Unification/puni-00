@@ -100,14 +100,18 @@ function Moon() {
   );
 }
 
-function Wordmark({ tone = 'light' }: { tone?: HeaderTone }) {
-  if (tone === 'night')
-    return (
-      <span className="wordmark wordmark-night">
-        PUNI
-        <Moon />
-      </span>
-    );
+/** The header wordmark: `PUNI` followed by the site's moon, at the site's size for each width. */
+function Wordmark() {
+  return (
+    <span className="wordmark-header">
+      PUNI
+      <Moon />
+    </span>
+  );
+}
+
+/** The footer's static wordmark with the orange dot. */
+function FooterWordmark() {
   return (
     <span className="wordmark">
       PUNI<span className="wordmark-dot" aria-hidden="true"></span>
@@ -115,8 +119,17 @@ function Wordmark({ tone = 'light' }: { tone?: HeaderTone }) {
   );
 }
 
-/** `night` is the site's dark, video-backed header; `light` is the manual brief's paper header. */
+/**
+ * Header colours only; geometry and type are identical in both. `night` is the site's white-on-
+ * dark header over a video band; `light` is the same header in ink on the operator's paper.
+ */
 export type HeaderTone = 'light' | 'night';
+
+/**
+ * `flow` reserves the rail's full height on wide screens, as on the site's inner pages;
+ * `overlay` lets the rail hang over the page beside a centred column, as on the site's Home.
+ */
+export type HeaderRail = 'flow' | 'overlay';
 
 const navigation = [
   { index: 1, label: 'Home', href: `${siteOrigin}/` },
@@ -126,18 +139,21 @@ const navigation = [
 ] as const;
 
 /**
- * Public header: numbered navigation at left and a centered wordmark; the right column stays
- * empty so the wordmark holds the center. Below 900px the navigation collapses behind a Menu
- * disclosure that takes the right slot. `buildCurrent` marks Build as the current page
- * (`page`) or as the section the manual brief belongs to (`true`). The `night` tone adds the
- * site's `[-] Navigation` rail label and the moon after the wordmark.
+ * The marketing site's header, re-implemented to its measured geometry (see the header-parity
+ * check in browser/screens.mjs): from 992px the `[-] Navigation` rail and `[n]` links stack at
+ * the left with the moon wordmark centred; below 992px the wordmark sits left and a `Menu ☰`
+ * button opens the same links in a panel. Escape closes the panel and returns focus to the
+ * button. `buildCurrent` marks Build as the current page (`page`) or as the section the manual
+ * brief belongs to (`true`); like the site, the mark is not visual.
  */
 export function SiteHeader({
   buildCurrent,
-  tone = 'light',
+  tone,
+  rail = 'flow',
 }: {
-  buildCurrent: 'page' | 'true';
-  tone?: HeaderTone;
+  buildCurrent?: 'page' | 'true';
+  tone: HeaderTone;
+  rail?: HeaderRail;
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -157,7 +173,7 @@ export function SiteHeader({
   }, [open]);
 
   return (
-    <header className={tone === 'night' ? 'site-header site-header-night' : 'site-header'}>
+    <header className={`site-header site-header-${tone} site-header-rail-${rail}`}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -165,7 +181,7 @@ export function SiteHeader({
           placement keeps it centered on desktop. Proof: moving it after the toggle made the
           screens.mjs tab-order-390 check report skip-link,menu-toggle,brand. */}
       <a className="brand" href={`${siteOrigin}/`} aria-label="PUNI home">
-        <Wordmark tone={tone} />
+        <Wordmark />
       </a>
       <button
         ref={menuButton}
@@ -177,15 +193,15 @@ export function SiteHeader({
           setOpen((current) => !current);
         }}
       >
-        {open ? 'Close' : 'Menu'}
-        <span className="menu-glyph" aria-hidden="true" data-open={open}></span>
+        Menu
+        <span className="menu-glyph" aria-hidden="true">
+          ☰
+        </span>
       </button>
       <nav aria-label="Primary" className="site-nav" id={panelId} data-open={open}>
-        {tone === 'night' && (
-          <span className="nav-rail-label" aria-hidden="true">
-            [-] Navigation
-          </span>
-        )}
+        <span className="nav-rail-label" aria-hidden="true">
+          [-] Navigation
+        </span>
         <ul>
           {navigation.map((entry) => (
             <li key={entry.index}>
@@ -206,24 +222,12 @@ export function SiteHeader({
   );
 }
 
-/** Private operator header: wordmark and workspace name only, without marketing navigation. */
-export function OperatorHeader() {
-  return (
-    <header className="operator-header">
-      <span className="brand" aria-label="PUNI">
-        <Wordmark />
-      </span>
-      <span className="operator-label">Operator</span>
-    </header>
-  );
-}
-
 export function SiteFooter() {
   return (
     <footer className="site-footer">
       <div className="footer-top">
         <div className="footer-lead">
-          <Wordmark />
+          <FooterWordmark />
           <p>Clear software starts with a clear request.</p>
           <a className="button secondary" href={`${siteOrigin}/#request`}>
             Describe your project

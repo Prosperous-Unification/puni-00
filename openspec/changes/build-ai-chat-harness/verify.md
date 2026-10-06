@@ -346,3 +346,79 @@ activated and no real key was used.
 OpenRouter's acceptance of `reasoning` with `require_parameters: true` on `azure/eu`, Luna's reply
 quality on the evaluation corpus, its latency under the 30 s deadline at `low`, and the real debit
 need the real key: slices 9.2 and 9.3.
+
+## Header parity with the site (2026-10-06)
+
+Dany: switching between Home and Build, the navigation looked different. Every app route now
+renders one `SiteHeader` re-implemented to the live site's measured geometry; no CSS or markup
+was copied from the private site repo.
+
+### Site measurements
+
+Measured with Playwright (installed Chrome) on `https://dev.puni.dev/`, read-only. Boxes are
+`x,y width×height` in CSS px. Services, Blog, a blog post and Privacy use the same white header;
+no site page has a light header variant, and no page marks the current link visually (no
+`aria-current`, identical colour). Links turn `#f6ae4c` on hover.
+
+| Part            | 1440×900                      | 1024×768       | 768×1024         | 390×844                         | 320×568         |
+| --------------- | ----------------------------- | -------------- | ---------------- | ------------------------------- | --------------- |
+| Rail label      | 40,48 112.2×52.8, Geist 18/27 | 32,48          | hidden           | hidden                          | hidden          |
+| Nav links       | 184.2,48+52.8n 98.7×52.8      | 176.2,48+52.8n | hidden           | hidden                          | hidden          |
+| Wordmark (link) | 662.1,48 115.9×52.8, 36px 800 | 454.1,48       | 24,38 115.9×44   | 20,32 92.7×44, 28.8px           | 20,32           |
+| Moon            | 748.4,57.9 29.5×29.5          | 540.4,57.9     | 110.4,43.5       | 89.1,40 23.6×23.6               | 89.1,40         |
+| Menu button     | hidden                        | hidden         | 646.7,38 97.3×44 | 272.7,32 97.3×44, Geist 16/16   | 202.7,32        |
+| Open panel      | –                             | –              | 424,90 320×282.4 | 50,84 320×282.4                 | 20,84 280×282.4 |
+| Open items      | –                             | –              | 449,144.2+52.8n  | 75,138.2+52.8n, Geist 19.2/28.8 | 45,138.2+52.8n  |
+
+Breakpoints probed from 320 to 2560 px: the rail shows from 992 px; the container measure is
+`100% − 40px` below 768, then 720, 960 (992), 1152 (1280), 1360 (1440) and 1760 (1920, top 56 px);
+the wordmark is 28.8px at 600 px and below, with the header top at 32 px, else 38 px below 992.
+
+### Decisions
+
+- **Manual brief:** its header sits on a night band (the site's video and scrim, falling back to
+  the night colour) like the site's inner-page heroes, so the white header is unchanged across the
+  switch; the context and form panels below keep their look. The rail is in flow there, so the
+  band is 259.2 px tall from 992 px, as on the site.
+- **Operator:** the light tone, same geometry, ink on paper; it now carries the site navigation.
+- **Build:** the rail overlays the page as on the site's Home. From 992 to 1439 px the 720 px
+  column would run under the rail, so the harness is padded to the rail's right there.
+- **Menu:** the button reads `Menu ☰` open or closed, like the site; `aria-expanded` carries the
+  state. Build keeps `aria-current` without a visual mark, like the site.
+- `--night-nav-type` is replaced by `--header-nav-type` (18px/27px) and sibling tokens equal to the
+  site values.
+
+### Parity before and after
+
+`PUNI_SCREENS_ONLY=header-parity` compares the live site with `/`, `/manual` and `/operator` at
+five widths, plus the open menu at 390 (±2 px, same family, size, line height and weight).
+
+| Capture             | Before (4cacc8ced)                                                                        | After       |
+| ------------------- | ----------------------------------------------------------------------------------------- | ----------- |
+| Build 1440          | brand 664.6,24 Geist 16px; moon 750.2,33.4 25.2px; rail 96,48 44 px rows; links 73.3 wide | OK          |
+| Manual 1440         | wordmark 686.1,12 28px 700; no moon, no rail; links inline at y=12, 14px                  | OK          |
+| Operator 1440       | no site header                                                                            | OK          |
+| Build 1024          | Menu instead of rail (app switched at 1280)                                               | OK          |
+| Build 390 (+ open)  | brand 16,24; moon 19.6px; Menu 267.9,24 106.1×44 Geist 18px/27px                          | OK          |
+| Manual 390 (+ open) | brand 16,12 28px 700; Menu 277.5,12 14px                                                  | OK          |
+| All 15 captures     | FAIL (exit 1)                                                                             | OK (exit 0) |
+
+### Results
+
+- Uncached `env -u CLAUDECODE NX_DAEMON=false bunx nx run-many -t test,lint,typecheck,build -p website-fe-01 --skip-nx-cache`:
+  exit 0; direct `bun test apps/website/fe-01/src`: 59 pass, 0 fail.
+- `PUNI_SCREENS_STRICT=1 bun apps/website/fe-01/browser/screens.mjs` (with `PUNI_OPERATOR_PASSWORD`):
+  exit 0, 62/62 OK (11 states × 4 widths, tab-order-390, menu-390, start-over-320, 15 header-parity).
+  The `manual` check now waits for the `/session` resource instead of `networkidle`, because the
+  band's looping video keeps the network busy.
+- `bun apps/website/fe-01/browser/conversation.mjs` and `explicit-send.mjs`: exit 0.
+
+### R5 proofs
+
+| Injected fault                                 | Observed failure                                                                  |
+| ---------------------------------------------- | --------------------------------------------------------------------------------- |
+| Previous header (4cacc8ced, before the change) | `header-parity`: 15/15 captures failed, exit 1                                    |
+| Moon back to `0.7em`                           | `header-parity`: 15/15 failed on the brand, wordmark and moon boxes               |
+| `offersAiExploration` returns `true`           | `manual`: "manual brief links back to Build" at all four widths with the new wait |
+
+Both injected files were restored and `cmp` matched their backups.

@@ -17,7 +17,7 @@ afterAll(() => {
   dom.window.close();
 });
 
-async function renderHeader() {
+async function renderHeader(tone: 'light' | 'night' = 'night') {
   const React = await import('react');
   const { act } = React;
   const { createRoot } = await import('react-dom/client');
@@ -26,7 +26,7 @@ async function renderHeader() {
   dom.window.document.body.replaceChildren(container);
   const root = createRoot(container);
   await act(async () => {
-    root.render(React.createElement(SiteHeader, { buildCurrent: 'page', tone: 'night' }));
+    root.render(React.createElement(SiteHeader, { buildCurrent: 'page', tone }));
     await Promise.resolve();
   });
   return { container, root, act, siteOrigin };
@@ -62,6 +62,20 @@ describe('night site header', () => {
     expect(container.querySelector('.wordmark-moon')).toBeNull();
     expect(container.querySelector('.wordmark-dot')).not.toBeNull();
     expect(container.querySelector('.brand')?.textContent).toBe('PUNI');
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  test('the light tone keeps the same rail, links, moon and Menu, changing only colours', async () => {
+    const { container, root, act } = await renderHeader('light');
+    expect(container.querySelector('header')?.className).toBe(
+      'site-header site-header-light site-header-rail-flow',
+    );
+    expect(container.querySelector('.nav-rail-label')?.textContent).toBe('[-] Navigation');
+    expect(container.querySelectorAll('nav[aria-label="Primary"] a')).toHaveLength(4);
+    expect(container.querySelector('.wordmark-moon img')).not.toBeNull();
+    expect(container.querySelector('.menu-toggle')?.textContent).toBe('Menu☰');
     act(() => {
       root.unmount();
     });

@@ -2,7 +2,7 @@
 
 ### Requirement: Site background and monotext header on Build
 
-The Build route SHALL render the site's background video behind the whole page, streamed from the configured site origin at `/media/hero/background.mp4` with `/media/hero/poster.jpg` as poster, under a dark scrim. Under `prefers-reduced-motion: reduce` it SHALL show the poster instead of the video. When the media fails to load it SHALL show the page's own night gradient; the media is optional decoration and its failure SHALL NOT throw or block the conversation. The video element SHALL NOT carry a `crossorigin` attribute and the repository SHALL NOT contain the video or poster files. The header SHALL render the `[n]` numbered monotext navigation, the PUNI wordmark followed by the moon image from the site origin (`/media/brand/moon.avif` with `/media/brand/moon.webp`), falling back to the existing dot when the image fails. The manual brief and operator routes SHALL keep their light look.
+The Build route SHALL render the site's background video behind the whole page, streamed from the configured site origin at `/media/hero/background.mp4` with `/media/hero/poster.jpg` as poster, under a dark scrim. Under `prefers-reduced-motion: reduce` it SHALL show the poster instead of the video. When the media fails to load it SHALL show the page's own night gradient; the media is optional decoration and its failure SHALL NOT throw or block the conversation. The video element SHALL NOT carry a `crossorigin` attribute and the repository SHALL NOT contain the video or poster files. The header SHALL render the `[n]` numbered monotext navigation, the PUNI wordmark followed by the moon image from the site origin (`/media/brand/moon.avif` with `/media/brand/moon.webp`), falling back to the existing dot when the image fails. The manual brief and operator routes SHALL keep their light body; the manual brief's header sits on a night band that uses the same media layer.
 
 #### Scenario: Normal motion
 
@@ -23,6 +23,25 @@ The Build route SHALL render the site's background video behind the whole page, 
 
 - **WHEN** the moon image fails to load
 - **THEN** the wordmark shows the dot and the header keeps its layout
+
+### Requirement: App header matches the site header
+
+Every app route (Build, the manual brief and the operator page) SHALL render one header whose geometry and type match the live site's header (dev.puni.dev, measured in Chrome on 2026-10-06) within 2 px at 1440, 1024, 768, 390 and 320 px wide. From 992 px the header SHALL show the `[-] Navigation` rail and the `[1]`–`[4]` links stacked at the left in Geist 18px/27px rows of 52.8 px, and the PUNI wordmark centred in Inter Tight 800 at 36px with the moon at 0.82em; below 992 px it SHALL show the wordmark at the left (28.8px at 600 px and below) and a 44 px `Menu ☰` button at the right whose panel lists the same links in Geist 19.2px/28.8px rows. The header's horizontal measure SHALL follow the site's container breakpoints (768, 992, 1280, 1440 and 1920 px). The night and light tones SHALL differ only in colour. Build stays marked current with `aria-current` and, like the site, without a visual mark. Escape SHALL close the open panel and return focus to the button, and the tab order on narrow screens SHALL stay skip link, brand, Menu.
+
+#### Scenario: Wide desktop
+
+- **WHEN** the site's Home and any app route load at 1440×900 in Chrome
+- **THEN** the wordmark, moon, rail label and each nav link occupy the same boxes within 2 px with the same font family, size, line height and weight
+
+#### Scenario: Open menu on a phone
+
+- **WHEN** the site's Menu and the app's Menu are opened at 390×844
+- **THEN** the button, panel title and the four links occupy the same boxes within 2 px with the same type
+
+#### Scenario: Narrow desktop
+
+- **WHEN** an app route loads at 1024×768
+- **THEN** the rail is shown as on the site rather than the Menu button, and the Build conversation sits to the rail's right instead of under it
 
 ### Requirement: Conversation harness layout
 

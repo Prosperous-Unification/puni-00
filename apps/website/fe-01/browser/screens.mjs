@@ -145,9 +145,16 @@ const states = [
   },
   {
     name: 'manual',
-    // Proof: forcing the manual AI card on (in app-flow.ts or main.tsx) made this check fail all four widths.
+    // Proof: forcing the manual AI card on (in app-flow.ts or main.tsx) made this check fail all
+    // four widths, again after the /session wait replaced networkidle (offersAiExploration → true).
     check: async (page) => {
-      await page.waitForLoadState('networkidle');
+      // The looping band video keeps the network busy, so wait for the settled /session read.
+      await page.waitForFunction(() =>
+        globalThis.performance
+          .getEntriesByType('resource')
+          .some((entry) => new globalThis.URL(entry.name).pathname === '/session'),
+      );
+      await page.waitForTimeout(200);
       const back = await page.locator('main a').evaluateAll((links) =>
         links
           .map((link) => new globalThis.URL(link.href))
@@ -333,6 +340,114 @@ async function auditFocus(page) {
   return problems;
 }
 
+/** The live marketing site the app header must match; only read, never written. */
+const parityOrigin = env['PUNI_PARITY_ORIGIN'] ?? 'https://dev.puni.dev';
+const parityViewports = [
+  { width: 1440, height: 900 },
+  { width: 1024, height: 768 },
+  { width: 768, height: 1024 },
+  { width: 390, height: 844 },
+  { width: 320, height: 568 },
+];
+const parityTolerance = 2;
+/** The same header parts on the site and in the app; `menuItems` are read with the menu open. */
+const siteHeaderParts = {
+  brand: '.puni-wordmark',
+  wordmark: '.puni-wordmark-line',
+  moon: '.puni-wordmark-moon img',
+  rail: '.puni-desktop-nav .puni-rail-label',
+  nav: '.puni-rail-links a',
+  menu: '.puni-menu summary',
+  menuTitle: '.puni-menu .nav-link-title',
+  menuItems: '.puni-menu .nav-menu-content a',
+};
+const appHeaderParts = {
+  brand: 'header.site-header .brand',
+  wordmark: 'header.site-header .wordmark-header',
+  moon: 'header.site-header .wordmark-moon img',
+  rail: 'header.site-header .nav-rail-label',
+  nav: 'header.site-header .site-nav a',
+  menu: 'header.site-header .menu-toggle',
+  menuTitle: 'header.site-header .nav-rail-label',
+  menuItems: 'header.site-header .site-nav a',
+};
+
+/**
+ * Reads the box and type of each header part, or `hidden` for an undisplayed one. `phase`
+ * picks the closed parts or the open menu's parts. Runs in the page.
+ */
+function measureHeaderParts([parts, phase]) {
+  const read = (element) => {
+    if (!element) return 'missing';
+    const box = element.getBoundingClientRect();
+    if (box.width === 0 || box.height === 0) return 'hidden';
+    const style = globalThis.getComputedStyle(element);
+    return {
+      x: box.x,
+      y: box.y,
+      width: box.width,
+      height: box.height,
+      size: Number.parseFloat(style.fontSize),
+      line: style.lineHeight,
+      weight: style.fontWeight,
+      family: style.fontFamily.split(',')[0].replaceAll(/["']/g, '').trim(),
+    };
+  };
+  const one = (selector) => read(globalThis.document.querySelector(selector));
+  const all = (selector) =>
+    [...globalThis.document.querySelectorAll(selector)].map((element) => read(element));
+  if (phase === 'open')
+    return {
+      menu: one(parts.menu),
+      menuTitle: one(parts.menuTitle),
+      menuItems: all(parts.menuItems),
+    };
+  return {
+    brand: one(parts.brand),
+    wordmark: one(parts.wordmark),
+    moon: one(parts.moon),
+    rail: one(parts.rail),
+    nav: all(parts.nav),
+    menu: one(parts.menu),
+  };
+}
+
+/** Lists every part whose visibility, box (±{@link parityTolerance}px) or type differs. */
+function compareHeaderParts(site, app) {
+  const problems = [];
+  const format = (part) =>
+    typeof part === 'string'
+      ? part
+      : `${part.x.toFixed(1)},${part.y.toFixed(1)} ${part.width.toFixed(1)}x${part.height.toFixed(1)} ${part.family} ${String(part.size)}px/${part.line} ${part.weight}`;
+  const pairs = Object.entries(site).flatMap(([name, sitePart]) =>
+    Array.isArray(sitePart)
+      ? sitePart.map((part, index) => [`${name}[${String(index)}]`, part, app[name]?.[index]])
+      : [[name, sitePart, app[name]]],
+  );
+  for (const [name, sitePart, appPart] of pairs) {
+    if (appPart === undefined) {
+      problems.push(`${name}: absent in app (site ${format(sitePart)})`);
+      continue;
+    }
+    if (typeof sitePart === 'string' || typeof appPart === 'string') {
+      if (sitePart !== appPart)
+        problems.push(`${name}: site ${format(sitePart)}, app ${format(appPart)}`);
+      continue;
+    }
+    const isBoxOff = ['x', 'y', 'width', 'height'].some(
+      (key) => Math.abs(sitePart[key] - appPart[key]) > parityTolerance,
+    );
+    const isTypeOff =
+      Math.abs(sitePart.size - appPart.size) > 0.5 ||
+      sitePart.line !== appPart.line ||
+      sitePart.weight !== appPart.weight ||
+      sitePart.family !== appPart.family;
+    if (isBoxOff || isTypeOff)
+      problems.push(`${name}: site ${format(sitePart)}, app ${format(appPart)}`);
+  }
+  return problems;
+}
+
 const only = env['PUNI_SCREENS_ONLY']?.split(',');
 const selected = only ? states.filter((state) => only.includes(state.name)) : states;
 const failures = [];
@@ -498,6 +613,83 @@ try {
     );
     if (!menuOk) failures.push('menu-390');
     await context.close();
+  }
+
+  // Proof: against the previous header (4cacc8ced) all 15 route-width captures failed (16px
+  // Geist brand, no moon on manual, inline 14px nav, Menu at 1024); restoring the moon's old
+  // 0.7em size failed all 15 again on the moon and wordmark boxes.
+  if (!only || only.includes('header-parity')) {
+    const parityRoutes = ['/', '/manual', '/operator'];
+    for (const viewport of parityViewports) {
+      const siteContext = await browser.newContext({ viewport });
+      const sitePage = await siteContext.newPage();
+      await sitePage.goto(`${parityOrigin}/`, { waitUntil: 'load', timeout: 30_000 });
+      await sitePage.evaluate(() => globalThis.document.fonts.ready);
+      await sitePage.waitForTimeout(800);
+      const site = await sitePage.evaluate(measureHeaderParts, [siteHeaderParts, 'closed']);
+      const isNarrow = viewport.width === 390;
+      let siteOpen = null;
+      if (isNarrow) {
+        await sitePage.locator(siteHeaderParts.menu).click();
+        await sitePage.waitForTimeout(300);
+        siteOpen = await sitePage.evaluate(measureHeaderParts, [siteHeaderParts, 'open']);
+      }
+      if (viewport.width === 1440 || isNarrow) {
+        if (isNarrow) await sitePage.locator(siteHeaderParts.menu).click();
+        await sitePage.screenshot({ path: `${outDir}/parity-site-${String(viewport.width)}.png` });
+        await sitePage.screenshot({
+          path: `${outDir}/parity-site-header-${String(viewport.width)}.png`,
+          clip: { x: 0, y: 0, width: viewport.width, height: isNarrow ? 120 : 280 },
+        });
+        if (isNarrow) {
+          await sitePage.locator(siteHeaderParts.menu).click();
+          await sitePage.waitForTimeout(300);
+          await sitePage.screenshot({ path: `${outDir}/parity-site-menu-open-390.png` });
+        }
+      }
+      await siteContext.close();
+      for (const route of parityRoutes) {
+        const label = `header-parity${route === '/' ? '/build' : route}-${String(viewport.width)}`;
+        const context = await browser.newContext({ viewport });
+        await routeSiteMedia(context, oidc, false);
+        await context.addCookies([await createDraftCookie(oidc)]);
+        const page = await context.newPage();
+        await page.goto(`${oidc.app}${route}`, { waitUntil: 'domcontentloaded' });
+        await page.locator('h1').first().waitFor();
+        await page.evaluate(() => globalThis.document.fonts.ready);
+        await page.waitForTimeout(800);
+        const problems = compareHeaderParts(
+          site,
+          await page.evaluate(measureHeaderParts, [appHeaderParts, 'closed']),
+        );
+        const name = route === '/' ? 'build' : route.slice(1);
+        if (viewport.width === 1440 || isNarrow) {
+          await page.screenshot({
+            path: `${outDir}/parity-app-${name}-${String(viewport.width)}.png`,
+          });
+          await page.screenshot({
+            path: `${outDir}/parity-app-${name}-header-${String(viewport.width)}.png`,
+            clip: { x: 0, y: 0, width: viewport.width, height: isNarrow ? 120 : 280 },
+          });
+        }
+        if (isNarrow && siteOpen) {
+          const toggle = page.locator(appHeaderParts.menu);
+          if ((await toggle.count()) === 1 && (await toggle.isVisible())) {
+            await toggle.click();
+            await page.waitForTimeout(300);
+            const appOpen = await page.evaluate(measureHeaderParts, [appHeaderParts, 'open']);
+            problems.push(
+              ...compareHeaderParts(siteOpen, appOpen).map((problem) => `open ${problem}`),
+            );
+            await page.screenshot({ path: `${outDir}/parity-app-${name}-menu-open-390.png` });
+          } else problems.push('open menu: app has no visible Menu button');
+        }
+        globalThis.console.log(`${label}: ${problems.length === 0 ? 'OK' : problems.join(' / ')}`);
+        if (problems.length > 0) failures.push(label);
+        await context.unrouteAll({ behavior: 'ignoreErrors' });
+        await context.close();
+      }
+    }
   }
 
   if (!only || only.includes('start-over')) {

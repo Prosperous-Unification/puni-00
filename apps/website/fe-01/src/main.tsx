@@ -12,8 +12,8 @@ import {
 } from './app-flow';
 import { BuildErrorBoundary, BuildPage } from './build-page';
 import {
+  HeroMedia,
   OperatorFooter,
-  OperatorHeader,
   SiteFooter,
   SiteHeader,
   siteOrigin,
@@ -266,8 +266,9 @@ function ManualPage() {
   const stepIndex = view === 'receipt' ? 2 : view === 'ready' ? 1 : -1;
 
   return (
-    <div className="page-shell">
-      <SiteHeader buildCurrent="true" />
+    <div className="page-shell night-band">
+      <HeroMedia />
+      <SiteHeader buildCurrent="true" tone="night" />
       <main className="manual-layout" id="main">
         <aside className="context-panel" aria-label="About this step">
           <p className="eyebrow">01 / Request</p>
@@ -563,7 +564,7 @@ function OperatorPage() {
 
   return (
     <div className="page-shell operator-page">
-      <OperatorHeader />
+      <SiteHeader tone="light" />
       <main className="operator-layout" id="main">
         <p className="eyebrow">Private workspace</p>
         <h1 ref={heading} tabIndex={-1}>

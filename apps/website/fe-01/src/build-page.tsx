@@ -767,7 +767,7 @@ export function BuildPage() {
   return (
     <div className="page-shell build-page night-shell">
       <HeroMedia />
-      <SiteHeader buildCurrent="page" tone="night" />
+      <SiteHeader buildCurrent="page" tone="night" rail="overlay" />
       <main className="harness" id="main">
         <h1 ref={heading} tabIndex={-1} className="visually-hidden">
           {load.kind === 'anonymous' || load.kind === 'account'
