@@ -11,6 +11,7 @@
 // additive, so the old colour keeps working while green migrates; the reverse
 // is not additive by nature, which is why this runs only on an abort, when
 // green is being taken away and blue is the release that will keep serving.
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 import { rollbackTo } from '@wbs/store-sqlite/migrate-down';
@@ -28,7 +29,16 @@ const mode = downModeOf(process.argv.slice(2));
 if (mode.kind === 'capture') {
   // Proof: replacing capture read/parse errors with legacy rollback-to-none made the
   // missing, unreadable and malformed-capture CLI tests exit 0 and reverse additions.
-  const capture: unknown = JSON.parse(readFileSync(mode.path, 'utf8'));
+  const bytes = readFileSync(mode.path);
+  // Proof: removing this comparison made the Compose manual-recovery test exit 0
+  // and delete both the baseline shared-people and candidate lifecycle tables.
+  if (
+    mode.expectedSha256 !== null &&
+    createHash('sha256').update(bytes).digest('hex') !== mode.expectedSha256
+  ) {
+    throw new Error('migration capture SHA-256 differs from the recorded deploy attempt');
+  }
+  const capture: unknown = JSON.parse(bytes.toString('utf8'));
   const reversed = restoreAppliedMigrationSet(
     dbPath,
     './drizzle',

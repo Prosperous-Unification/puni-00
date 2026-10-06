@@ -25,7 +25,7 @@ migration identity. No dependency on host enrollment or completion of 070.09.
 
 ## 2. Deployment callers
 
-- [ ] 2.1 Test then integrate durable capture in
+- [x] 2.1 Test then integrate durable capture in
       `tools/tool-remote-scripts/src/swap.ts`, its migration command builders and `swap.test.ts`.
       Add `refuses migration when capture cannot be persisted/read back` and `aborted swap restores an older candidate migration` using the actual backend CLIs against disposable
       SQLite at the command adapter boundary. Test `zero-exit rollback with changed ledger is not success` and `manual recovery command remains usable after candidate cleanup`.

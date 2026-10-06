@@ -190,3 +190,105 @@ passed (`/tmp/puni-07012-slice12-duplicate-{be,store}-{lint,type}.log`,
 `/tmp/puni-07012-slice12-duplicate-openspec.json`). Task 1.2 is a local
 checkpoint; deployment caller slices, the canonical gate and #259 integration
 remain pending.
+
+## Slice 2.1 — Compose swap capture and rollback
+
+The swap now asks the incoming green backend for its observed `DB_PATH` and versioned
+capture, writes an attempt-specific 0600 file with exclusive publication and file/directory
+fsync, reads the exact bytes back, then runs forward migration. Abort rechecks those retained
+bytes, copies the file into green, checks the copied SHA-256 through the incoming backend CLI,
+runs exact-set down, and compares the complete final name/hash ledger. A failed reversal
+reports the original failure plus a manual command using the pinned incoming image,
+read-only capture, read-write host data mount, and the observed green DB path. The capture
+remains after green stops. Legacy operator `--to` commands remain documented separately.
+
+The command-adapter regression first failed on an older lifecycle migration introduced after
+a newer shared-people baseline: the old `--to` path said no migrations to roll back and left
+the candidate table (`/tmp/puni-07012-slice21-older-candidate-red.log`). The persistence
+failure test initially observed forward migration despite a failed capture write
+(`/tmp/puni-07012-slice21-capture-persist-red.log`). Before the handoff guards, the pinned
+DB path, changed host bytes and changed copied bytes cases failed independently
+(`/tmp/puni-07012-slice21-handoff-red.log`); reversed pending order reached migration until
+the deploy transport parser rejected it (`/tmp/puni-07012-slice21-parser-red2.log`).
+
+Each changed safety guard was then faulted independently and restored. Every named mutation
+run exited 1 on its watched test:
+
+| Injected production fault                                                         | Observed failure                                                               | Log                                                                                                                                                                                                                         |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Publish over an existing attempt instead of no-replace link                       | Writer test accepted a second capture                                          | `/tmp/puni-07012-slice21-exclusive-mutation.log`                                                                                                                                                                            |
+| Omit published-directory sync                                                     | Writer test observed no directory durability fence                             | `/tmp/puni-07012-slice21-dirsync-mutation.log`                                                                                                                                                                              |
+| Move forward migrate before capture write                                         | Disk-full test observed `migrate-cli.ts` ran                                   | `/tmp/puni-07012-slice21-order-mutation.log`                                                                                                                                                                                |
+| Skip exact persisted readback comparison                                          | Valid JSON with changed bytes passed and forward migration ran                 | `/tmp/puni-07012-slice21-readback-mutation2.log`                                                                                                                                                                            |
+| Skip host retained-byte comparison                                                | Tampered host capture copied and candidate reversed                            | `/tmp/puni-07012-slice21-host-mutation.log`                                                                                                                                                                                 |
+| Skip copied-byte digest comparison                                                | Altered transfer reached exact-set down and candidate was reversed             | `/tmp/puni-07012-slice21-copy-mutation.log`                                                                                                                                                                                 |
+| Accept DB path outside mounted `/data`                                            | Swap resolved instead of refusing before capture                               | `/tmp/puni-07012-slice21-dbpath-mutation.log`                                                                                                                                                                               |
+| Use a default instead of observed DB path in manual command                       | Recovery test reported `/data/wbs.db` instead of green's `/data/plan.db`       | `/tmp/puni-07012-slice21-manual-dbpath-mutation.log`                                                                                                                                                                        |
+| Mark the manual data bind read-only                                               | Recovery test found an unusable data mount                                     | `/tmp/puni-07012-slice21-data-rw-mutation.log`                                                                                                                                                                              |
+| Remove final applied-set equality                                                 | Zero-exit, unchanged-ledger rollback was reported successful                   | `/tmp/puni-07012-slice21-equality-mutation.log`                                                                                                                                                                             |
+| Remove digest CLI argument/path refusal                                           | CLI accepted an ambiguous or non-capture path                                  | `/tmp/puni-07012-slice21-digest-boundary-mutation.log`                                                                                                                                                                      |
+| Bypass swap capture schema, identity, duplicate or pending-order check separately | Malformed/foreign/duplicated/reversed status capture reached forward migration | `/tmp/puni-07012-slice21-parser-schema-mutation.log`, `/tmp/puni-07012-slice21-parser-identity-mutation2.log`, `/tmp/puni-07012-slice21-parser-duplicate-mutation.log`, `/tmp/puni-07012-slice21-parser-order-mutation.log` |
+
+The direct transport parser is scoped to the deployment tool because Nx forbids a buildable
+tool importing the non-buildable SQLite store; the backend CLI retains authoritative script
+and ledger validation. The combined remote/backend/SQLite focused suite passed 162/162 tests,
+733 assertions (`/tmp/puni-07012-slice21-tests-final.log`). `tool-remote-scripts` lint,
+typecheck and build passed (`/tmp/puni-07012-slice21-{lint,type,build}-final.log`); the
+backend typecheck passed (`/tmp/puni-07012-slice21-be-typecheck-final.log`). Scoped Prettier passed
+after formatting (`/tmp/puni-07012-slice21-format-final3.log`). Backend lint passed
+(`/tmp/puni-07012-slice21-be-lint-final2.log`); strict OpenSpec validation passed 1/1
+(`/tmp/puni-07012-slice21-openspec-final.json`). The final focused suite repeated at 162/162,
+733 assertions (`/tmp/puni-07012-slice21-tests-final2.log`). `git diff --check` passed.
+Architecture review and the canonical heavy gate remain pending. No #259 worktree or
+migration timestamp was changed.
+
+### Review correction: pin manual recovery to the original bytes
+
+Astra found a P1 in the first 2.1 candidate: automatic abort rejected a modified retained
+capture, but its printed manual command consumed that same file without an original-byte pin.
+Moving the applied shared-people baseline into the pending list produced a valid capture that
+could delete both baseline and lifecycle. The new production command-adapter test failed RED
+because no original digest appeared in the printed command
+(`/tmp/puni-07012-slice21-manual-tamper-red.log`). The correction adds
+`--capture-sha256=<original>` to both automatic and printed manual down commands. The backend
+CLI reads the file once, checks that digest, parses those same bytes, and only then opens
+SQLite for exact-set rollback. The test extracts the actual printed CLI arguments; an intact
+capture succeeds after green cleanup, while the valid altered capture exits 1 with the complete
+baseline/candidate ledger and both tables unchanged
+(`/tmp/puni-07012-slice21-manual-command-green.log`).
+
+Independent watched faults on this correction all exited 1 and were restored: removing the
+backend digest comparison made the altered capture's real CLI exit 0 and reverse both migrations
+(`/tmp/puni-07012-slice21-manual-digest-mutation.log`); omitting the digest flag from the printed
+command made the test catch an unpinned manual procedure
+(`/tmp/puni-07012-slice21-manual-flag-mutation.log`); removing digest-shape validation made the
+malformed-flag CLI case reach the later hash comparison instead of refusing at the argument
+boundary (`/tmp/puni-07012-slice21-manual-shape-mutation.log`). Adjacent `Proof:` comments are
+in `migrate-down-cli.ts`, `migration-cli-options.ts` and `swap.ts`. The focused Compose/backend
+CLI suite passed 50/50 tests, 359 assertions
+(`/tmp/puni-07012-slice21-manual-fix-targeted.log`). Independent faults also removed the
+status/legacy mode exclusions for `--capture-sha256`; the real CLIs accepted those mixed modes,
+so their watched test failed (`/tmp/puni-07012-slice21-{status,legacy}-pin-mutation.log`).
+
+The combined remote/backend/SQLite tests passed 164/164, 745 assertions
+(`/tmp/puni-07012-slice21-tests-digest-final.log`). Remote lint, typecheck and build, and
+backend lint and typecheck all passed (`/tmp/puni-07012-slice21-{remote,be}-*-digest-final.log`);
+scoped Prettier, strict OpenSpec validation 1/1 and `git diff --check` passed
+(`/tmp/puni-07012-slice21-format-digest-final.log`,
+`/tmp/puni-07012-slice21-openspec-digest-final.json`). A full
+`tool-remote-scripts:test` run inside the sandbox reached 366 passed, two Docker-dependent
+skips and three Unix-listener `listen EPERM` failures
+(`/tmp/puni-07012-slice21-remote-project-test.log`). The same final-source target was rerun
+with Unix-socket access and passed 371/371, 992 assertions, with only the two documented
+real-Docker tests skipped (`/tmp/puni-07012-slice21-remote-project-test-elevated.log`).
+The held #259 worktree was not changed.
+
+Astra's final follow-up independently confirmed the original tampered-capture repro now exits 1
+without ledger/schema change, inspected the complete ledger/table snapshot assertions, and ran
+their focused case 1/1, 14 assertions
+(`/tmp/astra-07012-slice21-snapshot-followup.log`). Its combined suite had passed 164/164,
+745 assertions before those four added equality assertions
+(`/tmp/astra-07012-slice21-digest-followup.log`). The final local combined rerun passed
+164/164, 749 assertions (`/tmp/puni-07012-slice21-tests-review-final.log`). Astra found no
+remaining Critical, Important or Minor issue and cleared task 2.1 as a **local checkpoint**.
+Tasks 2.2, 3.1 and 3.2 and the canonical gate remain open.
