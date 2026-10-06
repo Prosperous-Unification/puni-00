@@ -696,6 +696,8 @@ const mode = process.env.PUNI_TASK;
 if (!dbPath || !mode) throw new Error('DB_PATH and PUNI_TASK are required');
 // Proof: moving this preflight after VACUUM made the old --to-only candidate's
 // generated-script test find an already-created snapshot before capability refusal.
+// Proof: creating the snapshot directory before this probe made that test fail
+// its directory-absence assertion even without a snapshot file.
 if (mode === 'capture') {
   // Proof: removing this invocation made the legacy --to-only candidate test create a snapshot.
   const child = Bun.spawnSync(['bun', 'run', 'src/migrate-capabilities-cli.ts'],

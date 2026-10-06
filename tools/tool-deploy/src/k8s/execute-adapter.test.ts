@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
@@ -81,7 +81,7 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
         root,
       ),
     ).toMatch(/^error: exact-set migration CLI capability probe failed:/m);
-    expect(() => readFileSync(join(snapshots, 'tx.sqlite'))).toThrow();
+    expect(existsSync(snapshots)).toBe(false);
   });
 
   for (const kind of ['missing', 'unreadable'] as const) {

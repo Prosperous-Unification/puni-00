@@ -598,3 +598,51 @@ The capture-state `Proof:` comment was corrected to name the observed forward mi
 launch. After that comment-only edit, scoped Prettier, ESLint, and `git diff --check`
 each exited 0. Only 3.2a and 3.2b are checkpointed; the live 3.1 rehearsal and final
 3.2 gate remain open.
+
+## Canonical workstream consolidation and fresh offline verification
+
+On 2026-10-06, `feat/restore-applied-migration-set` was fast-forwarded from
+`c0dded1c9670d352403e4ad533950d4c1ffb97a7` to
+`6007fcb2d4ab6003e74aa961fda8b374e33f2644`. The capability commit implements this
+same change's 3.2a/3.2b, not a separate OpenSpec objective. The four previous
+adoption drafts were preserved in the named Git stash
+`070.12 preserved adoption drafts before capability fast-forward`, with exact file
+copies under `/tmp/puni-07012-preserved-drafts` and a binary patch at
+`/tmp/puni-07012-preserved-drafts.patch`. Their runbook and compatibility material
+is incorporated in the reviewed capability commit; the duplicate old-candidate
+case was reconciled into its existing legacy-candidate test. Its unique assertion
+now requires the entire snapshot directory to remain absent. Injecting directory
+creation before the production capability probe made that assertion fail
+(`Expected: false`, `Received: true`,
+`/tmp/puni-07012-reconcile-snapshot-red.log`); the source was restored before GREEN.
+No capability behavior changed during reconciliation. The restored full adapter
+suite passed 35/35, 114 assertions
+(`/tmp/puni-07012-reconcile-adapter-green.log`); scoped ESLint passed
+(`/tmp/puni-07012-reconcile-eslint.log`). Canonical strict/all OpenSpec passed
+1/1 and 147/147 (`/tmp/puni-07012-canonical-{strict,all}.json`).
+
+Fresh checks on `6007fcb2d` passed: real backend CLI/generated-script/coordinator
+132/132, 791 assertions (`/tmp/puni-07012-resume-focused.log`); SQLite rollback and
+Compose swap 111/111, 376 assertions (`/tmp/puni-07012-resume-store-swap.log`);
+affected `wbs-be-01`, `wbs-store-sqlite`, and `tool-deploy` lint/typecheck, seven
+executed tasks (`/tmp/puni-07012-resume-lint-type-unsandboxed.log`); backend build
+plus its dependency (`/tmp/puni-07012-resume-be-build.log`); and normal deployment
+build with all five dependencies (`/tmp/puni-07012-resume-deploy-build-unsandboxed.log`).
+The earlier dependency-expanded build uncertainty no longer reproduced. The first
+sandboxed Nx lint/typecheck and deployment build attempts exited zero with only
+socket `EPERM` diagnostics and no executed targets; neither is accepted as passing
+check evidence (`/tmp/puni-07012-resume-{lint-type,deploy-build}.log`).
+Scoped Prettier, strict OpenSpec 1/1, all OpenSpec 147/147 and diff checks also passed
+on that implementation revision (`/tmp/puni-07012-resume-{strict,all}.json`).
+
+The local consolidation does not satisfy live 3.1 or final 3.2. Both remain open.
+The integrated candidate must reach h2puni through an explicitly permitted path
+before the canonical heavy-locked k3s rehearsal and exact-SHA gate can run; local
+host `/home/puni1/.cache` remains unavailable. No push, image publication, live
+rehearsal, canonical gate, CI or adoption is claimed by this checkpoint.
+
+Astra independently cleared the exact three-file reconciliation diff against
+`6007fcb2d` with no findings. Its full adapter run with the scratch preload passed
+35/35, 114 assertions, exit 0 (`/tmp/puni-07012-astra-reconciliation.log`), and
+`git diff --check` passed. The watched early-directory RED and adjacent production
+`Proof:` comment agree; no runtime behavior changed.
