@@ -167,6 +167,28 @@ independently cleared 1.2/1.3 commits.
 | Required-state context and exclusive output | Suppress required read and replace exclusive write separately                                 | Task 1.3 required-read and byte-preservation RED/GREEN pairs |
 
 Scoped Prettier, pinned strict OpenSpec 1/1 and all OpenSpec 148/148 passed;
-`git diff --check` exited 0. Task 2.1 stays unchecked until Astra reviews the exact
-complete-wrapper acceptance candidate. Task 2.2 exact-SHA host gate and CI remain
+`git diff --check` exited 0. Astra cleared the exact complete-wrapper candidate
+`ccc5a58d37fd707fa7df3d87805d02ca07a4509b`: README flags/ownership/links, narrow
+routing and import exception, concrete Nx discovery/targets and consolidated R5
+evidence match the accepted packet. Its fresh exact-SHA five-file scratch suite
+passed 62/62, 423 assertions, exit 0 (`/tmp/dash-08019-21-astra-ccc5a58-focused.log`).
+Astra did not rerun Nx, typecheck/build, whole OpenSpec, host gate or CI. Task 2.1 is complete. Task 2.2 exact-SHA host gate and CI remain
 open. No publishing, merge, host operation or authority relocation is claimed.
+
+## Task 2.2 prerequisite inspection
+
+On 2026-10-06 the local environment identified itself as `pop-os`; its
+`bin/with-heavy-lock.sh status` reported holder none, which is not h2puni lock
+evidence. A read-only `ssh -o BatchMode=yes -o ConnectTimeout=10 h2puni` inspection
+of the documented `/home/puni1/wbs-build` checkout failed exit 255 with
+`No route to host` before any remote command ran. The current h2puni lock, checkout
+identity, exact commit availability and tool/activation readiness remain unverified.
+
+The inspected gate resolves the requested commit before taking the heavy lock;
+it does not fetch missing objects. The final exact SHA must first be accessible
+in the coordinator-selected canonical gate checkout. Its script alone checks out
+that SHA under the lock, checks the printed running SHA, installs frozen locked
+dependencies and executes the full gate. Exact-head CI is a separate receipt.
+No checkout, fetch, transfer, host gate, CI trigger, push or merge was attempted.
+Task 2.2 remains open; coordinator confirmation of canonical SHA availability and
+host connectivity is the next prerequisite.
