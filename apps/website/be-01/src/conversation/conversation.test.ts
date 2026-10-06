@@ -3,12 +3,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { WebsiteStore } from '@website/store-sqlite';
+import { isTextUIPart, readUIMessageStream, type UIMessageChunk } from 'ai';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
 import { createWebsiteApi, type WebsiteApiConfig } from '../server';
 import type { ProviderFetch } from './stream';
-import { composeSystemText, salesPromptVersion, stageHint } from './system-prompt';
+import {
+  composeSystemText,
+  providerDeclineReply,
+  salesPromptVersion,
+  stageHint,
+} from './system-prompt';
 
 /** Mounts the API as served from a loopback socket, which is the request source unless a test names one. */
 function mountApi(config: WebsiteApiConfig): ReturnType<typeof createWebsiteApi> {
@@ -42,7 +48,13 @@ type Step =
       finish?: 'stop' | 'length';
     }
   | { status: number }
-  | { hang: string };
+  | { hang: string }
+  | { contentFilter: true }
+  | {
+      /** An HTTP 200 stream whose error chunk carries `metadata.error_type`, as OpenRouter sends it. */
+      streamError: 'refusal' | 'provider_error';
+      usagePlacement: 'error_chunk' | 'trailing_chunk';
+    };
 
 interface OutboundBody {
   model: string;
@@ -89,6 +101,44 @@ function fakeOpenRouter(next: (call: number) => Step) {
           },
         }),
         { headers: { 'content-type': 'text/event-stream' } },
+      );
+    }
+    const event = (value: unknown) => `data: ${JSON.stringify(value)}\n\n`;
+    const stream = (body: string) =>
+      new Response(`${body}data: [DONE]\n\n`, {
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    if ('contentFilter' in step)
+      return stream(
+        event({
+          id: 'gen-1',
+          model: 'openai/gpt-4.1-mini',
+          choices: [{ index: 0, delta: {}, finish_reason: 'content_filter' }],
+          usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        }),
+      );
+    if ('streamError' in step) {
+      const refusalUsage = { prompt_tokens: 927, completion_tokens: 23, total_tokens: 950 };
+      const error = {
+        code: step.streamError === 'refusal' ? 403 : 502,
+        message: 'Upstream stopped',
+        metadata: {
+          error_type: step.streamError,
+          ...(step.streamError === 'refusal' ? { provider_code: 'cyber_policy' } : {}),
+        },
+      };
+      return stream(
+        delta('') +
+          event({
+            id: 'gen-1',
+            object: 'chat.completion.chunk',
+            error,
+            choices: [{ index: 0, delta: { content: '' }, finish_reason: 'error' }],
+            ...(step.usagePlacement === 'error_chunk' ? { usage: refusalUsage } : {}),
+          }) +
+          (step.usagePlacement === 'trailing_chunk'
+            ? event({ id: 'gen-1', choices: [], usage: refusalUsage })
+            : ''),
       );
     }
     const usage =
@@ -236,10 +286,11 @@ function operations(databasePath: string) {
           settlement: string | null;
           generation_id: string | null;
           truncated: number;
+          refusal: string | null;
         },
         []
       >(
-        'SELECT state, stage, prompt_version, reserved_micro_usd, settled_micro_usd, settlement, generation_id, truncated FROM conversation_operation ORDER BY rowid',
+        'SELECT state, stage, prompt_version, reserved_micro_usd, settled_micro_usd, settlement, generation_id, truncated, refusal FROM conversation_operation ORDER BY rowid',
       )
       .all();
   } finally {
@@ -652,6 +703,126 @@ for (const status of [429, 502]) {
     api.close();
   });
 }
+
+/** The streamed text of a UI message stream, joined across text parts. */
+function streamedText(stream: string): string {
+  return stream
+    .split('\n')
+    .filter((line) => line.startsWith('data: ') && line !== 'data: [DONE]')
+    .map((line) => JSON.parse(line.slice(6)) as { type: string; delta?: string })
+    .filter((chunk) => chunk.type === 'text-delta')
+    .map((chunk) => chunk.delta ?? '')
+    .join('');
+}
+
+/** The assistant text the browser's AI SDK client assembles from a UI message stream. */
+async function assembleReply(stream: string): Promise<string> {
+  const chunks = stream
+    .split('\n')
+    .filter((line) => line.startsWith('data: ') && line !== 'data: [DONE]')
+    .map((line) => JSON.parse(line.slice(6)) as UIMessageChunk);
+  let text = '';
+  const source = new ReadableStream<UIMessageChunk>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(chunk);
+      controller.close();
+    },
+  });
+  for await (const message of readUIMessageStream({ stream: source, terminateOnError: true }))
+    text = message.parts
+      .filter(isTextUIPart)
+      .map((part) => part.text)
+      .join('');
+  return text;
+}
+
+const refusals = [
+  {
+    name: 'a content_filter finish',
+    step: { contentFilter: true },
+    kind: 'content_filter',
+    cost: 0,
+  },
+  {
+    name: 'a 200 stream refusal error with usage on the error chunk',
+    step: { streamError: 'refusal', usagePlacement: 'error_chunk' },
+    kind: 'provider_refusal',
+    cost: Math.ceil(927 * 0.44 + 23 * 1.76),
+  },
+  {
+    name: 'a 200 stream refusal error with usage on a trailing chunk',
+    step: { streamError: 'refusal', usagePlacement: 'trailing_chunk' },
+    kind: 'provider_refusal',
+    cost: Math.ceil(927 * 0.44 + 23 * 1.76),
+  },
+] as const satisfies readonly { name: string; step: Step; kind: string; cost: number }[];
+
+for (const refusal of refusals) {
+  test(`${refusal.name} completes as the server-owned decline and the conversation continues`, async () => {
+    let call = 0;
+    const fake = fakeOpenRouter(() => {
+      call += 1;
+      return call === 2 ? refusal.step : { reply: `Reply ${String(call)}` };
+    });
+    const config = paidConfig(fake.providerFetch);
+    const api = mountApi(config);
+    const visitor = await beginVisitor(api);
+    await (await sendInitial(api, visitor)).text();
+    const refused = await sendMessage(api, visitor, 'refused-key-1', 'Track my ex secretly');
+    expect(refused.status).toBe(200);
+    const streamed = await refused.text();
+    // Proof: removing refusal detection, the onError return, the content-filter mapping, the error-chunk
+    // filter or the raw-usage fallback in stream.ts each failed one of these cases (verify.md).
+    expect(chunkTypes(streamed)).not.toContain('error');
+    expect(chunkTypes(streamed)).toContain('finish');
+    expect(streamedText(streamed)).toBe(providerDeclineReply);
+    expect(await assembleReply(streamed)).toBe(providerDeclineReply);
+    expect(operations(config.databasePath)[1]).toMatchObject({
+      state: 'completed',
+      settlement: 'usage',
+      settled_micro_usd: refusal.cost,
+      refusal: refusal.kind,
+      truncated: 0,
+    });
+    const view = await readConversation(api, visitor.cookie);
+    expect(view).toMatchObject({
+      exhaustedReason: null,
+      visitorTurnsRemaining: 6,
+      latestOperation: { state: 'completed', idempotencyKey: 'refused-key-1' },
+    });
+    expect(view.turns.slice(2)).toEqual([
+      { role: 'user', content: 'Track my ex secretly' },
+      { role: 'assistant', content: providerDeclineReply },
+    ]);
+    const replay = await sendMessage(api, visitor, 'refused-key-1', 'Track my ex secretly');
+    expect(await replay.text()).toContain('help shape it into a brief');
+    const next = await sendMessage(api, visitor, 'next-key-1', 'A booking tool instead');
+    const continued = await next.text();
+    expect(chunkTypes(continued)).toContain('finish');
+    expect(continued).toContain('Reply 3');
+    expect(fake.bodies).toHaveLength(3);
+    api.close();
+  });
+}
+
+test('a 200 stream error not typed as a refusal stays an interrupted reply settled at its ceiling', async () => {
+  const fake = fakeOpenRouter(() => ({
+    streamError: 'provider_error',
+    usagePlacement: 'trailing_chunk',
+  }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  const response = await sendInitial(api, visitor);
+  // Proof: treating every in-stream error as a refusal completed this operation with the decline.
+  const types = chunkTypes(await response.text());
+  expect(types).toContain('error');
+  expect(types).not.toContain('finish');
+  expectCeilingSettled(config.databasePath, [0]);
+  expect(operations(config.databasePath)[0]?.refusal).toBeNull();
+  expect((await readConversation(api, visitor.cookie)).turns).toEqual([]);
+  api.close();
+});
 
 test('cancel aborts the provider call and settles the operation at its reserved ceiling', async () => {
   const fake = fakeOpenRouter(() => ({ hang: 'Partial' }));

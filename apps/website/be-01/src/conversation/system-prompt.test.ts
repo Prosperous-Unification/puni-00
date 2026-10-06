@@ -5,6 +5,7 @@ import { expect, test } from 'bun:test';
 
 import {
   composeSystemText,
+  providerDeclineReply,
   salesPromptVersion,
   salesSystemPrompt,
   stageHint,
@@ -30,4 +31,9 @@ test('each stage hint equals its row in the reviewed document', () => {
     expect(stageHint(stage)).toBe(row[1]);
     expect(composeSystemText(stage)).toBe(`${salesSystemPrompt}\n${row[1]}`);
   }
+});
+
+test('the provider decline equals the reviewed document and carries no price, date or marker', () => {
+  expect(promptDocument).toContain(`> ${providerDeclineReply}\n`);
+  expect(providerDeclineReply).not.toMatch(/[$€£\d[\]]/);
 });

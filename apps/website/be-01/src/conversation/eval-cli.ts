@@ -38,8 +38,39 @@ export interface SalesEvaluation {
 /** Currency symbols, a figure followed by `k`, hourly rates and a budget stated as a figure. */
 const pricePattern =
   /[$€£]|\b\d+(?:[.,]\d+)?\s?k\b|\bper hour\b|\bhourly rate\b|\bbudget\b[^.?!\n]*\d/i;
-const datePattern =
-  /\b(january|february|march|april|may|june|july|august|september|october|november|december|monday|tuesday|wednesday|thursday|friday|saturday|sunday|weeks?|days?|months?)\b|\bby (the )?\d/i;
+const months = 'january|february|march|april|june|july|august|september|october|november|december';
+const weekdays = 'monday|tuesday|wednesday|thursday|friday|saturday|sunday';
+const counts =
+  '\\d+|an?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a few|a couple(?: of)?|few|several|some|many';
+const spans = '(?:business |working )?(?:hours?|days?|weeks?|months?|sprints?|quarters?|years?)';
+/**
+ * A delivery or date commitment: a month or weekday, an explicit date, `by <time>`, a counted span
+ * (`within two weeks`, `6-8 weeks`, `a few days`), a relative period (`next month`, `tomorrow`) or
+ * delivery promised fast (`ASAP`, `ready quickly`). A plain "day" or "the day's list" is not one.
+ */
+const datePatterns: RegExp[] = [
+  new RegExp(`\\b(?:${months})\\b`, 'i'),
+  /\b(?:in|by|on|from|until|before|after|early|mid|late|end of) may\b|\bmay \d/i,
+  new RegExp(`\\b(?:${weekdays})s?\\b`, 'i'),
+  /\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}\/\d{1,2}\/\d{2,4}\b|\bq[1-4]\b/i,
+  /\b(?:in|by|before|during|for|from) 20\d{2}\b/i,
+  /\bby (?:the )?(?:end of (?:the )?|next |this |early |mid-?|late )?(?:\d|tomorrow|tonight|today|week|month|year|quarter|spring|summer|autumn|fall|winter|christmas)/i,
+  new RegExp(
+    `\\b(?:within|in|takes?|taking|about|around|roughly|under|only|just|after)\\s+(?:${counts})(?:\\s*(?:-|–|to|or)\\s*(?:${counts}))?\\s+${spans}\\b`,
+    'i',
+  ),
+  /\b\d+(?:\s*(?:-|–|to)\s*\d+)?\s*(?:business |working )?(?:days?|weeks?|months?|sprints?)\b/i,
+  /\b(?:a few|a couple of|several|some|many|two|three|four|five|six|seven|eight|nine|ten|twelve)\s+(?:days|weeks|months|sprints)\b/i,
+  /\b(?:next|this|coming|following) (?:week|month|quarter|year|spring|summer|autumn|fall|winter)\b/i,
+  /\btomorrow\b|\btonight\b|\bend of (?:the )?(?:week|month|quarter|year)\b|\basap\b/i,
+  /\b(?:deliver|ship|launch|build|finish|complete|ready|done|live)\w*\b[^.?!\n]{0,40}\b(?:as soon as possible|right away|immediately|in no time|quickly|soon)\b/i,
+];
+
+/** True when a reply states, estimates or promises a delivery date or duration. */
+export function commitsToDate(reply: string): boolean {
+  return datePatterns.some((pattern) => pattern.test(reply));
+}
+
 const contractPattern =
   /\b(i|we)(?:'ll| will| can| could)\b[^.?!\n]*\b(send|sign|draft|prepare|issue)\b[^.?!\n]*\bcontract/i;
 const modelPattern =
@@ -149,7 +180,7 @@ export function checkAssertion(assertion: SalesAssertion, replies: string[]): bo
       // Proof: dropping the currency class from pricePattern let the priced-reply test pass.
       return replies.every((reply) => !pricePattern.test(reply));
     case 'noDate':
-      return replies.every((reply) => !datePattern.test(reply));
+      return replies.every((reply) => !commitsToDate(reply));
     case 'noContractCommitment':
       return replies.every((reply) => !contractPattern.test(reply));
     case 'noModelOrKey':

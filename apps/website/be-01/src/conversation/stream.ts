@@ -78,6 +78,26 @@ export function readFinalUsage(
   return { promptTokens, completionTokens };
 }
 
+/**
+ * Why the provider declined a call: a `content_filter` finish, or an in-stream error whose
+ * `metadata.error_type` is `refusal` (OpenRouter sends it inside an HTTP 200 stream).
+ */
+export type ProviderRefusal = 'content_filter' | 'provider_refusal';
+
+/** True for a raw OpenRouter chunk carrying an error typed `refusal`; any other error is not one. */
+export function isRefusalChunk(rawValue: unknown): boolean {
+  if (typeof rawValue !== 'object' || rawValue === null) return false;
+  const error: unknown = Reflect.get(rawValue, 'error');
+  if (typeof error !== 'object' || error === null) return false;
+  const metadata: unknown = Reflect.get(error, 'metadata');
+  // Proof: accepting any typed error here completed the mounted provider_error stream as a decline.
+  return (
+    typeof metadata === 'object' &&
+    metadata !== null &&
+    Reflect.get(metadata, 'error_type') === 'refusal'
+  );
+}
+
 /** The routing block every paid request carries: the pinned endpoint, privacy flags and price ceilings. */
 export function providerRouting(provider: string, rates: ProviderRates) {
   return {
@@ -108,6 +128,16 @@ export function replayReply(reply: string): Response {
   return createUIMessageStreamResponse({ stream });
 }
 
+/**
+ * The modeled outcome of a provider refusal: a fixed, server-owned reply saved and streamed as a
+ * normal assistant turn instead of an interrupted one.
+ */
+export interface ProviderDecline {
+  reply: string;
+  /** Commits {@link ProviderDecline.reply} at the provider-reported cost; false marks the operation unknown. */
+  complete(refusal: ProviderRefusal, actualMicroUsd: number): boolean;
+}
+
 export interface ConfirmedReplyOptions {
   pin: ProviderPin;
   rates: ProviderRates;
@@ -130,6 +160,8 @@ export interface ConfirmedReplyOptions {
   markUnknown(): void;
   /** The user-facing `errorText` when the reply ends without confirmed usage. */
   interruptedText: string;
+  /** Present when a refusal completes the operation; absent, a refusal is an interrupted reply. */
+  decline?: ProviderDecline;
   /** Receives the provider's generation id once, from the first raw chunk that carries one. */
   recordGeneration?(generationId: string): void;
   isCompleted(): boolean;
@@ -139,7 +171,10 @@ export interface ConfirmedReplyOptions {
  * Streams one paid reply as an AI SDK UI message stream and emits the finish event only after
  * {@link ConfirmedReplyOptions.complete} has stored the reply with final provider usage. A
  * timeout, abort, provider or stream error, missing raw usage, an empty or oversized reply, or
- * a refused completion marks the operation unknown and ends the stream with an error chunk.
+ * a refused completion marks the operation unknown and ends the stream with an error chunk. With
+ * {@link ConfirmedReplyOptions.decline}, a provider refusal ({@link ProviderRefusal}) instead
+ * completes with the decline reply at the provider-reported usage, or 0 when it reported none,
+ * and streams that reply with a `stop` finish; the refusal's own error chunk is never forwarded.
  */
 export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
   const abort = new AbortController();
@@ -172,6 +207,11 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     fetch: providerFetch,
   });
   let generationRecorded = false;
+  const decline = options.decline;
+  let refusal: ProviderRefusal | null = null;
+  let declined = false;
+  /** The last raw usage seen; a refusal's usage can ride the error chunk the SDK does not parse. */
+  let rawUsage: unknown = undefined;
   const inputRate = options.rates.inputUsdPerMillion;
   const outputRate = options.rates.outputUsdPerMillion;
   const streamed = streamText({
@@ -180,10 +220,18 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     messages: options.messages,
     maxRetries: 0,
     abortSignal: abort.signal,
-    includeRawChunks: options.recordGeneration !== undefined,
+    includeRawChunks: options.recordGeneration !== undefined || decline !== undefined,
     onChunk: ({ chunk }) => {
-      if (generationRecorded || chunk.type !== 'raw') return;
+      if (chunk.type !== 'raw') return;
       const rawValue: unknown = chunk.rawValue;
+      if (decline) {
+        // Proof: dropping this detection turned the mounted 200-with-refusal-error test into an interrupted reply.
+        if (isRefusalChunk(rawValue)) refusal = 'provider_refusal';
+        const usage: unknown =
+          typeof rawValue === 'object' && rawValue !== null ? Reflect.get(rawValue, 'usage') : null;
+        if (usage !== undefined && usage !== null) rawUsage = usage;
+      }
+      if (generationRecorded) return;
       const generationId: unknown =
         typeof rawValue === 'object' && rawValue !== null ? Reflect.get(rawValue, 'id') : null;
       if (typeof generationId !== 'string' || !generationId) return;
@@ -201,6 +249,19 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     },
     onFinish: ({ text, finalStep, finishReason }) => {
       try {
+        // Proof: dropping this mapping turned the mounted content_filter test into an interrupted reply.
+        if (decline && finishReason === 'content-filter') refusal = 'content_filter';
+        if (decline && refusal) {
+          // Proof: dropping the raw fallback settled 0 in the usage-on-the-error-chunk refusal test.
+          const reported = readFinalUsage(finalStep.usage.raw ?? rawUsage);
+          // A refusal is settled at what the provider reported; it reports nothing for a pre-check block.
+          const actualMicroUsd = reported
+            ? Math.ceil(reported.promptTokens * inputRate + reported.completionTokens * outputRate)
+            : 0;
+          declined = decline.complete(refusal, actualMicroUsd);
+          if (!declined) options.markUnknown();
+          return;
+        }
         const usage = readFinalUsage(finalStep.usage.raw);
         if (
           !usage ||
@@ -226,6 +287,9 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
       release();
     },
     onError: () => {
+      // A refusal error is followed by the finish, which settles it as a decline.
+      // Proof: marking unknown here as before failed the mounted 200-with-refusal-error test.
+      if (decline && refusal) return;
       options.markUnknown();
       release();
     },
@@ -240,11 +304,19 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
         try {
           for await (const chunk of wire) {
             if (chunk.type === 'finish') finishChunk = chunk;
+            // Proof: forwarding this chunk put an `error` beside the decline's `finish` in the refusal tests.
+            else if (chunk.type === 'error' && refusal) continue;
             else if (connected) controller.enqueue(chunk);
           }
           await completion.promise;
           if (connected) {
-            if (options.isCompleted() && finishChunk) controller.enqueue(finishChunk);
+            if (declined && decline && options.isCompleted()) {
+              const id = crypto.randomUUID();
+              controller.enqueue({ type: 'text-start', id });
+              controller.enqueue({ type: 'text-delta', id, delta: decline.reply });
+              controller.enqueue({ type: 'text-end', id });
+              controller.enqueue({ type: 'finish', finishReason: 'stop' });
+            } else if (options.isCompleted() && finishChunk) controller.enqueue(finishChunk);
             else
               controller.enqueue({
                 type: 'error',

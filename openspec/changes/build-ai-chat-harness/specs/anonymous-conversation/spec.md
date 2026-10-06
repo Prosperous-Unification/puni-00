@@ -98,7 +98,7 @@ The API SHALL derive the source from the client address: when `TRUSTED_PROXY_HOP
 
 ### Requirement: Streaming with conservative settlement
 
-The API SHALL stream the reply as an AI SDK UI message stream and SHALL emit the finish event only after the operation is completed with final provider usage. Cancellation, disconnect, timeout, stream failure, missing or malformed final usage SHALL mark the operation `unknown` and settle it at its full reservation (priced at the pinned `max_price` with the full output cap) with `settlement = 'reserved_ceiling'` and the provider's generation id when one was seen, and SHALL emit an error chunk if the client is still connected. Spend accounting SHALL only ever over-count. The partial reply SHALL NOT be saved as a turn; the visitor's message SHALL stay on the operation. The conversation SHALL stay open, and a later request under the same key with the same body SHALL start a new attempt while the allowances permit. A `length` finish with usage SHALL complete and mark the reply truncated. Startup SHALL settle every in-flight operation the same way.
+The API SHALL stream the reply as an AI SDK UI message stream and SHALL emit the finish event only after the operation is completed with final provider usage. Cancellation, disconnect, timeout, stream failure other than a provider refusal, missing or malformed final usage SHALL mark the operation `unknown` and settle it at its full reservation (priced at the pinned `max_price` with the full output cap) with `settlement = 'reserved_ceiling'` and the provider's generation id when one was seen, and SHALL emit an error chunk if the client is still connected. Spend accounting SHALL only ever over-count. The partial reply SHALL NOT be saved as a turn; the visitor's message SHALL stay on the operation. The conversation SHALL stay open, and a later request under the same key with the same body SHALL start a new attempt while the allowances permit. A `length` finish with usage SHALL complete and mark the reply truncated. Startup SHALL settle every in-flight operation the same way.
 
 #### Scenario: Missing final usage
 
@@ -119,6 +119,25 @@ The API SHALL stream the reply as an AI SDK UI message stream and SHALL emit the
 
 - **WHEN** the fake provider answers 429 or 502 before streaming
 - **THEN** the API reports a typed failure, the operation is `unknown` and settled at its reservation and saved turns are unchanged
+
+### Requirement: Provider refusal completes as a server-owned decline
+
+When the provider refuses a reply, either with a `content_filter` finish or with an in-stream error whose `metadata.error_type` is `refusal` (sent inside an HTTP 200 stream), the API SHALL complete the operation as a normal assistant turn whose text is a fixed, server-owned decline carrying no price, date or brief marker. It SHALL settle the operation at the provider-reported usage (0 when none was reported) with `settlement = 'usage'`, record the refusal kind (`content_filter` or `provider_refusal`) on the operation, stream the decline with a finish event and no error chunk, count the visitor turn, keep the conversation open, and never store the decline as the draft brief. Any other in-stream error SHALL keep the conservative settlement above.
+
+#### Scenario: Content filter
+
+- **WHEN** the fake provider finishes a reply with `content_filter` and zero usage
+- **THEN** the client receives the decline and a finish event, the operation is `completed` with `refusal = 'content_filter'` settled at 0, both turns are saved and the next message reaches the provider
+
+#### Scenario: Refusal error inside a 200 stream
+
+- **WHEN** the fake provider streams an error chunk typed `refusal` with usage on that chunk or a later one
+- **THEN** the operation is `completed` with `refusal = 'provider_refusal'` settled at that usage, and the client receives the decline with no error chunk
+
+#### Scenario: Other stream error
+
+- **WHEN** the fake provider streams an error chunk not typed `refusal`
+- **THEN** the operation is `unknown`, settled at its reservation, and the client receives an error chunk
 
 ### Requirement: Server-owned stages and brief capture
 

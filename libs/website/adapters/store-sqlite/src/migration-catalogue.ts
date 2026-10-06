@@ -19,5 +19,6 @@ export function websiteMigrations(): { name: string; directory: string }[] {
       directory: join(import.meta.dir, 'migrations/006_retention_subject'),
     },
     { name: '007_conversation', directory: join(import.meta.dir, 'migrations/007_conversation') },
+    { name: '008_refusal', directory: join(import.meta.dir, 'migrations/008_refusal') },
   ];
 }

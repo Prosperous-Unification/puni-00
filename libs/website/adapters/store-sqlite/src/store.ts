@@ -9,11 +9,13 @@ import { busyTimeoutMilliseconds } from './checked-database';
 import {
   admitConversationOperation,
   completeConversationOperation,
+  completeDeclinedConversationOperation,
   type ConversationAdmission,
   type ConversationAdmissionRequest,
   conversationAllowance,
   type ConversationOperationRecord,
   type ConversationRecord,
+  type ConversationRefusal,
   type ConversationTurn,
   findConversation,
   findConversationOperation,
@@ -37,6 +39,7 @@ export type {
   ConversationOperationRecord,
   ConversationPricing,
   ConversationRecord,
+  ConversationRefusal,
   ConversationTurn,
 } from './conversation-store';
 export { conversationAllowance } from './conversation-store';
@@ -199,6 +202,24 @@ export class WebsiteStore {
     truncated: boolean,
   ): boolean {
     return completeConversationOperation(this.database, id, reply, actualMicroUsd, now, truncated);
+  }
+
+  /** See {@link completeDeclinedConversationOperation}. */
+  completeDeclinedConversationOperation(
+    id: string,
+    reply: string,
+    actualMicroUsd: number,
+    now: number,
+    refusal: ConversationRefusal,
+  ): boolean {
+    return completeDeclinedConversationOperation(
+      this.database,
+      id,
+      reply,
+      actualMicroUsd,
+      now,
+      refusal,
+    );
   }
 
   /** See {@link markConversationOperationUnknown}. */

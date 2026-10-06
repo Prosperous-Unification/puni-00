@@ -109,6 +109,59 @@ test('migration 007 applies forward and its down.sql restores the exact 006 sche
   }
 });
 
+test('migration 008 adds the refusal column and its down.sql restores the exact 007 schema', () => {
+  const databasePath = databaseFile();
+  new WebsiteStore(databasePath).close();
+  const expected = new Database(':memory:');
+  const database = new Database(databasePath);
+  try {
+    expect(
+      database
+        .query<{ name: string }, []>("SELECT name FROM pragma_table_info('conversation_operation')")
+        .all()
+        .map(({ name }) => name),
+    ).toContain('refusal');
+    expected.run('CREATE TABLE schema_migration (name TEXT PRIMARY KEY, checksum TEXT NOT NULL)');
+    for (const migration of websiteMigrations().filter(({ name }) => name < '008'))
+      expected.run(readFileSync(join(migration.directory, 'migration.sql'), 'utf8'));
+    const migration = websiteMigrations().find(({ name }) => name === '008_refusal');
+    if (!migration) throw new Error('Missing migration 008');
+    database.run(readFileSync(join(migration.directory, 'down.sql'), 'utf8'));
+    const schema =
+      "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name";
+    expect(database.query(schema).all()).toEqual(expected.query(schema).all());
+  } finally {
+    database.close();
+    expected.close();
+  }
+});
+
+test('the schema refuses a refusal on an operation that is not completed', () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  store.createDraft('draft-1', 'R', 'claim-1', day, day + 1e6);
+  const id = started(store, ask('claim-1', 'initial:draft-1', 'R', { initial: true }));
+  store.close();
+  const database = new Database(databasePath);
+  try {
+    // Proof: with the state clause removed from 008's CHECK, this update succeeded.
+    expect(() =>
+      database
+        .query("UPDATE conversation_operation SET refusal = 'content_filter' WHERE id = ?")
+        .run(id),
+    ).toThrow(/CHECK constraint failed/);
+    expect(() =>
+      database
+        .query(
+          "UPDATE conversation_operation SET state = 'completed', settlement = 'usage', settled_micro_usd = 0, refusal = 'other' WHERE id = ?",
+        )
+        .run(id),
+    ).toThrow(/CHECK constraint failed/);
+  } finally {
+    database.close();
+  }
+});
+
 test('restart settles in-flight conversation operations at their reserved ceiling', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
@@ -615,6 +668,42 @@ test('an unmarked brief reply falls back without its framing and records the fal
   expect(
     rows(databasePath, "SELECT brief_capture FROM conversation_operation WHERE stage = 'brief'"),
   ).toEqual([{ brief_capture: 'fallback' }]);
+});
+
+test('a declined brief-stage reply records its refusal, counts the turn and never becomes the brief', () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  store.createDraft('draft-1', 'R', 'claim-1', day, day + 1e6);
+  converse(store, 'claim-1', 1);
+  converse(store, 'claim-1', 2);
+  const id = started(store, ask('claim-1', 'brief-key-claim-1', 'Third answer'));
+  const decline = "I can't help with that request. Describe a software problem instead.";
+  expect(store.completeDeclinedConversationOperation(id, decline, 0, day, 'provider_refusal')).toBe(
+    true,
+  );
+  expect(store.completeDeclinedConversationOperation(id, decline, 0, day, 'provider_refusal')).toBe(
+    false,
+  );
+  expect(store.findDraft('claim-1', day)?.brief).toBe('');
+  store.close();
+  expect(
+    rows(
+      databasePath,
+      "SELECT state, settlement, settled_micro_usd, refusal, brief_capture, reply FROM conversation_operation WHERE stage = 'brief'",
+    ),
+  ).toEqual([
+    {
+      state: 'completed',
+      settlement: 'usage',
+      settled_micro_usd: 0,
+      refusal: 'provider_refusal',
+      brief_capture: null,
+      reply: decline,
+    },
+  ]);
+  expect(rows(databasePath, 'SELECT count(*) AS turns FROM conversation_turn')).toEqual([
+    { turns: 6 },
+  ]);
 });
 
 test('markers around an empty body store no brief', () => {

@@ -427,6 +427,38 @@ export function completeConversationOperation(
   now: number,
   truncated: boolean,
 ): boolean {
+  return settleConversationOperation(database, id, reply, actualMicroUsd, now, truncated, null);
+}
+
+/** Why the provider refused a conversation reply; recorded as the operation's `refusal`. */
+export type ConversationRefusal = 'content_filter' | 'provider_refusal';
+
+/**
+ * Completes a reserved operation the provider refused, as by {@link completeConversationOperation}
+ * with the server-owned `reply` and no truncation, recording `refusal`. The visitor turn counts
+ * and the conversation stays open. A decline never becomes the draft brief, so `brief_capture`
+ * stays null even at the brief stage. Returns false, changing nothing, under the same conditions.
+ */
+export function completeDeclinedConversationOperation(
+  database: Database,
+  id: string,
+  reply: string,
+  actualMicroUsd: number,
+  now: number,
+  refusal: ConversationRefusal,
+): boolean {
+  return settleConversationOperation(database, id, reply, actualMicroUsd, now, false, refusal);
+}
+
+function settleConversationOperation(
+  database: Database,
+  id: string,
+  reply: string,
+  actualMicroUsd: number | null,
+  now: number,
+  truncated: boolean,
+  refusal: ConversationRefusal | null,
+): boolean {
   return database.transaction(() => {
     const operation = database
       .query<
@@ -452,12 +484,21 @@ export function completeConversationOperation(
     // Proof: settling before this transaction left settled usage with no turns in the failed-insert test.
     // Only the assistant reply is parsed, so brief markers in visitor text never reach the draft.
     // Proof: parsing `operation.message` here stored the visitor's injected brief in the markers-in-visitor-text test.
-    const capture = operation.stage === 'brief' ? captureBrief(reply) : null;
+    // Proof: capturing a declined reply stored the decline as the draft brief in the brief-stage refusal test.
+    const capture = operation.stage === 'brief' && refusal === null ? captureBrief(reply) : null;
     const settled = database
       .query(
-        "UPDATE conversation_operation SET state = 'completed', reply = ?, truncated = ?, settled_micro_usd = ?, settlement = 'usage', overrun = ?, brief_capture = ? WHERE id = ? AND state = 'inflight'",
+        "UPDATE conversation_operation SET state = 'completed', reply = ?, truncated = ?, settled_micro_usd = ?, settlement = 'usage', overrun = ?, brief_capture = ?, refusal = ? WHERE id = ? AND state = 'inflight'",
       )
-      .run(reply, truncated ? 1 : 0, actualMicroUsd, overrun ? 1 : 0, capture?.kind ?? null, id);
+      .run(
+        reply,
+        truncated ? 1 : 0,
+        actualMicroUsd,
+        overrun ? 1 : 0,
+        capture?.kind ?? null,
+        refusal,
+        id,
+      );
     if (settled.changes !== 1) throw new Error('Conversation completion was not atomic');
     const insertTurn = database.query(
       'INSERT INTO conversation_turn (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',

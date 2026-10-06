@@ -42,6 +42,8 @@ Low effort keeps replies inside the 30-second deadline; 700 tokens leaves room f
 
 **Guardrail.** Dany's key guardrail currently allows Luna only via OpenAI direct, which is not a ZDR endpoint; with `zdr: true` and `only: ["azure/eu"]` every call would be refused. Allowing the Azure endpoint in the guardrail keeps zero data retention. Before the enable override, the privacy page must name the Azure EU host instead of Sweden Central, and the activation smoke must confirm a real response's provider identity, final usage including reasoning tokens, and the debit.
 
+**First real evaluation (2026-10-06).** The `eval-20261007-luna` run (effort `low`, cap 700) failed on three causes, each fixed in code: the model repeated the v2 prompt's "how PUNI works" sentence (prompt `puni-sales-v3` now gives facts to paraphrase), `noDate` flagged "the day's bookings" (it now looks for date and delivery commitments only), and Azure refused three scripts, once as a `content_filter` finish and once as a 200-stream error typed `refusal` with `provider_code: cyber_policy`. Refusals now complete as a fixed server-owned decline settled at the reported usage and recorded in `conversation_operation.refusal` (migration `008_refusal`); see [Provider refusals](../../openspec/changes/build-ai-chat-harness/design.md#provider-refusals-2026-10-06). Rerun the corpus with the real key before the enable override.
+
 ## Proposed nonsecret preview settings
 
 ```dotenv

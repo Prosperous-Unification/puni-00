@@ -5,6 +5,7 @@ import { expect, test } from 'bun:test';
 
 import {
   checkAssertion,
+  commitsToDate,
   parseSalesCorpus,
   readEvaluationProvider,
   runSalesEvaluation,
@@ -208,4 +209,45 @@ test('the brief assertion counts bullets only inside the brief markers', () => {
   ).toBe(false);
   const outside = ['[brief]', 'A booking tool.', '[/brief]', ...bullets].join('\n');
   expect(checkAssertion({ kind: 'briefBullets' }, [...clarify, outside])).toBe(false);
+});
+
+test('noDate flags delivery and date commitments', () => {
+  for (const reply of [
+    'We could have it ready by March.',
+    'A first version could ship by Friday.',
+    'That usually takes 6-8 weeks.',
+    'It could be live within two weeks.',
+    'Expect it in a few days.',
+    'Roughly three months of work.',
+    'We can start next week.',
+    'It will be done by the end of the month.',
+    'We could deliver it ASAP.',
+    'We can have it ready quickly.',
+    'The launch could be on 2026-11-02.',
+    'Everything would be in place by 5 pm.',
+    'A beta in Q1 is realistic.',
+    'We could finish by tomorrow.',
+    'Delivery in May works.',
+    'Typically 6 to 8 weeks for a first release.',
+  ])
+    // Proof: deleting the bare `<n> weeks` pattern from datePatterns failed this loop on the 6-to-8 case.
+    expect([reply, commitsToDate(reply)]).toEqual([reply, true]);
+  expect(checkAssertion({ kind: 'noDate' }, ['Who uses it?', 'It takes 2 weeks.'])).toBe(false);
+});
+
+test('noDate passes plain uses of day and other non-commitments', () => {
+  const replies = [
+    "Volunteers need to see the day's bookings in one place.",
+    'Visitors book a slot, and volunteers see a daily list.',
+    'Who will use it day to day?',
+    'You may want a waiting list as well.',
+    'A person at PUNI reviews the request and replies by email.',
+    'Do you need 24/7 access for the coordinator?',
+    'Around 200 volunteers sign up each year.',
+    'When do the shifts happen during the day?',
+    'A person at PUNI covers timing in the proposal.',
+  ];
+  for (const reply of replies) expect([reply, commitsToDate(reply)]).toEqual([reply, false]);
+  // Proof: restoring the bare `days?` alternative failed this case on the 2026-10-07 Luna brief line.
+  expect(checkAssertion({ kind: 'noDate' }, replies)).toBe(true);
 });

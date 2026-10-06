@@ -33,7 +33,7 @@ import {
   replayReply,
   streamConfirmedReply,
 } from './conversation/stream';
-import { salesPromptVersion } from './conversation/system-prompt';
+import { providerDeclineReply, salesPromptVersion } from './conversation/system-prompt';
 
 export interface WebsiteApiConfig {
   databasePath: string;
@@ -1202,6 +1202,17 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           store.markConversationOperationUnknown(admitted.id);
         },
         interruptedText: 'The reply stopped before it was confirmed. You can retry.',
+        decline: {
+          reply: providerDeclineReply,
+          complete: (refusal, actualMicroUsd) =>
+            store.completeDeclinedConversationOperation(
+              admitted.id,
+              providerDeclineReply,
+              actualMicroUsd,
+              Date.now(),
+              refusal,
+            ),
+        },
         recordGeneration: (generationId) => {
           store.recordConversationGeneration(admitted.id, generationId);
         },
