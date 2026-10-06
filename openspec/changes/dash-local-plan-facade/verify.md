@@ -129,6 +129,6 @@ executed and passed all four targets plus the scratch build dependency, exit 0;
 Dash tests passed 38/38, 239 assertions (`/tmp/dash-08019-13-nx-final.log`).
 
 Scoped Prettier, pinned strict OpenSpec 1/1 and all OpenSpec 148/148 passed;
-`git diff --check` exited 0. Task 1.3 remains unchecked pending independent review.
+`git diff --check` exited 0. Astra independently cleared exact commit `928433661f79f82eb52b3ead77c7dd1818ebae87`. Its fresh five-file scratch-preloaded run passed 62/62, 423 assertions, exit 0 (`/tmp/dash-08019-13-astra-9284336-focused.log`); both production fault logs and restored GREENs match their precise claims. Astra audited the Nx summary but did not rerun Nx, gate or CI. Task 1.3 is complete.
 Acceptance 2.1–2.2 remains open. No host gate, CI, publishing, merge or live host
 operation is claimed; Tool Wiki external activation remains unprovisioned.
