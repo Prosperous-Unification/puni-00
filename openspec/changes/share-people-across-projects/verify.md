@@ -1815,3 +1815,32 @@ Prettier, diff and normal-hook commands as the original checkpoint. Fresh output
 `/tmp/shared-people-fanout-6i-admission-{strict,all}.json`: strict 1/1 and all 148/148 passed.
 Changed-path Prettier passed and `git diff --check` found no whitespace errors. Product tests
 and R5 injections were not run for this documentation-only correction.
+
+## 6i per-store mutation ownership clarification
+
+Planning-only amendment on `plan/shared-people-fanout-6i-architecture`, parent
+`ce083e9983118fd143d2c93f2ebb1196268449e0`. The normative packet requires an immutable
+invocation-scoped DirectoryStore facade and one owner per raw mutator; it explicitly rejects
+wrapping whole patchPersonWithin/patchTeamWithin operations in a new UoW. No product edit,
+WBS mutation, publication or implementation completion is claimed.
+
+| Required fault                                               | Decisive witness                                                         | Result  |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------ | ------- |
+| Whole-service UoW replaces independent owners                | First rename must survive later person/team link or event-insert failure | Pending |
+| Reuse service-wide before state or wrap raw internal helpers | Exact per-mutator before/after and owner/event counts                    | Pending |
+| Capture before service validation                            | Invalid input refusal invokes zero capture/mutation/delivery             | Pending |
+| Mutable shared invocation access                             | Deterministic cross-organization interleaving preserves each scope       | Pending |
+| Facade republishes/collects ordinary events                  | Existing ordinary service announcement count and timing remain           | Pending |
+| Facade installed beneath command/import/repair owner         | Borrowed graph retains single comparison and no nested owner             | Pending |
+
+Targeted pinned strict OpenSpec, changed-path Prettier and diff checks are required for this
+local documentation checkpoint. Product tests, R5 mutations, Nx gates, CI and canonical host
+gate remain unrun here. All new implementation proofs/checkpoints remain pending.
+
+Initial formatting check flagged the inline ordered task block. It was replaced by explicit
+unchecked 6i.a–6i.d TDD checkpoints before the final formatting/strict/diff reruns.
+
+Formatting needed a further correction: multiline inline-code test names in the new task list
+were normalized to single-line names to avoid repeated Prettier indentation changes. Final
+pinned strict validation passed 1/1, four-file Prettier and diff checks passed; logs are
+`/tmp/6i-mutation-owner-plan-strict.json` and `/tmp/6i-mutation-owner-plan-format.log`.

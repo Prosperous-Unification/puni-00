@@ -292,6 +292,37 @@ ownership. Both refusal and corruption classification SHALL precede standalone s
 - **WHEN** standalone ownership resolution examines it
 - **THEN** it throws before capture and mutation, without treating corruption as absence or a silent mode
 
+The public directory service SHALL retain its existing raw-store transaction boundaries.
+Its standalone facade SHALL carry immutable invocation access and own capture/event recording
+per raw mutator call, not per compound service operation. Service validation and ordinary
+announcement ownership SHALL remain unchanged. Already-owned command/import/repair graphs
+SHALL use raw borrowed stores and SHALL NOT acquire this standalone owner.
+
+#### Scenario: standalone rename commits before a later link failure
+
+- **GIVEN** a scoped person or team patch renames through one store call and patches links through another
+- **WHEN** the rename commits and the later mutation or its downstream event insert fails
+- **THEN** the committed rename and its prior ordinary announcement remain
+- **AND** only the failing owner's mutation and event/sequence effects roll back
+
+#### Scenario: service validation precedes standalone capture
+
+- **WHEN** a standalone service refuses invalid kind/name or nothing-to-change before any store mutation
+- **THEN** no shared capture, fan-out write or delivery is invoked
+
+#### Scenario: concurrent standalone invocations retain their own access
+
+- **GIVEN** two interleaved public directory invocations belong to different scoped organizations
+- **WHEN** their mutators enter their owners
+- **THEN** each resolves only its explicit invocation access and records only its own valid recipients
+- **AND** no mutable shared context or target-derived authority can transfer authorization between them
+
+#### Scenario: ordinary announcements are not republished by the facade
+
+- **WHEN** standalone directory mutations complete or a later compound mutation fails
+- **THEN** ordinary announcements retain their existing service call sites and counts
+- **AND** the facade delivers only the shared events recorded by each successful mutation owner
+
 #### Scenario: a rank move only respaces stored positions
 
 - **GIVEN** the organization's stored rank positions need respacing but project identity order is unchanged
