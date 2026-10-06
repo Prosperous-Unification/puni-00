@@ -122,17 +122,21 @@ describe('the Optimization module', () => {
     const calls: string[] = [];
     const repository: OptimizationRequirements['repository'] = {
       allocateGeneration: () => {
-        calls.push('allocate');
-        return 3;
+        throw new Error('unexpected separate allocation');
       },
-      readPairAndAdmit: () => {
-        calls.push('pair');
+      observeForAdmission: () => {
+        calls.push('observe');
         const idle = { kind: 'non-ready', state: { state: 'idle' }, schedule: null } as const;
-        return { pri: idle, time: idle };
+        return Promise.resolve({
+          kind: 'observed',
+          generation: 3,
+          pair: { pri: idle, time: idle },
+          requests: [],
+        });
       },
       isVariantLive: () => {
         calls.push('live');
-        return false;
+        return Promise.resolve(false);
       },
       admitRetry: () => {
         calls.push('retry');
@@ -164,7 +168,7 @@ describe('the Optimization module', () => {
       },
     };
     const { optimizer } = installOptimization({ ...requirements(), repository });
-    const read = optimizer.readPlan({
+    const read = await optimizer.readPlan({
       projectId: PROJECT,
       objective: 'pri',
       input: INPUT,
@@ -180,14 +184,14 @@ describe('the Optimization module', () => {
     expect(read.variants.pri).toEqual({ state: 'idle' });
     expect(retry).toEqual({ kind: 'not-retryable', state: 'idle' });
     // Proof: replacing the installed repository with an empty stand-in made
-    // this test throw on allocateGeneration before the enabled read returned.
-    expect(calls).toEqual(['allocate', 'pair', 'live', 'live', 'retry']);
+    // this test throw on observeForAdmission before the enabled read returned.
+    expect(calls).toEqual(['observe', 'live', 'live', 'retry']);
   });
 
-  it('reads an idle plan under the identity installOptimization wires', () => {
+  it('reads an idle plan under the identity installOptimization wires', async () => {
     const { optimizer } = installOptimization(requirements());
 
-    const read = optimizer.readPlan({
+    const read = await optimizer.readPlan({
       projectId: PROJECT,
       objective: 'pri',
       input: INPUT,

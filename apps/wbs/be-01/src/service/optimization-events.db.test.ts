@@ -117,7 +117,7 @@ describe('optimized outcome events', () => {
       notBefore: new Map([['w-1', 50_000_000]]),
     };
 
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input: tooLate })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: tooLate })).toBeNull();
     await instance.drain();
     expect(launches).toBe(0);
     expect(pushed).toHaveLength(2);
@@ -175,7 +175,7 @@ describe('optimized outcome events', () => {
     });
 
     expect(
-      instance.read({ projectId: 'p-1', objective: 'pri', input: DEADLINED_INPUT }),
+      await instance.read({ projectId: 'p-1', objective: 'pri', input: DEADLINED_INPUT }),
     ).toBeNull();
     await instance.drain();
 
@@ -290,7 +290,7 @@ describe('optimized outcome events', () => {
       },
     });
 
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
     await instance.drain();
     expect(pushed).toHaveLength(2);
     expect(pushed.find(({ event }) => event.objective === 'pri')?.event).toEqual({
@@ -303,7 +303,7 @@ describe('optimized outcome events', () => {
       budgetMs: BUDGET,
     });
 
-    instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT });
+    await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT });
     await instance.drain();
     expect(pushed).toHaveLength(2);
     const raw = openDatabase(path);

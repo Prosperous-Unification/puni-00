@@ -11,7 +11,7 @@ import {
 import type { ChainSnapshot, ChainSnapshotStore } from '../ports/chain-snapshot-store';
 import type { OrganizationPrincipal } from '../ports/organization-access';
 import type { PlanInputReads } from '../ports/saved-plan-capture-values';
-import type { EngineUnavailable, Scheduler, ScheduleRead } from '../ports/scheduler';
+import type { CapturedScheduler, EngineUnavailable, ScheduleRead } from '../ports/scheduler';
 import type { InfluencerRead, SharedPeopleRead } from '../ports/shared-people-values';
 import { scheduleInputOfCaptured } from './saved-plan-schedule';
 
@@ -53,7 +53,7 @@ export async function readChain(
 export function readSharedPeople(
   plans: readonly PlanInputReads[],
   projectId: string,
-  scheduler: Scheduler,
+  scheduler: CapturedScheduler,
 ): SharedPeopleRead {
   const selected = selectInfluencers(plans, projectId);
   const bookings = new Map<

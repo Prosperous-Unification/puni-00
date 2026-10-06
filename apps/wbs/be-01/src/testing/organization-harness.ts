@@ -175,6 +175,12 @@ export class OrganizationHarness {
     await this.optimizerCoordinator?.drain();
   }
 
+  /** The installed process reader, for a command graph live-admission tripwire. */
+  publicOptimizer(): OptimizationCoordinator {
+    if (this.optimizerCoordinator === undefined) throw new Error('composed optimizer is absent');
+    return this.optimizerCoordinator;
+  }
+
   /** Takes an earlier captured observation for a watched stale-preflight fault. */
   captureFanout(organizationId: string): Promise<CapturedFanout> {
     if (this.composedUow === undefined) throw new Error('composed UoW is absent');

@@ -248,7 +248,7 @@ describe('OptimizationCoordinator restart semantics', () => {
 
     expect(calls).toEqual([]);
     expect(db.select().from(solverQueue).all()).toHaveLength(2);
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
     await instance.drain();
     expect(calls).toEqual([]);
     expect(readGeneration(db, 'p-1', CONTRACT)?.generation).toBe(generation);

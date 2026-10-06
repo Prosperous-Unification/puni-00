@@ -176,6 +176,9 @@ export function reserveSolverSlotIn(
     .from(project)
     .where(eq(project.id, request.projectId))
     .get();
+  // Proof: independently omitting generation, enabled or open-admission
+  // rechecks launched a stale request after the initial observation; the
+  // mounted coordinator fence cases each fail at the launcher assertion.
   if (
     generation?.generation !== request.generation ||
     generation.admissionState !== 'open' ||

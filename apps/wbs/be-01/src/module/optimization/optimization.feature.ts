@@ -97,9 +97,9 @@ const sleep = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 /**
- * The synchronous plan-read half of the optimizer coordinator (tasks.md 6.1).
+ * The plan-read half of the optimizer coordinator (tasks.md 6.1).
  *
- * A cache hit returns immediately. A miss also returns immediately, after
+ * A cache hit returns after its source observation. A miss returns after
  * requesting admission for each absent objective; the child never sits on the
  * request path. Exact-key `failed` and `corrupt` rows remain terminal until an
  * explicit Retry because the repository pair read admits only misses.
@@ -110,6 +110,8 @@ export class OptimizationCoordinator {
   private pumpRequested = false;
   private readonly editEpoch = new Map<string, number>();
   private reconcileHandle: unknown = null;
+  private reconcileInFlight: Promise<void> | undefined;
+  private reconcileRequested = false;
 
   constructor(private readonly options: OptimizationCoordinatorOptions) {}
 
@@ -121,9 +123,9 @@ export class OptimizationCoordinator {
   /** Start restart reconciliation after the composition root has wired the input reader. */
   start(): void {
     if (this.reconcileHandle !== null) return;
-    this.reconcileDrains();
+    this.requestReconcile();
     const handle = (this.options.setInterval ?? setInterval)(() => {
-      this.reconcileDrains();
+      this.requestReconcile();
       this.requestPump();
     }, OPTIMIZATION_RECONCILE_INTERVAL_MS);
     (handle as { unref?: () => void }).unref?.();
@@ -144,15 +146,34 @@ export class OptimizationCoordinator {
       );
       this.reconcileHandle = null;
     }
+    // Proof: omitting this await let stop settle while a held reconciliation
+    // still owned the drain decision (coordinator stop-drain omission test).
     await this.drain();
   }
 
-  private reconcileDrains(): void {
-    try {
-      this.options.repository.reconcileDrains(this.options.now());
-    } catch (error) {
-      this.options.onChildError(error);
+  private requestReconcile(): void {
+    // Proof: bypassing this guard let two timer ticks run concurrently with
+    // a held source reconciliation instead of one coalesced follow-up.
+    if (this.reconcileInFlight !== undefined) {
+      this.reconcileRequested = true;
+      return;
     }
+    this.reconcileRequested = false;
+    const tracked = Promise.resolve()
+      // Proof: dropping the returned reconciliation promise settled the
+      // tracked work before its held source decision (reconcile omission test).
+      .then(() => this.options.repository.reconcileDrains(this.options.now()))
+      .then(() => undefined)
+      .catch((error: unknown) => {
+        this.options.onChildError(error);
+      })
+      .finally(() => {
+        this.inFlight.delete(tracked);
+        this.reconcileInFlight = undefined;
+        if (this.reconcileRequested) this.requestReconcile();
+      });
+    this.reconcileInFlight = tracked;
+    this.inFlight.add(tracked);
   }
 
   /** Coalesce project events, then admit both absent variants for the newest input. */
@@ -178,7 +199,7 @@ export class OptimizationCoordinator {
       if (captured.kind !== 'scheduled' || !captured.enabled) return;
       // Proof: the mounted upstream-only edit test failed with no elsewhere
       // when this branch fell through to the local input reader.
-      this.readPlan({ projectId, objective: 'pri', input: captured.input, enabled: true });
+      await this.readPlan({ projectId, objective: 'pri', input: captured.input, enabled: true });
       return;
     }
     if (!(await this.options.enabledOf(projectId))) return;
@@ -186,7 +207,7 @@ export class OptimizationCoordinator {
     if (input === null) return;
     const enabled = await this.options.enabledOf(projectId);
     if (!enabled) return;
-    this.readPlan({ projectId, objective: 'pri', input, enabled });
+    await this.readPlan({ projectId, objective: 'pri', input, enabled });
   }
 
   private slotOf(request: ReservedSpawnRequest) {
@@ -201,8 +222,8 @@ export class OptimizationCoordinator {
     };
   }
 
-  private storeInternalFailure(request: ReservedSpawnRequest): void {
-    this.storeOutcome({
+  private async storeInternalFailure(request: ReservedSpawnRequest): Promise<void> {
+    await this.storeOutcome({
       claim: { ...this.slotOf(request), ownerId: this.options.ownerId },
       inputHash: request.key.inputHash,
       admittedCancelEpoch: request.admission.admittedCancelEpoch,
@@ -216,10 +237,10 @@ export class OptimizationCoordinator {
     return Math.max(this.options.now(), request.admission.startedAt);
   }
 
-  private storeOutcome(
+  private async storeOutcome(
     write: OptimizationOutcomeWrite,
-  ): 'stored' | 'superseded' | 'already-recorded' {
-    const committed = this.options.repository.recordOutcome(write);
+  ): Promise<'stored' | 'superseded' | 'already-recorded'> {
+    const committed = await this.options.repository.recordOutcome(write);
     if (committed.kind === 'stored') {
       const tracked = this.options
         .pushRecorded(committed.subscription, committed.recorded, committed.event)
@@ -264,11 +285,13 @@ export class OptimizationCoordinator {
     } catch (error) {
       // Without host terminal evidence, a process may still exist. Preserve
       // the counted seat until its admitted deadline rather than overbook.
-      this.storeInternalFailure(request);
+      await this.storeInternalFailure(request);
       throw error;
     }
 
-    const bound = this.options.repository.bindSlot({
+    // Proof: omitting this await sent bound verdicts while PID binding was
+    // held and both durable seats remained starting in the coordinator test.
+    const bound = await this.options.repository.bindSlot({
       ...slot,
       pid: child.pid,
     });
@@ -287,7 +310,7 @@ export class OptimizationCoordinator {
         // The first transport failure is the useful error. Either way there is
         // no terminal evidence, so the reservation remains counted.
       }
-      this.storeInternalFailure(request);
+      await this.storeInternalFailure(request);
       throw error;
     }
 
@@ -300,7 +323,9 @@ export class OptimizationCoordinator {
         now: this.options.now,
         onExit: async (exit) => {
           const outcome = await this.processOutcome(child, exit);
-          this.storeOutcome({
+          // Proof: dropping this await released the terminal child's seat
+          // before its held outcome reached durable cache.
+          await this.storeOutcome({
             claim: { ...slot, ownerId: this.options.ownerId },
             inputHash: request.key.inputHash,
             admittedCancelEpoch: request.admission.admittedCancelEpoch,
@@ -312,7 +337,7 @@ export class OptimizationCoordinator {
     } catch (error) {
       // The lifecycle releases only after a proved terminal or cancellation.
       // A rejected terminal/EOF therefore leaves this exact slot present.
-      this.storeInternalFailure(request);
+      await this.storeInternalFailure(request);
       throw error;
     }
   }
@@ -350,7 +375,9 @@ export class OptimizationCoordinator {
 
   private async pumpQueue(): Promise<void> {
     for (;;) {
-      const next = this.options.repository.dequeueRequest({
+      // Proof: omitting this await advanced a held dequeue to its launch
+      // decision and let stop settle before the durable queue changed.
+      const next = await this.options.repository.dequeueRequest({
         ownerId: this.options.ownerId,
         attemptToken: this.options.attemptToken(),
         now: this.options.now(),
@@ -367,9 +394,11 @@ export class OptimizationCoordinator {
       };
       let released = false;
       let handedOff = false;
-      const releaseUnlaunched = (): void => {
+      const releaseUnlaunched = async (): Promise<void> => {
         if (released) return;
-        this.options.repository.releaseSlot(slot);
+        // Proof: omitting this inner await advanced later dequeues while the
+        // unlaunched seat's durable release remained held in the queue test.
+        await this.options.repository.releaseSlot(slot);
         released = true;
       };
       try {
@@ -389,13 +418,15 @@ export class OptimizationCoordinator {
         // a disabled queued observation; only the next TIME entry should run.
         if (captured?.kind === 'scheduled' && !captured.enabled) continue;
         if (this.options.hashInput(input) !== next.inputHash) {
-          releaseUnlaunched();
+          // Proof: dropping this await read replacement enablement while the
+          // stale queued seat's durable release remained held.
+          await releaseUnlaunched();
           const enabled =
             captured === undefined
               ? await this.options.enabledOf(next.entry.projectId)
               : captured.enabled;
           if (!enabled) continue;
-          this.readPlan({
+          await this.readPlan({
             projectId: next.entry.projectId,
             objective: next.entry.objective,
             input,
@@ -410,7 +441,9 @@ export class OptimizationCoordinator {
           next.entry.budgetMs,
         )[next.entry.objective];
         if (!built.ok) {
-          this.storeOutcome({
+          // Proof: dropping this await released the queued seat while its held
+          // preflight failure had not reached durable cache.
+          await this.storeOutcome({
             claim: { ...slot, ownerId: this.options.ownerId },
             inputHash: next.inputHash,
             admittedCancelEpoch: next.admission.admittedCancelEpoch,
@@ -438,7 +471,9 @@ export class OptimizationCoordinator {
         // Proof: a thrown shared capture left a counted `starting` slot; the
         // restart test saw it until this unlaunched cleanup released it.
         // A handed-off child keeps its seat until terminal evidence arrives.
-        if (!handedOff) releaseUnlaunched();
+        // Proof: omitting this await let the next queued project dequeue while
+        // the first unlaunched starting slot's durable release was held.
+        if (!handedOff) await releaseUnlaunched();
       }
     }
   }
@@ -491,7 +526,9 @@ export class OptimizationCoordinator {
       };
       if (!built.ok) {
         try {
-          this.storeOutcome({
+          // Proof: dropping this await released a Retry seat before its held
+          // preflight failure reached durable cache in the coordinator test.
+          await this.storeOutcome({
             claim: { ...slot, ownerId: this.options.ownerId },
             inputHash: currentInputHash,
             admittedCancelEpoch: decision.admission.admittedCancelEpoch,
@@ -501,7 +538,9 @@ export class OptimizationCoordinator {
         } finally {
           // Proof: skipping preflight slot release failed all nine initial,
           // queued and manual Retry refusal cases (0 pass / 9 fail).
-          this.options.repository.releaseSlot(slot);
+          // Proof: dropping this await began another queue dequeue while
+          // the Retry preflight seat's durable release was still held.
+          await this.options.repository.releaseSlot(slot);
           this.requestPump();
         }
       } else {
@@ -527,7 +566,7 @@ export class OptimizationCoordinator {
    * The reader wired into {@link WorkItemService}. It is an arrow so handing it
    * to the service cannot lose the coordinator instance as `this`.
    */
-  readonly readPlan: OptimizedScheduleReader = (ask) => {
+  readonly readPlan: OptimizedScheduleReader = async (ask) => {
     const inputHash = this.options.hashInput(ask.input);
     const key = {
       projectId: ask.projectId,
@@ -549,13 +588,8 @@ export class OptimizationCoordinator {
     }
 
     const now = this.options.now();
-    const generation = this.options.repository.allocateGeneration(
-      ask.projectId,
-      this.options.contractVersion,
-      inputHash,
-      now,
-    );
-    if (generation === null) {
+    const observed = await this.options.repository.observeForAdmission(key, now);
+    if (observed.kind === 'idle') {
       return {
         ...key,
         generation: null,
@@ -563,9 +597,12 @@ export class OptimizationCoordinator {
         schedules: { pri: null, time: null },
       };
     }
+    // Proof: rereading after preflight changed the captured idle display to
+    // failed while this read's failure markers were being persisted.
+    const { generation, pair } = observed;
     let requests: SolverRequestPair | undefined;
-    const pair = this.options.repository.readPairAndAdmit(key, (request) => {
-      const admission = this.options.repository.reserveSlot({
+    for (const request of observed.requests) {
+      const admission = await this.options.repository.reserveSlot({
         projectId: request.key.projectId,
         contractVersion: request.key.contractVersion,
         generation,
@@ -576,7 +613,7 @@ export class OptimizationCoordinator {
         now,
       });
       if (admission.kind === 'project-full' || admission.kind === 'global-full') {
-        this.options.repository.enqueueRequest({
+        await this.options.repository.enqueueRequest({
           projectId: request.key.projectId,
           contractVersion: request.key.contractVersion,
           generation,
@@ -584,7 +621,7 @@ export class OptimizationCoordinator {
           budgetMs: request.key.budgetMs,
           enqueuedAt: now,
         });
-        return;
+        continue;
       }
       if (admission.kind === 'reserved') {
         requests ??= buildSolverRequestPair(
@@ -603,7 +640,9 @@ export class OptimizationCoordinator {
         };
         if (!built.ok) {
           try {
-            this.storeOutcome({
+            // Proof: dropping this await released the initial reserved seat
+            // while its held preflight failure had not reached durable cache.
+            await this.storeOutcome({
               claim: { ...slot, ownerId: this.options.ownerId },
               inputHash: request.key.inputHash,
               admittedCancelEpoch: admission.admittedCancelEpoch,
@@ -616,10 +655,12 @@ export class OptimizationCoordinator {
           } finally {
             // Proof: skipping preflight slot release failed all nine initial,
             // queued and manual Retry refusal cases (0 pass / 9 fail).
-            this.options.repository.releaseSlot(slot);
+            // Proof: dropping this await began another queue dequeue while
+            // the initial preflight seat's durable release was still held.
+            await this.options.repository.releaseSlot(slot);
             this.requestPump();
           }
-          return;
+          continue;
         }
 
         const launch = {
@@ -631,9 +672,11 @@ export class OptimizationCoordinator {
         };
         this.startReserved(launch);
       }
-    });
-    const live = (objective: SolverObjectiveName): boolean =>
-      this.options.repository.isVariantLive(key, generation, objective, now);
+    }
+    const [priLive, timeLive] = await Promise.all([
+      this.options.repository.isVariantLive(key, generation, 'pri', now),
+      this.options.repository.isVariantLive(key, generation, 'time', now),
+    ]);
     // Both, because `pair` already holds both decoded payloads and the plan
     // read compares every ready variant with Fast (tasks.md 8b.3). `ask.objective`
     // is still what *selects* the schedule to display; it no longer decides
@@ -642,8 +685,8 @@ export class OptimizationCoordinator {
       ...key,
       generation,
       variants: {
-        pri: applyVariantLiveness(pair.pri.state, live('pri')),
-        time: applyVariantLiveness(pair.time.state, live('time')),
+        pri: applyVariantLiveness(pair.pri.state, priLive),
+        time: applyVariantLiveness(pair.time.state, timeLive),
       },
       schedules: { pri: pair.pri.schedule, time: pair.time.schedule },
     };
@@ -654,5 +697,6 @@ export class OptimizationCoordinator {
     readonly projectId: string;
     readonly objective: SolverObjectiveName;
     readonly input: ScheduleInput;
-  }): Schedule | null => this.readPlan({ ...ask, enabled: true }).schedules[ask.objective];
+  }): Promise<Schedule | null> =>
+    this.readPlan({ ...ask, enabled: true }).then((read) => read.schedules[ask.objective]);
 }

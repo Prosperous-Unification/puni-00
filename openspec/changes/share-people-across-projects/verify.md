@@ -2232,3 +2232,109 @@ in `/tmp/shared-people-6jb-plan-strict.json`; pinned all OpenSpec exited 0 (148/
 in `/tmp/shared-people-6jb-plan-all.json`. Four-file Prettier and `git diff --check` passed;
 final-byte checks are repeated before committing. Independent rereview is requested separately;
 this validation is not independent architectural clearance.
+
+### 6j.b callback-free live optimizer implementation (2026-10-06)
+
+The public optimizer repository serializes async persistence and live observations through
+the source gate. A short immediate transaction returns the enabled generation, original pair
+and miss-only requests; the coordinator releases that owner before awaiting reservation,
+queue, preflight storage, child protocol or delivery. Raw dequeue/Retry helpers retain their
+existing transaction owners. The borrowed command graph uses synchronous captured scheduling.
+This implements 6j.b only; 6j.c–f and global final drain remain open.
+
+The final affected `bun test` invocation over the 20 named controller, coordinator, event,
+repository, saved-plan, lifecycle, core, runtime and store test files passed **408/408 with
+20,212 assertions** (`/tmp/shared-people-6jb-final-affected-tests-try4.log`). The initial
+18-file run passed 397/397, but omitted event/module tests. The first expanded run was
+403 pass/5 fail (`...try2.log`): three unawaited fixture reads and two synchronous throws
+escaping the newly Promise-typed repository API. Moving synchronous SQLite work into
+`Promise.resolve().then(...)` under the held gate restored rejection and rollback
+(`/tmp/shared-people-6jb-error-boundary-restored-green.log`). The next expanded run was
+403 pass/1 fail (`...try3.log`): the model fixture checked a timer-dequeued slot before async
+settlement. Its existing `settle()` boundary now precedes that assertion. These failing logs
+remain failures, not part of the final pass count.
+
+| Fault injected into production path                                                                                                                 | Watched RED                                                                                                                                                                                                                                                                                                                                       | Same assertion restored GREEN                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Omit each public gate: allocation, reserve, heartbeat, outcome, enqueue, release, bind, dequeue, reconciliation                                     | `/tmp/shared-people-6jb-{allocation,reserve,heartbeat,outcome,enqueue,release,bind,dequeue,reconcile}-gate-omission-red.log`; held-writer rollback lost durable state or settled early                                                                                                                                                            | `/tmp/shared-people-6jb-repository-all-restored-green.log` (17/17, 61 assertions)                                                |
+| Omit coherent observation gate; omit live-variant observation gate                                                                                  | `/tmp/shared-people-6jb-observation-gate-omission-red.log` returned uncommitted generation 2; `/tmp/shared-people-6jb-live-observation-gate-omission-red-try2.log` settled inside owner                                                                                                                                                           | matching `-restored-green.log`                                                                                                   |
+| Reenter public gate inside observation                                                                                                              | `/tmp/shared-people-6jb-nested-public-turn-deadlock-red-try3.log` reached bounded 1-second timeout                                                                                                                                                                                                                                                | `/tmp/shared-people-6jb-nested-public-turn-restored-green.log`                                                                   |
+| Broaden miss-only policy to both objectives                                                                                                         | `/tmp/shared-people-6jb-hit-policy-widen-omission-red.log` launched ready PRI and missing TIME                                                                                                                                                                                                                                                    | `/tmp/shared-people-6jb-hit-policy-restored-green.log`; cold two-request case `/tmp/shared-people-6jb-cold-miss-exact-green.log` |
+| Reread pair after preflight marker                                                                                                                  | `/tmp/shared-people-6jb-snapshot-reread-omission-red.log` replaced original idle display with later failure                                                                                                                                                                                                                                       | `/tmp/shared-people-6jb-snapshot-restored-green.log`                                                                             |
+| Omit final reservation generation, enabled, open/drain fences separately                                                                            | `/tmp/shared-people-6jb-{superseded,disabled,draining}-reservation-fence-omission-red.log`; each launched stale child                                                                                                                                                                                                                             | matching `-reservation-fence-restored-green.log`                                                                                 |
+| Remove await from heartbeat, normal release, cancellation release, dequeue, reconciliation tracking, stop drain, unlaunched pump release separately | `/tmp/shared-people-6jb-lifecycle-{heartbeat,release}-await-omission-red.log`, `/tmp/shared-people-6jb-cancel-release-await-omission-red.log`, `/tmp/shared-people-6jb-{dequeue,stop-drain}-await-omission-red.log`, `/tmp/shared-people-6jb-reconcile-await-omission-red-try2.log`, `/tmp/shared-people-6jb-pump-release-await-omission-red.log` | matching `-restored-green.log`; cancellation `/tmp/shared-people-6jb-cancel-release-await-restored-green.log`                    |
+| Split generation allocation and cache-pair retrieval across source turns                                                                            | `/tmp/shared-people-6jb-split-pair-identity-omission-red.log`: G1 was returned with G3's failed PRI pair, suppressing its request                                                                                                                                                                                                                 | `/tmp/shared-people-6jb-split-pair-identity-restored-green.log`: G1 idle pair with both requests                                 |
+| Remove live ready-schedule validation                                                                                                               | `/tmp/shared-people-6jb-live-ready-guard-omission-red.log`: malformed ready PRI with null schedule was accepted                                                                                                                                                                                                                                   | `/tmp/shared-people-6jb-live-ready-guard-restored-green.log`                                                                     |
+| Omit await for PID bind before the child verdict                                                                                                    | `/tmp/shared-people-6jb-bind-before-verdict-await-omission-red.log`: bound verdicts were sent while both durable seats remained starting                                                                                                                                                                                                          | `/tmp/shared-people-6jb-bind-before-verdict-await-restored-green.log`                                                            |
+| Omit terminal outcome await before lifecycle slot release                                                                                           | `/tmp/shared-people-6jb-terminal-outcome-await-omission-red.log`: release began before held outcome persistence                                                                                                                                                                                                                                   | `/tmp/shared-people-6jb-terminal-outcome-await-restored-green.log`                                                               |
+| Omit initial, queued and Retry preflight outcome awaits independently                                                                               | `/tmp/shared-people-6jb-{initial,queued,retry}-preflight-store-await-omission-red.log`: each released its reserved seat before the held failed outcome was stored                                                                                                                                                                                 | matching `-restored-green.log`                                                                                                   |
+| Omit stale queued seat release await before replacement enablement read                                                                             | `/tmp/shared-people-6jb-stale-release-before-enabled-await-omission-red.log`: enabled read ran while stale seat release remained held                                                                                                                                                                                                             | `/tmp/shared-people-6jb-stale-release-before-enabled-await-restored-green.log`                                                   |
+| Omit initial and Retry preflight release awaits before requesting another dequeue                                                                   | `/tmp/shared-people-6jb-{initial,retry}-release-before-pump-await-omission-red.log`: a new dequeue started with the prior seat's release held                                                                                                                                                                                                     | matching `-restored-green.log`                                                                                                   |
+| Remove reconciliation coalescing guard                                                                                                              | `/tmp/shared-people-6jb-reconcile-coalesce-guard-omission-red.log` started overlapping ticks                                                                                                                                                                                                                                                      | `/tmp/shared-people-6jb-reconcile-coalesce-restored-green.log`                                                                   |
+| Omit captured mode at composition, module and installer independently                                                                               | `/tmp/shared-people-6jb-command-{mode,module,installer}-omission-red.log`; mounted command entered throwing live reader                                                                                                                                                                                                                           | each `-restored-green.log` (2/2, 6 assertions)                                                                                   |
+| Force Fast despite ready selected schedule                                                                                                          | `/tmp/shared-people-6jb-command-selected-forced-fast-red.log` reversed actual mounted arrange/freeze order                                                                                                                                                                                                                                        | `/tmp/shared-people-6jb-command-selected-restored-green.log` (2/2)                                                               |
+
+Each fault changed production bytes, ran its focused assertion, then restored source and
+observed GREEN. The first live-observation and reconciliation-await fault runs were falsely
+green because the observation windows were too short; their logs without `-try2` are
+disqualified. The first nested-gate attempt used OPEN, so only `-try3` with the real
+WriteCoordinator proves deadlock. A ready-hit fixture initially tried to seed TIME after its
+live launch (`/tmp/shared-people-6jb-hit-policy-green-try1.log`); the full-hit fixture now
+uses a separate DB. The preflight fixture initially guessed pending rather than captured
+idle (`/tmp/shared-people-6jb-preflight-snapshot-green-try1.log`); this was test-only.
+The first cancellation-release fixture timed out because child exit raced the heartbeat
+(`/tmp/shared-people-6jb-cancel-release-baseline-green.log`); the corrected child exits
+when killed and passes at `/tmp/shared-people-6jb-cancel-release-baseline-green-try2.log`.
+The existing stale-switch case stayed green when the release await was removed
+(`/tmp/shared-people-6jb-stale-release-caller-omission-attempt.log`); the later held-release
+test is the watched proof. Its first run was accidentally made while that mutation was
+still installed (`/tmp/shared-people-6jb-stale-release-before-enabled-baseline.log`), then
+the restored baseline passed (`...-baseline-restored.log`) before the independent RED/GREEN.
+The coherent observation test proves generation, pair and requests from one held source turn;
+the independent split mutation above returned a mixed identity and lost the PRI request.
+The aggregate snapshot now exposes only a `CapturedScheduler`: `readChain` requests capture
+mode, and production binding supplies a captured reader. The redundant aggregate live-mode
+refusal was removed; a live admission cannot be expressed through that snapshot interface.
+The inner `releaseUnlaunched` await was watched separately from its stale-input and finally
+callers: `/tmp/shared-people-6jb-inner-release-unlaunched-await-omission-red.log` observed
+four dequeues while durable release was held (expected one); the same assertion passed
+1/1, 7 assertions after restoration at
+`/tmp/shared-people-6jb-inner-release-unlaunched-await-restored-green.log`.
+
+Follow-up final-byte verification after the source-turn, captured-only and await proofs:
+the same 20-file affected `bun test` command passed **418/418, 20,257 assertions** at
+`/tmp/shared-people-6jb-followup-affected-tests-final.log`.
+The exact final rerun used this command (exit 0, same 418/418 and 20,257 assertions at
+`/tmp/shared-people-6jb-inner-final-tests.log`):
+
+```sh
+bun test apps/wbs/be-01/src/service/saved-plan-read.db.test.ts apps/wbs/be-01/src/service/deadline-plan-read.test.ts apps/wbs/be-01/src/service/solver-child-lifecycle.db.test.ts apps/wbs/be-01/src/service/optimization-restart.db.test.ts apps/wbs/be-01/src/service/saved-plan.service.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/service/saved-plan-current.db.test.ts apps/wbs/be-01/src/service/optimizer-availability.test.ts apps/wbs/be-01/src/service/optimized-plan-read-annotations.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-events.db.test.ts apps/wbs/be-01/src/service/optimized-plan-read.test.ts apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts apps/wbs/be-01/src/controller/work-item.controller.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts libs/wbs/adapters/runtime-portable/src/scheduler.test.ts libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts apps/wbs/be-01/src/module/optimization/module.test.ts libs/wbs/application/core/src/service/shared-people.test.ts libs/wbs/application/core/src/module/work-item/module.test.ts
+```
+
+The four declared project
+ESLint paths passed at `/tmp/shared-people-6jb-followup-{core,runtime,store}-lint.log`
+and `/tmp/shared-people-6jb-followup-backend-lint-restored.log`. The first backend lint
+run failed 12 test-only `deferred<void>` findings (`...-backend-lint.log`); changing those
+deferred values to `undefined` corrected the declared rerun without behavior changes.
+Core and backend module checks plus core/runtime/store/backend `tsc --build --force` all
+exited 0 (`/tmp/shared-people-6jb-followup-{core-module,core,runtime,store,backend-module,backend}-typecheck.log`).
+Core portable, backend Bun bundle, policy asset copy and OpenAPI emit all exited 0
+(`/tmp/shared-people-6jb-followup-{core-portable,backend-bundle,backend-policy,backend-openapi}-build.log`).
+The final changed-path Prettier check and `git diff --check` exited 0
+(`/tmp/shared-people-6jb-followup-{format,diff}-final.log`). Pinned OpenSpec
+strict change validation passed 1/1 and all validation passed 148/148
+(`/tmp/shared-people-6jb-followup-{strict,all}-final.log`).
+
+Initial 6j.b candidate checks before the follow-up proof amendments: four project ESLint commands
+exited 0 (`/tmp/shared-people-6jb-{core,store,runtime,backend}-lint-final.log`); core
+module checker and core/runtime/store/backend direct `tsc --build --force` exited 0
+(`...-typecheck-final.log`); core portable bundle and all BE bundle/policy/OpenAPI build
+steps exited 0 (`...-build-final.log`). The first lint pass failed on imports/async fixtures,
+the first core module checker on the complete DI fixture's omitted schedulerMode, and one
+backend type pass on `recordOutcome` union inference; corrected runs are separate. Pinned
+`bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`
+passed 1/1 and `validate --all --json` passed 148/148
+(`/tmp/shared-people-6jb-{strict,all}-final.log`). `git diff --check` exited 0.
+The first final Prettier check failed only on this appended ledger
+(`/tmp/shared-people-6jb-format-final.log`); after formatting, the exact all-path check is
+recorded in `/tmp/shared-people-6jb-format-restored-final.log`.

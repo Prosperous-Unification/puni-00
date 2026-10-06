@@ -83,6 +83,8 @@ export interface ServicesOverOptions {
   readonly clock: Clock;
   readonly broadcast: Broadcaster;
   readonly scheduler: Scheduler;
+  /** A borrowed command graph reads the transaction-captured cache without live admission. */
+  readonly schedulerMode?: 'capture';
   /** Who may write a project through the built services; see {@link EditAdmission}. */
   readonly admission: EditAdmission;
   /** Scoped dependent writes use this only after their own unit of work grants it. */
@@ -166,6 +168,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       broadcast,
       admission,
       scheduler,
+      ...(shared.schedulerMode === undefined ? {} : { schedulerMode: shared.schedulerMode }),
     }).workItems,
   };
 }
@@ -314,6 +317,11 @@ export function composeServices(
       clock: runtime.clock,
       broadcast,
       scheduler: runtime.scheduler,
+      // Borrowed command reads use this source connection's captured cache;
+      // live admission would wait for the writer turn this batch already owns.
+      // Proof: omitting capture mode made the isolated mounted arrange command
+      // enter the throwing live optimizer and answer 500 instead of 200.
+      schedulerMode: 'capture',
       admission,
       recoveryAdmission: admission,
       beforeProjectUpdate,

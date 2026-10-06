@@ -13,6 +13,7 @@ import {
 } from '@wbs/store-sqlite/optimization-drain';
 import {
   allocateEnabledGeneration,
+  allocateEnabledGenerationIn,
   readGeneration,
 } from '@wbs/store-sqlite/optimization-generation';
 import {
@@ -32,7 +33,9 @@ import type {
   OptimizationCachedPair,
   OptimizationRepository,
   OptimizationRetryDecision,
+  RecordedOptimizationOutcome,
   ReservedSolverAdmission,
+  SolverSlotAdmission,
 } from '../module/optimization/contract';
 import type { Drizzle } from './db';
 import type { EventLogTransactionalWrite } from './event-log';
@@ -55,7 +58,7 @@ function isRecordedEvent(value: unknown): value is RecordedEvent {
 function reservationOf(
   admission: ReturnType<typeof reserveSolverSlot>,
   budgetMs: number,
-): ReturnType<OptimizationRepository['reserveSlot']> {
+): SolverSlotAdmission {
   return admission.kind === 'reserved'
     ? { ...admission, startedAt: solverAdmissionStartedAt(admission, budgetMs) }
     : admission;
@@ -99,69 +102,130 @@ export function createOptimizationRepository(
 ): OptimizationRepository {
   return {
     allocateGeneration: (projectId, contractVersion, inputHash, now) =>
-      allocateEnabledGeneration(db, projectId, contractVersion, inputHash, now),
-    readPairAndAdmit: (key, admit) => projectCachedPair(readOptimizedPairAndSpawn(db, key, admit)),
-    isVariantLive: (key, generation, objective, now) =>
-      optimizedVariantIsLive(db, key, generation, objective, now),
-    reserveSlot: (request) => reservationOf(reserveSolverSlot(db, request), request.budgetMs),
-    bindSlot: (slot) => bindSolverSlot(db, slot),
-    enqueueRequest: (request) => enqueueSolverRequest(db, request),
-    dequeueRequest: (request) => {
-      const dequeued = dequeueSolverRequest(db, request);
-      return dequeued.kind === 'reserved'
-        ? {
-            ...dequeued,
-            admission: {
-              ...dequeued.admission,
-              startedAt: solverAdmissionStartedAt(dequeued.admission, dequeued.entry.budgetMs),
+      // Proof: bypassing this source turn made the real held-writer allocation
+      // settle inside the owner's transaction and disappear on rollback.
+      gate.enter(() =>
+        Promise.resolve().then(() =>
+          allocateEnabledGeneration(db, projectId, contractVersion, inputHash, now),
+        ),
+      ),
+    observeForAdmission: (key, now) =>
+      // Proof: bypassing this turn while a writer held an uncommitted input hash
+      // made the SQLite observation test return generation 2 instead of 1.
+      // Nesting a second public turn in this owner made the bounded cold
+      // admission test time out before either objective could be requested.
+      // Proof: splitting allocation and pair read into two turns let an
+      // intervening generation 3 failed PRI row appear beside generation 1,
+      // and the objective list lost PRI in the competing-owner test.
+      gate.enter(() =>
+        Promise.resolve().then(() =>
+          db.transaction(
+            (tx) => {
+              const generation = allocateEnabledGenerationIn(
+                tx,
+                key.projectId,
+                key.contractVersion,
+                key.inputHash,
+                now,
+              );
+              if (generation === null) return { kind: 'idle' } as const;
+              const requests: { key: typeof key; objective: 'pri' | 'time' }[] = [];
+              const pair = projectCachedPair(
+                readOptimizedPairAndSpawn(tx, key, (request) => {
+                  requests.push(request);
+                }),
+              );
+              return { kind: 'observed', generation, pair, requests } as const;
             },
-          }
-        : dequeued;
-    },
-    refreshSlot: (slot) => heartbeatSolverSlot(db, slot),
-    releaseSlot: (slot) => releaseSolverSlot(db, slot),
-    reconcileDrains: (now) => reconcileOptimizationDrains(db, now),
-    recordOutcome: (write) => {
-      // Proof: splitting cache storage into its own transaction made the throwing
-      // event-writer test observe one cache row instead of zero.
-      const committed = storeOptimizedOutcomeAndRecord(
-        db,
-        {
-          recordEventIn: (tx, subscription, message, createdAt) => {
-            const recorded = eventLog.recordEventIn(tx, subscription, message, createdAt);
-            // Proof: an injected event writer returning undefined previously left one
-            // committed cache row; the malformed-envelope test observed 1 instead of 0.
-            if (!isRecordedEvent(recorded))
-              throw new Error('stored optimization outcome has no durable event envelope');
-            return recorded;
-          },
-        },
-        {
-          ...write,
-          outcome:
-            write.outcome.kind === 'ok'
-              ? { kind: 'ok', result: write.outcome.optimized }
-              : write.outcome,
-        },
-      );
-      if (committed.result !== 'stored') return { kind: committed.result };
-      // The store's legacy optional fields are safe here because recordEventIn
-      // validates the envelope inside the same transaction before commit.
-      const envelope = committed as {
-        readonly subscription: string;
-        readonly recorded: RecordedEvent;
-        readonly event: Extract<
-          ReturnType<OptimizationRepository['recordOutcome']>,
-          { kind: 'stored' }
-        >['event'];
-      };
-      return {
-        kind: 'stored',
-        subscription: envelope.subscription,
-        recorded: envelope.recorded,
-        event: envelope.event,
-      };
-    },
+            { behavior: 'immediate' },
+          ),
+        ),
+      ),
+    isVariantLive: (key, generation, objective, now) =>
+      // Proof: dropping this turn settled a live read inside an awaited source
+      // owner before its open transaction had rolled back.
+      gate.enter(() =>
+        Promise.resolve().then(() => optimizedVariantIsLive(db, key, generation, objective, now)),
+      ),
+    reserveSlot: (request) =>
+      // Proof: omitting the source turn lost the reserved slot on owner rollback.
+      gate.enter(() =>
+        Promise.resolve().then(() =>
+          reservationOf(reserveSolverSlot(db, request), request.budgetMs),
+        ),
+      ),
+    // Proof: omitting this turn left the slot starting with no PID after owner rollback.
+    bindSlot: (slot) => gate.enter(() => Promise.resolve().then(() => bindSolverSlot(db, slot))),
+    // Proof: omitting this turn lost the enqueued PRI row after owner rollback.
+    enqueueRequest: (request) =>
+      gate.enter(() => Promise.resolve().then(() => enqueueSolverRequest(db, request))),
+    dequeueRequest: (request) =>
+      // Proof: omitting this turn left the dequeued PRI row present after owner rollback.
+      gate.enter(() =>
+        Promise.resolve().then(() => {
+          const dequeued = dequeueSolverRequest(db, request);
+          return dequeued.kind === 'reserved'
+            ? {
+                ...dequeued,
+                admission: {
+                  ...dequeued.admission,
+                  startedAt: solverAdmissionStartedAt(dequeued.admission, dequeued.entry.budgetMs),
+                },
+              }
+            : dequeued;
+        }),
+      ),
+    // Proof: omitting this turn left heartbeat_at=10 rather than 21 after owner rollback.
+    refreshSlot: (slot) =>
+      gate.enter(() => Promise.resolve().then(() => heartbeatSolverSlot(db, slot))),
+    // Proof: omitting this turn retained the exact attempt slot after owner rollback.
+    releaseSlot: (slot) =>
+      gate.enter(() => Promise.resolve().then(() => releaseSolverSlot(db, slot))),
+    // Proof: omitting this turn retained the draining generation after owner rollback.
+    reconcileDrains: (now) =>
+      gate.enter(() => Promise.resolve().then(() => reconcileOptimizationDrains(db, now))),
+    // Proof: omitting this turn lost the committed cache and event on owner rollback.
+    recordOutcome: (write) =>
+      gate.enter<RecordedOptimizationOutcome>(() =>
+        Promise.resolve().then(() => {
+          // Proof: splitting cache storage into its own transaction made the throwing
+          // event-writer test observe one cache row instead of zero.
+          const committed = storeOptimizedOutcomeAndRecord(
+            db,
+            {
+              recordEventIn: (tx, subscription, message, createdAt) => {
+                const recorded = eventLog.recordEventIn(tx, subscription, message, createdAt);
+                // Proof: an injected event writer returning undefined previously left one
+                // committed cache row; the malformed-envelope test observed 1 instead of 0.
+                if (!isRecordedEvent(recorded))
+                  throw new Error('stored optimization outcome has no durable event envelope');
+                return recorded;
+              },
+            },
+            {
+              ...write,
+              outcome:
+                write.outcome.kind === 'ok'
+                  ? { kind: 'ok', result: write.outcome.optimized }
+                  : write.outcome,
+            },
+          );
+          if (committed.result !== 'stored') return { kind: committed.result };
+          // The store's legacy optional fields are safe here because recordEventIn
+          // validates the envelope inside the same transaction before commit.
+          const envelope = committed as {
+            readonly subscription: string;
+            readonly recorded: RecordedEvent;
+            readonly event: Extract<RecordedOptimizationOutcome, { kind: 'stored' }>['event'];
+          };
+          return {
+            kind: 'stored',
+            subscription: envelope.subscription,
+            recorded: envelope.recorded,
+            event: envelope.event,
+          };
+        }),
+      ),
     // Proof (2026-09-28): replacing the coordinator turn with immediate execution
     // made `waits for an overlapping rolled-back unit of work before accepting
     // Retry` observe an early decision before the outer rollback (1 fail).

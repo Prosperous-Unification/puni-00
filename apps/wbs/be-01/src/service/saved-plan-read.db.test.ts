@@ -24,6 +24,7 @@ import { planEvent, savedPlan, savedPlanBody } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { nodeDigest } from '../runtime/bun-runtime';
+import { capturedSchedulerFixture } from '../testing/captured-scheduler-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { fastScheduler } from './optimizer-wiring';
 
@@ -146,14 +147,14 @@ describe('reading a saved plan back', () => {
   /** The service under test, with a scheduler that records every call. */
   const service = (id = 'sp-1') =>
     new SavedPlanService({
-      scheduler: {
-        supports: (engine) => fastScheduler.supports(engine),
-        read: (ask) => {
+      scheduler: capturedSchedulerFixture(
+        (ask) => {
           if (!schedulerMayRun) throw new Error('stored history invoked the scheduler');
           scheduleCalls.push(ask.input);
           return fastScheduler.read(ask);
         },
-      },
+        (engine) => fastScheduler.supports(engine),
+      ),
       digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),
       plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),
