@@ -8,6 +8,8 @@ import {
   type Conversation,
   type ConversationAttempt,
   describeExhaustion,
+  describeLimit,
+  isLimitCode,
   offersProposal,
   parseConversation,
   selectComposerMode,
@@ -34,8 +36,9 @@ interface LiveReply {
  */
 function describeStreamFailure(error: unknown): string {
   if (error instanceof ApiFailure) {
-    if (error.code === 'rate_limited' || error.code === 'provider_busy')
-      return 'PUNI is busy right now. Try again in a minute.';
+    if (error.code === 'rate_limited')
+      return describeLimit('rate_limited', error.retryAfterSeconds);
+    if (error.code === 'provider_busy') return 'PUNI is busy right now. Try again in a minute.';
     if (error.code === 'chat_inflight') return 'PUNI is still answering that message.';
     if (error.status === 429) return 'This conversation reached a limit.';
     if (error.status === 503) return 'AI chat is not available right now.';
@@ -477,7 +480,10 @@ function ProposalCard({
       setFailure(
         error instanceof ApiFailure && error.code === 'invalid_proposal'
           ? 'Check the email address and the brief.'
-          : describeFailure(error),
+          : // Proof: dropping this branch showed the generic 429 copy in the cap render test.
+            error instanceof ApiFailure && isLimitCode(error.code)
+            ? describeLimit(error.code, error.retryAfterSeconds)
+            : describeFailure(error),
       );
     } finally {
       setPending(false);

@@ -62,6 +62,7 @@ beforeAll(() => {
     window: dom.window,
     document: dom.window.document,
     navigator: dom.window.navigator,
+    sessionStorage: dom.window.sessionStorage,
     IS_REACT_ACT_ENVIRONMENT: true,
   });
 });
@@ -178,6 +179,47 @@ test('a reply replacement shows only the decline, never the partial text glued t
     () => container.innerHTML,
   );
   expect(reply()).toBe(decline);
+  act(() => {
+    root.unmount();
+  });
+});
+
+test('a proposal refused by a daily cap shows the cap copy in the card', async () => {
+  globalThis.fetch = Object.assign(
+    (input: Parameters<typeof fetch>[0]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/proposals'))
+        return Promise.resolve(
+          new Response(JSON.stringify({ code: 'proposal_email_limit' }), {
+            status: 429,
+            headers: { 'content-type': 'application/json', 'retry-after': '3600' },
+          }),
+        );
+      throw new Error(`Unexpected request ${url}`);
+    },
+    { preconnect: realFetch.preconnect },
+  );
+  const container = dom.window.document.createElement('div');
+  dom.window.document.body.replaceChildren(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(
+      <LiveHarness initial={briefed} onReload={() => undefined} onHandedOff={() => undefined} />,
+    );
+    await Promise.resolve();
+  });
+  const card = container.querySelector('.proposal-card form');
+  if (!card) throw new Error('proposal card missing');
+  await act(async () => {
+    card.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+  });
+  const failure = () => container.querySelector('.proposal-failure')?.textContent ?? '';
+  // Proof: dropping the limit branch in ProposalCard showed the generic failure copy here.
+  await settleUntil(
+    () => failure() === 'This email address sent several briefs today. Try again tomorrow.',
+    failure,
+  );
   act(() => {
     root.unmount();
   });

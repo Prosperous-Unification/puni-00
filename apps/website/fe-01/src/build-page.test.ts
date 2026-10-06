@@ -3,7 +3,9 @@ import { describe, expect, test } from 'bun:test';
 import {
   type Conversation,
   describeExhaustion,
+  describeLimit,
   InvalidConversation,
+  isLimitCode,
   offersProposal,
   parseConversation,
   resolveAnonymousHarness,
@@ -230,5 +232,41 @@ describe('inline proposal card', () => {
     ['exhausted', { stage: 'exhausted', exhaustedReason: 'turns', brief: '' }, true],
   ] as const)('%s', (_name, change, expected) => {
     expect(offersProposal({ ...replied, ...change })).toBe(expected);
+  });
+});
+
+describe('limit refusals', () => {
+  test.each([
+    ['rate_limited', 42, 'Too many requests right now. Try again in 42 s.'],
+    ['rate_limited', null, 'Too many requests right now. Try again in a minute.'],
+    [
+      'draft_source_limit',
+      3_600,
+      'Your connection started many requests today. Try again tomorrow.',
+    ],
+    ['draft_site_limit', 3_600, 'PUNI received many requests today. Try again tomorrow.'],
+    [
+      'proposal_source_limit',
+      3_600,
+      'Your connection sent several briefs today. Try again tomorrow.',
+    ],
+    [
+      'proposal_email_limit',
+      3_600,
+      'This email address sent several briefs today. Try again tomorrow.',
+    ],
+    [
+      'proposal_site_limit',
+      3_600,
+      'PUNI received many briefs today and cannot take more until tomorrow. Try again then.',
+    ],
+  ] as const)('%s renders its own copy', (code, retryAfter, copy) => {
+    expect(isLimitCode(code)).toBe(true);
+    expect(describeLimit(code, retryAfter)).toBe(copy);
+  });
+
+  test('other refusal codes are not limits', () => {
+    expect(isLimitCode('provider_busy')).toBe(false);
+    expect(isLimitCode('turn_limit')).toBe(false);
   });
 });

@@ -420,3 +420,45 @@ export function startOverUrl(siteOrigin: string): string {
   home.hash = '#request';
   return home.toString();
 }
+
+/** A refusal code the API answers with 429 and `Retry-After` when a window or daily cap is full. */
+export type LimitCode =
+  | 'rate_limited'
+  | 'draft_source_limit'
+  | 'draft_site_limit'
+  | 'proposal_source_limit'
+  | 'proposal_email_limit'
+  | 'proposal_site_limit';
+
+const limitCodes: readonly LimitCode[] = [
+  'rate_limited',
+  'draft_source_limit',
+  'draft_site_limit',
+  'proposal_source_limit',
+  'proposal_email_limit',
+  'proposal_site_limit',
+];
+
+export function isLimitCode(code: string): code is LimitCode {
+  return limitCodes.some((candidate) => candidate === code);
+}
+
+/**
+ * The visitor-facing line for a window or daily-cap refusal. A minute window names its wait when
+ * the API sent `Retry-After`; a daily cap lasts until UTC midnight, so it says tomorrow.
+ */
+export function describeLimit(code: LimitCode, retryAfterSeconds: number | null): string {
+  if (code === 'rate_limited')
+    return retryAfterSeconds === null
+      ? 'Too many requests right now. Try again in a minute.'
+      : `Too many requests right now. Try again in ${String(retryAfterSeconds)} s.`;
+  const copy: Record<Exclude<LimitCode, 'rate_limited'>, string> = {
+    draft_source_limit: 'Your connection started many requests today. Try again tomorrow.',
+    draft_site_limit: 'PUNI received many requests today. Try again tomorrow.',
+    proposal_source_limit: 'Your connection sent several briefs today. Try again tomorrow.',
+    proposal_email_limit: 'This email address sent several briefs today. Try again tomorrow.',
+    proposal_site_limit:
+      'PUNI received many briefs today and cannot take more until tomorrow. Try again then.',
+  };
+  return copy[code];
+}

@@ -12,6 +12,8 @@ import {
 import {
   type ConversationAdmission,
   type ConversationPricing,
+  type DraftCapRefusal,
+  type ProposalCapRefusal,
   WebsiteStore,
 } from '@website/store-sqlite';
 import { createLocalJWKSet, errors, jwtVerify } from 'jose';
@@ -363,6 +365,15 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     return json({ code: 'rate_limited' }, 429, {
       // Proof: deleting this header failed the Retry-After assertion in the windowless-route test.
       'Retry-After': String(outcome.retryAfterSeconds),
+    });
+  }
+
+  /** 429 for a daily cap with `Retry-After` to the next UTC midnight, when the cap resets. */
+  function capRefusal(code: DraftCapRefusal | ProposalCapRefusal, now: number): Response {
+    const midnight = Math.floor(now / 86_400_000 + 1) * 86_400_000;
+    return json({ code }, 429, {
+      'Retry-After': String(Math.ceil((midnight - now) / 1000)),
+      'Cache-Control': 'no-store',
     });
   }
 
@@ -1096,7 +1107,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         now + draftLifetime,
         source,
       );
-      if (created.kind !== 'created') return attachSiteCors(failure(created.kind, 429));
+      // Proof: answering 201 with the claim cookie here put a Set-Cookie on the mounted draft-cap refusal.
+      if (created.kind !== 'created') return attachSiteCors(capRefusal(created.kind, now));
       const signedIn = prospectSession(request, now);
       // Proof: disabling signed-in attachment made the second-intake test resume the old request.
       if (signedIn) store.attachDraft(signedIn.id, digest(claim), now);
@@ -1420,7 +1432,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
                 source,
               )
             : { kind: 'unavailable' as const };
-      if (outcome.kind === 'limited') return attachCors(failure(outcome.code, 429), origin);
+      if (outcome.kind === 'limited') return attachCors(capRefusal(outcome.code, now), origin);
       if (outcome.kind === 'conflict')
         return attachCors(failure('idempotency_conflict', 409), origin);
       if (outcome.kind === 'unavailable')

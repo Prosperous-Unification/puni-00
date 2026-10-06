@@ -1,12 +1,22 @@
 export const apiOrigin = import.meta.env['VITE_API_ORIGIN'] ?? 'http://localhost:3101';
 
+/**
+ * A typed API refusal. `retryAfterSeconds` is the `Retry-After` header in whole seconds, or null
+ * when the response carried none.
+ */
 export class ApiFailure extends Error {
   constructor(
     public status: number,
     public code: string,
+    public retryAfterSeconds: number | null = null,
   ) {
     super(code);
   }
+}
+
+function readRetryAfter(response: Response): number | null {
+  const header = response.headers.get('retry-after');
+  return header !== null && /^\d+$/.test(header) ? Number(header) : null;
 }
 
 /** Sends a credentialed request and translates typed API failures into a rendered state. */
@@ -27,7 +37,7 @@ export async function requestJson<T>(path: string, init: RequestInit = {}): Prom
       typeof payload.code === 'string'
         ? payload.code
         : `HTTP ${String(response.status)}`;
-    throw new ApiFailure(response.status, code);
+    throw new ApiFailure(response.status, code, readRetryAfter(response));
   }
   // The API response is the trust boundary; callers use the declared route contract.
   return payload as T;
@@ -50,7 +60,7 @@ export async function sendCommand(path: string, init: RequestInit): Promise<void
     typeof payload.code === 'string'
       ? payload.code
       : `HTTP ${String(response.status)}`;
-  throw new ApiFailure(response.status, code);
+  throw new ApiFailure(response.status, code, readRetryAfter(response));
 }
 
 /**
@@ -70,7 +80,7 @@ export const streamFetch = Object.assign(
       typeof payload.code === 'string'
         ? payload.code
         : `HTTP ${String(response.status)}`;
-    throw new ApiFailure(response.status, code);
+    throw new ApiFailure(response.status, code, readRetryAfter(response));
   },
   { preconnect: fetch.preconnect },
 );

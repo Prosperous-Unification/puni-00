@@ -2637,3 +2637,117 @@ test('an admitted OIDC start sweeps logins expired eleven minutes later', async 
   expect(countRows(config.databasePath, 'oidc_login')).toBe(1);
   api.close();
 });
+
+function onlySourceHash(databasePath: string, scope: string): string {
+  const database = new Database(databasePath, { readonly: true });
+  try {
+    const row = database
+      .query<{ key_hash: string }, [string]>(
+        'SELECT key_hash FROM admission_count WHERE scope = ? LIMIT 1',
+      )
+      .get(scope);
+    if (!row) throw new Error(`No ${scope} count`);
+    return row.key_hash;
+  } finally {
+    database.close();
+  }
+}
+
+test('draft caps answer 429 with Retry-After to UTC midnight and set no cookie', async () => {
+  const { config } = fixture();
+  const now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const api = mountApi({ ...config, clock: () => now });
+  const intake = () =>
+    api.fetch(request('/intakes', 'POST', config.publicOrigin, { description: 'A booking tool' }));
+  expect((await intake()).status).toBe(201);
+  const source = onlySourceHash(config.databasePath, 'draft:source');
+  const database = new Database(config.databasePath);
+  database
+    .query("UPDATE admission_count SET count = 20 WHERE scope = 'draft:source' AND key_hash = ?")
+    .run(source);
+  database.close();
+  const bySource = await intake();
+  expect(bySource.status).toBe(429);
+  expect(await bySource.json()).toEqual({ code: 'draft_source_limit' });
+  expect(bySource.headers.get('retry-after')).toBe('43200');
+  expect(bySource.headers.get('set-cookie')).toBeNull();
+  expect(bySource.headers.get('access-control-allow-origin')).toBe(config.publicOrigin);
+  const other = await api.fetch(
+    request('/intakes', 'POST', config.publicOrigin, { description: 'A dashboard' }),
+    '198.51.100.7',
+  );
+  expect(other.status).toBe(201);
+  const updateSite = new Database(config.databasePath);
+  updateSite.query("UPDATE admission_count SET count = 2000 WHERE scope = 'draft:site'").run();
+  updateSite.close();
+  const bySite = await api.fetch(
+    request('/intakes', 'POST', config.publicOrigin, { description: 'Another tool' }),
+    '192.0.2.44',
+  );
+  expect(bySite.status).toBe(429);
+  expect(await bySite.json()).toEqual({ code: 'draft_site_limit' });
+  expect(bySite.headers.get('set-cookie')).toBeNull();
+  expect(countRows(config.databasePath, 'intake_draft')).toBe(2);
+  api.close();
+});
+
+test('proposal caps answer 429 with their codes and leave no submission', async () => {
+  const { config } = fixture();
+  const now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const api = mountApi({ ...config, clock: () => now });
+  const propose = async (email: string, address: string) => {
+    const { cookie, csrf } = await beginDraftFrom(api, address);
+    return api.fetch(
+      request(
+        '/proposals',
+        'POST',
+        config.appOrigin,
+        { email, brief: 'A calendar', idempotencyKey: crypto.randomUUID() },
+        cookie,
+        csrf,
+      ),
+      address,
+    );
+  };
+  expect((await propose('first@example.test', '203.0.113.1')).status).toBe(201);
+  const source = onlySourceHash(config.databasePath, 'proposal:source');
+  const database = new Database(config.databasePath);
+  database
+    .query("UPDATE admission_count SET count = 5 WHERE scope = 'proposal:source' AND key_hash = ?")
+    .run(source);
+  database.close();
+  const bySource = await propose('second@example.test', '203.0.113.1');
+  expect(bySource.status).toBe(429);
+  expect(await bySource.json()).toEqual({ code: 'proposal_source_limit' });
+  expect(bySource.headers.get('retry-after')).toBe('43200');
+  for (const address of ['203.0.113.2', '203.0.113.3'])
+    expect((await propose('Same@Example.test', address)).status).toBe(201);
+  const byEmail = await propose('same@example.test', '203.0.113.4');
+  expect(byEmail.status).toBe(201);
+  const fourth = await propose('SAME@example.test', '203.0.113.5');
+  expect(fourth.status).toBe(429);
+  expect(await fourth.json()).toEqual({ code: 'proposal_email_limit' });
+  const site = new Database(config.databasePath);
+  site.query("UPDATE admission_count SET count = 200 WHERE scope = 'proposal:site'").run();
+  site.close();
+  const bySite = await propose('new@example.test', '203.0.113.6');
+  expect(bySite.status).toBe(429);
+  expect(await bySite.json()).toEqual({ code: 'proposal_site_limit' });
+  expect(countRows(config.databasePath, 'proposal_submission')).toBe(4);
+  api.close();
+});
+
+async function beginDraftFrom(api: ReturnType<typeof createWebsiteApi>, address: string) {
+  const intake = await api.fetch(
+    request('/intakes', 'POST', 'http://localhost:4321', { description: 'A booking tool' }),
+    address,
+  );
+  expect(intake.status).toBe(201);
+  const cookie = intake.headers.get('set-cookie')?.split(';')[0] ?? '';
+  const draft = await api.fetch(
+    request('/draft', 'GET', 'http://localhost:4201', undefined, cookie),
+    address,
+  );
+  const fields = (await draft.json()) as { csrfToken: string };
+  return { cookie, csrf: fields.csrfToken };
+}
