@@ -45,6 +45,7 @@ export type {
 export { conversationAllowance } from './conversation-store';
 export type { DraftCleanupOutcome, DraftCleanupPlan } from './draft-retention';
 export { inspectExpiredDrafts, purgeExpiredDrafts } from './draft-retention';
+export { guardrailAllowance } from './guardrail-store';
 export type {
   AmbiguousRetentionSubject,
   AnchorResolution,

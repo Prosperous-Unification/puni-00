@@ -20,5 +20,6 @@ export function websiteMigrations(): { name: string; directory: string }[] {
     },
     { name: '007_conversation', directory: join(import.meta.dir, 'migrations/007_conversation') },
     { name: '008_refusal', directory: join(import.meta.dir, 'migrations/008_refusal') },
+    { name: '009_guardrails', directory: join(import.meta.dir, 'migrations/009_guardrails') },
   ];
 }

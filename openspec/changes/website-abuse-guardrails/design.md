@@ -192,7 +192,7 @@ CREATE TABLE inference_pause (
   resumed_by TEXT CHECK(resumed_by IN ('operator')),
   CHECK((resumed_at IS NULL) = (resumed_by IS NULL))
 );
-CREATE UNIQUE INDEX inference_pause_open ON inference_pause(resumed_at) WHERE resumed_at IS NULL;
+CREATE UNIQUE INDEX inference_pause_open ON inference_pause((resumed_at IS NULL)) WHERE resumed_at IS NULL;
 CREATE TABLE guardrail_alert (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,

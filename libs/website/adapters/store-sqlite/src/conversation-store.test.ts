@@ -23,6 +23,14 @@ function databaseFile(): string {
   return join(directory, 'website.sqlite');
 }
 
+/** Runs the down scripts of every migration after `name`, newest first. */
+function rollBackLaterMigrations(database: Database, name: string): void {
+  for (const later of websiteMigrations()
+    .filter((migration) => migration.name > name)
+    .reverse())
+    database.run(readFileSync(join(later.directory, 'down.sql'), 'utf8'));
+}
+
 function paid(amount: number): ConversationPricing {
   return { kind: 'paid', price: () => amount };
 }
@@ -99,6 +107,7 @@ test('migration 007 applies forward and its down.sql restores the exact 006 sche
       expected.run(readFileSync(join(migration.directory, 'migration.sql'), 'utf8'));
     const migration = websiteMigrations().find(({ name }) => name === '007_conversation');
     if (!migration) throw new Error('Missing migration 007');
+    rollBackLaterMigrations(database, migration.name);
     database.run(readFileSync(join(migration.directory, 'down.sql'), 'utf8'));
     const schema =
       "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name";
@@ -126,6 +135,7 @@ test('migration 008 adds the refusal column and its down.sql restores the exact 
       expected.run(readFileSync(join(migration.directory, 'migration.sql'), 'utf8'));
     const migration = websiteMigrations().find(({ name }) => name === '008_refusal');
     if (!migration) throw new Error('Missing migration 008');
+    rollBackLaterMigrations(database, migration.name);
     database.run(readFileSync(join(migration.directory, 'down.sql'), 'utf8'));
     const schema =
       "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name";
