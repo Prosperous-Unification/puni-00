@@ -247,6 +247,9 @@ export async function bootBe01(
                 // batch itself.
                 batch: services.batch,
                 announcements: services.announcements,
+                // Proof: omitting boot's delivery forwarding made the booted
+                // cold shared command return 500 and record no downstream row.
+                committedFanout: services.committedFanout,
               },
               // Read per call, not captured here: dev's deploy is a `git reset`
               // under live watchers, so this process outlives the commit it

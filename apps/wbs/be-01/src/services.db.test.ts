@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { EditAdmission } from '@wbs/core';
 import { subscriptionFor } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
@@ -11,7 +12,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 
 import type { ReservedSpawner, ReservedSpawnRequest } from './module/optimization/contract';
 import { readRuntimeSolverVersion } from './module/solver-launcher/solver-launcher.repository';
-import { openConnection, type openDrizzle } from './repository/db';
+import { openConnection, openDatabase, type openDrizzle } from './repository/db';
 import { DrizzleEventLogStore } from './repository/event-log';
 import { OPEN } from './repository/gate';
 import { runMigrations } from './repository/migrate';
@@ -116,6 +117,136 @@ async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
 }
 
 describe('buildServices', () => {
+  for (const direction of ['execute', 'undo', 'redo'] as const) {
+    it(`expires the scoped ${direction} grant after commit while delivery is held`, async () => {
+      const { db, path, services } = bootstrap();
+      const { ownerId } = await seedProject(db);
+      const projects = new ProjectRepository(db, OPEN);
+      const upstream = 'grant-upstream';
+      const downstream = 'grant-downstream';
+      const stepId = 'grant-step';
+      const raw = openDatabase(path);
+      raw.run(
+        "INSERT INTO organization (id, name, created_at, shared_people) VALUES ('grant-org', 'Grant', 1, 1)",
+      );
+      raw.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
+      raw.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('grant-org', ?, 'member', 1)",
+        [ownerId],
+      );
+      for (const [position, projectId] of [upstream, downstream].entries()) {
+        await projects.createInOrganization(
+          projectRow({ id: projectId, ownerId, name: projectId }),
+          [
+            {
+              id: `${stepId}-${projectId}`,
+              projectId,
+              name: 'Step',
+              position: 10,
+              code: 'step',
+              allowancePercent: 0,
+            },
+          ],
+          { at: 1, by: ownerId },
+          'grant-org',
+        );
+        raw.run(
+          'INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
+          [projectId, 'grant-org', position * 10, ownerId],
+        );
+        raw.run(
+          "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+          [projectId],
+        );
+        raw.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
+          projectId,
+          projectId,
+          projectId,
+        ]);
+        raw.run(
+          'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
+          [projectId, `${stepId}-${projectId}`],
+        );
+      }
+      raw.run("INSERT INTO person (id, name) VALUES ('grant-ana', 'Ana')");
+      raw.run(
+        "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('grant-ana', 'grant-org', 'Ana')",
+      );
+      for (const projectId of [upstream, downstream])
+        raw.run('INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)', [
+          projectId,
+          `${stepId}-${projectId}`,
+          'grant-ana',
+        ]);
+      const project = await projects.findById(upstream);
+      if (project === null) throw new Error('upstream grant fixture disappeared');
+      const retained: { admission?: EditAdmission } = {};
+      let hold = false;
+      let release!: () => void;
+      let entered!: () => void;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const deliveryEntered = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const runner = createPlanCommandRunner({
+        uow: services.uow,
+        publicServices: services,
+        announcements: services.announcements,
+        batchServices: (scope, broadcast, admission) => {
+          retained.admission = admission;
+          return services.batch(scope, broadcast, admission);
+        },
+        committedFanout: {
+          now: () => 100,
+          deliverCommitted: async () => {
+            if (!hold) return;
+            const writer = openDatabase(path);
+            try {
+              writer.run('UPDATE project SET name = ? WHERE id = ?', ['writer entered', upstream]);
+            } finally {
+              writer.close();
+            }
+            entered();
+            await held;
+          },
+        },
+      });
+      const access = {
+        kind: 'scoped' as const,
+        scope: { organizationId: 'grant-org', userId: ownerId, role: 'member' as const },
+      };
+      const command = {
+        kind: 'setEstimate' as const,
+        workItemId: upstream,
+        stepId: `${stepId}-${upstream}`,
+        days: { optimistic: 3, realistic: 3, pessimistic: 3 },
+      };
+      if (direction !== 'execute') {
+        expect((await runner.runWithin(upstream, ownerId, [command], access)).ok).toBe(true);
+        if (direction === 'redo')
+          expect((await runner.undoWithin(upstream, ownerId, access)).ok).toBe(true);
+      }
+      hold = true;
+      const pending =
+        direction === 'execute'
+          ? runner.runWithin(upstream, ownerId, [command], access)
+          : direction === 'undo'
+            ? runner.undoWithin(upstream, ownerId, access)
+            : runner.redoWithin(upstream, ownerId, access);
+      await deliveryEntered;
+      try {
+        // Proof: awaiting post-commit delivery before runner.finally expired the
+        // grant let this retained batch admission authorize writes after release.
+        expect(retained.admission?.admits(project, ownerId)).toBe(false);
+      } finally {
+        release();
+      }
+      expect((await pending).ok).toBe(true);
+      raw.close();
+    });
+  }
   it('saves an idle optimized capture without admitting solver state', async () => {
     const { db, path, services } = bootstrap({
       solverVersion: '2.4',

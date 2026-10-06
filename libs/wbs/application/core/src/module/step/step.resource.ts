@@ -2,6 +2,7 @@ import { type AllowancePercent, isReservedStepCode, isStepCode, stepIsInUse } fr
 
 import type { Clock } from '../../ports/clock';
 import type { EditAdmission } from '../../ports/edit-admission';
+import type { BeforeStepRemoval } from '../../ports/fanout-capture-store';
 import {
   findProjectWithin,
   LEGACY_ACCESS,
@@ -45,6 +46,8 @@ export interface StepServiceOptions {
    * replaces each leaf's boundary node one for one, which changes no edge.
    */
   dependencyGraph: Pick<DependencyGraphGuard, 'findCycle' | 'findStepReferences'>;
+  /** Trusted scoped recovery observation seam, after removal preflights. */
+  beforeRemove?: BeforeStepRemoval;
 }
 
 /** Why a step could not be added or renamed. All four are states, not faults. */
@@ -322,6 +325,10 @@ export class StepService {
       if (stepIsInUse(seen)) {
         return { ok: false, reason: 'in_use', inUse: seen };
       }
+    }
+    if (this.opts.beforeRemove !== undefined) {
+      const observed = await this.opts.beforeRemove(projectId, actorId, access);
+      if (!observed.ok) return observed;
     }
     const removed = await this.opts.steps.remove(
       projectId,

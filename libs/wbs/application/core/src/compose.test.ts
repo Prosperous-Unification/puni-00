@@ -118,6 +118,52 @@ function fixture() {
   };
 }
 
+test('committed fan-out notifies the recipient before held transport and preserves its durable sequence', async () => {
+  const given = fixture();
+  const transport = signal();
+  const changed: string[] = [];
+  const pushed: unknown[] = [];
+  const graph = composeServices({
+    source: given.source,
+    shared: fixtureShared,
+    runtime: {
+      ...given.runtime,
+      onPlanChanged: (projectId) => changed.push(projectId),
+      push: {
+        push: async (payload) => {
+          pushed.push(payload);
+          await transport.promise;
+          return { delivered: 1 };
+        },
+      },
+    },
+  });
+  const event = {
+    type: 'elsewhere_changed' as const,
+    projectId: 'recipient',
+    causeProjectId: 'cause',
+  };
+  const recorded = await given.source.stores.eventLog.recordEvent(
+    'project:recipient',
+    event,
+    1_000,
+  );
+  const delivering = graph.committedFanout.deliverCommitted([
+    { projectId: 'recipient', event, recorded },
+  ]);
+  expect(changed).toEqual(['recipient']);
+  const secondWriter = await given.source.uow.run(() =>
+    Promise.resolve({ commit: true as const, value: 'entered' }),
+  );
+  expect(secondWriter).toBe('entered');
+  expect(pushed).toEqual([
+    { subscription: 'project:recipient', seq: recorded.seq, message: event },
+  ]);
+  transport.resolve();
+  await delivering;
+  expect(await given.source.stores.eventLog.latestSeq('project:recipient')).toBe(recorded.seq);
+});
+
 function runtimeOf(services: WritingServices): {
   readonly clock: unknown;
   readonly scheduler: unknown;

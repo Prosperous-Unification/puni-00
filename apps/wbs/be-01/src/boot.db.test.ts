@@ -6,6 +6,7 @@ import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
+import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { DiBagDisposalError } from 'di-bag';
 import { errors, exportPKCS8, exportSPKI, generateKeyPair, SignJWT } from 'jose';
@@ -49,6 +50,112 @@ function tempDir(prefix: string): string {
   dirs.push(dir);
   return dir;
 }
+
+it('boots the committed fan-out delivery into a cold scoped command', async () => {
+  const dbPath = await openSpaceDatabase(tempDir('wbs-boot-fanout-'));
+  const seed = openDatabase(dbPath);
+  try {
+    seed.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
+    seed.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    seed.run(
+      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'member', 1)",
+    );
+    seed.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
+    seed.run(
+      "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
+    );
+    seed.run(
+      "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES ('a1', 'org-a', 10, 1, 'ada'), ('a2', 'org-a', 20, 1, 'ada')",
+    );
+    for (const projectId of ['a1', 'a2']) {
+      seed.run(
+        `UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = '${projectId}'`,
+      );
+      seed.run(
+        `INSERT INTO work_item (id, project_id, position, name) VALUES ('${projectId}', '${projectId}', 10, '${projectId}')`,
+      );
+      seed.run(
+        `INSERT INTO step (id, project_id, name, position) VALUES ('${projectId}-step', '${projectId}', '${projectId}-step', 10)`,
+      );
+      seed.run(
+        `INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('${projectId}', '${projectId}-step', 1, 1, 1)`,
+      );
+      seed.run(
+        `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('${projectId}', '${projectId}-step', 'ana')`,
+      );
+    }
+  } finally {
+    seed.close();
+  }
+  let mounted: ReturnType<typeof buildApp> | undefined;
+  running = await bootBe01(
+    {
+      appOrigin: 'http://localhost',
+      dbPath,
+      port: 0,
+      logger: createLogger({ service: 'be-01' }),
+      jwtKey: 'k'.repeat(32),
+      gwUrl: 'http://gw.invalid',
+      internalAuthSecret: 's'.repeat(32),
+      localIdentity: { id: 'ada', username: 'ada', scopes: ['read', 'write'] },
+    },
+    {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        const app = buildApp({
+          ...options,
+          organizations: {
+            resolve: () =>
+              Promise.resolve({
+                ok: true,
+                access: {
+                  kind: 'scoped',
+                  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+                },
+              }),
+          },
+        });
+        app.stop = () => Promise.resolve(app);
+        mounted = app;
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    },
+  );
+  if (mounted === undefined) throw new Error('boot did not compose an app');
+  const answer = await mounted.handle(
+    new Request('http://localhost/api/projects/a1/commands', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        commands: [
+          {
+            kind: 'setEstimate',
+            workItemId: 'a1',
+            stepId: 'a1-step',
+            days: { optimistic: 3, realistic: 3, pessimistic: 3 },
+          },
+        ],
+      }),
+    }),
+  );
+  expect(answer.status).toBe(200);
+  const readback = openDatabase(dbPath);
+  try {
+    expect(
+      readback
+        .query<{ message: string }, [string]>(
+          'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+        )
+        .all('project:a2')
+        .map(({ message }) => JSON.parse(message) as unknown),
+    ).toEqual([{ type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' }]);
+  } finally {
+    readback.close();
+  }
+});
 
 /**
  * `commitDir` defaults to a directory with no repository above it, so `/health`

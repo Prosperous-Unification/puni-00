@@ -6,6 +6,7 @@ import { buildOidcVerifier, oidcCredentialEvidence, type TokenVerifier } from '@
 import { CREATOR_ADMISSION, type DomainResolver, type PasswordHasher } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
@@ -142,7 +143,14 @@ export class OrganizationHarness {
     ) => Promise<string>,
     private readonly inputChanged?: (projectId: string) => void,
     private readonly startOptimizer?: () => void,
+    private readonly bareRemoveStep?: ReturnType<typeof createAdmittedWrites>['removeStepWithin'],
   ) {}
+
+  /** Exercises the installed bare NO_ADMISSION graph, distinct from scoped recovery routing. */
+  removeBareStep(...args: Parameters<ReturnType<typeof createAdmittedWrites>['removeStepWithin']>) {
+    if (this.bareRemoveStep === undefined) throw new Error('composed bare step removal is absent');
+    return this.bareRemoveStep(...args);
+  }
 
   /** Runs the composed background edit admission in integration tests. */
   triggerOptimization(projectId: string): void {
@@ -377,6 +385,8 @@ export class OrganizationHarness {
     spawn: ReservedSpawner = () => new Promise<never>(() => undefined),
     solverVersion = '0.1.0',
     openReadOnlyConnection?: (dbPath: string) => Connection,
+    pushFetch: Parameters<typeof buildServices>[0]['pushFetch'] = () =>
+      Promise.resolve(Response.json({ delivered_to_sockets: 0 })),
   ): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
@@ -389,7 +399,7 @@ export class OrganizationHarness {
       jwtKey: TEST_JWT_KEY,
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
-      pushFetch: () => Promise.resolve(Response.json({ delivered_to_sockets: 0 })),
+      pushFetch,
       ...(withOptimizer
         ? {
             optimizer: {
@@ -445,6 +455,7 @@ export class OrganizationHarness {
         uow: services.uow,
         batch: services.batch,
         announcements: services.announcements,
+        committedFanout: services.committedFanout,
       },
       internalAuthSecret: 'x'.repeat(32),
     });
@@ -476,6 +487,12 @@ export class OrganizationHarness {
       },
       services.optimizer?.inputChanged.bind(services.optimizer),
       services.optimizer?.start.bind(services.optimizer),
+      createAdmittedWrites({
+        uow: services.uow,
+        batch: services.batch,
+        announcements: services.announcements,
+        committedFanout: services.committedFanout,
+      }).removeStepWithin,
     );
   }
 

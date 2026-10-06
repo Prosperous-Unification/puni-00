@@ -9,6 +9,11 @@ import {
   openConnection as openDatabaseConnection,
   openReadOnlyConnection,
 } from './db';
+import {
+  authorizeProjectFanoutIn,
+  authorizeStepFanoutIn,
+  readFanoutObservationIn,
+} from './fanout-capture';
 import { OPEN, WriteCoordinator } from './gate';
 import { probeSchema } from './health-probe';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
@@ -89,6 +94,16 @@ function openSqliteSourceWithSeams(
           process.db,
           coordinator,
           buildStores(process.db, OPEN, lateWrite, commandPlans),
+          // Proof: omitting this borrowed capture made a cold mounted shared
+          // command fail 500 before the expected recipient row.
+          {
+            // Proof: detaching this read onto a separate read-only connection
+            // hid the staged command; cold mounted fan-out recorded no row.
+            capture: (organizationId: string) =>
+              readFanoutObservationIn(process.db, organizationId, scheduling),
+            authorizeProjectUpdate: authorizeProjectFanoutIn(process.db),
+            authorizeStepRemoval: authorizeStepFanoutIn(process.db),
+          },
         ),
       };
     },

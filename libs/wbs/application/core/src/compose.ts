@@ -28,6 +28,7 @@ import { installStep } from './module/step/check';
 import { installWorkItem } from './module/work-item/check';
 import type { Clock } from './ports/clock';
 import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
+import type { BeforeProjectUpdate, BeforeStepRemoval } from './ports/fanout-capture-store';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { ResourceAccess } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
@@ -38,8 +39,12 @@ import type { Source } from './ports/source';
 import type { PlanTransactionalStores, TransactionalStores } from './ports/stores';
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
+import type { CommittedFanoutDelivery } from './service/committed-fanout';
 import { DependencyGraphGuard } from './service/dependency-graph';
-import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
+import {
+  OptimizerTriggerBroadcaster,
+  reactToProjectEvent,
+} from './service/optimizer-trigger-broadcaster';
 
 /** Runtime capabilities required by every service composition. */
 export interface RuntimePorts {
@@ -81,6 +86,8 @@ export interface ServicesOverOptions {
   readonly admission: EditAdmission;
   /** Scoped dependent writes use this only after their own unit of work grants it. */
   readonly recoveryAdmission?: EditAdmission;
+  readonly beforeProjectUpdate?: BeforeProjectUpdate;
+  readonly beforeStepRemoval?: BeforeStepRemoval;
 }
 
 /**
@@ -106,6 +113,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       broadcast,
       optimizerAvailable: () => scheduler.supports('optimized'),
       dependencyGraph,
+      beforeUpdate: shared.beforeProjectUpdate,
     }).projects,
     capacity: installCapacity({
       clock,
@@ -135,6 +143,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       broadcast,
       recoveryAdmission,
       dependencyGraph,
+      beforeRemove: shared.beforeStepRemoval,
     }).steps,
     directory: installDirectory({ clock, directory: stores.directory, broadcast }).directory,
     workItems: installWorkItem({
@@ -166,6 +175,7 @@ interface CommonServices extends WritingServices {
   readonly clock: Clock;
   readonly scheduler: Scheduler;
   readonly announcements: Broadcaster;
+  readonly committedFanout: CommittedFanoutDelivery;
   readonly gatewayBroadcaster: GatewayBroadcaster;
   readonly replayBuffer: ReplayBuffer;
   readonly uow: Source['uow'];
@@ -177,6 +187,8 @@ interface CommonServices extends WritingServices {
     scope: Scope,
     broadcast: Broadcaster,
     admission: EditAdmission,
+    beforeProjectUpdate?: BeforeProjectUpdate,
+    beforeStepRemoval?: BeforeStepRemoval,
   ) => WritingServices;
   readonly history: HistoryService;
   readonly plans: SavedPlanService;
@@ -253,19 +265,42 @@ export function composeServices(
     runtime.onPlanChanged === undefined
       ? broadcaster
       : new OptimizerTriggerBroadcaster(broadcaster, runtime.onPlanChanged);
+  const committedFanout: CommittedFanoutDelivery = {
+    now: () => runtime.clock.now(),
+    deliverCommitted: async (events) => {
+      // Every row is durable before this callback; trigger all recipients before transport can wait.
+      if (runtime.onPlanChanged !== undefined)
+        for (const { projectId, event } of events)
+          // Proof: omitting the committed reaction left the recipient unchanged
+          // while transport was held; direct delivery test received [].
+          reactToProjectEvent(projectId, event, runtime.onPlanChanged);
+      for (const { recorded, event } of events)
+        // Proof: substituting publish advanced the durable sequence and the
+        // direct delivery test received a second row instead of the original.
+        await broadcaster.pushRecorded(recorded.subscription, recorded, event);
+    },
+  };
   const publicServices = servicesOver(source.stores, {
     clock: runtime.clock,
     broadcast: announcements,
     scheduler: runtime.scheduler,
     admission: CREATOR_ADMISSION,
   });
-  const batch = (scope: Scope, broadcast: Broadcaster, admission: EditAdmission) =>
+  const batch = (
+    scope: Scope,
+    broadcast: Broadcaster,
+    admission: EditAdmission,
+    beforeProjectUpdate?: BeforeProjectUpdate,
+    beforeStepRemoval?: BeforeStepRemoval,
+  ) =>
     servicesOver(scope.stores, {
       clock: runtime.clock,
       broadcast,
       scheduler: runtime.scheduler,
       admission,
       recoveryAdmission: admission,
+      beforeProjectUpdate,
+      beforeStepRemoval,
     });
   const { savedPlans } = installSavedPlans({
     digest: runtime.digest,
@@ -296,6 +331,7 @@ export function composeServices(
     clock: runtime.clock,
     scheduler: runtime.scheduler,
     announcements,
+    committedFanout,
     gatewayBroadcaster: broadcaster,
     replayBuffer: buffer,
     uow: source.uow,
@@ -314,6 +350,7 @@ export function composeServices(
       publicServices,
       uow: source.uow,
       announcements,
+      committedFanout,
     }).commands,
     history: installPlanHistory({
       projects: publicServices.projects,
