@@ -177,6 +177,9 @@ export function buildServices(options: ServicesOptions): BeServices {
       inputOf: async (projectId) => await graph.workItems.scheduleInput(projectId),
       enabledOf: async (projectId) =>
         (await source.stores.projects.findById(projectId))?.optimizationEnabled === true,
+      // Proof: omitting the shared capture made the mounted upstream-only edit
+      // request lose `elsewhere` (undefined instead of its holder interval).
+      captureOf: async (projectId) => await graph.workItems.optimizationInput(projectId),
       hashInput: scheduleInputHash,
       spawn: optimizer.spawn,
       pushRecorded: (subscription, recorded, event) =>

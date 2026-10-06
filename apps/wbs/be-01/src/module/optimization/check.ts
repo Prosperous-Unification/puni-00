@@ -42,6 +42,9 @@ export function installOptimization(requirements: OptimizationRequirements): Opt
       enabledOf: DiBag.createProvider(() => requirements.enabledOf, {
         factoryReturnKind: 'sync-value',
       }),
+      captureOf: DiBag.createProvider(() => requirements.captureOf, {
+        factoryReturnKind: 'sync-value',
+      }),
       hashInput: DiBag.createProvider(() => requirements.hashInput, {
         factoryReturnKind: 'sync-value',
       }),

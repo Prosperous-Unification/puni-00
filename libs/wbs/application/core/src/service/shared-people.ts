@@ -120,6 +120,8 @@ export function readSharedPeople(
       if (!(failure instanceof ScheduleCycleError) && !(failure instanceof CalendarRangeError))
         throw failure;
       const reason = failure instanceof ScheduleCycleError ? 'cycle' : 'calendar_range';
+      // Proof: returning unavailable for an upstream failure made both
+      // mounted cycle/range Retry skip-bookings cases answer 500 instead of 200.
       if (reads.project.id === projectId)
         return { kind: 'unavailable', reason, reads, influencers };
       influencers.push({

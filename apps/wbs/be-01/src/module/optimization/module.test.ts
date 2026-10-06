@@ -78,6 +78,7 @@ const hostRequirements = () => {
     }),
     inputOf: DiBag.createProvider(() => supplied.inputOf, { factoryReturnKind: 'sync-value' }),
     enabledOf: DiBag.createProvider(() => supplied.enabledOf, { factoryReturnKind: 'sync-value' }),
+    captureOf: DiBag.createProvider(() => supplied.captureOf, { factoryReturnKind: 'sync-value' }),
     hashInput: DiBag.createProvider(() => supplied.hashInput, { factoryReturnKind: 'sync-value' }),
     spawn: DiBag.createProvider(() => supplied.spawn, { factoryReturnKind: 'sync-value' }),
     runChild: DiBag.createProvider(() => supplied.runChild, { factoryReturnKind: 'sync-value' }),

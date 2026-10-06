@@ -30,9 +30,11 @@ import {
   SqliteOrganizationSelection,
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
+import type { Connection } from '@wbs/store-sqlite/db';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
 import { buildApp } from '../app';
+import type { ReservedSpawner } from '../module/optimization/contract';
 import { ActualRepository } from '../repository/actual';
 import { CalendarMarkerRepository } from '../repository/calendar-marker';
 import { CommandJournalRepository } from '../repository/command-journal';
@@ -138,7 +140,21 @@ export class OrganizationHarness {
       actorId: string,
       inputHash: string,
     ) => Promise<string>,
+    private readonly inputChanged?: (projectId: string) => void,
+    private readonly startOptimizer?: () => void,
   ) {}
+
+  /** Runs the composed background edit admission in integration tests. */
+  triggerOptimization(projectId: string): void {
+    if (this.inputChanged === undefined) throw new Error('composed optimizer is absent');
+    this.inputChanged(projectId);
+  }
+
+  /** Starts the composed restart pump in integration tests. */
+  startOptimization(): void {
+    if (this.startOptimizer === undefined) throw new Error('composed optimizer is absent');
+    this.startOptimizer();
+  }
 
   /** Runs one injected dormant worker pass against this harness's SQLite claim store. */
   checkDomains(
@@ -355,11 +371,17 @@ export class OrganizationHarness {
    * rolled back exactly as in production. The command suites need this; the
    * fixtures {@link open} wires cannot roll a batch back.
    */
-  static openComposed(withOptimizer = false, afterResolve?: () => void): OrganizationHarness {
+  static openComposed(
+    withOptimizer = false,
+    afterResolve?: () => void,
+    spawn: ReservedSpawner = () => new Promise<never>(() => undefined),
+    solverVersion = '0.1.0',
+    openReadOnlyConnection?: (dbPath: string) => Connection,
+  ): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
-    const source = openSqliteSource({ dbPath: path });
+    const source = openSqliteSource({ dbPath: path, openReadOnlyConnection });
     const bound = new Map<string, string>();
     const services = buildServices({
       source,
@@ -371,9 +393,9 @@ export class OrganizationHarness {
       ...(withOptimizer
         ? {
             optimizer: {
-              solverVersion: '0.1.0',
+              solverVersion,
               budgetMs: 60_000,
-              spawn: () => new Promise<never>(() => undefined),
+              spawn,
             },
           }
         : {}),
@@ -452,6 +474,8 @@ export class OrganizationHarness {
           })
         ).kind;
       },
+      services.optimizer?.inputChanged.bind(services.optimizer),
+      services.optimizer?.start.bind(services.optimizer),
     );
   }
 

@@ -129,6 +129,25 @@ they are not additional completion checkboxes. Steps 6.1a/6.2a are implemented a
    **6.2d:** omit elsewhere, release or snapshot-close ordering independently and observe wrong
    request/hash, a leaked unlaunched slot or admission inside the read. Unexpected exceptions
    throw after cleanup; retain terminal-evidence rules for already launched children.
+   **Remaining Retry TDD order (6.1d, then paired 6.2d):**
+   1. Add mounted RED cases for upstream-only edits (target revision unchanged) returning the
+      current shared hash, and a matching-hash Retry launching the holder-bearing input.
+      Implement human-scoped coherent input/settings capture and preserve admission authority.
+   2. Add endpoint-schema/client and mounted REDs for 409 `schedule-input-unavailable` with
+      `reason` and readable failing `projectId`: required engine-unavailable influencer,
+      target cycle and target calendar_range. Assert complete optimizer-state snapshots and
+      launcher calls unchanged; no fabricated hash or local-only fallback. Add upstream
+      cycle/range cases proving existing skip-bookings behavior still yields target input.
+   3. Prove snapshot close precedes Retry admission; revoke human access before capture and
+      before the admission write separately. Preserve missing/foreign and unexpected-failure
+      distinctions. Do not use the background project-owned capture for the human route.
+   4. Independently remove shared-input selection, unavailable refusal, failing-project identity,
+      scoped capture recheck and close-before-admission ordering; inject a write on refusal;
+      replace upstream skip-bookings with refusal; remove the response-contract variant.
+      Watch mounted/typed-client assertions fail for wrong hash/request, wrong refusal or
+      leaked identity, changed durable state, admission during read, or invalid response.
+      Restore each fault, add adjacent Proof comments and exact command/log evidence. Keep
+      this slice pending until all four admission paths and the paired proofs are reviewed.
 5. **6.1e — Installed saved/current capture.** Test, then pass scoped shared capture through
    the saved-plan installer and composition root. Test
    `mounted shared save and current retain their own chain`,

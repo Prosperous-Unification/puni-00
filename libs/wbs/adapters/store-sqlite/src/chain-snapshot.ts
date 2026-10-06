@@ -295,7 +295,8 @@ export function createLivePlanStore(
         throw failure;
       }
     } finally {
-      // Proof: omitting close failed all three owned lifecycle cases (0 closes instead of 1).
+      // Proof: omitting close failed all three owned lifecycle cases and the
+      // mounted admission check saw one open snapshot at both launch handoffs.
       connection.close();
     }
   }

@@ -664,25 +664,25 @@ The 6.2a rows below were injected separately and observed RED; final focused res
 6.1b/6.2b evidence section below for exact commands and outcomes. Rows 6.2c–f remain required
 future production-path negatives. A parse/load error does not count.
 
-| Step | Production fault to inject                               | Required production-path test and expected failure                                   | Observation                                                                                     |
-| ---- | -------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| 6.2a | Force shared scheduling for isolated/legacy access       | Mounted mode read moves an isolated date or changes its input hash                   | Observed exit 1: isolated influencers a1/a2 instead of []                                       |
-| 6.2a | Remove scoped ownership/cross-reference validation       | Foreign project/person enters the chain or corrupt crossing input is accepted        | Observed exit 1: foreign person exposed; removed ownership/rank checks lost named refusal       |
-| 6.2a | Read mode/rank/assignments outside the owned snapshot    | Concurrent combined edit returns a mixed chain                                       | Observed exit 1: target start 2 instead of 3; separate mode connection tore rank/readable state |
-| 6.2a | Default malformed mode or skip snapshot close            | Corrupt mode returns dates, or refusal/throw leaks the read connection               | Observed exit 1: corrupt mode accepted; background close count 0 instead of 1                   |
-| 6.2b | Omit target elsewhere or its response projection         | Mounted tree/export loses displaced dates, holder or waiting count                   | Observed RED; see 6.1b/6.2b evidence below                                                      |
-| 6.2b | Replace command-bound readers with a fresh connection    | Arrange/preflight ignores staged writes and accepts or arranges the wrong plan       | Observed RED; see 6.1b/6.2b evidence below                                                      |
-| 6.2c | Remove incoming basis from memo acceptance               | Warm load/space returns old B dates after only A changes                             | Not run                                                                                         |
-| 6.2c | Check cache before required influencer availability      | Warm available dates survive an engine-unavailable influencer                        | Not run                                                                                         |
-| 6.2c | Read aggregate projects from incompatible snapshots      | Concurrent upstream edit produces mutually inconsistent shared load/space bookings   | Not run                                                                                         |
-| 6.2d | Rebuild queue/debounce/Retry input without elsewhere     | Solver input differs from live shared input or old Retry hash is accepted            | Not run                                                                                         |
-| 6.2d | Skip unlaunched reservation release on refusal/throw     | Queued capture negative leaves a counted slot or launches a refused input            | Not run                                                                                         |
-| 6.2d | Admit target work before snapshot close                  | Read-only capture oracle observes generation/slot/queue mutation during derivation   | Not run                                                                                         |
-| 6.2e | Drop shared capture at installer/composition boundary    | Mounted save/current misses upstream displacement                                    | Not run                                                                                         |
-| 6.2e | Reread live influencers for a historical saved display   | Upstream edit/delete changes saved schedule bytes                                    | Not run                                                                                         |
-| 6.2f | Replace current full-key cache lookup with old-key reuse | H1 outcome serves after B's incoming calendar becomes H2                             | Not run                                                                                         |
-| 6.2f | Swallow unavailable/unknown chain outcomes               | Target returns unmarked Fast dates or hides an unexpected failure                    | Not run                                                                                         |
-| 6.2f | Advertise shared before deferred prerequisites           | Physical capability probe no longer equals isolated-only; shared restore is admitted | Not run                                                                                         |
+| Step | Production fault to inject                               | Required production-path test and expected failure                                   | Observation                                                                                                  |
+| ---- | -------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| 6.2a | Force shared scheduling for isolated/legacy access       | Mounted mode read moves an isolated date or changes its input hash                   | Observed exit 1: isolated influencers a1/a2 instead of []                                                    |
+| 6.2a | Remove scoped ownership/cross-reference validation       | Foreign project/person enters the chain or corrupt crossing input is accepted        | Observed exit 1: foreign person exposed; removed ownership/rank checks lost named refusal                    |
+| 6.2a | Read mode/rank/assignments outside the owned snapshot    | Concurrent combined edit returns a mixed chain                                       | Observed exit 1: target start 2 instead of 3; separate mode connection tore rank/readable state              |
+| 6.2a | Default malformed mode or skip snapshot close            | Corrupt mode returns dates, or refusal/throw leaks the read connection               | Observed exit 1: corrupt mode accepted; background close count 0 instead of 1                                |
+| 6.2b | Omit target elsewhere or its response projection         | Mounted tree/export loses displaced dates, holder or waiting count                   | Observed RED; see 6.1b/6.2b evidence below                                                                   |
+| 6.2b | Replace command-bound readers with a fresh connection    | Arrange/preflight ignores staged writes and accepts or arranges the wrong plan       | Observed RED; see 6.1b/6.2b evidence below                                                                   |
+| 6.2c | Remove incoming basis from memo acceptance               | Warm load/space returns old B dates after only A changes                             | Not run                                                                                                      |
+| 6.2c | Check cache before required influencer availability      | Warm available dates survive an engine-unavailable influencer                        | Not run                                                                                                      |
+| 6.2c | Read aggregate projects from incompatible snapshots      | Concurrent upstream edit produces mutually inconsistent shared load/space bookings   | Not run                                                                                                      |
+| 6.2d | Rebuild queue/debounce/Retry input without elsewhere     | Solver input differs from live shared input or old Retry hash is accepted            | Debounce omission watched: request lost holder; queued shared rebuild passes. Retry pending contract ruling. |
+| 6.2d | Skip unlaunched reservation release on refusal/throw     | Queued capture negative leaves a counted slot or launches a refused input            | Watched: thrown capture left one counted `starting` slot; disabled capture launched PRI.                     |
+| 6.2d | Admit target work before snapshot close                  | Read-only capture oracle observes generation/slot/queue mutation during derivation   | Watched: omitting owned close left one open read at both launch handoffs.                                    |
+| 6.2e | Drop shared capture at installer/composition boundary    | Mounted save/current misses upstream displacement                                    | Not run                                                                                                      |
+| 6.2e | Reread live influencers for a historical saved display   | Upstream edit/delete changes saved schedule bytes                                    | Not run                                                                                                      |
+| 6.2f | Replace current full-key cache lookup with old-key reuse | H1 outcome serves after B's incoming calendar becomes H2                             | Not run                                                                                                      |
+| 6.2f | Swallow unavailable/unknown chain outcomes               | Target returns unmarked Fast dates or hides an unexpected failure                    | Not run                                                                                                      |
+| 6.2f | Advertise shared before deferred prerequisites           | Physical capability probe no longer equals isolated-only; shared restore is admitted | Not run                                                                                                      |
 
 ### Planned implementation validation
 
@@ -984,3 +984,118 @@ Final scoped checks:
 
 The canonical host gate, full Nx test/lint/build, CI secrets and migration checks, deployment
 and live solver binding were not run in this bounded, uncommitted worktree.
+
+## Runtime 6.1d / 6.2d — shared optimizer admission and Retry
+
+The mounted live-tree read uses one captured shared input and settings after its owned SQLite
+observation closes; its response retains that captured display. Project-owned capture supplies
+edit debounce and queued restart. Human-scoped capture supplies Retry and rechecks access after
+route admission. A required unavailable chain returns typed HTTP 409
+`schedule-input-unavailable` with reason and readable failing project identity; it does not
+invent a hash or fall back to local input. Upstream-only changes stale the old hash, and a
+matching hash launches the holder-bearing shared request. Unlaunched queue reservations are
+released for absence, unavailable/disabled/stale capture, preflight refusal and thrown capture;
+launched children retain their seats until terminal evidence or cancellation.
+
+Mounted cases assert two holder-bearing initial requests, canonical hash and durable generation
+and slots; an upstream-only edit changes the request with the target revision fixed. Concurrent
+enablement/engine and upstream estimate changes cannot mix observations. The initial response
+stays idle, and launcher callbacks see zero open read connections. Export and borrowed command
+reads launch nothing. Queue cases inspect actual FIFO launch calls and durable slots; the
+unexpected-exception case now also admits the next queued TIME request after cleanup. Retry
+cases inspect the wire request, old/current hashes, full generation/cache/slot/queue/event
+snapshots on refusal, human access recheck and read-close ordering. Target cycle/range refuse;
+upstream cycle/range continue with skipped bookings. The public response contract and client
+reject malformed reason or project identity.
+
+### R5 watched faults
+
+Each log below records one Bun production-path test run with an independent injected fault;
+the source was restored after each RED. The seven initial/queue faults were watched before
+the amended Retry implementation; the five Retry faults were watched after it. All twelve
+named runs exited 1 with exactly one failing test. The exact test commands use the named
+pattern against the indicated file; full raw output is at each path.
+
+| Fault                                              | Command and raw log                                                                                                                                                                                                            | Observed RED                                                                                        |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Omit `buildServices.captureOf`                     | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'edit admission hashes the changed upstream booking'` — `/tmp/shared-people-r5-01-capture-wiring.log`                  | Holder-bearing `elsewhere` missing from actual edit request.                                        |
+| Skip initial live-tree admission                   | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'admits a holder-bearing shared input after the captured tree closes'` — `/tmp/shared-people-r5-02-tree-admission.log` | Zero launches instead of two.                                                                       |
+| Reread enablement outside snapshot                 | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'keeps optimizer enablement and upstream input on one observation'` — `/tmp/shared-people-r5-03-coherent-settings.log` | Two launches from old booking instead of none.                                                      |
+| Omit owned snapshot close                          | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'closes the shared observation before admitting'` — `/tmp/shared-people-r5-04-snapshot-close.log`                      | Launcher observed an open read connection.                                                          |
+| Omit queued captured-disable guard                 | `bun test apps/wbs/be-01/src/service/optimization-restart.db.test.ts --test-name-pattern 'releases a queued reservation after disabled capture'` — `/tmp/shared-people-r5-05-queue-disabled.log`                               | Disabled PRI launched beside next TIME.                                                             |
+| Bypass queued typed-unavailable guard              | `bun test apps/wbs/be-01/src/service/optimization-restart.db.test.ts --test-name-pattern 'releases a queued reservation after engine_unavailable capture'` — `/tmp/shared-people-r5-06-queue-unavailable.log`                  | Undefined input reached canonical hash and threw before FIFO pump continued.                        |
+| Omit queued `finally` release                      | `bun test apps/wbs/be-01/src/service/optimization-restart.db.test.ts --test-name-pattern 'releases a queued reservation when input capture throws'` — `/tmp/shared-people-r5-07-queue-finally.log`                             | Durable `starting` slot remained counted. The restored test additionally proves next TIME capacity. |
+| Replace scoped shared Retry input with local input | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'Retry rejects an upstream-only old hash'` — `/tmp/shared-people-r5-retry-01-local-input.log`                          | Old hash was not rejected as stale.                                                                 |
+| Bypass required-unavailable Retry refusal          | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'refuses Retry for a required unavailable engine'` — `/tmp/shared-people-r5-retry-02-unavailable-refusal.log`          | Typed 409 refusal changed.                                                                          |
+| Replace readable failing-project ID with target ID | Same command — `/tmp/shared-people-r5-retry-03-failing-project.log`                                                                                                                                                            | Response identified the wrong project.                                                              |
+| Bypass human-scoped capture recheck                | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'rechecks human authority in the Retry capture'` — `/tmp/shared-people-r5-retry-04-human-scope.log`                    | Revoked member received stale-hash 409 instead of 403.                                              |
+| Omit human snapshot close                          | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'closes the human Retry snapshot'` — `/tmp/shared-people-r5-retry-05-close.log`                                        | Launcher saw an open read connection.                                                               |
+
+Follow-up review required the actual serialized solver request to be checked separately from
+the holder-bearing canonical input. All four mounted initial/edit/queued/Retry paths now assert
+`request.request.elsewhere` at solver quantum resolution; the four-case green command is
+`bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'Retry rejects an upstream-only old hash|rebuilds a queued shared request|edit admission hashes the changed upstream booking|admits a holder-bearing shared input'`
+(`4 pass, 38 expectations`, `/tmp/shared-people-slice6d-wire-green.log`). These additional
+independent watched faults were restored after their RED runs:
+
+| Fault                                                                         | Exact command and raw log                                                                                                                                                                                                          | Observed RED                                                                                                                                                     |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Replace the serialized `elsewhere` in `buildSolverRequest` with `{}`          | The four-case command above — `/tmp/shared-people-slice6d-r5-wire-omission.log`                                                                                                                                                    | 0 pass / 4 fail: each launch kept its holder-bearing canonical input but sent `{}` in the actual solver request, expected `ana` interval `[0,144]` or `[0,192]`. |
+| Treat upstream cycle/range as target refusal instead of skipping its bookings | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'keeps a schedulable target when an upstream'` — `/tmp/shared-people-slice6d-r5-upstream-skip.log`                         | 0 pass / 2 fail: both upstream cycle and range cases returned 500 rather than a schedulable target.                                                              |
+| Remove the new 409 response variant from the endpoint schema                  | `bun test libs/wbs/domain/contracts/src/http/client.test.ts --test-name-pattern 'validates the modeled Retry schedule-input refusal'` — `/tmp/shared-people-slice6d-r5-contract-variant.log`                                       | 0 pass / 1 fail: typed client classified the 409 as `invalid_response` instead of the modeled refusal.                                                           |
+| Inject a live optimizer read before the target-cycle refusal                  | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'refuses Retry for a target cycle without optimizer writes or launch'` — `/tmp/shared-people-slice6d-r5-refusal-write.log` | The HTTP 409 stayed correct, but full optimizer-state equality failed: an unasked generation and two counted `starting` slots appeared (0 pass / 1 fail).        |
+
+The target cycle/range fixture enables optimization while retaining the Fast engine before its
+five-table before-snapshot; unmutated typed refusal, state equality and zero launch pass 2/2
+(`/tmp/shared-people-slice6d-refusal-state-green-final.log`). A preliminary injected read on a
+disabled target returned an idle generation-null answer and the test stayed green. That
+non-operative fault is **not** counted; enabling the target made the same injected write
+observable without changing the product route.
+
+### Scoped validation and process-test diagnosis
+
+`bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts
+apps/wbs/be-01/src/controller/project.controller.test.ts
+apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts
+apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts
+apps/wbs/be-01/src/service/optimization-restart.db.test.ts
+apps/wbs/be-01/src/service/optimization-events.db.test.ts
+apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts
+apps/wbs/be-01/src/service/optimization-spawn-handshake.proc.db.test.ts
+apps/wbs/be-01/src/service/optimization-orphan.proc.db.test.ts
+apps/wbs/be-01/src/module/optimization/module.test.ts
+libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts` passed **214**, skipped the
+existing orphan-process case **1**, failed **0**, with 19,347 expectations
+(`/tmp/shared-people-slice6d-final-tests-escalated.log`).
+The same command inside the filesystem sandbox failed only at the spawn-handshake marker wait
+(`213 pass, 1 skip, 1 fail`, `/tmp/shared-people-slice6d-final-tests.log`). Its isolated run
+also failed (`/tmp/shared-people-slice6d-spawn-isolated.log`). A disposable clean-base
+worktree at `f49cef02a5de5a5ba1284e64b9b0590615d47d07` reproduced the same failure
+(`/tmp/shared-people-slice6d-spawn-baseline.log`). Test-only baseline diagnostics observed
+both green durable slots `running` with their expected child PIDs; two `EPERM` errors occurred
+at `subprocess.stdin.end()` before the children could receive EOF and write markers
+(`/tmp/shared-people-slice6d-spawn-baseline-diagnostic.log`). Identical baseline and candidate
+isolated commands with approved unsandboxed process access passed 1/1, 13 assertions each
+(`/tmp/shared-people-slice6d-spawn-baseline-escalated.log`,
+`/tmp/shared-people-slice6d-spawn-escalated.log`). The test `afterEach` kills and awaits its
+children; the four diagnostic PIDs were absent on subsequent `ps`. The disposable baseline
+worktree was restored and removed. No production timeout or spawn lifecycle code changed.
+
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck build -p wbs-core wbs-store-sqlite wbs-be-01 wbs-contracts --skip-nx-cache --output-style=static` first failed only at backend lint: the new mounted test had import order and a redundant assertion (`/tmp/shared-people-slice6d-targets-final.log`, direct diagnostic `/tmp/shared-people-slice6d-eslint-focused.log`). After correction, direct backend eslint passed (`/tmp/shared-people-slice6d-eslint-backend.log`) and the exact Nx rerun passed all targets and dependencies (`/tmp/shared-people-slice6d-targets-final2.log`).
+
+After final formatting, `bun test` on the mounted schedule-organization controller and contracts
+HTTP client/refusal test files passed 94/94 with 265 expectations
+(`/tmp/shared-people-slice6d-final-changed-tests.log`). After the review proof additions,
+the same 11-file suite plus both HTTP contract files passed **254**, skipped the one existing
+orphan-process case, failed **0**, with 19,456 expectations; exact output is
+`/tmp/shared-people-slice6d-final-review-suite.log`. The exact affected Nx lint/typecheck/build
+command above passed again on the reviewed bytes (`/tmp/shared-people-slice6d-final-review-targets.log`).
+Final `bunx prettier --check` on all 23 changed files, `git diff --check`, pinned strict
+OpenSpec validation of this change and all-change validation are recorded at
+`/tmp/shared-people-slice6d-final-review-format.log`,
+`/tmp/shared-people-slice6d-final-review-diffcheck.log`,
+`/tmp/shared-people-slice6d-final-review-openspec-strict.json` and
+`/tmp/shared-people-slice6d-final-review-openspec-all.json`, respectively.
+
+Exact-SHA host gate, publication, CI, deployment and shared-mode activation were not performed
+in this uncommitted worktree. The existing isolated-only release boundary remains in force.

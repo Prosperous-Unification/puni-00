@@ -38,6 +38,7 @@ export const optimizationModule = DiBag.createBuilder()
         attemptToken,
         inputOf,
         enabledOf,
+        captureOf,
         hashInput,
         spawn,
         runChild,
@@ -57,6 +58,7 @@ export const optimizationModule = DiBag.createBuilder()
         attemptToken: CoordinatorOption<'attemptToken'>;
         inputOf: CoordinatorOption<'inputOf'>;
         enabledOf: CoordinatorOption<'enabledOf'>;
+        captureOf: CoordinatorOption<'captureOf'>;
         hashInput: CoordinatorOption<'hashInput'>;
         spawn: CoordinatorOption<'spawn'>;
         runChild: CoordinatorOption<'runChild'>;
@@ -81,6 +83,7 @@ export const optimizationModule = DiBag.createBuilder()
         attemptToken,
         inputOf,
         enabledOf,
+        captureOf,
         // Proof (2026-09-24): handing the coordinator `hashInput: () => 'module-hash'` instead of
         // the supplied port left `reads an idle plan under the identity installOptimization wires`
         // and `hashes a Retry through the cache-key port installOptimization wires` failing

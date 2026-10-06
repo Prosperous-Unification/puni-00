@@ -30,6 +30,8 @@ export interface SqliteSource extends Source<TransactionalStores> {
 export interface OpenSqliteSourceOptions {
   readonly dbPath: string;
   readonly openConnection?: (dbPath: string) => Connection;
+  /** Read-only connection factory for owned live observations. */
+  readonly openReadOnlyConnection?: (dbPath: string) => Connection;
   /** Optional Drizzle query observer for diagnostics such as statement-count tests. */
   readonly logger?: Logger;
 }
@@ -76,7 +78,8 @@ function openSqliteSourceWithSeams(
       const publicPlans = createLivePlanStore({
         ...scheduling,
         kind: 'owned',
-        openConnection: () => openReadOnlyConnection(options.dbPath),
+        openConnection: () =>
+          (options.openReadOnlyConnection ?? openReadOnlyConnection)(options.dbPath),
       });
       const commandPlans = createLivePlanStore({ ...scheduling, kind: 'borrowed', db: process.db });
       return {

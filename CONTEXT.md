@@ -1313,6 +1313,11 @@ An organization's capacity mode, `isolated` (each project schedules its people a
 default) or `shared` (a project works around its people's bookings elsewhere).
 _Avoid_: global capacity, cross-project mode
 
+**Unavailable schedule input**:
+A target's canonical scheduling facts cannot currently be obtained because its required
+influencer has no available engine or the target has a cycle or calendar-range failure.
+_Avoid_: stale input, idle optimization, missing project
+
 ### Architecture
 
 **Radical Modularity**:

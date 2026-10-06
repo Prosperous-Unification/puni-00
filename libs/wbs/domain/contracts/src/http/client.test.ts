@@ -565,6 +565,38 @@ test('forwards the Retry validator projected body to the transport', async () =>
   expect(received).toEqual([{ objective: 'pri', inputHash: 'held-hash' }]);
 });
 
+test('validates the modeled Retry schedule-input refusal on the typed client', async () => {
+  const supplied = {
+    params: { id: 'target' },
+    body: { objective: 'pri', inputHash: 'old' },
+  } as const;
+  const refusal = {
+    code: 'schedule-input-unavailable',
+    reason: 'engine_unavailable',
+    projectId: 'influencer',
+  } as const;
+  const accepted = clientFromShapes([retryProjectOptimization], () =>
+    Promise.resolve({ kind: 'json', status: 409, body: refusal }),
+  );
+  expect(await accepted.postApiProjectsByIdOptimizationRetry(supplied)).toMatchObject({
+    kind: 'refusal',
+    status: 409,
+    body: refusal,
+  });
+  for (const body of [
+    { ...refusal, reason: 'future' },
+    { code: refusal.code, reason: refusal.reason },
+  ]) {
+    const rejected = clientFromShapes([retryProjectOptimization], () =>
+      Promise.resolve({ kind: 'json', status: 409, body }),
+    );
+    expect(await rejected.postApiProjectsByIdOptimizationRetry(supplied)).toMatchObject({
+      kind: 'failure',
+      failure: { code: 'invalid_response', status: 409 },
+    });
+  }
+});
+
 test('forwards an asynchronous validator normalized value to the transport', async () => {
   const normalizing: SchemaShape<{ name: string }> = {
     ...write.body,

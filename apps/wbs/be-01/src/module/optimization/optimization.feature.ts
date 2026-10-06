@@ -46,6 +46,15 @@ export interface OptimizationCoordinatorOptions {
   readonly inputOf: (projectId: string) => Promise<ScheduleInput | null>;
   /** Whether an edit-triggered read may spend solver capacity for this project. */
   readonly enabledOf: (projectId: string) => Promise<boolean>;
+  /** One project-owned observation of shared input and enablement, closed before admission. */
+  readonly captureOf?: (projectId: string) => Promise<
+    | { readonly kind: 'scheduled'; readonly input: ScheduleInput; readonly enabled: boolean }
+    | { readonly kind: 'not_found' }
+    | {
+        readonly kind: 'unavailable';
+        readonly reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
+      }
+  >;
   /** The cache-key port: the composition root supplies SQLite's SHA-256 of the canonical input. */
   readonly hashInput: ScheduleInputHasher;
   /**
@@ -164,6 +173,14 @@ export class OptimizationCoordinator {
     );
     if (this.editEpoch.get(projectId) !== epoch) return;
     this.editEpoch.delete(projectId);
+    if (this.options.captureOf !== undefined) {
+      const captured = await this.options.captureOf(projectId);
+      if (captured.kind !== 'scheduled' || !captured.enabled) return;
+      // Proof: the mounted upstream-only edit test failed with no elsewhere
+      // when this branch fell through to the local input reader.
+      this.readPlan({ projectId, objective: 'pri', input: captured.input, enabled: true });
+      return;
+    }
     if (!(await this.options.enabledOf(projectId))) return;
     const input = await this.options.inputOf(projectId);
     if (input === null) return;
@@ -348,29 +365,51 @@ export class OptimizationCoordinator {
         budgetMs: next.entry.budgetMs,
         attemptToken: next.admission.attemptToken,
       };
-      const input = await this.options.inputOf(next.entry.projectId);
-      if (input === null) {
+      let released = false;
+      let handedOff = false;
+      const releaseUnlaunched = (): void => {
+        if (released) return;
         this.options.repository.releaseSlot(slot);
-        continue;
-      }
-      if (this.options.hashInput(input) !== next.inputHash) {
-        this.options.repository.releaseSlot(slot);
-        const enabled = await this.options.enabledOf(next.entry.projectId);
-        if (!enabled) continue;
-        this.readPlan({
-          projectId: next.entry.projectId,
-          objective: next.entry.objective,
-          input,
-          enabled,
-        });
-        continue;
-      }
+        released = true;
+      };
+      try {
+        const captured =
+          this.options.captureOf === undefined
+            ? undefined
+            : await this.options.captureOf(next.entry.projectId);
+        // Proof: bypassing this typed refusal sent an unavailable capture to
+        // the hash port and broke the queued pump before its next FIFO entry.
+        if (captured !== undefined && captured.kind !== 'scheduled') continue;
+        const input =
+          captured === undefined
+            ? await this.options.inputOf(next.entry.projectId)
+            : captured.input;
+        if (input === null) continue;
+        // Proof: omitting this captured enablement guard launched PRI despite
+        // a disabled queued observation; only the next TIME entry should run.
+        if (captured?.kind === 'scheduled' && !captured.enabled) continue;
+        if (this.options.hashInput(input) !== next.inputHash) {
+          releaseUnlaunched();
+          const enabled =
+            captured === undefined
+              ? await this.options.enabledOf(next.entry.projectId)
+              : captured.enabled;
+          if (!enabled) continue;
+          this.readPlan({
+            projectId: next.entry.projectId,
+            objective: next.entry.objective,
+            input,
+            enabled,
+          });
+          continue;
+        }
 
-      const built = buildSolverRequestPair(input, this.options.solverVersion, next.entry.budgetMs)[
-        next.entry.objective
-      ];
-      if (!built.ok) {
-        try {
+        const built = buildSolverRequestPair(
+          input,
+          this.options.solverVersion,
+          next.entry.budgetMs,
+        )[next.entry.objective];
+        if (!built.ok) {
           this.storeOutcome({
             claim: { ...slot, ownerId: this.options.ownerId },
             inputHash: next.inputHash,
@@ -378,27 +417,29 @@ export class OptimizationCoordinator {
             outcome: { kind: 'failed', reason: dispositionOfPreflightFailure(built.failure) },
             now: Math.max(this.options.now(), next.admission.startedAt),
           });
-        } finally {
-          // Proof: skipping preflight slot release failed all nine initial,
-          // queued and manual Retry refusal cases (0 pass / 9 fail).
-          this.options.repository.releaseSlot(slot);
+          continue;
         }
-        continue;
-      }
 
-      this.startReserved({
-        key: {
-          projectId: next.entry.projectId,
-          inputHash: next.inputHash,
-          contractVersion: next.entry.contractVersion,
-          budgetMs: next.entry.budgetMs,
-        },
-        objective: next.entry.objective,
-        generation: next.entry.generation,
-        admission: next.admission,
-        request: built.request,
-        input,
-      });
+        this.startReserved({
+          key: {
+            projectId: next.entry.projectId,
+            inputHash: next.inputHash,
+            contractVersion: next.entry.contractVersion,
+            budgetMs: next.entry.budgetMs,
+          },
+          objective: next.entry.objective,
+          generation: next.entry.generation,
+          admission: next.admission,
+          request: built.request,
+          input,
+        });
+        handedOff = true;
+      } finally {
+        // Proof: a thrown shared capture left a counted `starting` slot; the
+        // restart test saw it until this unlaunched cleanup released it.
+        // A handed-off child keeps its seat until terminal evidence arrives.
+        if (!handedOff) releaseUnlaunched();
+      }
     }
   }
 

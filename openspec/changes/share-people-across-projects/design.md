@@ -233,6 +233,26 @@ read snapshot, without replacing the displayed capture with a second independent
 The first response may show captured `idle` while that subsequent admission starts work; it must
 not claim that newly admitted work was already pending in the captured observation.
 
+Manual Retry uses a human-scoped coherent capture after the existing project-write authority
+check; it never substitutes the project-owned background capture. The capture revalidates the
+caller's access in its observation. A successful capture supplies input and settings together,
+then closes before Retry compares the caller's hash and enters the existing admission write.
+An upstream-only change returns the established `stale-input-hash` and `currentInputHash`;
+the transactional Retry authority recheck remains in place.
+
+When no canonical input can be obtained, Retry returns HTTP 409 with
+`{ code: 'schedule-input-unavailable', reason: 'engine_unavailable' | 'cycle' | 'calendar_range', projectId: string }`.
+For engine unavailability, `projectId` names the failing readable influencer or target from
+the authorized capture; for a target cycle/calendar-range failure it names the target. It
+does not fabricate a hash, classify the variant as idle, or fall back to local-only input.
+This refusal performs no cache, generation, slot, queue or event write and launches nothing.
+Absent/foreign targets and access refusals retain existing authority semantics, without
+leaking a failing project identity. Unexpected failures still throw. Upstream cycle/range
+failures keep the existing chain policy: record unavailable influencer evidence, omit those
+bookings and continue deriving the target; they alone do not trigger this Retry refusal.
+Keep the response extension in the shared endpoint/refusal contracts and their generated
+clients; no new endpoint, optimizer state or frontend control is needed.
+
 Queue capture happens after a reservation today. If input is absent, typed unavailable, stale or
 throws before launch, release the unlaunched reservation on every path. Keep expected absence,
 modeled engine unavailability and unexpected exceptions distinct. Preserve existing preflight
