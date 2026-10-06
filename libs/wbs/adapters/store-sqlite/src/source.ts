@@ -1,4 +1,5 @@
 import type { Source, TransactionalStores } from '@wbs/core';
+import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { Logger } from 'drizzle-orm';
 
 import { buildStores } from './build-stores';
@@ -11,8 +12,10 @@ import {
 } from './db';
 import {
   authorizeProjectFanoutIn,
+  authorizeRankMoveIn,
   authorizeStepFanoutIn,
   readFanoutObservationIn,
+  resolveDirectoryWriteIn,
 } from './fanout-capture';
 import { OPEN, WriteCoordinator } from './gate';
 import { probeSchema } from './health-probe';
@@ -39,6 +42,12 @@ export interface OpenSqliteSourceOptions {
   readonly openReadOnlyConnection?: (dbPath: string) => Connection;
   /** Optional Drizzle query observer for diagnostics such as statement-count tests. */
   readonly logger?: Logger;
+  /** Test diagnostic at the borrowed capture boundary; a throw aborts its owning write. */
+  readonly onFanoutCapture?: (organizationId: string) => unknown;
+  /** Test diagnostic of the completed borrowed observation; never substitutes it. */
+  readonly onCapturedFanout?: (captured: CapturedFanout) => void;
+  /** Test diagnostic of a borrowed UoW entry; never substitutes its transaction. */
+  readonly onBorrowedUnitOfWork?: () => void;
 }
 
 /** Opens SQLite persistence without changing its schema. */
@@ -99,11 +108,24 @@ function openSqliteSourceWithSeams(
           {
             // Proof: detaching this read onto a separate read-only connection
             // hid the staged command; cold mounted fan-out recorded no row.
-            capture: (organizationId: string) =>
-              readFanoutObservationIn(process.db, organizationId, scheduling),
+            capture: async (organizationId: string) => {
+              await options.onFanoutCapture?.(organizationId);
+              // Proof: substituting the earlier preflight capture after a queued
+              // assignment insert lost the Billing→Platform recipient row.
+              const captured = await readFanoutObservationIn(
+                process.db,
+                organizationId,
+                scheduling,
+              );
+              options.onCapturedFanout?.(captured);
+              return captured;
+            },
             authorizeProjectUpdate: authorizeProjectFanoutIn(process.db),
             authorizeStepRemoval: authorizeStepFanoutIn(process.db),
+            authorizeRankMove: authorizeRankMoveIn(process.db),
+            resolveDirectoryWrite: (address) => resolveDirectoryWriteIn(process.db, address),
           },
+          options.onBorrowedUnitOfWork,
         ),
       };
     },

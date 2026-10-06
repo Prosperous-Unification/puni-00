@@ -6,10 +6,12 @@ import {
   composeServices,
   type OidcVerifier,
   type PlanTransactionalStores,
+  type ProjectRankStore,
   servicesOver as coreServicesOver,
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
+import { standaloneRankStore } from '@wbs/core/service/standalone-rank';
 import { contractVersionOf } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
 import { type FetchLike, PushClient, systemTimers } from '@wbs/runtime-portable';
@@ -59,6 +61,7 @@ export interface ServicesOptions {
 export interface BeServices extends AccountfulServices {
   readonly optimizer: OptimizationCoordinator | undefined;
   readonly gate: SqliteSource['gate'];
+  readonly projectRanks: ProjectRankStore;
 }
 
 export type { WritingServices } from '@wbs/core';
@@ -103,31 +106,32 @@ export function buildServices(options: ServicesOptions): BeServices {
           }),
         };
   const scheduler = optimizerWiring(optimized).scheduler;
+  const boundSource = source.bindLivePlans({
+    schedulerOf: (readCaptured) =>
+      optimizerWiring(
+        readCaptured === undefined
+          ? undefined
+          : {
+              // Proof: using the process reader failed captured publication: first start 4 instead of 3.
+              readCaptured,
+              readLive: () => {
+                throw new Error('live optimizer admission inside chain snapshot');
+              },
+            },
+      ).scheduler,
+    ...(options.optimizer === undefined
+      ? {}
+      : {
+          optimization: {
+            contractVersion: contractVersionOf(options.optimizer.solverVersion),
+            budgetMs: options.optimizer.budgetMs,
+            now: Date.now,
+          },
+        }),
+  });
   const graph = composeServices({
     // Proof: omitting installation failed mounted `shared tree and export agree` (start 0 instead of 3).
-    source: source.bindLivePlans({
-      schedulerOf: (readCaptured) =>
-        optimizerWiring(
-          readCaptured === undefined
-            ? undefined
-            : {
-                // Proof: using the process reader failed captured publication: first start 4 instead of 3.
-                readCaptured,
-                readLive: () => {
-                  throw new Error('live optimizer admission inside chain snapshot');
-                },
-              },
-        ).scheduler,
-      ...(options.optimizer === undefined
-        ? {}
-        : {
-            optimization: {
-              contractVersion: contractVersionOf(options.optimizer.solverVersion),
-              budgetMs: options.optimizer.budgetMs,
-              now: Date.now,
-            },
-          }),
-    }),
+    source: boundSource,
     runtime: {
       clock,
       digest: nodeDigest,
@@ -190,5 +194,12 @@ export function buildServices(options: ServicesOptions): BeServices {
     }).optimizer;
   }
 
-  return { ...graph, optimizer: coordinator, gate: source.gate };
+  const publicRanks = boundSource.stores.projectRanks;
+  if (publicRanks === undefined) throw new Error('SQLite source omitted its public rank store');
+  return {
+    ...graph,
+    optimizer: coordinator,
+    gate: source.gate,
+    projectRanks: standaloneRankStore(publicRanks, boundSource.uow, graph.committedFanout),
+  };
 }

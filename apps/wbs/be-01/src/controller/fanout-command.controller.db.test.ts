@@ -191,6 +191,37 @@ it('records a cold shared command fan-out without a preceding tree GET', async (
       harness.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
     ),
   ).toEqual(beforeRefusal);
+  const mixed = await harness.call('ada', 'POST', `/api/projects/${upstream.projectId}/commands`, {
+    commands: [
+      { kind: 'createPerson', ref: 'fresh-person', name: 'Fresh', teamIds: [] },
+      {
+        kind: 'setAssignee',
+        workItemId: 'row-0',
+        stepId: upstream.stepId,
+        personId: null,
+        personRef: 'fresh-person',
+      },
+      {
+        kind: 'setEstimate',
+        workItemId: 'row-0',
+        stepId: upstream.stepId,
+        days: { optimistic: 7, realistic: 7, pessimistic: 7 },
+      },
+    ],
+  });
+  expect(mixed.status).toBe(200);
+  expect(
+    harness.sqlite
+      .query<{ name: string }, []>(
+        "SELECT person_organization.name FROM assignment JOIN person_organization ON person_organization.resource_id = assignment.person_id WHERE assignment.work_item_id = 'row-0'",
+      )
+      .get()?.name,
+  ).toBe('Fresh');
+  expect(
+    harness.sqlite
+      .query('SELECT * FROM event_log WHERE subscription = ? AND message LIKE ? ORDER BY seq')
+      .all(`project:${downstream.projectId}`, '%elsewhere_changed%'),
+  ).toHaveLength(3);
   expect(
     await harness.removeBareStep(upstream.projectId, upstream.stepId, harness.userId('ada'), true, {
       kind: 'scoped',
@@ -245,12 +276,33 @@ it('records distinct sorted causes from a directory-only batch across old shared
       [`row-${String(index)}`, project.stepId, 'ana'],
     );
   }
+  harness.sqlite.run("INSERT INTO person (id, name) VALUES ('ben', 'Ben')");
+  harness.sqlite.run(
+    "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ben', 'org-a', 'Ben')",
+  );
+  for (const [index, project] of projects.entries()) {
+    harness.sqlite.run(
+      'INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 20, ?)',
+      [`ben-row-${String(index)}`, project.projectId, `ben-row-${String(index)}`],
+    );
+    harness.sqlite.run(
+      'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
+      [`ben-row-${String(index)}`, project.stepId],
+    );
+    harness.sqlite.run(
+      'INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)',
+      [`ben-row-${String(index)}`, project.stepId, 'ben'],
+    );
+  }
   harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
   const first = projects[0];
   const second = projects[1];
   const third = projects[2];
   const answer = await harness.call('ada', 'POST', `/api/projects/${first.projectId}/commands`, {
-    commands: [{ kind: 'deletePerson', personId: 'ana', cascade: true }],
+    commands: [
+      { kind: 'deletePerson', personId: 'ana', cascade: true },
+      { kind: 'deletePerson', personId: 'ben', cascade: true },
+    ],
   });
   expect(answer.status).toBe(200);
   const rows = harness.sqlite

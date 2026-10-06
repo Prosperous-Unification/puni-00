@@ -8,6 +8,7 @@ import type { RetentionTimer } from './module/bounded-replay-sweep/retention-tim
 import { installCalendarMarker } from './module/calendar-marker/check';
 import { installCapacity } from './module/capacity/check';
 import { installDirectory } from './module/directory/check';
+import { standaloneDirectoryService } from './module/directory/standalone-directory';
 import { installEventLog } from './module/event-log/check';
 import { installPlanCommands } from './module/plan-commands/check';
 import type { PlanCommandRunner } from './module/plan-commands/plan-commands.feature';
@@ -280,12 +281,25 @@ export function composeServices(
         await broadcaster.pushRecorded(recorded.subscription, recorded, event);
     },
   };
-  const publicServices = servicesOver(source.stores, {
+  const rawPublicServices = servicesOver(source.stores, {
     clock: runtime.clock,
     broadcast: announcements,
     scheduler: runtime.scheduler,
     admission: CREATOR_ADMISSION,
   });
+  const publicServices = {
+    ...rawPublicServices,
+    directory:
+      source.stores.livePlans === undefined
+        ? rawPublicServices.directory
+        : standaloneDirectoryService({
+            directory: source.stores.directory,
+            uow: source.uow,
+            clock: runtime.clock,
+            announcements,
+            delivery: committedFanout,
+          }),
+  };
   const batch = (
     scope: Scope,
     broadcast: Broadcaster,
@@ -293,6 +307,9 @@ export function composeServices(
     beforeProjectUpdate?: BeforeProjectUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
   ) =>
+    // Proof: binding the public standalone directory service here made a
+    // project-null command attempt a nested UoW (typed 500 instead of 200)
+    // before its one durable fan-out could commit.
     servicesOver(scope.stores, {
       clock: runtime.clock,
       broadcast,

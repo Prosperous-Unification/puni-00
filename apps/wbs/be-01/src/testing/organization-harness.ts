@@ -10,6 +10,9 @@ import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
+import type { SavedPlanCaptureStore } from '@wbs/core/ports/saved-plan-capture-store';
+import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { createLogger } from '@wbs/observability';
 import {
@@ -29,6 +32,7 @@ import {
   SqliteDelegationUse,
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
+  type SqliteSource,
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
 import type { Connection } from '@wbs/store-sqlite/db';
@@ -36,6 +40,7 @@ import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
 import { buildApp } from '../app';
 import type { ReservedSpawner } from '../module/optimization/contract';
+import type { OptimizationCoordinator } from '../module/optimization/optimization.feature';
 import { ActualRepository } from '../repository/actual';
 import { CalendarMarkerRepository } from '../repository/calendar-marker';
 import { CommandJournalRepository } from '../repository/command-journal';
@@ -144,7 +149,63 @@ export class OrganizationHarness {
     private readonly inputChanged?: (projectId: string) => void,
     private readonly startOptimizer?: () => void,
     private readonly bareRemoveStep?: ReturnType<typeof createAdmittedWrites>['removeStepWithin'],
+    private readonly composedGate?: WriteCoordinator,
+    private readonly standaloneDirectory?: DirectoryService,
+    private readonly composedUow?: UnitOfWork,
+    private readonly optimizerCoordinator?: OptimizationCoordinator,
+    private readonly savedPlanCapture?: SavedPlanCaptureStore,
+    private readonly composedSource?: SqliteSource,
   ) {}
+
+  /** Drains async optimizer work and closes both SQLite connections in order. */
+  async closeComposed(): Promise<void> {
+    await this.optimizerCoordinator?.stop();
+    await this.composedSource?.close();
+    this.close();
+  }
+
+  /** Reads one coherent source input for a selected-ready mounted fixture. */
+  capturePlanInput(projectId: string) {
+    if (this.savedPlanCapture === undefined) throw new Error('saved-plan capture is absent');
+    return this.savedPlanCapture.readPlanInput(projectId);
+  }
+
+  /** Waits for composed edit admission before closing a selected-ready fixture. */
+  async drainOptimization(): Promise<void> {
+    await this.optimizerCoordinator?.drain();
+  }
+
+  /** Takes an earlier captured observation for a watched stale-preflight fault. */
+  captureFanout(organizationId: string): Promise<CapturedFanout> {
+    if (this.composedUow === undefined) throw new Error('composed UoW is absent');
+    return this.composedUow.run(async (scope) => {
+      if (scope.fanoutCapture === undefined) throw new Error('borrowed capture is absent');
+      return { commit: false, value: await scope.fanoutCapture.capture(organizationId) };
+    });
+  }
+
+  /** Exercises the composed public directory service without a command owner. */
+  removeStandaloneDirectoryWithin(...args: Parameters<DirectoryService['removeWithin']>) {
+    if (this.standaloneDirectory === undefined)
+      throw new Error('composed standalone directory service is absent');
+    return this.standaloneDirectory.removeWithin(...args);
+  }
+
+  /** Public composed directory graph for standalone service/DB boundary proofs. */
+  publicDirectoryService(): DirectoryService {
+    if (this.standaloneDirectory === undefined)
+      throw new Error('composed standalone directory service is absent');
+    return this.standaloneDirectory;
+  }
+
+  /** Holds the composed source's write turn until the test releases it. */
+  holdWriteTurn(until: Promise<void>, entered: () => void): Promise<void> {
+    if (this.composedGate === undefined) throw new Error('composed write gate is absent');
+    return this.composedGate.enter(() => {
+      entered();
+      return until;
+    });
+  }
 
   /** Exercises the installed bare NO_ADMISSION graph, distinct from scoped recovery routing. */
   removeBareStep(...args: Parameters<ReturnType<typeof createAdmittedWrites>['removeStepWithin']>) {
@@ -387,11 +448,20 @@ export class OrganizationHarness {
     openReadOnlyConnection?: (dbPath: string) => Connection,
     pushFetch: Parameters<typeof buildServices>[0]['pushFetch'] = () =>
       Promise.resolve(Response.json({ delivered_to_sockets: 0 })),
+    onFanoutCapture?: (organizationId: string) => unknown,
+    onCapturedFanout?: (captured: CapturedFanout) => void,
+    onBorrowedUnitOfWork?: () => void,
   ): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
-    const source = openSqliteSource({ dbPath: path, openReadOnlyConnection });
+    const source = openSqliteSource({
+      dbPath: path,
+      openReadOnlyConnection,
+      onFanoutCapture,
+      onCapturedFanout,
+      onBorrowedUnitOfWork,
+    });
     const bound = new Map<string, string>();
     const services = buildServices({
       source,
@@ -435,7 +505,7 @@ export class OrganizationHarness {
       invitations: new InvitationRepository(source.db, services.gate),
       joinRequests: new JoinRequestRepository(source.db, services.gate),
       spaces: new SpaceRepository(source.db, services.gate),
-      projectRanks: new ProjectRankRepository(source.db, services.gate),
+      projectRanks: services.projectRanks,
       emailDelivery: {
         deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
       },
@@ -493,6 +563,12 @@ export class OrganizationHarness {
         announcements: services.announcements,
         committedFanout: services.committedFanout,
       }).removeStepWithin,
+      services.gate,
+      services.directory,
+      services.uow,
+      services.optimizer,
+      source.history.savedPlanCapture,
+      source,
     );
   }
 

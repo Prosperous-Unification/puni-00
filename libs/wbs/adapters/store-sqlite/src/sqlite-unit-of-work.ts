@@ -25,12 +25,14 @@ export function sqliteUnitOfWork(
   gate: Gate,
   admitted: TransactionalStores,
   fanoutCapture?: FanoutCaptureStore,
+  onRun?: () => void,
 ): UnitOfWork<TransactionalStores> {
   const scope: Scope<TransactionalStores> = { stores: admitted, fanoutCapture };
   return {
     run<T>(
       act: (scope: Scope<TransactionalStores>) => Promise<Decision<T, TransactionalStores>>,
     ): Promise<T> {
+      onRun?.();
       return gate.enter(async () => {
         db.run(sql.raw('BEGIN IMMEDIATE'));
         let decision: Decision<T, TransactionalStores>;

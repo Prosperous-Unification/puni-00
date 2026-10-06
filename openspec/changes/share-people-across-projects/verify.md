@@ -1815,3 +1815,137 @@ Prettier, diff and normal-hook commands as the original checkpoint. Fresh output
 `/tmp/shared-people-fanout-6i-admission-{strict,all}.json`: strict 1/1 and all 148/148 passed.
 Changed-path Prettier passed and `git diff --check` found no whitespace errors. Product tests
 and R5 injections were not run for this documentation-only correction.
+
+## 6i per-store mutation ownership clarification
+
+Planning-only amendment on `plan/shared-people-fanout-6i-architecture`, parent
+`ce083e9983118fd143d2c93f2ebb1196268449e0`. The normative packet requires an immutable
+invocation-scoped DirectoryStore facade and one owner per raw mutator; it explicitly rejects
+wrapping whole patchPersonWithin/patchTeamWithin operations in a new UoW. No product edit,
+WBS mutation, publication or implementation completion is claimed.
+
+| Required fault                                               | Decisive witness                                                                             | Result  |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ------- |
+| Whole-service UoW replaces independent owners                | Public-facade rename survives later link after-capture failure; zero-pair links emit nothing | Pending |
+| Reuse service-wide before state or wrap raw internal helpers | Exact per-mutator before/after and owner/event counts                                        | Pending |
+| Capture before service validation                            | Invalid input refusal invokes zero capture/mutation/delivery                                 | Pending |
+| Mutable shared invocation access                             | Deterministic cross-organization interleaving preserves each scope                           | Pending |
+| Facade republishes/collects ordinary events                  | Existing ordinary service announcement count and timing remain                               | Pending |
+| Facade installed beneath command/import/repair owner         | Borrowed graph retains single comparison and no nested owner                                 | Pending |
+
+Targeted pinned strict OpenSpec, changed-path Prettier and diff checks are required for this
+local documentation checkpoint. Product tests, R5 mutations, Nx gates, CI and canonical host
+gate remain unrun here. All new implementation proofs/checkpoints remain pending.
+
+Initial formatting check flagged the inline ordered task block. It was replaced by explicit
+unchecked 6i.a–6i.d TDD checkpoints before the final formatting/strict/diff reruns.
+
+Formatting needed a further correction: multiline inline-code test names in the new task list
+were normalized to single-line names to avoid repeated Prettier indentation changes. Final
+pinned strict validation passed 1/1, four-file Prettier and diff checks passed; logs are
+`/tmp/6i-mutation-owner-plan-strict.json` and `/tmp/6i-mutation-owner-plan-format.log`.
+
+### 6i separate mutation-boundary and event-rollback proofs
+
+Planning correction atop `37ac4f4ab586f08cda8b80f32c47b02d6ef13c07`: links/memberships alone
+are not assumed scheduler inputs. The compound public-facade proof fails after-capture of the
+second link mutation and preserves the earlier rename. Separately, a cascade must first derive
+at least two real recipient/cause pairs before faulting the second event insert. Name-idempotent
+membership additions are observed normally; zero derived pairs means zero fan-out writes.
+
+| Fault                                | Required distinct witness                                                                            | Result  |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- | ------- |
+| Whole-service owner                  | Rename remains after second link mutation's after-capture fails; no invented event in zero-pair case | Pending |
+| Record after cascade commit          | Second real insert failure rolls back cascade, first event and sequences; no delivery                | Pending |
+| Emit on any membership/link mutation | Normal zero-pair comparison must stay silent                                                         | Pending |
+
+No product code or proof execution in this amendment. Planning validation uses pinned strict
+OpenSpec, four-file Prettier, diff and normal commit hooks; implementation proofs remain pending.
+
+Planning checks passed: pinned strict OpenSpec 1/1 (`/tmp/6i-split-proof-plan-strict.json`),
+four-file Prettier (`/tmp/6i-split-proof-plan-format.log`) and `git diff --check`. Final-byte
+reruns use those same commands/logs. No product test, R5 or host-gate result is claimed.
+
+### 6i implementation candidate and observed boundaries
+
+The standalone rank and directory paths now capture and record in the mutation owner's UoW,
+then deliver after release. Standalone directory services receive an invocation-scoped facade;
+each actual raw mutator has its own owner. The facade constructor performs no database work.
+Borrowed command services retain the raw stores and their existing outer owner. The scoped
+directory missing-row read checks trusted ownership corruption without opening a write owner
+before service input validation.
+
+The first compound person/team fixture was RED under whole-service ownership
+(`/tmp/shared-people-6i-person-partial-red.log`,
+`/tmp/shared-people-6i-team-partial-red.log`). The per-mutator facade restored the two cases
+GREEN (`/tmp/shared-people-6i-partial-facade-green.log`). A later second-owner after-capture
+failure retains the first rename and its ordinary directory announcement while discarding
+the later link mutation (`/tmp/shared-people-6i-second-owner-after-capture-green.log`, 1/1,
+7 assertions). That link patch produced zero scheduler pairs; no fan-out event was fabricated.
+Successful compound person/team patches enter two owners and capture four observations
+(`/tmp/shared-people-6i-mutator-owner-count-green.log`). The separate real used-person cascade
+control recorded three exact recipient/cause pairs
+(`/tmp/shared-people-6i-cascade-three-pair-control.log`). Faulting its second event insert
+rolled back the cascade, first event and sequence, with no push
+(`/tmp/shared-people-6i-cascade-event-atomic-green.log`).
+
+| Watched fault                                                              | Production-path failure log                                                                                                                                                                                              |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Entry UoW before invalid/empty input classification                        | `/tmp/shared-people-6i-r5-entry-owner-preflight.log`: owner calls 6 instead of 0                                                                                                                                         |
+| Bypass trusted ownership read on missing scoped row                        | `/tmp/shared-people-6i-r5-ownership-read-bypass.log`: orphan accepted instead of thrown corruption                                                                                                                       |
+| Reuse whole-service before state                                           | `/tmp/shared-people-6i-r5-reuse-whole-service-before.log`: three captures instead of four                                                                                                                                |
+| Bind borrowed command directory to standalone facade                       | `/tmp/shared-people-6i-r5-borrowed-standalone-binding.log`: nested-owner diagnostic and mounted 500 instead of 200                                                                                                       |
+| Share latest directory address across invocations                          | `/tmp/shared-people-6i-r5-global-directory-context.log`: first organization's write returns not_found while second succeeds                                                                                              |
+| Omit cold boot rank binding                                                | `/tmp/shared-people-6i-r5-boot-rank-binding.log`: missing second durable recipient event                                                                                                                                 |
+| Omit rank current-admin or capture-before-admin checks                     | `/tmp/shared-people-6i-r5-rank-current-admin.log`, `/tmp/shared-people-6i-r5-rank-capture-before-admin.log`                                                                                                              |
+| Move rank or directory delivery inside owner                               | `/tmp/shared-people-6i-r5-rank-delivery-inside-owner.log`, `/tmp/shared-people-6i-r5-directory-delivery-inside-owner.log`                                                                                                |
+| Record after owner release or capture after mutation                       | `/tmp/shared-people-6i-r5-rank-record-after-uow.log`, `/tmp/shared-people-6i-r5-directory-record-after-uow.log`, `/tmp/shared-people-6i-r5-rank-late-capture.log`, `/tmp/shared-people-6i-r5-directory-late-capture.log` |
+| Replace selected schedule with Fast; omit numeric rank cause               | `/tmp/shared-people-6i-r5-selected-rank-forced-fast.log`, `/tmp/shared-people-6i-r5-numeric-rank-cause.log`                                                                                                              |
+| Omit scoped directory composition binding or resolve address after capture | `/tmp/shared-people-6i-r5-directory-composition-binding.log`, `/tmp/shared-people-6i-r5-directory-capture-before-resolver.log`                                                                                           |
+
+The valid empty/invalid-input control has zero owner/capture/delivery calls
+(`/tmp/shared-people-6i-invalid-zero-owner-green.log`). The idempotent existing-person add
+changes membership through one raw owner, but the scheduling hash remains unchanged and normal
+comparison emits no pair (`/tmp/shared-people-6i-idempotent-person-green.log`). Borrowed
+project-null and two-resource batches preserve one outer owner
+(`/tmp/shared-people-6i-borrowed-owner-green.log`,
+`/tmp/shared-people-6i-borrowed-two-resource-green.log`). The selected-ready rank and settings
+fixtures check actual numeric downstream starts and byte-equal optimizer tables
+(`/tmp/shared-people-6i-selected-rank-green.log`,
+`/tmp/shared-people-6i-selected-settings-green.log`). The initially attempted Working Plan
+reload mutation did not reach a changed event answer and is **not counted** as R5 proof;
+the borrowed once-per-batch witness covers this boundary instead.
+
+An initial combined sandbox run failed 27 boot cases with socket `EPERM` and passed 57 others
+(`/tmp/shared-people-6i-seven-file-green.log`); it is not a passing suite. The exact boot
+suite passed unsandboxed 29/29, 70 assertions
+(`/tmp/shared-people-6i-boot-unsandboxed.log`). On final formatted test bytes, the six-file
+nonboot command `bun test apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts apps/wbs/be-01/src/controller/fanout-selected-rank.controller.db.test.ts apps/wbs/be-01/src/controller/fanout-command.controller.db.test.ts apps/wbs/be-01/src/controller/project-rank.controller.db.test.ts libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts libs/wbs/adapters/store-sqlite/src/working-plan-order.db.test.ts` passed 56/56, 361 assertions
+(`/tmp/shared-people-6i-nonboot-final-bytes.log`).
+
+Adding the project rank store initially broke the conformance type graph and memory's passed-case
+expectation (`/tmp/shared-people-6i-final-nx-lint-type.log`,
+`/tmp/shared-people-6i-conformance-type.log`,
+`/tmp/shared-people-6i-conformance-repair.log`). The SQLite source now offers and runs the
+scoped rank case; memory explicitly declares it absent. `bun test
+libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts
+libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts` passed 146/146,
+11,510 assertions (`/tmp/shared-people-6i-conformance-repair-green.log`), and store TS build
+passed (`/tmp/shared-people-6i-conformance-type-green.log`). The full affected
+`NX_DAEMON=false bunx nx run-many -t lint typecheck -p wbs-core wbs-store-sqlite wbs-be-01
+--parallel=3` rerun passed 8/8 (`/tmp/shared-people-6i-nx-lint-type-rerun.log`). Declared
+`wbs-core:build:portable` and `wbs-be-01:build` passed
+(`/tmp/shared-people-6i-core-build-final.log`, `/tmp/shared-people-6i-be-build-final.log`).
+
+Final documentation formatting, pinned strict/all OpenSpec, diff, local hooks, independent
+implementation review and the exact-SHA host gate remain separate; no CI, push, merge or
+activation is claimed here. Task 6i and later 6j–6l remain unchecked.
+
+The first final Prettier check found only the mounted directory controller test's formatting
+(`/tmp/shared-people-6i-final-format.log`). Prettier rewrote that test, then its affected
+mounted suite passed 26/26, 198 assertions
+(`/tmp/shared-people-6i-directory-final-formatted.log`) and `wbs-be-01:lint` passed again
+(`/tmp/shared-people-6i-be-lint-after-format.log`). Pinned strict OpenSpec validated 1/1
+(`/tmp/shared-people-6i-final-strict.json`); all validated 148/148, comprising 130 changes
+and 18 specs (`/tmp/shared-people-6i-final-all.json`). Final format and diff checks follow
+this ledger edit.

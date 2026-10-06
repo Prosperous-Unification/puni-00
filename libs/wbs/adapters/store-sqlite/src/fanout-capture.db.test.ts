@@ -27,6 +27,35 @@ afterEach(() => {
     rmSync(directory, { recursive: true, force: true });
 });
 
+it('keeps legacy and isolated captured owners silent without reading a scheduler', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-fanout-silent-'));
+  directories.push(directory);
+  const path = await openSpaceDatabase(directory);
+  const connection = openConnection(path);
+  try {
+    const options: Parameters<typeof readFanoutObservationIn>[2] = {
+      schedulerOf: () => {
+        throw new Error('silent owner must not read shared scheduler');
+      },
+    };
+    const legacy = await readFanoutObservationIn(connection.db, 'org-a', options);
+    expect(legacy.observation).toEqual({ mode: 'legacy', organizationId: null, projects: [] });
+    expect(legacy.localFacts.size).toBe(0);
+    connection.db.run(
+      sql.raw("UPDATE organization_activation SET state = 'activated', activated_at = 1"),
+    );
+    const isolated = await readFanoutObservationIn(connection.db, 'org-a', options);
+    expect(isolated.observation).toEqual({
+      mode: 'isolated',
+      organizationId: 'org-a',
+      projects: [],
+    });
+    expect(isolated.localFacts.size).toBe(0);
+  } finally {
+    connection.close();
+  }
+});
+
 it('captures staged upstream displacement on the borrowed writer without admitting optimization', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-fanout-capture-'));
   directories.push(directory);

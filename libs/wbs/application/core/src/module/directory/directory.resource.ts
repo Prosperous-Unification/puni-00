@@ -18,6 +18,10 @@ import type {
   TeamWithServices,
   TouchedProjects,
 } from '../../ports/directory-store';
+import type {
+  DirectoryWriteAddress,
+  DirectoryWriteResolution,
+} from '../../ports/fanout-capture-store';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
@@ -37,6 +41,13 @@ const OPAQUE_NAME_ATTEMPTS = 3;
 
 export interface DirectoryServiceOptions {
   directory: DirectoryStore;
+  /** Explicit per-invocation access for public standalone writes; borrowed graphs omit it. */
+  standaloneWrite?: <T>(
+    address: DirectoryWriteAddress,
+    refuse: (reason: Extract<DirectoryWriteResolution, { ok: false }>['reason']) => T,
+    act: (borrowed: DirectoryService) => Promise<T>,
+    accepted: (value: T) => boolean,
+  ) => Promise<T>;
   /**
    * Required, like the step service's. A directory service built without one
    * would rename somebody assigned across three plans and tell none of them —
@@ -764,6 +775,15 @@ export class DirectoryService {
     name: string,
     access: ResourceAccess,
   ): Promise<{ id: string; name: string } | null> {
+    if (this.opts.standaloneWrite !== undefined)
+      return this.opts.standaloneWrite(
+        { kind: 'add', catalog, access },
+        (reason) => {
+          throw new Error(`standalone directory add unexpectedly refused: ${reason}`);
+        },
+        (borrowed) => borrowed.addWithin(catalog, actorId, name, access),
+        (value) => value !== null,
+      );
     if (access.kind === 'legacy') {
       const legacy = {
         tags: () => this.addTag(actorId, name),
@@ -831,6 +851,13 @@ export class DirectoryService {
     name: string,
     access: ResourceAccess,
   ): Promise<DirectoryOutcome<{ id: string; name: string }>> {
+    if (this.opts.standaloneWrite !== undefined)
+      return this.opts.standaloneWrite(
+        { kind: 'rename', catalog, resourceId: id, access },
+        (reason) => ({ ok: false, reason }),
+        (borrowed) => borrowed.renameWithin(catalog, id, actorId, name, access),
+        (value) => value.ok,
+      );
     if (access.kind === 'legacy') {
       const legacy = {
         tags: () => this.renameTag(id, actorId, name),
@@ -915,7 +942,11 @@ export class DirectoryService {
   ): Promise<DirectoryCatalogRows[C][number] | undefined> {
     const entries: readonly DirectoryCatalogRows[C][number][] =
       await this.opts.directory.listInOrganization(catalog, scope.organizationId);
-    return entries.find((entry) => entry.id === id);
+    const owned = entries.find((entry) => entry.id === id);
+    // Proof: bypassing this targeted missing-root inspection answered a present
+    // ownerless person as not_found instead of throwing in the standalone test.
+    if (owned === undefined) await this.opts.directory.inspectMissingOwnership?.(catalog, id);
+    return owned;
   }
 
   /** Whether the organization owns every one of `ids` in `catalog`. */
@@ -952,6 +983,13 @@ export class DirectoryService {
     patch: TeamPatch,
     access: ResourceAccess,
   ): Promise<DirectoryOutcome<TeamWithServices>> {
+    if (this.opts.standaloneWrite !== undefined)
+      return this.opts.standaloneWrite(
+        { kind: 'patch-team', teamId, serviceIds: patch.serviceIds, access },
+        (reason) => ({ ok: false, reason }),
+        (borrowed) => borrowed.patchTeamWithin(teamId, actorId, patch, access),
+        (value) => value.ok,
+      );
     if (access.kind === 'legacy') return this.patchTeam(teamId, actorId, patch);
     if (patch.name === undefined && patch.serviceIds === undefined) {
       return { ok: false, reason: 'nothing_to_change' };
@@ -999,6 +1037,13 @@ export class DirectoryService {
     access: ResourceAccess,
     kind?: PersonKind,
   ): Promise<DirectoryOutcome<Person>> {
+    if (this.opts.standaloneWrite !== undefined)
+      return this.opts.standaloneWrite(
+        { kind: 'add-person', teamIds, access },
+        (reason) => ({ ok: false, reason }),
+        (borrowed) => borrowed.addPersonWithin(actorId, name, teamIds, access, kind),
+        (value) => value.ok,
+      );
     if (access.kind === 'legacy') return this.addPerson(actorId, name, teamIds, kind);
     const clean = cleanName(name);
     if (clean === null) return { ok: false, reason: 'name_required' };
@@ -1067,6 +1112,13 @@ export class DirectoryService {
     patch: PersonPatchInput,
     access: ResourceAccess,
   ): Promise<DirectoryOutcome<PersonWithTeams>> {
+    if (this.opts.standaloneWrite !== undefined)
+      return this.opts.standaloneWrite(
+        { kind: 'patch-person', personId, teamIds: patch.teamIds, access },
+        (reason) => ({ ok: false, reason }),
+        (borrowed) => borrowed.patchPersonWithin(personId, actorId, patch, access),
+        (value) => value.ok,
+      );
     if (access.kind === 'legacy') return this.patchPerson(personId, actorId, patch);
     if (patch.name === undefined && patch.teamIds === undefined && patch.kind === undefined) {
       return { ok: false, reason: 'nothing_to_change' };
@@ -1130,6 +1182,13 @@ export class DirectoryService {
     cascade: boolean,
     access: ResourceAccess,
   ): Promise<RemoveDirectoryOutcome> {
+    if (this.opts.standaloneWrite !== undefined)
+      return this.opts.standaloneWrite(
+        { kind: 'remove', catalog, resourceId: id, access },
+        () => ({ ok: false, reason: 'not_found' }),
+        (borrowed) => borrowed.removeWithin(catalog, id, actorId, cascade, access),
+        (value) => value.ok,
+      );
     const removals = {
       people: {
         usageOf: (entry: string) => this.opts.directory.usageOfPerson(entry),

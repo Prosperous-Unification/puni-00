@@ -250,6 +250,25 @@ compares both directions`, `directory edit has causes without project-row edits`
       observers beneath borrowed stores, record after commit, and deliver before writer
       release. Prove rank and standalone directory refusal/event/sequence atomicity and
       delivery separately; retain command/Working-plan directory single-owner proofs.
+- [ ] 6i.a. **Preserve standalone mutation boundaries.** RED `standalone rename survives later link after-capture failure` through the public facade for person/team. Introduce the invocation-scoped
+      DirectoryStore facade and one UoW per raw mutator. A links-only zero-pair case must emit nothing. Watch whole-service wrapping lose the
+      retained rename, restore GREEN, then review this boundary before 6i.b.
+- [ ] 6i.b. **Observe each actual mutation.** RED `each raw mutation observes its own before state`
+      and `invalid standalone service input never captures`. Bind exact-address before/after
+      capture and typed outcomes per mutator. Watch reused before-state, inner helper wrapping
+      and capture-before-service-validation fail independently. Separately prove
+      `standalone cascade rolls back a later real event insert`: confirm at least two actual
+      comparison-derived pairs, fail the second insert, and assert full owner rollback with no
+      delivery. Move recording after commit to watch RED. Observe name-idempotent membership
+      additions without assuming they produce pairs; restore GREEN before 6i.c.
+- [ ] 6i.c. **Keep invocation context and announcements separate.** RED `standalone contexts cannot cross` and `ordinary announcements retain one publisher`. Prove immutable invocation
+      ResourceAccess and original service announcement ownership. Watch shared mutable context
+      and facade republishing/whole-service collection fail; restore GREEN before 6i.d.
+- [ ] 6i.d. **Preserve borrowed ownership.** RED/refine mounted `borrowed directory emits once`.
+      Prove command/import/repair graphs keep raw OPEN stores and unchanged Working plan refresh.
+      Watch facade installation under the existing owner fail through deterministic owner/event
+      witnesses, then restore GREEN. Each checkpoint preserves earlier typed refusal/current-rank
+      proofs; 6i remains open until its complete rank/settings/directory matrix is reviewed.
 - [ ] 6j. **Import and final deletion.** Before drain integration, resolve and test synchronous
       transaction ownership for borrowed projection reads (design.md); do not pass async
       callbacks to Drizzle transactions. Bind `module/plan-import/composition.ts` and final

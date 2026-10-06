@@ -1,3 +1,4 @@
+import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
@@ -14,9 +15,76 @@ import { type Answer, OrganizationHarness } from '../testing/organization-harnes
 let h: OrganizationHarness;
 let own: string;
 let foreign: string;
+let captureActive: boolean;
+let captureCalls: number;
+let countCaptures: boolean;
+let observedCaptures: number;
+let capturedOrganizations: string[];
+let recordCaptured: boolean;
+let capturedValues: CapturedFanout[];
+let failCapturedAfter: number | null;
+let holdCapture: ((organizationId: string) => Promise<void>) | null;
+let onOwnerAttempt: (() => void) | null;
+let refuseNestedOwner: boolean;
+let recordCaptureNames: boolean;
+let capturedPersonNames: string[];
+let countOwners: boolean;
+let ownerCalls: number;
+let pushDuringTest: (() => Promise<Response>) | null;
 
 beforeEach(async () => {
-  h = OrganizationHarness.openComposed();
+  captureActive = false;
+  captureCalls = 0;
+  countCaptures = false;
+  observedCaptures = 0;
+  capturedOrganizations = [];
+  recordCaptured = false;
+  capturedValues = [];
+  failCapturedAfter = null;
+  holdCapture = null;
+  onOwnerAttempt = null;
+  refuseNestedOwner = false;
+  recordCaptureNames = false;
+  capturedPersonNames = [];
+  countOwners = false;
+  ownerCalls = 0;
+  pushDuringTest = null;
+  h = OrganizationHarness.openComposed(
+    false,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    () => pushDuringTest?.() ?? Promise.resolve(Response.json({ delivered_to_sockets: 0 })),
+    (organizationId) => {
+      if (countCaptures) observedCaptures += 1;
+      if (countCaptures) capturedOrganizations.push(organizationId);
+      if (captureActive) {
+        captureCalls += 1;
+        throw new Error('injected directory capture must not run on refusal');
+      }
+      return holdCapture?.(organizationId);
+    },
+    (captured) => {
+      if (failCapturedAfter === observedCaptures)
+        throw new Error('injected second-owner after-capture failure');
+      if (recordCaptured) capturedValues.push(captured);
+      if (!recordCaptureNames) return;
+      const name = h.sqlite
+        .query<{ name: string }, []>(
+          "SELECT name FROM person_organization WHERE resource_id = 'pe-a'",
+        )
+        .get()?.name;
+      if (name === undefined) throw new Error('capture fixture lost the addressed person');
+      capturedPersonNames.push(name);
+    },
+    () => {
+      if (countOwners) ownerCalls += 1;
+      if (refuseNestedOwner && ownerCalls > 1)
+        throw new Error('nested standalone directory owner attempted inside command');
+      onOwnerAttempt?.();
+    },
+  );
   for (const username of ['ada', 'grace', 'vic']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
@@ -97,12 +165,758 @@ function withoutAudit(row: unknown): unknown {
   );
 }
 
+async function rejectedError(write: Promise<unknown>): Promise<Error> {
+  try {
+    await write;
+  } catch (cause) {
+    if (cause instanceof Error) return cause;
+    throw new Error('directory write rejected with a non-Error cause', { cause });
+  }
+  throw new Error('directory write unexpectedly succeeded');
+}
+
 async function list(username: string, path: string, key: string): Promise<unknown> {
   const answer = await h.call(username, 'GET', path);
   return (answer.body as Record<string, unknown>)[key];
 }
 
+async function seedSharedStandalonePerson(projectIds: readonly string[]): Promise<void> {
+  for (const [index, projectId] of projectIds.entries()) {
+    const read = await h.call('ada', 'GET', `/api/projects/${projectId}`);
+    const stepId = (read.body as { steps: { id: string }[] }).steps.at(0)?.id;
+    if (stepId === undefined) throw new Error('standalone directory fixture has no step');
+    const workItemId = `standalone-person-row-${String(index)}`;
+    h.sqlite.run(
+      "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+      [projectId],
+    );
+    h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
+      workItemId,
+      projectId,
+      workItemId,
+    ]);
+    h.sqlite.run(
+      'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
+      [workItemId, stepId],
+    );
+    h.sqlite.run('INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)', [
+      workItemId,
+      stepId,
+      'pe-a',
+    ]);
+  }
+  h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+}
+
 describe('after activation', () => {
+  it('returns invalid standalone service input before any owner or capture', async () => {
+    const actorId = h.userId('ada');
+    const access = {
+      kind: 'scoped' as const,
+      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+    };
+    const service = h.publicDirectoryService();
+    const before = snapshot();
+    countOwners = true;
+    captureActive = true;
+    try {
+      expect(await service.patchPersonWithin('missing-person', actorId, {}, access)).toEqual({
+        ok: false,
+        reason: 'nothing_to_change',
+      });
+      expect(await service.patchPersonWithin('pe-a', actorId, { kind: 'invalid' }, access)).toEqual(
+        { ok: false, reason: 'invalid_kind' },
+      );
+      expect(await service.patchPersonWithin('pe-a', actorId, { name: '' }, access)).toEqual({
+        ok: false,
+        reason: 'name_required',
+      });
+      expect(await service.patchTeamWithin('missing-team', actorId, {}, access)).toEqual({
+        ok: false,
+        reason: 'nothing_to_change',
+      });
+      expect(await service.patchTeamWithin('tm-a', actorId, { name: '' }, access)).toEqual({
+        ok: false,
+        reason: 'name_required',
+      });
+      expect(await service.addWithin('teams', actorId, '', access)).toBeNull();
+    } finally {
+      captureActive = false;
+      countOwners = false;
+    }
+    expect(ownerCalls).toBe(0);
+    expect(captureCalls).toBe(0);
+    expect(snapshot()).toEqual(before);
+  });
+  it('refuses absent and validly foreign standalone directory addresses before capture', async () => {
+    h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    const access = {
+      kind: 'scoped' as const,
+      scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' as const },
+    };
+    const before = snapshot();
+    const eventBefore = h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all();
+    const sequenceBefore = h.sqlite
+      .query('SELECT * FROM event_sequencer ORDER BY subscription')
+      .all();
+    captureActive = true;
+    for (const personId of ['missing-person', 'pe-b']) {
+      expect(
+        await h.removeStandaloneDirectoryWithin('people', personId, h.userId('ada'), true, access),
+      ).toEqual({ ok: false, reason: 'not_found' });
+    }
+    expect(captureCalls).toBe(0);
+    expect(snapshot()).toEqual(before);
+    expect(h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all()).toEqual(
+      eventBefore,
+    );
+    expect(h.sqlite.query('SELECT * FROM event_sequencer ORDER BY subscription').all()).toEqual(
+      sequenceBefore,
+    );
+  });
+
+  it('throws for a present scoped person with missing trusted ownership before capture', async () => {
+    h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    h.sqlite.run("INSERT INTO person (id, name) VALUES ('orphan-person', 'orphan')");
+    const before = snapshot();
+    captureActive = true;
+    expect(
+      (
+        await rejectedError(
+          h.removeStandaloneDirectoryWithin('people', 'orphan-person', h.userId('ada'), true, {
+            kind: 'scoped',
+            scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+          }),
+        )
+      ).message,
+    ).toContain('lacks ownership');
+    expect(captureCalls).toBe(0);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('throws for a trusted assignment reaching a foreign project before standalone capture', async () => {
+    const read = await h.call('grace', 'GET', `/api/projects/${foreign}`);
+    const stepId = (read.body as { steps: { id: string }[] }).steps.at(0)?.id;
+    if (stepId === undefined) throw new Error('foreign project has no step');
+    h.sqlite.run(
+      "INSERT INTO work_item (id, project_id, position, name) VALUES ('corrupt-reach-row', ?, 10, 'Corrupt reach')",
+      [foreign],
+    );
+    h.sqlite.run(
+      "INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('corrupt-reach-row', ?, 'pe-a')",
+      [stepId],
+    );
+    h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    const before = snapshot();
+    captureActive = true;
+    expect(
+      (
+        await rejectedError(
+          h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
+            kind: 'scoped',
+            scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+          }),
+        )
+      ).message,
+    ).toContain('reached from outside it');
+    expect(captureCalls).toBe(0);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('keeps standalone team and service link refusals typed before capture', async () => {
+    h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    const actorId = h.userId('ada');
+    const access = {
+      kind: 'scoped' as const,
+      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+    };
+    const before = snapshot();
+    const eventsBefore = h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all();
+    const sequencesBefore = h.sqlite
+      .query('SELECT * FROM event_sequencer ORDER BY subscription')
+      .all();
+    captureActive = true;
+    const service = h.publicDirectoryService();
+    for (const serviceId of ['sv-b', 'missing-service'])
+      expect(
+        await service.patchTeamWithin('tm-a', actorId, { serviceIds: [serviceId] }, access),
+      ).toEqual({ ok: false, reason: 'unknown_service' });
+    for (const teamId of ['tm-b', 'missing-team']) {
+      expect(
+        await service.patchPersonWithin('pe-a', actorId, { teamIds: [teamId] }, access),
+      ).toEqual({ ok: false, reason: 'unknown_team' });
+      expect(await service.addPersonWithin(actorId, 'Someone', [teamId], access)).toEqual({
+        ok: false,
+        reason: 'unknown_team',
+      });
+    }
+    expect(await service.patchPersonWithin('pe-b', actorId, { kind: 'agent' }, access)).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
+    expect(captureCalls).toBe(0);
+    expect(snapshot()).toEqual(before);
+    expect(h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all()).toEqual(
+      eventsBefore,
+    );
+    expect(h.sqlite.query('SELECT * FROM event_sequencer ORDER BY subscription').all()).toEqual(
+      sequencesBefore,
+    );
+  });
+
+  it('retains a standalone person rename when the later membership store write fails', async () => {
+    const actorId = h.userId('ada');
+    const access = {
+      kind: 'scoped' as const,
+      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+    };
+    h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    const eventsBefore = h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all();
+    const sequencesBefore = h.sqlite
+      .query('SELECT * FROM event_sequencer ORDER BY subscription')
+      .all();
+    h.sqlite.run(
+      "CREATE TRIGGER fail_person_membership BEFORE INSERT ON person_team WHEN NEW.person_id = 'pe-a' BEGIN SELECT RAISE(FAIL, 'injected later person membership failure'); END",
+    );
+    recordCaptureNames = true;
+    try {
+      await rejectedError(
+        h
+          .publicDirectoryService()
+          .patchPersonWithin('pe-a', actorId, { name: 'Ada renamed', teamIds: ['tm-a'] }, access),
+      );
+    } finally {
+      recordCaptureNames = false;
+      h.sqlite.run('DROP TRIGGER fail_person_membership');
+    }
+    expect(capturedPersonNames).toEqual(['pe-a', 'pe-a', 'Ada renamed']);
+    expect(
+      h.sqlite
+        .query<{ name: string }, []>(
+          "SELECT name FROM person_organization WHERE resource_id = 'pe-a'",
+        )
+        .get()?.name,
+    ).toBe('Ada renamed');
+    expect(h.sqlite.query("SELECT * FROM person_team WHERE person_id = 'pe-a'").all()).toEqual([]);
+    expect(h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all()).toEqual(
+      eventsBefore,
+    );
+    expect(h.sqlite.query('SELECT * FROM event_sequencer ORDER BY subscription').all()).toEqual(
+      sequencesBefore,
+    );
+  });
+
+  it('opens one owner for each successful raw mutation in compound person and team patches', async () => {
+    h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    const actorId = h.userId('ada');
+    const access = {
+      kind: 'scoped' as const,
+      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+    };
+    countOwners = true;
+    countCaptures = true;
+    recordCaptureNames = true;
+    try {
+      expect(
+        await h
+          .publicDirectoryService()
+          .patchPersonWithin('pe-a', actorId, { name: 'Ada two', teamIds: ['tm-a'] }, access),
+      ).toMatchObject({ ok: true });
+      expect(ownerCalls).toBe(2);
+      expect(observedCaptures).toBe(4);
+      expect(capturedPersonNames).toEqual(['pe-a', 'pe-a', 'Ada two', 'Ada two']);
+      ownerCalls = 0;
+      observedCaptures = 0;
+      expect(
+        await h
+          .publicDirectoryService()
+          .patchTeamWithin('tm-a', actorId, { name: 'Team two', serviceIds: ['sv-a'] }, access),
+      ).toMatchObject({ ok: true });
+      expect(ownerCalls).toBe(2);
+      expect(observedCaptures).toBe(4);
+    } finally {
+      countOwners = false;
+      countCaptures = false;
+      recordCaptureNames = false;
+    }
+  });
+
+  it('captures a name-idempotent add that joins an existing assigned person to a used team', async () => {
+    const lower = await create('ada', 'Second A plan');
+    await seedSharedStandalonePerson([own, lower]);
+    h.sqlite.run("INSERT INTO service_team (id, name) VALUES ('tm-extra', 'root-extra')");
+    h.sqlite.run(
+      "INSERT INTO service_team_organization (resource_id, organization_id, name) VALUES ('tm-extra', 'org-a', 'Extra')",
+    );
+    for (const rowId of ['standalone-person-row-0', 'standalone-person-row-1'])
+      h.sqlite.run('INSERT INTO work_item_team (work_item_id, team_id) VALUES (?, ?)', [
+        rowId,
+        'tm-extra',
+      ]);
+    const actorId = h.userId('ada');
+    countOwners = true;
+    countCaptures = true;
+    recordCaptured = true;
+    try {
+      expect(
+        await h.publicDirectoryService().addPersonWithin(actorId, 'pe-a', ['tm-extra'], {
+          kind: 'scoped',
+          scope: { organizationId: 'org-a', userId: actorId, role: 'member' },
+        }),
+      ).toMatchObject({ ok: true, value: { id: 'pe-a' } });
+    } finally {
+      countOwners = false;
+      countCaptures = false;
+      recordCaptured = false;
+    }
+    expect(ownerCalls).toBe(1);
+    expect(observedCaptures).toBe(2);
+    expect(
+      h.sqlite
+        .query(
+          "SELECT * FROM person_team WHERE person_id = 'pe-a' AND service_team_id = 'tm-extra'",
+        )
+        .all(),
+    ).toHaveLength(1);
+    expect(capturedValues.map(({ observation }) => observation.organizationId)).toEqual([
+      'org-a',
+      'org-a',
+    ]);
+    expect(capturedValues.map(({ observation }) => observation.mode)).toEqual(['shared', 'shared']);
+  });
+
+  it('keeps concurrent standalone directory invocation access bound to its own organization', async () => {
+    h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id IN ('org-a', 'org-b')");
+    const aActor = h.userId('ada');
+    const bActor = h.userId('grace');
+    const firstCapture = Promise.withResolvers<undefined>();
+    const releaseFirst = Promise.withResolvers<undefined>();
+    const secondOwner = Promise.withResolvers<undefined>();
+    let held = false;
+    holdCapture = async (organizationId) => {
+      if (organizationId !== 'org-a' || held) return;
+      held = true;
+      firstCapture.resolve(undefined);
+      await releaseFirst.promise;
+    };
+    countCaptures = true;
+    const first = h
+      .publicDirectoryService()
+      .patchPersonWithin(
+        'pe-a',
+        aActor,
+        { name: 'Ada concurrent' },
+        { kind: 'scoped', scope: { organizationId: 'org-a', userId: aActor, role: 'member' } },
+      );
+    await firstCapture.promise;
+    onOwnerAttempt = () => {
+      secondOwner.resolve(undefined);
+    };
+    const second = h
+      .publicDirectoryService()
+      .patchPersonWithin(
+        'pe-b',
+        bActor,
+        { name: 'Grace concurrent' },
+        { kind: 'scoped', scope: { organizationId: 'org-b', userId: bActor, role: 'member' } },
+      );
+    await secondOwner.promise;
+    releaseFirst.resolve(undefined);
+    try {
+      expect(await first).toMatchObject({ ok: true });
+      expect(await second).toMatchObject({ ok: true });
+    } finally {
+      holdCapture = null;
+      onOwnerAttempt = null;
+      countCaptures = false;
+      releaseFirst.resolve(undefined);
+    }
+    expect(capturedOrganizations).toEqual(['org-a', 'org-a', 'org-b', 'org-b']);
+    expect(
+      h.sqlite
+        .query<{ name: string }, []>(
+          "SELECT name FROM person_organization WHERE resource_id = 'pe-a'",
+        )
+        .get()?.name,
+    ).toBe('Ada concurrent');
+    expect(
+      h.sqlite
+        .query<{ name: string }, []>(
+          "SELECT name FROM person_organization WHERE resource_id = 'pe-b'",
+        )
+        .get()?.name,
+    ).toBe('Grace concurrent');
+  });
+
+  it('does not share invocation access while two scoped service reads await', async () => {
+    h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id IN ('org-a', 'org-b')");
+    const aActor = h.userId('ada');
+    const bActor = h.userId('grace');
+    countCaptures = true;
+    try {
+      const first = h
+        .publicDirectoryService()
+        .patchPersonWithin(
+          'pe-a',
+          aActor,
+          { name: 'Ada parallel' },
+          { kind: 'scoped', scope: { organizationId: 'org-a', userId: aActor, role: 'member' } },
+        );
+      const second = h
+        .publicDirectoryService()
+        .patchPersonWithin(
+          'pe-b',
+          bActor,
+          { name: 'Grace parallel' },
+          { kind: 'scoped', scope: { organizationId: 'org-b', userId: bActor, role: 'member' } },
+        );
+      const [firstAnswer, secondAnswer] = await Promise.all([first, second]);
+      expect(firstAnswer.ok).toBe(true);
+      expect(secondAnswer.ok).toBe(true);
+    } finally {
+      countCaptures = false;
+    }
+    expect(capturedOrganizations).toEqual(['org-a', 'org-a', 'org-b', 'org-b']);
+    expect(
+      h.sqlite
+        .query<{ name: string }, []>(
+          "SELECT name FROM person_organization WHERE resource_id = 'pe-a'",
+        )
+        .get()?.name,
+    ).toBe('Ada parallel');
+    expect(
+      h.sqlite
+        .query<{ name: string }, []>(
+          "SELECT name FROM person_organization WHERE resource_id = 'pe-b'",
+        )
+        .get()?.name,
+    ).toBe('Grace parallel');
+  });
+
+  it('retains a standalone team rename when the later service-link store write fails', async () => {
+    const actorId = h.userId('ada');
+    const access = {
+      kind: 'scoped' as const,
+      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+    };
+    h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    const eventsBefore = h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all();
+    const sequencesBefore = h.sqlite
+      .query('SELECT * FROM event_sequencer ORDER BY subscription')
+      .all();
+    h.sqlite.run(
+      "CREATE TRIGGER fail_team_service_link BEFORE INSERT ON team_service WHEN NEW.team_id = 'tm-a' BEGIN SELECT RAISE(FAIL, 'injected later team service failure'); END",
+    );
+    try {
+      await rejectedError(
+        h
+          .publicDirectoryService()
+          .patchTeamWithin(
+            'tm-a',
+            actorId,
+            { name: 'Platform renamed', serviceIds: ['sv-a'] },
+            access,
+          ),
+      );
+    } finally {
+      h.sqlite.run('DROP TRIGGER fail_team_service_link');
+    }
+    expect(
+      h.sqlite
+        .query<{ name: string }, []>(
+          "SELECT name FROM service_team_organization WHERE resource_id = 'tm-a'",
+        )
+        .get()?.name,
+    ).toBe('Platform renamed');
+    expect(h.sqlite.query("SELECT * FROM team_service WHERE team_id = 'tm-a'").all()).toEqual([]);
+    expect(h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all()).toEqual(
+      eventsBefore,
+    );
+    expect(h.sqlite.query('SELECT * FROM event_sequencer ORDER BY subscription').all()).toEqual(
+      sequencesBefore,
+    );
+  });
+
+  it('retains the first rename when the second raw owner fails after capture', async () => {
+    await seedSharedStandalonePerson([own]);
+    const actorId = h.userId('ada');
+    let pushes = 0;
+    pushDuringTest = () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    };
+    countOwners = true;
+    countCaptures = true;
+    failCapturedAfter = 4;
+    try {
+      expect(
+        (
+          await rejectedError(
+            h.publicDirectoryService().patchPersonWithin(
+              'pe-a',
+              actorId,
+              { name: 'Ada after capture', teamIds: ['tm-a'] },
+              {
+                kind: 'scoped',
+                scope: { organizationId: 'org-a', userId: actorId, role: 'member' },
+              },
+            ),
+          )
+        ).message,
+      ).toContain('second-owner after-capture');
+    } finally {
+      countOwners = false;
+      countCaptures = false;
+      failCapturedAfter = null;
+    }
+    expect(ownerCalls).toBe(2);
+    expect(observedCaptures).toBe(4);
+    expect(
+      h.sqlite
+        .query<{ name: string }, []>(
+          "SELECT name FROM person_organization WHERE resource_id = 'pe-a'",
+        )
+        .get()?.name,
+    ).toBe('Ada after capture');
+    expect(h.sqlite.query("SELECT * FROM person_team WHERE person_id = 'pe-a'").all()).toEqual([]);
+    const messages = h.sqlite
+      .query<{ message: string }, [string]>(
+        'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+      )
+      .all(`project:${own}`)
+      .map(({ message }) => JSON.parse(message) as { type: string });
+    expect(messages.map(({ type }) => type)).toEqual(['directory_changed']);
+    expect(pushes).toBe(1);
+  });
+
+  it('announces a committed standalone rename once when the later link patch fails', async () => {
+    await seedSharedStandalonePerson([own]);
+    const actorId = h.userId('ada');
+    let pushes = 0;
+    pushDuringTest = () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    };
+    h.sqlite.run(
+      "CREATE TRIGGER fail_ordinary_link BEFORE INSERT ON person_team WHEN NEW.person_id = 'pe-a' BEGIN SELECT RAISE(FAIL, 'injected later link failure'); END",
+    );
+    try {
+      await rejectedError(
+        h
+          .publicDirectoryService()
+          .patchPersonWithin(
+            'pe-a',
+            actorId,
+            { name: 'Announced Ada', teamIds: ['tm-a'] },
+            { kind: 'scoped', scope: { organizationId: 'org-a', userId: actorId, role: 'member' } },
+          ),
+      );
+    } finally {
+      h.sqlite.run('DROP TRIGGER fail_ordinary_link');
+    }
+    expect(
+      h.sqlite
+        .query<{ name: string }, []>(
+          "SELECT name FROM person_organization WHERE resource_id = 'pe-a'",
+        )
+        .get()?.name,
+    ).toBe('Announced Ada');
+    const messages = h.sqlite
+      .query<{ message: string }, [string]>(
+        'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+      )
+      .all(`project:${own}`)
+      .map(({ message }) => JSON.parse(message) as { type: string });
+    expect(messages.map(({ type }) => type)).toEqual(['directory_changed']);
+    expect(pushes).toBe(1);
+  });
+
+  it('records old shared-person closure for a composed standalone cascade', async () => {
+    const lower = await create('ada', 'Second A plan');
+    await seedSharedStandalonePerson([own, lower]);
+    const recorded = () =>
+      h.sqlite
+        .query<{ message: string }, [string]>(
+          'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+        )
+        .all(`project:${lower}`)
+        .map(({ message }) => JSON.parse(message) as unknown);
+    const count = recorded().length;
+    expect(
+      await h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
+        kind: 'scoped',
+        scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+      }),
+    ).toEqual({ ok: true });
+    expect(recorded().slice(count)).toContainEqual({
+      type: 'elsewhere_changed',
+      projectId: lower,
+      causeProjectId: own,
+    });
+  });
+
+  it('records every real pair in the three-project standalone cascade control', async () => {
+    const second = await create('ada', 'Second A plan');
+    const third = await create('ada', 'Third A plan');
+    await seedSharedStandalonePerson([own, second, third]);
+    const actorId = h.userId('ada');
+    expect(
+      await h.removeStandaloneDirectoryWithin('people', 'pe-a', actorId, true, {
+        kind: 'scoped',
+        scope: { organizationId: 'org-a', userId: actorId, role: 'member' },
+      }),
+    ).toEqual({ ok: true });
+    const pairs = h.sqlite
+      .query<{ message: string }, []>(
+        "SELECT message FROM event_log WHERE message LIKE '%elsewhere_changed%' ORDER BY subscription, seq",
+      )
+      .all()
+      .map(({ message }) => JSON.parse(message) as unknown);
+    expect(pairs).toEqual(
+      [
+        { type: 'elsewhere_changed', projectId: second, causeProjectId: own },
+        { type: 'elsewhere_changed', projectId: third, causeProjectId: own },
+        { type: 'elsewhere_changed', projectId: third, causeProjectId: second },
+      ].sort(
+        (left, right) =>
+          left.projectId.localeCompare(right.projectId) ||
+          left.causeProjectId.localeCompare(right.causeProjectId),
+      ),
+    );
+  });
+
+  it('rolls back a standalone cascade and first recipient when a later event insert fails', async () => {
+    const downstream = [await create('ada', 'Second A plan'), await create('ada', 'Third A plan')];
+    await seedSharedStandalonePerson([own, ...downstream]);
+    const second = [...downstream].sort().at(1);
+    if (second === undefined) throw new Error('directory rollback fixture has no second recipient');
+    const before = snapshot();
+    const eventsBefore = h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all();
+    const sequencesBefore = h.sqlite
+      .query('SELECT * FROM event_sequencer ORDER BY subscription')
+      .all();
+    let pushes = 0;
+    pushDuringTest = () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    };
+    countOwners = true;
+    countCaptures = true;
+    h.sqlite.run(
+      `CREATE TRIGGER fail_standalone_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:${second}' BEGIN SELECT RAISE(FAIL, 'injected directory fan-out failure'); END`,
+    );
+    try {
+      await rejectedError(
+        h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
+          kind: 'scoped',
+          scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+        }),
+      );
+    } finally {
+      countOwners = false;
+      countCaptures = false;
+      h.sqlite.run('DROP TRIGGER fail_standalone_fanout');
+    }
+    expect(ownerCalls).toBe(1);
+    expect(observedCaptures).toBe(2);
+    expect(pushes).toBe(0);
+    expect(snapshot()).toEqual(before);
+    expect(h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all()).toEqual(
+      eventsBefore,
+    );
+    expect(h.sqlite.query('SELECT * FROM event_sequencer ORDER BY subscription').all()).toEqual(
+      sequencesBefore,
+    );
+  });
+
+  it('releases the standalone directory writer before waiting on recipient transport', async () => {
+    const lower = await create('ada', 'Second A plan');
+    await seedSharedStandalonePerson([own, lower]);
+    const entered = Promise.withResolvers<undefined>();
+    const held = Promise.withResolvers<undefined>();
+    pushDuringTest = async () => {
+      entered.resolve(undefined);
+      await held.promise;
+      return Response.json({ delivered_to_sockets: 0 });
+    };
+    const pending = h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
+      kind: 'scoped',
+      scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+    });
+    await entered.promise;
+    try {
+      h.sqlite.run('UPDATE project SET name = ? WHERE id = ?', ['second writer entered', own]);
+    } finally {
+      held.resolve(undefined);
+    }
+    expect(await pending).toEqual({ ok: true });
+    expect(
+      h.sqlite.query<{ name: string }, [string]>('SELECT name FROM project WHERE id = ?').get(own)
+        ?.name,
+    ).toBe('second writer entered');
+  });
+
+  it('records one final fan-out for a project-null directory batch with two used people', async () => {
+    const lower = await create('ada', 'Second A plan');
+    const third = await create('ada', 'Third A plan');
+    const projects = [own, lower, third];
+    await seedSharedStandalonePerson(projects);
+    h.sqlite.run("INSERT INTO person (id, name) VALUES ('pe-ben', 'Ben')");
+    h.sqlite.run(
+      "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('pe-ben', 'org-a', 'Ben')",
+    );
+    for (const [index, projectId] of projects.entries()) {
+      const read = await h.call('ada', 'GET', `/api/projects/${projectId}`);
+      const stepId = (read.body as { steps: { id: string }[] }).steps.at(0)?.id;
+      if (stepId === undefined) throw new Error('directory batch fixture has no step');
+      const rowId = `directory-ben-${String(index)}`;
+      h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 20, ?)', [
+        rowId,
+        projectId,
+        rowId,
+      ]);
+      h.sqlite.run(
+        'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
+        [rowId, stepId],
+      );
+      h.sqlite.run(
+        "INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, 'pe-ben')",
+        [rowId, stepId],
+      );
+    }
+    countOwners = true;
+    refuseNestedOwner = true;
+    let response: Answer;
+    try {
+      response = await directory('ada', [
+        { kind: 'deletePerson', personId: 'pe-a', cascade: true },
+        { kind: 'deletePerson', personId: 'pe-ben', cascade: true },
+      ]);
+    } finally {
+      countOwners = false;
+      refuseNestedOwner = false;
+    }
+    expect(response.status).toBe(200);
+    expect(ownerCalls).toBe(1);
+    const pairs = h.sqlite
+      .query<{ message: string }, []>(
+        "SELECT message FROM event_log WHERE message LIKE '%elsewhere_changed%' ORDER BY subscription, seq",
+      )
+      .all()
+      .map(({ message }) => JSON.parse(message) as unknown);
+    expect(pairs).toEqual(
+      [
+        { type: 'elsewhere_changed', projectId: lower, causeProjectId: own },
+        { type: 'elsewhere_changed', projectId: third, causeProjectId: own },
+        { type: 'elsewhere_changed', projectId: third, causeProjectId: lower },
+      ].sort(
+        (left, right) =>
+          left.projectId.localeCompare(right.projectId) ||
+          left.causeProjectId.localeCompare(right.causeProjectId),
+      ),
+    );
+  });
+
   it('creates the same names in two organizations, each finding only its own', async () => {
     const mine = await directory('ada', [
       { kind: 'createTag', ref: 't', name: 'urgent' },

@@ -51,14 +51,14 @@ function tempDir(prefix: string): string {
   return dir;
 }
 
-it('boots the committed fan-out delivery into a cold scoped command', async () => {
+it('boots committed fan-out into cold scoped commands and rank moves', async () => {
   const dbPath = await openSpaceDatabase(tempDir('wbs-boot-fanout-'));
   const seed = openDatabase(dbPath);
   try {
     seed.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
     seed.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     seed.run(
-      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'member', 1)",
+      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
     );
     seed.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
     seed.run(
@@ -110,7 +110,7 @@ it('boots the committed fan-out delivery into a cold scoped command', async () =
                 ok: true,
                 access: {
                   kind: 'scoped',
-                  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+                  scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' },
                 },
               }),
           },
@@ -142,6 +142,27 @@ it('boots the committed fan-out delivery into a cold scoped command', async () =
     }),
   );
   expect(answer.status).toBe(200);
+  const commandReadback = openDatabase(dbPath);
+  try {
+    expect(
+      commandReadback
+        .query<{ message: string }, [string]>(
+          'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+        )
+        .all('project:a2')
+        .map(({ message }) => JSON.parse(message) as unknown),
+    ).toEqual([{ type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' }]);
+  } finally {
+    commandReadback.close();
+  }
+  const rank = await mounted.handle(
+    new Request('http://localhost/api/organization/projects/a2/rank', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ afterProjectId: null }),
+    }),
+  );
+  expect(rank.status).toBe(200);
   const readback = openDatabase(dbPath);
   try {
     expect(
@@ -151,7 +172,22 @@ it('boots the committed fan-out delivery into a cold scoped command', async () =
         )
         .all('project:a2')
         .map(({ message }) => JSON.parse(message) as unknown),
-    ).toEqual([{ type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' }]);
+    ).toEqual([
+      { type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' },
+      { type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' },
+    ]);
+    const upstreamEvents = readback
+      .query<{ message: string }, [string]>(
+        'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+      )
+      .all('project:a1')
+      .map(({ message }) => JSON.parse(message) as unknown);
+    expect(upstreamEvents).toHaveLength(2);
+    expect(upstreamEvents.at(-1)).toEqual({
+      type: 'elsewhere_changed',
+      projectId: 'a1',
+      causeProjectId: 'a2',
+    });
   } finally {
     readback.close();
   }

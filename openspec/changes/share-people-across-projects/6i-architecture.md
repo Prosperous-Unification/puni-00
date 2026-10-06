@@ -79,7 +79,8 @@ beside `FanoutCaptureStore`: given a typed directory write address (catalog/reso
 or the work-item/project identity for assignment), resolve ownership and resource users on
 that same scope. Keep SQL and raw directory tables out of core. Address name-idempotent writes
 by their actual existing identity as well as the proposed identity; a create that joins new
-memberships to an existing person is a scheduling mutation. Root/mapping-only inserts with no
+memberships to an existing person must be observed, but is not automatically a scheduling
+change. Fan-out occurs only if the normal before/after comparison derives recipients. Root/mapping-only inserts with no
 scheduling users do not fabricate a cause. Preserve old ownership/usages before deletion and
 relinking; resolve new usages after the mutation and union the affected organizations/projects.
 
@@ -147,6 +148,57 @@ or process-global variable. Borrowed command service calls already carry their e
 admitted scope and must not use this new standalone entry. Preserve legacy raw-store behavior
 as such rather than labeling a target-derived organization as scoped authorization.
 
+## Standalone directory invocation and mutation boundaries
+
+A public service invocation receives an immutable-context `DirectoryStore` facade. Its context
+contains that invocation's explicit `ResourceAccess` and operation identity; obtain it through
+a source-neutral factory at service/composition entry. The facade must not infer access from
+a target's organization, cache the latest access in a service/repository, or install itself in
+an already-owned command/import/repair graph. A bound service graph may delegate the original
+service method through this facade, but must not wrap that entire method in `uow.run`.
+
+Preserve existing validation order and ordinary service control flow outside the owner. Reads
+on the facade delegate normally. Each mutator uses the arguments of that exact store call to
+build its typed address and starts one owner:
+
+1. Enter the source UoW; resolve the invocation's access/address and capture the before state
+   on the borrowed writer before the raw mutation. Existing caller-addressed refusals retain
+   their typed outcome and trusted corruption throws.
+2. Invoke exactly one corresponding mutator on `scope.stores.directory`, the raw OPEN store.
+   Its existing synchronous transaction is a savepoint. Multiple SQL statements or internal
+   helper calls within that raw mutator do not create additional fan-out owners.
+3. On success capture after and record that mutation's distinct recipient/cause pairs inside
+   the owner. On modeled refusal or exception roll back that owner; never infer success from
+   an absent result when a store's declared contract distinguishes it.
+4. After commit and writer release deliver only that mutation's recorded shared fan-out.
+   Return the original store outcome to the service; its ordinary broadcasts remain at their
+   original call sites and retain their existing triggers.
+
+Specifically, scoped `patchPersonWithin`/`patchTeamWithin` can first call
+`renameInOrganization` through `renameLocal`, then call `patchPerson`/`patchTeam` for links or
+kind. These remain **two independent owners**. If after-capture fails after the second
+mutation, the second owner rolls back while the first committed rename remains; its already emitted ordinary announcement is not
+retracted or repeated. Do not roll back the whole service operation, hold its first owner open
+for the second call, or postpone both ordinary announcements behind a new whole-service
+collector. A raw `patchPerson`/`patchTeam` which already combines multiple changes atomically
+keeps that one existing boundary. Root insert, organization mapping and later link updates
+likewise retain their actual raw-mutator boundaries; do not turn the intermediate creation
+state into a corrupt pre-existing scoped row or claim whole-service atomicity.
+
+Preflight refusals such as invalid kind/name, nothing-to-change and failed service ownership
+checks occur where they already do and never invoke the facade's capture. A later owner
+rechecks its own addressed inputs; any typed refusal introduced by that resolver must preserve
+the service's declared outcome mapping rather than being accidentally recast as a generic
+exception. Each owner resolves its own old/new usages afresh; a successful earlier store call
+is part of the second owner's before-state. Whole-service changes cannot supply one reused
+before snapshot to all their mutations.
+
+The facade does not publish `directory_changed` or drain a new service-wide
+`AnnouncementCollector`. The service alone owns existing ordinary announcements. Distinct
+standalone store commits may each legitimately fan out; pair deduplication is per actual
+owner. In contrast, the borrowed command graph retains raw OPEN stores and records once around
+its complete command batch, so it must not see intermediate facade fan-out or nested UoWs.
+
 ## Comparison and cause contract
 
 The before/after organization values include authoritative rank order, dates/settings,
@@ -192,13 +244,45 @@ of the named path. Reuse 6h helpers, but run standalone and borrowed cases separ
 | Directory corrupt ownership remains an error                  | Separately seed a present scoped row missing required ownership and a trusted usage with corrupt/foreign ownership. Expect an error before capture or write; spy remains uncalled and state unchanged. Coerce each corruption into absence/empty-organization success to watch its case fail. A missing caller-addressed row cannot substitute for either corruption fixture.                                                                                                                                                      |
 | Owner observation defeats stale preflight                     | Pause after public preflight but before the acquired turn; another real connection changes rank or assignment. Expected pairs use the state admitted by the writer. Substitute the earlier preflight snapshot and observe wrong/missing pairs. Keep this separate from detached-after-capture failure.                                                                                                                                                                                                                             |
 | Standalone directory removed assignment preserves old closure | Through composed public directory service/store, cascade-remove a person used in a multi-project bridge. No project row changes; exact old-closure pairs commit. Omit only the standalone wrapper, then use only post-write usage independently; each loses required rows.                                                                                                                                                                                                                                                         |
-| Standalone directory multi-resource mutation                  | Patch team/service links or person memberships/kind that affect scheduling; include name-idempotent add joining an existing person. Capture before/after resource users inside the owner. Unknown linked resource/in-use refusal leaves domain, events and sequences unchanged. Force a refusal after a provisional event to prove rollback, not just an empty no-op.                                                                                                                                                              |
+| Standalone directory multi-resource mutation                  | Observe team/service links, person memberships/kind and name-idempotent add joining an existing person; do not assume these alone change scheduler inputs. Capture before/after normally and emit only derived pairs. A zero-pair case emits nothing. Unknown linked resource/in-use refusal preserves state. Use the separate cascade witness for event-insert rollback.                                                                                                                                                          |
 | Borrowed directory emits once                                 | Mounted project batch performs several directory writes and an assignment change; project-null directory batch separately edits multiple used resources. Expected distinct pairs appear once after the whole batch. Install standalone wrappers beneath OPEN stores or per intermediate write; witness duplicate/intermediate rows or nested-owner refusal. Do not accept a hang as the only assertion.                                                                                                                            |
 | Working plan remains current                                  | Mix directory mutation and later scheduling command; the captured after-state and later command see refreshed collections. Remove the reload/row refresh to observe stale behavior. Refuse a later command and verify no shared rows/push/trigger escape; retain stale replay repair and grant-lifetime tests.                                                                                                                                                                                                                     |
 | Settings/date owner is retained                               | Mounted PATCH exercises start date, dated↔undated and selected ready optimized display; compare exact recipient pairs with one owner. Omit only admitted settings binding. Add a redundant standalone observer to show duplicates. Rename/identical settings produce zero shared events.                                                                                                                                                                                                                                           |
 | Standalone second-event failure is atomic                     | Inject failure on a later downstream insert after one recorded row. Compare directory/rank mutation, revision/audit, log and sequencer with before; no push/optimizer callback. Move record after UoW return and observe persisted mutation/partial event. Rank and directory require separate witnesses.                                                                                                                                                                                                                          |
 | Standalone delivery releases writer                           | Hold committed transport; independent SQLite writer succeeds and recipient optimizer notification has already run. Move delivery into owner and observe blocked writer/premature delivery. Exercise rank and directory independently; normal push failure leaves replayable rows and notified recipients.                                                                                                                                                                                                                          |
 | Legacy/isolated and unavailable wiring                        | Throwing shared dependencies must remain unused for legacy work; isolated capture produces no shared events. Omit required production public-writer/capture/delivery wiring independently and make the corresponding mounted/service witness fail closed or miss its required event. A raw fixture that never uses the composed writer cannot prove installation.                                                                                                                                                                  |
+
+Additional standalone boundary proofs:
+
+- `standalone rename survives later link after-capture failure`: through the installed public
+  facade for both scoped person and team patch, commit the first rename, apply the second link
+  mutation, then fail that second owner's after-capture. The rename/revision and its original
+  ordinary announcement remain; the second owner's links and event/sequence effects roll back.
+  A links-only zero-pair fixture must not invent an event or insert fault. Replace the facade
+  with a whole-service UoW: the retained-rename assertion must fail.
+- `standalone cascade rolls back a later real event insert`: independently seed a directory
+  cascade whose normal comparison produces at least two distinct real recipient/cause pairs.
+  First demonstrate that unmodified comparison derives those pairs. Fail the second insert
+  after the first succeeds; assert the cascade, revisions, event log and sequencer restore to
+  before, with zero push/optimizer callbacks. Moving record after commit must make this RED.
+  This proves event atomicity separately from the silent rename/link boundary test.
+- `each raw mutation observes its own before state`: witness capture once before/after each
+  actual store mutation; the second before observes the committed rename. A raw method with
+  several SQL writes still owns one comparison. Reuse the whole-service before or wrap inner
+  raw helper calls to observe wrong state or duplicate owners/events.
+- `invalid standalone service input never captures`: bad kind/name and nothing-to-change retain
+  their existing refusal and zero capture/write/delivery counts. Put the UoW/capture around
+  the service entry to make the capture witness fail.
+- `standalone contexts cannot cross`: interleave two real service invocations with distinct
+  scoped organizations across read/writer awaits. Check exact recipient/cause sets and typed
+  foreign refusal. Replace invocation-bound context with one mutable shared field: the named
+  cross-context witness must fail; sequence the interleaving deterministically.
+- `ordinary announcements retain one publisher`: count existing ordinary announcements across
+  successful and partially failed compound service operations separately from shared fan-out.
+  Publish or collect them additionally in the facade to observe duplicates/changed timing.
+- Retain `borrowed directory emits once` through mounted project and project-null batches; a
+  facade accidentally installed under OPEN stores must fail a deterministic ownership/event
+  witness, not merely hang. Capture/event rollback applies per standalone mutation only.
 
 Preserve physical capture-error tests, selected-ready-optimized capture/no-live-admission
 proofs, command refusal/undo/redo grant expiry, scoped step recovery's single audit and bare
@@ -210,7 +294,11 @@ proofs, command refusal/undo/redo grant expiry, scoped step recovery's single au
 1. Start from this packet commit after review. Add failing rank controller/SQLite tests and
    standalone directory service/DB tests from the matrix. Inventory production constructors;
    distinguish fixture-only raw stores from public composed writers.
-2. Introduce the source-bound standalone owner, mandatory read-only current rank admission
+2. Establish the standalone directory boundary first: write the partial-commit, per-mutator
+   observation, real-cascade event-insert rollback, preflight-zero, context-interleaving and
+   ordinary-announcement RED tests above.
+   Install the invocation-scoped store facade, never a whole-service UoW, and prove the borrowed
+   graph does not use it. Then introduce mandatory read-only current rank admission
    with `RankMoved.forbidden`, and transaction-bound directory ownership/usage address
    capability with typed addressed refusals distinct from trusted corruption. Keep raw OPEN stores in command/import/repair scopes. Bind the composed
    rank port in boot/app/harness and public directory mutations in composition. Add symbol

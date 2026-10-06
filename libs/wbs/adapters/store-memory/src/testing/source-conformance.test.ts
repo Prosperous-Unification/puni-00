@@ -954,6 +954,10 @@ const declaration: SourceDeclaration = {
       kind: 'absent',
       reason: 'Memory fixtures offer isolated stores without the SQLite shared snapshot reader.',
     },
+    projectRanks: {
+      kind: 'absent',
+      reason: 'Memory fixtures do not install the SQLite organization rank writer.',
+    },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     users: { kind: 'offered', gaps: [], open: openers.users },
     capacity: {
@@ -5705,6 +5709,7 @@ describe('memory existing source conformance', () => {
         .filter(
           (caseId) =>
             caseId !== 'livePlans.read:legacy-and-absence' &&
+            caseId !== 'projectRanks.orderIn:scoped-move' &&
             !knownGaps.some((gap) => gap.caseId === caseId),
         )
         .toSorted(),
@@ -5712,6 +5717,12 @@ describe('memory existing source conformance', () => {
     expect(failedCase(report, 'livePlans.read:legacy-and-absence')).toMatchObject({
       family: 'livePlans',
       caseId: 'livePlans.read:legacy-and-absence',
+      status: 'not-offered',
+      executed: false,
+    });
+    expect(failedCase(report, 'projectRanks.orderIn:scoped-move')).toMatchObject({
+      family: 'projectRanks',
+      caseId: 'projectRanks.orderIn:scoped-move',
       status: 'not-offered',
       executed: false,
     });

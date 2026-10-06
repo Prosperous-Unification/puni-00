@@ -1,12 +1,15 @@
 import { readChain } from '@wbs/core';
 import type {
   BeforeProjectUpdate,
+  BeforeRankMove,
   BeforeStepRemoval,
   CapturedFanout,
+  DirectoryWriteAddress,
+  DirectoryWriteResolution,
 } from '@wbs/core/ports/fanout-capture-store';
 import { scheduleInputOfCaptured } from '@wbs/core/service/saved-plan-schedule';
 import { canEditProjectInOrganization, classifyProjectEdit } from '@wbs/domain';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { type ChainSnapshotOptions, readChainSnapshotIn } from './chain-snapshot';
 import type { Drizzle } from './db';
@@ -79,18 +82,107 @@ export function authorizeStepFanoutIn(db: Drizzle): BeforeStepRemoval {
   };
 }
 
+/** Read-only current-admin admission after the rank owner acquires its write turn. */
+export function authorizeRankMoveIn(db: Drizzle): BeforeRankMove {
+  return (organizationId, actorId) => {
+    const membership = db
+      .select({ role: organizationMembership.role })
+      .from(organizationMembership)
+      .where(
+        and(
+          eq(organizationMembership.organizationId, organizationId),
+          eq(organizationMembership.userId, actorId),
+        ),
+      )
+      .get();
+    if (membership === undefined) return Promise.resolve({ ok: false, reason: 'forbidden' });
+    const role = validateStoredRole(membership.role, organizationId);
+    return Promise.resolve(
+      role === 'admin' || role === 'super_admin'
+        ? { ok: true }
+        : { ok: false, reason: 'forbidden' },
+    );
+  };
+}
+
+/** Classifies the caller's directory address on the same borrowed writer as the mutation. */
+export function resolveDirectoryWriteIn(
+  db: Drizzle,
+  address: DirectoryWriteAddress,
+): Promise<DirectoryWriteResolution> {
+  if (address.access.kind === 'legacy') return Promise.resolve({ ok: true, organizationIds: [] });
+  const { organizationId } = address.access.scope;
+  const table = {
+    people: ['person', 'person_organization'],
+    teams: ['service_team', 'service_team_organization'],
+    tags: ['tag', 'tag_organization'],
+    workItemTypes: ['work_item_type', 'work_item_type_organization'],
+    services: ['service', 'service_organization'],
+  } as const;
+  const ownershipOf = (
+    catalog: keyof typeof table,
+    resourceId: string,
+  ): 'absent' | 'foreign' | 'owned' => {
+    const [root, ownership] = table[catalog];
+    const present = db
+      .all<{ id: string }>(sql`SELECT id FROM ${sql.raw(root)} WHERE id = ${resourceId}`)
+      .at(0);
+    if (present === undefined) return 'absent';
+    const owners = db.all<{ organization_id: string }>(
+      sql`SELECT organization_id FROM ${sql.raw(ownership)} WHERE resource_id = ${resourceId}`,
+    );
+    if (owners.length === 0) throw new Error(`present ${catalog} directory row lacks ownership`);
+    if (owners.length !== 1)
+      throw new Error(`present ${catalog} directory row has conflicting ownership`);
+    return owners[0]?.organization_id === organizationId ? 'owned' : 'foreign';
+  };
+  const addressed =
+    address.kind === 'remove' || address.kind === 'rename'
+      ? { catalog: address.catalog, resourceId: address.resourceId }
+      : address.kind === 'patch-team'
+        ? { catalog: 'teams' as const, resourceId: address.teamId }
+        : address.kind === 'patch-person'
+          ? { catalog: 'people' as const, resourceId: address.personId }
+          : null;
+  if (addressed !== null && ownershipOf(addressed.catalog, addressed.resourceId) !== 'owned')
+    return Promise.resolve({ ok: false, reason: 'not_found' });
+  const linkedTeams =
+    address.kind === 'add-person' || address.kind === 'patch-person' ? address.teamIds : undefined;
+  for (const teamId of linkedTeams ?? [])
+    if (ownershipOf('teams', teamId) !== 'owned')
+      return Promise.resolve({ ok: false, reason: 'unknown_team' });
+  if (address.kind === 'patch-team')
+    for (const serviceId of address.serviceIds ?? [])
+      if (ownershipOf('services', serviceId) !== 'owned')
+        return Promise.resolve({ ok: false, reason: 'unknown_service' });
+  if (addressed?.catalog === 'people') {
+    const reach = db.all<{ project_id: string; organization_id: string | null }>(sql`
+      SELECT work_item.project_id, project_organization.organization_id
+      FROM assignment
+      JOIN work_item ON work_item.id = assignment.work_item_id
+      LEFT JOIN project_organization ON project_organization.resource_id = work_item.project_id
+      WHERE assignment.person_id = ${addressed.resourceId}
+    `);
+    if (reach.some((row) => row.organization_id !== organizationId))
+      throw new Error(`person "${addressed.resourceId}" has corrupt cross-organization usage`);
+  }
+  return Promise.resolve({ ok: true, organizationIds: [organizationId] });
+}
+
 /** Reads staged writes on the borrowed transaction; it never owns or closes a connection. */
 export async function readFanoutObservationIn(
   db: Drizzle,
   organizationId: string,
   options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'>,
 ): Promise<CapturedFanout> {
+  // Proof: removing this guard labeled pre-activation capture isolated, not legacy.
   if (readOrganizationActivation(db) === 'pre_activation')
     return {
       observation: { mode: 'legacy', organizationId: null, projects: [] },
       localFacts: new Map(),
     };
   const mode = readCapacityMode(db, organizationId);
+  // Proof: removing this guard invoked the throwing shared scheduler in isolated mode.
   if (mode === 'isolated')
     return {
       observation: { mode, organizationId, projects: [] },
@@ -119,6 +211,8 @@ export async function readFanoutObservationIn(
     ranks.map(async ({ projectId, rank }) => {
       const reads = await snapshot.capturePlan(projectId);
       const personIds = [...new Set(reads.assignments.map(({ personId }) => personId))].sort();
+      // Proof: treating physical numeric rank positions as local facts and
+      // observable booking changes emitted a false row on pure respacing.
       localFacts.set(
         projectId,
         JSON.stringify([

@@ -99,6 +99,8 @@ export function readSharedPeople(
           name: reads.project.name,
           reads: target,
         };
+      // Proof: forcing Fast at this influencer boundary made the mounted
+      // selected-ready rank witness book B/C at 1/3 instead of 2/4.
       const selected = displaySchedule(reads.project, scheduled);
       const placed = projectBookings(reads, selected.planned);
       if (reads.project.id === projectId)
