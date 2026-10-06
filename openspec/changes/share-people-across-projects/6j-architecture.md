@@ -227,6 +227,116 @@ owner's uncommitted rows. No holder may await a child spawn/verdict/exit, timer,
 another public gated method or a scheduler's live admission. Captured scheduling remains
 non-admitting and uses the borrowed transaction directly.
 
+### Callback-free observation before admission
+
+Replace the public `OptimizationRepository.readPairAndAdmit` callback boundary with:
+
+```ts
+observeForAdmission(key: OptimizationCacheKey, now: number): Promise<
+  | { readonly kind: 'idle' }
+  | {
+      readonly kind: 'observed';
+      readonly generation: number;
+      readonly pair: OptimizationCachedPair;
+      readonly requests: readonly SpawnRequest[];
+    }
+>;
+```
+
+`SpawnRequest` is the source-neutral exact key/objective request shape. This method acquires
+one source turn and runs one short **synchronous immediate transaction** over its borrowed
+SQLite transaction: raw enabled-generation allocation, raw pair read, automatic-objective
+selection and projection. An unavailable generation returns `idle`. The observed generation,
+immutable pair and request list all belong to this same observation. Use
+`objectivesToAutoSpawn` over the raw pair, or the existing raw helper with a callback which
+only collects immutable requests; never duplicate its miss-only policy in the coordinator.
+No coordinator callback or public gated method is invoked inside this transaction. In
+particular do not implement it by awaiting public `allocateGeneration` or `reserveSlot`.
+If public allocation remains exposed for another caller, it independently takes the gate;
+the observation owner uses the raw transaction-bound helper instead.
+
+This resolves the actual inversion: `readOptimizedPairAndSpawn` reads a pair and calls its
+spawner synchronously; it owns no surrounding SQL transaction. At the base, `readPlan` passes
+a callback that calls `reserveSlot`, `enqueueRequest`, `recordOutcome` and `releaseSlot` on
+that same public repository. Gating those methods while retaining that callback either
+recursively waits for the held turn or loses asynchronous completion through its void type.
+Do not make the callback async, install a reentrant gate or introduce a general ambient
+owned-repository escape hatch.
+
+After observation commits and releases the turn, `readPlan` processes the returned objective
+requests in order and awaits each public reservation and, when necessary, enqueue, preflight
+outcome and release. Each public persistence operation owns its own turn and existing atomic
+store decision. Return the original pre-admission pair even when preflight subsequently
+records a marker; obtain liveness through the gated read boundary using that observation's
+key/generation. Do not reread the pair and label it with an earlier generation. The initial
+observation is coherent, not a promise that later source state cannot change: reservation
+must recheck generation/enablement/drain state after waiting, and stale requests must not
+launch. All existing token/cancellation/publication fences remain in their final writes.
+
+Do not wrap all of `readPlan` in one new transaction. The narrow allocation/pair observation
+commits before reservation; preflight outcome and release retain separate existing commits.
+Child launch, queue pumping and transport occur only after the relevant committed decision
+returns and releases its owner. Their result/error tracking follows the committed-token
+handoff above, rather than pretending all objectives form one atomic admission.
+
+`dequeueSolverRequest` and `admitRetry` still invoke raw `reserveSolverSlotIn` inside their
+existing owning transactions. Neither calls the public gated reservation facade. Their
+implicit global-reclaim capture/events remain inside those actual enclosing owners in 6j.d;
+this callback removal does not split that atomicity or defer it to 6k.
+
+### Public caller propagation
+
+| Source symbol                                                                                    | Required boundary                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `module/optimization/contract.ts::OptimizationRepository`                                        | Replace the callback port with the discriminated observation. Declare public allocation (if retained), reservation, bind, enqueue/dequeue, refresh, release, outcome and reconciliation asynchronous; keep live DB observations gated too. |
+| `repository/optimization.ts::createOptimizationRepository`                                       | Use the same source gate for every public persistence operation and raw helpers inside an owned transaction. No public-to-public call while owning a turn.                                                                                 |
+| `OptimizationCoordinator.readPlan` / `read`                                                      | Await observation, then loop over immutable requests outside it; await persistence before dependent work and preserve the original pair.                                                                                                   |
+| `optimizeAfterEdit`, `pumpQueue`, `retry`                                                        | Await live reads, decisions and unlaunched cleanup. Set cleanup completion only after release settles; no next dequeue/pump before it.                                                                                                     |
+| `storeOutcome`, `storeInternalFailure`, `runReserved`, `startReserved`                           | Await storage and PID binding before dependent protocol actions; track outcome delivery separately. Do not hold the writer during spawn/verdict/exit, evaluation or network delivery.                                                      |
+| `runSolverChildLifecycle`                                                                        | Await `refreshSlot` before interpreting its outcome. Await release on normal exit and cancellation; kill plus awaited terminal evidence still precedes cancellation release.                                                               |
+| `start`, periodic reconciliation, `stop` / `drain`                                               | Track asynchronous reconciliation and delivery, coalesce overlap, await owned work at shutdown and report failures through the existing explicit boundary.                                                                                 |
+| `services.ts`, scheduler ports/runtime adapter, shared-people/chain/work-item/saved-plan readers | Propagate awaited live reads without making captured scheduling admit or recursively acquire the source gate.                                                                                                                              |
+
+### Eight required serialization proofs
+
+1. **Coherent observation:** hold a real source UoW at capture, invoke observation and show it
+   neither allocates, reads uncommitted cache state nor settles. Roll back/release the owner,
+   then prove generation/pair/objectives are committed independently and retain matching
+   identity. Bypass its gate and split pair retrieval onto a later generation independently;
+   watch the corresponding premature-state/identity assertions fail.
+2. **Heartbeat:** seed an actual durable slot and hold the source writer. `refreshSlot` remains
+   unresolved and `heartbeat_at` unchanged until release; afterwards the requested update is
+   visible. Remove only the heartbeat gate and watch early settlement/state change fail.
+3. **Other public operations:** independently hold the same writer against reserve, bind,
+   enqueue, dequeue, outcome, release, reconciliation and Retry, plus exposed allocation if
+   retained. Prove no early settlement/write and no rollback loss; independently omit each
+   mutating family's gate. Include gated live observation, not only mutation counters.
+4. **Callback removal and automatic policy:** real cold `readPlan` completes without deadlock,
+   requesting each missing objective once; a full hit requests none, one miss requests only
+   that objective, and failed/corrupt/plan-infeasible rows never auto-retry. Reintroduce a
+   public reservation inside the owned observation, or widen miss-only selection, and watch
+   a bounded completion/policy assertion fail. A void callback dropping promises is not GREEN.
+5. **Pre-admission snapshot:** after observation, preflight records a failure marker; the
+   returned pair remains the earlier snapshot, with its original generation/key. Mutate it
+   to reread after admission and watch the existing snapshot assertion fail.
+6. **Intervening changes:** hold between observation and reservation, independently supersede
+   generation, disable optimization or begin drain, then resume. The reservation refuses and
+   launches no stale child. Remove each final admission fence independently and watch the
+   respective installed caller negative fail; no new hash or generation may be fabricated.
+7. **Awaited dependencies:** hold persistence completion for heartbeat, slot release and
+   dequeue; heartbeat interpretation, caller completion and next pump/dequeue must wait.
+   Remove each await independently and watch state/completion witnesses fail. Normal exit,
+   cancellation and initial/queued/Retry preflight retain exact-token terminal ordering.
+8. **Borrowed command scheduling:** execute optimized arrange/freeze through the actual
+   command graph, including the isolated fallback, with the public live reader made a
+   throwing witness. It converges using captured reads with no admission or nested owner and
+   retains existing selected-schedule/refusal behavior. Bind the public live scheduler back
+   into that graph and watch the witness fail; do not merely test a direct captured helper.
+
+Every proof is required evidence, not a claim that it has run. Keep exact RED/GREEN/mutation
+commands and outcomes in `verify.md`, and preserve existing token/epoch/enablement, multi-input
+cache and child lifecycle regressions after caller propagation.
+
 Propagate promises through the coordinator's public live-read/admission flow and persistence
 callers, rather than silently queueing a write while returning an accepted/pending decision
 which has not committed. This requires a narrow internal scheduler-port adjustment:

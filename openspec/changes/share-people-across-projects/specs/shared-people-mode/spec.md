@@ -183,6 +183,36 @@ completion or pumping newly available capacity, and shutdown SHALL await owned s
 - **THEN** it waits outside that transaction and cannot read uncommitted rows or lose its writes with the owner's rollback
 - **AND** captured scheduling remains non-admitting and holds no child or transport wait
 
+### Requirement: Live optimizer observation does not recursively enter admission
+
+Live optimizer admission SHALL obtain generation, cached pair and miss-only objective requests
+from one committed source observation before calling public reservation or queue operations.
+No callback inside that observation SHALL call a public gated persistence method. Returned
+schedule evidence SHALL retain that observation's identity and pre-admission pair even when
+later preflight writes a marker. Reservation SHALL recheck existing current-generation,
+enablement and drain fences after waiting. Captured command scheduling SHALL remain
+non-admitting and SHALL NOT recursively acquire the live source gate.
+
+#### Scenario: admission writes a marker after observation
+
+- **GIVEN** a coherent observed pair contains a miss for an objective
+- **WHEN** later preflight commits a failure marker for that admission
+- **THEN** the current read retains its original pre-admission pair and generation
+- **AND** a later read may observe the committed marker without automatically retrying it
+
+#### Scenario: heartbeat waits behind a source owner
+
+- **GIVEN** a durable solver slot and a source owner paused inside its transaction
+- **WHEN** a public heartbeat arrives
+- **THEN** heartbeat_at remains unchanged and the heartbeat does not settle until that owner releases
+- **AND** child lifecycle decisions await the resulting heartbeat outcome
+
+#### Scenario: generation changes between observation and reservation
+
+- **GIVEN** a coherent observation has returned generation G and the source then supersedes G
+- **WHEN** its queued reservation acquires the writer
+- **THEN** the final admission fence refuses the stale reservation and no child launches for it
+
 ### Requirement: Command fan-out retains post-commit optimizer notifications
 
 A command batch, undo/redo or admitted route write SHALL compare once around its whole

@@ -2212,3 +2212,23 @@ command passed 52/52, 164 assertions
 core/store/backend lint, typecheck and build targets passed sequentially with
 `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`; exact logs are
 `/tmp/shared-people-6ja-review-final-<target-with-hyphens>.log`.
+
+### 6j.b callback-free observation clarification
+
+The normative packet now resolves the synchronous readPairAndAdmit callback inversion:
+observeForAdmission returns generation, immutable pair and exact miss-only requests from one
+source-owned synchronous immediate transaction, then coordinator callers await separate public
+persistence operations after release. Raw dequeue/Retry transaction helpers stay borrowed;
+command scheduling uses the captured reader. The packet specifies all public callers, including
+heartbeat, and eight named production RED/mutation proof groups.
+
+This is a docs-only architecture clarification. Sol reported overlap REDs in its separate
+implementation worktree; this planning amendment does not independently claim their execution
+or GREEN. All eight complete proof groups, implementation validation and host gate remain
+pending here. No product source or task checkbox changes accompany this clarification.
+
+Planning validation for this clarification: pinned strict OpenSpec exited 0 (1/1), recorded
+in `/tmp/shared-people-6jb-plan-strict.json`; pinned all OpenSpec exited 0 (148/148), recorded
+in `/tmp/shared-people-6jb-plan-all.json`. Four-file Prettier and `git diff --check` passed;
+final-byte checks are repeated before committing. Independent rereview is requested separately;
+this validation is not independent architectural clearance.
