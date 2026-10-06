@@ -353,6 +353,10 @@ late. Use the actual transaction's old/new usages and rank, not preflight lists 
 it. Refused commands/imports and failed derivation/event inserts roll back all writes and
 sequences. No push may escape a rollback.
 
+The normative [6j architecture checkpoint](6j-architecture.md) fixes import admission,
+per-sweep lifecycle ownership, addressed display causes and the required async optimizer
+serialization/caller boundary before final drain integration.
+
 `optimization-drain.ts::finishDrainIn` owns final deletion, reached by direct finish, slot
 release and reconciliation. Capture the old closure there before deleting the project. A
 pending-delete request may separately change displayed availability; compare each actual

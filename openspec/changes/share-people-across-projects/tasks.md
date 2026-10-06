@@ -279,6 +279,37 @@ compares both directions`, `directory edit has causes without project-row edits`
       and `repeated finish records nothing`. R5: omit import binding, record at delete request
       only, drop old closure after delete, omit one release/reconcile path and record outside
       the final transaction. Space membership removal must not masquerade as project deletion.
+- [ ] 6j.a. **Import owner first.** Follow [6j architecture](6j-architecture.md): carry original
+      actor/access, recheck current organization write authority before capture, preserve raw
+      borrowed import graph, capture once around complete success and record before commit.
+      Prove real tied-creation-order import displacement/pairs, silent tail import, typed late
+      refusal, queued demotion and full multi-event rollback. Independently omit installer and
+      owner bindings, move authority after capture, inject capture/event failure, and restore GREEN.
+- [ ] 6j.b. **Async persistence ownership prerequisite.** Make live optimizer persistence wait
+      for the same source turn; propagate explicit asynchronous live scheduling and every
+      mutation/observation caller while preserving non-admitting captured reads. Prove concurrent
+      live admission, heartbeat, bind/queue/outcome and lifecycle operations cannot join an
+      awaited owner or vanish with its rollback. Watch each gate omission fail. Review before 6j.c;
+      no async Drizzle callbacks, detached capture or child/network waits under the writer.
+- [ ] 6j.c. **Direct begin/finish and retirement.** Install source-bound owners over raw savepoints,
+      preserve pending old topology and addressed causes even at equal hash/local facts. Prove
+      actual selected retirement change, silent unchanged/nonselected/repeated finish, complete
+      event-failure rollback and post-release delivery/replay rows. Independently remove old
+      capture, addressed cause and transactional recording; watch each fail.
+- [ ] 6j.d. **All release callers.** Bind and await normal exit, cancellation after terminal
+      evidence, queued cleanup and initial/Retry preflight. Prove exact token and all prior fences,
+      last-slot deletion atomicity, failure recovery and no early pump/completion. Independently
+      omit each binding/await and watch production caller assertions fail.
+- [ ] 6j.e. **Startup and periodic reconciliation.** Preserve per-sweep transactions and
+      generation-before-project ordering; acquire and recheck before capture. Prove persisted
+      deadlines, later-sweep rollback with earlier commit retained, retry idempotence, awaited
+      shutdown and both installed triggers. Independently omit each trigger, deadline/order and
+      tracking guard and watch the named negatives fail.
+- [ ] 6j.f. **Boundary regression closure.** Reconcile the full packet proof matrix and run
+      affected import/drain/coordinator/child/command suites plus 6a–f release negatives. Physical
+      capability stays isolated-only; shared restore refuses before write; space membership
+      removal is not deletion. Record exact commands/fault logs and independent review before
+      checking 6j complete. Outcome/admission fan-out and full replay closure remain 6k/6l.
 - [ ] 6k. **Optimized display atomicity.** Resolve the synchronous transaction/projection seam
       before modifying `optimized-outcome.ts`, repository/coordinator or display-changing
       admission/Retry/retirement paths. RED real outcome/event and mounted tests:

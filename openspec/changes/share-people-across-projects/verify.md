@@ -2029,3 +2029,27 @@ passed after the ledger reconciliation
 `/tmp/shared-people-6i-review-final-ledger-all.json`,
 `/tmp/shared-people-6i-review-final-ledger-diff.log`). The historical first format/type/lint
 failures above are retained; no blanket pass is inferred from their failed runs.
+
+## 6j architecture amendment at merged main d1d7399e
+
+Planning-only checkpoint: `6j-architecture.md` and its normative design link, delta scenarios
+and ordered 6j.a–f tasks. Source inspection found async borrowed capture versus synchronous
+optimizer writes, per-sweep reconciliation ownership, selected retirement without local-fact
+change, and import's pre-transaction authority boundary. The packet makes these explicit;
+it does not claim any implementation or runtime proof. Main's existing 6i completion ledger
+is unchanged despite PR #275 code being present.
+
+All 6j production RED/GREEN/mutation evidence is **pending**, including installed import,
+current authority, optimizer serialization, direct final deletion/retirement, every release
+caller, startup/periodic sweeps and isolated-only release negatives. No product tests or host
+gate were run for this docs-only amendment. Validation commands/results are recorded by the
+planning checkpoint handoff; no implementation checkbox is advanced.
+
+Planning validation (2026-10-06):
+
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`
+  exited 0, 1/1; `/tmp/shared-people-6j-plan-strict.json`.
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json`
+  exited 0, 148/148; `/tmp/shared-people-6j-plan-all.json`.
+- `bunx prettier --check` on the five changed planning paths and `git diff --check`
+  exited 0. Final-byte checks are repeated before the local commit.

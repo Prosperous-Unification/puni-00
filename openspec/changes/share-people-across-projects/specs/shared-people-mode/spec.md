@@ -104,6 +104,55 @@ display SHALL receive the same comparison even without a new optimizer outcome.
 - **WHEN** slot release or reconciliation completes the actual deletion
 - **THEN** surviving old-closure recipients are recorded atomically with that deletion
 
+### Requirement: Import and drain owners preserve authority and transaction boundaries
+
+An import SHALL recheck the acting user's current organization write authority inside its
+owning transaction before observing shared state or writing. Refusal SHALL preserve the
+existing typed import outcome and perform no shared capture, fan-out or mutation. Successful
+import SHALL compare its complete before/after state once; a silent comparison SHALL not
+fabricate events. Borrowed import stores SHALL not acquire independent standalone owners.
+
+Final drain operations SHALL record fan-out in their actual transaction, including direct
+finish, exact-token slot release, startup reconciliation and periodic reconciliation.
+Reconciliation SHALL retain per-sweep commits, generation-before-project order and persisted
+slot deadlines. Async capture SHALL not allow unrelated optimizer writes to join or observe
+its uncommitted transaction. Callers SHALL await committed persistence before reporting its
+completion or pumping newly available capacity, and shutdown SHALL await owned sweeps.
+
+#### Scenario: an import loses authority while queued
+
+- **GIVEN** an admitted import waits for the writer and its actor loses organization write authority
+- **WHEN** it acquires the turn
+- **THEN** it returns typed forbidden before shared capture, writes, events or optimizer notification
+
+#### Scenario: import actually precedes an existing project
+
+- **GIVEN** dated imported A precedes existing B under the real unranked creation-time/ID order and both name the same person
+- **WHEN** the complete import changes B's incoming bookings
+- **THEN** its applicable `(B,A)` event commits atomically with the import
+- **AND** importing an unrelated or last-ranked project does not fabricate a downstream event
+
+#### Scenario: contract retirement changes display at unchanged input
+
+- **GIVEN** retirement removes A's selected ready schedule while its input hash and local scheduling facts stay equal
+- **WHEN** the resulting displayed bookings or availability changes
+- **THEN** the owning transaction compares A as a direct cause and records the applicable surviving recipients
+- **AND** unchanged or nonselected display produces no fan-out
+
+#### Scenario: a later reconciliation sweep fails
+
+- **GIVEN** one sweep has committed and a later sweep fails recording a real downstream event
+- **WHEN** the pass fails
+- **THEN** the earlier commit remains and the failing sweep restores its slot, cache, generation, project and event state
+- **AND** a subsequent pass converges without duplicating previously committed pairs
+
+#### Scenario: another optimizer operation arrives during capture
+
+- **GIVEN** a source owner is paused inside borrowed capture
+- **WHEN** another live optimizer persistence operation arrives
+- **THEN** it waits outside that transaction and cannot read uncommitted rows or lose its writes with the owner's rollback
+- **AND** captured scheduling remains non-admitting and holds no child or transport wait
+
 ### Requirement: Command fan-out retains post-commit optimizer notifications
 
 A command batch, undo/redo or admitted route write SHALL compare once around its whole
