@@ -92,6 +92,6 @@ fixed only the test parser. Final uncached Dash test/lint/typecheck/build and
 (`/tmp/dash-08019-12-nx-corrected-final.log`). Pinned strict OpenSpec 1/1 and all
 148/148 passed (`/tmp/dash-08019-12-{strict,all}.json`); diff checks passed.
 
-Task 1.2 remains unchecked pending independent review of this checkpoint. Task 1.3
+Astra independently cleared exact commit `1367bfcc00b43c7b87f3817bda72ec8c512cba59`: real entrypoint equivalence, seven specific refusals, input preservation, mutation canaries, authority absence and all three production fault RED/GREEN pairs match the bounded task. Its fresh five-file run with fleet scratch preload passed 54/54, 336 assertions, exit 0 (`/tmp/dash-08019-12-astra-1367bfcc-focused.log`). Task 1.2 is complete. Task 1.3
 and acceptance 2.1–2.2 remain open. No host gate, CI, push, PR, merge, discovery,
 authority bootstrap, live host inventory or enrollment execution is claimed.
