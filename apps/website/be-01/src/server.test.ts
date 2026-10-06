@@ -1064,6 +1064,88 @@ test('paid provider call requires verified configuration and sends privacy contr
 });
 
 for (const route of ['/chat', '/chat/stream'] as const) {
+  test(`${route} sends excluded reasoning only when an effort is configured`, async () => {
+    const sentReasoning: unknown[] = [];
+    for (const openRouterReasoningEffort of ['minimal', undefined] as const) {
+      const { api: initialApi, config } = fixture();
+      initialApi.close();
+      const website = mountApi({
+        ...config,
+        demoAuth: true,
+        openRouterEnabled: true,
+        openRouterKey: 'fixture-key',
+        openRouterModel: 'fixture/model',
+        openRouterProvider: 'Fixture',
+        openRouterInputUsdPerMillion: 1,
+        openRouterOutputUsdPerMillion: 2,
+        openRouterPrivacyVerified: true,
+        openRouterReasoningEffort,
+        providerFetch: (_input, init) => {
+          if (typeof init.body !== 'string') throw new Error('Expected JSON request body');
+          const sent = JSON.parse(init.body) as Record<string, unknown>;
+          sentReasoning.push('reasoning' in sent ? sent['reasoning'] : 'absent');
+          // The signed-in caps stay 1,024; reasoning tokens count inside them.
+          expect(sent['max_completion_tokens']).toBe(1024);
+          expect(Object.keys(sent)).not.toContain('max_tokens');
+          if (!sent['stream'])
+            return Response.json({
+              choices: [{ message: { content: 'A useful reply.' } }],
+              usage: { prompt_tokens: 20, completion_tokens: 3 },
+            });
+          const chunks = [
+            {
+              id: 'reasoning',
+              model: 'fixture/model',
+              choices: [
+                {
+                  index: 0,
+                  delta: { role: 'assistant', content: 'A useful reply.' },
+                  finish_reason: null,
+                },
+              ],
+            },
+            {
+              id: 'reasoning',
+              model: 'fixture/model',
+              choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+              usage: { prompt_tokens: 20, completion_tokens: 3, total_tokens: 23 },
+            },
+          ];
+          return new Response(
+            chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('') +
+              'data: [DONE]\n\n',
+            { headers: { 'content-type': 'text/event-stream' } },
+          );
+        },
+      });
+      const login = await website.fetch(
+        request('/session/demo', 'POST', config.appOrigin, { email: 'reasoning@example.test' }),
+      );
+      const cookie = login.headers.get('set-cookie')?.split(';')[0];
+      const csrf = ((await login.json()) as { csrfToken: string }).csrfToken;
+      const response = await website.fetch(
+        request(
+          route,
+          'POST',
+          config.appOrigin,
+          route === '/chat'
+            ? { message: 'A booking tool' }
+            : { message: 'A booking tool', idempotencyKey: 'reasoning-key-123' },
+          cookie,
+          csrf,
+        ),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain('A useful reply.');
+      website.close();
+    }
+    // Proof: dropping reasoningRequest from the direct JSON body failed the /chat case;
+    // always sending it failed the unset case with a reasoning key.
+    expect(sentReasoning).toEqual([{ effort: 'minimal', exclude: true }, 'absent']);
+  });
+}
+
+for (const route of ['/chat', '/chat/stream'] as const) {
   test(`${route} keeps admitted rates through outbound ceiling and settlement`, async () => {
     const { api: initialApi, config } = fixture();
     initialApi.close();

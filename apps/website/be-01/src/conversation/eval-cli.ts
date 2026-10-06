@@ -236,6 +236,8 @@ export interface EvaluationOptions {
     | 'openRouterProvider'
     | 'openRouterInputUsdPerMillion'
     | 'openRouterOutputUsdPerMillion'
+    | 'openRouterReasoningEffort'
+    | 'openRouterMaxCompletionTokens'
   >;
   providerFetch?: ProviderFetch;
   show: boolean;
@@ -374,8 +376,9 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
 }
 
 /**
- * Reads the provider settings the evaluation needs from the environment.
- * @throws when the key, model, pinned provider or either rate is absent.
+ * Reads the provider settings the evaluation needs from the environment, including the reasoning
+ * effort and reply cap, so the evaluation sends what production sends.
+ * @throws when the key, model, pinned provider or either rate is absent, or a setting is malformed.
  */
 export function readEvaluationProvider(
   environment: Record<string, string | undefined>,
@@ -401,6 +404,8 @@ export function readEvaluationProvider(
     openRouterProvider: runtime.openRouterProvider,
     openRouterInputUsdPerMillion: runtime.openRouterInputUsdPerMillion,
     openRouterOutputUsdPerMillion: runtime.openRouterOutputUsdPerMillion,
+    openRouterReasoningEffort: runtime.openRouterReasoningEffort,
+    openRouterMaxCompletionTokens: runtime.openRouterMaxCompletionTokens,
   };
 }
 

@@ -18,7 +18,7 @@ import { createLocalJWKSet, errors, jwtVerify } from 'jose';
 
 import {
   composeConversationRequest,
-  conversationReplyTokens,
+  defaultConversationReplyTokens,
   priceConversationRequest,
   simulateReply,
   visitorMessageLimit,
@@ -28,6 +28,8 @@ import {
   type ProviderFetch,
   type ProviderRates,
   providerRouting,
+  type ReasoningEffort,
+  reasoningRequest,
   replayReply,
   streamConfirmedReply,
 } from './conversation/stream';
@@ -50,6 +52,13 @@ export interface WebsiteApiConfig {
   openRouterInputUsdPerMillion?: number;
   openRouterOutputUsdPerMillion?: number;
   openRouterPrivacyVerified?: boolean;
+  /** Sent on every paid call as excluded reasoning; unset sends no reasoning field. */
+  openRouterReasoningEffort?: ReasoningEffort;
+  /**
+   * The anonymous conversation's reply cap, reasoning included; it sizes each reservation.
+   * Defaults to {@link defaultConversationReplyTokens}. Signed-in chat and concept calls keep 1,024.
+   */
+  openRouterMaxCompletionTokens?: number;
   /**
    * Gateway hops in front of the API whose `X-Forwarded-For` entries are trusted; required for an
    * `https` app origin. Zero (or absent on plain-HTTP loopback) uses the socket address.
@@ -193,6 +202,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     manual.hash
   )
     throw new Error('Manual redirect must be fixed to the app /manual route');
+  const conversationReplyTokens =
+    config.openRouterMaxCompletionTokens ?? defaultConversationReplyTokens;
   if (config.appBuildUrl) {
     const build = new URL(config.appBuildUrl);
     // Proof: the invalid Build redirect test rejects an external host before accepting intake.
@@ -745,6 +756,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           model: config.openRouterModel,
           messages,
           max_completion_tokens: 1_024,
+          // Proof: removing this spread failed the /chat reasoning-effort test.
+          ...reasoningRequest(config.openRouterReasoningEffort),
           stream: false,
           // Proof: the mounted paid-JSON payload test fails when either routing flag or price ceiling is removed.
           provider: providerRouting(String(config.openRouterProvider), rates),
@@ -1127,6 +1140,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
                 priceConversationRequest(
                   composeConversationRequest(history, message, stage),
                   provider.rates,
+                  // Proof: pricing with the 400-token default failed the reasoning-effort reservation test.
+                  conversationReplyTokens,
                 ),
             }
           : provider.kind === 'demo'
@@ -1165,6 +1180,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           key: String(config.openRouterKey),
           model: String(config.openRouterModel),
           provider: String(config.openRouterProvider),
+          reasoningEffort: config.openRouterReasoningEffort,
           fetch: config.providerFetch,
         },
         rates: provider.rates,
@@ -1482,6 +1498,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           key: String(config.openRouterKey),
           model: String(config.openRouterModel),
           provider: String(config.openRouterProvider),
+          reasoningEffort: config.openRouterReasoningEffort,
           fetch: config.providerFetch,
         },
         rates: preparedProvider.rates,

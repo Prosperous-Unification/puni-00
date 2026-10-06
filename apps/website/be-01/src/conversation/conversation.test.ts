@@ -34,7 +34,11 @@ const visitorAddress = '203.0.113.7';
 type Step =
   | {
       reply: string;
-      usage?: { prompt_tokens: number; completion_tokens: number } | null;
+      usage?: {
+        prompt_tokens: number;
+        completion_tokens: number;
+        completion_tokens_details?: { reasoning_tokens: number };
+      } | null;
       finish?: 'stop' | 'length';
     }
   | { status: number }
@@ -43,6 +47,7 @@ type Step =
 interface OutboundBody {
   model: string;
   max_completion_tokens: number;
+  reasoning?: unknown;
   messages: { role: string; content: string | { type: string; text: string }[] }[];
   provider: Record<string, unknown>;
 }
@@ -390,6 +395,8 @@ test('every paid request carries the pinned routing, the reply cap and one syste
     expect(sent.max_completion_tokens).toBe(400);
     // Proof: passing maxOutputTokens to streamText again put max_tokens on the wire and failed this.
     expect(Object.keys(sent)).not.toContain('max_tokens');
+    // Proof: sending the reasoning block with an unset effort put a reasoning key here and failed this.
+    expect(Object.keys(sent)).not.toContain('reasoning');
     // Proof: dropping max_price from providerRouting failed this equality.
     expect(sent.provider).toEqual({
       only: ['azure/swedencentral'],
@@ -410,6 +417,64 @@ test('every paid request carries the pinned routing, the reply cap and one syste
   expect(messages.slice(1, -1)).toEqual([
     { role: 'user', text: 'A booking tool for a bike workshop' },
     { role: 'assistant', text: 'Who uses it today?' },
+  ]);
+  api.close();
+});
+
+test('a reasoning effort sends excluded reasoning and the configured cap, and reserves for that cap', async () => {
+  const reserved = async (overrides: Partial<WebsiteApiConfig>) => {
+    const fake = fakeOpenRouter(() => ({ reply: 'Who uses it today?' }));
+    const config = paidConfig(fake.providerFetch, overrides);
+    const api = mountApi(config);
+    const visitor = await beginVisitor(api);
+    await (await sendInitial(api, visitor)).text();
+    api.close();
+    const reservedMicroUsd = operations(config.databasePath)[0]?.reserved_micro_usd ?? -1;
+    return { sent: fake.bodies, reservedMicroUsd };
+  };
+  const luna = await reserved({
+    openRouterReasoningEffort: 'low',
+    openRouterMaxCompletionTokens: 700,
+  });
+  expect(luna.sent).toHaveLength(1);
+  for (const sent of luna.sent) {
+    // Proof: omitting reasoningRequest from the streamed providerOptions failed this equality.
+    expect(sent.reasoning).toEqual({ effort: 'low', exclude: true });
+    // Proof: sending the 400-token default instead of the configured cap failed this.
+    expect(sent.max_completion_tokens).toBe(700);
+    expect(Object.keys(sent)).not.toContain('max_tokens');
+  }
+  const standard = await reserved({});
+  expect(standard.sent[0]?.max_completion_tokens).toBe(400);
+  // The two requests differ only in the reply cap, so the reservations differ by 300 output tokens.
+  // Proof: pricing with the fixed 400-token default made the two reservations equal and failed this.
+  expect(luna.reservedMicroUsd - standard.reservedMicroUsd).toBeCloseTo(300 * 1.76, -1);
+});
+
+test('settlement charges reasoning tokens through completion_tokens', async () => {
+  const fake = fakeOpenRouter(() => ({
+    reply: 'Who will book the repairs?',
+    usage: {
+      prompt_tokens: 900,
+      completion_tokens: 660,
+      completion_tokens_details: { reasoning_tokens: 600 },
+    },
+  }));
+  const config = paidConfig(fake.providerFetch, {
+    openRouterReasoningEffort: 'low',
+    openRouterMaxCompletionTokens: 700,
+  });
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  expect(chunkTypes(await (await sendInitial(api, visitor)).text())).toContain('finish');
+  // completion_tokens already includes the 600 reasoning tokens; adding them again double-bills.
+  // Proof: settling on completion_tokens minus reasoning_tokens stored 502 and failed this.
+  expect(operations(config.databasePath)).toMatchObject([
+    {
+      state: 'completed',
+      settlement: 'usage',
+      settled_micro_usd: Math.ceil(900 * 0.44 + 660 * 1.76),
+    },
   ]);
   api.close();
 });

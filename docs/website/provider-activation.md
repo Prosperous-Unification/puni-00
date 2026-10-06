@@ -12,6 +12,36 @@ The [OpenAI GPT-4.1 family guide](https://developers.openai.com/api/docs/guides/
 
 The live ZDR catalog still listed `openai/gpt-4.1-mini` on `azure/swedencentral` at $0.44/$1.76 per million tokens with `max_completion_tokens`, `response_format` and `structured_outputs` and no reasoning parameters. Cheaper ZDR endpoints seen the same day: `openai/gpt-4.1-nano` `azure/swedencentral` ($0.11/$0.44, no reasoning; the named fallback), `openai/gpt-5-nano` `azure/swedencentral` ($0.055/$0.44) and `openai/gpt-6-luna` `azure` ($0.10/$0.50), both with default reasoning, and `google/gemini-2.5-flash-lite` `google-vertex/eu` ($0.10/$0.40, reasoning parameters present). The [Build AI chat harness](../../openspec/changes/build-ai-chat-harness/design.md) keeps GPT-4.1 Mini and lowers the completion cap to 400 tokens for its short replies. GPT-4.1 Nano on the same endpoint is the first fallback if the evaluation corpus finds Mini's quality unnecessary; the reasoning-by-default models stay out because hidden reasoning spends completion tokens the 400-token cap and the reserved-ceiling settlement would have to absorb. Changing the endpoint requires changing the privacy page's processor wording first. The [anonymous conversation activation](build-runtime.md#anonymous-conversation-activation) re-reads these rates on the day.
 
+## GPT-6 Luna on `azure/eu` (2026-10-06)
+
+Dany enabled `openai/gpt-6-luna` for the anonymous Build chat. The OpenRouter ZDR catalog read on 2026-10-06 lists its `azure/eu` endpoint at **$0.11 per million prompt tokens and $0.55 per million completion tokens**, with supported parameters `include_reasoning`, `max_completion_tokens`, `reasoning`, `reasoning_effort`, `response_format`, `seed`, `structured_outputs`, `tool_choice`, `tools` and `verbosity`. Reasoning tokens bill as completion tokens and count against `max_completion_tokens`. A probe through OpenAI direct with no reasoning parameter returned 0 reasoning tokens for a trivial prompt; that does not bound reasoning on real prompts, so the effort is set explicitly.
+
+Two validated runtime settings support it; any other value stops the API at startup:
+
+| Setting                            | Allowed                                              | Effect                                                                                                                                                                                                                                 |
+| ---------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPENROUTER_REASONING_EFFORT`      | unset (or empty), `none`, `minimal`, `low`, `medium` | When set, every paid request sends `reasoning: { effort, exclude: true }`, so reasoning text is never returned or stored. Unset sends no `reasoning` field.                                                                            |
+| `OPENROUTER_MAX_COMPLETION_TOKENS` | unset (or empty, meaning 400), integers 100–2000     | The anonymous conversation's `max_completion_tokens` and the output term of each reservation, so the per-conversation, per-source and site ceilings count the worst case including reasoning. The signed-in `/chat*` paths keep 1,024. |
+
+Settlement charges the provider's `completion_tokens`, which already include `completion_tokens_details.reasoning_tokens`; it does not read OpenRouter's `usage.cost`.
+
+`require_parameters: true` stays on. Setting an effort for an endpoint that does not list `reasoning` (GPT-4.1 Mini on `azure/swedencentral`) filters that endpoint out and every call fails; that is an operator configuration error, so leave the effort unset for non-reasoning models.
+
+Activation values for Luna:
+
+```dotenv
+OPENROUTER_MODEL=openai/gpt-6-luna
+OPENROUTER_PROVIDER=azure/eu
+OPENROUTER_INPUT_USD_PER_MILLION=0.11
+OPENROUTER_OUTPUT_USD_PER_MILLION=0.55
+OPENROUTER_REASONING_EFFORT=low
+OPENROUTER_MAX_COMPLETION_TOKENS=700
+```
+
+Low effort keeps replies inside the 30-second deadline; 700 tokens leaves room for a short visible reply beside low reasoning. A reply that runs out of cap finishes with `length` and is stored as truncated.
+
+**Guardrail.** Dany's key guardrail currently allows Luna only via OpenAI direct, which is not a ZDR endpoint; with `zdr: true` and `only: ["azure/eu"]` every call would be refused. Allowing the Azure endpoint in the guardrail keeps zero data retention. Before the enable override, the privacy page must name the Azure EU host instead of Sweden Central, and the activation smoke must confirm a real response's provider identity, final usage including reasoning tokens, and the debit.
+
 ## Proposed nonsecret preview settings
 
 ```dotenv

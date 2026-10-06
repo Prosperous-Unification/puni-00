@@ -49,6 +49,8 @@ Each slice is red-green-refactor. "Test" names the test that proves the slice; "
 
 - [x] 7.1 `docs/website/build-runtime.md`: anonymous conversation activation sequence (key with $100 limit and allowlists, nonsecret settings, `TRUSTED_PROXY_HOPS=1`, corpus run, override, smoke, disable); `docs/website/provider-activation.md`: 2026-10-05 recheck and the fallback candidates; `docs/website/README.md`: supersede the sign-in line and link this change. Test: `bunx prettier --check` and `openspec validate`. Negative: not applicable (docs).
 
+- [x] 7.2 Luna readiness (2026-10-06): validated `OPENROUTER_REASONING_EFFORT` and `OPENROUTER_MAX_COMPLETION_TOKENS`; excluded `reasoning` on every paid path when set and absent when unset; conversation cap and reservation from the configured cap; settlement counts reasoning through `completion_tokens`; the evaluation CLI passes both settings. Test: `runtime-config.test.ts`, mounted `conversation.test.ts` and `server.test.ts`, `eval-cli.test.ts`. Negatives: see verify.md "Luna readiness".
+
 ## 8. Private side (puni-pr-00)
 
 - [ ] 8.1 Privacy page "Who else processes it": name OpenRouter, Inc. (routing) and Microsoft Azure OpenAI Service, Sweden Central (model host), what is sent (chat messages, the request description), ZDR and data-collection denial, and that the manual path sends nothing. Test: private `browser/site-pages.mjs` asserts the processor names on `/privacy/`. Negative: remove the name; the assertion fails.

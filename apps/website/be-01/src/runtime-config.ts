@@ -1,3 +1,5 @@
+import { defaultConversationReplyTokens } from './conversation/request';
+import { isReasoningEffort, type ReasoningEffort } from './conversation/stream';
 import type { WebsiteApiConfig } from './server';
 
 type Environment = Record<string, string | undefined>;
@@ -24,9 +26,30 @@ function readHops(environment: Environment): number | undefined {
   return Number(value);
 }
 
+/** An empty value is unset; any value outside the allowed efforts throws. */
+function readReasoningEffort(environment: Environment): ReasoningEffort | undefined {
+  const value = environment['OPENROUTER_REASONING_EFFORT'];
+  if (value === undefined || value === '') return undefined;
+  // Proof: disabling this refusal let 'high' through and failed the reasoning-effort config test.
+  if (!isReasoningEffort(value))
+    throw new Error('OPENROUTER_REASONING_EFFORT must be none, minimal, low or medium');
+  return value;
+}
+
+/** An empty value means the default cap; anything but an integer from 100 to 2000 throws. */
+function readMaxCompletionTokens(environment: Environment): number {
+  const value = environment['OPENROUTER_MAX_COMPLETION_TOKENS'];
+  if (value === undefined || value === '') return defaultConversationReplyTokens;
+  const tokens = /^\d+$/.test(value) ? Number(value) : Number.NaN;
+  // Proof: dropping the range let '99' and '2001' through and failed the completion-cap config test.
+  if (!(tokens >= 100 && tokens <= 2_000))
+    throw new Error('OPENROUTER_MAX_COMPLETION_TOKENS must be an integer from 100 to 2000');
+  return tokens;
+}
+
 /**
- * Reads the API configuration from the process environment. Malformed flags, rates and proxy
- * hops throw instead of disabling a feature; absent provider settings leave the provider
+ * Reads the API configuration from the process environment. Malformed flags, rates, proxy
+ * hops, reasoning efforts and completion caps throw instead of disabling a feature; absent provider settings leave the provider
  * disabled, which `GET /conversation` reports.
  */
 export function readWebsiteApiConfig(environment: Environment): WebsiteApiConfig {
@@ -50,6 +73,8 @@ export function readWebsiteApiConfig(environment: Environment): WebsiteApiConfig
     openRouterInputUsdPerMillion: readRate(environment, 'OPENROUTER_INPUT_USD_PER_MILLION'),
     openRouterOutputUsdPerMillion: readRate(environment, 'OPENROUTER_OUTPUT_USD_PER_MILLION'),
     openRouterPrivacyVerified: readFlag(environment, 'OPENROUTER_PRIVACY_VERIFIED'),
+    openRouterReasoningEffort: readReasoningEffort(environment),
+    openRouterMaxCompletionTokens: readMaxCompletionTokens(environment),
     oidcIssuer: environment['OIDC_ISSUER'],
     oidcClientId: environment['OIDC_CLIENT_ID'],
     oidcClientSecret: environment['OIDC_CLIENT_SECRET'],

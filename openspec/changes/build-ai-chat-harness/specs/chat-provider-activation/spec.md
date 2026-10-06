@@ -9,6 +9,20 @@ While `OPENROUTER_API_KEY`, the model, the pinned provider, both rates or `OPENR
 - **WHEN** `OPENROUTER_ENABLED=1` and the key is empty
 - **THEN** `GET /conversation` reports the provider unavailable and a stream request answers 503 `provider_unconfigured` with no provider contact
 
+### Requirement: Validated reasoning and cap settings
+
+The API SHALL read `OPENROUTER_REASONING_EFFORT` as unset (absent or empty) or one of `none`, `minimal`, `low`, `medium`, and `OPENROUTER_MAX_COMPLETION_TOKENS` as unset (absent or empty, meaning 400) or an integer from 100 to 2000. Any other value SHALL throw at startup and in the evaluation CLI.
+
+#### Scenario: Unsupported effort
+
+- **WHEN** `OPENROUTER_REASONING_EFFORT=high`
+- **THEN** reading the runtime configuration throws naming `OPENROUTER_REASONING_EFFORT`
+
+#### Scenario: Cap out of range
+
+- **WHEN** `OPENROUTER_MAX_COMPLETION_TOKENS` is `99`, `2001` or not a plain integer
+- **THEN** reading the runtime configuration throws naming `OPENROUTER_MAX_COMPLETION_TOKENS`
+
 ### Requirement: Activation runbook and evidence
 
 `docs/website/build-runtime.md` SHALL record the exact activation sequence for the anonymous conversation: dedicated capped key, nonsecret settings in the mode-0600 runtime file, `TRUSTED_PROXY_HOPS=1`, the evaluation corpus run through the production stream path on loopback with the real key, the Compose enable override, and the bounded live smoke that records provider identity, final usage, debit, replay without a second charge, cancel and unknown-usage hold. The privacy page SHALL name OpenRouter and the pinned model host as processors before the override is applied. The runbook SHALL state that a failing corpus or missing privacy wording blocks activation.

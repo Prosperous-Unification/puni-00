@@ -14,11 +14,34 @@ export interface ProviderRates {
   outputUsdPerMillion: number;
 }
 
+/** The OpenRouter reasoning efforts an operator may configure; higher efforts are refused. */
+export const reasoningEfforts = ['none', 'minimal', 'low', 'medium'] as const;
+
+export type ReasoningEffort = (typeof reasoningEfforts)[number];
+
+export function isReasoningEffort(value: string): value is ReasoningEffort {
+  return reasoningEfforts.some((effort) => effort === value);
+}
+
+/**
+ * OpenRouter's unified reasoning block for one paid call. `exclude: true` keeps reasoning text out
+ * of the response, so it is never streamed, stored or shown. An unset effort sends no field, which
+ * a non-reasoning endpoint needs: with `require_parameters: true`, an endpoint that does not list
+ * `reasoning` is filtered out and the call fails. Reasoning tokens bill as completion tokens and
+ * count against `max_completion_tokens`.
+ */
+export function reasoningRequest(
+  effort: ReasoningEffort | undefined,
+): { reasoning: { effort: ReasoningEffort; exclude: true } } | Record<string, never> {
+  return effort === undefined ? {} : { reasoning: { effort, exclude: true } };
+}
+
 /** The pinned OpenRouter endpoint of one paid call; `fetch` is the test transport seam. */
 export interface ProviderPin {
   key: string;
   model: string;
   provider: string;
+  reasoningEffort?: ReasoningEffort;
   fetch?: ProviderFetch;
 }
 
@@ -33,7 +56,8 @@ export const replyDeadlineMilliseconds = 30_000;
 /**
  * Reads the provider's raw final usage. Normalized SDK usage reports zeros for an absent value,
  * so only integral, nonnegative raw token counts are trusted; anything else returns null and
- * the reservation stays unsettled.
+ * the reservation stays unsettled. `completion_tokens` already includes any
+ * `completion_tokens_details.reasoning_tokens`, so settlement charges reasoning exactly once.
  */
 export function readFinalUsage(
   usage: unknown,
@@ -171,6 +195,8 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
       openrouter: {
         provider: providerRouting(options.pin.provider, options.rates),
         max_completion_tokens: options.maxCompletionTokens,
+        // Proof: removing this spread failed the mounted reasoning-effort conversation and /chat/stream tests.
+        ...reasoningRequest(options.pin.reasoningEffort),
       },
     },
     onFinish: ({ text, finalStep, finishReason }) => {
@@ -185,6 +211,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
           options.markUnknown();
           return;
         }
+        // Proof: subtracting reasoning_tokens here settled 502 instead of 1,558 in the reasoning settlement test.
         const actualMicroUsd = Math.ceil(
           usage.promptTokens * inputRate + usage.completionTokens * outputRate,
         );

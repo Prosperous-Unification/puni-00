@@ -291,3 +291,58 @@ with the real key remains the 9.3 smoke.
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `maxOutputTokens: options.maxCompletionTokens` back in streamText | `conversation.test.ts` pinned-routing test: keys contained `max_tokens`; `server.test.ts` streamed initial turn test failed likewise |
 | `max_tokens: 1_024` back in the direct JSON body                  | `server.test.ts` paid provider privacy-controls test failed on `max_completion_tokens` and the absent-`max_tokens` assertion         |
+
+## Luna readiness (2026-10-06)
+
+Dany enabled `openai/gpt-6-luna` for the anonymous Build chat. The OpenRouter ZDR catalog read on
+2026-10-06 lists its `azure/eu` endpoint at $0.11/$0.55 per million tokens with `reasoning`,
+`reasoning_effort` and `max_completion_tokens` among its supported parameters; reasoning tokens bill
+as completion tokens and count against `max_completion_tokens`. Code is prepared; nothing was
+activated and no real key was used.
+
+- `OPENROUTER_REASONING_EFFORT`: unset (absent or empty), `none`, `minimal`, `low` or `medium`;
+  anything else throws in `readWebsiteApiConfig`. When set, the conversation stream, the account
+  stream and the direct JSON call send `reasoning: { effort, exclude: true }`; unset sends no
+  `reasoning` key.
+- `OPENROUTER_MAX_COMPLETION_TOKENS`: unset (absent or empty) means 400; otherwise an integer
+  from 100 to 2000, else it throws. It is the conversation's `max_completion_tokens` and the output
+  term of `priceConversationRequest`, so every conversation ceiling counts the configured cap. The
+  account paths keep 1,024.
+- Settlement charges `completion_tokens`, which include
+  `completion_tokens_details.reasoning_tokens`; `usage.cost` is not read.
+- The evaluation CLI reads and passes both settings.
+- Activation values: `OPENROUTER_MODEL=openai/gpt-6-luna`, `OPENROUTER_PROVIDER=azure/eu`,
+  `OPENROUTER_INPUT_USD_PER_MILLION=0.11`, `OPENROUTER_OUTPUT_USD_PER_MILLION=0.55`,
+  `OPENROUTER_REASONING_EFFORT=low`, `OPENROUTER_MAX_COMPLETION_TOKENS=700`. Dany's key guardrail
+  currently allows Luna only via OpenAI direct (not ZDR); allowing `azure/eu` keeps ZDR. The
+  privacy page must name the Azure EU host before the override.
+
+### Results
+
+- Uncached `env -u CLAUDECODE NX_DAEMON=false bunx nx run-many -t test,lint,typecheck,build -p website-be-01,website-store-sqlite,website-contracts,website-fe-01 --skip-nx-cache`:
+  exit 0 (be-01 100 pass, store-sqlite 63 pass, contracts 10 pass, fe-01 58 pass).
+- `bunx nx run website-be-01:test:package --skip-nx-cache`: exit 0.
+- `tools/tool-devsync` `env -u CLAUDECODE bun test --timeout=600000`: 391 pass / 0 fail (with the
+  new test file staged; untracked, the index checker refuses it as an untracked diagnostic path).
+- `eval-cli.test.ts`: 6 pass / 0 fail.
+- `bunx prettier --check` on the touched trees: clean. `bunx @fission-ai/openspec@1.12.0 validate --all`: 145 passed.
+
+### R5 proofs
+
+| Injected fault                                                      | Observed failure                                                                                                                |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `readReasoningEffort` refusal disabled                              | `runtime-config.test.ts` reasoning-effort test                                                                                  |
+| `readMaxCompletionTokens` range check replaced by a NaN check       | `runtime-config.test.ts` completion-cap test                                                                                    |
+| `reasoningRequest` spread removed from the streamed providerOptions | `conversation.test.ts` reasoning-effort test, `server.test.ts` `/chat/stream` reasoning test, `eval-cli.test.ts` reasoning test |
+| `reasoningRequest` spread removed from the direct JSON body         | `server.test.ts` `/chat` reasoning test                                                                                         |
+| `reasoningRequest` always returns a block                           | `conversation.test.ts` pinned-routing test (reasoning key present), both `server.test.ts` reasoning tests                       |
+| Conversation stream sent `defaultConversationReplyTokens`           | `conversation.test.ts` reasoning-effort test (cap 400, not 700), `eval-cli.test.ts` reasoning test                              |
+| Conversation pricing used `defaultConversationReplyTokens`          | `conversation.test.ts` reasoning-effort test (reservations equal)                                                               |
+| Settlement subtracted `reasoning_tokens` from `completion_tokens`   | `conversation.test.ts` reasoning settlement test: settled 502 instead of 1,558                                                  |
+| `readEvaluationProvider` dropped the two settings                   | `eval-cli.test.ts` reasoning test                                                                                               |
+
+### Not verified
+
+OpenRouter's acceptance of `reasoning` with `require_parameters: true` on `azure/eu`, Luna's reply
+quality on the evaluation corpus, its latency under the 30 s deadline at `low`, and the real debit
+need the real key: slices 9.2 and 9.3.

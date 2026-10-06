@@ -3,8 +3,11 @@ import { briefCloseMarker, briefOpenMarker, type ConversationReplyStage } from '
 import type { ChatMessage, ProviderRates } from './stream';
 import { composeSystemText } from './system-prompt';
 
-/** Completion tokens per conversation reply. */
-export const conversationReplyTokens = 400;
+/**
+ * Completion tokens per conversation reply when `OPENROUTER_MAX_COMPLETION_TOKENS` is unset. A
+ * reasoning model spends part of the cap on hidden reasoning tokens, so it needs a larger cap.
+ */
+export const defaultConversationReplyTokens = 400;
 
 /** Characters of saved history sent with one reply. */
 export const historyCharacterLimit = 12_000;
@@ -49,11 +52,13 @@ export function composeConversationRequest(
 
 /**
  * A conservative reservation in micro-USD: every UTF-8 byte of the serialized request counted as
- * one input token, 2,000 tokens for message framing, and the full reply token cap.
+ * one input token, 2,000 tokens for message framing, and the full reply token cap, which bounds
+ * reasoning and visible tokens together.
  */
 export function priceConversationRequest(
   request: ConversationRequest,
   rates: ProviderRates,
+  replyTokens: number,
 ): number {
   const inputTokensBound =
     Buffer.byteLength(
@@ -61,8 +66,7 @@ export function priceConversationRequest(
       'utf8',
     ) + 2_000;
   return Math.ceil(
-    inputTokensBound * rates.inputUsdPerMillion +
-      conversationReplyTokens * rates.outputUsdPerMillion,
+    inputTokensBound * rates.inputUsdPerMillion + replyTokens * rates.outputUsdPerMillion,
   );
 }
 

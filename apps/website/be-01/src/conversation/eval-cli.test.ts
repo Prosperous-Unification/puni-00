@@ -138,6 +138,42 @@ test('the evaluation refuses to run without the key and pinned settings', () => 
   ).toThrow('OPENROUTER_OUTPUT_USD_PER_MILLION');
 });
 
+test('the evaluation sends the configured reasoning effort and reply cap', async () => {
+  const environment = {
+    OPENROUTER_API_KEY: 'k',
+    OPENROUTER_MODEL: 'openai/gpt-6-luna',
+    OPENROUTER_PROVIDER: 'azure/eu',
+    OPENROUTER_INPUT_USD_PER_MILLION: '0.11',
+    OPENROUTER_OUTPUT_USD_PER_MILLION: '0.55',
+    OPENROUTER_REASONING_EFFORT: 'low',
+    OPENROUTER_MAX_COMPLETION_TOKENS: '700',
+  };
+  // Proof: leaving the two settings out of readEvaluationProvider evaluated a different reply than production.
+  expect(readEvaluationProvider(environment)).toMatchObject({
+    openRouterReasoningEffort: 'low',
+    openRouterMaxCompletionTokens: 700,
+  });
+  const bodies: Record<string, unknown>[] = [];
+  const transport = scriptedTransport([]);
+  await runSalesEvaluation({
+    scripts: [scripts[1] ?? { name: 'empty', turns: [], assertions: [] }],
+    provider: { ...provider, openRouterReasoningEffort: 'low', openRouterMaxCompletionTokens: 700 },
+    providerFetch: (input, init) => {
+      if (typeof init.body !== 'string') throw new Error('Expected JSON body');
+      bodies.push(JSON.parse(init.body) as Record<string, unknown>);
+      return transport.providerFetch(input, init);
+    },
+    show: false,
+    write: () => undefined,
+    pause: () => Promise.resolve(),
+  });
+  expect(bodies.length).toBeGreaterThan(0);
+  for (const body of bodies) {
+    expect(body['reasoning']).toEqual({ effort: 'low', exclude: true });
+    expect(body['max_completion_tokens']).toBe(700);
+  }
+});
+
 test('the shipped corpus holds the twelve reviewed scripts', () => {
   const corpus = parseSalesCorpus(
     readFileSync(join(import.meta.dir, '../../eval/sales-corpus.json'), 'utf8'),

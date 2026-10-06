@@ -35,7 +35,7 @@ The API SHALL expose `GET /conversation`, `POST /conversation/stream` and `POST 
 
 ### Requirement: Conversation allowance
 
-Before any provider call the API SHALL enforce, atomically in one store transaction: at most 8 visitor turns per conversation including the Home request; 400 completion tokens per reply; one in-flight operation per conversation and four in-flight paid calls site-wide (operations settled at their ceiling never count); a $0.15 per-conversation spend ceiling; a $0.30 per-source UTC-day ceiling across at most 3 conversations per source; and the $10 site-wide UTC-day ceiling shared with account reservations in `provider_call`. Each operation SHALL record the source hash and UTC day it was admitted under, and the per-source ceilings SHALL sum those, so a conversation crossing midnight is charged to the new day's source. Spend SHALL count settled usage, the full reservation of an operation settled at its ceiling, and in-flight reservations. Usage above the reservation SHALL be recorded as the actual cost with an `overrun` flag. Reservations SHALL use the configured rates and a conservative byte-based input bound plus the 400-token output cap. A refusal SHALL be a typed 429 before the provider call, SHALL set the conversation to `exhausted` with its reason when the cause is the turn or spend ceiling, and SHALL preserve saved turns.
+Before any provider call the API SHALL enforce, atomically in one store transaction: at most 8 visitor turns per conversation including the Home request; the configured completion cap per reply (`OPENROUTER_MAX_COMPLETION_TOKENS`, default 400), reasoning tokens included; one in-flight operation per conversation and four in-flight paid calls site-wide (operations settled at their ceiling never count); a $0.15 per-conversation spend ceiling; a $0.30 per-source UTC-day ceiling across at most 3 conversations per source; and the $10 site-wide UTC-day ceiling shared with account reservations in `provider_call`. Each operation SHALL record the source hash and UTC day it was admitted under, and the per-source ceilings SHALL sum those, so a conversation crossing midnight is charged to the new day's source. Spend SHALL count settled usage, the full reservation of an operation settled at its ceiling, and in-flight reservations. Usage above the reservation SHALL be recorded as the actual cost with an `overrun` flag. Reservations SHALL use the configured rates and a conservative byte-based input bound plus the configured completion cap. A refusal SHALL be a typed 429 before the provider call, SHALL set the conversation to `exhausted` with its reason when the cause is the turn or spend ceiling, and SHALL preserve saved turns.
 
 #### Scenario: Ninth visitor turn
 
@@ -151,7 +151,7 @@ The API SHALL derive the conversation stage from stored turns: `clarify` for the
 
 ### Requirement: Prompt, routing and injection fixtures
 
-Every paid request SHALL send the versioned system prompt, the stage hint, the trimmed history and the visitor message, with `max_completion_tokens` 400, the pinned provider, `zdr: true`, `data_collection: 'deny'`, `allow_fallbacks: false`, `require_parameters: true` and `max_price` at the configured rates. Visitor text SHALL never alter the system text, routing or caps. The prompt and transcripts SHALL never be written to logs.
+Every paid request SHALL send the versioned system prompt, the stage hint, the trimmed history and the visitor message, with `max_completion_tokens` equal to the configured completion cap and never `max_tokens`, the pinned provider, `zdr: true`, `data_collection: 'deny'`, `allow_fallbacks: false`, `require_parameters: true` and `max_price` at the configured rates. Visitor text SHALL never alter the system text, routing or caps. The prompt and transcripts SHALL never be written to logs.
 
 #### Scenario: Injection text does not move the prompt
 
@@ -162,6 +162,25 @@ Every paid request SHALL send the versioned system prompt, the stage hint, the t
 
 - **WHEN** any stream request reaches the fake provider
 - **THEN** its body contains the pinned provider list, both privacy flags, no fallbacks, required parameters and the configured price ceilings
+
+### Requirement: Excluded reasoning and a configurable reply cap
+
+When `OPENROUTER_REASONING_EFFORT` is set, every paid request (the conversation and account streams and the direct JSON call) SHALL send `reasoning: { effort, exclude: true }`, so reasoning text is never returned, streamed or stored; when it is unset, no request SHALL carry a `reasoning` field. The conversation reply cap SHALL be `OPENROUTER_MAX_COMPLETION_TOKENS` and each conversation reservation SHALL price that cap at the output rate. Settlement SHALL charge the provider's `completion_tokens`, which already include `completion_tokens_details.reasoning_tokens`, at the output rate.
+
+#### Scenario: Effort set
+
+- **WHEN** `OPENROUTER_REASONING_EFFORT=low` and `OPENROUTER_MAX_COMPLETION_TOKENS=700`
+- **THEN** each conversation request carries `reasoning.effort` `low`, `reasoning.exclude` true, `max_completion_tokens` 700 and no `max_tokens`, and its reservation exceeds the 400-token reservation of the same request by 300 output tokens
+
+#### Scenario: Effort unset
+
+- **WHEN** `OPENROUTER_REASONING_EFFORT` is unset
+- **THEN** no paid request carries a `reasoning` key
+
+#### Scenario: Reasoning tokens are billed once
+
+- **WHEN** final usage reports 900 prompt tokens and 660 completion tokens of which 600 are reasoning tokens
+- **THEN** the operation settles at 900 prompt tokens and 660 completion tokens at the configured rates
 
 ### Requirement: Handoff and provider availability
 
