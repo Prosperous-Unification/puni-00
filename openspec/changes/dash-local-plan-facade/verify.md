@@ -132,3 +132,41 @@ Scoped Prettier, pinned strict OpenSpec 1/1 and all OpenSpec 148/148 passed;
 `git diff --check` exited 0. Astra independently cleared exact commit `928433661f79f82eb52b3ead77c7dd1818ebae87`. Its fresh five-file scratch-preloaded run passed 62/62, 423 assertions, exit 0 (`/tmp/dash-08019-13-astra-9284336-focused.log`); both production fault logs and restored GREENs match their precise claims. Astra audited the Nx summary but did not rerun Nx, gate or CI. Task 1.3 is complete.
 Acceptance 2.1–2.2 remains open. No host gate, CI, publishing, merge or live host
 operation is claimed; Tool Wiki external activation remains unprovisioned.
+
+## Task 2.1 complete-wrapper acceptance checkpoint
+
+`apps/twilight-structure/twilight-dash/cli/README.md` documents the exact eight-flag
+source entrypoint, supplied reviewed inputs, unused owner-only output, and the fact
+that plan creation authorizes no apply. It links the owning fleet planner/contract,
+existing operator guide and operation runbook, Nx project and this ledger. Every
+relative README link was resolved to an existing file. No authority relocation,
+host operation or additional dispatcher capability was added.
+
+Fresh acceptance command exactly preserves the task's Nx arguments:
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test lint typecheck build -p twilight-dash --skip-nx-cache`.
+Exit 0 with explicit successful test/lint/typecheck/build targets and one scratch
+build dependency, cache skipped (`/tmp/dash-08019-21-nx-acceptance.log`). Default Nx
+output hides successful task bodies, so a fresh direct invocation of the discovered
+test command, `bun test src --timeout=30000` from the Dash CLI directory, separately
+passed 38/38, 239 assertions (`/tmp/dash-08019-21-dash-declared-tests.log`).
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx show project twilight-dash --json`
+exited 0 and discovered the correct root, real Bun test command and all four targets
+(`/tmp/dash-08019-21-project.json`); the acceptance is not an empty target receipt.
+
+Fleet regressions: `bun test --preload ../test/scratch/preload.ts --timeout=30000 src/cli.test.ts src/plan.test.ts src/lab-provider.test.ts`
+from `tools/tool-fleet` passed 24/24, 184 assertions, exit 0
+(`/tmp/dash-08019-21-fleet-regressions.log`). No runtime bytes changed since the
+independently cleared 1.2/1.3 commits.
+
+| Complete-wrapper R5 coverage                | Recorded observed production fault                                                            | Restored evidence                                            |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Narrow dispatcher                           | Bypass command/flag allowlists, duplicate/value/required guards                               | Task 1.1 fault table and adjacent dispatcher proofs          |
+| Exact product import boundary               | Omit root ring constraints from local policy                                                  | Task 1.1 amendment's effective-policy RED and restored GREEN |
+| Mutation-free planning                      | Inject `kubectl apply` after real planning; identical plan still fails mutation log assertion | Task 1.2 mutation-dispatch RED/GREEN                         |
+| Enrollment identity and lab isolation       | Omit each real `runPlan` enrollment/lab binding separately                                    | Task 1.2 binding RED/GREEN pairs                             |
+| Required-state context and exclusive output | Suppress required read and replace exclusive write separately                                 | Task 1.3 required-read and byte-preservation RED/GREEN pairs |
+
+Scoped Prettier, pinned strict OpenSpec 1/1 and all OpenSpec 148/148 passed;
+`git diff --check` exited 0. Task 2.1 stays unchecked until Astra reviews the exact
+complete-wrapper acceptance candidate. Task 2.2 exact-SHA host gate and CI remain
+open. No publishing, merge, host operation or authority relocation is claimed.
