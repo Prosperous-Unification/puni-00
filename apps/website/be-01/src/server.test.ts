@@ -137,6 +137,9 @@ test('streamed initial turn persists once and replays without another provider c
       };
       expect(sent.stream).toBe(true);
       expect(sent.stream_options.include_usage).toBe(true);
+      expect(Reflect.get(sent, 'max_completion_tokens')).toBe(1024);
+      // Proof: passing maxOutputTokens to streamText again put max_tokens on the wire and failed this.
+      expect(Object.keys(sent)).not.toContain('max_tokens');
       expect(sent.provider).toEqual({
         only: ['Fixture'],
         zdr: true,
@@ -1023,7 +1026,7 @@ test('paid provider call requires verified configuration and sends privacy contr
           require_parameters: boolean;
           max_price: { prompt: number; completion: number; request: number };
         };
-        max_tokens: number;
+        max_completion_tokens: number;
         tools?: unknown;
       };
       expect(sent.model).toBe('example/model');
@@ -1035,7 +1038,9 @@ test('paid provider call requires verified configuration and sends privacy contr
         require_parameters: true,
         max_price: { prompt: 1, completion: 2, request: 0 },
       });
-      expect(sent.max_tokens).toBe(1024);
+      expect(sent.max_completion_tokens).toBe(1024);
+      // Proof: restoring max_tokens in the direct JSON body failed this.
+      expect(Object.keys(sent)).not.toContain('max_tokens');
       expect(sent.tools).toBeUndefined();
       return Response.json({
         id: 'gen-test',

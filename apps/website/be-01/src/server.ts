@@ -744,7 +744,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         body: JSON.stringify({
           model: config.openRouterModel,
           messages,
-          max_tokens: 1_024,
+          max_completion_tokens: 1_024,
           stream: false,
           // Proof: the mounted paid-JSON payload test fails when either routing flag or price ceiling is removed.
           provider: providerRouting(String(config.openRouterProvider), rates),
@@ -1170,8 +1170,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         rates: provider.rates,
         system: outbound.system,
         messages: outbound.messages,
-        maxOutputTokens: conversationReplyTokens,
-        extraBody: { max_completion_tokens: conversationReplyTokens },
+        maxCompletionTokens: conversationReplyTokens,
         operationId: admitted.id,
         aborts: conversationAborts,
         abortOnDisconnect: true,
@@ -1492,7 +1491,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           ...prior.map((turn) => ({ role: turn.role, content: turn.content })),
           { role: 'user', content: message },
         ],
-        maxOutputTokens: 1_024,
+        maxCompletionTokens: 1_024,
         operationId: admitted.id,
         aborts: chatAborts,
         abortOnDisconnect: false,

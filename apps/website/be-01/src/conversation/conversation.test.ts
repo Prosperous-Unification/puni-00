@@ -42,7 +42,6 @@ type Step =
 
 interface OutboundBody {
   model: string;
-  max_tokens: number;
   max_completion_tokens: number;
   messages: { role: string; content: string | { type: string; text: string }[] }[];
   provider: Record<string, unknown>;
@@ -388,8 +387,9 @@ test('every paid request carries the pinned routing, the reply cap and one syste
   expect(fake.bodies).toHaveLength(2);
   for (const sent of fake.bodies) {
     expect(sent.model).toBe('openai/gpt-4.1-mini');
-    expect(sent.max_tokens).toBe(400);
     expect(sent.max_completion_tokens).toBe(400);
+    // Proof: passing maxOutputTokens to streamText again put max_tokens on the wire and failed this.
+    expect(Object.keys(sent)).not.toContain('max_tokens');
     // Proof: dropping max_price from providerRouting failed this equality.
     expect(sent.provider).toEqual({
       only: ['azure/swedencentral'],

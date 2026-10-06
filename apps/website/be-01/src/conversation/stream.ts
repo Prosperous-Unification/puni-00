@@ -89,9 +89,12 @@ export interface ConfirmedReplyOptions {
   rates: ProviderRates;
   system: string;
   messages: ChatMessage[];
-  maxOutputTokens: number;
-  /** Extra OpenRouter body fields, merged after the routing block. */
-  extraBody?: Record<string, unknown>;
+  /**
+   * The completion cap, sent only as `max_completion_tokens`. It never reaches the SDK's
+   * `maxOutputTokens`, which the OpenRouter provider serializes as `max_tokens`: the pinned
+   * endpoint does not list `max_tokens`, so `require_parameters: true` would filter it out.
+   */
+  maxCompletionTokens: number;
   operationId: string;
   /** Live provider calls by operation id, so a cancel route can abort one. */
   aborts: Map<string, AbortController>;
@@ -151,7 +154,6 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     model: openrouter.chat(options.pin.model),
     system: options.system,
     messages: options.messages,
-    maxOutputTokens: options.maxOutputTokens,
     maxRetries: 0,
     abortSignal: abort.signal,
     includeRawChunks: options.recordGeneration !== undefined,
@@ -168,7 +170,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     providerOptions: {
       openrouter: {
         provider: providerRouting(options.pin.provider, options.rates),
-        ...options.extraBody,
+        max_completion_tokens: options.maxCompletionTokens,
       },
     },
     onFinish: ({ text, finalStep, finishReason }) => {

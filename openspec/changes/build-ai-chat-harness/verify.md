@@ -118,8 +118,8 @@ was restored and compared by SHA-256 with its pre-fault copy.
 - Unknown usage (missing usage, cancel, disconnect, timeout, provider error, restart) holds the
   conversation as `exhausted` with reason `unsettled`; no reconciliation tool exists yet.
   Superseded in slice 3 by conservative settlement at the reserved ceiling.
-- Outbound requests carry both `max_tokens` (from the SDK) and `max_completion_tokens`, each 400.
-  Whether OpenRouter accepts both under `require_parameters` is unverified until the 9.3 smoke.
+- Outbound requests carried both `max_tokens` (from the SDK) and `max_completion_tokens`, each 400.
+  Superseded by the 2026-10-06 cap-parameter fix below: only `max_completion_tokens` is sent.
 - `GET /conversation` now reports `demo` under `DEMO_AUTH=1`; the slice-1 frontend treats any
   provider other than `disabled` as a contract break until 4.1 wires the live harness.
 - Migration `007_conversation` must be added to the private recovery command's known-migration list.
@@ -273,3 +273,21 @@ server needed an explicit `@website/contracts` alias (production build already r
   pass / 0 fail, and `openspec validate --all` is 145 passed.
 - Visitor turns are shown verbatim, markers included if the visitor typed them; they are never
   parsed.
+
+## Cap parameter fix (2026-10-06)
+
+`GET https://openrouter.ai/api/v1/models/openai/gpt-4.1-mini/endpoints`, read 2026-10-06, lists
+`azure/swedencentral` with supported parameters `max_completion_tokens`, `response_format`, `seed`,
+`structured_outputs`, `temperature`, `tool_choice`, `tools` and `top_p`; `max_tokens` is absent.
+With `require_parameters: true` a body carrying `max_tokens` filters the pinned endpoint out. Every
+paid request now sends the cap only as `max_completion_tokens`: 400 on `/conversation/stream`,
+1,024 on the account `/chat` stream and the direct JSON call, matching each path's reservation.
+`streamConfirmedReply` no longer passes `maxOutputTokens` to the AI SDK. The router's acceptance
+with the real key remains the 9.3 smoke.
+
+### R5 proofs
+
+| Injected fault                                                    | Observed failure                                                                                                                     |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `maxOutputTokens: options.maxCompletionTokens` back in streamText | `conversation.test.ts` pinned-routing test: keys contained `max_tokens`; `server.test.ts` streamed initial turn test failed likewise |
+| `max_tokens: 1_024` back in the direct JSON body                  | `server.test.ts` paid provider privacy-controls test failed on `max_completion_tokens` and the absent-`max_tokens` assertion         |
