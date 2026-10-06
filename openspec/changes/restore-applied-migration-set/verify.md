@@ -394,3 +394,59 @@ assertions** (`/tmp/astra-07012-slice22-final-review.log`), inspected the
 generated command and both watched fault logs, and cleared the 2.2 local
 checkpoint with no remaining Critical, Important or Minor findings. No k3s live
 rehearsal, canonical gate, push or #259 integration is claimed.
+
+### Slice 3.1: disposable k3s rehearsal (local preparation; live run pending)
+
+The added `20261001015000_lab_older_candidate` fixture is copied only into the
+v2 backend candidate and sorts before the already-applied
+`20261005110000_add_shared_people` baseline. The original
+`29991231000000_lab_additive` fixture and its ordering test remain intact.
+The lab now records the pre-upgrade complete `{name, hash}` ledger, table list,
+work-item columns and project `{id, name}` sentinel rows, then compares all four
+after the existing failed-health and interrupted-rollout rollbacks. A separate
+final-scenario image adds `29991231010000_lab_rollback_failure`: its unchanged
+down script fails a CHECK while the control row is blocked. The final lab
+scenario requires `rollback-failed`, a closed writer fence, backend replicas
+zero, no active writer, the parked held Lease and retained journal, then runs
+one admitted control-row repair Job and the exact printed manual schema command.
+Its post-manual inspection Job compares full baseline evidence while the
+backend stays stopped and the writer fence/Lease remain held.
+
+The older-fixture file test was RED because its folder was absent
+(`/tmp/puni-07012-slice31-fixture-red.log`) and GREEN 3/3 after the fixture and
+Dockerfile COPY (`/tmp/puni-07012-slice31-fixture-green.log`). The schema
+comparison test was RED when a changed baseline hash was accepted
+(`/tmp/puni-07012-slice31-schema-red.log`); the sentinel test was separately RED
+when a missing project row was accepted
+(`/tmp/puni-07012-slice31-sentinel-red.log`). The generated backend-script test
+was RED with the absent fault fixture (`/tmp/puni-07012-slice31-down-red.log`).
+After the stable SQL guard and Drizzle statement breakpoints were added, the
+real-script/SQLite test proved failed down kept the full ledger and control
+table, then control-row repair and the **same captured bytes/digest** restored
+the baseline (`/tmp/puni-07012-slice31-down-green.log`).
+
+Five independent R5 faults—bypassing full ledger/hash, table, column or
+project-row comparison, and removing the down CHECK—each failed a named watched
+test; source was restored after each (`/tmp/puni-07012-slice31-mutations.log`).
+Astra then found the inherited writer observer swallowed a failed kubectl read
+and could report max=0 with no samples. A production watcher test was RED on
+that behavior (`/tmp/puni-07012-slice31-observer-red.log`). The watcher now
+preserves the original read error and refuses zero samples. After one real
+successful sample, the watched second read failed; removing only error
+propagation made the test falsely resolve with samples=1. Separately removing
+the zero-sample guard made its watched test accept zero samples. Both failures
+and source restoration are recorded in
+`/tmp/puni-07012-slice31-observer-mutations.log`.
+
+Local `tool-deploy:test` passed **308/308, 900 assertions**
+(`/tmp/puni-07012-slice31-test-final-local.log`), and the focused lab/adapter
+suite passed **27/27, 88 assertions**
+(`/tmp/puni-07012-slice31-focused-final2.log`). The final typecheck, lint,
+build, scoped Prettier and strict OpenSpec checks passed
+(`/tmp/puni-07012-slice31-{type-final2,lint-final-local,build-final-local,format-final-local,openspec-final-local}.log`);
+`git diff --check` passed. Astra independently reran the focused suite 27/27,
+88 assertions (`/tmp/astra-07012-slice31-final-review.log`) and cleared the
+pre-live code checkpoint with no remaining findings. The live
+`tool-deploy:test:k3s` is pending: this checkout has neither `k3d` nor
+`kubectl`; the supported h2puni heavy-lock route is being prepared. Task 3.1
+remains unchecked and **no live cluster result is claimed**.

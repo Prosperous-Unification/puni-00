@@ -48,6 +48,8 @@ migration identity. No dependency on host enrollment or completion of 070.09.
       reopen 070.01. Prove rollback-failed retains its writer fence and usable manual command
       when a down script fails. Run `bunx nx run tool-deploy:test:k3s --skip-nx-cache` under
       the supported heavy-lock workflow; retain identities and outputs in verify.md.
+      Pre-live fixtures and local proofs are prepared; this task remains open until the
+      heavy-locked k3s scenarios pass and cleanup is verified.
 - [ ] 3.2 Review against every delta scenario, record watched R5 faults and restored positives,
       validate OpenSpec and affected format/test/lint/typecheck/build targets, then run
       `bin/h2puni-gate.sh <exact-implementation-sha>` and required CI. Update AGENTS' migration

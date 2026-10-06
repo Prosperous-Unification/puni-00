@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, symlinkSync } from 'node:fs';
+import { copyFileSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
@@ -27,6 +27,7 @@ const CAPTURE_ID = {
 };
 
 const BACKEND = resolve(import.meta.dir, '../../../../apps/wbs/be-01');
+const FAULT_MIGRATION = '29991231010000_lab_rollback_failure';
 const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
@@ -52,6 +53,66 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
+  it('retains schema and ledger after a failing down script, then recovers with the same capture', () => {
+    const root = scratchSync('wbs-k3s-down-fault-');
+    roots.push(root);
+    const db = join(root, 'wbs.sqlite');
+    symlinkSync(join(BACKEND, 'src'), join(root, 'src'), 'dir');
+    mkdirSync(join(root, 'drizzle'));
+    const baseline = '20261005110000_newer_baseline';
+    const baselineFolder = join(root, 'drizzle', baseline);
+    mkdirSync(baselineFolder);
+    writeFileSync(
+      join(baselineFolder, 'migration.sql'),
+      'CREATE TABLE baseline_table (id INTEGER);',
+    );
+    writeFileSync(join(baselineFolder, 'down.sql'), 'DROP TABLE baseline_table;');
+    new Database(db).close();
+    const before = task({ DB_PATH: db, PUNI_TASK: 'migrate' }, root).applied;
+    const candidateFolder = join(root, 'drizzle', FAULT_MIGRATION);
+    mkdirSync(candidateFolder);
+    const fixture = resolve(
+      import.meta.dir,
+      '../../../../deploy/k8s/wbs/lab/fault-migrations',
+      FAULT_MIGRATION,
+    );
+    copyFileSync(join(fixture, 'migration.sql'), join(candidateFolder, 'migration.sql'));
+    copyFileSync(join(fixture, 'down.sql'), join(candidateFolder, 'down.sql'));
+    const snapshots = join(root, 'snapshots');
+    mkdirSync(snapshots);
+    const capture = captureFromReport(
+      task(
+        { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
+        root,
+      ),
+      CAPTURE_ID,
+    ).capture;
+    const migrated = task({ DB_PATH: db, PUNI_TASK: 'migrate' }, root).applied;
+    const rollbackEnv = {
+      DB_PATH: db,
+      PUNI_TASK: 'rollback',
+      PUNI_CAPTURE_BYTES: capture.bytes,
+      PUNI_CAPTURE_SHA256: capture.sha256,
+      PUNI_CAPTURE_TARGET: CAPTURE_ID.target,
+      PUNI_CAPTURE_ATTEMPT: CAPTURE_ID.attempt,
+      PUNI_CAPTURE_CANDIDATE: CAPTURE_ID.candidate,
+    };
+    expect(() => task(rollbackEnv, root)).toThrow();
+    expect(task({ DB_PATH: db, PUNI_TASK: 'status' }, root).applied).toEqual(migrated);
+    const blocked = new Database(db);
+    expect(blocked.query('SELECT allowed FROM lab_rollback_control WHERE id = 1').get()).toEqual({
+      allowed: 0,
+    });
+    blocked.run('UPDATE lab_rollback_control SET allowed = 1 WHERE id = 1');
+    blocked.close();
+    expect(task(rollbackEnv, root).applied).toEqual(before);
+    const restored = new Database(db, { readonly: true });
+    expect(
+      restored.query("SELECT name FROM sqlite_master WHERE name = 'lab_rollback_control'").all(),
+    ).toEqual([]);
+    restored.close();
+  }, 60_000);
+
   it('reverses an older candidate migration after a newer baseline using the generated script', () => {
     const root = scratchSync('wbs-k3s-older-');
     roots.push(root);
