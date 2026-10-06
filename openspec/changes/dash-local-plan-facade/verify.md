@@ -95,3 +95,40 @@ fixed only the test parser. Final uncached Dash test/lint/typecheck/build and
 Astra independently cleared exact commit `1367bfcc00b43c7b87f3817bda72ec8c512cba59`: real entrypoint equivalence, seven specific refusals, input preservation, mutation canaries, authority absence and all three production fault RED/GREEN pairs match the bounded task. Its fresh five-file run with fleet scratch preload passed 54/54, 336 assertions, exit 0 (`/tmp/dash-08019-12-astra-1367bfcc-focused.log`). Task 1.2 is complete. Task 1.3
 and acceptance 2.1–2.2 remain open. No host gate, CI, push, PR, merge, discovery,
 authority bootstrap, live host inventory or enrollment execution is claimed.
+
+## Task 1.3 required-state and output checkpoint
+
+The existing fleet IO boundary already implements these refusals. This slice adds
+real Dash entrypoint contracts and adjacent production proofs; no runtime behavior
+changes. Fleet and observation are each tested separately for absence, unreadability
+and malformed syntax. Absence requires `ENOENT`; chmod-000 unreadability runs as
+non-privileged uid 1000 and requires `EACCES`. Malformed YAML/JSON requires the
+respective required-state path/context. All cases require nonzero exit, empty
+stdout, unchanged remaining input bytes, no output, no mutation canary and no
+authority state. Permission changes are restored in `finally` before cleanup.
+
+Occupied output retains exact reviewed bytes. A chmod-0500 output directory refuses
+with `EACCES` and no success stdout or file. Both retain input bytes and absence of
+mutation/authority state. The successful equivalence case also checks mode 0600.
+The initial normal integration suite passed 16/16, 173 assertions
+(`/tmp/dash-08019-13-baseline.log`) against the existing implementation.
+
+| Production fault                                                | Observed RED                                                                                                                                                                               | Restored GREEN                            |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| Replace exclusive `wx` with overwrite `w`                       | The occupied-output byte comparison failed because the reviewed bytes were replaced by the new plan                                                                                        | Named occupied-output case passed 1/1     |
+| Return empty text instead of throwing the required-read failure | All four absent/unreadable fleet/observation cases failed their anchored required-read/path diagnostic assertions; lower schema/JSON decoders still refused but lost required-read context | Four named required-read cases passed 4/4 |
+
+Logs are `/tmp/dash-08019-13-r5-{exclusive-output,required-read}-{red,green}.log`.
+Both faults were restored before normal verification. Existing fleet `Proof:`
+comments remain intact; additional adjacent proofs state only observed Dash failures.
+
+Final focused five-file command: `bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-dash/cli/src/cli.test.ts apps/twilight-structure/twilight-dash/cli/src/enrollment-plan.test.ts tools/tool-fleet/src/cli.test.ts tools/tool-fleet/src/plan.test.ts tools/tool-fleet/src/lab-provider.test.ts`.
+It passed 62/62, 423 assertions, exit 0 (`/tmp/dash-08019-13-focused-final.log`).
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test lint typecheck build -p twilight-dash --skip-nx-cache --output-style=static`
+executed and passed all four targets plus the scratch build dependency, exit 0;
+Dash tests passed 38/38, 239 assertions (`/tmp/dash-08019-13-nx-final.log`).
+
+Scoped Prettier, pinned strict OpenSpec 1/1 and all OpenSpec 148/148 passed;
+`git diff --check` exited 0. Task 1.3 remains unchecked pending independent review.
+Acceptance 2.1–2.2 remains open. No host gate, CI, publishing, merge or live host
+operation is claimed; Tool Wiki external activation remains unprovisioned.

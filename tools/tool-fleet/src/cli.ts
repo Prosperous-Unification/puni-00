@@ -261,6 +261,8 @@ async function readRequiredState(path: string, label: string): Promise<string> {
   } catch (cause) {
     // Proof: removing this context made the absent/unreadable fleet and observation production CLI
     // negatives expose raw ENOENT/EISDIR instead of naming the required state boundary.
+    // Proof: returning empty text here made the real Dash absent/unreadable fleet and observation
+    // tests fail their required-read path diagnostics; lower decoders still refused, without context.
     throw new Error(`Cannot read required ${label} at ${path}`, { cause });
   }
 }
@@ -651,6 +653,7 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
   }
   try {
     await writeFile(outputPath, `${JSON.stringify(plan, undefined, 2)}\n`, {
+      // Proof: using overwrite mode made the real Dash occupied-output test replace reviewed bytes.
       flag: 'wx',
       mode: 0o600,
     });

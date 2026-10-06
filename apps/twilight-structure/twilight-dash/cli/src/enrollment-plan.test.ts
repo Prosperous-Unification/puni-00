@@ -6,6 +6,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -226,6 +227,7 @@ describe('Dash real enrollment planning', () => {
     expect(direct.exitCode, direct.stderr.toString()).toBe(0);
     expect(existsSync(dashOutput)).toBe(true);
     expect(existsSync(fleetOutput)).toBe(true);
+    expect(statSync(dashOutput).mode & 0o777).toBe(0o600);
     const bytes = readFileSync(dashOutput);
     expect(bytes).toEqual(readFileSync(fleetOutput));
     expect(planned.stdout.toString()).toBe(direct.stdout.toString());
@@ -292,4 +294,96 @@ describe('Dash real enrollment planning', () => {
       assertNoAuthority(fixture);
     });
   }
+});
+
+describe('Dash required files and exclusive output', () => {
+  for (const state of ['fleet', 'observation'] as const) {
+    for (const fault of ['absent', 'unreadable', 'malformed'] as const) {
+      test(`refuses ${fault} required ${state} without success or input mutation`, () => {
+        const fixture = createFixture();
+        const path = fixture[state];
+        if (fault === 'absent') rmSync(path);
+        if (fault === 'malformed') writeFileSync(path, state === 'fleet' ? 'nodes: [\n' : '{');
+        const expected = [fixture.fleet, fixture.observation].map((input) =>
+          existsSync(input) ? readFileSync(input) : undefined,
+        );
+        if (fault === 'unreadable') {
+          if (process.getuid?.() === undefined || process.getuid() === 0)
+            throw new Error('Unreadability proof requires a non-privileged invoking process');
+          chmodSync(path, 0o000);
+        }
+        try {
+          const refusal = invokeEntrypoint(
+            fixture,
+            'dash',
+            buildArguments(fixture, join(fixture.outputs, 'dash.json')),
+          );
+          expect(refusal.exitCode).not.toBe(0);
+          const diagnostic = stripVTControlCharacters(refusal.stderr.toString())
+            .split('\n')
+            .filter((line) => line.startsWith('error: '))
+            .join('\n');
+          expect(diagnostic).toContain(
+            fault === 'malformed'
+              ? `Required ${state} at ${path} is malformed`
+              : `Cannot read required ${state} at ${path}`,
+          );
+          if (fault === 'absent') expect(refusal.stderr.toString()).toContain('ENOENT');
+          if (fault === 'unreadable') expect(refusal.stderr.toString()).toContain('EACCES');
+          expect(refusal.stdout.toString()).toBe('');
+          expect(readdirSync(fixture.outputs)).toEqual([]);
+          assertNoAuthority(fixture);
+        } finally {
+          if (fault === 'unreadable') chmodSync(path, 0o600);
+        }
+        for (const [index, input] of [fixture.fleet, fixture.observation].entries()) {
+          if (expected[index] === undefined) expect(existsSync(input)).toBe(false);
+          else expect(readFileSync(input)).toEqual(expected[index]);
+        }
+      });
+    }
+  }
+
+  test('preserves occupied output bytes and refuses without success text', () => {
+    const fixture = createFixture();
+    const output = join(fixture.outputs, 'reviewed.json');
+    const reviewed = Buffer.from('reviewed synthetic plan bytes\n');
+    writeFileSync(output, reviewed, { mode: 0o600 });
+    const inputs = [readFileSync(fixture.fleet), readFileSync(fixture.observation)];
+    const refusal = invokeEntrypoint(fixture, 'dash', buildArguments(fixture, output));
+    expect(readFileSync(output)).toEqual(reviewed);
+    expect(refusal.exitCode).not.toBe(0);
+    expect(stripVTControlCharacters(refusal.stderr.toString())).toContain(
+      `Cannot create new operation plan at ${output}`,
+    );
+    expect(refusal.stdout.toString()).toBe('');
+    expect(readdirSync(fixture.outputs)).toEqual(['reviewed.json']);
+    expect(readFileSync(fixture.fleet)).toEqual(inputs[0]);
+    expect(readFileSync(fixture.observation)).toEqual(inputs[1]);
+    assertNoAuthority(fixture);
+  });
+
+  test('refuses unwritable output without success text or input mutation', () => {
+    const fixture = createFixture();
+    const inputs = [readFileSync(fixture.fleet), readFileSync(fixture.observation)];
+    if (process.getuid?.() === undefined || process.getuid() === 0)
+      throw new Error('Unwritable output proof requires a non-privileged invoking process');
+    chmodSync(fixture.outputs, 0o500);
+    try {
+      const output = join(fixture.outputs, 'dash.json');
+      const refusal = invokeEntrypoint(fixture, 'dash', buildArguments(fixture, output));
+      expect(refusal.exitCode).not.toBe(0);
+      expect(stripVTControlCharacters(refusal.stderr.toString())).toContain(
+        `Cannot create new operation plan at ${output}`,
+      );
+      expect(refusal.stderr.toString()).toContain('EACCES');
+      expect(refusal.stdout.toString()).toBe('');
+      expect(readdirSync(fixture.outputs)).toEqual([]);
+      expect(readFileSync(fixture.fleet)).toEqual(inputs[0]);
+      expect(readFileSync(fixture.observation)).toEqual(inputs[1]);
+      assertNoAuthority(fixture);
+    } finally {
+      chmodSync(fixture.outputs, 0o700);
+    }
+  });
 });
