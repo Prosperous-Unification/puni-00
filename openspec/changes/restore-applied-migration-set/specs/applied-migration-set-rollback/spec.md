@@ -1,5 +1,44 @@
 ## ADDED Requirements
 
+### Requirement: Kubernetes verifies the candidate migration protocol before capture
+
+Before opening SQLite or creating a capture snapshot, the Kubernetes capture Job SHALL execute
+the pinned candidate image's database-free migration capability CLI. It SHALL require a
+successful exit and one strict JSON object with protocol `wbs-migration`, version `1`, and
+exactly the unique capabilities `capture-v1` and `restore-v1-sha256`, in either order.
+Missing, unreadable, failing, malformed, legacy, unsupported or incomplete responses SHALL
+refuse capture before any snapshot or forward migration, without a timestamp fallback.
+The capability CLI SHALL require neither DB_PATH nor a database or migration directory and
+SHALL NOT open SQLite. Existing capture format and deployment identities SHALL remain unchanged.
+
+#### Scenario: Candidate exposes only legacy migration commands
+
+- **GIVEN** an image whose migration commands support only latest-name status and `--to`
+- **WHEN** the new Kubernetes executor attempts capture with that image
+- **THEN** it reports incompatible migration capabilities before opening SQLite or creating
+  the snapshot, and no forward migration is run
+
+#### Scenario: Capability response is not the complete supported protocol
+
+- **WHEN** the executable is missing or unreadable, exits nonzero, or returns malformed JSON,
+  extra fields, a wrong protocol/version, duplicate/unknown capabilities, or only one required capability
+- **THEN** capture fails with an explicit capability diagnostic, with no SQLite open,
+  snapshot, forward migration or fallback to `--to`
+
+#### Scenario: Capability discovery needs no database
+
+- **WHEN** the capability CLI is invoked with no DB_PATH and no database or migration directory
+- **THEN** it returns the supported strict response without creating or opening a database
+- **AND** unexpected arguments are refused
+
+#### Scenario: Advertised restoration is implemented by the same backend
+
+- **WHEN** a backend advertises `capture-v1` and `restore-v1-sha256`
+- **THEN** its actual capture and down CLIs complete the older-candidate/newer-baseline round
+  trip and reject altered capture bytes before any ledger or schema mutation
+- **AND** the generated Kubernetes script still takes its single existing database observation
+  for capture and snapshot after the successful capability check
+
 ### Requirement: Capture identifies the complete rollback boundary
 
 Before deployment applies a migration, it SHALL persist an attempt-bound capture containing

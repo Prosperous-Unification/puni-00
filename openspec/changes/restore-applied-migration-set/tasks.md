@@ -50,7 +50,33 @@ migration identity. No dependency on host enrollment or completion of 070.09.
       the supported heavy-lock workflow; retain identities and outputs in verify.md.
       Pre-live fixtures and local proofs are prepared; this task remains open until the
       heavy-locked k3s scenarios pass and cleanup is verified.
-- [ ] 3.2 Review against every delta scenario, record watched R5 faults and restored positives,
+- [ ] 3.2a Before implementing the capability handshake, retain the observed generated-script
+      RED for an old `--to`-only candidate in `execute-adapter.test.ts`: capture currently
+      succeeds and creates a snapshot. Add backend contract tests in
+      `apps/wbs/be-01/src/migration-cli.db.test.ts`, then implement
+      `apps/wbs/be-01/src/migrate-capabilities-cli.ts` with the exact DB-free response in
+      design.md. Tests: `advertises capture-v1 and restore-v1-sha256 without a database`,
+      `refuses unexpected capability arguments`, and `advertised protocol completes exact-set restoration and refuses altered bytes`.
+      Use the real status/down CLIs and disposable SQLite for the last test; a constant-value
+      assertion alone is insufficient. Prove the DB-free boundary with DB_PATH unset and a
+      nonexistent DB path that remains absent; fault an attempted DB/config dependency and
+      watch the advertised-capability test fail. Record the restored positive and adjacent proof.
+- [ ] 3.2b Test then require that protocol at the start of Kubernetes capture in
+      `BACKEND_TASK_SCRIPT`, without adding another SQLite observation. Use the actual generated
+      script and candidate subprocess boundary in `execute-adapter.test.ts`. Cover missing and
+      unreadable executable, nonzero exit, malformed/legacy stdout, wrong protocol/version,
+      unknown fields, duplicate/unknown capabilities, and each missing required capability;
+      a fake capability executable may return each fault while the surrounding script remains
+      production code. Assert no SQLite open, snapshot creation or forward migration on refusal;
+      use an absent or malformed database to distinguish capability refusal from later DB access.
+      Add a coordinator refusal case in `execute.test.ts` proving no `state-captured` journal
+      promotion or migration call, with existing rollback/fence handling retained. Separately
+      remove the invocation, response validation and required-capability checks and observe
+      the watched production tests fail; restore and annotate each check. Preserve the successful
+      generated-script round trip and the advertised real-CLI contract from 3.2a.
+      These offline preparations may run while 3.1 waits, but require fresh 3.1 live evidence
+      on the integrated candidate before completion of 3.2.
+- [ ] 3.2 After 3.1 and 3.2a/3.2b, review against every delta scenario, record watched R5 faults and restored positives,
       validate OpenSpec and affected format/test/lint/typecheck/build targets, then run
       `bin/h2puni-gate.sh <exact-implementation-sha>` and required CI. Update AGENTS' migration
       CLI reference and runbooks to the implemented interface without changing the invariant.

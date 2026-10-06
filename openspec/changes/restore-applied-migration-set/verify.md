@@ -466,3 +466,44 @@ refused **before the lab started**, exit 70:
 `/home/puni1`; the wrapper's canonical path cannot be overridden for a
 production run. A post-attempt inventory again found no named F8 resources.
 The live rehearsal and its R5 mutation remain **unverified**; task 3.1 is open.
+
+## Candidate capability planning amendment — implementation pending
+
+Planning baseline: `137d627577b3caf3e64990d9684c7b15b7ea372b`, isolated branch
+`plan/migration-capability-handshake`. Sol's uncommitted adoption documentation and compatibility
+test remain in the implementation worktree and are not changed by this planning amendment.
+
+The offline compatibility test observed the actual generated `BACKEND_TASK_SCRIPT` accept an
+old `--to`-only candidate and create `snapshots/tx.sqlite`, while its test expected a capability
+refusal (`/tmp/puni-07012-slice32-old-candidate-red.log`, one failing test). The pre-change backend
+at `eaaa14b28664986e4ab84ddc2710c01615abcdc2` requires `--to` in `migrate-down-cli.ts`; its status
+CLI emits the newest name and does not implement structured capture. Source inspection confirms
+the current Kubernetes capture script reads SQLite/folders directly, so that Job alone does not
+establish the incoming image's exact-set rollback capability.
+
+The PM authorized the bounded planning amendment: a DB-free strict versioned capability CLI,
+validated by Kubernetes before SQLite/snapshot, with both `capture-v1` and `restore-v1-sha256`
+required. Delta scenarios, design, ADR 0036, ordered offline tasks 3.2a/3.2b and the verification
+matrix describe the implementation and watched refusal proofs. There are no source changes,
+new database migrations, journal/capture version changes, or new host actions in this amendment.
+
+The observed RED is not a completed fix. Tasks 3.2a/3.2b, live 3.1 and final 3.2 remain open.
+The candidate must become available on h2puni through a permitted path before the heavy-locked
+rehearsal route can execute there. Rehearsal and the final gate must use the implementation
+revision containing this amendment's eventual code, not the earlier pre-live fixture revision.
+
+Planning checks on this amendment:
+
+- `openspec validate restore-applied-migration-set --strict --json`: 1/1 passed.
+- `openspec validate --all --json`: 147/147 passed.
+- `openspec validate --all --strict --json`: 141/147 passed; all 129 changes passed.
+  Six unchanged canonical specs (`dev-deploy`, `live-plan-snapshot`, `plan-command-registry`,
+  `plan-import`, `saved-plans`, `scheduler-optimization`) retain placeholder Purpose warnings
+  promoted to failures by strict mode. No canonical spec differs from the planning baseline.
+- Scoped Prettier and `git diff --check`: passed. Intent: 314 words.
+- Logs: `/tmp/puni-07012-capability-plan-targeted.json`,
+  `/tmp/puni-07012-capability-plan-all.json`,
+  `/tmp/puni-07012-capability-plan-all-strict.json`.
+
+No implementation tests, live rehearsal, full gate or deployment were run for this docs-only
+amendment. Those remain implementation verification obligations above.

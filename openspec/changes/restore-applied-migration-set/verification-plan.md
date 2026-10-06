@@ -1,9 +1,8 @@
 # Verification plan — not observed results
 
-This is a planning artifact. Implementation, production-path failures, restored positives,
-full gate and deployment have not run for this change. All tasks remain unchecked. The
-schema reserves `verify.md` for post-implementation evidence; do not create that report from
-this matrix or interpret OpenSpec artifact presence as passing behavior.
+This is a planning artifact, not a current completion report. The original proof matrix below
+records requirements; observed implementation results and outstanding work live in `verify.md`
+and `tasks.md`. Do not interpret this matrix or OpenSpec artifact presence as passing behavior.
 
 Sequencing: this repair is the selected prerequisite route for PR #259 / WBS 010.5.2 while
 the old lifecycle stamp is retained and authoritative nondeployment inventory is incomplete.
@@ -33,6 +32,28 @@ For each implemented check, record the exact source line, test command/name, inj
 observed failing output, restored passing output and candidate SHA in `verify.md`. Place an
 adjacent `Proof:` comment on the production check. Existing tests alone do not prove a newly
 introduced check is breakable.
+
+## Candidate capability amendment / 3.2a and 3.2b
+
+The observed old-candidate RED is recorded in `verify.md`; every new guard below remains planned.
+
+| Boundary               | Injected fault                                                   | Required observed failure                                                                                                       |
+| ---------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| DB-free advertisement  | Add a database/config read to the capability executable          | Real CLI with DB_PATH unset or nonexistent refuses rather than returning its advertised response; nonexistent DB remains absent |
+| Executable protocol    | Remove capability invocation from the generated capture script   | Old `--to`-only candidate reaches snapshot instead of capability refusal                                                        |
+| Successful executable  | Ignore nonzero exit or unavailable executable                    | Generated script accepts a missing, unreadable or failing capability boundary                                                   |
+| Response shape/version | Remove strict response validation                                | Malformed/legacy JSON, extra keys or unsupported protocol/version proceeds toward capture                                       |
+| Complete support       | Remove each required capability or uniqueness check separately   | Partial, duplicated or unknown capability response proceeds toward capture                                                      |
+| Ordering               | Move the check after SQLite/snapshot access                      | Incompatible candidate opens the absent/malformed database or creates a snapshot before refusal                                 |
+| Coordinator admission  | Treat a failed capability Job as successful capture              | State advances to `state-captured` or forward migration is invoked                                                              |
+| Advertisement truth    | Break digest verification or exact-set selection in the real CLI | Advertised-protocol contract fails on altered capture bytes or older candidate after newer baseline                             |
+
+Unreadability must be tested as a nonprivileged subprocess when permission bits distinguish it
+from absence. Pair each fault with restored positives and an adjacent `Proof:` comment. The
+generated script remains the production script, not a second test implementation. Run backend
+CLI and deployment adapter suites plus affected type/lint/build/format and strict OpenSpec checks.
+These offline results do not replace a subsequent live 3.1 run and exact-SHA gate on the integrated
+candidate. Candidate availability on h2puni remains a prerequisite to that host's execution route.
 
 ## Planned commands
 

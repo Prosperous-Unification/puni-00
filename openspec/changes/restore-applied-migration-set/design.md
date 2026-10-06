@@ -72,6 +72,39 @@ Do not automatically replace SQLite with the pre-swap snapshot.
 
 ### Kubernetes
 
+The offline compatibility audit observed an old `--to`-only image pass the generated capture
+script and create a snapshot: that script reads SQLite and migration folders itself. A later
+exact-set rollback would fail because the candidate CLI does not recognize its arguments.
+Capture-format support alone is insufficient: digest-pinned down support arrived separately.
+
+Add `apps/wbs/be-01/src/migrate-capabilities-cli.ts` as a small executable protocol boundary.
+With no arguments it prints exactly one JSON object:
+
+```json
+{ "protocol": "wbs-migration", "version": 1, "capabilities": ["capture-v1", "restore-v1-sha256"] }
+```
+
+It imports no database/configuration module, requires no DB_PATH or migration directory, and
+rejects unexpected arguments. The response has exactly these keys; the capability array has
+exactly these two unique strings, with order insignificant. The names describe capture format
+1 and exact-set restoration that verifies the supplied SHA-256 before parsing or opening SQLite.
+Production contract tests exercise both advertised operations through the existing CLIs; a
+marker file or a process exit code alone does not establish this contract.
+
+In `BACKEND_TASK_SCRIPT`, mode `capture` executes that CLI and validates its entire stdout and
+exit status before the first SQLite open, snapshot directory creation or VACUUM. Refuse absent,
+unreadable, failing, malformed, unsupported and partial responses explicitly. Keep the existing
+single SQLite capture/snapshot observation afterward: do not probe by running down SQL or add
+a second status/capture database read. The coordinator journals capture only after this Job
+succeeds, so refusal cannot reach forward migration. The pinned backend image is the authority;
+the capability response adds neither another deployment identity nor a journal field.
+
+This amendment changes only backend capability advertisement and Kubernetes candidate admission.
+It does not alter Compose, captured bytes or their format/version, journal schema 2, manual
+`--to` behavior, image admission policy, fencing, Lease/Flux order, or legacy-journal recovery.
+Compatibility alternatives are recorded in ADR 0036. The handshake is not a claim that a
+candidate passes live rehearsal, trusted activation, or the canonical gate.
+
 Extend `MigrationCapture` and the durable journal with the complete pending identities;
 carry the capture through `rollbackSchema`, rendered schema Job and `BACKEND_TASK_SCRIPT`.
 Continue validating the observed restored identities independently at the coordinator.
@@ -103,6 +136,12 @@ packet does not introduce an automatic legacy-journal migration.
 No database migration is needed. First land the shared runner/CLI, then Compose and Kubernetes
 callers, then integrated rehearsal and exact-SHA gate. Do not activate partially migrated
 deployment automation as a completed fix.
+
+Tasks 3.2a/3.2b are offline compatibility preparation after slices 1 and 2; they may proceed
+while the 3.1 live rehearsal awaits permitted candidate availability. Rehearse and gate the
+resulting implementation revision after the handshake is integrated. Neither the pre-live
+fixture checkpoint nor planning validation completes 3.1/3.2 or unblocks #259. The h2puni route
+is unavailable until that candidate revision is present there through a permitted path.
 
 PR #259's old lifecycle identity is not currently cleared for renaming: h4claw inventory
 access was denied and supported-store absence remains incomplete. Therefore this packet

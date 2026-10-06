@@ -12,6 +12,9 @@ Failed WBS deployment restores exactly the captured migration identities, includ
 newly introduced migrations. Capture and candidate script identities survive interruption.
 Invalid capture, unexpected ledger changes, changed scripts and incomplete restoration fail
 explicitly, retain recovery evidence and identify a usable manual completion command.
+Before Kubernetes captures a candidate, its pinned backend must advertise both versioned
+capture and digest-pinned restoration through a database-free capability CLI. An older or
+incompatible image is refused before SQLite is opened or a snapshot is created.
 
 ## Non-Goals
 
