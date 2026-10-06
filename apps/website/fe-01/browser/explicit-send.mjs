@@ -12,9 +12,16 @@ const description = 'Build a booking service for a community bicycle workshop.';
 
 /** Opens Build for one anonymous draft and records its conversation stream POSTs. */
 async function openDraft(browser, viewport) {
+  // Each draft is its own visitor behind a simulated gateway hop (the stack runs with
+  // TRUSTED_PROXY_HOPS=1), as the per-source daily caps require.
+  const visitor = `10.${String(Math.floor(Math.random() * 250))}.${String(Math.floor(Math.random() * 250))}.${String(Math.floor(Math.random() * 250))}`;
   const intake = await globalThis.fetch(`${apiOrigin}/intakes`, {
     method: 'POST',
-    headers: { origin: siteOrigin, 'content-type': 'application/json' },
+    headers: {
+      origin: siteOrigin,
+      'content-type': 'application/json',
+      'x-forwarded-for': visitor,
+    },
     body: JSON.stringify({ description }),
   });
   if (intake.status !== 201) throw new Error(`Fixture intake failed: ${String(intake.status)}`);
@@ -23,6 +30,9 @@ async function openDraft(browser, viewport) {
   const separator = cookie.indexOf('=');
   if (separator < 1) throw new Error('Fixture draft cookie is malformed');
   const context = await browser.newContext({ viewport });
+  await context.route(`${apiOrigin}/**`, (route) =>
+    route.continue({ headers: { ...route.request().headers(), 'x-forwarded-for': visitor } }),
+  );
   await context.addCookies([
     {
       name: cookie.slice(0, separator),

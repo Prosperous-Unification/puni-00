@@ -34,10 +34,25 @@ const viewports = [
 const description =
   'A booking tool for a community bicycle workshop, so volunteers stop juggling paper slots.';
 
+// The stacks run with TRUSTED_PROXY_HOPS=1 and every draft and browser context is its own
+// visitor behind a simulated gateway hop, so the daily draft cap (20 per source) never stops a
+// run that creates one draft per capture.
+const runPrefix = `10.${String(Math.floor(Math.random() * 250))}.${String(Math.floor(Math.random() * 250))}`;
+let visitorCount = 0;
+
+function nextVisitor() {
+  visitorCount += 1;
+  return `${runPrefix}.${String(visitorCount % 250)}`;
+}
+
 async function createDraftCookie(stack) {
   const intake = await globalThis.fetch(`${stack.api}/intakes`, {
     method: 'POST',
-    headers: { origin: stack.site, 'content-type': 'application/json' },
+    headers: {
+      origin: stack.site,
+      'content-type': 'application/json',
+      'x-forwarded-for': nextVisitor(),
+    },
     body: JSON.stringify({ description }),
   });
   if (intake.status !== 201) throw new Error(`Fixture intake failed: ${String(intake.status)}`);
@@ -517,8 +532,15 @@ async function fetchSiteMedia(pathname) {
   return mediaCache.get(pathname);
 }
 
-/** Serves the stack's site media from {@link mediaOrigin}, or aborts it to model a media outage. */
+/**
+ * Serves the stack's site media from {@link mediaOrigin}, or aborts it to model a media outage,
+ * and names the context's visitor on every API request with the gateway hop.
+ */
 async function routeSiteMedia(context, stack, abort) {
+  const visitor = nextVisitor();
+  await context.route(`${stack.api}/**`, (route) =>
+    route.continue({ headers: { ...route.request().headers(), 'x-forwarded-for': visitor } }),
+  );
   await context.route(`${stack.site}/media/**`, async (route) => {
     if (abort) return route.abort('failed');
     const media = await fetchSiteMedia(new globalThis.URL(route.request().url()).pathname);
@@ -566,7 +588,9 @@ try {
         await page.route(`${state.stack.api}/session`, (route) => route.abort());
       if (state.pausedProvider)
         await page.route(`${state.stack.api}/conversation`, async (route) => {
-          const response = await route.fetch();
+          const response = await route.fetch({
+            headers: { ...route.request().headers(), 'x-forwarded-for': nextVisitor() },
+          });
           const view = await response.json();
           await route.fulfill({ response, json: { ...view, provider: 'paused' } });
         });

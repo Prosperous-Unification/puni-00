@@ -1596,7 +1596,8 @@ body:has(.night-shell) {
   width: 100%;
   min-height: 9em;
   padding: var(--space-3) var(--space-4);
-  border: 1px solid rgb(255 255 255 / 0.22);
+  /* The resting border meets 3:1 against the card (WCAG 1.4.11), as the composer's does. */
+  border: 1px solid var(--glass-line);
   border-radius: 16px;
   background: rgb(11 9 21 / 0.35);
   color: #fff;
