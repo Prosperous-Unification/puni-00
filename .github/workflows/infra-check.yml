@@ -105,3 +105,9 @@ jobs:
           K3D: ${{ runner.temp }}/bin/k3d
           KUBECTL: ${{ runner.temp }}/bin/kubectl
         run: bunx nx run tool-deploy:test:k3s --output-style=stream
+
+      # The platform Traefik as committed: bind refused at the kernel's default port floor, Ready
+      # at the ingress-node floor 0, HTTP permanently redirected to HTTPS on host ports 80/443.
+      # It downloads its own locked k3d, kubectl and helm.
+      - name: tool-fleet:rehearse:traefik
+        run: bunx nx run tool-fleet:rehearse:traefik --output-style=stream

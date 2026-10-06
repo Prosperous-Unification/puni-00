@@ -136,6 +136,36 @@ kubectl wait --for=condition=Failed job/denied-egress -n workers --timeout=2m
 test "$(kubectl get job denied-egress -n workers -o jsonpath='{.status.conditions[?(@.type=="Failed")].reason}')" = BackoffLimitExceeded
 ```
 
+## Application sources
+
+The platform graph above reads only `GitRepository flux-system/puni-platform`. Application
+manifests come from a second source, the private fleet repository `puni-fleet`, which carries
+its own Flux Kustomizations (`fleet-helsinki`, then one per application) and depends on the
+platform's `policy` and `controllers` stages. Tenant namespaces such as `website-dev` stay in
+`infra/platform/policy`, so the fleet repository adds workloads and allow rules only;
+`tool-fleet:check` refuses a tenant namespace without Pod Security `restricted` enforced and a
+`default-deny` NetworkPolicy.
+
+The fleet source authenticates with its own read-only deploy key, never with a person's
+credentials and never with a key that reads the product source. `platform.yml` does not create
+it yet; on the server, with the key and its `known_hosts` as root-owned mode-0600 files, the
+operator creates `flux-system/puni-fleet-auth` exactly as `platform.yml` creates
+`puni-platform-auth`:
+
+```sh
+sudo k3s kubectl create secret generic puni-fleet-auth --namespace=flux-system \
+  --from-file=identity="$FLEET_READ_KEY" --from-file=known_hosts="$FLEET_KNOWN_HOSTS" \
+  --dry-run=client --output=yaml | sudo k3s kubectl apply -f -
+```
+
+`GitRepository flux-system/puni-fleet` then reads branch `main` of the fleet repository over SSH
+with `secretRef: puni-fleet-auth`, and `Kustomization fleet-helsinki` applies its
+`./clusters/helsinki` with prune and wait. The fleet Kustomizations decrypt with the same
+`sops-age` Secret and bind the same `<cluster-id>-kubeconfig` as the platform stages, so one
+escrowed age key covers both repositories. The repository URL is an operator input and is not
+committed here; working copies of the fleet repository live in a nested checkout
+(`bun run private:checkout puni-fleet`, [ADR 0036](../adr/0036-private-companions-are-nested-ignored-clones.md)).
+
 ## Secrets
 
 Git carries platform credentials only as SOPS files under
@@ -201,6 +231,16 @@ both the OCI and Docker v2 media types: a Docker-only `Accept` returns 404 for
 OCI manifests.
 
 ## Certificates and DNS
+
+Traefik is a host-network DaemonSet on `capability-ingress` nodes listening on ports 80 and 443
+(the chart's own defaults are 8000 and 8443) behind a `ClusterIP` Service, since ServiceLB is
+disabled. It runs as UID 65532, so the base role sets `net.ipv4.ip_unprivileged_port_start = 0`
+on ingress nodes only; elsewhere the kernel default 1024 stays. Port 80 only redirects to HTTPS
+permanently: Traefik answers 301 to `GET` and 308 to other methods. `tool-fleet:check` binds the
+values, the rendered chart and the per-host sysctl; `bunx nx run tool-fleet:rehearse:traefik`
+(add `-- --import-images` where containers have no route out) proves the bind refusal at 1024,
+Readiness at 0 and the redirect on k3d. The Ansible role on a real kernel is proven only by the
+QEMU lab.
 
 Production has only the `letsencrypt-staging` ClusterIssuer, restricted to
 `wbs.bulletpoints.club` and `wbs-staging.bulletpoints.club`. Add a production

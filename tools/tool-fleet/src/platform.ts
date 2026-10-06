@@ -13,6 +13,7 @@ import {
   assertRetainedClaims,
   assertSecretClosure,
   assertStagePlacement,
+  assertTenantIsolation,
   assertTrustedPolicyScope,
   assertTrustedWorkloadImages,
   readPlatformManifests,
@@ -384,6 +385,7 @@ export async function validatePlatform(root: string): Promise<{
   assertRetainedClaims(manifests);
   assertTrustedWorkloadImages(manifests);
   assertTrustedPolicyScope(manifests);
+  assertTenantIsolation(manifests);
 
   const fluxInstall = await readFile(join(root, 'infra/platform/flux/install.yaml'));
   const fluxInstallSha256 = createHash('sha256').update(fluxInstall).digest('hex');

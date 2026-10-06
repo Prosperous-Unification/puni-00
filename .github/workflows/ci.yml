@@ -621,6 +621,16 @@ jobs:
           git ls-files -z | xargs -0 --no-run-if-empty \
             bun run tools/tool-git-hooks/src/hooks/plaintext-secrets.ts
 
+      # Nothing under private/ (nested private checkouts) may reach the public repository: no
+      # tracked path, no gitlink, no .gitmodules, and the /private/ ignore line itself. Over the
+      # whole tree so a `--no-verify` commit is caught. gate-workflow.test.ts runs this step.
+      - name: Private nesting
+        run: |
+          set -euo pipefail
+          test -n "$(git ls-files)" || { echo "no tracked files — scan would be vacuous"; exit 1; }
+          git ls-files -z | xargs -0 --no-run-if-empty \
+            bun run tools/tool-git-hooks/src/hooks/private-nesting.ts
+
       # The deploy artifacts. Neither Compose file nor the trigger script was
       # checked by any Nx target, so dev's whole container definition and the
       # command that deploys it could be syntactically broken while the gate
