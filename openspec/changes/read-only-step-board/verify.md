@@ -1,7 +1,7 @@
-# Task 1.1 — pure step-board projection
+# Tasks 1.1–1.2 — projection and mounted view
 
-Only task 1.1 is implemented. Task 1.2, page integration, mounted/browser proofs,
-review, full gate and integration remain pending. No API or wire contract changed.
+Tasks 1.1 and 1.2 are implemented. Project-page integration, browser proofs,
+full gate and integration remain pending. No API or wire contract changed.
 The delivered workItems order and each delivered PlanRead.steps array order are
 preserved. Card identity uses formatStepNodeId, independently of labels.
 
@@ -52,18 +52,68 @@ as unknown at the delivered-store fault boundary; Object.hasOwn distinguishes
 legitimate absence before column mapping. No union widening or eslint suppression.
 Vitest prints the existing native-config warning for extensionless imports and __dirname.
 
+## Task 1.2 mounted-view checkpoint
+
+The mounted view reads `ProjectRuntime.plan` with `useSyncExternalStore` and projects
+only `tree.value`. It renders loading, first-read failure, empty work, missing
+steps, retained cards with an explicit stale warning and cause, Retry through
+`reread(['tree'])`, and disconnection. Separate steps delivered ahead of a tree
+do not alter cards; invalid delivered progress reaches `AppFaultBoundary`.
+
+From `apps/wbs/fe-01`,
+`TZ=UTC bunx vitest run src/components/board/step-board-view.test.tsx --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 --reporter=dot`:
+
+- Initial behavior RED: exit 1, six mounted cases failed against the typed empty
+  view scaffold. First assertion expected `Loading board…` and found none.
+- Initial GREEN: exit 0, six cases passed. Two more cases cover literal column
+  order/counts/status and a stale-only feed publication; latest exit 0, 8/8.
+- Review correction RED: the retained-card case expected “Showing the last
+  delivered board; it may be out of date.”; the alert contained only the
+  engine-unavailable cause and Retry. After adding the retained-tree sentence,
+  all eight passed, and removing that sentence failed the same assertion.
+  First-read failure still shows its cause without retained-board wording.
+
+R5 mutations each ran alone with the mounted Vitest command and `-t` matching
+the named case, exited 1 with one failure and seven skipped, and were restored.
+Raw local logs are at `/tmp/board-mounted-view-r5/` in the reviewed worktree
+session. The adjacent `Proof:` comments name each fault and case.
+
+| Fault/log                                                                                | Observed failure                                               |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `hybrid-steps-mutation.log`: replace tree steps with separately delivered steps          | QA disappeared when Development arrived before the newer tree. |
+| `invalid-progress-mutation.log`: bypass projector malformed-progress throw               | No visible app-fault alert; an Unknown card appeared.          |
+| `stale-wording-red.log`, `stale-wording-mutation.log`: omit retained-tree stale sentence | Alert contained cause and Retry but no explicit stale wording. |
+| `initial-failure-mutation.log`: suppress tree failure warning                            | No first-read alert.                                           |
+| `stale-resource-mutation.log`: ignore staleResources                                     | No alert on stale-only publication.                            |
+| `failure-cause-mutation.log`: substitute generic text                                    | Engine refusal absent from first-read alert.                   |
+| `retry-resource-mutation.log`: reread steps                                              | Called with `['steps']`, expected `['tree']`.                  |
+| `retain-stale-cards-mutation.log`: drop board on stale read                              | Retained Build card vanished.                                  |
+| `disconnection-mutation.log`: suppress warning                                           | No reconnecting status.                                        |
+| `empty-project-mutation.log`: suppress empty-work branch                                 | No “No work items” text.                                       |
+| `no-project-steps-mutation.log`: suppress no-steps branch                                | No “No project steps” text.                                    |
+
+Latest focused checks: mounted view 8/8; node projection 8/8; scoped Prettier
+pass; strict pinned OpenSpec validation valid (1/1); Nx `wbs-fe-01:typecheck`
+(including module dependency), `wbs-fe-01:lint`, and `wbs-fe-01:build` all exit 0.
+Nx reported that sandbox socket isolation was unavailable and ran its targets
+in-process with explicit successful target summaries. Astra independently reran
+the mounted 8/8 and inspected mandatory fault logs, with no remaining findings.
+This is a task 1.2 checkpoint, not overall change acceptance.
+
 ## Pending and unavailable
 
-`openspec validate read-only-step-board --strict --json` could not run locally:
-exit 127, openspec command missing. No dependency installation was performed.
+During task 1.1, `openspec validate read-only-step-board --strict --json`
+could not run locally: exit 127, openspec command missing.
 
 Subsequent targeted validation succeeded with the pinned CLI:
 `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate read-only-step-board --strict --json`:
 exit 0; 1 passed, 0 failed, valid true, no issues.
-Astra's independent read-only review found no Important or Critical issues;
-the Minor missing validation evidence is recorded here.
+Astra's task 1.1 review found no Important or Critical issues; the Minor
+validation-evidence gap was closed with the pinned CLI result above.
 
 Full OpenSpec validation remains pending in the coordinator's canonical
 exact-SHA h2puni gate, along with full format/test/lint/typecheck/build and exact-head CI.
-Mounted UI, browser, build, full node/conformance suites and gate were not run for
-this pure slice. This artifact does not claim overall board acceptance.
+The task 1.1-only skip list is superseded by the task 1.2 focused checks above.
+Project-page/router regression, browser tests, the 500-leaf fixture measurement,
+full node/conformance suites and exact-SHA gate remain pending under later tasks.
+This artifact does not claim overall board acceptance.
