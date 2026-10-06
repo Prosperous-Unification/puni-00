@@ -15,7 +15,7 @@ test('applies all migrations and preserves a draft across reopen until expiry', 
   const databasePath = join(directory, 'website.sqlite');
   try {
     const store = new WebsiteStore(databasePath);
-    store.createDraft('draft-1', 'Build a booking app', 'claim-1', 100, 200);
+    store.createDraft('draft-1', 'Build a booking app', 'claim-1', 100, 200, 'source-test');
     store.close();
 
     const reopened = new WebsiteStore(databasePath);
@@ -34,17 +34,27 @@ test('discarding a draft expires it without deleting content and refuses a consu
   const directory = mkdtempSync(join(tmpdir(), 'puni-website-discard-'));
   try {
     const store = new WebsiteStore(join(directory, 'website.sqlite'));
-    store.createDraft('draft-1', 'Build a booking app', 'claim-1', 100, 1_000);
+    store.createDraft('draft-1', 'Build a booking app', 'claim-1', 100, 1_000, 'source-test');
     expect(store.discardDraft('claim-1', 150)).toBe('discarded');
     expect(store.findDraft('claim-1', 151)).toBeNull();
     expect(store.discardDraft('claim-1', 160)).toBe('discarded');
     expect(store.discardDraft('claim-unknown', 160)).toBe('missing');
-    store.createDraft('draft-2', 'Build a dashboard', 'claim-2', 100, 1_000);
+    store.createDraft('draft-2', 'Build a dashboard', 'claim-2', 100, 1_000, 'source-test');
     expect(
-      store.submit('claim-2', 'key-12345678', 'hash', 'a@example.test', 'b', 'r', 150),
+      store.submit(
+        'claim-2',
+        'key-12345678',
+        'hash',
+        'a@example.test',
+        'b',
+        'r',
+        150,
+        'source-test',
+      ),
     ).toEqual({
       kind: 'created',
       receipt: 'r',
+      siteCount: 1,
     });
     // Proof: dropping the consumed branch in discardDraft made this return 'discarded'.
     expect(store.discardDraft('claim-2', 160)).toBe('consumed');

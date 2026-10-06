@@ -25,7 +25,7 @@ test('source command inspects and explicitly applies a reviewed plan', () => {
   const databasePath = join(directory, 'website.sqlite');
   try {
     const store = new WebsiteStore(databasePath);
-    store.createDraft('expired', 'private description', 'private claim', 1, 2);
+    store.createDraft('expired', 'private description', 'private claim', 1, 2, 'source-test');
     store.close();
     const inspected = command('inspect', databasePath);
     expect(inspected.exitCode).toBe(0);
@@ -62,7 +62,7 @@ test('source command refuses malformed arguments without creating or deleting a 
   const databasePath = join(directory, 'website.sqlite');
   try {
     const store = new WebsiteStore(databasePath);
-    store.createDraft('expired', 'private description', 'private claim', 1, 2);
+    store.createDraft('expired', 'private description', 'private claim', 1, 2, 'source-test');
     store.close();
     for (const [arguments_, message] of [
       [[], 'Usage: inspect DATABASE | apply DATABASE CUTOFF FINGERPRINT'],

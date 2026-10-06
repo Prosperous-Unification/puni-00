@@ -10,7 +10,7 @@ try {
   cpSync(join(import.meta.dir, 'dist'), bundle, { recursive: true });
   const databasePath = join(directory, 'website.sqlite');
   const store = new WebsiteStore(databasePath);
-  store.createDraft('expired', 'private description', 'private claim', 1, 2);
+  store.createDraft('expired', 'private description', 'private claim', 1, 2, 'source-test');
   store.close();
   const command = Bun.spawnSync(
     ['bun', join(bundle, 'draft-retention-cli.js'), 'inspect', databasePath],

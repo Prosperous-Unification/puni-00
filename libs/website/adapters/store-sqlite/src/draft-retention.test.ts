@@ -28,7 +28,14 @@ function seededDatabase(databasePath: string): void {
     ['legacy', 100],
     ['replay', 100],
   ] as const)
-    store.createDraft(id, `secret-description-${id}`, `secret-claim-${id}`, 1, expiry);
+    store.createDraft(
+      id,
+      `secret-description-${id}`,
+      `secret-claim-${id}`,
+      1,
+      expiry,
+      'source-test',
+    );
   store.close();
   const database = new Database(databasePath);
   try {

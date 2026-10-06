@@ -15,7 +15,7 @@ try {
   };
   const databasePath = join(directory, 'website.sqlite');
   const store = new WebsiteStore(databasePath);
-  store.createDraft('draft-1', 'Build a booking app', 'claim-1', 100, 200);
+  store.createDraft('draft-1', 'Build a booking app', 'claim-1', 100, 200, 'source-test');
   store.close();
   const reopened = new WebsiteStore(databasePath);
   const draft = reopened.findDraft('claim-1', 150);

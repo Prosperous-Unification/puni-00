@@ -8,6 +8,8 @@ import {
 } from '@website/contracts';
 import type { Database } from 'bun:sqlite';
 
+import { sweepAdmissionCounts } from './guardrail-store';
+
 export interface ConversationTurn {
   role: 'user' | 'assistant';
   content: string;
@@ -576,6 +578,7 @@ export function readSourceSalt(database: Database, utcDay: string): Uint8Array {
     .transaction(() => {
       const previousDay = utcDayOf(Date.parse(`${utcDay}T00:00:00.000Z`) - 86_400_000);
       database.query('DELETE FROM source_salt WHERE utc_day < ?').run(previousDay);
+      sweepAdmissionCounts(database, previousDay);
       database
         .query('INSERT OR IGNORE INTO source_salt (utc_day, salt) VALUES (?, ?)')
         .run(utcDay, crypto.getRandomValues(new Uint8Array(32)));

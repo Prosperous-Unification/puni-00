@@ -71,7 +71,14 @@ function query<T>(databasePath: string, sql: string): T[] {
 test('conversation content makes a draft-linked request content-bearing in the report', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
-  store.createDraft('draft-1', 'secret description', 'claim-1', day, day + 1_000_000);
+  store.createDraft(
+    'draft-1',
+    'secret description',
+    'claim-1',
+    day,
+    day + 1_000_000,
+    'source-test',
+  );
   converse(store, 'claim-1', 1);
   store.close();
   const database = new Database(databasePath);
@@ -90,7 +97,14 @@ test('conversation content makes a draft-linked request content-bearing in the r
 test('a request attached from a draft with conversation turns anchors to the draft', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
-  store.createDraft('draft-1', 'secret description', 'claim-1', day, day + 1_000_000);
+  store.createDraft(
+    'draft-1',
+    'secret description',
+    'claim-1',
+    day,
+    day + 1_000_000,
+    'source-test',
+  );
   converse(store, 'claim-1', 2);
   const account = store.createProspect('owner@example.test', day + 100);
   expect(store.attachDraft(account.id, 'claim-1', day + 100)).toBe(true);
@@ -112,9 +126,25 @@ test('a request attached from a draft with conversation turns anchors to the dra
 test('erasure blanks a due subject conversation and keeps its accounting', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
-  store.createDraft('draft-1', 'secret description', 'claim-1', day, day + 1_000_000);
+  store.createDraft(
+    'draft-1',
+    'secret description',
+    'claim-1',
+    day,
+    day + 1_000_000,
+    'source-test',
+  );
   converse(store, 'claim-1', 2);
-  store.submit('claim-1', 'proposal-key-1', 'hash', 'a@example.test', 'brief', 'receipt', day + 10);
+  store.submit(
+    'claim-1',
+    'proposal-key-1',
+    'hash',
+    'a@example.test',
+    'brief',
+    'receipt',
+    day + 10,
+    'source-test',
+  );
   store.close();
   const due = addUtcMonths(day, 12);
   expect(inspectRequestRetention(databasePath, due).proposalSubmission.due).toBe(1);
@@ -142,8 +172,8 @@ test('erasure blanks a due subject conversation and keeps its accounting', () =>
 test('the expired-draft purge removes earlier days and retains unknown usage blanked', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
-  store.createDraft('draft-a', 'secret a', 'claim-a', day, day + 1_000);
-  store.createDraft('draft-b', 'secret b', 'claim-b', day, day + 1_000);
+  store.createDraft('draft-a', 'secret a', 'claim-a', day, day + 1_000, 'source-test');
+  store.createDraft('draft-b', 'secret b', 'claim-b', day, day + 1_000, 'source-test');
   converse(store, 'claim-a', 2);
   converse(store, 'claim-b', 1);
   const unknown = store.admitConversationOperation({
@@ -209,7 +239,7 @@ test('the expired-draft purge removes earlier days and retains unknown usage bla
 test('the purge keeps the cutoff day’s completed operations as blanked accounting rows', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
-  store.createDraft('draft-a', 'secret a', 'claim-a', day, day + 1_000);
+  store.createDraft('draft-a', 'secret a', 'claim-a', day, day + 1_000, 'source-test');
   converse(store, 'claim-a', 2);
   store.close();
   const spend =

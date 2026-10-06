@@ -27,6 +27,16 @@ import {
   recordConversationGeneration,
   recoverConversationOperations,
 } from './conversation-store';
+import {
+  countDraft,
+  countProposal,
+  DraftCapReached,
+  type DraftCapRefusal,
+  hashEmailKey,
+  ProposalCapReached,
+  type ProposalCapRefusal,
+  utcDayOf,
+} from './guardrail-store';
 import { websiteMigrations } from './migration-catalogue';
 import {
   anchorRequestContent,
@@ -45,6 +55,7 @@ export type {
 export { conversationAllowance } from './conversation-store';
 export type { DraftCleanupOutcome, DraftCleanupPlan } from './draft-retention';
 export { inspectExpiredDrafts, purgeExpiredDrafts } from './draft-retention';
+export type { DraftCapRefusal, ProposalCapRefusal } from './guardrail-store';
 export { guardrailAllowance } from './guardrail-store';
 export type {
   AmbiguousRetentionSubject,
@@ -140,10 +151,16 @@ export interface DraftRecord {
   expiresAt: number;
 }
 
+/** `siteCount` is the day's site-wide proposal count including this one. */
 export type SubmitOutcome =
-  | { kind: 'created' | 'replayed'; receipt: string }
+  | { kind: 'created'; receipt: string; siteCount: number }
+  | { kind: 'replayed'; receipt: string }
   | { kind: 'conflict' }
-  | { kind: 'unavailable' };
+  | { kind: 'unavailable' }
+  | { kind: 'limited'; code: ProposalCapRefusal };
+
+/** `siteCount` is the day's site-wide draft count including this one. */
+export type DraftCreation = { kind: 'created'; siteCount: number } | { kind: DraftCapRefusal };
 
 /**
  * Owns the independent website SQLite database and refuses an edited applied migration.
@@ -447,18 +464,39 @@ export class WebsiteStore {
     this.database.close();
   }
 
+  /**
+   * Creates an intake draft counted against its source's and the site's UTC-day caps in the same
+   * transaction ({@link countDraft}); a refused cap writes nothing.
+   */
   createDraft(
     id: string,
     description: string,
     claimHash: string,
     now: number,
     expiresAt: number,
-  ): void {
-    this.database
-      .query(
-        'INSERT INTO intake_draft (id, description, claim_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
-      )
-      .run(id, description, claimHash, now, expiresAt);
+    sourceHash: string,
+  ): DraftCreation {
+    try {
+      return this.database
+        .transaction((): DraftCreation => {
+          const siteCount = countDraft(this.database, sourceHash, now);
+          this.database
+            .query(
+              'INSERT INTO intake_draft (id, description, claim_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
+            )
+            .run(id, description, claimHash, now, expiresAt);
+          return { kind: 'created', siteCount };
+        })
+        .immediate();
+    } catch (error) {
+      if (error instanceof DraftCapReached) return { kind: error.code };
+      throw error;
+    }
+  }
+
+  /** The `proposal:email` key of {@link countProposal}, under the day salt of `now`. */
+  private emailKey(email: string, now: number): string {
+    return hashEmailKey(readSourceSalt(this.database, utcDayOf(now)), email);
   }
 
   findDraft(claimHash: string, now: number): DraftRecord | null {
@@ -536,6 +574,11 @@ export class WebsiteStore {
       : { kind: 'conflict' };
   }
 
+  /**
+   * Submits the claimed draft as a proposal request. A replay returns its receipt uncounted; a new
+   * request is counted against the UTC-day caps ({@link countProposal}) in the same transaction,
+   * so a refused cap leaves no submission, replay or retention-subject row.
+   */
   submit(
     claimHash: string,
     idempotencyKey: string,
@@ -544,12 +587,42 @@ export class WebsiteStore {
     brief: string,
     receipt: string,
     now: number,
+    sourceHash: string,
+  ): SubmitOutcome {
+    try {
+      return this.submitDraft(
+        claimHash,
+        idempotencyKey,
+        bodyHash,
+        email,
+        brief,
+        receipt,
+        now,
+        sourceHash,
+      );
+    } catch (error) {
+      if (error instanceof ProposalCapReached) return { kind: 'limited', code: error.code };
+      throw error;
+    }
+  }
+
+  private submitDraft(
+    claimHash: string,
+    idempotencyKey: string,
+    bodyHash: string,
+    email: string,
+    brief: string,
+    receipt: string,
+    now: number,
+    sourceHash: string,
   ): SubmitOutcome {
     return this.database.transaction((): SubmitOutcome => {
       const replay = this.replaySubmission(claimHash, idempotencyKey, bodyHash, now);
       if (replay.kind !== 'unavailable') return replay;
       const draft = this.findDraft(claimHash, now);
       if (!draft) return { kind: 'unavailable' };
+      // Proof: counting after this transaction committed left a proposal_submission row in the per-email cap test.
+      const siteCount = countProposal(this.database, sourceHash, this.emailKey(email, now), now);
       const id = crypto.randomUUID();
       this.database
         .query(
@@ -573,7 +646,7 @@ export class WebsiteStore {
           'INSERT INTO submission_replay (claim_hash, idempotency_key, body_hash, receipt, expires_at) VALUES (?, ?, ?, ?, ?)',
         )
         .run(claimHash, idempotencyKey, bodyHash, receipt, now + 24 * 60 * 60 * 1000);
-      return { kind: 'created', receipt };
+      return { kind: 'created', receipt, siteCount };
     })();
   }
 
@@ -878,6 +951,7 @@ export class WebsiteStore {
     })();
   }
 
+  /** As {@link submit} for the signed-in request; it is counted the same way. */
   submitAccount(
     accountId: string,
     idempotencyKey: string,
@@ -886,6 +960,34 @@ export class WebsiteStore {
     brief: string,
     receipt: string,
     now: number,
+    sourceHash: string,
+  ): SubmitOutcome {
+    try {
+      return this.submitRequest(
+        accountId,
+        idempotencyKey,
+        bodyHash,
+        email,
+        brief,
+        receipt,
+        now,
+        sourceHash,
+      );
+    } catch (error) {
+      if (error instanceof ProposalCapReached) return { kind: 'limited', code: error.code };
+      throw error;
+    }
+  }
+
+  private submitRequest(
+    accountId: string,
+    idempotencyKey: string,
+    bodyHash: string,
+    email: string,
+    brief: string,
+    receipt: string,
+    now: number,
+    sourceHash: string,
   ): SubmitOutcome {
     return this.database.transaction((): SubmitOutcome => {
       // Proof: selecting the active request before replay submitted request B while retrying A's lost response.
@@ -900,6 +1002,7 @@ export class WebsiteStore {
           : { kind: 'conflict' };
       const active = this.findAccountRequest(accountId);
       if (!active?.draft_id) return { kind: 'unavailable' };
+      const siteCount = countProposal(this.database, sourceHash, this.emailKey(email, now), now);
       this.database
         .query(
           'INSERT INTO proposal_submission (id, draft_id, email, brief, receipt, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -924,7 +1027,7 @@ export class WebsiteStore {
           now + 24 * 60 * 60 * 1000,
           active.id,
         );
-      return { kind: 'created', receipt };
+      return { kind: 'created', receipt, siteCount };
     })();
   }
 

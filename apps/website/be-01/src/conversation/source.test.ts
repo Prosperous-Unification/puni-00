@@ -205,8 +205,11 @@ test('two API processes on one database derive the same source for one address a
 test('one source exhausting its request window leaves other sources admitted', async () => {
   const config = baseConfig({ trustedProxyHops: 1 });
   const api = createWebsiteApi(config);
+  // The daily draft cap refuses after 20; those refusals still count against the minute window.
   for (let index = 0; index < 30; index += 1)
-    expect((await api.fetch(postIntake('203.0.113.9'), '127.0.0.1')).status).toBe(201);
+    expect((await api.fetch(postIntake('203.0.113.9'), '127.0.0.1')).status).toBe(
+      index < 20 ? 201 : 429,
+    );
   const limited = await api.fetch(postIntake('203.0.113.9'), '127.0.0.1');
   expect(limited.status).toBe(429);
   expect(await limited.json()).toEqual({ code: 'rate_limited' });

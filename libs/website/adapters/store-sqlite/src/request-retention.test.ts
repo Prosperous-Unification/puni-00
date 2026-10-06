@@ -153,10 +153,19 @@ test('calendar-month addition preserves UTC time and clamps to the last day', ()
 test('a standalone manual proposal has its own subject anchored to the draft with no account', () => {
   fixture((databasePath) => {
     const store = new WebsiteStore(databasePath);
-    store.createDraft('draft-1', 'secret need', 'claim-1', leapDay, leapDay + 1000);
+    store.createDraft('draft-1', 'secret need', 'claim-1', leapDay, leapDay + 1000, 'source-test');
     expect(
-      store.submit('claim-1', 'key-1', 'hash-1', 'a@example.test', 'brief', 'r-1', leapDay + 500),
-    ).toEqual({ kind: 'created', receipt: 'r-1' });
+      store.submit(
+        'claim-1',
+        'key-1',
+        'hash-1',
+        'a@example.test',
+        'brief',
+        'r-1',
+        leapDay + 500,
+        'source-test',
+      ),
+    ).toEqual({ kind: 'created', receipt: 'r-1', siteCount: 1 });
     store.close();
     const rows = subjects(databasePath);
     expect(rows).toHaveLength(1);
@@ -177,11 +186,20 @@ test('a draft-backed account request uses the draft anchor and its submission is
   fixture((databasePath) => {
     const store = new WebsiteStore(databasePath);
     const account = store.createProspect('owner@example.test', 10);
-    store.createDraft('draft-1', 'secret need', 'claim-1', 100, 100_000);
+    store.createDraft('draft-1', 'secret need', 'claim-1', 100, 100_000, 'source-test');
     expect(store.attachDraft(account.id, 'claim-1', 5000)).toBe(true);
     expect(
-      store.submitAccount(account.id, 'key', 'hash', 'owner@example.test', 'brief', 'r-1', 6000),
-    ).toEqual({ kind: 'created', receipt: 'r-1' });
+      store.submitAccount(
+        account.id,
+        'key',
+        'hash',
+        'owner@example.test',
+        'brief',
+        'r-1',
+        6000,
+        'source-test',
+      ),
+    ).toEqual({ kind: 'created', receipt: 'r-1', siteCount: 1 });
     store.close();
     const rows = subjects(databasePath);
     expect(rows).toHaveLength(1);
@@ -270,8 +288,17 @@ test('a first chat message anchors a blank request and a later turn shares the d
 test('the schema refuses to move an anchored subject', () => {
   fixture((databasePath) => {
     const store = new WebsiteStore(databasePath);
-    store.createDraft('draft-1', 'secret need', 'claim-1', 100, 1000);
-    store.submit('claim-1', 'key-1', 'hash-1', 'a@example.test', 'brief', 'r-1', 500);
+    store.createDraft('draft-1', 'secret need', 'claim-1', 100, 1000, 'source-test');
+    store.submit(
+      'claim-1',
+      'key-1',
+      'hash-1',
+      'a@example.test',
+      'brief',
+      'r-1',
+      500,
+      'source-test',
+    );
     store.close();
     const database = new Database(databasePath);
     try {
@@ -509,8 +536,17 @@ test('an account submission sharing an unsubmitted request draft is overlapping 
 test('activation coverage refuses an omitted accountless submitted proposal or ambiguous subject', () => {
   fixture((databasePath) => {
     const store = new WebsiteStore(databasePath);
-    store.createDraft('draft-1', 'secret need', 'claim-1', 100, 1000);
-    store.submit('claim-1', 'key-1', 'hash-1', 'a@example.test', 'brief', 'r-1', 500);
+    store.createDraft('draft-1', 'secret need', 'claim-1', 100, 1000, 'source-test');
+    store.submit(
+      'claim-1',
+      'key-1',
+      'hash-1',
+      'a@example.test',
+      'brief',
+      'r-1',
+      500,
+      'source-test',
+    );
     store.close();
     expect(assertRetentionCoverage(databasePath, 600).activation).toBe('ready');
 

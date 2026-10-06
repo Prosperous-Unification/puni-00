@@ -25,8 +25,17 @@ function withDatabase(run: (databasePath: string, directory: string) => void): v
   try {
     const databasePath = join(directory, 'website.sqlite');
     const store = new WebsiteStore(databasePath);
-    store.createDraft('draft-1', 'private description', 'private claim', 100, 1000);
-    store.submit('private claim', 'key', 'hash', 'private@example.test', 'private', 'r-1', 500);
+    store.createDraft('draft-1', 'private description', 'private claim', 100, 1000, 'source-test');
+    store.submit(
+      'private claim',
+      'key',
+      'hash',
+      'private@example.test',
+      'private',
+      'r-1',
+      500,
+      'source-test',
+    );
     const account = store.createProspect('owner@example.test', 10);
     store.ensureBlankRequest(account.id, 20);
     store.close();

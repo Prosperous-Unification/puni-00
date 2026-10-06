@@ -290,6 +290,20 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     return 'admitted';
   }
 
+  /** The salted source hash of a request, or null when its client address is undeterminable. */
+  function requestSource(
+    request: Request,
+    clientAddress: string | undefined,
+    now: number,
+  ): string | null {
+    const address = selectClientAddress(
+      request.headers.get('x-forwarded-for'),
+      clientAddress,
+      trustedProxyHops,
+    );
+    return address === null ? null : hashSource(address, now);
+  }
+
   function rateRefusal(outcome: 'limited' | 'source_unavailable'): Response {
     return outcome === 'limited'
       ? failure('rate_limited', 429)
@@ -1006,7 +1020,17 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       if (!description) return failure('invalid_description', 400);
       const priorClaim = draftClaim(request);
       const claim = secret();
-      store.createDraft(crypto.randomUUID(), description, digest(claim), now, now + draftLifetime);
+      const source = requestSource(request, clientAddress, now);
+      if (source === null) return failure('source_unavailable', 400);
+      const created = store.createDraft(
+        crypto.randomUUID(),
+        description,
+        digest(claim),
+        now,
+        now + draftLifetime,
+        source,
+      );
+      if (created.kind !== 'created') return attachSiteCors(failure(created.kind, 429));
       const signedIn = prospectSession(request, now);
       // Proof: disabling signed-in attachment made the second-intake test resume the old request.
       if (signedIn) store.attachDraft(signedIn.id, digest(claim), now);
@@ -1311,13 +1335,34 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         : { kind: 'unavailable' as const };
       if (!session && priorReplay.kind !== 'unavailable' && !replayCsrf)
         return attachCors(failure('csrf_forbidden', 403), origin);
+      const source = requestSource(request, clientAddress, now);
+      if (source === null) return attachCors(failure('source_unavailable', 400), origin);
       const outcome = session
-        ? store.submitAccount(session.id, idempotencyKey, bodyHash, email, brief, receipt, now)
+        ? store.submitAccount(
+            session.id,
+            idempotencyKey,
+            bodyHash,
+            email,
+            brief,
+            receipt,
+            now,
+            source,
+          )
         : priorReplay.kind !== 'unavailable'
           ? priorReplay
           : claim && currentCsrf
-            ? store.submit(digest(claim), idempotencyKey, bodyHash, email, brief, receipt, now)
+            ? store.submit(
+                digest(claim),
+                idempotencyKey,
+                bodyHash,
+                email,
+                brief,
+                receipt,
+                now,
+                source,
+              )
             : { kind: 'unavailable' as const };
+      if (outcome.kind === 'limited') return attachCors(failure(outcome.code, 429), origin);
       if (outcome.kind === 'conflict')
         return attachCors(failure('idempotency_conflict', 409), origin);
       if (outcome.kind === 'unavailable')
