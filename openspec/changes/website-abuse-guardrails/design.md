@@ -147,6 +147,10 @@ What changes: `DELETE /session` (CSRF, 204, cookie expired, row deleted) so a pr
 
 Verified on `d4f458a76`: the API writes one line at startup (the port); `stream.ts`, the store and the CLIs write no request data (the CLIs print JSON aggregates). The gateway has no `log` directive; the edge vhost's access log holds client addresses and request lines for Caddy's default rotation and skips the OIDC callback. New code keeps the rule: the raw address exists only on the way into `hashSource`; alerts and `guardrail_alert.detail` hold counts; the operator page shows counts and kinds. Two additions: startup prints one line for the webhook state (set or unset, never the URL), and the PII canary test in D6 guards every alert path. The edge access log's retention is a private operating fact to confirm, not a change here.
 
+### D10. Refused exchanges leave the model's context (2026-10-07)
+
+The live smoke on Luna (Azure) showed that after one provider refusal the next benign message was refused too: the history sent with every later turn still held the flagged visitor message, so the provider's filter tripped again and the conversation was dead until Start over. The admission now builds the model's context with `listModelContext`, which leaves out every exchange whose operation carries a `refusal` (the visitor message and the server-owned decline). The visible thread, the stored turns, the turn count and every allowance keep the exchange; only what is sent to the provider changes, and the reservation is priced on what is sent.
+
 ## Numbers in one place
 
 | Guardrail                | Value                                        | Rationale                                                                              |

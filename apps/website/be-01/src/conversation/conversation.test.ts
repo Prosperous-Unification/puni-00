@@ -1886,3 +1886,37 @@ test('no alert row or webhook body carries the canary phrase, email, address, so
     for (const secret of forbidden) expect(text.includes(secret)).toBe(false);
   api.close();
 });
+
+test('a later turn sends the model no refused exchange, but keeps every other turn', async () => {
+  let call = 0;
+  const fake = fakeOpenRouter(() => {
+    call += 1;
+    if (call === 3) return { streamError: 'refusal', usagePlacement: 'error_chunk' };
+    return { reply: `Reply ${String(call)}` };
+  });
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  await (await sendMessage(api, visitor, 'turn-key-2', 'Volunteers book the repairs')).text();
+  await (await sendMessage(api, visitor, 'turn-key-3', 'Track my ex secretly')).text();
+  const next = await sendMessage(api, visitor, 'turn-key-4', 'A booking tool instead');
+  expect(chunkTypes(await next.text())).toContain('finish');
+  const outbound = (fake.bodies[3]?.messages ?? []).map(textOf);
+  const sent = outbound.map(({ text }) => text).join('\n');
+  // Proof: sending every saved turn kept the refused visitor text and the decline in this body.
+  expect(sent).not.toContain('Track my ex secretly');
+  expect(sent).not.toContain(providerDeclineReply);
+  expect(outbound.slice(1)).toEqual([
+    { role: 'user', text: 'A booking tool for a bike workshop' },
+    { role: 'assistant', text: 'Reply 1' },
+    { role: 'user', text: 'Volunteers book the repairs' },
+    { role: 'assistant', text: 'Reply 2' },
+    { role: 'user', text: 'A booking tool instead' },
+  ]);
+  // The visible thread and the allowance still count the refused exchange.
+  const view = await readConversation(api, visitor.cookie);
+  expect(view.turns.map(({ content }) => content)).toContain('Track my ex secretly');
+  expect(view.visitorTurnsRemaining).toBe(4);
+  api.close();
+});

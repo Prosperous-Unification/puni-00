@@ -76,6 +76,7 @@ export type ConversationAdmission =
       id: string;
       conversationId: string;
       stage: ConversationReplyStage;
+      /** The model's context for this reply, see {@link listModelContext}. */
       history: ConversationTurn[];
     }
   | { kind: 'completed'; reply: string }
@@ -167,6 +168,29 @@ export function listConversationTurns(
       'SELECT role, content FROM conversation_turn WHERE conversation_id = ? ORDER BY created_at, rowid',
     )
     .all(conversationId);
+}
+
+/**
+ * The saved turns a new reply is written from: every exchange except those the provider refused.
+ * A refused visitor message would trip the provider's filter again on every later turn, so its
+ * exchange (the message and the server-owned decline) is left out of the model's context; the
+ * visible thread, the stored turns and the turn count keep it. Each completed operation stored
+ * exactly one visitor turn and one assistant turn, in completion order, and only one operation
+ * per conversation is ever in flight, so the n-th completed operation owns the n-th pair.
+ *
+ * @throws when the stored turns do not pair up with the completed operations.
+ */
+export function listModelContext(database: Database, conversationId: string): ConversationTurn[] {
+  const turns = listConversationTurns(database, conversationId);
+  const refused = database
+    .query<{ refused: number }, [string]>(
+      "SELECT refusal IS NOT NULL AS refused FROM conversation_operation WHERE conversation_id = ? AND state = 'completed' ORDER BY rowid",
+    )
+    .all(conversationId);
+  if (turns.length !== refused.length * 2)
+    throw new Error('Conversation turns do not pair with completed operations');
+  // Proof: returning every saved turn kept the refused text and the decline in the later-turn outbound test.
+  return turns.filter((_turn, index) => refused[Math.floor(index / 2)]?.refused === 0);
 }
 
 export function findConversation(database: Database, draftId: string): ConversationRecord | null {
@@ -390,7 +414,7 @@ export function admitConversationOperation(
       ).count;
       if (running > 0) return { kind: 'inflight' };
       const stage = deriveReplyStage(visitorTurns);
-      const history = listConversationTurns(database, conversation.id);
+      const history = listModelContext(database, conversation.id);
       let reservedMicroUsd: number | null = null;
       if (request.pricing.kind === 'paid') {
         reservedMicroUsd = request.pricing.price(history, stage);
