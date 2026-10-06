@@ -447,6 +447,22 @@ build, scoped Prettier and strict OpenSpec checks passed
 `git diff --check` passed. Astra independently reran the focused suite 27/27,
 88 assertions (`/tmp/astra-07012-slice31-final-review.log`) and cleared the
 pre-live code checkpoint with no remaining findings. The live
-`tool-deploy:test:k3s` is pending: this checkout has neither `k3d` nor
-`kubectl`; the supported h2puni heavy-lock route is being prepared. Task 3.1
+`tool-deploy:test:k3s` remained pending after these local checks. Task 3.1
 remains unchecked and **no live cluster result is claimed**.
+
+The pre-live code checkpoint is `fd7a1c92167187762366636eabf5c3188ce3bdd1`
+on `feat/restore-applied-migration-set`; the worktree was clean. The branch
+push was rejected twice by automatic approval review because `origin` is a
+**public** repository and the review did not accept broad project push
+authorization as permission to disclose this payload. No alternate code
+transfer was attempted. As a local alternative, pinned k3d v5.9.0 and kubectl
+v1.36.4 were downloaded to `/tmp` and verified against the SHA-256 values in
+`infra/versions/toolchain.json`; local Docker 29.7.2 was reachable, and pre-run
+inventory found no named F8 container, network or cluster. However, the
+required `bin/with-heavy-lock.sh -- bunx nx run tool-deploy:test:k3s ...`
+refused **before the lab started**, exit 70:
+`heavy lock: /home/puni1/.cache does not exist`
+(`/tmp/puni-07012-slice31-local-k3s.log`). This `pop-os` checkout has no
+`/home/puni1`; the wrapper's canonical path cannot be overridden for a
+production run. A post-attempt inventory again found no named F8 resources.
+The live rehearsal and its R5 mutation remain **unverified**; task 3.1 is open.
