@@ -145,6 +145,7 @@ CREATE TABLE conversation_operation (
   generation_id TEXT,
   reply TEXT,
   truncated INTEGER NOT NULL DEFAULT 0 CHECK(truncated IN (0, 1)),
+  brief_capture TEXT CHECK(brief_capture IN ('marked', 'fallback', 'empty')),
   created_at INTEGER NOT NULL,
   CHECK((state = 'inflight') = (settlement IS NULL)),
   CHECK((state = 'unknown') = (settlement IS 'reserved_ceiling')),
@@ -160,7 +161,7 @@ CREATE TABLE source_salt (
 );
 ```
 
-New tables rather than nullable owners: `chat_turn`, `chat_operation` and `provider_call` all have `account_id NOT NULL`, which SQLite cannot relax additively, and a table rebuild is not blue/green safe. Reservation columns live on `conversation_operation` because `provider_call` also requires an account. The site-wide day spend and concurrent-call counts therefore sum `provider_call` and `conversation_operation` (`UNION ALL`) inside one `reserveConversationCall` transaction; a test proves an account reservation and an anonymous reservation share the same $10 day ceiling. Startup settles `inflight` conversation operations at their reserved ceiling (as `unknown`), where `chat_operation` is only marked `unknown`. Migration 007 was extended in place in slice 3 (settlement, overrun, generation id, per-operation source hash, the partial unique key index, `source_salt`, and no `unsettled` reason) because it had not been applied on any deployed database.
+New tables rather than nullable owners: `chat_turn`, `chat_operation` and `provider_call` all have `account_id NOT NULL`, which SQLite cannot relax additively, and a table rebuild is not blue/green safe. Reservation columns live on `conversation_operation` because `provider_call` also requires an account. The site-wide day spend and concurrent-call counts therefore sum `provider_call` and `conversation_operation` (`UNION ALL`) inside one `reserveConversationCall` transaction; a test proves an account reservation and an anonymous reservation share the same $10 day ceiling. Startup settles `inflight` conversation operations at their reserved ceiling (as `unknown`), where `chat_operation` is only marked `unknown`. Migration 007 was extended in place in slice 3 (settlement, overrun, generation id, per-operation source hash, the partial unique key index, `source_salt`, and no `unsettled` reason) because it had not been applied on any deployed database. On 2026-10-06 the slice 4 `brief_capture` column, first written as a separate migration 008, was folded into 007 for the same reason: neither had been applied to any persistent database (the preview database holds 006), and the private recovery command already knows 007. There is no migration 008.
 
 ### Retention
 

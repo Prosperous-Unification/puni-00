@@ -82,7 +82,7 @@ function rows<T>(databasePath: string, sql: string): T[] {
   }
 }
 
-test('migration 007 applies forward and its down.sql, after 008, restores the exact 006 schema', () => {
+test('migration 007 applies forward and its down.sql restores the exact 006 schema', () => {
   const databasePath = databaseFile();
   new WebsiteStore(databasePath).close();
   expect(
@@ -97,32 +97,8 @@ test('migration 007 applies forward and its down.sql, after 008, restores the ex
     expected.run('CREATE TABLE schema_migration (name TEXT PRIMARY KEY, checksum TEXT NOT NULL)');
     for (const migration of websiteMigrations().filter(({ name }) => name < '007'))
       expected.run(readFileSync(join(migration.directory, 'migration.sql'), 'utf8'));
-    const downs = websiteMigrations()
-      .filter(({ name }) => name >= '007')
-      .reverse();
-    if (downs.at(-1)?.name !== '007_conversation') throw new Error('Missing migration 007');
-    for (const migration of downs)
-      database.run(readFileSync(join(migration.directory, 'down.sql'), 'utf8'));
-    const schema =
-      "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name";
-    expect(database.query(schema).all()).toEqual(expected.query(schema).all());
-  } finally {
-    database.close();
-    expected.close();
-  }
-});
-
-test('migration 008 down.sql restores the exact 007 schema', () => {
-  const databasePath = databaseFile();
-  new WebsiteStore(databasePath).close();
-  const expected = new Database(':memory:');
-  const database = new Database(databasePath);
-  try {
-    expected.run('CREATE TABLE schema_migration (name TEXT PRIMARY KEY, checksum TEXT NOT NULL)');
-    for (const migration of websiteMigrations().filter(({ name }) => name < '008'))
-      expected.run(readFileSync(join(migration.directory, 'migration.sql'), 'utf8'));
-    const migration = websiteMigrations().find(({ name }) => name === '008_brief_capture');
-    if (!migration) throw new Error('Missing migration 008');
+    const migration = websiteMigrations().find(({ name }) => name === '007_conversation');
+    if (!migration) throw new Error('Missing migration 007');
     database.run(readFileSync(join(migration.directory, 'down.sql'), 'utf8'));
     const schema =
       "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name";

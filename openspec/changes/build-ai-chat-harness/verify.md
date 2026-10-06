@@ -236,8 +236,8 @@ The brief-stage reply used to land in `intake_draft.brief` whole, framing includ
 brief as I understand it:` … `Is this right?`), and the card pre-filled it. Prompt `puni-sales-v2`
 asks for the brief between a `[brief]` line and a `[/brief]` line. `captureBrief`
 (`@website/contracts`) parses only the assistant reply inside `completeConversationOperation`;
-the operation records `brief_capture` (`marked`, `fallback`, `empty`; additive migration 008 with
-a `DROP COLUMN` down). `displayReply` strips marker lines from saved and streaming assistant text,
+the operation records `brief_capture` (`marked`, `fallback`, `empty`; a column of
+migration 007, whose `down.sql` drops the table). `displayReply` strips marker lines from saved and streaming assistant text,
 including a half-written marker on the last streamed line. The scripted fixture and the demo
 `simulateReply` now emit markers. The eval `briefBullets` assertion counts bullets only inside
 the markers, so a real-model run also checks that the model follows the format. The Vite dev
@@ -247,7 +247,7 @@ server needed an explicit `@website/contracts` alias (production build already r
 
 - `env -u CLAUDECODE NX_DAEMON=false bunx nx run-many -t test,lint,typecheck,build -p website-fe-01,website-be-01,website-store-sqlite,website-contracts --skip-nx-cache --output-style=static`: exit 0, 16 tasks. Counts: contracts 10 pass (its `test` target now also runs `bun test`), fe-01 58 pass, store-sqlite 64 pass, be-01 93 pass, 0 fail.
 - `bun apps/website/fe-01/browser/conversation.mjs` (fixture stack, Chrome): exit 0, including the new checks that the thread after the third reply shows no marker and the card starts with `- Users:` with no framing or question.
-- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` on 008 `migration.sql` and `down.sql`: exit 0.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` on 007 `migration.sql` and `down.sql` (after the fold): exit 0.
 - `bunx @fission-ai/openspec@1.12.0 validate --all`: 145 passed, 0 failed.
 - Not run: the real-model evaluation corpus (needs the key; operator task 9.2) and the gate.
 
@@ -262,6 +262,14 @@ server needed an explicit `@website/contracts` alias (production build already r
 
 ### Notes
 
-- Migration 008 must join the private recovery command's known-migration list with 007.
+- 2026-10-06 fold: `brief_capture` was first shipped on this branch as migration 008
+  (`ALTER TABLE ... ADD COLUMN`, `DROP COLUMN` down). It now lives in `007_conversation`'s
+  `CREATE TABLE conversation_operation` and there is no 008. Neither had been applied to any
+  persistent database (the preview database holds 6 migrations), 007 was already extended in
+  place in slice 3, and the private recovery command already knows 007, so the release ships one
+  new migration and needs no private change. After the fold the four-project uncached `run-many -t test,lint,typecheck,build`
+  exits 0 (store-sqlite 63 pass: the 008 down test is gone and the 007 down test restores the
+  006 schema directly), be-01 `test:package` exits 0, `tools/tool-devsync` `bun test` is 391
+  pass / 0 fail, and `openspec validate --all` is 145 passed.
 - Visitor turns are shown verbatim, markers included if the visitor typed them; they are never
   parsed.

@@ -35,6 +35,7 @@ CREATE TABLE conversation_operation (
   generation_id TEXT,
   reply TEXT,
   truncated INTEGER NOT NULL DEFAULT 0 CHECK(truncated IN (0, 1)),
+  brief_capture TEXT CHECK(brief_capture IN ('marked', 'fallback', 'empty')),
   created_at INTEGER NOT NULL,
   CHECK((state = 'inflight') = (settlement IS NULL)),
   CHECK((state = 'unknown') = (settlement IS 'reserved_ceiling')),
