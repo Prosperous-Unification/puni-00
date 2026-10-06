@@ -10,6 +10,7 @@ import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
 import { contractVersionOf, schedule, sliceKey } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource, type SqliteSource } from '@wbs/store-sqlite';
+import { beginOptimizationDrain } from '@wbs/store-sqlite/optimization-drain';
 import { afterEach, describe, expect, it } from 'bun:test';
 // Test-only SQL snapshots and fault setup require raw queries across store tables.
 // eslint-disable-next-line no-restricted-imports
@@ -78,6 +79,7 @@ function bootstrap(
   onFanoutCapture?: (organizationId: string) => void,
   pushFetch?: ServicesOptions['pushFetch'],
   omitFanoutCapture = false,
+  afterOptimizerTurn?: (answer: unknown, db: ReturnType<typeof openDrizzle>) => void,
 ) {
   const pushUrls: string[] = [];
   const dir = mkdtempSync(join(tmpdir(), 'wbs-services-'));
@@ -87,6 +89,14 @@ function bootstrap(
   const source = openSqliteSource({ dbPath: path, onFanoutCapture });
   sources.push(source);
   const db = source.db;
+  if (afterOptimizerTurn !== undefined) {
+    const originalEnter = source.gate.enter.bind(source.gate);
+    source.gate.enter = async <T>(work: () => Promise<T>): Promise<T> => {
+      const answer = await originalEnter(work);
+      afterOptimizerTurn(answer, db);
+      return answer;
+    };
+  }
   const installedSource = omitFanoutCapture
     ? {
         ...source,
@@ -671,6 +681,178 @@ describe('buildServices', () => {
       retirement: 'finished',
       deletion: 'finished',
     });
+  });
+
+  it('uses the installed release for an initial preflight refusal after reservation', async () => {
+    let armed = true;
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('preflight refusal reached launcher')),
+      },
+      undefined,
+      undefined,
+      false,
+      (answer, sourceDb) => {
+        if (
+          armed &&
+          typeof answer === 'object' &&
+          answer !== null &&
+          'kind' in answer &&
+          answer.kind === 'reserved' &&
+          'startedAt' in answer
+        ) {
+          armed = false;
+          if (beginOptimizationDrain(sourceDb, 'A', { at: 2, by: 'ada' }) !== 1)
+            throw new Error('preflight slot was not counted before drain');
+        }
+      },
+    );
+    seedSharedLifecycle(path);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    );
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('shared input was not scheduled');
+    const input = { ...captured.input, notBefore: new Map([['A', 50_000_000]]) };
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    await optimizer.readPlan({ projectId: 'A', objective: 'pri', input, enabled: true });
+    await optimizer.drain();
+    expect(armed).toBe(false);
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    expect(pushUrls).toHaveLength(1);
+  });
+
+  it('uses the installed release for a Retry preflight refusal after admission', async () => {
+    let armed = true;
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('Retry preflight refusal reached launcher')),
+      },
+      undefined,
+      undefined,
+      false,
+      (answer, sourceDb) => {
+        if (
+          armed &&
+          typeof answer === 'object' &&
+          answer !== null &&
+          'kind' in answer &&
+          answer.kind === 'accepted' &&
+          'admission' in answer &&
+          answer.admission !== null
+        ) {
+          armed = false;
+          if (beginOptimizationDrain(sourceDb, 'A', { at: 2, by: 'ada' }) !== 1)
+            throw new Error('Retry slot was not counted before drain');
+        }
+      },
+    );
+    seedSharedLifecycle(path);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    );
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('shared input was not scheduled');
+    const input = { ...captured.input, notBefore: new Map([['A', 50_000_000]]) };
+    const contractVersion = contractVersionOf('0.2.0');
+    const inputHash = scheduleInputHash(input);
+    const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
+    db.insert(optimizedScheduleCache)
+      .values({
+        projectId: 'A',
+        inputHash,
+        objective: 'pri',
+        contractVersion,
+        budgetMs: 1000,
+        generation,
+        status: 'failed',
+        resultJson: null,
+        failureReason: 'timeout',
+        createdAt: 1,
+      })
+      .run();
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const decision = await optimizer.retry({ projectId: 'A', objective: 'pri', inputHash, input });
+    expect(decision.kind).toBe('accepted');
+    await optimizer.drain();
+    expect(armed).toBe(false);
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    expect(pushUrls).toHaveLength(1);
+  });
+
+  it('uses the installed release for a stale queued seat before another dequeue', async () => {
+    let armed = true;
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('stale queued seat reached launcher')),
+      },
+      undefined,
+      undefined,
+      false,
+      (answer, sourceDb) => {
+        if (
+          armed &&
+          typeof answer === 'object' &&
+          answer !== null &&
+          'kind' in answer &&
+          answer.kind === 'reserved' &&
+          'entry' in answer &&
+          'admission' in answer
+        ) {
+          armed = false;
+          if (beginOptimizationDrain(sourceDb, 'A', { at: 2, by: 'ada' }) !== 1)
+            throw new Error('queued seat was not counted before drain');
+        }
+      },
+    );
+    seedSharedLifecycle(path);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    );
+    const contractVersion = contractVersionOf('0.2.0');
+    const generation = allocateGeneration(db, 'A', contractVersion, 'stale-queue-input', 1);
+    db.insert(solverQueue)
+      .values({
+        projectId: 'A',
+        contractVersion,
+        generation,
+        objective: 'pri',
+        budgetMs: 1000,
+        admittedCancelEpoch: 0,
+        enqueuedAt: 1,
+      })
+      .run();
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    optimizer.start();
+    await optimizer.stop();
+    expect(armed).toBe(false);
+    expect(db.select().from(solverQueue).all()).toEqual([]);
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    expect(pushUrls).toHaveLength(1);
   });
 
   it('removes a populated project graph while retaining shared and bystander rows', async () => {

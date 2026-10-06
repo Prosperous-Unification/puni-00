@@ -2587,3 +2587,71 @@ strict passed 1/1 and all passed 148/148, changed-path Prettier passed, and
 (`/tmp/shared-people-6jd-release-final-{strict,all,format,diff}.log`). The
 exact-SHA host gate, CI, 6j.d global reclaim owners, 6j.e and publication are
 not claimed by this local release checkpoint.
+
+### 6j.d queued and preflight release callers (second bounded checkpoint)
+
+No optimizer persistence behavior changed in this checkpoint. The mounted
+`buildServices` fixture observes the _committed_ real reserve, Retry admission
+or dequeue answer by instrumenting the existing source gate instance, then marks populated A
+delete-pending after the source turn releases but before the coordinator's
+cleanup call. This inserts a deterministic last-slot drain without moving
+production capture or making the gate reentrant. A and B share Ana; each
+positive case first reaches a counted A slot and then asserts A deletion and
+B's durable seq0 `(B,A)` instead of inferring fan-out from a mock callback.
+
+| Actual installed caller                                | Restored mounted acceptance                                                                                         | Binding omitted, watched RED                                                             | Same assertion restored GREEN                                             |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Initial invalid-horizon preflight (`readPlan`)         | `/tmp/shared-people-6jd-initial-preflight-first.log`: 1/1, 5 assertions; no launch, slot gone, A deleted, B seq0    | `/tmp/shared-people-6jd-initial-binding-final-red.log`: B events `[]` instead of `(B,A)` | `/tmp/shared-people-6jd-initial-binding-final-restored-green.log`: 1/1, 5 |
+| Retry failed-cache preflight (`retry`)                 | `/tmp/shared-people-6jd-retry-preflight-first.log`: 1/1, 6; accepted, no launch, exact slot gone, A deleted, B seq0 | `/tmp/shared-people-6jd-retry-binding-final-red.log`: B events `[]`                      | `/tmp/shared-people-6jd-retry-binding-final-restored-green.log`: 1/1, 6   |
+| Stale queued input (`pumpQueue` → `releaseUnlaunched`) | `/tmp/shared-people-6jd-queued-stale-first.log`: 1/1, 6; dequeue consumed, stale seat released, A deleted, B seq0   | `/tmp/shared-people-6jd-queued-binding-final-red.log`: B events `[]`                     | `/tmp/shared-people-6jd-queued-binding-final-restored-green.log`: 1/1, 6  |
+
+The single production composition binding was independently omitted against
+each caller, then restored. The changed dependency at each caller's existing
+await was also independently removed from production code and restored on the
+same held-release assertion:
+
+| Await site                       | Watched omission RED                                                                                 | Restored GREEN                                                    |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Queued inner `releaseUnlaunched` | `/tmp/shared-people-6jd-queued-await-omission-red.log`: 4 dequeues before held release vs expected 1 | `/tmp/shared-people-6jd-queued-await-restored-green.log`: 1/1, 7  |
+| Initial preflight before pump    | `/tmp/shared-people-6jd-initial-await-omission-red.log`: 1 early dequeue vs expected 0               | `/tmp/shared-people-6jd-initial-await-restored-green.log`: 1/1, 4 |
+| Retry preflight before pump      | `/tmp/shared-people-6jd-retry-await-omission-red.log`: 1 early dequeue vs expected 0                 | `/tmp/shared-people-6jd-retry-await-restored-green.log`: 1/1, 4   |
+
+The three await faults were fully restored in `optimization.feature.ts`; it
+has no final diff. The already reviewed normal-exit/cancellation release
+proofs and 6j.b serialization fences remain in the prior section. This
+checkpoint proves the installed release binding and three cleanup calls,
+**not** the encompassing initial/Retry/dequeue global-reclaim owners or
+their transport handoff. Task 6j.d remains unchecked.
+
+The first test-only gate wrapper produced TS2322 because `SqliteSource.gate`
+is the concrete `WriteCoordinator` with a private `tail`; this was a fixture
+type error, not a product failure (`/tmp/shared-people-6jd-callers-final-type.log`).
+The corrected fixture instruments the real source gate instance and the
+core/store/backend `tsc --build --force` rerun exited 0
+(`/tmp/shared-people-6jd-callers-corrected-type.log`).
+
+Final changed-byte validation used
+`bun test apps/wbs/be-01/src/services.db.test.ts apps/wbs/be-01/src/service/solver-child-lifecycle.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts libs/wbs/adapters/store-sqlite/src/optimization-drain.db.test.ts`:
+161/161, 811 assertions (`/tmp/shared-people-6jd-callers-current-suite.log`).
+`bunx eslint apps/wbs/be-01/src` and
+`bunx tsc --build --force libs/wbs/application/core/tsconfig.json libs/wbs/adapters/store-sqlite/tsconfig.json apps/wbs/be-01/tsconfig.json`
+exited 0 (`/tmp/shared-people-6jd-callers-current-lint.log`,
+`/tmp/shared-people-6jd-callers-current-type-corrected.log`). The first
+combined tsc command included a nonexistent `libs/wbs/domain/tsconfig.json`
+and failed TS6053; its log is `/tmp/shared-people-6jd-callers-current-type.log`
+and is not typecheck evidence. `bunx nx run wbs-be-01:build` and
+`bunx nx run wbs-core:build:portable` returned 0 without task summaries after
+Nx socket denial, so those invocations are **unverified**
+(`/tmp/shared-people-6jd-callers-current-build-{be,core}.log`). The direct
+declared Bun bundle commands
+`bun build apps/wbs/be-01/src/main.ts --target=bun --outdir=dist/apps/wbs/be-01`
+and
+`bun build libs/wbs/application/core/testing/portable-composition.ts --target=browser --format=esm --outfile=dist/libs/wbs/application/core/portable-composition.js`
+passed with 1,373 and 542 modules respectively
+(`/tmp/shared-people-6jd-callers-current-build-{be,core}-direct.log`). The
+backend target's other build steps were not verified in this sandbox.
+`bunx prettier --check` on the three changed paths passed; pinned
+`bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`
+passed 1/1, its `validate --all --json` passed 148/148, and
+`git diff --check` exited 0
+(`/tmp/shared-people-6jd-callers-final-doc-{format,strict,all,diff}.log`).

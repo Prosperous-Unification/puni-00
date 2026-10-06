@@ -184,7 +184,8 @@ export function buildServices(options: ServicesOptions): BeServices {
           source.gate,
         ),
         // Proof: omitting this installed binding made the mounted terminal
-        // child delete A without B's old-cause event.
+        // child and, independently, initial/Retry preflight and queued cleanup
+        // delete A without B's old-cause event.
         releaseSlot: (slot) => optimizationLifecycle.releaseSlot(slot),
       },
       contractVersion: contractVersionOf(optimizer.solverVersion),
