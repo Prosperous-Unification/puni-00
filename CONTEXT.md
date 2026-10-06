@@ -188,6 +188,20 @@ for every leaf and step whether or not anything is stored for it. Not a work ite
 tree position, title, type or number of its own. A parent has no step nodes.
 _Avoid_: sub-item, step item, task, cell (which is only its table drawing)
 
+**Board card**:
+A view of one step node in a project's progress board. Its subject stays the same
+when the work item is renumbered or the step is renamed.
+_Avoid_: work item, slice, task
+
+**Board column**:
+A grouping of board cards by their step progress: Unknown, In progress or Done.
+It does not state whether work is ready, held or eligible to start.
+_Avoid_: queue, execution state, readiness
+
+**Board lane**:
+A grouping across board columns, independent of the progress each column names.
+_Avoid_: status, column
+
 **Step node ID**:
 A step node's stable identity: a versioned encoding of its work item's ID and its step's
 ID. Unchanged by renumbering, reparenting while it stays a leaf, step rename or step

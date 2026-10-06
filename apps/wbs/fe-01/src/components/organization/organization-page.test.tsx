@@ -122,6 +122,7 @@ describe('organization invitations', () => {
   });
 
   it('revokes, then renders a conflicting revoke in place', async () => {
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
     stubPage({
       'GET /api/organization/invitations': [
         () =>
@@ -177,6 +178,7 @@ describe('organization invitations', () => {
   });
 
   it("clears the organization's rows when a refusal says access was lost", async () => {
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
     stubPage({
       'GET /api/organization/invitations': [
         () => answer(200, { invitations: [offer('a', 'ada@acme.test')] }),
