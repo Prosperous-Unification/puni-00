@@ -93,7 +93,11 @@ function bootstrap(
     const originalEnter = source.gate.enter.bind(source.gate);
     source.gate.enter = async <T>(work: () => Promise<T>): Promise<T> => {
       const answer = await originalEnter(work);
-      afterOptimizerTurn(answer, db);
+      const observed =
+        typeof answer === 'object' && answer !== null && 'decision' in answer
+          ? answer.decision
+          : answer;
+      afterOptimizerTurn(observed, db);
       return answer;
     };
   }

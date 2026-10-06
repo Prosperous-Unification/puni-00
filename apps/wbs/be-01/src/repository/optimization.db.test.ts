@@ -6,6 +6,7 @@ import { allocateEnabledGeneration } from '@wbs/store-sqlite/optimization-genera
 import { afterEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
+import type { CommittedDecision } from '../module/optimization/contract';
 import { openDatabase, openDrizzle } from './db';
 import { DrizzleEventLogStore, type EventLogTransactionalWrite } from './event-log';
 import { type Gate, OPEN, WriteCoordinator } from './gate';
@@ -16,6 +17,12 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '7+0.1.0';
 const BUDGET = 60_000;
 const dirs: string[] = [];
+
+function decisionOf<T>(committed: CommittedDecision<T>): T {
+  expect(committed.envelopes).toEqual([]);
+  return committed.decision;
+}
+
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
@@ -260,10 +267,12 @@ describe('Optimization SQLite adapter', () => {
     };
     let settled = false;
     try {
-      const reservation = Promise.resolve(repository.reserveSlot(request)).then((admission) => {
-        settled = true;
-        return admission;
-      });
+      const reservation = Promise.resolve(repository.reserveSlot(request).then(decisionOf)).then(
+        (admission) => {
+          settled = true;
+          return admission;
+        },
+      );
       await Promise.resolve();
       expect(settled).toBe(false);
       release.resolve(undefined);
@@ -290,7 +299,7 @@ describe('Optimization SQLite adapter', () => {
       attemptToken: 'heartbeat-after-owner',
     };
     const owned = createOptimizationRepository(db, log, OPEN);
-    const seed = await owned.reserveSlot({ ...slot, now: 10 });
+    const seed = await owned.reserveSlot({ ...slot, now: 10 }).then(decisionOf);
     if (seed.kind !== 'reserved') throw new Error('fixture admission refused');
     if (!(await owned.bindSlot({ ...slot, pid: 12_345 }))) throw new Error('fixture bind refused');
     const gate = new WriteCoordinator();
@@ -337,10 +346,12 @@ describe('Optimization SQLite adapter', () => {
       ownerId: 'blue',
       attemptToken: 'outcome-after-owner',
     };
-    const seed = await createOptimizationRepository(db, log, OPEN).reserveSlot({
-      ...slot,
-      now: 10,
-    });
+    const seed = await createOptimizationRepository(db, log, OPEN)
+      .reserveSlot({
+        ...slot,
+        now: 10,
+      })
+      .then(decisionOf);
     if (seed.kind !== 'reserved') throw new Error('fixture admission refused');
     const gate = new WriteCoordinator();
     const repository = createOptimizationRepository(db, log, gate);
@@ -433,10 +444,12 @@ describe('Optimization SQLite adapter', () => {
       ownerId: 'blue',
       attemptToken: 'release-after-owner',
     };
-    const seed = await createOptimizationRepository(db, log, OPEN).reserveSlot({
-      ...slot,
-      now: 10,
-    });
+    const seed = await createOptimizationRepository(db, log, OPEN)
+      .reserveSlot({
+        ...slot,
+        now: 10,
+      })
+      .then(decisionOf);
     if (seed.kind !== 'reserved') throw new Error('fixture admission refused');
     const gate = new WriteCoordinator();
     const repository = createOptimizationRepository(db, log, gate);
@@ -478,10 +491,12 @@ describe('Optimization SQLite adapter', () => {
       ownerId: 'blue',
       attemptToken: 'bind-after-owner',
     };
-    const seed = await createOptimizationRepository(db, log, OPEN).reserveSlot({
-      ...slot,
-      now: 10,
-    });
+    const seed = await createOptimizationRepository(db, log, OPEN)
+      .reserveSlot({
+        ...slot,
+        now: 10,
+      })
+      .then(decisionOf);
     if (seed.kind !== 'reserved') throw new Error('fixture admission refused');
     const gate = new WriteCoordinator();
     const repository = createOptimizationRepository(db, log, gate);
@@ -539,7 +554,9 @@ describe('Optimization SQLite adapter', () => {
     let settled = false;
     try {
       const dequeued = Promise.resolve(
-        repository.dequeueRequest({ ownerId: 'blue', attemptToken: 'dequeued', now: 11 }),
+        repository
+          .dequeueRequest({ ownerId: 'blue', attemptToken: 'dequeued', now: 11 })
+          .then(decisionOf),
       ).then((outcome) => {
         settled = true;
         return outcome;
@@ -621,7 +638,7 @@ describe('Optimization SQLite adapter', () => {
       ownerId: 'blue',
       attemptToken: 'first',
     };
-    const admitted = await repository.reserveSlot({ ...slot, now: 10 });
+    const admitted = await repository.reserveSlot({ ...slot, now: 10 }).then(decisionOf);
     if (admitted.kind !== 'reserved') throw new Error('fixture admission refused');
     expect(
       (
@@ -652,14 +669,16 @@ describe('Optimization SQLite adapter', () => {
     await ready;
     let settled = false;
     const retry = Promise.resolve(
-      repository.admitRetry({
-        key,
-        objective: 'pri',
-        ownerId: 'green',
-        now: 21,
-        attemptToken: () => 'retry',
-        scoped: { organizationId: 'org-a', actorId: 'sam' },
-      }),
+      repository
+        .admitRetry({
+          key,
+          objective: 'pri',
+          ownerId: 'green',
+          now: 21,
+          attemptToken: () => 'retry',
+          scoped: { organizationId: 'org-a', actorId: 'sam' },
+        })
+        .then(decisionOf),
     ).then((decision) => {
       settled = true;
       return decision;
@@ -703,7 +722,7 @@ describe('Optimization SQLite adapter', () => {
       ownerId: 'blue',
       attemptToken: 'callback-attempt',
     };
-    const admission = await repository.reserveSlot({ ...slot, now: 10 });
+    const admission = await repository.reserveSlot({ ...slot, now: 10 }).then(decisionOf);
     if (admission.kind !== 'reserved') throw new Error('fixture admission refused');
     expect(
       (
@@ -729,16 +748,18 @@ describe('Optimization SQLite adapter', () => {
   it('checks Retry eligibility before creating a token', async () => {
     const { db, log, key } = fixture();
     let tokens = 0;
-    const decision = await createOptimizationRepository(db, log, OPEN).admitRetry({
-      key: { ...key, inputHash: 'stale-input' },
-      objective: 'pri',
-      ownerId: 'blue',
-      now: 10,
-      attemptToken: () => {
-        tokens++;
-        return 'token';
-      },
-    });
+    const decision = await createOptimizationRepository(db, log, OPEN)
+      .admitRetry({
+        key: { ...key, inputHash: 'stale-input' },
+        objective: 'pri',
+        ownerId: 'blue',
+        now: 10,
+        attemptToken: () => {
+          tokens++;
+          return 'token';
+        },
+      })
+      .then(decisionOf);
     expect(decision).toEqual({ kind: 'not-retryable', state: 'idle' });
     expect(tokens).toBe(0);
   });
@@ -755,7 +776,7 @@ describe('Optimization SQLite adapter', () => {
       ownerId: 'blue',
       attemptToken: 'first',
     };
-    const admitted = await repository.reserveSlot({ ...slot, now: 10 });
+    const admitted = await repository.reserveSlot({ ...slot, now: 10 }).then(decisionOf);
     expect(admitted.kind).toBe('reserved');
     if (admitted.kind !== 'reserved') throw new Error('fixture admission refused');
     const write = {
@@ -773,13 +794,15 @@ describe('Optimization SQLite adapter', () => {
     await repository.releaseSlot(slot);
     let tokens = 0;
     const retry = () =>
-      repository.admitRetry({
-        key,
-        objective: 'pri',
-        ownerId: 'green',
-        now: 20,
-        attemptToken: () => `retry-${String(tokens++)}`,
-      });
+      repository
+        .admitRetry({
+          key,
+          objective: 'pri',
+          ownerId: 'green',
+          now: 20,
+          attemptToken: () => `retry-${String(tokens++)}`,
+        })
+        .then(decisionOf);
     expect(await retry()).toMatchObject({ kind: 'accepted', generation });
     const observed = await repository.observeForAdmission(key, 21);
     if (observed.kind !== 'observed') throw new Error('fixture observation refused');
@@ -797,16 +820,18 @@ describe('Optimization SQLite adapter', () => {
       },
     };
     const repository = createOptimizationRepository(db, writer, OPEN);
-    const admission = await repository.reserveSlot({
-      projectId: key.projectId,
-      contractVersion: CONTRACT,
-      generation,
-      objective: 'pri',
-      budgetMs: BUDGET,
-      ownerId: 'blue',
-      attemptToken: 'token',
-      now: 10,
-    });
+    const admission = await repository
+      .reserveSlot({
+        projectId: key.projectId,
+        contractVersion: CONTRACT,
+        generation,
+        objective: 'pri',
+        budgetMs: BUDGET,
+        ownerId: 'blue',
+        attemptToken: 'token',
+        now: 10,
+      })
+      .then(decisionOf);
     expect(admission.kind).toBe('reserved');
     if (admission.kind !== 'reserved') throw new Error('fixture admission refused');
     const failure = await repository
@@ -842,16 +867,18 @@ describe('Optimization SQLite adapter', () => {
       recordEventIn: () => undefined as never,
     };
     const repository = createOptimizationRepository(db, writer, OPEN);
-    const admission = await repository.reserveSlot({
-      projectId: key.projectId,
-      contractVersion: CONTRACT,
-      generation,
-      objective: 'pri',
-      budgetMs: BUDGET,
-      ownerId: 'blue',
-      attemptToken: 'token',
-      now: 10,
-    });
+    const admission = await repository
+      .reserveSlot({
+        projectId: key.projectId,
+        contractVersion: CONTRACT,
+        generation,
+        objective: 'pri',
+        budgetMs: BUDGET,
+        ownerId: 'blue',
+        attemptToken: 'token',
+        now: 10,
+      })
+      .then(decisionOf);
     expect(admission.kind).toBe('reserved');
     if (admission.kind !== 'reserved') throw new Error('fixture admission refused');
     const failure = await repository

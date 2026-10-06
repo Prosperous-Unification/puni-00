@@ -1,3 +1,4 @@
+import type { CommittedProjectEvent } from '@wbs/core/service/committed-fanout';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
@@ -55,6 +56,7 @@ function requirements(): OptimizationRequirements {
       throw error;
     },
     pushRecorded: () => Promise.resolve(),
+    deliverCommitted: () => Promise.resolve(),
   };
 }
 
@@ -83,6 +85,9 @@ const hostRequirements = () => {
     spawn: DiBag.createProvider(() => supplied.spawn, { factoryReturnKind: 'sync-value' }),
     runChild: DiBag.createProvider(() => supplied.runChild, { factoryReturnKind: 'sync-value' }),
     pushRecorded: DiBag.createProvider(() => supplied.pushRecorded, {
+      factoryReturnKind: 'sync-value',
+    }),
+    deliverCommitted: DiBag.createProvider(() => supplied.deliverCommitted, {
       factoryReturnKind: 'sync-value',
     }),
     editDebounceMs: DiBag.createProvider(() => supplied.editDebounceMs, {
@@ -118,6 +123,51 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Optimization module', () => {
+  it('forwards committed envelopes through the installed Retry dependency', async () => {
+    const supplied = requirements();
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: PROJECT,
+      causeProjectId: 'upstream',
+    };
+    const envelope = {
+      projectId: PROJECT,
+      event,
+      recorded: {
+        subscription: `project:${PROJECT}`,
+        seq: 0,
+        message: event,
+        createdAt: 10,
+      },
+    };
+    const delivered: CommittedProjectEvent[] = [];
+    const optimizer = installOptimization({
+      ...supplied,
+      repository: {
+        ...supplied.repository,
+        admitRetry: () =>
+          Promise.resolve({
+            decision: { kind: 'not-retryable', state: 'idle' },
+            envelopes: [envelope],
+          }),
+      },
+      deliverCommitted: (events) => {
+        delivered.push(...events);
+        return Promise.resolve();
+      },
+    }).optimizer;
+    expect(
+      await optimizer.retry({
+        projectId: PROJECT,
+        objective: 'pri',
+        inputHash: 'port-hash',
+        input: INPUT,
+      }),
+    ).toEqual({ kind: 'not-retryable', state: 'idle' });
+    await optimizer.drain();
+    expect(delivered).toEqual([envelope]);
+  });
+
   it('routes enabled reads and Retry decisions through the supplied repository', async () => {
     const calls: string[] = [];
     const repository: OptimizationRequirements['repository'] = {
@@ -140,7 +190,10 @@ describe('the Optimization module', () => {
       },
       admitRetry: () => {
         calls.push('retry');
-        return Promise.resolve({ kind: 'not-retryable', state: 'idle' });
+        return Promise.resolve({
+          decision: { kind: 'not-retryable', state: 'idle' },
+          envelopes: [],
+        });
       },
       reserveSlot: () => {
         throw new Error('unexpected reservation');

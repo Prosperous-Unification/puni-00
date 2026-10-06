@@ -3,6 +3,7 @@ import {
   dispositionOfPreflightFailure,
 } from '@wbs/contracts/solver/solver-failure-disposition';
 import type { RecordedEvent } from '@wbs/core';
+import type { CommittedProjectEvent } from '@wbs/core/service/committed-fanout';
 import type { Schedule, SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
@@ -64,6 +65,7 @@ export interface OptimizationCoordinatorOptions {
   readonly spawn: ReservedSpawner;
   readonly runChild?: (options: SolverChildLifecycleOptions) => Promise<SolverChildLifecycleResult>;
   readonly onChildError: (error: unknown) => void;
+  readonly deliverCommitted: (events: readonly CommittedProjectEvent[]) => Promise<void>;
   /** Durable half of a newly stored result's project event. */
   /** Best-effort live half, invoked only after the outcome transaction commits. */
   readonly pushRecorded: (
@@ -112,6 +114,26 @@ export class OptimizationCoordinator {
   private reconcileHandle: unknown = null;
   private reconcileInFlight: Promise<void> | undefined;
   private reconcileRequested = false;
+
+  /** Register postcommit delivery before consuming any admission outcome. */
+  private trackCommittedDelivery(envelopes: readonly CommittedProjectEvent[]): void {
+    // Proof: omitting this guard called delivery four times for the real
+    // adapter's empty envelopes instead of zero in the mounted read test.
+    if (envelopes.length === 0) return;
+    const tracked = Promise.resolve()
+      // Proof: invoking delivery synchronously let a thrown transport error
+      // replace an already committed accepted Retry decision.
+      .then(() => this.options.deliverCommitted(envelopes))
+      .catch((error: unknown) => {
+        // Proof: swallowing this error left the held/rejected Retry test's
+        // error sink empty even though its durable event remained replayable.
+        this.options.onChildError(error);
+      })
+      .finally(() => this.inFlight.delete(tracked));
+    // Proof: omitting tracking let stop settle while an empty-dequeue
+    // envelope's postcommit transport promise was still held.
+    this.inFlight.add(tracked);
+  }
 
   constructor(private readonly options: OptimizationCoordinatorOptions) {}
 
@@ -377,11 +399,15 @@ export class OptimizationCoordinator {
     for (;;) {
       // Proof: omitting this await advanced a held dequeue to its launch
       // decision and let stop settle before the durable queue changed.
-      const next = await this.options.repository.dequeueRequest({
+      const committed = await this.options.repository.dequeueRequest({
         ownerId: this.options.ownerId,
         attemptToken: this.options.attemptToken(),
         now: this.options.now(),
       });
+      // Proof: omitting this registration lost an empty-dequeue commit's
+      // test-injected durable envelope before the pump's early return.
+      this.trackCommittedDelivery(committed.envelopes);
+      const next = committed.decision;
       if (next.kind === 'empty' || next.kind === 'capacity-full') return;
 
       const slot = {
@@ -502,7 +528,7 @@ export class OptimizationCoordinator {
       budgetMs: this.options.budgetMs,
     };
     const now = this.options.now();
-    const decision = await this.options.repository.admitRetry({
+    const committed = await this.options.repository.admitRetry({
       key,
       objective: ask.objective,
       ownerId: this.options.ownerId,
@@ -510,6 +536,10 @@ export class OptimizationCoordinator {
       attemptToken: this.options.attemptToken,
       ...(ask.scoped === undefined ? {} : { scoped: ask.scoped }),
     });
+    // Proof: omitting this registration lost the real non-retryable Retry
+    // decision's test-injected durable envelope before its early return.
+    this.trackCommittedDelivery(committed.envelopes);
+    const decision = committed.decision;
 
     if (decision.kind !== 'accepted') return decision;
     if (decision.admission !== null) {
@@ -602,7 +632,7 @@ export class OptimizationCoordinator {
     const { generation, pair } = observed;
     let requests: SolverRequestPair | undefined;
     for (const request of observed.requests) {
-      const admission = await this.options.repository.reserveSlot({
+      const committed = await this.options.repository.reserveSlot({
         projectId: request.key.projectId,
         contractVersion: request.key.contractVersion,
         generation,
@@ -612,6 +642,11 @@ export class OptimizationCoordinator {
         attemptToken: this.options.attemptToken(),
         now,
       });
+      // Proof: omitting this registration lost the real project-full
+      // reservation's test-injected durable envelopes; awaiting delivery
+      // here instead withheld a committed reservation behind held transport.
+      this.trackCommittedDelivery(committed.envelopes);
+      const admission = committed.decision;
       if (admission.kind === 'project-full' || admission.kind === 'global-full') {
         await this.options.repository.enqueueRequest({
           projectId: request.key.projectId,

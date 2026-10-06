@@ -2,6 +2,7 @@ import type { BuiltSolverRequest } from '@wbs/contracts/solver/build-request';
 import type { OptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import type { PlanInfeasibleResult } from '@wbs/contracts/solver/plan-infeasible';
 import type { OptimizationVariantState, ProjectEvent, RecordedEvent } from '@wbs/core';
+import type { CommittedProjectEvent } from '@wbs/core/service/committed-fanout';
 import type { SolverFailureReason, SolverObjectiveName } from '@wbs/domain';
 import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
@@ -243,6 +244,12 @@ export type OptimizationRetryDecision =
       readonly admission: ReservedSolverAdmission | null;
     };
 
+/** A committed admission decision and its exact durable fan-out envelopes. */
+export interface CommittedDecision<T> {
+  readonly decision: T;
+  readonly envelopes: readonly CommittedProjectEvent[];
+}
+
 /** Durable optimization decisions. Outcome recording and slot release are separate transactions. */
 export interface OptimizationRepository extends SolverSlotRepository {
   allocateGeneration(
@@ -274,7 +281,7 @@ export interface OptimizationRepository extends SolverSlotRepository {
     now: number,
   ): Promise<boolean>;
   /** Reserve a counted seat before launch; the returned start time belongs to this admission. */
-  reserveSlot(request: SolverSlotRequest): Promise<SolverSlotAdmission>;
+  reserveSlot(request: SolverSlotRequest): Promise<CommittedDecision<SolverSlotAdmission>>;
   bindSlot(slot: SolverSlotIdentity & { readonly pid: number }): Promise<boolean>;
   enqueueRequest(request: OptimizationQueueRequest): Promise<{
     readonly kind: 'queued' | 'already-present' | 'closed';
@@ -284,7 +291,7 @@ export interface OptimizationRepository extends SolverSlotRepository {
     readonly ownerId: string;
     readonly attemptToken: string;
     readonly now: number;
-  }): Promise<OptimizationDequeued>;
+  }): Promise<CommittedDecision<OptimizationDequeued>>;
   /** Await one owned immediate transaction before answering Retry; mint the token only after writer ownership and the live check, and return accepted only after its audit and reservation commit. */
   admitRetry(ask: {
     readonly key: OptimizationCacheKey;
@@ -293,7 +300,7 @@ export interface OptimizationRepository extends SolverSlotRepository {
     readonly now: number;
     readonly attemptToken: () => string;
     readonly scoped?: { readonly organizationId: string; readonly actorId: string };
-  }): Promise<OptimizationRetryDecision>;
+  }): Promise<CommittedDecision<OptimizationRetryDecision>>;
   /** Atomically write the outcome and durable event; a superseded attempt publishes neither. Slot release is separate. */
   recordOutcome(write: OptimizationOutcomeWrite): Promise<RecordedOptimizationOutcome>;
   reconcileDrains(now: number): Promise<{

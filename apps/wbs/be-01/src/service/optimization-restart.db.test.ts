@@ -130,6 +130,7 @@ function restarted(
         kill: () => undefined,
       });
     },
+    deliverCommitted: () => Promise.resolve(),
     pushRecorded: () => Promise.resolve(),
     setInterval: interval,
     clearInterval: () => undefined,

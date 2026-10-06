@@ -2655,3 +2655,78 @@ backend target's other build steps were not verified in this sandbox.
 passed 1/1, its `validate --all --json` passed 148/148, and
 `git diff --check` exited 0
 (`/tmp/shared-people-6jd-callers-final-doc-{format,strict,all,diff}.log`).
+
+### 6j.d committed-decision consumer handoff (third bounded checkpoint)
+
+This checkpoint returns required decision/envelopes pairs from reserveSlot,
+dequeueRequest and admitRetry while preserving their inner decisions. The
+concrete SQLite adapter returns an empty envelope array for every outcome.
+Coordinator tests attach already recorded SQLite envelopes at those ports to
+prove consumer behavior; they do not prove installed global-reclaim fan-out.
+The coordinator registers delivery before each decision branch, returns the
+committed answer without awaiting transport, reports transport errors through
+its existing error sink and tracks delivery through stop/drain. The module
+forwards its required delivery dependency. Task 6j.d remains unchecked.
+
+Real SQLite decision fixtures cover reserved and project-full initial
+admission, reserved and empty dequeue, and accepted and not-retryable Retry.
+Held/rejected delivery preserves the original token, one launch, a usable
+second SQLite writer and the replayable recorded row. Synchronous delivery
+throw does not replace accepted Retry. Adapter empty arrays cause zero
+transport calls. The installed module test reaches Retry forwarding; direct
+repository tests assert empty adapter arrays.
+
+| Changed safety dependency                       | Watched RED                                                                                                       | Restored GREEN                                                                                            |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Initial registration before project-full return | /tmp/shared-people-6jd-handoff-reserve-register-omission-red.log: delivered []                                    | /tmp/shared-people-6jd-handoff-reserve-register-restored-green.log: 1/1, 8                                |
+| Empty-dequeue registration                      | /tmp/shared-people-6jd-handoff-dequeue-register-omission-red.log: delivered []                                    | /tmp/shared-people-6jd-handoff-dequeue-register-restored-green.log: 1/1, 1; strengthened held case 1/1, 3 |
+| Nonretryable Retry registration                 | /tmp/shared-people-6jd-handoff-retry-register-omission-red.log: delivered []                                      | /tmp/shared-people-6jd-handoff-retry-register-restored-green.log: 1/1, 3                                  |
+| Decision before transport                       | /tmp/shared-people-6jd-handoff-delivery-before-decision-red.log: bounded 500 ms timeout                           | /tmp/shared-people-6jd-handoff-delivery-before-decision-restored-green.log: 1/1, 4                        |
+| Deferred synchronous transport invocation       | /tmp/shared-people-6jd-handoff-sync-capture-omission-red.log: thrown transport replaced accepted Retry            | /tmp/shared-people-6jd-handoff-sync-capture-restored-green.log: 1/1, 3                                    |
+| Error reporting                                 | /tmp/shared-people-6jd-handoff-error-report-omission-red.log: zero reported errors instead of one                 | /tmp/shared-people-6jd-handoff-error-report-restored-green.log: 1/1, 6                                    |
+| In-flight tracking                              | /tmp/shared-people-6jd-handoff-tracking-omission-red-try3.log: stop settled during held transport                 | /tmp/shared-people-6jd-handoff-tracking-restored-green-try3.log: 1/1, 3                                   |
+| Empty-array guard                               | /tmp/shared-people-6jd-handoff-empty-guard-omission-red.log: four transport calls instead of zero                 | /tmp/shared-people-6jd-handoff-empty-guard-restored-green.log: 1/1, 1                                     |
+| Installer delivery provider                     | /tmp/shared-people-6jd-handoff-installer-omission-red.log: installed dependency resolution failed                 | /tmp/shared-people-6jd-handoff-installer-restored-green.log: 1/1, 2                                       |
+| Module forwarding                               | /tmp/shared-people-6jd-handoff-module-forward-omission-red.log: installed Retry reached missing delivery function | /tmp/shared-people-6jd-handoff-module-forward-restored-green.log: 1/1, 2                                  |
+
+The first two in-flight omission trials stayed green because child work or a
+short wait masked delivery tracking. Their logs ending
+tracking-omission-red.log and tracking-omission-red-try2.log are disqualified.
+An initial reservation fixture attached one envelope to both PRI and TIME,
+observed duplicate delivery, then narrowed injection to one request.
+
+The first broad run failed four test assertions (159 pass/4 fail,
+/tmp/shared-people-6jd-handoff-current-suite.log). Two test-only gate
+observers inspected top-level kind instead of the new decision.kind; three
+older read calls compared an unawaited Promise to null. The corrected observer
+unwraps only for inspection and retains counted-slot/drain assertions; all
+three reads are awaited. No product timing or release behavior changed. The
+next sandbox run passed 162 and failed only the subprocess handshake
+(/tmp/shared-people-6jd-handoff-rerun-suite.log). Diagnostic
+/tmp/shared-people-6jd-handoff-handshake-diagnostic.log showed two bound
+green slots and EPERM on Bun child stdin pipe writes before child marker
+creation. The temporary diagnostic was removed. The exact standalone
+handshake test outside the sandbox passed 1/1, 13 assertions
+(/tmp/shared-people-6jd-handoff-handshake-unsandboxed.log).
+
+On final source/test bytes, the exact sandbox command:
+
+    bun test apps/wbs/be-01/src/module/optimization/module.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/service/optimization-events.db.test.ts apps/wbs/be-01/src/service/optimization-restart.db.test.ts apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts apps/wbs/be-01/src/services.db.test.ts
+
+passed 162/162, 19,313 assertions
+(/tmp/shared-people-6jd-handoff-final-byte-eight.log). Complete BE-source ESLint
+and direct BE tsc --build --force exited 0
+(/tmp/shared-people-6jd-handoff-final-byte-{lint,type}.log). Direct BE Bun bundle
+passed with 1,373 modules
+(/tmp/shared-people-6jd-handoff-final-byte-build.log). The nine-file sandbox
+command is not claimed green; its process case has separate approved
+unsandboxed evidence
+(/tmp/shared-people-6jd-handoff-final-byte-handshake.log). Formatting,
+OpenSpec and diff results follow the final documentation check below.
+Changed-path Prettier passed
+(/tmp/shared-people-6jd-handoff-final-doc-format.log); pinned OpenSpec
+1.12.0 strict passed 1/1 and all passed 148/148
+(/tmp/shared-people-6jd-handoff-final-doc-{strict,all}.log), and
+git diff --check exited 0
+(/tmp/shared-people-6jd-handoff-final-doc-diff.log). These checks precede
+only this results paragraph; formatting and diff were repeated afterward.

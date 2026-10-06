@@ -104,6 +104,7 @@ describe('optimized outcome events', () => {
         launches += 1;
         throw new Error('preflight failure reached launcher');
       },
+      deliverCommitted: () => Promise.resolve(),
       pushRecorded: (_subscription, _recorded, event) => {
         pushed.push(event);
         return Promise.resolve();
@@ -165,6 +166,7 @@ describe('optimized outcome events', () => {
         await options.onExit({ code: 0, stdout: INFEASIBLE_RESPONSE, stderr: '' });
         return { kind: 'exited', code: 0 };
       },
+      deliverCommitted: () => Promise.resolve(),
       pushRecorded: (_subscription, _recorded, event) => {
         pushed.push(event);
         return Promise.resolve();
@@ -266,6 +268,7 @@ describe('optimized outcome events', () => {
         await options.onExit({ code: 0, stdout: RESPONSE, stderr: '' });
         return { kind: 'exited', code: 0 };
       },
+      deliverCommitted: () => Promise.resolve(),
       pushRecorded: (_subscription, recorded, event) => {
         const raw = openDatabase(path);
         try {

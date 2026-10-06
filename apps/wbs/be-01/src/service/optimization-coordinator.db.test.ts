@@ -2,6 +2,10 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type {
+  CommittedFanoutDelivery,
+  CommittedProjectEvent,
+} from '@wbs/core/service/committed-fanout';
 import { schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -160,6 +164,7 @@ function coordinator(
   now: () => number = () => 10,
   beforeReserve?: () => void,
   repositoryOf?: (repository: OptimizationRepository) => OptimizationRepository,
+  committedFanout?: CommittedFanoutDelivery,
 ): OptimizationCoordinator {
   let token = 0;
   const repository = createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN);
@@ -191,6 +196,9 @@ function coordinator(
     runChild,
     pushRecorded: () => Promise.resolve(),
     onChildError,
+    deliverCommitted: committedFanout
+      ? (events) => committedFanout.deliverCommitted(events)
+      : () => Promise.resolve(),
   });
 }
 
@@ -249,6 +257,296 @@ function seedReadyVariant(
 }
 
 describe('OptimizationCoordinator read', () => {
+  it('does not invoke committed delivery for empty adapter envelopes', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const calls: ReservedSpawnRequest[] = [];
+    let deliveries = 0;
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        now: () => 3,
+        deliverCommitted: () => {
+          deliveries += 1;
+          return Promise.resolve();
+        },
+      },
+    );
+    await instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT, enabled: true });
+    await instance.drain();
+    expect(deliveries).toBe(0);
+  });
+
+  it('hands off a committed reservation envelope without waiting for held delivery', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const log = new DrizzleEventLogStore(db, OPEN);
+    const recorded = await log.recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const held = Promise.withResolvers<undefined>();
+    const delivered: CommittedProjectEvent[] = [];
+    const calls: ReservedSpawnRequest[] = [];
+    let injected = false;
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        reserveSlot: async (request) => {
+          const committed = await repository.reserveSlot(request);
+          const envelopes = injected ? [] : [envelope];
+          injected = true;
+          return { ...committed, envelopes };
+        },
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: async (events) => {
+          delivered.push(...events);
+          await held.promise;
+        },
+      },
+    );
+    const reading = instance.readPlan({
+      projectId: 'p-1',
+      objective: 'pri',
+      input: INPUT,
+      enabled: true,
+    });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const withheld = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error('committed reservation waited for transport'));
+      }, 500);
+    });
+    let answer: Awaited<typeof reading>;
+    try {
+      answer = await Promise.race([reading, withheld]);
+    } catch (error) {
+      held.resolve(undefined);
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+    expect(answer.generation).not.toBeNull();
+    expect(delivered).toEqual([envelope]);
+    let stopped = false;
+    const stopping = instance.stop().then(() => {
+      stopped = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(stopped).toBe(false);
+    held.resolve(undefined);
+    await stopping;
+    expect(stopped).toBe(true);
+  });
+
+  it('delivers a committed project-full reservation answer before its early branch', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(INPUT), 2);
+    for (let budgetMs = 1; budgetMs <= 4; budgetMs += 1) {
+      expect(
+        reserveSolverSlot(db, {
+          projectId: 'p-1',
+          contractVersion: CONTRACT,
+          generation,
+          objective: 'pri',
+          budgetMs,
+          ownerId: 'other',
+          attemptToken: `other-${String(budgetMs)}`,
+          now: 3,
+        }).kind,
+      ).toBe('reserved');
+    }
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const delivered: CommittedProjectEvent[] = [];
+    const calls: ReservedSpawnRequest[] = [];
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        reserveSlot: async (request) => {
+          const committed = await repository.reserveSlot(request);
+          expect(committed.decision.kind).toBe('project-full');
+          return { ...committed, envelopes: [envelope] };
+        },
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: (events) => {
+          delivered.push(...events);
+          return Promise.resolve();
+        },
+      },
+    );
+    await instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT, enabled: true });
+    await instance.drain();
+    expect(delivered).toEqual([envelope, envelope]);
+    expect(calls).toEqual([]);
+  });
+
+  it('delivers an empty-dequeue commit before the queue pump returns', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const delivered: CommittedProjectEvent[] = [];
+    const entered = Promise.withResolvers<undefined>();
+    const held = Promise.withResolvers<undefined>();
+    const instance = coordinator(
+      db,
+      [],
+      'blue',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        dequeueRequest: async (request) => ({
+          ...(await repository.dequeueRequest(request)),
+          envelopes: [envelope],
+        }),
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: async (events) => {
+          delivered.push(...events);
+          entered.resolve();
+          await held.promise;
+        },
+      },
+    );
+    instance.start();
+    await entered.promise;
+    expect(delivered).toEqual([envelope]);
+    let stopped = false;
+    const stopping = instance.stop().then(() => {
+      stopped = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(stopped).toBe(false);
+    held.resolve(undefined);
+    await stopping;
+    expect(stopped).toBe(true);
+  });
+
+  it('keeps a dequeued token while its committed delivery is held then rejected', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(INPUT), 2);
+    expect(
+      enqueueSolverRequest(db, {
+        projectId: 'p-1',
+        contractVersion: CONTRACT,
+        generation,
+        objective: 'pri',
+        budgetMs: BUDGET,
+        enqueuedAt: 3,
+      }),
+    ).toEqual({ kind: 'queued' });
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const held = Promise.withResolvers<undefined>();
+    const delivered: CommittedProjectEvent[] = [];
+    const errors: unknown[] = [];
+    const calls: ReservedSpawnRequest[] = [];
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      (error) => errors.push(error),
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        dequeueRequest: async (request) => {
+          const committed = await repository.dequeueRequest(request);
+          return {
+            ...committed,
+            envelopes: committed.decision.kind === 'reserved' ? [envelope] : [],
+          };
+        },
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: async (events) => {
+          delivered.push(...events);
+          await held.promise;
+        },
+      },
+    );
+    instance.start();
+    await untilCalls(calls, 1);
+    expect(calls).toHaveLength(1);
+    expect(delivered).toEqual([envelope]);
+    const secondWriter = openDatabase(path);
+    try {
+      secondWriter.run("UPDATE project SET name = 'writer-entered' WHERE id = 'p-1'");
+    } finally {
+      secondWriter.close();
+    }
+    let stopped = false;
+    const stopping = instance.stop().then(() => {
+      stopped = true;
+    });
+    await Promise.resolve();
+    expect(stopped).toBe(false);
+    held.reject(new Error('transport refused after dequeue commit'));
+    await stopping;
+    expect(errors).toHaveLength(1);
+    expect(stopped).toBe(true);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:p-1', -1)).toEqual([
+      recorded,
+    ]);
+  });
+
   it('coalesces reconciliation ticks behind one unsettled source turn', async () => {
     const { path, db } = database();
     seedProject(path);
@@ -279,6 +577,7 @@ describe('OptimizationCoordinator read', () => {
       inputOf: () => Promise.resolve(null),
       enabledOf: () => Promise.resolve(true),
       spawn: () => Promise.reject(new Error('reconcile cannot launch')),
+      deliverCommitted: () => Promise.resolve(),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
@@ -364,6 +663,7 @@ describe('OptimizationCoordinator read', () => {
         });
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
+      deliverCommitted: () => Promise.resolve(),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
@@ -560,6 +860,7 @@ describe('OptimizationCoordinator read', () => {
         spawned.push(request);
         throw new Error('a drain reconciliation must not resume a solve');
       },
+      deliverCommitted: () => Promise.resolve(),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => errors.push(error),
       setInterval: (callback, milliseconds) => {
@@ -626,6 +927,7 @@ describe('OptimizationCoordinator read', () => {
         });
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
+      deliverCommitted: () => Promise.resolve(),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
@@ -1027,6 +1329,7 @@ describe('OptimizationCoordinator read', () => {
         calls.push(request);
         throw new Error('an OFF project reached the launcher');
       },
+      deliverCommitted: () => Promise.resolve(),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
@@ -1097,6 +1400,7 @@ describe('OptimizationCoordinator read', () => {
         throw new Error('disabled replacement reached launcher');
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
+      deliverCommitted: () => Promise.resolve(),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
@@ -1157,6 +1461,7 @@ describe('OptimizationCoordinator read', () => {
         calls.push(request);
         throw new Error('an OFF project reached the launcher');
       },
+      deliverCommitted: () => Promise.resolve(),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
@@ -1977,6 +2282,148 @@ describe('OptimizationCoordinator Retry admission', () => {
     input,
   });
 
+  it('retains an accepted Retry while committed delivery is held then rejected', async () => {
+    const { path, db } = database();
+    const generation = generationWith(path, db, 'failed');
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const held = Promise.withResolvers<undefined>();
+    const delivered: CommittedProjectEvent[] = [];
+    const errors: unknown[] = [];
+    const calls: ReservedSpawnRequest[] = [];
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      (error) => errors.push(error),
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        admitRetry: async (request) => ({
+          ...(await repository.admitRetry(request)),
+          envelopes: [envelope],
+        }),
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: async (events) => {
+          delivered.push(...events);
+          await held.promise;
+        },
+      },
+    );
+    const answer = await instance.retry(ask());
+    expect(answer).toMatchObject({ kind: 'accepted', generation });
+    expect(delivered).toEqual([envelope]);
+    await untilCalls(calls, 1);
+    expect(calls).toHaveLength(1);
+    const secondWriter = openDatabase(path);
+    try {
+      secondWriter.run("UPDATE project SET name = 'writer-entered' WHERE id = 'p-1'");
+    } finally {
+      secondWriter.close();
+    }
+    held.reject(new Error('transport refused after Retry commit'));
+    await instance.drain();
+    expect(errors).toHaveLength(1);
+    expect(db.select().from(solverSlot).all()).toHaveLength(1);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:p-1', -1)).toEqual([
+      recorded,
+    ]);
+  });
+
+  it('returns an accepted Retry after a synchronous committed-delivery throw', async () => {
+    const { path, db } = database();
+    const generation = generationWith(path, db, 'failed');
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const errors: unknown[] = [];
+    const calls: ReservedSpawnRequest[] = [];
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      (error) => errors.push(error),
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        admitRetry: async (request) => ({
+          ...(await repository.admitRetry(request)),
+          envelopes: [envelope],
+        }),
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: () => {
+          throw new Error('synchronous transport failure');
+        },
+      },
+    );
+    expect(await instance.retry(ask())).toMatchObject({ kind: 'accepted', generation });
+    await untilCalls(calls, 1);
+    await instance.drain();
+    expect(calls).toHaveLength(1);
+    expect(errors).toHaveLength(1);
+  });
+
+  it('delivers a non-retryable committed answer before returning its refusal', async () => {
+    const { path, db } = database();
+    generationWith(path, db, 'none');
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const delivered: CommittedProjectEvent[] = [];
+    const calls: ReservedSpawnRequest[] = [];
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        admitRetry: async (request) => ({
+          ...(await repository.admitRetry(request)),
+          envelopes: [envelope],
+        }),
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: (events) => {
+          delivered.push(...events);
+          return Promise.resolve();
+        },
+      },
+    );
+    expect(await instance.retry(ask())).toEqual({ kind: 'not-retryable', state: 'idle' });
+    await instance.drain();
+    expect(delivered).toEqual([envelope]);
+    expect(calls).toEqual([]);
+  });
+
   it('refuses a stale body before retryability and carries the current hash', async () => {
     const { path, db } = database();
     generationWith(path, db, 'failed');
@@ -2152,6 +2599,7 @@ describe('OptimizationCoordinator Retry admission', () => {
           kill: () => undefined,
         });
       },
+      deliverCommitted: () => Promise.resolve(),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
@@ -2246,6 +2694,7 @@ describe('OptimizationCoordinator Retry admission', () => {
         });
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
+      deliverCommitted: () => Promise.resolve(),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => errors.push(error),
       setInterval: () => 'drain-timer',
@@ -2459,6 +2908,7 @@ describe('wire 3 preflight admission cleanup', () => {
         throw new Error('preflight refusal reached launcher');
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
+      deliverCommitted: () => Promise.resolve(),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         errors.push(error);
@@ -2634,6 +3084,7 @@ describe('wire 3 preflight admission cleanup', () => {
             throw new Error('a refused request reached spawn');
           },
           runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
+          deliverCommitted: () => Promise.resolve(),
           pushRecorded: () => Promise.resolve(),
           onChildError: (error) => errors.push(error),
           setInterval: () => 'preflight-timer',

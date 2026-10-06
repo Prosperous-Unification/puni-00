@@ -44,6 +44,7 @@ export const optimizationModule = DiBag.createBuilder()
         runChild,
         onChildError,
         pushRecorded,
+        deliverCommitted,
         editDebounceMs,
         sleep,
         setInterval,
@@ -65,6 +66,7 @@ export const optimizationModule = DiBag.createBuilder()
         onChildError: CoordinatorOption<'onChildError'>;
 
         pushRecorded: CoordinatorOption<'pushRecorded'>;
+        deliverCommitted: CoordinatorOption<'deliverCommitted'>;
         editDebounceMs: CoordinatorOption<'editDebounceMs'>;
         sleep: CoordinatorOption<'sleep'>;
         setInterval: CoordinatorOption<'setInterval'>;
@@ -96,6 +98,9 @@ export const optimizationModule = DiBag.createBuilder()
         // wires` failing (5 pass, 1 fail): it received `[]`.
         onChildError,
         pushRecorded,
+        // Proof: omitting this forwarding made installed Retry call an absent
+        // delivery function and lose its test-injected committed envelope.
+        deliverCommitted,
         editDebounceMs,
         sleep,
         setInterval,

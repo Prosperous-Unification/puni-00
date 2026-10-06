@@ -204,6 +204,7 @@ export function buildServices(options: ServicesOptions): BeServices {
       spawn: optimizer.spawn,
       pushRecorded: (subscription, recorded, event) =>
         graph.gatewayBroadcaster.pushRecorded(subscription, recorded, event),
+      deliverCommitted: (events) => graph.committedFanout.deliverCommitted(events),
       onChildError: (error) => {
         options.logger.error({ err: error }, 'optimizer child failed');
       },
