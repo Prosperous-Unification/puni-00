@@ -32,6 +32,8 @@ import { useSnapshotChanges } from './use-snapshot-changes';
 import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
+  /** False while its owning page shows Board; isolated Plan readers stay active. */
+  planActive?: boolean;
   /**
    * The selected project's runtime, opened and left by its owner above the
    * table — never the client, a port or the feed's refresh owner (rule K2).

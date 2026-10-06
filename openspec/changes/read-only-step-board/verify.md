@@ -135,16 +135,16 @@ unsent draft**, distinct from an in-flight or refused edit.
 
 All task 2.1 implementation evidence remains pending:
 
-| Planned production-path fault         | Required observed failure                                         |
-| ------------------------------------- | ----------------------------------------------------------------- |
-| Permit switch-related leave/flush     | Pointer or keyboard handoff submits an unsent draft.              |
-| Remove suspended sync protection      | Peer delivery overwrites suspended text or its baseline.          |
-| Release hold on return before refocus | A delivery overwrites the returned but unfocused draft.           |
-| Drop same-identity remount retention  | Column/renderer remount loses the suspended edit.                 |
-| Remove deletion/runtime cleanup       | A removed identity or replacement runtime inherits the old draft. |
-| Bypass hidden keyboard guard          | Board keys issue undo/redo or open hidden Plan controls.          |
-| Inject Board setProgress              | A Board interaction causes a forbidden command.                   |
-| Bypass current-runtime guard          | An old-project completion draws after withdrawal.                 |
+| Planned production-path fault                                           | Required observed failure                                                             |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Permit switch-related leave/flush                                       | Pointer or keyboard handoff submits an unsent draft.                                  |
+| Remove suspended sync protection                                        | Peer delivery overwrites suspended text or its baseline.                              |
+| Release hold on return before refocus                                   | A delivery overwrites the returned but unfocused draft.                               |
+| Drop same-identity remount retention                                    | Column/renderer remount loses the suspended edit.                                     |
+| Remove deletion/runtime cleanup                                         | A removed identity or replacement runtime inherits the old draft.                     |
+| Bypass hidden keyboard guard                                            | Board keys issue undo/redo or open hidden Plan controls.                              |
+| Inject Board setStatus through the existing frontend PlanCommands route | A Board interaction causes a forbidden command; no frontend setProgress route exists. |
+| Bypass current-runtime guard                                            | An old-project completion draws after withdrawal.                                     |
 
 Run focused mounted page/router/Board and field/keyboard/draft regression suites,
 node projector tests, affected frontend lint/typecheck/build, scoped formatting
@@ -167,3 +167,91 @@ Planning validation for this amendment:
 
 No product tests were rerun for this planning-only commit. Implementation proofs
 and the live/browser/full-gate obligations above remain pending.
+
+## Task 2.1 local implementation checkpoint — independent review pending
+
+The selected `ProjectRuntime` now owns one Plan/Board choice and one Plan
+interaction scope. Plan is initial, its table remains mounted while hidden and
+inert on Board, and Board reads that same runtime. Focusing the selector
+suspends an unsent field before blur can submit it. The hold survives later
+peer trees and same-identity face remounts, but is removed by authoritative
+row/step deletion or runtime withdrawal. Returning to Plan alone neither
+submits nor releases the hold; refocusing the field resumes ordinary editing.
+Issued commands retain their existing acknowledgement/refusal path. Hidden Plan
+shortcuts, dialogs, and the saved-plan shelf are inactive on Board.
+
+Initial REDs: `/tmp/board-page-pointer-focus-red.log` recorded an actual
+`patchWorkItem('w1', {name: 'Draft build'})` before the Board click;
+`/tmp/board-livefield-suspend-red.log` showed the missing field suspension.
+The hidden-key RED `/tmp/board21-hidden-key-red.log` issued undo on Board,
+and the dialog/shelf REDs are `/tmp/board21-dialog-red.log`,
+`/tmp/board21-dialog-return-red.log`, and `/tmp/board21-shelf-red.log`.
+Focused GREEN checkpoints include `/tmp/board-page-handoff-green.log`,
+`/tmp/board-page-peer-draft-test.log`, `/tmp/board21-inflight-ack-test.log`,
+`/tmp/board21-inflight-refusal-test.log`, `/tmp/board21-one-feed-test.log`,
+`/tmp/board21-old-tree-test.log`, `/tmp/board21-step-remount-test.log`,
+`/tmp/board21-responsive-remount-test.log`, `/tmp/board21-row-delete-restore-green.log`,
+`/tmp/board21-step-deletion-test.log`, and `/tmp/board21-phone-portal-test.log`.
+
+Each fault below was injected independently in the production path, watched
+fail with focused Vitest, and restored. Adjacent `Proof:` comments identify
+the guards and watched cases. The logs preserve commands and assertion output.
+
+| Fault and log                                                                         | Observed negative                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Omit selector-focus suspension, `/tmp/board21-fault-focus-suspend.log`                | Keyboard focus submitted a draft; expected no writes.                                                                                                                                                                               |
+| Omit suspended leave guard, `/tmp/board21-fault-leave-alone.log`                      | Pointer focus submitted `Draft build`; expected no writes.                                                                                                                                                                          |
+| Omit suspended sync guard, `/tmp/board21-fault-sync.log`                              | Direct `LiveField` test received `Peer` instead of `Draft`, including its original baseline.                                                                                                                                        |
+| Release on Plan return, `/tmp/board21-fault-return-release.log`                       | Subsequent peer delivery replaced `Draft build` with `Peer two`.                                                                                                                                                                    |
+| Omit same-identity restoration, `/tmp/board21-fault-remount.log`                      | Step-face remount showed `Build` instead of the draft.                                                                                                                                                                              |
+| Omit row pruning, `/tmp/board21-fault-prune.log`                                      | Deleted row's old textarea reappeared with its held draft.                                                                                                                                                                          |
+| Omit step pruning, `/tmp/board21-fault-step-prune.log`                                | A removed step retained the original `LiveField` identity.                                                                                                                                                                          |
+| Share scope across runtimes and omit disposal, `/tmp/board21-fault-runtime-scope.log` | New project showed `Only p2 draft` where its own `Build` value belonged.                                                                                                                                                            |
+| Bypass hidden keyboard guard, `/tmp/board21-fault-hidden-key.log`                     | Board Ctrl/Cmd+Z called undo.                                                                                                                                                                                                       |
+| Inject `setStatus` on Board interaction, `/tmp/board21-setstatus-fault.log`           | Board no-command assertion failed on the actual `PlanCommands` → `ProjectApi.setStatus` route. The frontend has no `setProgress` route, so no API was added.                                                                        |
+| Bypass existing current-runtime guard, `/tmp/board21-fault-current-owner.log`         | Runtime property test reported a withdrawn reader changing its delivered plan. The separate mounted old-project Board test passes because its stores remain isolated; that mounted case alone does not prove the lower-level guard. |
+| Omit issued-command exclusion, `/tmp/board21-fault-issued-guard.log`                  | `suspendUnsent()` returned true for an already issued edit, rather than false.                                                                                                                                                      |
+
+Fresh affected mounted command from `apps/wbs/fe-01`:
+`TZ=UTC bunx vitest run src/components/wbs/project-page.test.tsx src/components/wbs/live-editing.test.tsx src/components/wbs/project-replacement.test.tsx src/components/wbs/plan-read-and-write.test.tsx src/components/board/step-board-view.test.tsx src/app-router.test.tsx --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 --reporter=dot`:
+exit 0, six files and 230 tests passed (`/tmp/board21-focused-final.log`).
+The run emitted existing React `act` warnings in older picker tests; no test
+failed. From the repository root, the following all exited 0 with visible
+target summaries: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run
+wbs-fe-01:lint --skip-nx-cache --outputStyle=static`, the corresponding
+`wbs-fe-01:typecheck` and `wbs-fe-01:build` targets
+(`/tmp/board21-final-{lint,typecheck,build}.log`). Scoped `bunx prettier
+--check` passed (`/tmp/board21-final-format.log`), and pinned strict targeted
+OpenSpec validation passed 1/1 (`/tmp/board21-final-openspec.log`).
+
+At that checkpoint, task 2.1 remained unchecked pending independent diff/proof review. Real-browser
+focus, blur, Tab and drag verification belongs to task 2.2; the canonical
+exact-SHA h2puni gate and current-head CI belong to task 3.2. No full gate,
+browser run, publication, or overall board acceptance is claimed here.
+
+### Task 2.1 pointer-cancel draft continuation
+
+The selector's `pointerdown` can suspend a dirty field without moving focus or
+activating Board. If the pointer is then cancelled, another keystroke in the
+same focused field has no new focus event to release the hold. The mounted
+Plan/Board test reproduces this path, delivers a peer tree, checks that the
+newest draft remains visible, and confirms ordinary blur sends exactly that
+newest text once. No command is sent before blur.
+
+`TZ=UTC bunx vitest run src/components/wbs/project-page.test.tsx -t 'keeps typing after a cancelled Board pointer' --no-file-parallelism --maxWorkers=1`
+from `apps/wbs/fe-01` failed before the fix: `Draft one` replaced `Draft two`
+after the peer tree (`/tmp/board-pointercancel-red.log`). Resuming the field
+when a Plan-active box receives actual input made the same command pass
+(`/tmp/board-pointercancel-green.log`). Removing only that resume call made it
+fail again with the same observed stale text
+(`/tmp/board-pointercancel-mutation.log`); the restored source has an adjacent
+`Proof:` comment.
+
+The six-file mounted Board/field/router regression command listed above passed
+231 tests after this change (`/tmp/board-pointercancel-focused-final.log`).
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/nx-board-pointercancel bunx nx run-many -t lint,typecheck,build -p wbs-fe-01 --skip-nx-cache --outputStyle=static`
+passed all affected targets (`/tmp/board-pointercancel-targets.log`). The
+mounted run emitted React `act` warnings in existing cases; no test failed.
+Independent Astra review cleared the task 2.1 implementation and the pointer-cancel
+follow-up on 2026-10-06. Task 2.1 is now checked; 2.2 browser acceptance,
+3.1 final review and 3.2 exact-head gate remain pending.
