@@ -75,3 +75,27 @@ _Avoid_: Closed proposal
 **Erasure record**:
 A durable record that a retention subject's content was removed, including the identity needed to keep it removed after recovery.
 _Avoid_: Deleted backup
+
+**Request window**:
+A fixed one-minute count of requests per source, per path or across the site, after which further requests are refused for the rest of the minute.
+_Avoid_: Throttle, rate limiter
+
+**Daily cap**:
+The most intake drafts or proposal requests one source, one email or the whole site may create in a UTC day.
+_Avoid_: Quota
+
+**Login lockout**:
+The period during which an operator sign-in is refused for a source or for the account after too many failed attempts.
+_Avoid_: Ban
+
+**Browser check**:
+A short computation the visitor's browser completes before a conversation's first paid reply, with no interaction and no third party.
+_Avoid_: CAPTCHA, Turnstile, proof of work (in visitor-facing text)
+
+**Inference pause**:
+The recorded state in which paid replies are refused for everyone until an operator resumes them, opened by the spend threshold or by an operator.
+_Avoid_: Kill switch, outage
+
+**Guardrail alert**:
+A durable, deduplicated record that a guardrail threshold was crossed, optionally pushed to the operator's webhook.
+_Avoid_: Notification, incident
