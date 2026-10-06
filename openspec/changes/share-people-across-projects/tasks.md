@@ -315,6 +315,14 @@ compares both directions`, `directory edit has causes without project-row edits`
       observation/write; watch each new guard omission. Cover conflicting ownership where physically
       representable or prove its schema exclusion; distinguish absent target, pre-activation/legacy
       and valid isolated silence. Repeat the resolver boundary for implicit global-reclaim victims.
+      Install separate BeServices.optimizationLifecycle beginDrain/finishDrain from the same
+      source connection, bound UoW and committed delivery even without optimizer runtime; no new
+      route or unused repository admin methods. Preserve raw synchronous primitives and their
+      outcomes. Complete the packet's seven direct-lifecycle proof groups: installed pending
+      bridge/final old cause; selected/equal-display/nonselected retirement; full multi-event
+      rollback; modeled no-ops; ownership/installation negatives; writer release/notifications;
+      and durable event identity after rejected delivery. Watch each listed binding/cause/guard/
+      transaction/delivery fault independently and retain all 6j.b serialization regressions.
 - [ ] 6j.d. **All release and implicit global-reclaim callers.** Bind and await normal exit, cancellation after terminal
       evidence, queued cleanup and initial/Retry preflight. Prove exact token and all prior fences,
       last-slot deletion atomicity, failure recovery and no early pump/completion. Independently

@@ -2107,3 +2107,23 @@ in `/tmp/shared-people-6jb-plan-strict.json`; pinned all OpenSpec exited 0 (148/
 in `/tmp/shared-people-6jb-plan-all.json`. Four-file Prettier and `git diff --check` passed;
 final-byte checks are repeated before committing. Independent rereview is requested separately;
 this validation is not independent architectural clearance.
+
+### 6j.c direct-lifecycle capability clarification
+
+The normative packet now specifies separate `BeServices.optimizationLifecycle` composition,
+available without a solver runtime, over the same source connection/bound UoW/committed delivery.
+It defines the borrowed ownership/capture/raw mutation/record/commit/delivery sequence,
+addressed-cause eligibility, waiting delete-pending bridge preservation, canonical selection
+and availability comparison, unchanged raw primitives, and seven installed production proof
+groups with named R5 omissions. Raw drain tests alone do not establish public installation.
+
+This is planning only: no product code, implementation checkboxes, runtime proof results or
+host gate claims are changed. Sol may prepare matching REDs separately; all seven complete
+proof groups and independent implementation review remain pending. Independent architecture
+review of this amendment is requested separately from formatting/OpenSpec validation.
+
+Planning validation: pinned strict OpenSpec exited 0 (1/1),
+`/tmp/shared-people-6jc-plan-strict.json`; pinned all OpenSpec exited 0 (148/148),
+`/tmp/shared-people-6jc-plan-all.json`. Four-file Prettier and `git diff --check` passed.
+Final-byte checks are repeated before the local commit. These results do not constitute
+independent architecture clearance or implementation verification.

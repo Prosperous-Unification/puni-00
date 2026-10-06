@@ -183,6 +183,35 @@ completion or pumping newly available capacity, and shutdown SHALL await owned s
 - **THEN** it waits outside that transaction and cannot read uncommitted rows or lose its writes with the owner's rollback
 - **AND** captured scheduling remains non-admitting and holds no child or transport wait
 
+### Requirement: Direct lifecycle composition preserves final-drain semantics
+
+An internal source-backed lifecycle capability SHALL own direct begin and finish transactions
+and remain installed without a running optimizer. Raw synchronous drain primitives SHALL
+retain their existing mutation, fencing and outcome contracts; they SHALL NOT independently
+start asynchronous capture or delivery. The owning capability SHALL resolve trusted ownership
+and capture the delete-pending target before mutation, compare after, and record applicable
+pairs before committing. An explicit addressed cause SHALL NOT by itself force an event.
+
+#### Scenario: a counted child keeps the old bridge alive
+
+- **GIVEN** a dated shared-person bridge project has a counted solver child and deletion is pending
+- **WHEN** direct finish runs
+- **THEN** it returns waiting and retains the project, ownership, rank and captured bridge
+- **AND** unchanged displayed bookings and availability produce no event or sequence advance
+
+#### Scenario: selected retirement has unchanged displayed bookings
+
+- **GIVEN** the selected ready schedule has the same canonical bookings and availability as the display after retirement
+- **WHEN** direct contract finish removes its cache and generation
+- **THEN** no downstream event is forced by retirement, cache status or the addressed cause alone
+
+#### Scenario: direct lifecycle transport rejects after commit
+
+- **GIVEN** final deletion or retirement committed real downstream event rows
+- **WHEN** post-release transport rejects
+- **THEN** the error propagates while the mutation and original event identities remain committed and replayable
+- **AND** repeated finish produces no replacement event or sequence advance
+
 ### Requirement: Live optimizer observation does not recursively enter admission
 
 Live optimizer admission SHALL obtain generation, cached pair and miss-only objective requests
