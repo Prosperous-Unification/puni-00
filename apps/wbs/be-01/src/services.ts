@@ -38,6 +38,7 @@ import {
   createOptimizationLifecycle,
   type OptimizationLifecycle,
 } from './service/optimization-lifecycle';
+import { createRetryReservationOwner } from './service/optimization-retry-reservation';
 import { optimizerWiring } from './service/optimizer-wiring';
 
 const EVENT_LOG_MAX_PER_SUBSCRIPTION = 1_000;
@@ -180,6 +181,11 @@ export function buildServices(options: ServicesOptions): BeServices {
     boundSource.uow,
     graph.committedFanout,
   );
+  const retryReservation = createRetryReservationOwner(
+    source.db,
+    boundSource.uow,
+    graph.committedFanout,
+  );
   if (options.optimizer !== undefined) {
     const optimizer = options.optimizer;
     coordinator = installOptimization({
@@ -196,6 +202,9 @@ export function buildServices(options: ServicesOptions): BeServices {
         // Proof: omitting this installer binding reclaimed A but lost B's durable
         // event in the mounted initial-admission test.
         reserveSlot: initialReservation,
+        // Proof: omitting this binding let installed Retry delete A without
+        // B's durable elsewhere_changed event; the mounted Retry test failed.
+        admitRetry: retryReservation,
       },
       contractVersion: contractVersionOf(optimizer.solverVersion),
       solverVersion: optimizer.solverVersion,
