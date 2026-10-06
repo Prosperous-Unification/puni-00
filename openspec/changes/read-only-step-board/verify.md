@@ -117,3 +117,53 @@ The task 1.1-only skip list is superseded by the task 1.2 focused checks above.
 Project-page/router regression, browser tests, the 500-leaf fixture measurement,
 full node/conformance suites and exact-SHA gate remain pending under later tasks.
 This artifact does not claim overall board acceptance.
+
+## Task 2.1 draft-suspension planning amendment — proofs pending
+
+Planning starts from the reviewed task 1.2 local checkpoint `14bf46132` on the
+isolated `plan/board-draft-suspension` branch. This amendment changes only the
+existing intent/glossary/spec/design/task/evidence artifacts. Task 1.2 acceptance
+above is unchanged; task 2.1 and all later tasks remain unchecked.
+
+Read-only inspection found `CellInput` blur invokes `LiveField.leave()`, which
+submits a changed value, while `LiveField.sync()` protects an unsent edit only
+while its node is focused. Hiding/inerting Plan also leaves its window-level
+undo/redo listener active. These are source findings, not observed task 2.1 REDs.
+The PM adopted an opt-in runtime-owned suspension boundary to fulfill the already
+planned no-write/draft-preservation behavior. The glossary term is **Suspended
+unsent draft**, distinct from an in-flight or refused edit.
+
+All task 2.1 implementation evidence remains pending:
+
+| Planned production-path fault         | Required observed failure                                         |
+| ------------------------------------- | ----------------------------------------------------------------- |
+| Permit switch-related leave/flush     | Pointer or keyboard handoff submits an unsent draft.              |
+| Remove suspended sync protection      | Peer delivery overwrites suspended text or its baseline.          |
+| Release hold on return before refocus | A delivery overwrites the returned but unfocused draft.           |
+| Drop same-identity remount retention  | Column/renderer remount loses the suspended edit.                 |
+| Remove deletion/runtime cleanup       | A removed identity or replacement runtime inherits the old draft. |
+| Bypass hidden keyboard guard          | Board keys issue undo/redo or open hidden Plan controls.          |
+| Inject Board setProgress              | A Board interaction causes a forbidden command.                   |
+| Bypass current-runtime guard          | An old-project completion draws after withdrawal.                 |
+
+Run focused mounted page/router/Board and field/keyboard/draft regression suites,
+node projector tests, affected frontend lint/typecheck/build, scoped formatting
+and OpenSpec validation. Task 2.2 adds real-browser focus/blur verification; task
+3.2 retains the canonical exact-SHA gate and current-head CI. No task 2.1 test,
+mutation, browser run, full gate or publication is claimed by this amendment.
+
+Planning validation for this amendment:
+
+- `openspec validate read-only-step-board --strict --json`: exit 0, 1/1 passed.
+- `openspec validate --all --json`: exit 0, 148/148 passed.
+- `openspec validate --all --strict --json`: exit 1, 142/148 passed; all 130
+  changes passed. The six unchanged canonical specs `dev-deploy`,
+  `live-plan-snapshot`, `plan-command-registry`, `plan-import`, `saved-plans` and
+  `scheduler-optimization` retain placeholder Purpose warnings promoted to
+  failures by strict mode. This amendment changes no canonical spec.
+- Scoped Prettier and `git diff --check`: passed. Intent: 253 words.
+- Local validation outputs: `/tmp/board-draft-design-targeted.json`,
+  `/tmp/board-draft-design-all.json`, `/tmp/board-draft-design-all-strict.json`.
+
+No product tests were rerun for this planning-only commit. Implementation proofs
+and the live/browser/full-gate obligations above remain pending.
