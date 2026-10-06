@@ -181,6 +181,74 @@ Trusted activation and live solver image publication/binding installation remain
 this runtime slice provides no setter, activation route or environment override and continues
 advertising `['isolated']` and refusing shared restore.
 
+### Ordered durable fan-out slices (6g–6l)
+
+Dependencies: reviewed local 6.1d/e/f checkpoints through
+`73264fce66deff231c71b8a14f73da856e5fa811`, then 6g → 6h → 6i → 6j → 6k → 6l.
+Each slice starts with its named RED tests, implements the minimum production path, restores
+and reruns each watched fault, records exact evidence in verify.md, and receives independent
+review before the next slice. These unchecked tasks do not authorize activation/publication.
+
+- [ ] 6g. **Projection and recipients only.** Add a core value service/test beside
+      `service/shared-people.ts` as `shared-people-fanout.ts` / `shared-people-fanout.test.ts`;
+      reuse/extract its pure display selector if needed. Consume
+      captured scheduling outcomes, old/new rank-directed graphs and direct causes; return
+      canonical bookings/availability comparisons and sorted recipient/cause pairs. RED tests:
+      `selected displayed bookings determine fan-out`, `equal hashes retain availability
+transitions`, `removed bridge retains old recipients`, `mixed edges invent no path`,
+      `multiple causes produce distinct deterministic pairs`, `rename and rank respacing are
+silent`, and `isolated and foreign projects receive no shared fan-out`. Include absolute
+      fractional intervals, undated bridge, cycle/range skip semantics and required unavailable
+      outcomes. R5: substitute Fast, suppress equal-hash availability, omit old graph, traverse
+      mixed edges, remove pair deduplication and remove organization/mode guards independently.
+      No adapter/event/route binding, DB writes, generation admission or persistent hash state.
+- [ ] 6h. **Command/UoW atomicity.** Integrate borrowed before/after capture and transactional
+      event recording through `module/plan-commands/composition.ts`, `PlanCommandRunner` and
+      `admitted-write.ts`; retain command history and scoped authority. Resolve committed-record
+      delivery with composition and `optimizer-trigger-broadcaster.ts` without duplicate record
+      or missing post-commit scheduling. RED real SQLite command/undo/redo and mounted command
+      tests: `command and downstream events commit together`, `late refusal emits nothing`,
+      `cold command fan-out needs no previous read`, `one batch coalesces each cause pair` and
+      `capture does not admit optimization`. R5: move recording after commit, move push before
+      commit, omit composition binding, call live admission and omit post-commit trigger.
+- [ ] 6i. **Rank/settings/directory transactions.** Bind `ProjectRankRepository.moveAfter`,
+      admitted project settings/start edits and standalone directory transactions; cover
+      working-plan directory writes without duplicate events. RED mounted rank/settings and
+      directory service/DB tests: `removed assignment invalidates old closure`, `rank reorder
+compares both directions`, `directory edit has causes without project-row edits`,
+      `unchanged rename is silent` and `refused resource edit preserves event sequence`.
+      R5: omit each binding independently, use only post-write usages, and use a preflight
+      topology read instead of the owning transaction's observation.
+- [ ] 6j. **Import and final deletion.** Before drain integration, resolve and test synchronous
+      transaction ownership for borrowed projection reads (design.md); do not pass async
+      callbacks to Drizzle transactions. Bind `module/plan-import/composition.ts` and final
+      `optimization-drain.ts::finishDrainIn`, including release/reconcile callers and contract
+      retirement. RED import service/mounted and optimization-drain SQLite tests:
+      `import and fan-out roll back on event failure`, `final deletion preserves old cause`,
+      `release and reconcile complete deletion fan-out`, `retirement changes selected display`
+      and `repeated finish records nothing`. R5: omit import binding, record at delete request
+      only, drop old closure after delete, omit one release/reconcile path and record outside
+      the final transaction. Space membership removal must not masquerade as project deletion.
+- [ ] 6k. **Optimized display atomicity.** Resolve the synchronous transaction/projection seam
+      before modifying `optimized-outcome.ts`, repository/coordinator or display-changing
+      admission/Retry/retirement paths. RED real outcome/event and mounted tests:
+      `current selected outcome and fan-out commit together`, `old H1 publication under H2
+emits no fan-out`, `nonselected outcome is silent`, `availability changes despite equal
+input hash`, `event failure rolls back cache and fan-out`, and `already-recorded outcome
+does not fan out twice`. R5: fan out on any insertion, compare only input hash, substitute
+      Fast, detach the comparison snapshot and omit the transactional event binding. Retain
+      all generation/token/cancellation/enablement and blue/green multi-input proofs.
+- [ ] 6l. **Replay and release closure.** RED real event-log/realtime and mounted tests:
+      `crash after commit before push replays from a cold process`, `pushRecorded preserves
+sequence`, `push failure retains durable event`, `expired replay requires snapshot` and
+      `unauthorized subscription cannot replay cause`. R5: skip durable insert, allocate another
+      sequence during push, depend on memory-only replay and bypass replay authority separately.
+      Rerun full booking-mutation inventory and 6a–f regressions, including physical capability
+      CLI and pre-write shared-restore refusal; independently advertise shared and bypass the
+      restore guard to observe RED. Record bounds for external engine loss. Exact-SHA canonical
+      gate and CI remain required before an integration claim; keep 6.1/6.2 open until their
+      full obligations, including remaining UI/activation sequencing, are reconciled.
+
 ## 7. fe
 
 - [ ] 7.1 The `elsewhere` sentence, `waitingElsewhere`, refetch, and the settings switch.

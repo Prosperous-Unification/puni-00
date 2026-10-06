@@ -1315,3 +1315,39 @@ passed 1/1 and 148/148 respectively
 `/tmp/shared-people-slice6f-openspec-all-final.json`).
 Exact-SHA host gate, CI, publication, merge, fan-out and shared-mode activation are outside
 this slice.
+
+## Durable fan-out planning amendment (6g–6l)
+
+Planning-only base: `73264fce66deff231c71b8a14f73da856e5fa811`, isolated worktree
+`.worktrees/shared-people-fanout-plan`, branch `plan/shared-people-fanout`. No production code,
+WBS record, runtime configuration or publication is changed. All 6g–6l implementation checks
+below are **pending**, not inferred from the earlier runtime/cache suites.
+
+| Slice   | Production fault required                                                                                                     | Named observation target                                                                   | Result                      |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------- |
+| 6g      | Fast substitution; equal-hash suppression; old-graph omission; mixed-edge traversal; duplicate pair; mode/organization bypass | Selected display, availability, removed bridge, false path and pair/authority tests        | Pending                     |
+| 6h      | Record after commit; push before commit; omitted binding/trigger; live admission                                              | Real command/undo/redo mutation, event sequence, push witness and optimizer-state equality | Pending                     |
+| 6i      | Independent rank/settings/directory binding omission; new-only usages; detached topology                                      | Mounted rank/settings/directory recipients and coherent observations                       | Pending                     |
+| 6j      | Import binding omission; request-only deletion; lost old closure; missed release/reconcile; detached recording                | Import rollback and final drain/delete event/ledger assertions                             | Pending                     |
+| 6k      | Any-insertion fan-out; input-only comparison; Fast substitution; detached read; missing atomic event                          | H1/H2 silence, selected display, availability and atomic cache/event rollback              | Pending                     |
+| 6l      | Missing durable row; push reinsertion; memory-only replay; authority bypass                                                   | Cold-process replay, stable sequence, retention and denied subscription                    | Pending                     |
+| Release | Advertise shared; bypass restore guard                                                                                        | Physical capability CLI and first-write restore trap                                       | Pending rerun after fan-out |
+
+Execution commands: use `bun test <changed-test-path>` for each RED/GREEN and independent R5
+fault; retain exact command, assertion, exit and restored source evidence per fault. Run affected
+Nx test/lint/typecheck/build targets and scoped Prettier before each checkpoint. Run
+`bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json` and
+`bunx @fission-ai/openspec@1.12.0 validate --all --json`. Before claiming integrated completion,
+run `bin/h2puni-gate.sh <reviewed-sha>` on h2puni under its canonical lock; no raw full Nx gate
+there. No new fan-out implementation test, host gate or live failure experiment was run while
+preparing this amendment. Existing replay retention and process-local engine-loss limits are
+part of acceptance, not missing proof to conceal.
+
+Planning validation: pinned targeted strict OpenSpec passed 1/1
+(`/tmp/shared-fanout-plan-strict.json`) and pinned all-change validation passed 148/148
+(`/tmp/shared-fanout-plan-all.json`). An initial final-byte Prettier check flagged task-list wrapping; a second write corrected it.
+Final six-file Prettier and `git diff --check` passed. Intent
+is 384 words, below the 400-word limit. Final-byte reruns use the same commands/log paths.
+No Nx implementation suite was run for this documentation-only amendment; no new production
+behavior or R5 outcome is claimed. Before committing, self-review checked source ownership,
+scenario/task coverage and that every new implementation checkbox and proof remains pending.

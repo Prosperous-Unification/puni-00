@@ -26,14 +26,124 @@ this change SHALL move a date. Pre-activation (legacy) access SHALL read `isolat
 
 ### Requirement: Booking changes fan out down the rank
 
-When a commit or a published optimized outcome changes a project's bookings hash, the process
-SHALL publish `elsewhere_changed {projectId, causeProjectId}` to every lower-ranked project
-reachable from the cause by shared-person edges that follow rank downward. A change that does not move the hash, such as a rename, SHALL publish nothing.
+For each committed shared-mode change, the process SHALL derive before/after displayed
+bookings and scheduling availability in the originating write transaction. Outgoing bookings
+SHALL use absolute fractional intervals and person/project/work-item/step identity, excluding
+labels, rank numbers and process counters. Available-empty, undated and modeled unavailable
+states SHALL remain distinct. Equal input or bookings hashes alone SHALL NOT suppress an
+availability transition. Unexpected derivation failures SHALL abort; modeled unavailability
+SHALL remain explicit, never an empty successful schedule.
+
+For every directly affected cause whose outgoing bookings or availability change, recipients
+SHALL include all surviving lower projects reachable in either the old or the new rank-directed
+shared-person graph. For a topology-only change, recipients SHALL include reachable projects
+whose effective incoming basis or availability changes. Each graph SHALL be traversed
+separately before unioning recipients; paths assembled from mixed old/new edges are invalid.
+The cause itself and foreign-organization projects SHALL NOT be recipients of that cause.
+
+The event SHALL be `elsewhere_changed {projectId, causeProjectId}` under the recipient's
+project subscription. A commit SHALL record at most one event per recipient/cause pair,
+ordered lexicographically by recipient id then cause id. Multiple direct causes MAY produce
+multiple events for one recipient. Causes SHALL include every project whose local scheduling
+facts or topology are directly affected, including directory-resource users without project-row
+edits, and SHALL exclude merely transitive recipients. A removed cause SHALL retain its
+pre-deletion id. A rename with unchanged bookings, availability and incoming basis SHALL emit
+no downstream event. Isolated and legacy operations SHALL emit no shared-capacity event.
 
 #### Scenario: a rename
 
-- **WHEN** a work item in a ranked project is renamed
+- **WHEN** a work item in a ranked project is renamed without changing scheduling facts
 - **THEN** no project below it receives `elsewhere_changed`
+
+#### Scenario: a removed bridge
+
+- **GIVEN** A reaches C through B in the old graph
+- **WHEN** a committed assignment removal disconnects that path and changes C's incoming basis
+- **THEN** C receives the relevant cause event even though the path is absent after the write
+
+#### Scenario: mixed edges invent a path
+
+- **GIVEN** old and new graphs each lack a path from A to D but their mixed edges would create one
+- **WHEN** recipients are calculated
+- **THEN** D is not included on account of that invented path
+
+#### Scenario: availability changes without an input-hash change
+
+- **GIVEN** a transaction changes a required project's modeled scheduling availability
+- **WHEN** its input hash or outgoing empty-bookings hash remains unchanged
+- **THEN** its affected lower projects still receive events
+
+#### Scenario: a directory edit has several causes
+
+- **GIVEN** a directory resource is used by A and B and both directly change scheduling facts
+- **WHEN** one transaction changes that resource and both causes affect C
+- **THEN** exactly the applicable `(C,A)` and `(C,B)` events are recorded in deterministic order
+- **AND** neither a project-row edit nor a fabricated single winning cause is required
+
+### Requirement: Fan-out commits with its originating mutation
+
+The originating transaction SHALL include projection comparison, event sequencing and all
+fan-out event rows. This applies to command batches, undo/redo, admitted settings and step
+writes, rank changes, standalone directory edits, import, optimizer display transitions and
+actual project deletion. Refusal, derivation failure or event-recording failure SHALL roll back
+all mutation and fan-out writes. Transport SHALL begin only after commit and writer release.
+Final project deletion SHALL capture old reachability in its final deletion transaction,
+including deletion completed by slot release or reconciliation; a delete-request hook alone
+SHALL NOT substitute for it. A retirement or cache/generation change that alters current
+display SHALL receive the same comparison even without a new optimizer outcome.
+
+#### Scenario: event insertion fails
+
+- **WHEN** recording a downstream event fails during an otherwise valid command or import
+- **THEN** the mutation, all downstream rows and their sequence advances roll back
+- **AND** no downstream push has occurred
+
+#### Scenario: deletion waits for a child
+
+- **GIVEN** deletion is pending while a solver slot exists
+- **WHEN** slot release or reconciliation completes the actual deletion
+- **THEN** surviving old-closure recipients are recorded atomically with that deletion
+
+### Requirement: Publication compares current display rather than cache insertion
+
+A stored optimizer outcome SHALL retain existing validation, generation, slot/token,
+cancellation and enablement fences and outcome/event atomicity. Fan-out SHALL compare the
+current selected displayed schedule before and after the write in that transaction. An
+eligible old-address result SHALL NOT itself imply a displayed-booking change. Nonselected
+outcomes with no display/availability effect SHALL not produce downstream events.
+
+#### Scenario: H1 publishes while H2 is current
+
+- **GIVEN** H1 remains eligible for storage but current shared input is H2
+- **WHEN** H1 is stored at its original immutable address
+- **THEN** its existing outcome event may be recorded but no downstream event is emitted unless
+  the current displayed bookings or availability actually changed
+
+#### Scenario: the selected schedule arrives
+
+- **WHEN** a current selected optimized outcome changes displayed bookings from the prior Fast schedule
+- **THEN** affected downstream events commit with the outcome and its existing outcome event
+
+### Requirement: Committed fan-out survives a missed push
+
+Fan-out SHALL use existing durable per-project event sequences and replay authorization.
+Pushing an already recorded event SHALL NOT allocate another sequence. Repeating an already
+recorded outcome or a no-op reconciliation SHALL NOT repeat fan-out; distinct committed changes
+SHALL NOT be conflated merely because their causes match. No global exactly-once delivery or
+new command-retry guarantee is introduced. A cold process SHALL replay retained committed
+events; an expired replay range SHALL retain the existing snapshot-required behavior.
+
+#### Scenario: crash between commit and push
+
+- **GIVEN** fan-out committed and the process stopped before transport
+- **WHEN** an authorized client reconnects through a fresh process with no memory buffer
+- **THEN** durable replay returns the original recipient event and sequence
+
+#### Scenario: process-local engine loss
+
+- **WHEN** an external engine disappears without a modeled durable state transition
+- **THEN** reads retain their typed availability/refusal behavior
+- **AND** no instantaneous durable notification is promised and reads do not write fan-out state
 
 ### Requirement: Super-admins switch the mode
 
