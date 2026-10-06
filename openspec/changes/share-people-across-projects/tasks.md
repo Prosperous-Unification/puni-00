@@ -187,9 +187,9 @@ Dependencies: reviewed local 6.1d/e/f checkpoints through
 `73264fce66deff231c71b8a14f73da856e5fa811`, then 6g → 6h → 6i → 6j → 6k → 6l.
 Each slice starts with its named RED tests, implements the minimum production path, restores
 and reruns each watched fault, records exact evidence in verify.md, and receives independent
-review before the next slice. These unchecked tasks do not authorize activation/publication.
+review before the next slice. Remaining unchecked tasks do not authorize activation/publication.
 
-- [ ] 6g. **Projection and recipients only.** Add a core value service/test beside
+- [x] 6g. **Projection and recipients only.** Add a core value service/test beside
       `service/shared-people.ts` as `shared-people-fanout.ts` / `shared-people-fanout.test.ts`;
       reuse/extract its pure display selector if needed. Consume
       captured scheduling outcomes, old/new rank-directed graphs and direct causes; return
