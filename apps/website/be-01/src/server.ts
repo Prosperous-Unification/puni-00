@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import {
+  browserCheckDifficulty,
   type ConceptTemplate,
   type ConceptView,
   type ConversationProvider,
@@ -13,11 +14,13 @@ import {
   type ConversationAdmission,
   type ConversationPricing,
   type DraftCapRefusal,
+  guardrailAllowance,
   type ProposalCapRefusal,
   WebsiteStore,
 } from '@website/store-sqlite';
 import { createLocalJWKSet, errors, jwtVerify } from 'jose';
 
+import { mintBrowserCheck, verifyBrowserCheck } from './conversation/browser-check';
 import {
   composeConversationRequest,
   defaultConversationReplyTokens,
@@ -767,6 +770,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         503,
       ],
       paused: ['provider_paused', 503],
+      challenge_required: ['challenge_required', 428],
     } as const;
     const [code, status] = refusals[admitted.kind];
     return failure(code, status);
@@ -1208,7 +1212,20 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           : selected === 'demo' || selected === 'paused'
             ? selected
             : 'disabled';
+      // The check gates only the attempt that creates the conversation row under paid pricing.
+      const challenge =
+        provider === 'openrouter' && conversation === null
+          ? mintBrowserCheck(
+              digest(claim),
+              store.readSourceSalt(new Date(now).toISOString().slice(0, 10)),
+              store.readSiteSpend(now) >= guardrailAllowance.halfSpendMicroUsd
+                ? browserCheckDifficulty.elevated
+                : browserCheckDifficulty.normal,
+              now,
+            )
+          : null;
       const view: ConversationView = {
+        challenge,
         stage: deriveStage(conversation?.state ?? 'open', visitorTurns),
         turns,
         visitorTurnsRemaining: Math.max(0, conversationTurnLimit - visitorTurns),
@@ -1257,6 +1274,22 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       // Proof: using the browser's key for an initial operation made the replay test answer 429.
       const idempotencyKey = initial ? `initial:${draft.id}` : suppliedKey;
       const provider = selectConversationProvider();
+      // Only an initial attempt that would create the conversation row is checked; a stale check
+      // sent with a retry or a replay is ignored because the row already exists.
+      let browserCheck: 'verified' | 'absent' = 'absent';
+      if (
+        provider.kind === 'paid' &&
+        initial &&
+        body['check'] !== undefined &&
+        store.findConversation(draft.id) === null
+      ) {
+        const verified = verifyBrowserCheck(body['check'], digest(claim), now, (utcDay) =>
+          store.readSourceSalt(utcDay),
+        );
+        if (verified.kind !== 'verified')
+          return attachCors(failure('challenge_invalid', 403), origin);
+        browserCheck = 'verified';
+      }
       const pricing: ConversationPricing =
         provider.kind === 'paid'
           ? {
@@ -1281,6 +1314,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         initial,
         promptVersion: salesPromptVersion,
         pricing,
+        browserCheck,
         now,
       });
       if (admitted.kind !== 'started') {

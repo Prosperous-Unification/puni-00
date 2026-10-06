@@ -43,6 +43,7 @@ import {
   readGuardrailOverview,
   readLoginLock,
   readLoginLocks,
+  readSiteSpend,
   recordLoginFailure,
   resumeInferencePause,
   tripInferencePause,
@@ -493,6 +494,11 @@ export class WebsiteStore {
   /** See {@link readGuardrailOverview}; the ceiling is `conversationAllowance.siteDayMicroUsd`. */
   readGuardrailOverview(now: number): GuardrailOverview {
     return readGuardrailOverview(this.database, now, conversationAllowance.siteDayMicroUsd);
+  }
+
+  /** See {@link readSiteSpend}; the UTC day of `now`. */
+  readSiteSpend(now: number): number {
+    return readSiteSpend(this.database, utcDayOf(now));
   }
 
   /** See {@link findOpenInferencePause}. */

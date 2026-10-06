@@ -301,6 +301,7 @@ test('a reservation reaching 80% of the site ceiling opens a site_spend pause an
     message: 'Build a booking app',
     initial: true,
     promptVersion: 'puni-sales-v1',
+    browserCheck: 'verified',
     pricing: { kind: 'paid', price: () => 20_000 },
     now: day,
   });
@@ -337,6 +338,7 @@ test('a reservation reaching 80% of the site ceiling opens a site_spend pause an
       message: 'Build a booking app',
       initial: true,
       promptVersion: 'puni-sales-v1',
+      browserCheck: 'verified',
       pricing: { kind: 'paid', price: () => 20_000 },
       now: day + hour,
     }).kind,

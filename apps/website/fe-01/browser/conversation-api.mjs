@@ -3,14 +3,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { env } from 'node:process';
 
+import { Database } from 'bun:sqlite';
+
 import { createWebsiteApi } from '../../be-01/src/server.ts';
+import { WebsiteStore } from '../../../../libs/website/adapters/store-sqlite/src/store.ts';
 
 // A loopback website API whose paid provider is a scripted OpenRouter stream: every admission,
 // reservation, cancel and settlement runs through the real API and store, and no network call or
 // key is used. Replies stream one word every `PUNI_FAKE_WORD_MS` milliseconds (default 45); a
 // visitor message containing "slowly" streams one word every 400 ms so a browser can press Stop;
 // one containing "refuse" streams a partial reply and then an in-stream refusal error chunk, as
-// OpenRouter sends a provider refusal mid-reply.
+// OpenRouter sends a provider refusal mid-reply. Every conversation's first paid reply needs the
+// browser check, which this real API mints and verifies. `PUNI_FIXTURE_SITE_SPEND_MICRO_USD` seeds
+// today's site spend first (after opening and resuming today's automatic pause), so a value of
+// 5000000 or more serves the elevated difficulty.
 const port = Number(env['WEBSITE_API_PORT'] ?? '3120');
 const appOrigin = env['APP_ORIGIN'] ?? 'http://localhost:4220';
 const publicOrigin = env['PUBLIC_ORIGIN'] ?? 'http://localhost:4320';
@@ -18,6 +24,34 @@ const databasePath =
   env['WEBSITE_DATABASE_PATH'] ??
   join(mkdtempSync(join(tmpdir(), 'puni-conversation-fixture-')), 'website.sqlite');
 const wordMilliseconds = Number(env['PUNI_FAKE_WORD_MS'] ?? '45');
+const seededSpend = env['PUNI_FIXTURE_SITE_SPEND_MICRO_USD'];
+
+/** Spends `microUsd` of today's site ceiling through one settled account call. */
+function seedSiteSpend(microUsd) {
+  const store = new WebsiteStore(databasePath);
+  const now = Date.now();
+  if (!store.openInferencePause('site_spend', 'system', now) || !store.resumeInferencePause(now))
+    throw new Error('Could not resume today’s automatic pause');
+  const account = store.createProspect('fixture-spend@example.test', now);
+  store.ensureBlankRequest(account.id, now);
+  const request = store.findAccountRequest(account.id);
+  const reservation = request ? store.reserveProviderCall(account.id, request.id, 1, now) : null;
+  if (reservation?.kind !== 'reserved') throw new Error('Could not seed the site spend');
+  store.settleProviderCall(reservation.id, 1);
+  store.close();
+  const database = new Database(databasePath);
+  database
+    .query('UPDATE provider_call SET reserved_micro_usd = ?1, settled_micro_usd = ?1 WHERE id = ?2')
+    .run(microUsd, reservation.id);
+  database.close();
+}
+
+if (seededSpend !== undefined) {
+  const microUsd = Number(seededSpend);
+  if (!Number.isSafeInteger(microUsd) || microUsd < 1)
+    throw new Error('PUNI_FIXTURE_SITE_SPEND_MICRO_USD must be a positive integer');
+  seedSiteSpend(microUsd);
+}
 
 const replies = {
   clarify:

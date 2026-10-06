@@ -1,3 +1,5 @@
+import type { BrowserChallenge } from './browser-check';
+
 export type ProposalStatus = 'submitted' | 'reviewing' | 'contacted' | 'closed';
 
 export interface DraftView {
@@ -70,6 +72,11 @@ export interface ConversationView {
   initialOperation: ConversationOperationView | null;
   latestOperation: (ConversationOperationView & { message: string }) | null;
   exhaustedReason: ConversationExhaustedReason | null;
+  /**
+   * The browser check to solve before the first paid reply; null once the conversation has an
+   * admitted operation, and for the demo, disabled and paused providers.
+   */
+  challenge: BrowserChallenge | null;
 }
 
 export interface SubmissionView {

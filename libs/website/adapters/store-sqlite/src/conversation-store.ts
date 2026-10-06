@@ -62,6 +62,11 @@ export interface ConversationAdmissionRequest {
   initial: boolean;
   promptVersion: string;
   pricing: ConversationPricing;
+  /**
+   * Whether the caller verified a browser check for this claim before the transaction. Only the
+   * attempt that would create the conversation row under paid pricing needs `verified`.
+   */
+  browserCheck: 'verified' | 'absent';
   now: number;
 }
 
@@ -85,7 +90,8 @@ export type ConversationAdmission =
         | 'turn_limit'
         | 'initial_required'
         | 'provider_unavailable'
-        | 'busy';
+        | 'busy'
+        | 'challenge_required';
     };
 
 interface ConversationRow {
@@ -310,7 +316,8 @@ function refuseReservation(
  * the same key as a new attempt), the initial-once and turn rules, the per-conversation in-flight rule, then the
  * priced ceilings. A turn or spend refusal stores the conversation as `exhausted` with its
  * reason; saved turns never change. The conversation row is created on the first admitted
- * attempt and carries the salted source hash.
+ * attempt, only with a verified browser check under paid pricing, and carries the salted source
+ * hash; later operations, retries and replays never need a check because the row exists.
  *
  * @throws when stored state contradicts its invariants (an exhausted row without a reason, a
  * completed operation without a reply) or the pricing returns a non-positive amount.
@@ -330,6 +337,11 @@ export function admitConversationOperation(
       let conversation = findConversationRow(database, draft.id);
       if (!conversation) {
         if (request.pricing.kind === 'closed') return { kind: 'provider_unavailable' };
+        // Only the initial operation creates the row, so a message cannot open it unchecked.
+        if (!request.initial) return { kind: 'initial_required' };
+        // Proof: inserting the row before this check left a conversation row in the missing-check test.
+        if (request.pricing.kind === 'paid' && request.browserCheck !== 'verified')
+          return { kind: 'challenge_required' };
         database
           .query(
             "INSERT INTO conversation (id, draft_id, source_hash, state, created_at) VALUES (?, ?, ?, 'open', ?)",

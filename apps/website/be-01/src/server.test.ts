@@ -2335,6 +2335,7 @@ test('GET /conversation reads only the claimed draft and reports the disabled pr
     visitorTurnsRemaining: 8,
     provider: 'disabled',
     brief: '',
+    challenge: null,
     description: 'A booking tool for a local studio',
     csrfToken: csrf,
     initialOperation: {

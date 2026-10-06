@@ -40,6 +40,7 @@ function converse(store: WebsiteStore, claimHash: string, turns: number, at = da
       message: `secret visitor text ${String(turn)}`,
       initial: turn === 1,
       promptVersion: 'puni-sales-v1',
+      browserCheck: 'verified',
       pricing: { kind: 'paid', price: () => 1_000 },
       now: at + turn,
     });
@@ -184,6 +185,7 @@ test('the expired-draft purge removes earlier days and retains unknown usage bla
     message: 'secret unsettled text',
     initial: false,
     promptVersion: 'puni-sales-v1',
+    browserCheck: 'verified',
     pricing: { kind: 'paid', price: () => 1_000 },
     now: day + 10,
   });

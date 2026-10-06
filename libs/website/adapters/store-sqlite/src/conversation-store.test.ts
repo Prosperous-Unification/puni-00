@@ -59,6 +59,7 @@ function ask(
     initial: false,
     promptVersion: 'puni-sales-v1',
     pricing: paid(1_000),
+    browserCheck: 'verified',
     now: day,
     ...overrides,
   };
@@ -516,7 +517,7 @@ while (Date.now() < Number(startAt)) {}
 const admitted = store.admitConversationOperation({
   claimHash: claim, sourceHash: claim, idempotencyKey: 'initial-' + claim, bodyHash: 'h',
   message: 'R', initial: true, promptVersion: 'v', now: ${String(day)},
-  pricing: { kind: 'paid', price: () => 6_000 },
+  pricing: { kind: 'paid', price: () => 6_000 }, browserCheck: 'verified',
 });
 console.log(admitted.kind);
 store.close();

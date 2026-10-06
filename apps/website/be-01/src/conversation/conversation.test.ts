@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { readReplyReplacement, replyReplacePart } from '@website/contracts';
+import { readReplyReplacement, replyReplacePart, solveBrowserCheck } from '@website/contracts';
 import { WebsiteStore } from '@website/store-sqlite';
 import { isTextUIPart, readUIMessageStream, type UIMessageChunk } from 'ai';
 import { Database } from 'bun:sqlite';
@@ -217,6 +217,13 @@ interface View {
   initialOperation: { state: string; idempotencyKey: string; truncated: boolean };
   latestOperation: { state: string; idempotencyKey: string; message: string } | null;
   exhaustedReason: string | null;
+  challenge: {
+    salt: string;
+    challenge: string;
+    signature: string;
+    maxnumber: number;
+    expiresAt: string;
+  } | null;
 }
 
 async function readConversation(api: Api, cookie: string): Promise<View> {
@@ -246,9 +253,29 @@ function post(
   });
 }
 
-function sendInitial(api: Api, visitor: Visitor, address = visitorAddress) {
+/** Solves the conversation's browser check, if it offers one, with the shared solver. */
+async function solveCheck(api: Api, visitor: Visitor) {
+  const { challenge } = await readConversation(api, visitor.cookie);
+  if (challenge === null) return undefined;
+  const number = solveBrowserCheck(challenge.salt, challenge.challenge, challenge.maxnumber);
+  if (number === null) throw new Error('The browser check has no solution');
+  return {
+    salt: challenge.salt,
+    challenge: challenge.challenge,
+    signature: challenge.signature,
+    number,
+  };
+}
+
+/** Posts the initial operation with a solved browser check, as Build does. */
+async function sendInitial(api: Api, visitor: Visitor, address = visitorAddress) {
+  const check = await solveCheck(api, visitor);
   return api.fetch(
-    post('/conversation/stream', visitor, { idempotencyKey: visitor.initialKey, initial: true }),
+    post('/conversation/stream', visitor, {
+      idempotencyKey: visitor.initialKey,
+      initial: true,
+      ...(check ? { check } : {}),
+    }),
     address,
   );
 }
@@ -1320,5 +1347,143 @@ test('the account chat routes answer provider_paused during a pause', async () =
     expect(await refused.json()).toEqual({ code: 'provider_paused' });
   }
   expect(fake.bodies).toHaveLength(0);
+  api.close();
+});
+
+function sha256Hex(text: string): string {
+  return new Bun.CryptoHasher('sha256').update(text).digest('hex');
+}
+
+test('a fresh paid conversation offers a claim-bound check that changes on every read', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Who will book the repairs?' }));
+  const api = mountApi(paidConfig(fake.providerFetch));
+  const visitor = await beginVisitor(api);
+  const first = await readConversation(api, visitor.cookie);
+  const second = await readConversation(api, visitor.cookie);
+  const claim = visitor.cookie.split('=')[1] ?? '';
+  expect(first.challenge?.maxnumber).toBe(200_000);
+  expect(first.challenge?.salt.startsWith(`${sha256Hex(claim).slice(0, 16)}.`)).toBe(true);
+  expect(second.challenge?.challenge).not.toBe(first.challenge?.challenge);
+  api.close();
+});
+
+test('half the site ceiling spent raises the check to the elevated difficulty', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  fillSiteDay(config.databasePath, 5_000_000);
+  expect((await readConversation(api, visitor.cookie)).challenge?.maxnumber).toBe(1_000_000);
+  api.close();
+});
+
+test('no check is offered after the first operation, in demo, when disabled or paused', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Who will book the repairs?' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  const first = await sendInitial(api, visitor);
+  expect(first.status).toBe(200);
+  await first.text();
+  expect((await readConversation(api, visitor.cookie)).challenge).toBeNull();
+  const fresh = await beginVisitor(api);
+  openPause(config.databasePath);
+  expect((await readConversation(api, fresh.cookie)).challenge).toBeNull();
+  api.close();
+  for (const overrides of [
+    { openRouterEnabled: false, demoAuth: true },
+    { openRouterEnabled: false },
+  ]) {
+    const other = mountApi(paidConfig(fake.providerFetch, overrides));
+    const guest = await beginVisitor(other);
+    expect((await readConversation(other, guest.cookie)).challenge).toBeNull();
+    other.close();
+  }
+});
+
+test('a missing check on the first paid operation is 428 with no row and no provider call', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  const refused = await api.fetch(
+    post('/conversation/stream', visitor, { idempotencyKey: visitor.initialKey, initial: true }),
+    visitorAddress,
+  );
+  expect(refused.status).toBe(428);
+  expect(await refused.json()).toEqual({ code: 'challenge_required' });
+  // Proof: inserting the conversation row before the check left one row here.
+  expect(count(config.databasePath, 'SELECT count(*) AS count FROM conversation')).toBe(0);
+  expect(fake.bodies).toHaveLength(0);
+  api.close();
+});
+
+test('a tampered, foreign, expired or lowered check is 403 before any admission', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Who will book the repairs?' }));
+  let now = Date.now();
+  const config = paidConfig(fake.providerFetch, { clock: () => now });
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  const other = await beginVisitor(api, 'A dashboard for a bakery');
+  const check = await solveCheck(api, visitor);
+  const foreign = await solveCheck(api, other);
+  if (!check || !foreign) throw new Error('No browser check offered');
+  const lastFlipped = check.signature.slice(0, 63) + (check.signature.endsWith('0') ? '1' : '0');
+  const [prefix, day, expires, , random] = check.salt.split('.');
+  const lowered = [prefix, day, expires, '10', random].join('.');
+  const send = (posted: unknown) =>
+    api.fetch(
+      post('/conversation/stream', visitor, {
+        idempotencyKey: visitor.initialKey,
+        initial: true,
+        check: posted,
+      }),
+      visitorAddress,
+    );
+  for (const posted of [
+    { ...check, number: check.number + 1 },
+    { ...check, signature: lastFlipped },
+    foreign,
+    { ...check, salt: lowered },
+    { ...check, number: 'many' },
+  ]) {
+    const refused = await send(posted);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ code: 'challenge_invalid' });
+  }
+  now += 31 * 60_000;
+  expect((await send(check)).status).toBe(403);
+  expect(count(config.databasePath, 'SELECT count(*) AS count FROM conversation')).toBe(0);
+  expect(fake.bodies).toHaveLength(0);
+  const fresh = await solveCheck(api, visitor);
+  const admitted = await send(fresh);
+  expect(admitted.status).toBe(200);
+  await admitted.text();
+  expect(fake.bodies).toHaveLength(1);
+  api.close();
+});
+
+test('later turns and a retried initial attempt need no check', async () => {
+  let call = 0;
+  const fake = fakeOpenRouter(() => {
+    call += 1;
+    return call === 1 ? { status: 502 } : { reply: 'Who will book the repairs?' };
+  });
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  const failed = await sendInitial(api, visitor);
+  await failed.text();
+  // Proof: requiring the check on every operation made this retry answer 428.
+  const retried = await api.fetch(
+    post('/conversation/stream', visitor, { idempotencyKey: visitor.initialKey, initial: true }),
+    visitorAddress,
+  );
+  expect(retried.status).toBe(200);
+  await retried.text();
+  const later = await sendMessage(api, visitor, 'turn-key-2', 'Volunteers');
+  expect(later.status).toBe(200);
+  await later.text();
+  expect(fake.bodies).toHaveLength(3);
   api.close();
 });

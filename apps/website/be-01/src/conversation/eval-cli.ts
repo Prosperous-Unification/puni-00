@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { captureBrief, readReplyReplacement } from '@website/contracts';
+import { captureBrief, readReplyReplacement, solveBrowserCheck } from '@website/contracts';
 
 import { readWebsiteApiConfig } from '../runtime-config';
 import { createWebsiteApi, type WebsiteApiConfig } from '../server';
@@ -301,6 +301,33 @@ export interface EvaluationOptions {
 }
 
 /**
+ * Solves the browser check `GET /conversation` offers, with the solver Build uses, so the
+ * evaluation exercises the paid path end to end.
+ * @throws when the paid conversation offers no well-formed, solvable challenge.
+ */
+function solveOfferedCheck(
+  offered: unknown,
+  scriptName: string,
+): { salt: string; challenge: string; signature: string; number: number } {
+  if (
+    !isRecord(offered) ||
+    typeof offered['salt'] !== 'string' ||
+    typeof offered['challenge'] !== 'string' ||
+    typeof offered['signature'] !== 'string' ||
+    typeof offered['maxnumber'] !== 'number'
+  )
+    throw new Error(`Script ${scriptName}: the conversation offered no browser check`);
+  const number = solveBrowserCheck(offered['salt'], offered['challenge'], offered['maxnumber']);
+  if (number === null) throw new Error(`Script ${scriptName}: the browser check has no solution`);
+  return {
+    salt: offered['salt'],
+    challenge: offered['challenge'],
+    signature: offered['signature'],
+    number,
+  };
+}
+
+/**
  * Drives each script through `POST /conversation/stream` of a real API served on loopback, one
  * synthetic visitor per script behind a simulated gateway hop, with an in-memory database so no
  * transcript reaches disk. The corpus is synthetic, so the privacy flag is set for this
@@ -374,6 +401,7 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
         throw new Error(`Script ${script.name}: conversation read failed`);
       const csrf = view['csrfToken'];
       const initialKey = initialOperation['idempotencyKey'];
+      const check = solveOfferedCheck(view['challenge'], script.name);
       let confirmed = true;
       for (const [turn, message] of script.turns.entries()) {
         const response = await send(
@@ -389,7 +417,7 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
               },
               body: JSON.stringify(
                 turn === 0
-                  ? { idempotencyKey: initialKey, initial: true }
+                  ? { idempotencyKey: initialKey, initial: true, check }
                   : { idempotencyKey: `eval-${script.name}-${String(turn)}`, message },
               ),
             }),
