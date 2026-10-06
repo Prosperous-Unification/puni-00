@@ -17,6 +17,7 @@ import type { OptimizationRepository } from '../module/optimization/contract';
 /** Give each generation and then each project sweep its own borrowed source turn. */
 export function createOptimizationReconciliation(
   db: SqliteSource['db'],
+  gate: SqliteSource['gate'],
   uow: UnitOfWork,
   delivery: CommittedFanoutDelivery,
 ): OptimizationRepository['reconcileDrains'] {
@@ -45,6 +46,8 @@ export function createOptimizationReconciliation(
         // populated A while B received no durable old-topology event.
         const before = owner.kind === 'scoped' ? await capture.capture(owner.organizationId) : null;
         const causes = new Set<string>();
+        // Proof: committing C's raw project cleanup before its later event
+        // insert left C's full child graph deleted when that insert failed.
         const pass = db.transaction((tx) =>
           reclaimExpiredSolverSlotsIn(tx, now, target, ({ projectId }) => causes.add(projectId)),
         );
@@ -77,8 +80,16 @@ export function createOptimizationReconciliation(
 
     // Proof: reversing these passes collapsed selected A retirement and later
     // A deletion into one B event instead of the two committed transitions.
-    for (const target of reconciliationTargets(db, 'generations')) await sweep(target);
-    for (const target of reconciliationTargets(db, 'projects')) await sweep(target);
+    // Proof: reading generations outside the gate saw another owner's
+    // temporary open marker and missed A after that owner rolled back.
+    const generations = await gate.enter(() =>
+      Promise.resolve(reconciliationTargets(db, 'generations')),
+    );
+    for (const target of generations) await sweep(target);
+    // Proof: reading projects outside this separate gate let a held writer's
+    // temporary marker clear make the project-only pass settle early.
+    const projects = await gate.enter(() => Promise.resolve(reconciliationTargets(db, 'projects')));
+    for (const target of projects) await sweep(target);
     return { reclaimed, finished, waiting };
   };
 }

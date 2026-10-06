@@ -195,6 +195,7 @@ export function buildServices(options: ServicesOptions): BeServices {
   );
   const reconciliation = createOptimizationReconciliation(
     source.db,
+    source.gate,
     boundSource.uow,
     graph.committedFanout,
   );

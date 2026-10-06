@@ -2519,11 +2519,29 @@ describe('buildServices', () => {
 
   it('retains an earlier committed sweep when a later recipient event insert rolls back', async () => {
     const errors: unknown[] = [];
-    const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
-      budgetMs: 1000,
-      spawn: () => Promise.reject(new Error('reconciliation rollback must not launch')),
-    });
+    const mounted: {
+      db?: ReturnType<typeof openDrizzle>;
+      beforeProjectSweep?: ReturnType<typeof lifecycleTables>;
+    } = {};
+    let armed = false;
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('reconciliation rollback must not launch')),
+      },
+      () => {
+        const active = mounted.db;
+        if (!armed || active === undefined || mounted.beforeProjectSweep !== undefined) return;
+        const aGone = active.all(sql.raw("SELECT id FROM project WHERE id = 'A'")).length === 0;
+        const cPresent = active.all(sql.raw("SELECT id FROM project WHERE id = 'C'")).length === 1;
+        const bRecorded =
+          active.all(sql.raw("SELECT id FROM event_log WHERE subscription = 'project:B'"))
+            .length === 1;
+        if (aGone && cPresent && bRecorded) mounted.beforeProjectSweep = lifecycleTables(active);
+      },
+    );
+    mounted.db = db;
     seedSharedLifecycle(path);
     seedAnotherSharedPair(path);
     seedLifecycleSlot(db);
@@ -2532,11 +2550,6 @@ describe('buildServices', () => {
       expect(await services.optimizationLifecycle.beginDrain(projectId, { at: 2, by: 'ada' })).toBe(
         1,
       );
-    const cBefore = {
-      project: db.all(sql.raw("SELECT * FROM project WHERE id = 'C'")),
-      workItem: db.all(sql.raw("SELECT * FROM work_item WHERE project_id = 'C'")),
-      step: db.all(sql.raw("SELECT * FROM step WHERE project_id = 'C'")),
-    };
     db.run(
       sql.raw(
         "CREATE TRIGGER fail_reconcile_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'project:B') = 1 BEGIN SELECT RAISE(ABORT, 'reconcile second-event fault'); END",
@@ -2550,6 +2563,7 @@ describe('buildServices', () => {
     installed.options.onChildError = (error) => {
       errors.push(error);
     };
+    armed = true;
     optimizer.start();
     await optimizer.stop();
     expect(errors.some((error) => String(error).includes('INSERT INTO event_log'))).toBe(true);
@@ -2557,11 +2571,9 @@ describe('buildServices', () => {
     // C's earlier generation sweep committed its expired slot. The failing
     // project sweep must preserve C's populated graph, not undo that prior turn.
     expect(db.all(sql.raw("SELECT * FROM solver_slot WHERE project_id = 'C'"))).toEqual([]);
-    expect({
-      project: db.all(sql.raw("SELECT * FROM project WHERE id = 'C'")),
-      workItem: db.all(sql.raw("SELECT * FROM work_item WHERE project_id = 'C'")),
-      step: db.all(sql.raw("SELECT * FROM step WHERE project_id = 'C'")),
-    }).toEqual(cBefore);
+    if (mounted.beforeProjectSweep === undefined)
+      throw new Error('later C project-sweep snapshot was not reached');
+    expect(lifecycleTables(db)).toEqual(mounted.beforeProjectSweep);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
     expect(await events.rangeSince('project:D', -1)).toEqual([]);
@@ -2718,6 +2730,113 @@ describe('buildServices', () => {
     ]);
     expect(await events.rangeSince('project:D', -1)).toEqual([]);
     expect(pushUrls).toHaveLength(1);
+  });
+
+  it('waits for a held source writer before enumerating reconciliation targets', async () => {
+    const writerEntered = signal();
+    const releaseWriter = signal();
+    const { db, path, services, source } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('enumeration fixture must not launch')),
+    });
+    seedSharedLifecycle(path);
+    const selected = await seedReadyRetirement(db, services, 1);
+    seedLifecycleSlot(db, selected.contractVersion, selected.generation);
+    expect(
+      await services.optimizationLifecycle.beginDrain(
+        'A',
+        { at: 2, by: 'ada' },
+        selected.contractVersion,
+      ),
+    ).toBe(1);
+    const heldWriter = source.gate.enter(async () => {
+      db.run(sql.raw('BEGIN IMMEDIATE'));
+      try {
+        db.run(
+          sql`UPDATE optimization_generation SET admission_state = 'open' WHERE project_id = 'A'`,
+        );
+        writerEntered.resolve();
+        await releaseWriter.promise;
+      } finally {
+        db.run(sql.raw('ROLLBACK'));
+      }
+    });
+    await writerEntered.promise;
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const installed = optimizer as unknown as {
+      options: { repository: { reconcileDrains: (at: number) => Promise<unknown> } };
+    };
+    let settled = false;
+    const reconciling = installed.options.repository.reconcileDrains(Date.now()).then(() => {
+      settled = true;
+    });
+    await new Promise<void>((resolve) => setTimeout(resolve, 100));
+    const settledBeforeRelease = settled;
+    releaseWriter.resolve();
+    await heldWriter;
+    await reconciling;
+    expect(settledBeforeRelease).toBe(false);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    expect(
+      db.all(sql.raw("SELECT project_id FROM optimization_generation WHERE project_id = 'A'")),
+    ).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+  });
+
+  it('gates project enumeration separately after an empty generation phase', async () => {
+    const writerEntered = signal();
+    const releaseWriter = signal();
+    const { db, path, services, source } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('project enumeration must not launch')),
+    });
+    seedSharedLifecycle(path);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(0);
+    const originalEnter = source.gate.enter.bind(source.gate);
+    let armAfterGenerations = true;
+    const holder: { promise?: Promise<void> } = {};
+    source.gate.enter = async <T>(work: () => Promise<T>): Promise<T> => {
+      const value = await originalEnter(work);
+      if (armAfterGenerations) {
+        armAfterGenerations = false;
+        holder.promise = originalEnter(async () => {
+          db.run(sql.raw('BEGIN IMMEDIATE'));
+          try {
+            db.run(sql`UPDATE project SET optimization_delete_pending_at = NULL WHERE id = 'A'`);
+            writerEntered.resolve();
+            await releaseWriter.promise;
+          } finally {
+            db.run(sql.raw('ROLLBACK'));
+          }
+        });
+        await writerEntered.promise;
+      }
+      return value;
+    };
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const installed = optimizer as unknown as {
+      options: { repository: { reconcileDrains: (at: number) => Promise<unknown> } };
+    };
+    let settled = false;
+    const reconciling = installed.options.repository.reconcileDrains(Date.now()).then(() => {
+      settled = true;
+    });
+    await writerEntered.promise;
+    await new Promise<void>((resolve) => setTimeout(resolve, 100));
+    const settledBeforeRelease = settled;
+    releaseWriter.resolve();
+    if (holder.promise === undefined) throw new Error('project phase holder did not start');
+    await holder.promise;
+    await reconciling;
+    expect(settledBeforeRelease).toBe(false);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
   });
 
   it('releases the sweep writer before held delivery and waits for delivery on stop', async () => {

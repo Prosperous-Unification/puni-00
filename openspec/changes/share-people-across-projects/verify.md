@@ -3199,3 +3199,46 @@ pinned OpenSpec 1.12.0 strict passed 1/1 and all passed 148/148
 `bunx openspec` attempt failed because that package does not expose the
 required CLI; that attempt is superseded by the pinned rerun;
 only the pinned validator results above are accepted.
+
+Independent review of clean `6d65c00f` reproduced the four-file 225/225,
+1,218 assertion run (`/tmp/shared-people-6je-astra-6d65c00f-four.log`) and
+found two bounded gaps. First, enumeration of generation and project targets
+read the shared SQLite connection outside the source gate, so a held writer's
+temporary marker clear could be mistaken for a committed absence. The owner
+now takes a short, separate gated read turn for each phase and releases that
+turn before any per-target UoW. A project-only pending fixture proves the
+second gate independently from the generation gate. The first broad held-writer
+RED (`/tmp/shared-people-6je-enumeration-red.log`) settled early; its initial
+GREEN (`...6je-enumeration-green.log`) was strengthened to generation-only
+selected retirement so the later project gate could not mask a missing first
+gate. Omitting the generation gate then left A's generation present after the
+writer rolled back (`/tmp/shared-people-6je-generation-gate-red2.log`), while
+restoration passed 1/5 (`...generation-gate-green.log`). Independently
+omitting the project gate settled the project-only pass while its marker was
+temporarily clear (`...project-gate-red.log`); restoration passed 1/4
+(`...project-gate-green.log`). The first generation-gate fault trial
+(`...generation-gate-red.log`) remained GREEN because its project gate still
+waited and recovered A; it is disqualified.
+
+Second, the later-C event-failure fixture originally compared only three C
+tables. A borrowed capture callback now snapshots **every** `lifecycleTables`
+row immediately before C's project sweep, after earlier A and C-generation
+sweeps have committed. The named second-event INSERT fault leaves that full
+snapshot identical, including estimates, assignments, access, cache, queue,
+audit, event rows and sequencers; A/B remain committed and retry emits only D
+seq0 (`/tmp/shared-people-6je-full-snapshot-first.log`, 1/13). A watched
+C-only COMMIT/BEGIN between raw cleanup and event recording then failed at
+the full snapshot with C project, work item, step, estimate and assignment
+rows missing (`...6je-project-split-red.log`), not at an incidental transaction
+error. Restoring the single owner transaction passed 1/13
+(`...6je-project-split-green.log`).
+
+After those corrections, the same literal four-file command above passed
+**227/227, 1,227 assertions**, exit 0
+(`/tmp/shared-people-6je-followup-four-file.log`). Declared final-byte Nx
+summaries passed BE/store lint and typecheck, BE module typecheck dependency,
+and BE build with supervisor-protocol dependency
+(`/tmp/shared-people-6je-followup-nx-{be,store}-{lint,type}.log`,
+`/tmp/shared-people-6je-followup-nx-be-build.log`). Store still declares no
+build target. This remains a local 6j.e checkpoint pending exact-SHA review;
+6j.f, activation and the host gate are not claimed.
