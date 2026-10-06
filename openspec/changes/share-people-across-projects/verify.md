@@ -2572,7 +2572,11 @@ the changed-file ESLint pass
 (`/tmp/shared-people-6jd-release-lint-corrected.log`). Corrected combined
 core/store/BE TypeScript build passed
 (`/tmp/shared-people-6jd-release-type-final.log`). On final source/test bytes,
-the exact four-file Bun command above passed 158/158, 794 assertions
+`bun test apps/wbs/be-01/src/services.db.test.ts
+apps/wbs/be-01/src/service/solver-child-lifecycle.db.test.ts
+apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts
+libs/wbs/adapters/store-sqlite/src/optimization-drain.db.test.ts` passed
+158/158, 794 assertions
 (`/tmp/shared-people-6jd-release-final-byte-suite.log`); complete BE-source
 ESLint and combined core/store/BE TypeScript build exited 0
 (`/tmp/shared-people-6jd-release-final-{lint,type}.log`). The BE Bun bundle
