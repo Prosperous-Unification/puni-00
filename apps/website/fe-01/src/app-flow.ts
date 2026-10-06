@@ -96,6 +96,10 @@ export function describeOperatorFailure(error: unknown): string {
     return 'Operator sign-in is not set up on this API. Set OPERATOR_PASSWORD and restart it.';
   if (error instanceof ApiFailure && error.code === 'invalid_credentials')
     return 'That password was not accepted.';
+  if (error instanceof ApiFailure && error.code === 'login_locked')
+    return error.retryAfterSeconds === null
+      ? 'Sign-in is locked after repeated failures. Try again later.'
+      : `Sign-in is locked after repeated failures. Try again in ${String(Math.ceil(error.retryAfterSeconds / 60))} min.`;
   return describeFailure(error);
 }
 

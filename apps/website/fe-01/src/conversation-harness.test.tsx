@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { Conversation } from './build-contract';
-import { LiveHarness } from './conversation-harness';
+import { LiveHarness, PausedHarness } from './conversation-harness';
 
 const reply = [
   'Here is the brief as I understand it:',
@@ -223,4 +223,19 @@ test('a proposal refused by a daily cap shows the cap copy in the card', async (
   act(() => {
     root.unmount();
   });
+});
+
+test('the paused harness shows the paused row, the manual path and the card, no composer', () => {
+  const markup = renderToStaticMarkup(
+    <PausedHarness
+      conversation={{ ...briefed, provider: 'paused' }}
+      onHandedOff={() => undefined}
+    />,
+  );
+  // Proof: rendering the disabled copy here instead failed this assertion.
+  expect(markup).toContain('AI chat is paused right now. A person still reads every brief.');
+  expect(markup).toContain('Shape your brief');
+  expect(markup).not.toContain('isn’t switched on yet');
+  expect(markup).toContain('Request a proposal');
+  expect(markup).not.toContain('harness-composer');
 });

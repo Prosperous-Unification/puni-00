@@ -148,7 +148,8 @@ export function chatRequestBody(
 }
 
 export type ConversationStage = 'clarify' | 'brief' | 'contact' | 'exhausted' | 'handed_off';
-export type ConversationProvider = 'openrouter' | 'demo' | 'disabled';
+/** `paused`: paid inference is paused until an operator resumes it; the manual path stays open. */
+export type ConversationProvider = 'openrouter' | 'demo' | 'disabled' | 'paused';
 export type ConversationExhaustedReason =
   'turns' | 'conversation_spend' | 'source_spend' | 'site_spend';
 
@@ -186,7 +187,7 @@ const stages: readonly ConversationStage[] = [
   'exhausted',
   'handed_off',
 ];
-const providers: readonly ConversationProvider[] = ['openrouter', 'demo', 'disabled'];
+const providers: readonly ConversationProvider[] = ['openrouter', 'demo', 'disabled', 'paused'];
 const exhaustedReasons: readonly ConversationExhaustedReason[] = [
   'turns',
   'conversation_spend',
@@ -307,12 +308,13 @@ export type AnonymousHarness =
   | { kind: 'loading' }
   | { kind: 'redirect'; url: string }
   | { kind: 'disabled'; conversation: Conversation }
+  | { kind: 'paused'; conversation: Conversation }
   | { kind: 'live'; conversation: Conversation };
 
 /**
  * Maps the entry status and the `GET /conversation` body to the anonymous harness state.
  * `entry` is null while it loads; an unavailable entry redirects to Home with its reason.
- * `openrouter` and `demo` are the live harness; `disabled` has no composer.
+ * `openrouter` and `demo` are the live harness; `disabled` and `paused` have no composer.
  * @throws InvalidConversation when the body breaks the contract.
  */
 export function resolveAnonymousHarness(
@@ -324,6 +326,7 @@ export function resolveAnonymousHarness(
   if (!entry.available) return { kind: 'redirect', url: buildReturnUrl(siteOrigin, entry.reason) };
   const parsed = parseConversation(conversation);
   if (parsed.provider === 'disabled') return { kind: 'disabled', conversation: parsed };
+  if (parsed.provider === 'paused') return { kind: 'paused', conversation: parsed };
   return { kind: 'live', conversation: parsed };
 }
 

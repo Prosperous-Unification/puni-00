@@ -260,15 +260,62 @@ const states = [
     },
   },
 ];
+states.push({
+  name: 'build-paused',
+  stack: oidc,
+  path: '/',
+  cookie: true,
+  // The read is the real API's, with the provider set to `paused`, as during an open pause.
+  pausedProvider: true,
+  check: async (page) => {
+    const problems = [];
+    if ((await page.locator('main .build-paused-row').count()) !== 1)
+      problems.push('missing the paused row');
+    if (!/AI chat is paused right now/.test(await page.locator('main').innerText()))
+      problems.push('missing the paused copy');
+    if ((await page.getByRole('link', { name: /Shape your brief/ }).count()) !== 1)
+      problems.push('missing Shape your brief action');
+    if ((await page.locator('main .harness-composer').count()) !== 0)
+      problems.push('a composer is shown while paused');
+    if ((await page.getByRole('button', { name: /Request a proposal/ }).count()) !== 1)
+      problems.push('the proposal card is missing while paused');
+    return problems;
+  },
+  ready: (page) => page.locator('.build-paused-row').waitFor(),
+});
 if (operatorPassword)
-  states.push({
-    name: 'operator-inbox',
-    stack: oidc,
-    path: '/operator',
-    cookie: false,
-    operatorSignIn: true,
-    ready: (page) => page.getByRole('button', { name: /Refresh inbox/ }).waitFor(),
-  });
+  states.push(
+    {
+      name: 'operator-inbox',
+      stack: oidc,
+      path: '/operator',
+      cookie: false,
+      operatorSignIn: true,
+      ready: (page) => page.getByRole('button', { name: /Refresh inbox/ }).waitFor(),
+    },
+    {
+      name: 'operator-guardrails',
+      stack: oidc,
+      path: '/operator',
+      cookie: false,
+      operatorSignIn: true,
+      check: async (page) => {
+        const problems = [];
+        const panel = page.locator('section.guardrails');
+        if (!/AI chat is (running|paused)/.test(await panel.innerText()))
+          problems.push('the panel does not state the pause');
+        // The control opens an inline confirmation; Cancel leaves the shared stack unchanged.
+        await panel.getByRole('button', { name: /(Pause|Resume) AI chat/ }).click();
+        if ((await panel.getByRole('group').count()) !== 1)
+          problems.push('no inline confirmation after the control');
+        await panel.getByRole('button', { name: 'Cancel' }).click();
+        if ((await panel.getByRole('group').count()) !== 0)
+          problems.push('Cancel left the confirmation open');
+        return problems;
+      },
+      ready: (page) => page.locator('section.guardrails .guardrails-figures').waitFor(),
+    },
+  );
 
 /**
  * Measures an element's focus outline (`focus`) or border (`rest`) against the first opaque
@@ -517,6 +564,12 @@ try {
       if (state.abort) await page.route(`${state.stack.api}/entry`, (route) => route.abort());
       if (state.abortSession)
         await page.route(`${state.stack.api}/session`, (route) => route.abort());
+      if (state.pausedProvider)
+        await page.route(`${state.stack.api}/conversation`, async (route) => {
+          const response = await route.fetch();
+          const view = await response.json();
+          await route.fulfill({ response, json: { ...view, provider: 'paused' } });
+        });
       await page.goto(`${state.stack.app}${state.path}`, { waitUntil: 'domcontentloaded' });
       if (state.demoSignIn) {
         // The live anonymous harness keeps the optional sign-in behind a bar control.

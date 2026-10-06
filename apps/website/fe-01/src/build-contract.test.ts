@@ -4,6 +4,8 @@ import {
   buildReturnUrl,
   chatRequestBody,
   countPriorTurns,
+  InvalidConversation,
+  parseConversation,
   parseEntry,
   parsePendingOperation,
   savedOperationCompleted,
@@ -137,5 +139,25 @@ describe('chat request boundary', () => {
         'same-operation',
       ),
     ).toEqual({ message: 'Keep this question', idempotencyKey: 'same-operation' });
+  });
+});
+
+describe('conversation provider values', () => {
+  const view = {
+    stage: 'clarify',
+    turns: [],
+    visitorTurnsRemaining: 8,
+    brief: '',
+    description: 'A booking tool',
+    csrfToken: 'a'.repeat(64),
+    initialOperation: null,
+    latestOperation: null,
+    exhaustedReason: null,
+  };
+
+  test('accepts paused and rejects values outside the contract', () => {
+    expect(parseConversation({ ...view, provider: 'paused' }).provider).toBe('paused');
+    for (const provider of ['suspended', 'PAUSED', null])
+      expect(() => parseConversation({ ...view, provider })).toThrow(InvalidConversation);
   });
 });

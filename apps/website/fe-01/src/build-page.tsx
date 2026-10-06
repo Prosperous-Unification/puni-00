@@ -26,7 +26,7 @@ import {
   startOverUrl,
 } from './build-contract';
 import { HeroMedia, SiteHeader, siteOrigin, useHeadingFocus, usePageTitle } from './chrome';
-import { LiveHarness } from './conversation-harness';
+import { LiveHarness, PausedHarness } from './conversation-harness';
 const pendingChatKey = 'puni_build_pending_chat';
 
 /** Renders corrupt local recovery state explicitly instead of treating it as a missing request. */
@@ -102,7 +102,7 @@ type BuildLoad =
   | {
       kind: 'anonymous';
       session: Session;
-      harness: 'disabled' | 'live';
+      harness: 'disabled' | 'paused' | 'live';
       conversation: Conversation;
     }
   | { kind: 'error'; message: string };
@@ -678,7 +678,7 @@ export function BuildPage() {
         entry,
         await requestJson<unknown>('/conversation', { signal: controller.signal }),
       );
-      if (harness.kind !== 'disabled' && harness.kind !== 'live')
+      if (harness.kind !== 'disabled' && harness.kind !== 'paused' && harness.kind !== 'live')
         throw new Error(`Unexpected harness state ${harness.kind}`);
       setLoad({
         kind: 'anonymous',
@@ -819,6 +819,14 @@ export function BuildPage() {
         )}
         {load.kind === 'anonymous' && load.harness === 'disabled' && (
           <DisabledHarness conversation={load.conversation} route={route} signIn={signIn} />
+        )}
+        {load.kind === 'anonymous' && load.harness === 'paused' && (
+          <PausedHarness
+            conversation={load.conversation}
+            onHandedOff={() => {
+              setHandedOff(true);
+            }}
+          />
         )}
         {load.kind === 'anonymous' && load.harness === 'live' && (
           <LiveHarness

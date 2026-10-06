@@ -270,3 +270,14 @@ describe('limit refusals', () => {
     expect(isLimitCode('turn_limit')).toBe(false);
   });
 });
+
+describe('paused provider', () => {
+  const paused = { ...disabled, provider: 'paused' };
+
+  test('a paused provider is its own harness state, not disabled', () => {
+    // Proof: mapping `paused` to `disabled` in the parser made this resolve to `disabled`.
+    expect(
+      resolveAnonymousHarness('https://dev.puni.dev', { available: true, reason: null }, paused),
+    ).toEqual({ kind: 'paused', conversation: paused as ReturnType<typeof parseConversation> });
+  });
+});

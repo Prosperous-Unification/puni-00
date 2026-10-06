@@ -20,6 +20,7 @@ import {
   useHeadingFocus,
   usePageTitle,
 } from './chrome';
+import { GuardrailsPanel } from './guardrails-panel';
 
 interface Draft {
   description: string;
@@ -590,6 +591,7 @@ function OperatorPage() {
           </form>
         ) : (
           <>
+            <GuardrailsPanel csrf={csrf} />
             <div className="actions">
               <button className="button secondary compact" onClick={() => void loadInbox()}>
                 Refresh inbox

@@ -555,3 +555,53 @@ function ProposalCard({
     </section>
   );
 }
+
+/**
+ * The anonymous harness while paid inference is paused: the saved thread (or the Home request),
+ * one labelled notice row with the manual path, and the proposal card, which still submits.
+ * There is no composer, so nothing can be sent until an operator resumes.
+ */
+export function PausedHarness({
+  conversation,
+  onHandedOff,
+}: {
+  conversation: Conversation;
+  onHandedOff: () => void;
+}) {
+  const [receipt, setReceipt] = useState<string | null>(null);
+  const turns =
+    conversation.turns.length > 0
+      ? conversation.turns
+      : [{ role: 'user' as const, content: conversation.description }];
+  return (
+    <div className="harness-root">
+      <section className="harness-thread" aria-label="Conversation with PUNI">
+        <div className="harness-column">
+          <p className="harness-eyebrow">[ AI can do everything. It doesn’t want anything. ]</p>
+          {turns.map((turn, index) => (
+            <div key={index} className={`build-message ${turn.role}`}>
+              <span className="message-label">{turn.role === 'user' ? 'YOU' : 'PUNI'}</span>
+              <p>{turn.role === 'assistant' ? displayReply(turn.content) : turn.content}</p>
+            </div>
+          ))}
+          <div className="build-message system build-disabled-row build-paused-row">
+            <span className="message-label">PUNI · NOTICE</span>
+            <p>AI chat is paused right now. A person still reads every brief.</p>
+            <a className="harness-link" href="/manual">
+              Shape your brief <span aria-hidden="true">→</span>
+            </a>
+          </div>
+          <ProposalCard
+            conversation={conversation}
+            receipt={receipt}
+            onSubmitted={(reference) => {
+              sessionStorage.removeItem(proposalKeyName);
+              setReceipt(reference);
+              onHandedOff();
+            }}
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
