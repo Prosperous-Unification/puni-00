@@ -2087,3 +2087,23 @@ Amended planning validation repeated the pinned strict command (1/1) and all com
 `/tmp/shared-people-6j-plan-review-all.json`. Four changed Markdown files passed Prettier
 check and `git diff --check` exited 0. Final-byte checks are repeated before local commit;
 no product tests or host gate are claimed by this amendment.
+
+### 6j.b callback-free observation clarification
+
+The normative packet now resolves the synchronous readPairAndAdmit callback inversion:
+observeForAdmission returns generation, immutable pair and exact miss-only requests from one
+source-owned synchronous immediate transaction, then coordinator callers await separate public
+persistence operations after release. Raw dequeue/Retry transaction helpers stay borrowed;
+command scheduling uses the captured reader. The packet specifies all public callers, including
+heartbeat, and eight named production RED/mutation proof groups.
+
+This is a docs-only architecture clarification. Sol reported overlap REDs in its separate
+implementation worktree; this planning amendment does not independently claim their execution
+or GREEN. All eight complete proof groups, implementation validation and host gate remain
+pending here. No product source or task checkbox changes accompany this clarification.
+
+Planning validation for this clarification: pinned strict OpenSpec exited 0 (1/1), recorded
+in `/tmp/shared-people-6jb-plan-strict.json`; pinned all OpenSpec exited 0 (148/148), recorded
+in `/tmp/shared-people-6jb-plan-all.json`. Four-file Prettier and `git diff --check` passed;
+final-byte checks are repeated before committing. Independent rereview is requested separately;
+this validation is not independent architectural clearance.

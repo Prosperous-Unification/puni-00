@@ -297,6 +297,15 @@ compares both directions`, `directory edit has causes without project-row edits`
       live admission, heartbeat, bind/queue/outcome and lifecycle operations cannot join an
       awaited owner or vanish with its rollback. Watch each gate omission fail. Review before 6j.c;
       no async Drizzle callbacks, detached capture or child/network waits under the writer.
+      Replace callback-shaped readPairAndAdmit with callback-free observeForAdmission(key, now):
+      idle or observed generation/pair/objective requests from one gated synchronous immediate
+      transaction. Await public reservation/enqueue/outcome/release only after it returns;
+      keep raw reserve helpers inside dequeue/Retry owners. No public-to-public gate entry.
+      Complete the packet's eight serialization proofs: coherent observation; held heartbeat;
+      each other public operation; callback-free completion/miss-only policy; pre-admission pair;
+      intervening generation/disable/drain; awaited heartbeat/release/dequeue; captured command
+      arrange/freeze including isolated fallback. Watch each named gate/fence/await/binding fault
+      fail independently, preserve all existing lifecycle/cache regressions and review before 6j.c.
 - [ ] 6j.c. **Direct begin/finish and retirement.** Install source-bound owners over raw savepoints,
       preserve pending old topology and addressed causes even at equal hash/local facts. Prove
       actual selected retirement change, silent unchanged/nonselected/repeated finish, complete
