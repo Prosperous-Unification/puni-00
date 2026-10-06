@@ -1754,3 +1754,135 @@ test('the account lock, the cap marks and ten declines each raise their alert', 
   ]);
   api.close();
 });
+
+test('no alert row or webhook body carries the canary phrase, email, address, source or claim', async () => {
+  const canaryPhrase = 'canary-phrase-7f3a lighthouse booking';
+  const canaryEmail = 'canary.person@example.test';
+  const canaryAddress = '203.0.113.77';
+  let step: Step = { status: 502 };
+  const fake = fakeOpenRouter(() => step);
+  const webhook = fakeWebhook();
+  let now = Date.now();
+  const config = paidConfig(fake.providerFetch, {
+    operatorPassword,
+    clock: () => now,
+    alertFetch: webhook.alertFetch,
+    guardrailWebhookUrl: webhook.guardrailWebhookUrl,
+  });
+  const api = mountApi(config);
+  const intake = (address: string) =>
+    api.fetch(
+      new Request('http://localhost:3101/intakes', {
+        method: 'POST',
+        headers: { origin: publicOrigin, 'content-type': 'application/json' },
+        body: JSON.stringify({ description: `${canaryPhrase} ${address}` }),
+      }),
+      address,
+    );
+  // provider_failures: five 502s on the canary visitor's conversation.
+  const canary = await beginVisitor(api, `${canaryPhrase} from ${canaryEmail}`);
+  for (let attempt = 0; attempt < 5; attempt += 1)
+    await (await sendInitial(api, canary, canaryAddress)).text();
+  // refusals: ten declined conversations that quote the canary phrase.
+  step = { contentFilter: true };
+  for (let index = 0; index < 10; index += 1) {
+    const visitor = await beginVisitor(api, canaryPhrase);
+    await (await sendInitial(api, visitor, `192.0.2.${String(100 + index)}`)).text();
+  }
+  const seed = (sql: string) => {
+    const database = new Database(config.databasePath);
+    database.run(sql);
+    database.close();
+  };
+  // proposal_cap_half, proposal_cap_full: proposals with the canary email at the marks.
+  for (const mark of [99, 199]) {
+    seed(
+      `INSERT INTO admission_count (scope, key_hash, utc_day, count) VALUES ('proposal:site', '*', '${new Date(now).toISOString().slice(0, 10)}', ${String(mark)}) ON CONFLICT(scope, key_hash, utc_day) DO UPDATE SET count = ${String(mark)}`,
+    );
+    const visitor = await beginVisitor(api, canaryPhrase);
+    const proposal = await api.fetch(
+      post('/proposals', visitor, {
+        email: canaryEmail,
+        brief: canaryPhrase,
+        idempotencyKey: `proposal-canary-${String(mark)}`,
+      }),
+      `198.18.0.${String(mark)}`,
+    );
+    expect(proposal.status).toBe(201);
+  }
+  // site_spend_half, inference_paused: the canary address's first reply trips the pause.
+  spendSiteDay(config.databasePath, 7_999_000);
+  step = { reply: 'Unexpected' };
+  const payer = await beginVisitor(api, `${canaryPhrase} ${canaryEmail}`);
+  expect((await sendInitial(api, payer, '198.18.1.1')).status).toBe(503);
+  // operator_locked: twenty wrong passwords, the first five from the canary address.
+  for (let index = 0; index < 20; index += 1)
+    await api.fetch(
+      new Request('http://localhost:3101/operator/session', {
+        method: 'POST',
+        headers: { origin: appOrigin, 'content-type': 'application/json' },
+        body: JSON.stringify({ password: canaryPhrase }),
+      }),
+      index < 5 ? canaryAddress : `198.18.2.${String(index)}`,
+    );
+  // draft_cap_half, draft_cap_full: intakes from the canary address at the marks.
+  seed("UPDATE admission_count SET count = 999 WHERE scope = 'draft:site'");
+  expect((await intake(canaryAddress)).status).toBe(201);
+  seed("UPDATE admission_count SET count = 1999 WHERE scope = 'draft:site'");
+  expect((await intake(canaryAddress)).status).toBe(201);
+  // rate_limited: the canary address floods one minute later.
+  now += 61_000;
+  for (let index = 0; index < 625; index += 1)
+    await api.fetch(
+      new Request('http://localhost:3101/conversation', {
+        headers: { origin: appOrigin, cookie: canary.cookie },
+      }),
+      canaryAddress,
+    );
+  await api.settleAlerts();
+  const rows = alerts(config.databasePath);
+  expect(new Set(rows.map(({ kind }) => kind))).toEqual(
+    new Set([
+      'provider_failures',
+      'refusals',
+      'draft_cap_half',
+      'draft_cap_full',
+      'proposal_cap_half',
+      'proposal_cap_full',
+      'site_spend_half',
+      'inference_paused',
+      'operator_locked',
+      'rate_limited',
+    ]),
+  );
+  const database = new Database(config.databasePath, { readonly: true });
+  const sources = database
+    .query<{ key_hash: string }, []>(
+      "SELECT key_hash FROM admission_count WHERE scope IN ('draft:source', 'proposal:source', 'proposal:email') UNION SELECT source_hash FROM conversation UNION SELECT key_hash FROM login_failure",
+    )
+    .all()
+    .map(({ key_hash }) => key_hash)
+    .filter((hash) => hash !== 'operator');
+  database.close();
+  const claim = canary.cookie.split('=')[1] ?? '';
+  const forbidden = [
+    canaryPhrase,
+    'canary',
+    canaryEmail,
+    canaryAddress,
+    claim,
+    sha256Hex(claim),
+    canary.csrf,
+    ...sources,
+  ];
+  expect(sources.length).toBeGreaterThan(3);
+  const texts = [
+    ...rows.map(({ detail, dedupe_key }) => `${detail} ${dedupe_key}`),
+    ...webhook.received.map(({ title, body }) => `${String(title)} ${body}`),
+  ];
+  expect(webhook.received).toHaveLength(10);
+  // Proof: putting the source hash in the rate_limited detail failed this assertion.
+  for (const text of texts)
+    for (const secret of forbidden) expect(text.includes(secret)).toBe(false);
+  api.close();
+});
