@@ -160,6 +160,17 @@ release. The bare `NO_ADMISSION` path SHALL NOT gain recovery privileges.
 - **THEN** the step, existing audit, downstream events and sequence advances all roll back
 - **AND** the grant expires and no downstream push or optimizer notification occurs
 
+Command grants for execute, undo and redo SHALL expire no later than UoW settlement and
+before any post-commit optimizer notification or awaited delivery. Retained command authority
+SHALL NOT remain usable while transport is pending after writer release. Failure/refusal
+cleanup and the existing `NO_ADMISSION` after-rollback history repair SHALL remain intact.
+
+#### Scenario: transport waits after command or history replay commits
+
+- **WHEN** a command, undo or redo commits downstream events and its delivery remains pending
+- **THEN** another writer can enter and the retained command grant refuses its original actor/project
+- **AND** releasing or failing transport cannot extend or restore that grant
+
 #### Scenario: mounted command on a cold process
 
 - **GIVEN** a shared chain is persisted and fresh services have served no plan reads

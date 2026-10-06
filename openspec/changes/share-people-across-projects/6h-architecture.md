@@ -63,6 +63,33 @@ composition and transaction-boundary type tests valid.
    They become deliverable only after `run` succeeds and releases its writer turn. If COMMIT,
    derivation or any event insert fails, no delivery or optimizer notification may run.
 
+### Command grant lifetime ends before committed delivery
+
+`PlanCommandRunner.execute` and `walk` own the grants supplied to their command graphs.
+Their current outer `transaction.run(...).finally(() => grant?.expire())` relies on that
+transaction abstraction settling at the UoW boundary. If command composition awaits network
+delivery before returning, the finally runs too late: a retained graph still has authority
+while another writer can already enter. Writer release alone is not grant expiry.
+
+For execute, undo and redo, expire the command grant no later than successful UoW settlement,
+**before** recipient optimizer notifications or any awaited committed delivery. Expiring it
+when the transaction act finishes using its command graph is also valid: fan-out comparison
+and recording need the admitted transaction's capture capability, not a live command grant.
+Preserve Working plan closure. Do not move delivery inside the UoW to shorten grant lifetime.
+
+Keep refusal and exception cleanup unconditional, including failures while opening the graph,
+performing the prelude, applying commands, walking history, deriving fan-out or recording an
+event. A late refused undo's existing after-rollback journal repair retains its separate
+`NO_ADMISSION` graph; do not carry the failed command's grant into that repair or change the
+stale-entry discard/audit rules. No success, refusal, thrown error or failed commit may leave
+the granted actor/project usable after its UoW. Scoped step recovery already expires its grant
+inside `runRecoveryWrite`'s act; retain that independent boundary.
+
+Choose either cleanup inside the command act's own `finally`, or an explicit transaction
+result/delivery split that lets the runner close its grant before delivery. Do not rely on
+an outer finally that runs only after a held transport completes. Update the grant/transaction
+symbol JSDoc with this lifetime and preserve the source-neutral transaction capability boundary.
+
 ### Admitted route seam: fresh observation authority without a second audit
 
 The numbered admission step above has different owners for commands and admitted route
@@ -189,6 +216,21 @@ cause. Canonical incoming basis must include the actual inherited booking/availa
 labels, collection order and optimization counters do not belong in it. `null` is reserved for
 the API's modeled unavailable/absent evidence, never an unknown capture silently treated empty.
 
+Topology causes are already required by design.md's changed-endpoint rule. When deriving
+`directCauses`, union changed local facts with both endpoints of changed rank-directed
+shared-person connections from the old and new observations. Comparing local input hashes
+alone cannot detect an unchanged upstream endpoint that loses a connection. Keep these edge
+sets separate for comparison; 6g still traverses each observation separately and filters
+unchanged incoming bases. This is not permission to promote transitive schedule changes into
+direct causes or to traverse a graph formed by mixing old and new edges.
+
+For example, dated A uses Ana, B uses Ana then Ben, and C uses Ben. Removing B's Ana
+assignment removes A→B while A's local facts stay unchanged. A and B are direct causes; where
+B and C's incoming bases change, `(B,A)`, `(C,A)` and `(C,B)` are required. The fact that B
+also receives an ordinary source-project announcement does not replace its specified causal
+fan-out event. An undated endpoint or numerically respaced but unchanged rank order does not
+invent a scheduling connection.
+
 Every schedule read uses `mode: 'capture'` and the transaction-bound optimized cache reader.
 Known cycle/calendar-range outcomes retain 6g's explicit states and skip-bookings semantics;
 required-engine refusal remains `engine_unavailable`, including when it blocks a downstream
@@ -261,6 +303,24 @@ Record exact commands/assertions in verify.md and adjacent `Proof:` comments at 
 | `admitted routes commit fan-out`, mounted step removal/project depReach                 | Omit each existing admitted binding independently; assert expected recipient row absent. A modeled route refusal changes neither rows nor sequence.                                                                                                                         |
 | `capture retains authoritative rank`, borrowed SQLite capture                           | Seed equal rank positions and unranked tail so insertion order differs; scramble/sort by metadata in capture: observe wrong recipient direction. Broken ownership/rank/required capture throws rather than skipping.                                                        |
 
+Additional command-lifetime and topology proofs are mandatory:
+
+- `command grant expires before held delivery`: retain the real `EditAdmission` handed to
+  `batchServices`, commit a shared command producing fan-out, and hold committed transport.
+  Prove a second SQLite connection can write and the retained admission already refuses its
+  original actor/project before releasing transport. Repeat for successful undo and redo
+  through `walk`, not just execute. Moving expiry back to the outer transaction promise's
+  finally must make each relevant retained-admission assertion fail while the writer enters.
+- `refused command and replay leave no grant`: retain the grant across late command refusal,
+  refused partial undo/redo and an exception; assert it refuses after settlement. Retain the
+  existing stale-journal repair witness, which runs with `NO_ADMISSION` and creates no fan-out.
+  No pending transport is needed for a path that rolls back without delivery.
+- `removed connection retains the unchanged endpoint cause`: use the A/Ana → B/Ana+Ben → C/Ben
+  fixture above, remove B's Ana assignment in a real command and inspect durable pairs.
+  Independently omit changed-edge endpoint causes while keeping local-fact causes: `(B,A)`
+  and `(C,A)` disappear even though `(C,B)` remains. Restore and rerun; keep rename/respacing
+  and mixed-edge negatives green.
+
 Additional admitted-route proofs are mandatory:
 
 - `refused admitted writes never capture`: forbidden, foreign/absent and a member demoted or
@@ -327,7 +387,9 @@ choose files near their owning boundary rather than introducing a second harness
    separation. Keep scheduler reads capture-only and retain source-neutral fixture support.
 3. Add the command/undo/redo atomicity RED tests. Map capture/record through command composition
    and return committed envelopes without exposing `Scope` to the feature; integrate once around
-   the whole act and exclude refusal/repair. Add admitted-write RED tests and integrate its two
+   the whole act and exclude refusal/repair. Expire execute/undo/redo grants before committed
+   delivery and prove retained admission refuses while transport is held. Derive topology
+   endpoint causes as well as local-fact changes. Add admitted-write RED tests and integrate its two
    existing routes under the same decision boundary. Implement the admitted-route hook and
    read-only observation-authority check above for the bare graph. Separately integrate mounted
    scoped step removal within `runRecoveryWrite`, preserving its original grant/audit and

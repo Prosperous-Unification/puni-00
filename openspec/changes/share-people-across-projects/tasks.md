@@ -204,7 +204,13 @@ silent`, and `isolated and foreign projects receive no shared fan-out`. Include 
       No adapter/event/route binding, DB writes, generation admission or persistent hash state.
 - [ ] 6h. **Command/UoW atomicity.** Follow the reviewed
       [architecture checkpoint](6h-architecture.md), including both core and mounted bindings
-      and the committed-delivery optimizer reaction. For bare admitted writes add the awaited beforeWrite
+      and the committed-delivery optimizer reaction. Expire execute/undo/redo command grants
+      at UoW settlement before post-commit delivery; retain unconditional failure/refusal cleanup
+      and `NO_ADMISSION` rollback repair. Prove a retained grant refuses while transport is held
+      and a second writer enters, separately for execute and undo/redo; move expiry after delivery
+      to observe RED. Derive changed connection endpoints as direct causes alongside local facts;
+      remove that derivation and observe missing `(B,A)` / `(C,A)` after B loses its A-facing edge.
+      For bare admitted writes add the awaited beforeWrite
       observation hook and fresh read-only authority check, with typed refusals and no audit/grant;
       retain the repository final guard/audit. Prove queued demotion/foreign refusal invokes no
       capture, recovery audits exactly once, hook omission/late placement fails and capture/event

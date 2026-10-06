@@ -1545,3 +1545,42 @@ check and `git diff --check` passed; final-byte validation is rerun before commi
 Legacy is deliberately non-capturing: its negative plants throwing shared dependencies and
 requires successful removal without calling them. Shared hook omission/fault proofs must use
 a permitted shared-mode actor, not a legacy no-fan-out result.
+
+## 6h review: grant lifetime and topology causes (2026-10-06)
+
+Documentation-only amendment from `300b3d3dd9e5894b850420c546c45b2c3228f3ac`, isolated branch
+`plan/shared-people-fanout-6h-lifetime`. Product review of Sol's dirty candidate found two
+regressions; this packet clarifies implementation obligations without implementing their fixes.
+
+A real SQLite `createPlanCommandRunner` probe retained `batchServices`' admission and performed
+an independent-connection UPDATE in `deliverCommitted`. The writer entered, but the grant
+still admitted its original actor/project there; it refused only after the runner returned.
+The candidate's awaited delivery delayed execute/walk's outer grant-expiry finally. The
+normative packet now explicitly closes that lifetime before delivery for execute and undo/redo,
+with unconditional refusal/exception cleanup and existing history-repair semantics retained.
+
+A mounted `setAssignee` probe used dated A/Ana, sequential B/Ana+Ben and C/Ben. Removing B's
+Ana assignment returned 200 but recorded only `(C,B)`. Existing design.md already requires
+changed connection endpoints as causes; A's unchanged local input hash does not remove its
+causal identity. The packet and task now spell out deriving endpoint changes alongside local
+facts and require durable `(B,A)` / `(C,A)` witnesses when those incoming bases change.
+
+| Required fault / path                                 | Decisive negative                                                                               | Implementation status                               |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Delay execute grant expiry until delivery completes   | Second writer enters while retained grant still admits during held push                         | Candidate defect observed; restored proof pending   |
+| Delay undo/redo grant expiry until delivery completes | Same held-push refusal assertion fails for each history direction                               | Required; pending                                   |
+| Omit refusal/exception grant cleanup                  | Retained authority remains usable after settlement; stale-history repair must stay NO_ADMISSION | Required; pending                                   |
+| Omit changed connection endpoint causes               | Mounted assignment removal keeps `(C,B)` but loses `(B,A)` and `(C,A)`                          | Candidate omission observed; restored proof pending |
+
+Independent review's seven-file focused run passed 79/79, 469 assertions before fixes, in
+`/tmp/astra-6h-review-focused.log`; it did not cover the two new witnesses above. Standalone
+read-only-review probes used temporary SQLite fixtures and left candidate files untouched.
+No implementation clearance follows from that green suite. Sol owns production fixes and
+watched RED/restored-GREEN evidence. No product change, full exact-SHA gate, CI, push or merge
+is part of this documentation amendment.
+
+Planning validation: pinned `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate
+share-people-across-projects --strict --json` passed 1/1, and `validate --all --json` passed
+148/148 (130 changes, 18 specs). Reports: `/tmp/6h-lifetime-plan-{strict,all}.json`.
+Four-file Prettier and `git diff --check` passed; final-byte checks and normal local commit
+hooks run before the checkpoint. An inactive Tool Wiki hook is not certification.
