@@ -76,3 +76,29 @@ The [Build AI chat harness](../../openspec/changes/build-ai-chat-harness/design.
 8. **Disable.** Recreate the API without the override. `GET /conversation` reports `disabled`, saved conversations stay readable and the manual brief keeps working.
 
 Locally, `DEMO_AUTH=1` answers the anonymous conversation with canned replies labelled **Simulated** and reserves nothing; `apps/website/fe-01/browser/conversation-api.mjs` serves a scripted OpenRouter stream through the real admission, cancel and settlement code for the browser regression. Neither proves the real provider.
+
+## Guardrails
+
+The [abuse guardrails design](../../openspec/changes/website-abuse-guardrails/design.md) owns the threat model, the numbers and their rationale; this section owns operating them. All of them are always on; none needs a flag.
+
+- **Request windows.** Every route but `GET /health` passes a general window of 120 requests per source and 3,000 across the site per minute; the write routes and both OIDC routes keep their 30/300 per-path windows. A refusal is `429 rate_limited` with `Retry-After`. The windows live in process memory, so a restart or a blue/green overlap can allow one extra minute; nothing to operate.
+- **Daily caps.** Per UTC day: 20 drafts per source and 2,000 per site; 5 proposal requests per source, 3 per email (salted) and 200 per site. A refusal is `429` with its code (`draft_source_limit`, `draft_site_limit`, `proposal_source_limit`, `proposal_email_limit`, `proposal_site_limit`) and `Retry-After` to UTC midnight; nothing is stored. The counts are rows in `admission_count` and reset at UTC midnight.
+- **Operator login lockout.** Five failures from one source in 15 minutes lock that source for 15 minutes; twenty failures on the account in an hour lock the account for an hour and raise `operator_locked`. A locked login is `429 login_locked` with `Retry-After` and costs no password check. Existing operator sessions keep working, so an operator already signed in can still pause and resume.
+- **Browser check.** The first paid reply of each conversation needs a solved proof-of-work challenge from `GET /conversation` ([ADR 0035](../adr/0035-bot-deterrence-is-a-self-hosted-proof-of-work.md)). Build solves it in a Web Worker before the visitor presses Send; it costs about 0.2 to 0.8 s normally and 0.6 to 2.7 s once half the day's ceiling is spent (measured in Chrome, see the change's `verify.md`). The manual brief never needs it.
+- **Inference pause.** When a reservation brings the site's UTC-day spend to 80% of the $10 ceiling, paid inference pauses: Build shows `AI chat is paused right now` with the manual path, and paid streams answer `503 provider_paused`. The automatic pause opens at most once per UTC day and never clears by itself, not at midnight and not on restart. To resume, sign in at `/operator`, open the Guardrails panel above the inbox and press `Resume AI chat`, then confirm. After a resume the day runs to the hard ceiling; the next day's spend can pause again. `Pause AI chat` in the same panel pauses by hand.
+
+### Alert webhook
+
+Alerts (`site_spend_half`, `inference_paused`, `operator_locked`, `draft_cap_half`, `draft_cap_full`, `proposal_cap_half`, `proposal_cap_full`, `provider_failures`, `refusals`, `rate_limited`) are rows in `guardrail_alert` first; the operator panel lists the last 50 with their delivery. They carry counts, kinds, UTC days and micro-USD only, never an address, hash, email or message text.
+
+`GUARDRAIL_WEBHOOK_URL` is optional and must be `https`; any other value stops the API at startup. When set, each new alert is one `POST` with a `text/plain` body and a `Title` header, given 10 seconds, recorded as `sent` or `failed` and never retried. When unset, alerts are `recorded` only. Startup prints `guardrail alerts: webhook set` or `unset`, never the URL.
+
+The intended receiver is [ntfy](https://ntfy.sh): install the ntfy app, subscribe to a new topic with a random name of at least 32 characters (the name is the only secret), and put `GUARDRAIL_WEBHOOK_URL=https://ntfy.sh/<topic>` in the protected `runtime.env` beside the other secrets. A self-hosted ntfy works the same way. Check delivery after a restart by pausing and resuming once from the operator panel: the phone receives `inference_paused` and the panel shows it as `sent`.
+
+### Activation smoke additions
+
+The bounded preview smoke in [Anonymous conversation activation](#anonymous-conversation-activation) adds three checks: one browser check solved in a real browser before the first reply, one forced pause and resume from the operator panel (Build shows the paused state in between), and one alert received on the phone.
+
+### On k3s
+
+Recorded for `website-on-k3s`, not built here (design D7): a Traefik `RateLimit` middleware on the website Ingress (average 50 requests per second per client address, burst 100), and a `/metrics` endpoint with a cluster-internal `ServiceMonitor` exposing the pause, spend, cap, lock and refusal counters to the platform Alertmanager.
