@@ -558,6 +558,53 @@ export interface SolverSlotReclaimScope {
   readonly contractVersion?: string;
 }
 
+/** Read one reconciliation phase's targets; each caller later rechecks under its own writer. */
+export function reconciliationTargets(
+  db: SQLiteBunDatabase,
+  phase: 'generations' | 'projects',
+): readonly SolverSlotReclaimScope[] {
+  if (phase === 'generations')
+    return db
+      .select({
+        projectId: optimizationGeneration.projectId,
+        contractVersion: optimizationGeneration.contractVersion,
+      })
+      .from(optimizationGeneration)
+      .where(eq(optimizationGeneration.admissionState, 'draining'))
+      .all();
+  return db
+    .select({ projectId: project.id })
+    .from(project)
+    .where(isNotNull(project.optimizationDeletePendingAt))
+    .all();
+}
+
+/** Re-read the named marker after its sweep has acquired the source writer. */
+export function reconciliationTargetIsCurrent(
+  db: SQLiteBunDatabase,
+  target: SolverSlotReclaimScope,
+): boolean {
+  if (target.contractVersion !== undefined)
+    return (
+      db
+        .select({ state: optimizationGeneration.admissionState })
+        .from(optimizationGeneration)
+        .where(
+          and(
+            eq(optimizationGeneration.projectId, target.projectId),
+            eq(optimizationGeneration.contractVersion, target.contractVersion),
+          ),
+        )
+        .get()?.state === 'draining'
+    );
+  const current = db
+    .select({ pendingAt: project.optimizationDeletePendingAt })
+    .from(project)
+    .where(eq(project.id, target.projectId))
+    .get();
+  return current !== undefined && current.pendingAt !== null;
+}
+
 /**
  * Remove expired seats and finish every affected drain in the same transaction.
  *
@@ -576,6 +623,8 @@ export function reclaimExpiredSolverSlotsIn(
   const expiring = and(
     // Proof: admitting all deadlines during installed initial reclaim deleted
     // the future E project and slot in the two-organization mounted fixture.
+    // Proof: omitting the persisted-deadline predicate in installed startup
+    // reconciliation deleted future-counted C while expired A was eligible.
     lte(solverSlot.admittedDeadlineAt, now),
     ...(scope === undefined
       ? []

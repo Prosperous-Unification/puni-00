@@ -39,6 +39,7 @@ import {
   createOptimizationLifecycle,
   type OptimizationLifecycle,
 } from './service/optimization-lifecycle';
+import { createOptimizationReconciliation } from './service/optimization-reconciliation';
 import { createRetryReservationOwner } from './service/optimization-retry-reservation';
 import { optimizerWiring } from './service/optimizer-wiring';
 
@@ -192,6 +193,11 @@ export function buildServices(options: ServicesOptions): BeServices {
     boundSource.uow,
     graph.committedFanout,
   );
+  const reconciliation = createOptimizationReconciliation(
+    source.db,
+    boundSource.uow,
+    graph.committedFanout,
+  );
   if (options.optimizer !== undefined) {
     const optimizer = options.optimizer;
     coordinator = installOptimization({
@@ -211,6 +217,9 @@ export function buildServices(options: ServicesOptions): BeServices {
         // Proof: omitting this installed owner lost B's durable A-cause event;
         // the mounted second-event rollback case no longer rejected.
         dequeueRequest: dequeueReservation,
+        // Proof: omitting the source-bound reconciliation installer let
+        // startup delete populated A without B's durable recipient event.
+        reconcileDrains: reconciliation,
         // Proof: omitting this binding let installed Retry delete A without
         // B's durable elsewhere_changed event; the mounted Retry test failed.
         admitRetry: retryReservation,

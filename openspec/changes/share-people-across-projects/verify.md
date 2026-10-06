@@ -3129,3 +3129,73 @@ module dependency, and build plus supervisor-protocol dependency each had an
 explicit successful Nx summary
 (`...dequeue-followup-nx-be-{lint,type,build}.log`). The store product bytes
 and store tests were unchanged from the preceding successful store targets.
+
+### 6j.e installed reconciliation checkpoint (local, not integrated)
+
+The source-bound reconciler is installed only in `buildServices` and retains
+`{ reclaimed, finished, waiting }`. It enumerates draining generations, then
+delete-pending projects. Each target rechecks its marker under a distinct
+borrowed UoW, captures the old state, runs raw scoped reclaim/finalization,
+captures again, and records actual-cause recipient events before commit. It
+delivers each sweep's envelopes after writer release and before the next sweep.
+This checkpoint does not close 6j.e or 6j.f.
+
+The exact affected command
+`bun test apps/wbs/be-01/src/services.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts libs/wbs/adapters/store-sqlite/src/optimization-drain.db.test.ts --timeout=30000`
+passed **225/225, 1,218 assertions, exit 0**
+(`/tmp/shared-people-6je-four-file.log`). Installed startup and periodic tests
+each delete populated A and record B seq0. Selected ready A retirement at an
+unchanged input hash retains A and records B's addressed A cause. Selected
+retirement followed by project deletion records B seq0 and seq1 in separate
+sweeps. Future-deadline C stays counted and D silent while expired A deletes.
+A later C event-insert failure preserves C's populated graph while earlier A
+deletion/B event remains committed; retry finishes C to D seq0 without
+duplicating B. The first partial-pass run
+(`/tmp/shared-people-6je-partial-first.log`) incorrectly expected C's earlier
+committed generation-slot reclamation to roll back with its later project
+sweep; the corrected run passed 1/1, 13
+(`/tmp/shared-people-6je-partial-second.log`).
+
+| Watched production fault          | RED                                                                                  | Restored GREEN                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| Omit installed owner              | A deletes without B event: `/tmp/shared-people-6je-binding-red.log`                  | `/tmp/shared-people-6je-binding-green.log` 1/4           |
+| Omit startup trigger              | A remains pending: `/tmp/shared-people-6je-startup-omission-red.log`                 | `/tmp/shared-people-6je-startup-omission-green.log` 1/4  |
+| Omit periodic trigger             | A remains pending: `/tmp/shared-people-6je-periodic-omission-red.log`                | `/tmp/shared-people-6je-periodic-omission-green.log` 1/4 |
+| Bypass persisted deadline         | Future C deletes: `/tmp/shared-people-6je-deadline-omission-red.log`                 | `/tmp/shared-people-6je-deadline-omission-green.log` 1/8 |
+| Bypass in-writer marker recheck   | Stale C slot reclaims: `/tmp/shared-people-6je-stale-guard-red.log`                  | `/tmp/shared-people-6je-stale-guard-green.log` 1/9       |
+| Reverse generation/project phases | Missing B seq1: `/tmp/shared-people-6je-order-swap-red.log`                          | `/tmp/shared-people-6je-order-swap-green.log` 1/5        |
+| Omit old capture                  | A deletes without B event: `/tmp/shared-people-6je-capture-omission-red.log`         | `/tmp/shared-people-6je-capture-omission-green.log` 1/4  |
+| Omit recording                    | A deletes without B event: `/tmp/shared-people-6je-record-omission-red.log`          | `/tmp/shared-people-6je-record-omission-green.log` 1/4   |
+| Omit actual finished cause        | Selected A remains, B event absent: `/tmp/shared-people-6je-cause-omission-red.log`  | `/tmp/shared-people-6je-cause-omission-green.log` 1/6    |
+| Omit capture-capability guard     | Named refusal becomes TypeError: `/tmp/shared-people-6je-capability-guard-red.log`   | `/tmp/shared-people-6je-capability-guard-green.log` 1/4  |
+| Omit coalescing guard             | Four sweeps instead of three: `/tmp/shared-people-6je-coalescing-red.log`            | `/tmp/shared-people-6je-coalescing-green.log` 1/7        |
+| Omit delivery await               | Stop settles during held B push: `/tmp/shared-people-6je-delivery-await-red4.log`    | `/tmp/shared-people-6je-delivery-await-green.log` 1/9    |
+| Omit stop drain await             | Stop settles during held capture: `/tmp/shared-people-6je-held-capture-stop-red.log` | `/tmp/shared-people-6je-held-capture-stop-green.log` 1/6 |
+
+The held-capture test also proves a second source-gate turn cannot enter
+before the sweep releases its writer (`...6je-held-capture-gate.log`, 1/8).
+The held-delivery test proves a second SQLite connection can update B after
+A's commit and before B's push settles. An after-capture fault restores the
+complete lifecycle table snapshot and delivers nothing; retry produces one B
+seq0 (`...6je-after-capture-second.log`, 1/8). Its first trial asserted an
+incorrect total capture count across other real sweeps and is disqualified.
+The first held-delivery await-removal trials (`...6je-delivery-await-red.log`
+through `...red3.log`) were non-breaking because unrelated edit debounce kept
+stop pending; the accepted test isolates that debounce before fault injection.
+
+The first direct BE lint found four test-only fixture diagnostics
+(`/tmp/shared-people-6je-be-lint.log`), corrected without product behavior
+changes. Final changed-file ESLint passed
+(`/tmp/shared-people-6je-changed-lint.log`), but direct ESLint skipped the Nx
+boundary rule for lack of a cached ProjectGraph. Declared Nx summaries pass:
+BE/store lint, BE typecheck plus module dependency, store typecheck, and BE
+build plus supervisor-protocol dependency
+(`/tmp/shared-people-6je-nx-{be,store}-{lint,type}.log`,
+`/tmp/shared-people-6je-nx-be-build.log`). Store has no declared build target.
+Six-path Prettier check passed (`/tmp/shared-people-6je-format-final.log`);
+pinned OpenSpec 1.12.0 strict passed 1/1 and all passed 148/148
+(`/tmp/shared-people-6je-final-{strict,all}.json`); `git diff --check` exited 0
+(`/tmp/shared-people-6je-final-diff.log`). An initial unpinned
+`bunx openspec` attempt failed because that package does not expose the
+required CLI; that attempt is superseded by the pinned rerun;
+only the pinned validator results above are accepted.

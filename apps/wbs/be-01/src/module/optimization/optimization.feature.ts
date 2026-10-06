@@ -149,8 +149,12 @@ export class OptimizationCoordinator {
   /** Start restart reconciliation after the composition root has wired the input reader. */
   start(): void {
     if (this.reconcileHandle !== null) return;
+    // Proof: omitting this startup trigger left populated pending A in place
+    // and lost B's event after an installed restart reconciliation.
     this.requestReconcile();
     const handle = (this.options.setInterval ?? setInterval)(() => {
+      // Proof: omitting this interval trigger kept pending A after the
+      // mounted periodic callback and lost B's durable recipient event.
       this.requestReconcile();
       this.requestPump();
     }, OPTIMIZATION_RECONCILE_INTERVAL_MS);
@@ -174,12 +178,16 @@ export class OptimizationCoordinator {
     }
     // Proof: omitting this await let stop settle while a held reconciliation
     // still owned the drain decision (coordinator stop-drain omission test).
+    // Proof: omitting this await settled installed stop while the source
+    // reconciliation still owned a held borrowed capture.
     await this.drain();
   }
 
   private requestReconcile(): void {
     // Proof: bypassing this guard let two timer ticks run concurrently with
     // a held source reconciliation instead of one coalesced follow-up.
+    // Proof: bypassing this guard made two held timer ticks schedule two
+    // additional reconciliations instead of one coalesced follow-up.
     if (this.reconcileInFlight !== undefined) {
       this.reconcileRequested = true;
       return;

@@ -88,7 +88,7 @@ function bootstrap(
     budgetMs: number;
     spawn: ReservedSpawner;
   },
-  onFanoutCapture?: (organizationId: string) => void,
+  onFanoutCapture?: (organizationId: string) => unknown,
   pushFetch?: ServicesOptions['pushFetch'],
   omitFanoutCapture = false,
   afterOptimizerTurn?: (answer: unknown, db: ReturnType<typeof openDrizzle>) => void,
@@ -146,7 +146,7 @@ function bootstrap(
     optimizer,
   });
   if (services.optimizer !== undefined) optimizers.push(services.optimizer);
-  return { db, path, services, pushUrls };
+  return { db, path, services, pushUrls, source };
 }
 
 async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
@@ -2458,6 +2458,497 @@ describe('buildServices', () => {
         )
         .map(({ seq, message }) => [seq, message]),
     ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+  });
+
+  it('records a populated final-drain event through installed startup reconciliation', async () => {
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('startup reconciliation must not launch')),
+    });
+    seedSharedLifecycle(path);
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    optimizer.start();
+    await optimizer.stop();
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    expect(pushUrls).toHaveLength(1);
+  });
+
+  it('records a populated final-drain event through the installed periodic reconciliation tick', async () => {
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('periodic reconciliation must not launch')),
+    });
+    seedSharedLifecycle(path);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    let tick: (() => void) | undefined;
+    const installed = optimizer as unknown as {
+      options: {
+        setInterval: (callback: () => void, intervalMs: number) => unknown;
+        clearInterval: (scheduled: unknown) => void;
+      };
+    };
+    installed.options.setInterval = (callback) => {
+      tick = callback;
+      return 'periodic-reconciliation';
+    };
+    installed.options.clearInterval = () => undefined;
+    optimizer.start();
+    await optimizer.drain();
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    if (tick === undefined) throw new Error('reconciliation interval was not installed');
+    tick();
+    await optimizer.stop();
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    expect(pushUrls).toHaveLength(1);
+  });
+
+  it('retains an earlier committed sweep when a later recipient event insert rolls back', async () => {
+    const errors: unknown[] = [];
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('reconciliation rollback must not launch')),
+    });
+    seedSharedLifecycle(path);
+    seedAnotherSharedPair(path);
+    seedLifecycleSlot(db);
+    seedOtherLifecycleSlot(db, 'C', 1001);
+    for (const projectId of ['A', 'C'])
+      expect(await services.optimizationLifecycle.beginDrain(projectId, { at: 2, by: 'ada' })).toBe(
+        1,
+      );
+    const cBefore = {
+      project: db.all(sql.raw("SELECT * FROM project WHERE id = 'C'")),
+      workItem: db.all(sql.raw("SELECT * FROM work_item WHERE project_id = 'C'")),
+      step: db.all(sql.raw("SELECT * FROM step WHERE project_id = 'C'")),
+    };
+    db.run(
+      sql.raw(
+        "CREATE TRIGGER fail_reconcile_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'project:B') = 1 BEGIN SELECT RAISE(ABORT, 'reconcile second-event fault'); END",
+      ),
+    );
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const installed = optimizer as unknown as {
+      options: { onChildError: (error: unknown) => void };
+    };
+    installed.options.onChildError = (error) => {
+      errors.push(error);
+    };
+    optimizer.start();
+    await optimizer.stop();
+    expect(errors.some((error) => String(error).includes('INSERT INTO event_log'))).toBe(true);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    // C's earlier generation sweep committed its expired slot. The failing
+    // project sweep must preserve C's populated graph, not undo that prior turn.
+    expect(db.all(sql.raw("SELECT * FROM solver_slot WHERE project_id = 'C'"))).toEqual([]);
+    expect({
+      project: db.all(sql.raw("SELECT * FROM project WHERE id = 'C'")),
+      workItem: db.all(sql.raw("SELECT * FROM work_item WHERE project_id = 'C'")),
+      step: db.all(sql.raw("SELECT * FROM step WHERE project_id = 'C'")),
+    }).toEqual(cBefore);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect(await events.rangeSince('project:D', -1)).toEqual([]);
+    expect(pushUrls).toHaveLength(1);
+
+    db.run(sql.raw('DROP TRIGGER fail_reconcile_second_event'));
+    optimizer.start();
+    await optimizer.stop();
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'C'"))).toEqual([]);
+    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect(
+      (await events.rangeSince('project:D', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'D', causeProjectId: 'C' }]]);
+    expect(pushUrls).toHaveLength(2);
+  });
+
+  it('keeps a future-deadline counted child while retiring a different expired project', async () => {
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('deadline reconciliation must not launch')),
+    });
+    seedSharedLifecycle(path);
+    seedAnotherSharedPair(path);
+    seedLifecycleSlot(db);
+    seedOtherLifecycleSlot(db, 'C', 1001);
+    db.run(
+      sql`UPDATE solver_slot SET admitted_deadline_at = ${Date.now() + 60_000} WHERE project_id = 'C'`,
+    );
+    for (const projectId of ['A', 'C'])
+      expect(await services.optimizationLifecycle.beginDrain(projectId, { at: 2, by: 'ada' })).toBe(
+        1,
+      );
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    optimizer.start();
+    await optimizer.stop();
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'C'"))).toEqual([{ id: 'C' }]);
+    expect(db.all(sql.raw("SELECT project_id FROM solver_slot WHERE project_id = 'C'"))).toEqual([
+      { project_id: 'C' },
+    ]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect((await events.rangeSince('project:B', -1)).map(({ message }) => message)).toEqual([
+      { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' },
+    ]);
+    expect(await events.rangeSince('project:D', -1)).toEqual([]);
+    expect(pushUrls).toHaveLength(1);
+  });
+
+  it('addresses selected contract retirement during startup reconciliation', async () => {
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('selected reconciliation must not launch')),
+    });
+    seedSharedLifecycle(path);
+    const selected = await seedReadyRetirement(db, services, 1);
+    expect([selected.fastStart, selected.selectedStart]).toEqual([0, 1]);
+    seedLifecycleSlot(db, selected.contractVersion, selected.generation);
+    expect(
+      await services.optimizationLifecycle.beginDrain(
+        'A',
+        { at: 2, by: 'ada' },
+        selected.contractVersion,
+      ),
+    ).toBe(1);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    optimizer.start();
+    await optimizer.stop();
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    const after = await services.workItems.optimizationInput('A');
+    if (after.kind !== 'scheduled') throw new Error('selected reconciliation removed A');
+    expect(scheduleInputHash(after.input)).toBe(selected.inputHash);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect((await events.rangeSince('project:B', -1)).map(({ message }) => message)).toEqual([
+      { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' },
+    ]);
+    expect(pushUrls).toHaveLength(1);
+  });
+
+  it('observes selected retirement before project deletion in separate startup sweeps', async () => {
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('ordered reconciliation must not launch')),
+    });
+    seedSharedLifecycle(path);
+    const selected = await seedReadyRetirement(db, services, 1);
+    expect([selected.fastStart, selected.selectedStart]).toEqual([0, 1]);
+    seedLifecycleSlot(db, selected.contractVersion, selected.generation);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    optimizer.start();
+    await optimizer.stop();
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([
+      [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+      [1, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+    ]);
+    expect(pushUrls).toHaveLength(2);
+  });
+
+  it('rechecks a later generation marker after the earlier sweep acquires the writer', async () => {
+    const mounted: { db?: ReturnType<typeof openDrizzle> } = {};
+    let armed = false;
+    let removedMarker = false;
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('stale reconciliation must not launch')),
+      },
+      () => {
+        if (!armed || removedMarker) return;
+        if (mounted.db === undefined) throw new Error('capture preceded mounted database');
+        removedMarker = true;
+        mounted.db.run(
+          sql`UPDATE optimization_generation SET admission_state = 'open' WHERE project_id = 'C'`,
+        );
+        mounted.db.run(
+          sql`UPDATE project SET optimization_delete_pending_at = NULL WHERE id = 'C'`,
+        );
+      },
+    );
+    mounted.db = db;
+    seedSharedLifecycle(path);
+    seedAnotherSharedPair(path);
+    seedLifecycleSlot(db);
+    seedOtherLifecycleSlot(db, 'C', 1001);
+    for (const projectId of ['A', 'C'])
+      expect(await services.optimizationLifecycle.beginDrain(projectId, { at: 2, by: 'ada' })).toBe(
+        1,
+      );
+    armed = true;
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    optimizer.start();
+    await optimizer.stop();
+    expect(removedMarker).toBe(true);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'C'"))).toEqual([{ id: 'C' }]);
+    expect(db.all(sql.raw("SELECT project_id FROM solver_slot WHERE project_id = 'C'"))).toEqual([
+      { project_id: 'C' },
+    ]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect((await events.rangeSince('project:B', -1)).map(({ message }) => message)).toEqual([
+      { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' },
+    ]);
+    expect(await events.rangeSince('project:D', -1)).toEqual([]);
+    expect(pushUrls).toHaveLength(1);
+  });
+
+  it('releases the sweep writer before held delivery and waits for delivery on stop', async () => {
+    const deliveryEntered = signal();
+    const releaseDelivery = signal();
+    const pushes: string[] = [];
+    const { db, path, services } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('held reconciliation must not launch')),
+      },
+      undefined,
+      (url) => {
+        pushes.push(url);
+        deliveryEntered.resolve();
+        return releaseDelivery.promise.then(() => Response.json({ delivered_to_sockets: 0 }));
+      },
+    );
+    seedSharedLifecycle(path);
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const installed = optimizer as unknown as { options: { editDebounceMs: number } };
+    installed.options.editDebounceMs = 0;
+    optimizer.start();
+    await deliveryEntered.promise;
+    let stopped = false;
+    const stopping = optimizer.stop().then(() => {
+      stopped = true;
+    });
+    await Promise.race([stopping, new Promise<void>((resolve) => setTimeout(resolve, 150))]);
+    expect(stopped).toBe(false);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const second = openDatabase(path);
+    try {
+      second.run("UPDATE project SET name = 'writer advanced' WHERE id = 'B'");
+    } finally {
+      second.close();
+    }
+    expect(db.all(sql.raw("SELECT name FROM project WHERE id = 'B'"))).toEqual([
+      { name: 'writer advanced' },
+    ]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect(stopped).toBe(false);
+    releaseDelivery.resolve();
+    await stopping;
+    expect(pushes).toHaveLength(1);
+    expect(stopped).toBe(true);
+    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+  });
+
+  it('refuses a pending startup sweep without the borrowed lifecycle capture capability', async () => {
+    const errors: unknown[] = [];
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('missing owner must not launch')),
+      },
+      undefined,
+      undefined,
+      true,
+    );
+    seedSharedLifecycle(path);
+    seedLifecycleSlot(db);
+    expect(beginOptimizationDrain(db, 'A', { at: 2, by: 'ada' })).toBe(1);
+    const before = lifecycleTables(db);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const installed = optimizer as unknown as {
+      options: { onChildError: (error: unknown) => void };
+    };
+    installed.options.onChildError = (error) => errors.push(error);
+    optimizer.start();
+    await optimizer.stop();
+    expect(errors.map(String)).toContain(
+      'Error: reconciliation lacks borrowed ownership and capture',
+    );
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(pushUrls).toEqual([]);
+  });
+
+  it('runs one coalesced follow-up after held periodic reconciliation delivery', async () => {
+    const deliveryEntered = signal();
+    const releaseDelivery = signal();
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('coalesced reconciliation must not launch')),
+      },
+      undefined,
+      (_url) => {
+        deliveryEntered.resolve();
+        return releaseDelivery.promise.then(() => Response.json({ delivered_to_sockets: 0 }));
+      },
+    );
+    seedSharedLifecycle(path);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    let tick: (() => void) | undefined;
+    let sweeps = 0;
+    const installed = optimizer as unknown as {
+      options: {
+        setInterval: (callback: () => void, intervalMs: number) => unknown;
+        clearInterval: (scheduled: unknown) => void;
+        repository: { reconcileDrains: (at: number) => Promise<unknown> };
+      };
+    };
+    installed.options.setInterval = (callback) => {
+      tick = callback;
+      return 'coalesced-reconciliation';
+    };
+    installed.options.clearInterval = () => undefined;
+    const reconcile = installed.options.repository.reconcileDrains;
+    installed.options.repository.reconcileDrains = (at) => {
+      sweeps += 1;
+      return reconcile(at);
+    };
+    optimizer.start();
+    await optimizer.drain();
+    expect(sweeps).toBe(1);
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    if (tick === undefined) throw new Error('periodic callback was not installed');
+    tick();
+    await deliveryEntered.promise;
+    expect(sweeps).toBe(2);
+    tick();
+    tick();
+    expect(sweeps).toBe(2);
+    releaseDelivery.resolve();
+    await optimizer.stop();
+    expect(sweeps).toBe(3);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect(pushUrls).toHaveLength(0);
+  });
+
+  it('restores the populated sweep after a borrowed after-capture fault', async () => {
+    let armed = false;
+    let captures = 0;
+    const errors: unknown[] = [];
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('capture rollback must not launch')),
+      },
+      () => {
+        if (!armed) return;
+        captures += 1;
+        if (captures % 2 === 0) throw new Error('reconciliation after-capture fault');
+      },
+    );
+    seedSharedLifecycle(path);
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    const before = lifecycleTables(db);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const installed = optimizer as unknown as {
+      options: { onChildError: (error: unknown) => void };
+    };
+    installed.options.onChildError = (error) => errors.push(error);
+    armed = true;
+    optimizer.start();
+    await optimizer.stop();
+    expect(errors.map(String)).toContain('Error: reconciliation after-capture fault');
+    expect(captures).toBeGreaterThanOrEqual(2);
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(pushUrls).toEqual([]);
+    armed = false;
+    optimizer.start();
+    await optimizer.stop();
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect(pushUrls).toHaveLength(1);
+  });
+
+  it('keeps stop pending while an installed sweep owns a held borrowed capture', async () => {
+    const captureEntered = signal();
+    const releaseCapture = signal();
+    let armed = false;
+    let held = false;
+    const { db, path, services, pushUrls, source } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('held capture must not launch')),
+      },
+      () => {
+        if (!armed || held) return;
+        held = true;
+        captureEntered.resolve();
+        return releaseCapture.promise;
+      },
+    );
+    seedSharedLifecycle(path);
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    armed = true;
+    optimizer.start();
+    await captureEntered.promise;
+    let stopped = false;
+    const stopping = optimizer.stop().then(() => {
+      stopped = true;
+    });
+    let secondTurnEntered = false;
+    const secondTurn = source.gate.enter(() => {
+      secondTurnEntered = true;
+      return Promise.resolve();
+    });
+    await new Promise<void>((resolve) => setTimeout(resolve, 100));
+    expect(stopped).toBe(false);
+    expect(secondTurnEntered).toBe(false);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    releaseCapture.resolve();
+    await stopping;
+    await secondTurn;
+    expect(secondTurnEntered).toBe(true);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect(pushUrls).toHaveLength(1);
   });
 
   it('uses a later FIFO entry cutoff after consuming an invalid head', async () => {
