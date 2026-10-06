@@ -54,8 +54,10 @@ const ALLOWED_INFRA_TO_PRODUCT_EDGES = [
 ] as const;
 
 // Proof: omitting this sole app-to-infra pair made the real graph oracle report
-// `twilight-dash -> tool-fleet`. The product-local lint permits only the exact
-// @tools/fleet-plan specifier from cli.ts; its sibling-infra negative still fails.
+// `twilight-dash -> tool-fleet`. This graph oracle sees project pairs, not source
+// files or import specifiers. The product-local effective ESLint test pins only
+// @tools/fleet-plan from cli.ts and refuses the same alias from another file or
+// a sibling infra alias from cli.ts.
 const ALLOWED_DASH_TO_FLEET_EDGE = ['twilight-dash', 'tool-fleet'] as const;
 
 /** Every `from '…';` specifier under `root`, skipping comment lines that merely name one. */

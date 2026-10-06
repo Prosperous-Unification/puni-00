@@ -20,6 +20,17 @@ export default ({
           allow: ['^@tools/fleet-plan$'],
           ignoredCircularDependencies: [['wbs-core', 'wbs-store-memory']],
           depConstraints: [
+            // Proof: omitting these three inherited ring constraints made the effective-policy
+            // equality test fail while the narrower alias/peer/sibling routing tests stayed green.
+            { sourceTag: 'ring:domain', onlyDependOnLibsWithTags: ['ring:domain'] },
+            {
+              sourceTag: 'ring:application',
+              onlyDependOnLibsWithTags: ['ring:domain', 'ring:application'],
+            },
+            {
+              sourceTag: 'ring:adapter',
+              onlyDependOnLibsWithTags: ['ring:domain', 'ring:application', 'ring:adapter'],
+            },
             browserAdapterConstraint,
             ...productRules,
             ...scopeConstraints,
