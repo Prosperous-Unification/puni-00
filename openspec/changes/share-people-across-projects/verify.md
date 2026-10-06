@@ -2872,17 +2872,19 @@ assertion expected only one gateway push, overlooking a separate requester
 preflight failure event; that test-only error is preserved in
 `/tmp/shared-people-6jd-retry-first-green-attempt.log`.
 
-| Installed production-path case                                                  | Observed GREEN                                                                                                                                                                                   |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Expired A/C in distinct orgs, future E, marker created later than request clock | `/tmp/shared-people-6jd-retry-multi-cutoff-first.log`: 1/1, 12; B←A and D←C seq0, E retained, no invented X cause                                                                                |
-| Selected A contract retired while A and its local input facts survive           | `/tmp/shared-people-6jd-retry-selected-first.log`: 1/1, 6; addressed A cause yields B←A                                                                                                          |
-| Foreign, removed actor, stale hash, live slot, absent failed marker             | `/tmp/shared-people-6jd-retry-refusals-extended2.log`: 1/1, 22; typed refusals, zero added capture/token/audit/push                                                                              |
-| Accepted restricted recovery reservation                                        | `/tmp/shared-people-6jd-retry-recovery-audit-first.log`: 1/1, 5; exactly one audit and B←A                                                                                                       |
-| Capacity-queued restricted recovery                                             | `/tmp/shared-people-6jd-retry-queued-audit-second.log`: 1/1, 7; persisted PRI queue, one audit, B←A and actual push                                                                              |
-| After-capture throw and second real event insert failure                        | `/tmp/shared-people-6jd-retry-rollback-first.log`: 2/2, 18; full lifecycle-table snapshot restored, zero delivery; fault-free retry emits original seq0 and one audit                            |
-| Eligible preflight then raw closed or already-present result                    | `/tmp/shared-people-6jd-retry-late-nonreserved-repeat.log`: 2/2, 19; B event pushed in both non-accepted answers, zero audit/launch, competing token retained, repeated Retry silent             |
-| Held then gateway-400 victim push                                               | `/tmp/shared-people-6jd-retry-held-first.log`: 1/1, 8; answer before transport, one requester launch token equals persisted slot token, second writer enters, original B seq0 remains replayable |
-| Installed missing borrowed capture                                              | `/tmp/shared-people-6jd-retry-missing-capability-second.log`: 1/1, 4; named refusal, state preserved                                                                                             |
+| Installed production-path case                                                  | Observed GREEN                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Expired A/C in distinct orgs, future E, marker created later than request clock | `/tmp/shared-people-6jd-retry-multi-cutoff-first.log`: 1/1, 12; B←A and D←C seq0, E retained, no invented X cause                                                                                                                         |
+| Selected A contract retired while A and its local input facts survive           | `/tmp/shared-people-6jd-retry-selected-first.log`: 1/1, 6; addressed A cause yields B←A                                                                                                                                                   |
+| Foreign, removed actor, public stale hash, live slot, absent failed marker      | `/tmp/shared-people-6jd-retry-refusals-extended2.log`: 1/1, 22; typed refusals, zero added capture/audit/push                                                                                                                             |
+| Accepted restricted recovery reservation                                        | `/tmp/shared-people-6jd-retry-recovery-audit-first.log`: 1/1, 5; exactly one audit and B←A                                                                                                                                                |
+| Capacity-queued restricted recovery                                             | `/tmp/shared-people-6jd-retry-queued-audit-second.log`: 1/1, 7; persisted PRI queue, one audit, B←A and actual push                                                                                                                       |
+| After-capture throw and second real event insert failure                        | `/tmp/shared-people-6jd-retry-rollback-first.log`: 2/2, 18; full lifecycle-table snapshot restored, zero delivery; fault-free retry emits original seq0 and one audit                                                                     |
+| Eligible preflight then raw closed or already-present result                    | `/tmp/shared-people-6jd-retry-late-nonreserved-repeat.log`: 2/2, 19; B event pushed in both non-accepted answers, zero audit/launch, competing token retained, repeated Retry silent                                                      |
+| Held then gateway-400 victim push                                               | `/tmp/shared-people-6jd-retry-held-first.log`: 1/1, 8; answer before transport, one requester launch token equals persisted slot token, second writer enters, original B seq0 remains replayable                                          |
+| Installed missing borrowed capture                                              | `/tmp/shared-people-6jd-retry-missing-capability-second.log`: 1/1, 4; named refusal, state preserved                                                                                                                                      |
+| Persisted generation hash mismatches an otherwise valid public Retry request    | `/tmp/shared-people-6jd-retry-r5-persisted-hash-green.log`: 1/1, 27; `retryPreflightIn` refused before capture, lifecycle/audit state unchanged; direct repository token-mint counter is separately asserted in `optimization.db.test.ts` |
+| Capacity-queued second real event insert failure                                | `/tmp/shared-people-6jd-retry-queued-rollback-green1.log`: 1/1, 11; snapshot including `solver_queue` and `organization_audit` restored, zero delivery; after trigger removal one PRI queue, one audit, B←A and D←C seq0                  |
 
 The first stale-hash assertion used the inner repository answer instead of the
 public `stale-input-hash` contract (`...retry-refusals-extended.log`); the first
@@ -2899,17 +2901,19 @@ Each R5 fault below changed production bytes, failed at the named mounted
 assertion, was restored against a current-byte SHA-256 backup, and passed the
 identical assertion. Adjacent `Proof:` comments name these faults.
 
-| Dependency                         | Watched RED                                                                                                                                | Restored GREEN                                                        |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| Installed Retry binding            | `/tmp/shared-people-6jd-retry-r5-installer-omit-red.log`: A deleted, B row missing                                                         | `/tmp/shared-people-6jd-retry-r5-installer-restore-green.log`: 1/1, 6 |
-| Every old slot-owner org           | `/tmp/shared-people-6jd-retry-r5-all-orgs-red.log`: D←C missing                                                                            | `/tmp/shared-people-6jd-retry-r5-all-orgs-green.log`: 1/1, 12         |
-| Marker-adjusted cutoff             | `/tmp/shared-people-6jd-retry-r5-cutoff-red.log`: C survived                                                                               | `/tmp/shared-people-6jd-retry-r5-cutoff-green.log`: 1/1, 12           |
-| Actual addressed finished cause    | `/tmp/shared-people-6jd-retry-r5-cause-selected-red.log`: selected B←A missing                                                             | `/tmp/shared-people-6jd-retry-r5-cause-selected-green.log`: 1/1, 6    |
-| Transactional record               | `/tmp/shared-people-6jd-retry-r5-record-red.log`: B row missing after A deletion                                                           | `/tmp/shared-people-6jd-retry-r5-record-green.log`: 1/1, 6            |
-| One commit for mutation and events | `/tmp/shared-people-6jd-retry-r5-split-commit-red.log`: second-event failure left A/C deleted and X slot persisted at full-state assertion | `/tmp/shared-people-6jd-retry-r5-split-commit-green.log`: 1/1, 10     |
-| Non-accepted envelopes             | `/tmp/shared-people-6jd-retry-r5-nonreserved-both-red.log`: both durable B rows, both gateway pushes absent                                | `/tmp/shared-people-6jd-retry-r5-nonreserved-both-green.log`: 2/2, 14 |
-| Borrowed capture guard             | `/tmp/shared-people-6jd-retry-r5-capability-red.log`: incidental property error                                                            | `/tmp/shared-people-6jd-retry-r5-capability-green.log`: 1/1, 4        |
-| Authority before capture           | `/tmp/shared-people-6jd-retry-r5-preflight-order-red.log`: foreign refusal capture count 2→3                                               | `/tmp/shared-people-6jd-retry-r5-preflight-order-green.log`: 1/1, 22  |
+| Dependency                         | Watched RED                                                                                                                                                                                                                   | Restored GREEN                                                        |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Installed Retry binding            | `/tmp/shared-people-6jd-retry-r5-installer-omit-red.log`: A deleted, B row missing                                                                                                                                            | `/tmp/shared-people-6jd-retry-r5-installer-restore-green.log`: 1/1, 6 |
+| Every old slot-owner org           | `/tmp/shared-people-6jd-retry-r5-all-orgs-red.log`: D←C missing                                                                                                                                                               | `/tmp/shared-people-6jd-retry-r5-all-orgs-green.log`: 1/1, 12         |
+| Marker-adjusted cutoff             | `/tmp/shared-people-6jd-retry-r5-cutoff-red.log`: C survived                                                                                                                                                                  | `/tmp/shared-people-6jd-retry-r5-cutoff-green.log`: 1/1, 12           |
+| Actual addressed finished cause    | `/tmp/shared-people-6jd-retry-r5-cause-selected-red.log`: selected B←A missing                                                                                                                                                | `/tmp/shared-people-6jd-retry-r5-cause-selected-green.log`: 1/1, 6    |
+| Transactional record               | `/tmp/shared-people-6jd-retry-r5-record-red.log`: B row missing after A deletion                                                                                                                                              | `/tmp/shared-people-6jd-retry-r5-record-green.log`: 1/1, 6            |
+| One commit for mutation and events | `/tmp/shared-people-6jd-retry-r5-split-commit-red.log`: second-event failure left A/C deleted and X slot persisted at full-state assertion                                                                                    | `/tmp/shared-people-6jd-retry-r5-split-commit-green.log`: 1/1, 10     |
+| Non-accepted envelopes             | `/tmp/shared-people-6jd-retry-r5-nonreserved-both-red.log`: both durable B rows, both gateway pushes absent                                                                                                                   | `/tmp/shared-people-6jd-retry-r5-nonreserved-both-green.log`: 2/2, 14 |
+| Borrowed capture guard             | `/tmp/shared-people-6jd-retry-r5-capability-red.log`: incidental property error                                                                                                                                               | `/tmp/shared-people-6jd-retry-r5-capability-green.log`: 1/1, 4        |
+| Authority before capture           | `/tmp/shared-people-6jd-retry-r5-preflight-order-red.log`: foreign refusal capture count 2→3                                                                                                                                  | `/tmp/shared-people-6jd-retry-r5-preflight-order-green.log`: 1/1, 22  |
+| Persisted generation hash fence    | `/tmp/shared-people-6jd-retry-r5-persisted-hash-red.log`: mounted valid request was accepted/retrying instead of not-retryable when the stored generation hash differed                                                       | `/tmp/shared-people-6jd-retry-r5-persisted-hash-green.log`: 1/1, 27   |
+| Queued mutation and event commit   | `/tmp/shared-people-6jd-retry-r5-queued-split-red.log`: temporary COMMIT/BEGIN after raw mutation reached the full-state assertion; A/C slots/graph deleted, X PRI queue and recovery audit survived the second event failure | `/tmp/shared-people-6jd-retry-r5-queued-split-green.log`: 1/1, 11     |
 
 The initial affected command was
 `bun test apps/wbs/be-01/src/services.db.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts --timeout=10000`:
@@ -2947,3 +2951,44 @@ On the ledger and source bytes above, five-path Prettier check passed
 strict passed 1/1 and all passed 148/148
 (`/tmp/shared-people-6jd-retry-final-{strict,all}2.json`); `git diff --check`
 exited 0 (`/tmp/shared-people-6jd-retry-final-diff2.log`).
+
+The follow-up closes the independent proof review without changing Retry
+behavior. A mounted request whose supplied input hash matched the public
+caller input but disagreed with the stored generation hash reached
+`retryPreflightIn` and returned `not-retryable` with zero additional capture,
+audit, delivery or lifecycle-table writes. Removing only its stored-hash
+guard changed that mounted answer to accepted/retrying
+(`/tmp/shared-people-6jd-retry-r5-persisted-hash-red.log`); restored GREEN was
+1/1, 27 assertions (`...r5-persisted-hash-green.log`). The direct repository
+test `checks Retry eligibility before creating a token` owns the token-mint
+counter assertion; the mounted refusal fixture does not count token calls.
+
+The separate capacity-queued second-event fixture included `solver_queue`
+and `organization_audit` in its exact before/after snapshot. The second real
+recipient event trigger rolled back the victim graph, four retained capacity
+slots, new PRI queue, recovery audit, events and sequence; after dropping the
+trigger, one PRI queue and one audit committed with B←A and D←C seq0
+(`/tmp/shared-people-6jd-retry-queued-rollback-green1.log`: 1/1, 11).
+Temporarily inserting `COMMIT; BEGIN IMMEDIATE` after `retryMutationIn` but
+before event recording made the same full-state assertion fail: A/C had been
+deleted and X's PRI queue and recovery audit persisted while the event insert
+failed (`/tmp/shared-people-6jd-retry-r5-queued-split-red.log`). Restoring the
+owner from a SHA-256-identical current-byte backup returned the identical
+case to GREEN 1/1, 11
+(`/tmp/shared-people-6jd-retry-r5-queued-split-green.log`).
+
+On these follow-up source/test bytes, the literal eight-file command above
+passed 183/183, 19,491 assertions
+(`/tmp/shared-people-6jd-retry-followup-eight.log`). Declared
+`NX_DAEMON=false bunx nx run wbs-be-01:lint --skip-nx-cache` succeeded
+(`/tmp/shared-people-6jd-retry-followup-nx-lint.log`), as did
+`wbs-be-01:typecheck` with its module dependency
+(`/tmp/shared-people-6jd-retry-followup-nx-typecheck.log`) and
+`wbs-be-01:build` with its solver-supervisor-protocol dependency
+(`/tmp/shared-people-6jd-retry-followup-nx-build.log`). All three contain
+actual Nx success summaries; Nx used in-process plugins after its socket
+warning. Final four-path `bunx prettier --check` passed
+(`/tmp/shared-people-6jd-retry-followup-format.log`); pinned OpenSpec 1.12.0
+strict passed 1/1 and all passed 148/148
+(`/tmp/shared-people-6jd-retry-followup-{strict,all}.log`); `git diff --check`
+exited 0 (`/tmp/shared-people-6jd-retry-followup-diff.log`).

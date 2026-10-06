@@ -74,6 +74,8 @@ export function retryPreflightIn(tx: Transaction, ask: RetryAsk): RetryPreflight
   if (classified === null) return { kind: 'refused', decision: { kind: 'not_found' } };
   if (classified === 'refused') return { kind: 'refused', decision: { kind: 'forbidden' } };
   const current = readGeneration(tx, ask.key.projectId, ask.key.contractVersion);
+  // Proof: bypassing this guard let a public Retry with valid caller hash but
+  // mismatched persisted generation reach accepted/launcher instead of refusal.
   if (current?.inputHash !== ask.key.inputHash)
     return { kind: 'refused', decision: { kind: 'not-retryable', state: 'idle' } };
   const outcome = readOptimizedPair(tx, ask.key)[ask.objective];

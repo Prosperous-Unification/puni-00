@@ -319,6 +319,7 @@ function lifecycleTables(
     'optimized_schedule_cache',
     'solver_slot',
     'solver_queue',
+    'organization_audit',
     'event_log',
     'event_sequencer',
   ];
@@ -1330,7 +1331,11 @@ describe('buildServices', () => {
     expect(pushUrls).toHaveLength(1);
   });
 
-  for (const fault of ['after-capture', 'second-event-insert'] as const) {
+  for (const fault of [
+    'after-capture',
+    'second-event-insert',
+    'second-event-insert-queued',
+  ] as const) {
     it(`restores Retry victims, reservation, audit and event sequence on ${fault} failure`, async () => {
       let armed = false;
       let victimCaptures = 0;
@@ -1354,7 +1359,7 @@ describe('buildServices', () => {
       seedSharedLifecycle(path);
       seedLifecycleSlot(db);
       expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-      if (fault === 'second-event-insert') {
+      if (fault !== 'after-capture') {
         seedAnotherSharedPair(path);
         seedOtherLifecycleSlot(db, 'C', 1001);
         expect(await services.optimizationLifecycle.beginDrain('C', { at: 2, by: 'ada' })).toBe(1);
@@ -1392,7 +1397,26 @@ describe('buildServices', () => {
           createdAt: 1,
         })
         .run();
-      if (fault === 'second-event-insert')
+      if (fault === 'second-event-insert-queued')
+        for (let slotGeneration = 2; slotGeneration <= 5; slotGeneration++)
+          db.insert(solverSlot)
+            .values({
+              projectId: requester.projectId,
+              contractVersion,
+              generation: slotGeneration,
+              objective: 'time',
+              budgetMs: 1000,
+              ownerId: `capacity-${String(slotGeneration)}`,
+              attemptToken: `capacity-token-${String(slotGeneration)}`,
+              lifecycle: 'running',
+              pid: 4300 + slotGeneration,
+              startedAt: 1,
+              heartbeatAt: 1,
+              cancelRequestedAt: null,
+              admittedDeadlineAt: Date.now() + 100_000,
+            })
+            .run();
+      if (fault !== 'after-capture')
         db.run(
           sql.raw(
             "CREATE TRIGGER fail_retry_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'project:B') = 1 BEGIN SELECT RAISE(ABORT, 'Retry second-event fault'); END",
@@ -1416,14 +1440,18 @@ describe('buildServices', () => {
       expect(launches).toBe(0);
       expect(pushUrls).toEqual([]);
       armed = false;
-      if (fault === 'second-event-insert') db.run(sql.raw('DROP TRIGGER fail_retry_second_event'));
+      if (fault !== 'after-capture') db.run(sql.raw('DROP TRIGGER fail_retry_second_event'));
       expect(await optimizer.retry(ask)).toMatchObject({ kind: 'accepted', generation });
       await optimizer.drain();
+      if (fault === 'second-event-insert-queued')
+        expect(
+          db.all(sql`SELECT objective FROM solver_queue WHERE project_id = ${requester.projectId}`),
+        ).toEqual([{ objective: 'pri' }]);
       const events = new DrizzleEventLogStore(db, OPEN);
       expect(
         (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
       ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
-      if (fault === 'second-event-insert')
+      if (fault !== 'after-capture')
         expect(
           (await events.rangeSince('project:D', -1)).map(({ seq, message }) => [seq, message]),
         ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'D', causeProjectId: 'C' }]]);
@@ -1702,7 +1730,7 @@ describe('buildServices', () => {
     }
   });
 
-  it('refuses foreign and removed actors before Retry captures or mints a token', async () => {
+  it('refuses unauthorized and ineligible Retry before source capture', async () => {
     let captureCalls = 0;
     let launches = 0;
     const { db, path, services, pushUrls } = bootstrap(
@@ -1773,6 +1801,22 @@ describe('buildServices', () => {
       expect(launches).toBe(0);
       expect(pushUrls).toEqual([]);
     }
+    db.update(optimizationGeneration)
+      .set({ inputHash: 'persisted-stale-input' })
+      .where(sql`project_id = ${requester.projectId}`)
+      .run();
+    const mismatchedGeneration = lifecycleTables(db);
+    expect(
+      await optimizer.retry({ projectId: requester.projectId, objective: 'pri', inputHash, input }),
+    ).toEqual({ kind: 'not-retryable', state: 'idle' });
+    expect(lifecycleTables(db)).toEqual(mismatchedGeneration);
+    expect(captureCalls).toBe(captureBefore);
+    expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([]);
+    db.update(optimizationGeneration)
+      .set({ inputHash })
+      .where(sql`project_id = ${requester.projectId}`)
+      .run();
+    expect(lifecycleTables(db)).toEqual(before);
     expect(
       await optimizer.retry({
         projectId: requester.projectId,

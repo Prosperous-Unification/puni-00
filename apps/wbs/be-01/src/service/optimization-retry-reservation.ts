@@ -45,11 +45,12 @@ export function createRetryReservationOwner(
         before.set(organizationId, await capture.capture(organizationId));
 
       const finished = new Set<string>();
-      // Proof: injecting COMMIT/BEGIN here left deleted A/C and X's new slot
-      // after the second real event insert failed; the full rollback snapshot failed.
       const decision = db.transaction((tx) =>
         retryMutationIn(tx, ask, preflight, ({ projectId }) => finished.add(projectId)),
       );
+      // Proof: injecting COMMIT/BEGIN after this mutation and before event
+      // recording left deleted A/C, X's PRI queue and recovery audit after
+      // the second real event insert failed; the full rollback snapshot failed.
       const envelopes: CommittedProjectEvent[] = [];
       for (const [organizationId, oldObservation] of before) {
         // Proof: omitting these actual finished causes lost B's event when
