@@ -25,6 +25,12 @@ export type BeforeRankMove = (
   actorId: string,
 ) => Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: 'forbidden' }>;
 
+/** Fresh import write-role admission on the borrowed writer, before observation. */
+export type BeforeImport = (
+  actorId: string,
+  access: ResourceAccess,
+) => Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: 'forbidden' }>;
+
 /** Caller-addressed standalone directory act; access is supplied by the invocation. */
 export type DirectoryWriteAddress =
   | {
@@ -72,5 +78,6 @@ export interface FanoutCaptureStore {
   authorizeProjectUpdate: BeforeProjectUpdate;
   authorizeStepRemoval: BeforeStepRemoval;
   authorizeRankMove?: BeforeRankMove;
+  authorizeImport?: BeforeImport;
   resolveDirectoryWrite?: (address: DirectoryWriteAddress) => Promise<DirectoryWriteResolution>;
 }

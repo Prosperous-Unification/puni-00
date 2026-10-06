@@ -34,9 +34,17 @@ export interface ImportedPlan {
   services: ImportServices;
 }
 
-/** A mapped transaction; only composition can supply its source and graph factory. */
+/**
+ * A mapped import transaction: scoped calls recheck current authority on the
+ * borrowed writer before capture, record shared consequences with successful
+ * writes, then deliver committed rows after release. Legacy calls retain the
+ * existing raw path. Only composition supplies the source and graph factory.
+ */
 export interface ImportTransaction {
   run<T>(
+    actorId: string,
+    access: ResourceAccess,
+    forbidden: T,
     broadcast: Broadcaster,
     act: (plan: ImportedPlan) => Promise<ImportDecision<T>>,
   ): Promise<T>;

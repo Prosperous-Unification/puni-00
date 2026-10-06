@@ -279,7 +279,7 @@ compares both directions`, `directory edit has causes without project-row edits`
       and `repeated finish records nothing`. R5: omit import binding, record at delete request
       only, drop old closure after delete, omit one release/reconcile path and record outside
       the final transaction. Space membership removal must not masquerade as project deletion.
-- [ ] 6j.a. **Import owner first.** Follow [6j architecture](6j-architecture.md): carry original
+- [x] 6j.a. **Import owner first.** Follow [6j architecture](6j-architecture.md): carry original
       actor/access, recheck current organization write authority before capture, preserve raw
       borrowed import graph, capture once around complete success and record before commit.
       Prove real tied-creation-order import displacement/pairs, shared-person tail events only to

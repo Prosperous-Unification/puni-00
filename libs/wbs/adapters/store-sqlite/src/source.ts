@@ -11,6 +11,7 @@ import {
   openReadOnlyConnection,
 } from './db';
 import {
+  authorizeImportIn,
   authorizeProjectFanoutIn,
   authorizeRankMoveIn,
   authorizeStepFanoutIn,
@@ -123,6 +124,9 @@ function openSqliteSourceWithSeams(
             authorizeProjectUpdate: authorizeProjectFanoutIn(process.db),
             authorizeStepRemoval: authorizeStepFanoutIn(process.db),
             authorizeRankMove: authorizeRankMoveIn(process.db),
+            // Proof: removing this borrowed binding made a valid mounted
+            // scoped import answer 500 before capture rather than 201.
+            authorizeImport: authorizeImportIn(process.db),
             resolveDirectoryWrite: (address) =>
               resolveDirectoryWriteIn(process.db, admitted.directory, address),
           },

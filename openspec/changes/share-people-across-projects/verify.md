@@ -2087,3 +2087,101 @@ Amended planning validation repeated the pinned strict command (1/1) and all com
 `/tmp/shared-people-6j-plan-review-all.json`. Four changed Markdown files passed Prettier
 check and `git diff --check` exited 0. Final-byte checks are repeated before local commit;
 no product tests or host gate are claimed by this amendment.
+
+## 6j.a borrowed import owner implementation (2026-10-06)
+
+The installed scoped import now carries the original actor and access into its one
+borrowed SQLite writer. It validates the current stored role before observation or
+directory enumeration. Missing scoped authority/capture or delivery is an error;
+explicit legacy imports retain the raw path. A successful import observes the
+organization before its first write and after its last label, records actual
+recipient/cause rows in the same UoW, releases the writer, delivers the committed
+envelopes, then drains ordinary import announcements. No 6j.b–f owner changed.
+
+Mounted TDD RED: `bun test apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts -t 'records the imported earlier project displacing a tied lower project'`
+failed only at the durable `(B,A)` assertion, received `[]` after confirmed rank
+`[A,B]` and displayed B earliestStart `0→1`
+(`/tmp/shared-people-6ja-import-mounted-red.log`). Corrected production binding
+passed 1/1, 9 assertions (`/tmp/shared-people-6ja-import-mounted-green-try2.log`).
+The first GREEN attempt failed at DI resolution because `committedFanout` was not
+registered (`/tmp/shared-people-6ja-import-mounted-green-try1.log`); the installer
+provider was added before the passing rerun.
+
+Mounted positive/refusal boundaries:
+
+- Two existing tied lower projects plus earlier imported A produce three actual
+  rows `(B,A),(C,A),(C,B)`, not a manufactured pair; control 1/1
+  (`/tmp/shared-people-6ja-two-pair-control-green.log`). A later tail import
+  produces only the new recipient `(A,B)`, while an unused-person import is
+  wholly silent (`/tmp/shared-people-6ja-tail-green-try1.log`,
+  `/tmp/shared-people-6ja-unused-green-try1.log`).
+- A queued import whose role changes to viewer or whose membership is removed
+  returns typed 403, capture count zero and no project/event row. A malformed
+  trusted role injected past the SQLite CHECK constraint throws HTTP 500 from
+  borrowed role validation, also capture zero and no writes. Matrix 3/3,
+  12 assertions (`/tmp/shared-people-6ja-queued-authority-matrix-green.log`).
+  A scoped in-memory source without transactional authority throws before any
+  write/announcement (`/tmp/shared-people-6ja-missing-scoped-capability-green-try1.log`).
+- An installed late `source_refused` from a real missing tag returns typed 409
+  `workItems[0]/unknown_tag`, rolls back every user table, invokes only the
+  before capture and pushes nothing (`/tmp/shared-people-6ja-typed-late-refusal-green2.log`).
+  Injected before- and after-capture exceptions return HTTP 500 with complete
+  state equality and no push; the after fault observes both captures after
+  directory/project writes (`/tmp/shared-people-6ja-before-capture-failure-green.log`,
+  `/tmp/shared-people-6ja-after-capture-failure-green.log`).
+- A trigger refuses C's real event insert only after B's first event insert.
+  HTTP 500 leaves all user tables, including ownership, optimizer rows,
+  `event_log` and `event_sequencer`, byte-equal to pre-import, with zero push
+  (`/tmp/shared-people-6ja-second-event-rollback-green.log`). A terminal
+  gateway 400 after successful commit leaves the imported project and durable
+  event row intact, with one event push attempt and no import retry
+  (`/tmp/shared-people-6ja-postcommit-push-green-try1.log`).
+- A valid import with directory reconciliation uses one borrowed UoW and two
+  captures (`/tmp/shared-people-6ja-single-owner-green-try1.log`).
+
+Watched R5 source mutations, each independently restored before GREEN:
+
+| Injected production fault                                       | Mounted RED                                                                                                                   | Restored GREEN                                                          |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Installer `committedFanout` provider returns `undefined`        | Tied import 201→500; `/tmp/shared-people-6ja-r5-installer-omission-red.log`                                                   | `/tmp/shared-people-6ja-r5-installer-restored-green.log`                |
+| Composition omits delivery binding                              | Tied import 201→500; `/tmp/shared-people-6ja-r5-composition-omission-red.log`                                                 | `/tmp/shared-people-6ja-r5-composition-restored-green.log`              |
+| Borrowed source omits `authorizeImport`                         | Tied import 201→500 before observation; `/tmp/shared-people-6ja-r5-owner-omission-red.log`                                    | `/tmp/shared-people-6ja-r5-owner-restored-green.log`                    |
+| Borrowed authority admits unconditionally                       | Queued viewer 403→201; `/tmp/shared-people-6ja-r5-authority-omission-red.log`                                                 | `/tmp/shared-people-6ja-r5-authority-restored-green.log`                |
+| Stored role validation replaced by admin                        | Malformed role 500→201; `/tmp/shared-people-6ja-r5-role-validation-omission-red.log`                                          | Same restored authority matrix above                                    |
+| Capture moved before authority                                  | Refused viewer capture count 0→1; `/tmp/shared-people-6ja-r5-observe-before-authority-red.log`                                | Same restored authority matrix above                                    |
+| Public standalone directory wrapper replaces raw borrowed graph | Mounted import rejects at bounded nested-owner assertion; `/tmp/shared-people-6ja-r5-public-directory-wrapper-red-assert.log` | `/tmp/shared-people-6ja-r5-public-directory-wrapper-restored-green.log` |
+| After capture replaced by before                                | Real `(B,A)` row becomes `[]`; `/tmp/shared-people-6ja-r5-after-capture-omission-red.log`                                     | Tied import restored GREEN above                                        |
+| Transactional fan-out record omitted                            | Real `(B,A)` row becomes `[]`; `/tmp/shared-people-6ja-r5-record-omission-red.log`                                            | Tied import restored GREEN above                                        |
+
+The first parallel Nx run lacked any task summary despite exit 0 and is not
+counted (`/tmp/shared-people-6ja-nx-lint-type-try1.log`). The next run failed
+at actual core `CapturedFanout|undefined` typing, incomplete module DI fixture,
+and changed-file lint (`/tmp/shared-people-6ja-nx-lint-type-try2.log`); its
+follow-up still found a typed test event shape and lint findings
+(`/tmp/shared-people-6ja-nx-lint-type-final-try1.log`). Those source/test
+findings were corrected. Exact final changed-byte suites and targets follow.
+
+Final changed-byte mounted/core suite: `bun test` over
+`import-export-organization.controller.db.test.ts`, `plan-import/module.test.ts`,
+`fanout-capture.db.test.ts`, and `shared-people-fanout.test.ts` passed 94/94 with
+409 assertions (`/tmp/shared-people-6ja-import-fourfile-final-try4.log`). A prior
+core lint rerun failed on an import-order rule and an incorrectly typed test
+assertion (`/tmp/shared-people-6ja-final-wbs-core-lint.log`); both were corrected
+before this passing suite.
+
+Sequential declared Nx targets on the corrected tree passed: `wbs-core:lint`,
+`wbs-store-sqlite:lint`, `wbs-be-01:lint`, `wbs-core:typecheck`,
+`wbs-store-sqlite:typecheck`, `wbs-be-01:typecheck`,
+`wbs-core:build:portable`, and `wbs-be-01:build`. Each ran with
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false`; exact logs are
+`/tmp/shared-people-6ja-final2-<target-with-hyphens>.log`. The store lint was
+an Nx cache hit; the other listed lint and typecheck targets executed locally.
+
+Final `bunx prettier --check` of all 12 changed paths passed
+(`/tmp/shared-people-6ja-final2-prettier.log`). Pinned
+`@fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`
+passed 1/1 and `validate --all --json` passed 148/148
+(`/tmp/shared-people-6ja-final2-openspec-strict.json`,
+`/tmp/shared-people-6ja-final2-openspec-all.json`). `git diff --check` passed.
+These are local focused checks; no exact-SHA host gate, CI, push, merge or
+activation was run for 6j.a.

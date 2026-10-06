@@ -5,7 +5,7 @@ import { DiBag } from 'di-bag';
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
-import { LEGACY_ACCESS } from '../../ports/organization-access';
+import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scope } from '../../ports/unit-of-work';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
@@ -67,6 +67,7 @@ const completeHost = () =>
           }),
         { factoryReturnKind: 'sync-value' },
       ),
+      committedFanout: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     })
     .buildContainer();
 
@@ -113,6 +114,25 @@ describe('the Plan import module', () => {
     expect(
       announcements.published.some((entry) => entry.event.type === 'project_settings_changed'),
     ).toBe(true);
+  });
+
+  it('refuses a scoped source without borrowed import authority before any write', async () => {
+    const source = openMemorySource();
+    const announcements = recordingBroadcaster();
+    const { imports } = installPlanImport({ ...requirements(), uow: source.uow, announcements });
+    const access: ResourceAccess = {
+      kind: 'scoped',
+      scope: { organizationId: 'org-a', userId: 'importer', role: 'member' },
+    };
+
+    const refused: unknown = await imports
+      .import(planDocumentFixture(), 'importer', access)
+      .catch((failure: unknown) => failure);
+    expect(refused).toBeInstanceOf(Error);
+    if (!(refused instanceof Error)) throw new Error('missing scoped authority did not throw');
+    expect(refused.message).toBe('scoped import lacks borrowed authority or fan-out delivery');
+    expect(await source.stores.projects.list()).toEqual([]);
+    expect(announcements.published).toEqual([]);
   });
 
   /**

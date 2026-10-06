@@ -358,8 +358,13 @@ export function composeServices(
       scheduler: runtime.scheduler,
       uow: source.uow,
       announcements,
+      // Proof: dropping this binding made the mounted tied import answer 500
+      // instead of recording (B,A); watched in 6j.a.
+      committedFanout,
       // An import writes only the project it creates for its importer, whom
       // the creator rule admits.
+      // Proof: replacing this borrowed directory with the public standalone
+      // wrapper made the mounted import hit its bounded nested-owner refusal.
       batchServices: (scope, broadcast) => batch(scope, broadcast, CREATOR_ADMISSION),
     }).imports,
     commands: installPlanCommands({
