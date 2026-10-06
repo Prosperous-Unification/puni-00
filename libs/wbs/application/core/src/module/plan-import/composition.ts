@@ -40,58 +40,53 @@ function importTransaction(
       broadcast: Broadcaster,
       act: (plan: ImportedPlan) => Promise<ImportDecision<T>>,
     ): Promise<T> => {
-      const settled = await uow.run<{ value: T; events: readonly CommittedProjectEvent[] }>(
-        async (scope) => {
-          const capture = scope.fanoutCapture;
-          if (access.kind === 'scoped') {
-            // Proof: omitting authorizeImport from the borrowed source made
-            // the mounted scoped import answer 500 before any capture/write.
-            if (capture?.authorizeImport === undefined || delivery === undefined)
-              throw new Error('scoped import lacks borrowed authority or fan-out delivery');
-            // Proof: moving this below capture invokes the throwing capture spy after
-            // a queued membership demotion instead of returning typed forbidden.
-            const authority = await capture.authorizeImport(actorId, access);
-            if (!authority.ok)
-              return {
-                commit: false as const,
-                value: {
-                  value: forbidden,
-                  events: [],
-                },
-              };
-          }
-          const before =
-            access.kind === 'scoped' ? await capture?.capture(access.scope.organizationId) : null;
-          if (access.kind === 'scoped' && before === undefined)
-            throw new Error('scoped import lacks borrowed before capture');
+      const settled = await uow.run<{
+        value: T;
+        delivery: {
+          events: readonly CommittedProjectEvent[];
+          transport: CommittedFanoutDelivery;
+        } | null;
+      }>(async (scope) => {
+        if (access.kind === 'legacy') {
           const decision = await act({
             writes: new ImportedPlanResource(scope),
             services: graphOver(scope, broadcast),
           });
-          if (!decision.commit)
-            return { commit: false as const, value: { value: decision.value, events: [] } };
-          if (access.kind === 'legacy')
-            return { commit: true as const, value: { value: decision.value, events: [] } };
-          if (
-            before === null ||
-            before === undefined ||
-            capture === undefined ||
-            delivery === undefined
-          )
-            throw new Error('scoped import lost borrowed fan-out capture');
-          const after = await capture.capture(access.scope.organizationId);
-          // Proof: reusing before as after lost the mounted (B,A) event;
-          // omitting this record likewise left the durable event list empty.
-          const events = await recordCommittedFanout(scope.stores.eventLog, before, after, () =>
-            delivery.now(),
-          );
-          return { commit: true as const, value: { value: decision.value, events } };
-        },
-      );
-      if (settled.events.length > 0) {
-        if (delivery === undefined) throw new Error('committed import lost fan-out delivery');
-        await delivery.deliverCommitted(settled.events);
-      }
+          return {
+            commit: decision.commit,
+            value: { value: decision.value, delivery: null },
+          };
+        }
+        const capture = scope.fanoutCapture;
+        // Proof: omitting authorizeImport from the borrowed source made
+        // the mounted scoped import answer 500 before any capture/write.
+        if (capture?.authorizeImport === undefined || delivery === undefined)
+          throw new Error('scoped import lacks borrowed authority or fan-out delivery');
+        // Proof: moving this below capture invokes the throwing capture spy after
+        // a queued membership demotion instead of returning typed forbidden.
+        const authority = await capture.authorizeImport(actorId, access);
+        if (!authority.ok)
+          return { commit: false as const, value: { value: forbidden, delivery: null } };
+        const before = await capture.capture(access.scope.organizationId);
+        const decision = await act({
+          writes: new ImportedPlanResource(scope),
+          services: graphOver(scope, broadcast),
+        });
+        if (!decision.commit)
+          return { commit: false as const, value: { value: decision.value, delivery: null } };
+        const after = await capture.capture(access.scope.organizationId);
+        // Proof: reusing before as after lost the mounted (B,A) event;
+        // omitting this record likewise left the durable event list empty.
+        const events = await recordCommittedFanout(scope.stores.eventLog, before, after, () =>
+          delivery.now(),
+        );
+        return {
+          commit: true as const,
+          value: { value: decision.value, delivery: { events, transport: delivery } },
+        };
+      });
+      if (settled.delivery !== null && settled.delivery.events.length > 0)
+        await settled.delivery.transport.deliverCommitted(settled.delivery.events);
       return settled.value;
     },
   };

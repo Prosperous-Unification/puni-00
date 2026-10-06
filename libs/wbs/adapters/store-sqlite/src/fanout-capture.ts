@@ -42,6 +42,8 @@ export function authorizeImportIn(db: Drizzle): BeforeImport {
         ),
       )
       .get();
+    // Proof: admitting a missing membership let a queued removed member's
+    // mounted import return 201 instead of the typed 403.
     if (membership === undefined) return Promise.resolve({ ok: false, reason: 'forbidden' });
     // Proof: replacing validation with admin let a queued malformed role
     // import return 201 instead of surfacing trusted corruption as 500.

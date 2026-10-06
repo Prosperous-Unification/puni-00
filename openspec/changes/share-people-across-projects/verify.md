@@ -2161,10 +2161,15 @@ follow-up still found a typed test event shape and lint findings
 (`/tmp/shared-people-6ja-nx-lint-type-final-try1.log`). Those source/test
 findings were corrected. Exact final changed-byte suites and targets follow.
 
-Final changed-byte mounted/core suite: `bun test` over
-`import-export-organization.controller.db.test.ts`, `plan-import/module.test.ts`,
-`fanout-capture.db.test.ts`, and `shared-people-fanout.test.ts` passed 94/94 with
-409 assertions (`/tmp/shared-people-6ja-import-fourfile-final-try4.log`). A prior
+Final changed-byte import suite: `bun test` over
+`apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts`,
+`libs/wbs/adapters/store-sqlite/src/import.service.db.test.ts`,
+`libs/wbs/adapters/store-memory/src/import.service.test.ts`, and
+`libs/wbs/application/core/src/module/plan-import/module.test.ts` passed 94/94
+with 409 assertions (`/tmp/shared-people-6ja-import-fourfile-final-try4.log`).
+The separate fan-out-capture/shared-fan-out suite with the controller and module
+tests passed 52/52 with 164 assertions in Astra's independent review; those are
+distinct file sets, and the counts are not combined. A prior
 core lint rerun failed on an import-order rule and an incorrectly typed test
 assertion (`/tmp/shared-people-6ja-final-wbs-core-lint.log`); both were corrected
 before this passing suite.
@@ -2185,3 +2190,25 @@ passed 1/1 and `validate --all --json` passed 148/148
 `/tmp/shared-people-6ja-final2-openspec-all.json`). `git diff --check` passed.
 These are local focused checks; no exact-SHA host gate, CI, push, merge or
 activation was run for 6j.a.
+
+Astra's first review found the import-suite filenames above misattributed and
+three impossible nullable guards in the scoped/legacy transaction flow. The
+flow now branches on legacy before any capture/authority work and returns the
+committed delivery capability with scoped events, removing those guards while
+preserving the borrowed writer and postcommit delivery boundary. The separate
+missing-membership R5 fault changed only `authorizeImportIn`'s absent-membership
+return to success: the queued removed-member mounted test answered 201 instead
+of typed 403 (`/tmp/shared-people-6ja-r5-missing-membership-omission-red.log`).
+Restoring it passed 1/1, four assertions
+(`/tmp/shared-people-6ja-r5-missing-membership-restored-green.log`); an adjacent
+`Proof:` names that fault. Final changed-byte check results after this review
+correction follow.
+
+On the corrected source, the import four-file command listed above passed
+94/94, 409 assertions (`/tmp/shared-people-6ja-review-final-import-fourfile.log`),
+and the distinct controller/module/fanout-capture/shared-fanout four-file
+command passed 52/52, 164 assertions
+(`/tmp/shared-people-6ja-review-final-fanout-fourfile.log`). The eight declared
+core/store/backend lint, typecheck and build targets passed sequentially with
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false`; exact logs are
+`/tmp/shared-people-6ja-review-final-<target-with-hyphens>.log`.
