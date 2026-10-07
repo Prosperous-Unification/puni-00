@@ -107,6 +107,8 @@ must not be confused with a foreign base repository. Never infer an allowed sour
 arbitrary clone/download URL. Trusted snapshot acquisition remains a later adapter.
 
 Pagination has finite page/entry/time bounds, validated origin and monotonic continuation.
+The bounded source port requires a trusted 1–60,000 ms read deadline; the adapter
+passes an abort signal and rejects by its own timer even if a reader ignores it.
 Refuse repeated/conflicting pages, malformed links and incomplete traversal; never send a
 credential to an arbitrary continuation URL. Complete validation before returning discovery
 so a truncated page set cannot masquerade as an empty successful inventory. A successful

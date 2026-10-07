@@ -52,6 +52,7 @@ function fixture() {
     policyIdentity: '3'.repeat(64),
     mappingIdentity: '4'.repeat(64),
     toolkitIdentity: '5'.repeat(64),
+    readDeadlineMs: 1000,
   };
   const pull = {
     number: 282,
@@ -97,6 +98,22 @@ async function expectRefusal(read: () => Promise<unknown>, message?: string): Pr
   if (message !== undefined) expect(String(caught)).toContain(message);
 }
 
+async function finishWithin<T>(read: Promise<T>, milliseconds: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      read,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error('test watchdog expired'));
+        }, milliseconds);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 test('timer discovers a ready PR but commits only a fresh exact current read', async () => {
   const source = fixture();
   const reads: string[] = [];
@@ -131,6 +148,90 @@ test('timer discovers a ready PR but commits only a fresh exact current read', a
     expect(reconciled).toHaveLength(1);
     expect(reconciled[0]?.headSha).toBe('9'.repeat(40));
     expect(controller.listRequests()).toHaveLength(1);
+  } finally {
+    controller.close();
+  }
+});
+
+for (const operation of ['list', 'get'] as const) {
+  test(`a hanging ${operation} read has a finite deadline and aborts the source request`, async () => {
+    const source = fixture();
+    source.binding.readDeadlineMs = 30;
+    const signals: AbortSignal[] = [];
+    const hanging = new Promise<unknown>(() => undefined);
+    const controller = controllerFor(source, {
+      listOpenPullRequests: (_owner, _name, _page, signal) => {
+        if (operation === 'list') {
+          signals.push(signal);
+          return hanging;
+        }
+        return Promise.resolve({ pulls: [source.pull], nextPage: null });
+      },
+      getPullRequest: (_owner, _name, _number, signal) => {
+        signals.push(signal);
+        return operation === 'get' ? hanging : Promise.resolve(source.pull);
+      },
+    });
+    try {
+      await expectRefusal(
+        () => finishWithin(controller.reconcileReady(), 300),
+        'GitHub PR read deadline exceeded',
+      );
+      expect(signals).toHaveLength(1);
+      expect(signals[0]?.aborted).toBe(true);
+      expect(controller.listRequests()).toEqual([]);
+    } finally {
+      controller.close();
+    }
+  });
+}
+
+test('trusted PR read deadline is finite and capped before a provider call', () => {
+  const source = fixture();
+  source.binding.readDeadlineMs = 60_001;
+  let reads = 0;
+  expect(() =>
+    controllerFor(source, {
+      listOpenPullRequests: () => {
+        reads += 1;
+        return Promise.resolve({ pulls: [], nextPage: null });
+      },
+      getPullRequest: () => {
+        reads += 1;
+        return Promise.resolve(source.pull);
+      },
+    }),
+  ).toThrow('GitHub PR read deadline exceeds limit');
+  expect(reads).toBe(0);
+});
+
+test('whole-list deadline refuses before reading another page after costly validation', async () => {
+  const source = fixture();
+  source.binding.readDeadlineMs = 10;
+  let laterPages = 0;
+  const controller = controllerFor(source, {
+    listOpenPullRequests: (_owner, _name, page) => {
+      if (page === 1) {
+        return Promise.resolve({
+          get pulls() {
+            const until = performance.now() + 20;
+            while (performance.now() < until) {
+              /* consume the already-authorized validation budget */
+            }
+            return [];
+          },
+          nextPage: 2,
+        });
+      }
+      laterPages += 1;
+      return Promise.resolve({ pulls: [], nextPage: null });
+    },
+    getPullRequest: () => Promise.resolve(source.pull),
+  });
+  try {
+    await expectRefusal(() => controller.reconcileReady(), 'GitHub PR read deadline exceeded');
+    expect(laterPages).toBe(0);
+    expect(controller.listRequests()).toEqual([]);
   } finally {
     controller.close();
   }
@@ -245,6 +346,123 @@ test('head/base movement, retargeting, and returning tuple preserve subject gene
   }
 });
 
+test('two owners refetch a held old PR response after a newer head commits', async () => {
+  const source = fixture();
+  source.binding.readDeadlineMs = 1000;
+  const newer = { ...source.pull, head: { ...source.pull.head, sha: '8'.repeat(40) } };
+  let releaseOld: ((pull: unknown) => void) | undefined;
+  const heldOld = new Promise<unknown>((resolve) => {
+    releaseOld = resolve;
+  });
+  let reads = 0;
+  const first = controllerFor(source, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
+    getPullRequest: () => {
+      reads += 1;
+      return reads === 2 ? heldOld : Promise.resolve(reads === 1 ? source.pull : newer);
+    },
+  });
+  const second = controllerFor(source, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [], nextPage: null }),
+    getPullRequest: () => Promise.resolve(newer),
+  });
+  try {
+    expect(await first.reconcileReady()).toHaveLength(1);
+    const pending = first.reconcileReady();
+    if (releaseOld === undefined) throw new Error('older PR read was not held');
+    const advanced = await second.observeDelivery({
+      sourceId: 'github',
+      deliveryId: 'delivery.newer',
+      payloadDigest: 'b'.repeat(64),
+      repositoryId: source.binding.repositoryId,
+      subject: { kind: 'pull-request', number: source.pull.number },
+    });
+    if (advanced === undefined) throw new Error('newer PR was not observed');
+    releaseOld(source.pull);
+    const reconciled = await pending;
+    expect(reconciled[0]?.requestIdentity).toBe(advanced.requestIdentity);
+    expect(reconciled[0]?.headSha).toBe(newer.head.sha);
+    expect(reads).toBe(3);
+    expect(first.listRequests()).toHaveLength(2);
+  } finally {
+    first.close();
+    second.close();
+  }
+});
+
+test('three competing observations exhaust the bounded source-version retry', async () => {
+  const source = fixture();
+  source.binding.readDeadlineMs = 1000;
+  let competing = source.pull;
+  const second = controllerFor(source, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [], nextPage: null }),
+    getPullRequest: () => Promise.resolve(competing),
+  });
+  let reads = 0;
+  const first = controllerFor(source, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
+    getPullRequest: async () => {
+      reads += 1;
+      competing = {
+        ...source.pull,
+        head: { ...source.pull.head, sha: String(reads).repeat(40) },
+      };
+      await second.observeDelivery({
+        sourceId: 'github',
+        deliveryId: `delivery.competing.${String(reads)}`,
+        payloadDigest: String(reads).repeat(64),
+        repositoryId: source.binding.repositoryId,
+        subject: { kind: 'pull-request', number: source.pull.number },
+      });
+      return source.pull;
+    },
+  });
+  try {
+    await expectRefusal(
+      () => first.reconcileReady(),
+      'authoritative subject observation did not converge',
+    );
+    expect(reads).toBe(3);
+    expect(first.listRequests()).toHaveLength(3);
+    expect(first.listRequests().filter((request) => request.current)).toHaveLength(1);
+  } finally {
+    first.close();
+    second.close();
+  }
+});
+
+test('draft retirement and ready return survive controller restart with new generation', async () => {
+  const source = fixture();
+  let current = source.pull;
+  const reader = {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [current], nextPage: null }),
+    getPullRequest: () => Promise.resolve(current),
+  };
+  const first = controllerFor(source, reader);
+  let firstIdentity: string;
+  let firstGeneration: number;
+  try {
+    const initial = (await first.reconcileReady())[0];
+    firstIdentity = initial.requestIdentity;
+    firstGeneration = initial.auditGeneration;
+    current = { ...source.pull, draft: true };
+    expect(await first.reconcileReady()).toEqual([]);
+    expect(first.listRequests()[0]?.stage).toBe('superseded');
+  } finally {
+    first.close();
+  }
+  const reopened = controllerFor(source, reader);
+  try {
+    current = source.pull;
+    const returned = (await reopened.reconcileReady())[0];
+    expect(returned.requestIdentity).not.toBe(firstIdentity);
+    expect(returned.auditGeneration).toBe(firstGeneration + 1);
+    expect(reopened.listRequests()).toHaveLength(2);
+  } finally {
+    reopened.close();
+  }
+});
+
 for (const [name, listed] of [
   [
     'foreign base repository',
@@ -295,6 +513,76 @@ test('current read refuses another PR number without changing the active request
     substituted = true;
     await expectRefusal(() => controller.reconcileReady(), 'GitHub PR read differs from subject');
     expect(controller.listRequests()).toEqual(before);
+  } finally {
+    controller.close();
+  }
+});
+
+for (const [field, malformed] of [
+  [
+    'head.sha',
+    (pull: ReturnType<typeof fixture>['pull']) => ({
+      ...pull,
+      head: { ...pull.head, sha: 'invalid' },
+    }),
+  ],
+  [
+    'base.sha',
+    (pull: ReturnType<typeof fixture>['pull']) => ({
+      ...pull,
+      base: { ...pull.base, sha: 'invalid' },
+    }),
+  ],
+] as const) {
+  test(`malformed consumed ${field} refuses at the source before a durable write`, async () => {
+    const source = fixture();
+    const controller = controllerFor(source, {
+      listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
+      getPullRequest: () => Promise.resolve(malformed(source.pull)),
+    });
+    try {
+      await expectRefusal(() => controller.reconcileReady(), field);
+      expect(controller.listRequests()).toEqual([]);
+    } finally {
+      controller.close();
+    }
+  });
+}
+
+test('unsupported merge-group locator refuses before the GitHub reader is called', async () => {
+  const source = fixture();
+  let reads = 0;
+  const controller = controllerFor(source, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [], nextPage: null }),
+    getPullRequest: () => {
+      reads += 1;
+      return Promise.resolve(source.pull);
+    },
+  });
+  try {
+    await expectRefusal(
+      () =>
+        controller.observeDelivery({
+          sourceId: 'github',
+          deliveryId: 'delivery.group.only',
+          payloadDigest: 'c'.repeat(64),
+          repositoryId: source.binding.repositoryId,
+          subject: {
+            kind: 'merge-group',
+            groupRef: 'refs/heads/gh-read-only-queue/main',
+            members: [
+              {
+                repositoryId: source.binding.repositoryId,
+                pullRequestNumber: source.pull.number,
+                headSha: source.pull.head.sha,
+              },
+            ],
+          },
+        }),
+      'GitHub source cannot observe this repository subject',
+    );
+    expect(reads).toBe(0);
+    expect(controller.listRequests()).toEqual([]);
   } finally {
     controller.close();
   }

@@ -1860,3 +1860,52 @@ printed `Successfully ran target`, exit 0. Pinned OpenSpec strict validated
 (`/tmp/activation-github-source-{strict,all}.json`). Changed-path Prettier
 and `git diff --check` exited 0. The h2puni host gate, CI, live GitHub API
 transport, webhook signature validation, and deployed timer remain unrun.
+
+### 1.2 PR source correction after exact-SHA review
+
+The earlier `836660f27383c31b8cedc29083be927793500f3c` review found three
+bounded gaps: provider reads could hang, the adapter had no two-owner/restart
+composition witnesses, and malformed consumed head/base plus unsupported-kind
+checks lacked independent mounted omissions. The correction adds a required
+trusted `readDeadlineMs` (1–60,000 ms), a whole-list deadline and a current-read
+deadline. The reader receives an abort signal; the adapter's own timer rejects
+even when the reader ignores it. No provider await holds a SQLite transaction.
+
+Mounted tests now cover hanging list and current reads; two owners with a held
+old PR read and newer committed head; three successive competing writes
+exhausting the owner's exact retry bound; draft retirement and ready return
+across controller close/reopen; and independently malformed consumed head/base
+SHAs and a merge-group locator. The first draft/restart fixture expected
+generation 2, but the pinned authority began at generation 3. That expectation
+was disqualified and corrected to assert a one-generation increase over the
+observed first request.
+
+The correction watch used `/tmp/activation-github-source-correction-watch.py`.
+For each row it changed only the named production expression, ran the matching
+mounted `bun test -t '<name>' src/activation-controller/github-source.db.test.ts`,
+restored exact source bytes, and reran the same test. Complete command, exit,
+and assertion outputs are retained at
+`/tmp/activation-github-source-correction-<watch>-{red,green}.log`. All nine
+RED runs exited 1; all restored GREEN runs exited 0; both touched source files
+were byte-for-byte restored after the watches.
+
+| Watch               | Injected omission and observed RED                                                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pre_read_deadline` | Omitted the pre-read guard after page-one validation consumed the whole-list budget; the tick returned success after reading another page instead of refusing.                             |
+| `deadline`          | Delayed the source timer by 10 seconds; hanging list and get hit the test watchdog at 300 ms instead of the required source deadline.                                                      |
+| `abort`             | Removed `aborter.abort()`; both reads refused by deadline but their signals remained un-aborted. This proves transport cancellation, not the rejection timer.                              |
+| `deadline_cap`      | Removed the 60-second configuration cap; a 60,001 ms binding created a controller instead of refusing before any reader call.                                                              |
+| `head_schema`       | Broadened consumed `head.sha` to string; malformed bytes reached the later request parser, changing the named source refusal. No authority was granted.                                    |
+| `base_schema`       | Broadened consumed `base.sha` to string; malformed bytes reached the later request parser, changing the named source refusal. No authority was granted.                                    |
+| `unsupported_kind`  | Removed only the merge-group predicate; the PR reader was called with an unsupported locator and a later PR-number guard refused. This proves the credential-read boundary, not admission. |
+| `held_version`      | Removed the controller's subject-version comparison; held old A replaced newer B instead of refetching, failing exact committed request identity.                                          |
+| `retry_bound`       | Extended the owner loop from three to four; the contention test observed four reads rather than the required three.                                                                        |
+
+On final bytes, the corrected five-file mounted suite passed **454/454**,
+1,937 assertions (`/tmp/activation-github-correction-final2-five.log`). Uncached
+Nx `lint:source`, `typecheck`, and `build` each printed `Successfully ran target`,
+exit 0. Direct test typecheck also exited 0. Pinned OpenSpec strict passed 1/1
+and all passed 143/143, zero failures
+(`/tmp/activation-github-correction-final2-{strict,all}.json`). These are local
+synthetic source checks. Live GitHub transport/authentication, signed webhook,
+deployed timer, host gate, CI and full task 1.2 acceptance remain open.

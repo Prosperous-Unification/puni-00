@@ -1356,6 +1356,8 @@ export class ActivationController {
     delivery?: ObservedDelivery,
   ): Promise<ActivationRequest | undefined> {
     const key = subjectKey(subject);
+    // Proof: extending this bound to four reads failed the mounted three-attempt contention
+    // assertion; the source-version fence below still refused each stale attempt.
     for (let observationAttempt = 0; observationAttempt < 3; observationAttempt += 1) {
       const observedVersion = this.#subjectVersion(repositoryId, key);
       const authoritative = await this.options.currentCandidate(repositoryId, subject);
