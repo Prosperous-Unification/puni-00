@@ -1727,6 +1727,28 @@ Read-only inspection cannot verify a writable cgroup quota leaf, policy
 contents, or FD/mount denial, so no `available` production-path claim or
 candidate-run sentinel proof is made.
 
+The retained omission command for each row was `bun
+/tmp/activation-b2-mutation.ts <name> >
+/tmp/activation-b2-r5-<name>-red.log 2>&1`. That local harness removes only
+the named tuple entry in `assessWorkerCapability`, runs `bun test
+tools/worker-isolation/capability.test.ts`, reports its exit, and restores
+the exact source bytes in `finally`. Each restored run was `bun test
+tools/worker-isolation/capability.test.ts >
+/tmp/activation-b2-r5-<name>-green.log 2>&1`. These retained files have
+the complete assertion diff and Bun summary:
+
+| `<name>`    | Removed production guard | Named RED assertion                                                                                                                                              | RED / restored GREEN      |
+| ----------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `namespace` | namespace evidence tuple | `reports all missing controls without treating an unknown namespace as success`: expected `namespace-probe: EPERM` disappears                                    | exit 1, 3/4 / exit 0, 4/4 |
+| `cgroup`    | cgroup evidence tuple    | `does not promote namespace success when cgroup delegation is missing`: expected `cgroup-delegation: no delegated quota subtree`, received `available`           | exit 1, 2/4 / exit 0, 4/4 |
+| `apparmor`  | AppArmor evidence tuple  | `does not promote namespace success when AppArmor is unconfined`: expected `apparmor-profile: unconfined`, received `available`                                  | exit 1, 2/4 / exit 0, 4/4 |
+| `fdmount`   | FD/mount evidence tuple  | `does not promote namespace success when FD and mount isolation is unproven`: expected `fd-mount-support: no exact-profile sentinel proof`, received `available` | exit 1, 2/4 / exit 0, 4/4 |
+
+The committed and post-watch restored source SHA-256 is
+`15bc0398af3481f65b8b4cb3e31e1cc51f625dfae3a8e0f6531d35a63c3ea84c`;
+`git status --short` was empty after all watches. These logs test the
+readiness classifier only and do not run a host probe or selected command.
+
 On the final source bytes, the dedicated Bun suite passed **4/4**, four
 assertions, exit 0; `bunx tsc --noEmit -p
 tools/worker-isolation/tsconfig.json` and `bunx eslint
