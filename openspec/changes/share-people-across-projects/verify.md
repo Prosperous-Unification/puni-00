@@ -3772,3 +3772,99 @@ changed-path Prettier and `git diff --check` exited 0
 (`/tmp/shared-people-6kc-{format-check,diff-check}.log`). The normal commit
 hooks and independent exact-SHA review remain pending; no host gate, CI,
 push, merge or trusted activation occurred for 6k.c.
+
+### 6k.d generation observation owner (local evidence, review pending)
+
+The installed `buildServices` observation now owns one source writer turn: borrowed
+before-capture, synchronous generation allocation plus pair/request read, borrowed
+after-capture, addressed event recording, then commit. `readPlan` registers those
+committed envelopes before consuming the returned original observation. The
+direct `createOptimizationRepository` path keeps its gated immediate transaction
+and returns `envelopes: []`; it does not perform shared fan-out. Observation,
+reservation and enqueue retain separate owners. The 6k.d checkbox remains open
+until final-byte verification and independent exact-SHA review.
+
+The mounted stale-input fixture persists selected H1/g1, captures H2, restores
+persisted H1 before the H2 observation, then observes H2 through the installed
+coordinator. It asserts selected A's booking displacement, generation g2,
+removal of H1 cache and queue, retained old-slot token with cancellation
+requested, no launch, and B's addressed `elsewhere_changed` row at seq 0.
+The equal-hash fixture preserves generation, ready pair, cache, queue and slots;
+an unselected old row removes silently. Disabled, absent, empty and zero-duration
+asks remain idle with an unchanged full snapshot and no push/launch. A held
+source writer's uncommitted generation is invisible until rollback, after which
+the composed read returns the coherent original generation/pair/objectives.
+A postcommit failed-marker write does not change that read's returned idle pair.
+Second-recipient insert and post-write-capture failures restore the full
+`lifecycleTables` snapshot with no delivery; retry records the original B seq 0.
+
+Held B transport leaves the committed observation readable and a second SQLite
+writer usable; `stop` waits for tracked delivery, then original B seq 0 remains
+replayable after the modeled HTTP 400. That HTTP 400 uses the broadcaster's
+modeled failure boundary. A separate mounted `deliverCommitted` injection proves
+both synchronous throw and rejected Promise reach coordinator `onChildError`
+without changing the committed observation or B row; rejected transport keeps
+`drain` pending until released, then it settles. The older initial-reservation
+missing-capture proof remains independently installed: the test-only
+`afterOptimizerTurn` observer arms capability omission only after the valid
+observation returns `kind: 'observed'`, so reservation itself refuses before
+reclaim. Its original error and full-state assertion pass.
+
+| Watched production fault                                    | RED log and actual failed assertion                                                                                                | Restored GREEN log                                           |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Omit installed observation binding                          | `/tmp/shared-people-6kd-installer-red.log`: B event absent                                                                         | `/tmp/shared-people-6kd-installer-restored-green.log`        |
+| Omit addressed A cause                                      | `/tmp/shared-people-6kd-cause-red.log`: B event absent                                                                             | `/tmp/shared-people-6kd-cause-restored-green.log`            |
+| Omit transactional event recording                          | `/tmp/shared-people-6kd-record-red.log`: B event absent                                                                            | `/tmp/shared-people-6kd-record-restored-green.log`           |
+| Omit observation capability refusal                         | `/tmp/shared-people-6kd-capability-guard-red.log`: modeled refusal becomes incidental property error                               | `/tmp/shared-people-6kd-capability-guard-restored-green.log` |
+| Omit reservation capability refusal after valid observation | `/tmp/shared-people-6kd-reserve-guard-red.log`: modeled reservation refusal becomes `capture.resolveLifecycleOwner` property error | `/tmp/shared-people-6kd-reserve-guard-restored-green.log`    |
+| Move raw observation before source serialization            | `/tmp/shared-people-6kd-serialization-red.log`: returned staged g2 after writer rollback to g1                                     | `/tmp/shared-people-6kd-serialization-restored-green.log`    |
+| Reuse before-capture as after                               | `/tmp/shared-people-6kd-reused-capture-red.log`: B event absent despite committed eviction                                         | `/tmp/shared-people-6kd-reused-capture-restored-green.log`   |
+| Detach after-capture to a read-only connection              | `/tmp/shared-people-6kd-detached-capture-red.log`: B event absent despite committed eviction                                       | `/tmp/shared-people-6kd-detached-capture-restored-green.log` |
+| Substitute Fast projection for selected                     | `/tmp/shared-people-6kd-fast-red.log`: A booking displacement false rather than true                                               | `/tmp/shared-people-6kd-fast-restored-green.log`             |
+| Split commit after allocation before event insertion        | `/tmp/shared-people-6kd-split-commit-red.log`: full graph/generation/cache/queue/slot snapshot differs after second insert failure | `/tmp/shared-people-6kd-split-commit-restored-green.log`     |
+| Drop committed observation envelopes at readPlan            | `/tmp/shared-people-6kd-envelope-red.log`: durable B row remains, B push absent                                                    | `/tmp/shared-people-6kd-envelope-restored-green.log`         |
+| Await transport before consuming decision                   | `/tmp/shared-people-6kd-await-transport-red.log`: bounded readPlan timeout under held B push                                       | `/tmp/shared-people-6kd-await-transport-restored-green.log`  |
+| Reread pair after preflight                                 | `/tmp/shared-people-6kd-reread-red.log`: returned failed marker instead of the original idle pair                                  | `/tmp/shared-people-6kd-reread-restored-green.log`           |
+| Omit coordinator delivery error report                      | `/tmp/shared-people-6kd-observation-report-red.log`: modeled sync/rejected error absent from sink                                  | `/tmp/shared-people-6kd-composed-error-restored-green.log`   |
+| Rethrow reported delivery failure                           | `/tmp/shared-people-6kd-observation-rethrow-red.log`: previously committed observation produces rejected/unhandled drain           | `/tmp/shared-people-6kd-composed-error-restored-green.log`   |
+
+The earlier source-turn-count fixture was replaced by the observation-completion
+hook; it was test isolation, not a production state. The initial equal-hash
+fixture without both ready objectives is disqualified because it legitimately
+scheduled missing TIME. The first three-file run's one stale reservation error
+expectation is a historical failed checkpoint, not a product failure. Blue/green
+contract scoping, older-generation eviction and retained counted slots are
+regressed by `libs/wbs/adapters/store-sqlite/src/optimization-generation.db.test.ts`
+(`two releases against one file` and `one allocation`); the direct callback-free
+generation/pair/request tuple and empty envelopes by
+`apps/wbs/be-01/src/repository/optimization.db.test.ts`'s competing-turn and
+held-writer cases. No 6k.e or activation behavior is claimed here.
+
+Final formatted-byte regression commands for this local candidate:
+
+```sh
+bun test apps/wbs/be-01/src/services.db.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts apps/wbs/be-01/src/module/optimization/module.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/service/optimization-events.db.test.ts apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-restart.db.test.ts libs/wbs/application/core/src/compose.test.ts libs/wbs/adapters/store-sqlite/src/optimization-generation.db.test.ts libs/wbs/adapters/store-sqlite/src/optimized-cache.db.test.ts --timeout=30000
+bun test apps/wbs/be-01/src/service/optimization-spawn-handshake.proc.db.test.ts --timeout=30000
+NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6kd-nx bunx nx run wbs-be-01:lint --skip-nx-cache
+NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6kd-nx bunx nx run wbs-be-01:typecheck --skip-nx-cache
+NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6kd-nx bunx nx run wbs-be-01:build --skip-nx-cache
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json
+```
+
+The eleven-file regression passed 340/340, 20,262 assertions, exit 0
+(`/tmp/shared-people-6kd-eleven-file-final.log`). The separate real-child
+spawn-handshake case passed 1/1, 13 assertions with approved process access
+(`/tmp/shared-people-6kd-spawn-proc-unsandboxed.log`). Its in-sandbox attempt
+timed out waiting for the child marker (`...spawn-proc-sandbox.log`), consistent
+with the previously diagnosed sandbox child-stdin pipe denial; it is not counted
+as passing. Direct changed-file ESLint initially found an unsafe `expect.any`
+assignment and import ordering; both were corrected, and the direct rerun exited 0. An earlier Nx lint run was failed and is excluded. Final declared
+`wbs-be-01:lint`, `wbs-be-01:typecheck` (including its module dependency),
+and `wbs-be-01:build` (including its dependency) each printed explicit Nx
+success (`/tmp/shared-people-6kd-nx-{lint,typecheck,build}-final.log`). The
+pinned OpenSpec commands passed strict 1/1 and all 149/149
+(`/tmp/shared-people-6kd-{strict,all}-final.json`). Changed-path Prettier
+passed and `git diff --check` exited 0
+(`/tmp/shared-people-6kd-{format-check,diff-check}-final.log`). No host gate,
+CI, push, merge or trusted activation was run for this local candidate.

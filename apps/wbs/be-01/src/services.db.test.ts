@@ -99,7 +99,7 @@ function bootstrap(
   },
   onFanoutCapture?: (organizationId: string) => unknown,
   pushFetch?: ServicesOptions['pushFetch'],
-  omitFanoutCapture = false,
+  omitFanoutCapture: boolean | (() => boolean) = false,
   afterOptimizerTurn?: (answer: unknown, db: ReturnType<typeof openDrizzle>) => void,
   logLines?: string[],
 ) {
@@ -132,7 +132,14 @@ function bootstrap(
             ...bound,
             uow: {
               run: <T>(act: Parameters<typeof bound.uow.run<T>>[0]) =>
-                bound.uow.run((scope) => act({ ...scope, fanoutCapture: undefined })),
+                bound.uow.run((scope) =>
+                  act(
+                    omitFanoutCapture === true ||
+                      (typeof omitFanoutCapture === 'function' && omitFanoutCapture())
+                      ? { ...scope, fanoutCapture: undefined }
+                      : scope,
+                  ),
+                ),
             },
           };
         },
@@ -1112,6 +1119,655 @@ describe('buildServices', () => {
     expect(pushUrls).toHaveLength(2);
   });
 
+  it('records selected-display eviction when an installed stale observation advances generation', async () => {
+    let launches = 0;
+    const { db, path, services, pushUrls, source } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => {
+        launches += 1;
+        return Promise.reject(new Error('stale observation reached launcher'));
+      },
+    });
+    seedSharedLifecycle(path);
+    const selected = await seedReadyRetirement(db, services, 3);
+    expect(selected.selectedStart).not.toBe(selected.fastStart);
+    const oldSlot = seedLifecycleSlot(db, selected.contractVersion, selected.generation);
+    db.run(
+      sql`UPDATE solver_slot SET admitted_deadline_at = ${Date.now() + 60_000} WHERE project_id = 'A'`,
+    );
+    db.insert(solverQueue)
+      .values({
+        projectId: 'A',
+        contractVersion: selected.contractVersion,
+        generation: selected.generation,
+        objective: 'time',
+        budgetMs: 1000,
+        admittedCancelEpoch: 0,
+        enqueuedAt: 1,
+      })
+      .run();
+    db.run(sql`UPDATE estimate SET realistic = 2 WHERE work_item_id = 'A'`);
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('H2 observation input unavailable');
+    const input = { ...captured.input, notBefore: new Map([['A', 50_000_000]]) };
+    const inputHash = scheduleInputHash(input);
+    expect(inputHash).not.toBe(selected.inputHash);
+    db.run(sql`UPDATE estimate SET realistic = 1 WHERE work_item_id = 'A'`);
+    const restored = await services.workItems.optimizationInput('A');
+    if (restored.kind !== 'scheduled') throw new Error('H1 restored input unavailable');
+    expect(scheduleInputHash(restored.input)).toBe(selected.inputHash);
+    const bound = source.bindLivePlans({
+      schedulerOf: (readCaptured) =>
+        optimizerWiring(
+          readCaptured === undefined
+            ? undefined
+            : {
+                readCaptured,
+                readLive: () => {
+                  throw new Error('live admission inside generation capture');
+                },
+              },
+        ).scheduler,
+      optimization: { contractVersion: selected.contractVersion, budgetMs: 1000, now: Date.now },
+    });
+    const captureOrganization = () =>
+      bound.uow.run(async (scope) => {
+        if (scope.fanoutCapture === undefined) throw new Error('generation capture unavailable');
+        return { commit: false, value: await scope.fanoutCapture.capture('org-a') };
+      });
+    const before = await captureOrganization();
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const observed = await optimizer.readPlan({
+      projectId: 'A',
+      objective: 'pri',
+      input,
+      enabled: true,
+    });
+    await optimizer.drain();
+    const after = await captureOrganization();
+    // Proof: replacing selected projection with Fast made this A booking
+    // displacement false even though generation 2 still evicted H1.
+    expect(
+      compareSharedPeopleFanout({
+        before: before.observation,
+        after: after.observation,
+        directCauses: ['A'],
+      }).projections.find(({ projectId }) => projectId === 'A')?.bookingsChanged,
+    ).toBe(true);
+    expect(observed.generation).toBe(selected.generation + 1);
+    expect(observed.variants.pri.state).toBe('idle');
+    expect(
+      db.all(
+        sql`SELECT generation, input_hash FROM optimization_generation WHERE project_id = 'A'`,
+      ),
+    ).toEqual([{ generation: selected.generation + 1, input_hash: inputHash }]);
+    expect(
+      db.all(sql.raw("SELECT input_hash FROM optimized_schedule_cache WHERE project_id = 'A'")),
+    ).not.toContainEqual({
+      input_hash: selected.inputHash,
+    });
+    expect(db.all(sql`SELECT generation FROM solver_queue WHERE project_id = 'A'`)).toEqual([]);
+    const retainedSlots = db.all<{
+      attempt_token: string;
+      generation: number;
+      cancel_requested_at: number | null;
+    }>(
+      sql`SELECT attempt_token, generation, cancel_requested_at FROM solver_slot WHERE project_id = 'A'`,
+    );
+    expect(
+      retainedSlots.map(({ attempt_token, generation }) => ({ attempt_token, generation })),
+    ).toEqual([
+      {
+        attempt_token: oldSlot.attemptToken,
+        generation: selected.generation,
+      },
+    ]);
+    expect(typeof retainedSlots[0]?.cancel_requested_at).toBe('number');
+    expect(launches).toBe(0);
+    expect(
+      (await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).map(
+        ({ seq, message }) => [seq, message],
+      ),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    expect(pushUrls).toHaveLength(3);
+  });
+
+  it('reuses an equal-hash selected observation without changing cache, queue or recipients', async () => {
+    let launches = 0;
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => {
+        launches += 1;
+        return Promise.reject(new Error('equal-hash observation reached launcher'));
+      },
+    });
+    seedSharedLifecycle(path);
+    const selected = await seedReadyRetirement(db, services, 3);
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('equal-hash input unavailable');
+    expect(scheduleInputHash(captured.input)).toBe(selected.inputHash);
+    const pri = db
+      .select()
+      .from(optimizedScheduleCache)
+      .where(sql`project_id = 'A' AND objective = 'pri'`)
+      .get();
+    if (pri === undefined) throw new Error('equal-hash PRI row absent');
+    db.insert(optimizedScheduleCache)
+      .values({ ...pri, objective: 'time' })
+      .run();
+    const before = lifecycleTables(db);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const observed = await optimizer.readPlan({
+      projectId: 'A',
+      objective: 'pri',
+      input: captured.input,
+      enabled: true,
+    });
+    await optimizer.drain();
+    expect(observed.generation).toBe(selected.generation);
+    expect(observed.variants.pri.state).toBe('ready');
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(pushUrls).toEqual([]);
+    expect(launches).toBe(0);
+  });
+
+  it('keeps an old unselected cache removal silent during installed generation observation', async () => {
+    const { db, path, services } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('unselected observation reached launcher')),
+    });
+    seedSharedLifecycle(path);
+    const selected = await seedReadyRetirement(db, services, 3);
+    db.run(sql`UPDATE project SET schedule_objective = 'time' WHERE id = 'A'`);
+    db.run(sql`UPDATE estimate SET realistic = 2 WHERE work_item_id = 'A'`);
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('unselected H2 input unavailable');
+    const input = { ...captured.input, notBefore: new Map([['A', 50_000_000]]) };
+    db.run(sql`UPDATE estimate SET realistic = 1 WHERE work_item_id = 'A'`);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const observed = await optimizer.readPlan({
+      projectId: 'A',
+      objective: 'time',
+      input,
+      enabled: true,
+    });
+    await optimizer.drain();
+    expect(observed.generation).toBe(selected.generation + 1);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+  });
+
+  it('refuses an installed generation observation without borrowed capture before eviction', async () => {
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('missing observation capture reached launcher')),
+      },
+      undefined,
+      undefined,
+      true,
+    );
+    seedSharedLifecycle(path);
+    await seedReadyRetirement(db, services, 3);
+    db.run(sql`UPDATE estimate SET realistic = 2 WHERE work_item_id = 'A'`);
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('missing-capability H2 input unavailable');
+    db.run(sql`UPDATE estimate SET realistic = 1 WHERE work_item_id = 'A'`);
+    const before = lifecycleTables(db);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    expect(
+      await rejectedMessage(
+        optimizer.readPlan({
+          projectId: 'A',
+          objective: 'pri',
+          input: captured.input,
+          enabled: true,
+        }),
+      ),
+    ).toContain('optimization observation lacks borrowed ownership and capture');
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(pushUrls).toEqual([]);
+  });
+
+  it('rolls back generation, cache, queue, slot cancellation and events on the second observation recipient', async () => {
+    let launches = 0;
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => {
+        launches += 1;
+        return Promise.reject(new Error('observation rollback reached launcher'));
+      },
+    });
+    seedSharedLifecycle(path, true, undefined, true);
+    const selected = await seedReadyRetirement(db, services, 3);
+    const slot = seedLifecycleSlot(db, selected.contractVersion, selected.generation);
+    db.run(
+      sql`UPDATE solver_slot SET admitted_deadline_at = ${Date.now() + 60_000} WHERE project_id = 'A'`,
+    );
+    db.insert(solverQueue)
+      .values({
+        projectId: 'A',
+        contractVersion: selected.contractVersion,
+        generation: selected.generation,
+        objective: 'time',
+        budgetMs: 1000,
+        admittedCancelEpoch: 0,
+        enqueuedAt: 1,
+      })
+      .run();
+    db.run(sql`UPDATE estimate SET realistic = 2 WHERE work_item_id = 'A'`);
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('rollback H2 input unavailable');
+    const input = { ...captured.input, notBefore: new Map([['A', 50_000_000]]) };
+    db.run(sql`UPDATE estimate SET realistic = 1 WHERE work_item_id = 'A'`);
+    const before = lifecycleTables(db);
+    db.run(
+      sql.raw(`CREATE TRIGGER reject_second_observation_recipient
+      BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:C'
+      BEGIN SELECT RAISE(ABORT, 'injected second observation recipient event'); END`),
+    );
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    expect(
+      await rejectedMessage(
+        optimizer.readPlan({ projectId: 'A', objective: 'pri', input, enabled: true }),
+      ),
+    ).toContain('project:C');
+    // Proof: splitting COMMIT after generation allocation left g2/cache and
+    // queue deletion plus slot cancellation despite the second event fault.
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(pushUrls).toEqual([]);
+    expect(launches).toBe(0);
+    db.run(sql.raw('DROP TRIGGER reject_second_observation_recipient'));
+    const observed = await optimizer.readPlan({
+      projectId: 'A',
+      objective: 'pri',
+      input,
+      enabled: true,
+    });
+    await optimizer.drain();
+    expect(observed.generation).toBe(selected.generation + 1);
+    expect(db.all(sql`SELECT attempt_token FROM solver_slot WHERE project_id = 'A'`)).toEqual([
+      { attempt_token: slot.attemptToken },
+    ]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('project:C', -1)).map(({ seq }) => seq)).toEqual([0]);
+  });
+
+  it('waits for a held source writer before returning the installed generation and pair', async () => {
+    const { db, path, services, source } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('held observation reached launcher')),
+    });
+    seedSharedLifecycle(path);
+    const selected = await seedReadyRetirement(db, services, 3);
+    const pri = db
+      .select()
+      .from(optimizedScheduleCache)
+      .where(sql`project_id = 'A' AND objective = 'pri'`)
+      .get();
+    if (pri === undefined) throw new Error('held observation PRI absent');
+    db.insert(optimizedScheduleCache)
+      .values({ ...pri, objective: 'time' })
+      .run();
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('held observation input unavailable');
+    const entered = signal();
+    const release = signal();
+    const writer = source.gate.enter(async () => {
+      db.run(sql.raw('BEGIN IMMEDIATE'));
+      db.run(
+        sql`UPDATE optimization_generation SET input_hash = 'uncommitted' WHERE project_id = 'A'`,
+      );
+      entered.resolve();
+      await release.promise;
+      db.run(sql.raw('ROLLBACK'));
+    });
+    await entered.promise;
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    let settled = false;
+    const reading = optimizer
+      .readPlan({ projectId: 'A', objective: 'pri', input: captured.input, enabled: true })
+      .then((answer) => {
+        settled = true;
+        return answer;
+      });
+    try {
+      await Bun.sleep(50);
+      expect(settled).toBe(false);
+    } finally {
+      release.resolve();
+    }
+    await writer;
+    const observed = await reading;
+    expect(observed.generation).toBe(selected.generation);
+    expect(observed.variants.pri.state).toBe('ready');
+    expect(
+      db.all(sql`SELECT input_hash FROM optimization_generation WHERE project_id = 'A'`),
+    ).toEqual([{ input_hash: selected.inputHash }]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+  });
+
+  it('keeps absent, disabled, empty and zero-duration observation branches idle and silent', async () => {
+    let launches = 0;
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => {
+        launches += 1;
+        return Promise.reject(new Error('idle observation reached launcher'));
+      },
+    });
+    seedSharedLifecycle(path);
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('idle observation input unavailable');
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const before = lifecycleTables(db);
+    const asks = [
+      { projectId: 'absent', input: captured.input, enabled: true },
+      { projectId: 'A', input: captured.input, enabled: true },
+      { projectId: 'A', input: captured.input, enabled: false },
+      { projectId: 'A', input: { ...captured.input, slices: [] }, enabled: true },
+      {
+        projectId: 'A',
+        input: {
+          ...captured.input,
+          slices: captured.input.slices.map((slice) => ({ ...slice, days: 0 })),
+        },
+        enabled: true,
+      },
+    ];
+    for (const ask of asks) {
+      const observed = await optimizer.readPlan({ ...ask, objective: 'pri' });
+      expect(observed.generation).toBeNull();
+      expect(observed.variants.pri.state).toBe('idle');
+      expect(observed.variants.time.state).toBe('idle');
+    }
+    await optimizer.drain();
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(pushUrls).toEqual([]);
+    expect(launches).toBe(0);
+  });
+
+  it('restores the complete generation observation when post-write capture fails', async () => {
+    let armed = false;
+    let captures = 0;
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('capture rollback reached launcher')),
+      },
+      () => {
+        if (armed && ++captures === 2) throw new Error('observation after-capture failed');
+      },
+    );
+    seedSharedLifecycle(path);
+    const selected = await seedReadyRetirement(db, services, 3);
+    db.run(sql`UPDATE estimate SET realistic = 2 WHERE work_item_id = 'A'`);
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('capture rollback H2 input unavailable');
+    const input = { ...captured.input, notBefore: new Map([['A', 50_000_000]]) };
+    db.run(sql`UPDATE estimate SET realistic = 1 WHERE work_item_id = 'A'`);
+    const before = lifecycleTables(db);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    armed = true;
+    expect(
+      await rejectedMessage(
+        optimizer.readPlan({ projectId: 'A', objective: 'pri', input, enabled: true }),
+      ),
+    ).toContain('observation after-capture failed');
+    expect(captures).toBe(2);
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(pushUrls).toEqual([]);
+    armed = false;
+    const observed = await optimizer.readPlan({
+      projectId: 'A',
+      objective: 'pri',
+      input,
+      enabled: true,
+    });
+    await optimizer.drain();
+    expect(observed.generation).toBe(selected.generation + 1);
+    expect(
+      (await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).map(({ seq }) => seq),
+    ).toEqual([0]);
+  });
+
+  it('hands off the committed observation before held recipient transport and retains replay', async () => {
+    const deliveryEntered = signal();
+    const releaseDelivery = signal();
+    const pushed: string[] = [];
+    const { db, path, services } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('held observation reached launcher')),
+      },
+      undefined,
+      (_url, request) => {
+        const payload = request?.body;
+        if (typeof payload !== 'string') throw new Error('observation push body is not JSON');
+        pushed.push(payload);
+        if (!payload.includes('"subscription":"project:B"'))
+          return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+        deliveryEntered.resolve();
+        return releaseDelivery.promise.then(() => new Response('gateway refused', { status: 400 }));
+      },
+    );
+    seedSharedLifecycle(path);
+    const selected = await seedReadyRetirement(db, services, 3);
+    db.run(sql`UPDATE estimate SET realistic = 2 WHERE work_item_id = 'A'`);
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('held delivery H2 input unavailable');
+    const input = { ...captured.input, notBefore: new Map([['A', 50_000_000]]) };
+    db.run(sql`UPDATE estimate SET realistic = 1 WHERE work_item_id = 'A'`);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    try {
+      const observed = await Promise.race([
+        optimizer.readPlan({ projectId: 'A', objective: 'pri', input, enabled: true }),
+        Bun.sleep(1000).then(() => {
+          throw new Error('observation decision waited for recipient transport');
+        }),
+      ]);
+      await deliveryEntered.promise;
+      expect(observed.generation).toBe(selected.generation + 1);
+      expect(observed.variants.pri.state).toBe('idle');
+      const events = new DrizzleEventLogStore(db, OPEN);
+      const original = await events.rangeSince('project:B', -1);
+      expect(original.map(({ seq, message }) => [seq, message])).toEqual([
+        [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+      ]);
+      const writer = openDatabase(path);
+      try {
+        writer.run('PRAGMA busy_timeout = 50');
+        writer.run("UPDATE project SET name = 'observation second writer' WHERE id = 'B'");
+      } finally {
+        writer.close();
+      }
+      let stopped = false;
+      const stopping = optimizer.stop().then(() => {
+        stopped = true;
+      });
+      await Bun.sleep(100);
+      expect(stopped).toBe(false);
+      releaseDelivery.resolve();
+      await stopping;
+      expect(await events.rangeSince('project:B', -1)).toEqual(original);
+      expect(
+        pushed.filter((payload) => payload.includes('"subscription":"project:B"')),
+      ).toHaveLength(1);
+    } finally {
+      releaseDelivery.resolve();
+    }
+  });
+
+  it('reports synchronous and rejected committed observation delivery without replacing its decision', async () => {
+    for (const mode of ['synchronous', 'rejected'] as const) {
+      const logs: string[] = [];
+      const deliveryEntered = signal();
+      const releaseDelivery = signal();
+      const { db, path, services } = bootstrap(
+        {
+          solverVersion: '0.2.0',
+          budgetMs: 1000,
+          spawn: () => Promise.reject(new Error('observation delivery reached launcher')),
+        },
+        undefined,
+        undefined,
+        false,
+        undefined,
+        logs,
+      );
+      seedSharedLifecycle(path);
+      const selected = await seedReadyRetirement(db, services, 3);
+      db.run(sql`UPDATE estimate SET realistic = 2 WHERE work_item_id = 'A'`);
+      const captured = await services.workItems.optimizationInput('A');
+      if (captured.kind !== 'scheduled') throw new Error('delivery error H2 input unavailable');
+      const input = { ...captured.input, notBefore: new Map([['A', 50_000_000]]) };
+      db.run(sql`UPDATE estimate SET realistic = 1 WHERE work_item_id = 'A'`);
+      const delivery = services.committedFanout;
+      const original = delivery.deliverCommitted.bind(delivery);
+      Object.defineProperty(delivery, 'deliverCommitted', {
+        value: (events: Parameters<typeof original>[0]) => {
+          if (mode === 'synchronous') throw new Error('injected synchronous observation delivery');
+          return original(events).then(async () => {
+            deliveryEntered.resolve();
+            await releaseDelivery.promise;
+            throw new Error('injected rejected observation delivery');
+          });
+        },
+      });
+      const optimizer = services.optimizer;
+      if (optimizer === undefined) throw new Error('optimizer was not installed');
+      try {
+        const observed = await Promise.race([
+          optimizer.readPlan({ projectId: 'A', objective: 'pri', input, enabled: true }),
+          Bun.sleep(1000).then(() => {
+            throw new Error('observation delivery replaced its committed decision');
+          }),
+        ]);
+        expect(observed.generation).toBe(selected.generation + 1);
+        expect(observed.variants.pri.state).toBe('idle');
+        const events = new DrizzleEventLogStore(db, OPEN);
+        const originalRows = await events.rangeSince('project:B', -1);
+        expect(originalRows.map(({ seq }) => seq)).toEqual([0]);
+        if (mode === 'rejected') {
+          await deliveryEntered.promise;
+          let drained = false;
+          const draining = optimizer.drain().then(() => {
+            drained = true;
+          });
+          await Bun.sleep(50);
+          expect(drained).toBe(false);
+          releaseDelivery.resolve();
+          await draining;
+        } else {
+          await optimizer.drain();
+        }
+        expect(await events.rangeSince('project:B', -1)).toEqual(originalRows);
+        // Proof: omitting onChildError lost this modeled synchronous/rejected
+        // observation delivery report while generation and B's event stayed committed.
+        // Rethrowing changed the settled drain into a rejection.
+        expect(
+          logs.some(
+            (line) =>
+              line.includes(`injected ${mode} observation delivery`) &&
+              line.includes('optimizer child failed'),
+          ),
+        ).toBe(true);
+      } finally {
+        releaseDelivery.resolve();
+      }
+    }
+  });
+
+  it('returns the original installed observation after a competing postcommit marker write', async () => {
+    let armed = false;
+    let inserted = false;
+    let inputHash = '';
+    const contractVersion = contractVersionOf('0.2.0');
+    const { db, path, services } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('postcommit observation reached launcher')),
+      },
+      undefined,
+      undefined,
+      false,
+      (answer, sourceDb) => {
+        if (
+          !armed ||
+          inserted ||
+          typeof answer !== 'object' ||
+          answer === null ||
+          !('kind' in answer) ||
+          answer.kind !== 'observed' ||
+          !('generation' in answer) ||
+          typeof answer.generation !== 'number'
+        )
+          return;
+        inserted = true;
+        sourceDb
+          .insert(optimizedScheduleCache)
+          .values({
+            projectId: 'A',
+            inputHash,
+            objective: 'pri',
+            contractVersion,
+            budgetMs: 1000,
+            generation: answer.generation,
+            status: 'failed',
+            resultJson: null,
+            failureReason: 'internal-error',
+            createdAt: 2,
+          })
+          .run();
+      },
+    );
+    seedSharedLifecycle(path);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    );
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('postcommit input unavailable');
+    const input = { ...captured.input, notBefore: new Map([['A', 50_000_000]]) };
+    inputHash = scheduleInputHash(input);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    armed = true;
+    const observed = await optimizer.readPlan({
+      projectId: 'A',
+      objective: 'pri',
+      input,
+      enabled: true,
+    });
+    await optimizer.drain();
+    expect(inserted).toBe(true);
+    expect(observed.variants.pri.state).toBe('idle');
+    expect(
+      db.all(
+        sql`SELECT status FROM optimized_schedule_cache WHERE project_id = 'A' AND objective = 'pri'`,
+      ),
+    ).toEqual([{ status: 'failed' }]);
+  });
+
   it('replaces an older failed marker through installed Retry before selected fan-out', async () => {
     const launches: ReservedSpawnRequest[] = [];
     const { db, path, services, pushUrls, source } = bootstrap({
@@ -1847,6 +2503,7 @@ describe('buildServices', () => {
   });
 
   it('refuses initial reclaim without the borrowed capture capability before deleting its victim', async () => {
+    let observed = false;
     const { db, path, services, pushUrls } = bootstrap(
       {
         solverVersion: '0.2.0',
@@ -1855,7 +2512,16 @@ describe('buildServices', () => {
       },
       undefined,
       undefined,
-      true,
+      () => observed,
+      (answer) => {
+        if (
+          typeof answer === 'object' &&
+          answer !== null &&
+          'kind' in answer &&
+          answer.kind === 'observed'
+        )
+          observed = true;
+      },
     );
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
@@ -1885,6 +2551,7 @@ describe('buildServices', () => {
         }),
       ),
     ).toContain('initial reservation lacks borrowed ownership and capture');
+    expect(observed).toBe(true);
     expect(lifecycleTables(db).filter(([table]) => table !== 'optimization_generation')).toEqual(
       before.filter(([table]) => table !== 'optimization_generation'),
     );

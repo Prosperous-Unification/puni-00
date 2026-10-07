@@ -39,6 +39,7 @@ import {
   createOptimizationLifecycle,
   type OptimizationLifecycle,
 } from './service/optimization-lifecycle';
+import { createOptimizationObservationOwner } from './service/optimization-observation';
 import { createOptimizationOutcomeOwner } from './service/optimization-outcome';
 import { createOptimizationReconciliation } from './service/optimization-reconciliation';
 import { createRetryReservationOwner } from './service/optimization-retry-reservation';
@@ -201,6 +202,11 @@ export function buildServices(options: ServicesOptions): BeServices {
     graph.committedFanout,
   );
   const outcome = createOptimizationOutcomeOwner(source.db, boundSource.uow, graph.committedFanout);
+  const observation = createOptimizationObservationOwner(
+    source.db,
+    boundSource.uow,
+    graph.committedFanout,
+  );
   if (options.optimizer !== undefined) {
     const optimizer = options.optimizer;
     coordinator = installOptimization({
@@ -226,6 +232,9 @@ export function buildServices(options: ServicesOptions): BeServices {
         // Proof: omitting this binding let installed Retry delete A without
         // B's durable elsewhere_changed event; the mounted Retry test failed.
         admitRetry: retryReservation,
+        // Proof: omitting this binding removed B's A-cause event after the
+        // mounted stale H2 observation evicted selected H1; restored GREEN.
+        observeForAdmission: observation,
         // Proof: omitting this installed override stored A but left the
         // mounted selected-outcome test's durable B recipient row absent.
         recordOutcome: outcome,

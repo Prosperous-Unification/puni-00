@@ -31,6 +31,7 @@ import {
 
 import type {
   CommittedDecision,
+  OptimizationAdmissionObservation,
   OptimizationCachedPair,
   OptimizationRepository,
   OptimizationRetryDecision,
@@ -210,6 +211,34 @@ export function recordOptimizationOutcomeIn(
   };
 }
 
+/** Reads one admission identity inside a synchronous immediate source turn. */
+export function observeForAdmissionIn(
+  db: Drizzle,
+  key: Parameters<OptimizationRepository['observeForAdmission']>[0],
+  now: number,
+): OptimizationAdmissionObservation {
+  return db.transaction(
+    (tx) => {
+      const generation = allocateEnabledGenerationIn(
+        tx,
+        key.projectId,
+        key.contractVersion,
+        key.inputHash,
+        now,
+      );
+      if (generation === null) return { kind: 'idle' } as const;
+      const requests: { key: typeof key; objective: 'pri' | 'time' }[] = [];
+      const pair = projectCachedPair(
+        readOptimizedPairAndSpawn(tx, key, (request) => {
+          requests.push(request);
+        }),
+      );
+      return { kind: 'observed', generation, pair, requests } as const;
+    },
+    { behavior: 'immediate' },
+  );
+}
+
 export function reservationOf(
   admission: ReturnType<typeof reserveSolverSlot>,
   budgetMs: number,
@@ -273,28 +302,10 @@ export function createOptimizationRepository(
       // intervening generation 3 failed PRI row appear beside generation 1,
       // and the objective list lost PRI in the competing-owner test.
       gate.enter(() =>
-        Promise.resolve().then(() =>
-          db.transaction(
-            (tx) => {
-              const generation = allocateEnabledGenerationIn(
-                tx,
-                key.projectId,
-                key.contractVersion,
-                key.inputHash,
-                now,
-              );
-              if (generation === null) return { kind: 'idle' } as const;
-              const requests: { key: typeof key; objective: 'pri' | 'time' }[] = [];
-              const pair = projectCachedPair(
-                readOptimizedPairAndSpawn(tx, key, (request) => {
-                  requests.push(request);
-                }),
-              );
-              return { kind: 'observed', generation, pair, requests } as const;
-            },
-            { behavior: 'immediate' },
-          ),
-        ),
+        Promise.resolve().then(() => ({
+          decision: observeForAdmissionIn(db, key, now),
+          envelopes: [],
+        })),
       ),
     isVariantLive: (key, generation, objective, now) =>
       // Proof: dropping this turn settled a live read inside an awaited source
