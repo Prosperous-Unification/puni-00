@@ -973,3 +973,32 @@ strict passed 1/1 and all passed 143/143 with zero failures
 Prettier and `git diff --check` passed. Normal-hook result is recorded with
 the local correction commit. CI, canonical host gate, live provider, and
 trusted activation remain unrun.
+
+### Recovery phase-attempt proof follow-up (2026-10-07)
+
+Independent exact-`ba0c681a` review passed 194/194, 768 assertions
+(`/tmp/activation-ba0c68-astra-four.log`) and cleared the canonical payload
+fix and its 38 accepted faults. It found one remaining R5 gap: the new
+recovery pair branch checks cold and informed attempt against the reserved
+attempt, while frozen-plan hashing deliberately excludes attempt. Mounted
+post-reservation fixtures independently advance only the cold or informed
+persisted attempt, preserving the old registration and plan. Each restored
+case refuses before a provider query and leaves the complete request,
+obligation, registration, reservation, progress and fact snapshot unchanged.
+Removing only the corresponding equality sends the changed attempt, 0/1
+each (`/tmp/activation-dispatch-r5-pair_{cold,informed}_attempt-red.log`);
+restored GREEN logs use the matching `-green.log` names. These are two new
+accepted faults, not part of the prior 38. External provider and the broader
+orphan-effect reconciliation remain open.
+
+On the formatted source/test bytes, the literal four-file Bun command above
+passed 196/196, 776 assertions, exit 0
+(`/tmp/activation-recovery-attempt-final-four.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck`, and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-recovery-attempt-final-{lint,type,build}.log`). Pinned
+OpenSpec strict passed 1/1 and all passed 143/143 with zero failures
+(`/tmp/activation-recovery-attempt-final-{strict,all}.json`); changed-path
+Prettier and `git diff --check` passed. Normal-hook result is recorded with
+the local commit. CI, host gate, live provider, and trusted activation remain
+unrun.

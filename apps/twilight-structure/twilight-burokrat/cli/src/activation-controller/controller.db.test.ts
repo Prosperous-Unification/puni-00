@@ -2630,6 +2630,39 @@ test('dispatch recovery refuses changed frozen plan or registered invocation bef
   }
 });
 
+test.each(['cold', 'informed'] as const)(
+  'dispatch recovery refuses changed %s phase attempt before provider work',
+  async (phase) => {
+    const fixture = reservedDispatchFixture();
+    try {
+      fixture.database
+        .query(
+          `UPDATE activation_obligation SET attempt = attempt + 1
+        WHERE request_identity = ? AND kind = 'audit' AND phase = ?`,
+        )
+        .run(fixture.request.requestIdentity, phase);
+      const before = dispatchState(fixture.database);
+      let queries = 0;
+      await rejectedWith(
+        fixture.controller.recoverReviewDispatch(fixture.lease, fixture.reservation.effectKey, {
+          query: () => {
+            queries += 1;
+            return Promise.resolve({ kind: 'absent' as const });
+          },
+          send: () => {
+            throw new Error('changed phase attempt must not send');
+          },
+        }),
+        'review dispatch frozen pair differs from authority',
+      );
+      expect(queries).toBe(0);
+      expect(dispatchState(fixture.database)).toEqual(before);
+    } finally {
+      fixture.close();
+    }
+  },
+);
+
 test('dispatch recovery refuses coherently changed canonical payload before provider work', async () => {
   const fixture = reservedDispatchFixture();
   try {

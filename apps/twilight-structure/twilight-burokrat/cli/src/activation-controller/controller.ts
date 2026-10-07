@@ -1676,6 +1676,8 @@ export class ActivationController {
     );
     const cold = phases.find((phase) => phase.phase === 'cold');
     const informed = phases.find((phase) => phase.phase === 'informed');
+    // Proof: independently omitting cold or informed attempt equality sent a
+    // post-reservation attempt change; the frozen-plan hash excludes attempt.
     if (
       phases.length !== 2 ||
       cold === undefined ||
