@@ -1,5 +1,5 @@
 import { lstatSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
@@ -83,8 +83,8 @@ function decodeDescriptor<T>(
   schema: { assert: (value: unknown) => asserts value is T },
   label: string,
 ): T {
-  // Proof: removing the size bound returned a plan for a canonical descriptor larger than one MiB.
-  if (typeof bytes !== 'string' || bytes.length > 1_048_576)
+  // Proof: replacing the UTF-8 byte bound with string.length returned a plan for a multibyte descriptor over one MiB.
+  if (typeof bytes !== 'string' || Buffer.byteLength(bytes, 'utf8') > 1_048_576)
     throw new Error(`check ${label} malformed`);
   let decoded: unknown;
   try {
@@ -112,11 +112,18 @@ export function decodeCheckSandboxProfile(bytes: unknown, identity: string): Che
 }
 
 function inspectDirectory(root: string, relative: string): void {
+  // Proof: checking only the final root returned a plan through a symlinked ancestor `link/nested`.
+  const ancestors = ['/'];
+  let ancestor = '/';
+  for (const segment of root.split('/').filter(Boolean)) {
+    ancestor = join(ancestor, segment);
+    ancestors.push(ancestor);
+  }
   const paths =
     relative === '.'
-      ? [root]
+      ? ancestors
       : [
-          root,
+          ...ancestors,
           ...relative
             .split('/')
             .map((_, index, segments) => join(root, ...segments.slice(0, index + 1))),
@@ -145,6 +152,9 @@ export function inspectCheckCandidateSnapshot(
     throw new Error('check candidate snapshot differs from current request');
   // Proof: omitting absolute-root validation changed the mounted relative-root refusal to a later unreadable-path diagnostic.
   if (!isAbsolute(snapshot.root)) throw new Error('check candidate snapshot root is not absolute');
+  // Proof: omitting lexical normalization returned a plan for a normal directory spelled `root/.`.
+  if (resolve(snapshot.root) !== snapshot.root)
+    throw new Error('check candidate cwd is not a contained directory');
   inspectDirectory(snapshot.root, manifest.cwd);
   // Proof: omitting probe containment returned a plan whose probe cwd traversed a symlink.
   if (manifest.skipProbe !== null) inspectDirectory(snapshot.root, manifest.skipProbe.cwd);

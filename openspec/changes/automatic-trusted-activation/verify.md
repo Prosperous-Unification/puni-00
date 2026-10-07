@@ -1495,6 +1495,41 @@ Prettier and `git diff --check` passed
 establish an installed worker, host isolation, a measured receipt, h2puni gate,
 or CI; those remain unrun for this local slice.
 
+The launch-preparation follow-up on `015f5a1d` corrected two reviewed P2s.
+Before correction, mounted Bun tests showed that a canonical descriptor with
+fewer than 1,048,576 UTF-16 code units but more than 1,048,576 UTF-8 bytes
+returned a plan (`/tmp/activation-22-launch-fix-bytes-red.log`, exit 1), and
+snapshot roots spelled `link/`, `link/.`, or `link/nested` traversed a symlink
+without refusal (`/tmp/activation-22-launch-fix-root-red.log`, exit 1). A direct
+`link` root was already refused. The exact-cap byte descriptor and an ordinary
+nested directory pass. Corrected targeted runs passed
+(`/tmp/activation-22-launch-fix-{bytes,cap,root}-green.log` and
+`/tmp/activation-22-launch-fix-root-controls-green.log`).
+
+Three independent production-path omissions were accepted. Replacing
+`Buffer.byteLength` with `string.length` let the oversized descriptor return;
+omitting lexical-root normalization let a normal `root/.` spelling return;
+checking only the final root rather than its ancestors let `link/nested`
+return. Each named test failed at its missing-refusal assertion and passed after
+source restoration (`/tmp/activation-22-launch-fix-r5-{utf8_bytes,lexical_root,ancestor_root}-{red,green}.log`,
+RED exit 1, GREEN exit 0). The source was restored to SHA-256
+`360abe6dd48f44bbb387b03e31feb51d3cd454cc6077ba057cfd680147c65590`
+before subsequent Proof comments. Ancestor `lstat` is an inert preparation
+check; it cannot prove race-safe snapshot containment after return. A later
+launcher must revalidate an anchored descriptor or file descriptor at use time.
+No bwrap process, measured receipt, host gate, or CI was run in this follow-up.
+
+On the corrected and formatted bytes, the four-file Bun suite passed
+**370/370**, 1,595 assertions, exit 0
+(`/tmp/activation-22-launch-fix-final-four.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck`, and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-22-launch-fix-final-{lint,type,build}.log`). Pinned OpenSpec
+strict passed 1/1 and all passed 143/143, zero failures
+(`/tmp/activation-22-launch-fix-final-{strict,all}.json`). Changed-path
+Prettier and `git diff --check` passed
+(`/tmp/activation-22-launch-fix-final-{format,diff}.log`).
+
 On corrected, formatted source/test bytes, the literal four-file Bun command
 passed **318/318**, 1,394 assertions, exit 0
 (`/tmp/activation-22-check-recovery-final2-four.log`). Declared Nx

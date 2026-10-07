@@ -8459,6 +8459,44 @@ test('selected check launch preparation refuses an oversized canonical runtime d
   }
 });
 
+test('selected check launch preparation counts UTF-8 descriptor bytes', async () => {
+  const selected = selectedLaunchFixture({}, '.', {}, '.', {
+    executables: ['bun', 'é'.repeat(600_000)],
+  });
+  try {
+    expect(selected.runtimeBytes.length).toBeLessThan(1_048_576);
+    expect(Buffer.byteLength(selected.runtimeBytes, 'utf8')).toBeGreaterThan(1_048_576);
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check runtime malformed',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check launch preparation permits a descriptor at the exact UTF-8 byte cap', async () => {
+  const baseline = serializeCanonical({
+    schemaVersion: 1,
+    kind: 'check-runtime',
+    executableTreeIdentity: '8'.repeat(64),
+    executables: ['bun', ''],
+  });
+  const paddingBytes = 1_048_576 - Buffer.byteLength(baseline, 'utf8');
+  const selected = selectedLaunchFixture({}, '.', {}, '.', {
+    executables: ['bun', 'a'.repeat(paddingBytes)],
+  });
+  try {
+    expect(Buffer.byteLength(selected.runtimeBytes, 'utf8')).toBe(1_048_576);
+    const prepared = await selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64));
+    expect(prepared.runtime.executables[1]).toHaveLength(paddingBytes);
+  } finally {
+    selected.controller.close();
+  }
+});
+
 test('selected check launch preparation refuses a symlinked main cwd', async () => {
   const selected = selectedLaunchFixture({}, 'escape');
   try {
@@ -8578,6 +8616,85 @@ test('selected check launch preparation refuses a symlinked snapshot root', asyn
       selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
       'check candidate cwd is not a contained directory',
     );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test.each(['link', 'link/', 'link/.', 'link/nested'] as const)(
+  'selected check launch preparation refuses snapshot root through %s',
+  async (suffix) => {
+    const selected = selectedLaunchFixture({
+      resolveCandidateSnapshot: (request) =>
+        Promise.resolve({
+          schemaVersion: 1,
+          kind: 'candidate-snapshot',
+          requestIdentity: request.requestIdentity,
+          headSha: request.headSha,
+          snapshotIdentity: '9'.repeat(64),
+          root: `${selected.snapshotRoot}/${suffix}`,
+        }),
+    });
+    const destination = mkdtempSync(join(tmpdir(), 'activation-snapshot-target-'));
+    scratch.push(destination);
+    mkdirSync(join(destination, 'nested'));
+    symlinkSync(destination, join(selected.snapshotRoot, 'link'), 'dir');
+    try {
+      const before = checkDispatchRows(selected.source.databasePath);
+      await rejectsWith(
+        selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+        'check candidate cwd is not a contained directory',
+      );
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      selected.controller.close();
+    }
+  },
+);
+
+test('selected check launch preparation refuses a lexical dot in a normal snapshot root', async () => {
+  const selected = selectedLaunchFixture({
+    resolveCandidateSnapshot: (request) =>
+      Promise.resolve({
+        schemaVersion: 1,
+        kind: 'candidate-snapshot',
+        requestIdentity: request.requestIdentity,
+        headSha: request.headSha,
+        snapshotIdentity: '9'.repeat(64),
+        root: `${selected.snapshotRoot}/.`,
+      }),
+  });
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check candidate cwd is not a contained directory',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check launch preparation permits a normal nested snapshot root', async () => {
+  const selected = selectedLaunchFixture({
+    resolveCandidateSnapshot: (request) =>
+      Promise.resolve({
+        schemaVersion: 1,
+        kind: 'candidate-snapshot',
+        requestIdentity: request.requestIdentity,
+        headSha: request.headSha,
+        snapshotIdentity: '9'.repeat(64),
+        root: join(selected.snapshotRoot, 'source', 'nested'),
+      }),
+  });
+  try {
+    mkdirSync(join(selected.snapshotRoot, 'source'));
+    mkdirSync(join(selected.snapshotRoot, 'source', 'nested'));
+    const before = checkDispatchRows(selected.source.databasePath);
+    const prepared = await selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64));
+    expect(prepared.candidateSnapshot.root).toBe(join(selected.snapshotRoot, 'source', 'nested'));
     expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
   } finally {
     selected.controller.close();
