@@ -368,3 +368,16 @@ obligation alone would not reject the malformed stored row. The transaction
 rollback tests compare the complete stored request, obligations and attempts
 before and after each refusal. No external provenance or provider acceptance is
 claimed; task 2.4 remains open.
+
+Exact-SHA review of the correction found the initial corrupt-authentication test
+used schema-invalid `{ forged: true }`, which the parser refused before reaching
+the exact-binding predicate. That trial is not evidence for the predicate. The
+corrected test retains schema-valid authentication with only the prior check's
+executor changed. Removing only `authenticated.executorId !== entry.executor_id`
+made the real audit verification succeed, failing the intended refusal 0/1
+(`/tmp/activation-24-valid-binding-executor-red.log`); restored source passed
+the focused join cases 6/6, 18 assertions
+(`/tmp/activation-24-valid-binding-green.log`). A separate test retains the
+malformed-authentication parser refusal. The final four-file command above passed
+78/78, 344 assertions, exit 0 on corrected bytes
+(`/tmp/activation-24-binding-four-final.log`).

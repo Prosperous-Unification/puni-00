@@ -1038,6 +1038,44 @@ test('receipt join refuses a selected obligation whose retained authentication b
   const evidence = evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
+    const check = evidence.receipt('check');
+    await evidence.controller.recordReceipt(evidence.lease, check);
+    database
+      .query(
+        'UPDATE activation_attempt SET authentication_bytes = ? WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .run(
+        serializeCanonical({
+          receiptIdentity: hashBytes(check),
+          issuerId: evidence.source.pin.journalIssuerId,
+          requestIdentity: evidence.request.requestIdentity,
+          obligationIdentity: 'a'.repeat(64),
+          kind: 'check',
+          attempt: 0,
+          executorId: 'wrong.executor',
+          protocolIdentity: 'b'.repeat(64),
+          commandIdentity: 'c'.repeat(64),
+          status: 'passed',
+        }),
+        evidence.request.requestIdentity,
+        'a'.repeat(64),
+      );
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      'selected receipt evidence differs',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    evidence.controller.close();
+  }
+});
+
+test('receipt join refuses malformed retained authentication bytes', async () => {
+  const evidence = evidenceHarness();
+  const database = new Database(evidence.source.databasePath);
+  try {
     await evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check'));
     database
       .query(
@@ -1047,7 +1085,7 @@ test('receipt join refuses a selected obligation whose retained authentication b
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
       evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
-      'selected receipt evidence',
+      'selected receipt evidence malformed',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
   } finally {

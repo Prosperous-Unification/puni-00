@@ -884,8 +884,8 @@ export class ActivationController {
         } catch (cause) {
           throw new Error('selected receipt evidence malformed', { cause });
         }
-        // Proof: corrupting a prior attempt's authenticated bytes let its mutable
-        // obligation state authorize verified until this exact binding was checked.
+        // Proof: a schema-valid retained receipt with the wrong executor verified
+        // when only this executor binding was removed; the mounted test failed 0/1.
         if (
           entry.receipt_identity === null ||
           saved.receipt_identity !== entry.receipt_identity ||
