@@ -2170,3 +2170,75 @@ collected generated `dist/out-tsc` JavaScript and failed module resolution; it w
 disqualified. The corrected explicit source-file invocation above is the accepted suite.
 Strict/all OpenSpec, normal commit hooks and host gate are recorded separately after
 their final run; no runtime scheduler or host gate claim follows from these local checks.
+
+### 1.2e exact-review correction after `91b2deade`
+
+Astra's public-entry probe at `/tmp/activation-91b2dea-astra-probes.log` found that a
+hard-linked database in a second protected directory could use a second lock inode;
+`/link/.` was accepted; partial v8/v9 check tables, subject-only foreign tombstones and
+inconsistent attempt counters crossed the scheduled/migration boundary; and explicit
+initialization/migration/open cleanup could replace the primary failure. These were
+mounted as local production-path regressions. Correction also checks canonical ancestry,
+complete required table/column/index inventory and essential `CHECK` constraints,
+validates the scheduler's equal counters/null-time relation, and joins migration history
+inside its write transaction. The initializer and migration aggregate primary, rollback,
+close and temporary-file cleanup failures rather than discarding an earlier cause.
+
+For each row below, the exact source substitution, named `bun test ... -t` command,
+failure output and exit are retained in
+`/tmp/activation-observation-state-correction-<fault>-red.log`; the corresponding
+`-green.log` records the same test on restored source. Every accepted row exited **1/0**.
+The restoration digests before subsequent Proof comments/formatting are recorded in
+`/tmp/activation-observation-state-correction-watch-summary.log`,
+`/tmp/activation-observation-state-cleanup-watch-summary.log` and each later transcript.
+
+| Fault                  | Named failing observation when the production guard was omitted                                                                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `hardlink`             | Hard-linked database let the second directory's scheduled callback run.                                                                                                                          |
+| `canonical`            | `directory/.` alias passed lexical state-path admission.                                                                                                                                         |
+| `ancestor_symlink`     | Ordinary final nested directory under a symlinked ancestor initialized.                                                                                                                          |
+| `ancestor_replaceable` | A 0777 non-sticky parent was admitted.                                                                                                                                                           |
+| `path_owner`           | Independently mismatched protected-path UID initialized.                                                                                                                                         |
+| `path_type`            | File-as-state-directory reached `ENOTDIR` instead of the named type refusal; diagnostic specificity only. First mode-masked trial stayed GREEN and was disqualified before the isolated fixture. |
+| `lock_owner`           | Independently mismatched lock UID initialized.                                                                                                                                                   |
+| `lock_mode`            | A mode-0644 lock admitted work.                                                                                                                                                                  |
+| `lock_nlink`           | A hard-linked lock inode admitted work.                                                                                                                                                          |
+| `schema_check_fact`    | Missing v9 check fact table ran the scheduled callback.                                                                                                                                          |
+| `schema_check_attempt` | Missing v9 check attempt table ran the scheduled callback.                                                                                                                                       |
+| `schema_v8_fact`       | Missing v8 check fact table migrated to v9.                                                                                                                                                      |
+| `schema_columns`       | Delivery table without `payload_digest` ran callback.                                                                                                                                            |
+| `schema_index`         | Missing dispatch request index ran callback.                                                                                                                                                     |
+| `schema_constraint`    | Unconstrained check progress table ran callback.                                                                                                                                                 |
+| `schema_version`       | Version-ten store spent an observation attempt.                                                                                                                                                  |
+| `foreign_subject`      | Subject-only foreign repository tombstone migrated.                                                                                                                                              |
+| `migration_order`      | Moving `BEGIN IMMEDIATE` after repository preflight admitted a row inserted at write-turn acquisition.                                                                                           |
+| `counter_equal`        | Sequence one/burst zero with valid timestamp ran callback.                                                                                                                                       |
+| `counter_time`         | Sequence one/burst one with null timestamp ran callback.                                                                                                                                         |
+| `policy_min_attempt`   | Zero attempt budget initialized.                                                                                                                                                                 |
+| `policy_min_tick`      | Zero tick duration initialized.                                                                                                                                                                  |
+| `policy_attempt`       | Attempt limit 101 initialized.                                                                                                                                                                   |
+| `policy_tick`          | Tick bound 3,600,001 ms initialized.                                                                                                                                                             |
+| `clock_integer`        | NaN/non-integer clock spent an attempt.                                                                                                                                                          |
+| `clock_negative`       | Negative clock spent an attempt.                                                                                                                                                                 |
+| `init_cleanup`         | Initialization close fault displaced its primary schema fault.                                                                                                                                   |
+| `migration_cleanup`    | Migration close fault displaced its primary late fault.                                                                                                                                          |
+| `open_cleanup`         | Failed established-open close displaced the partial-schema fault.                                                                                                                                |
+| `rollback_cleanup`     | Rollback fault displaced the migration work fault.                                                                                                                                               |
+
+The current scheduler increments sequence and burst together and caps both through the
+finite attempt policy; after validating equality, sequence overflow is unreachable before
+budget refusal, so its redundant predicate was removed rather than claiming an isolated
+watch. The type-guard watch proves a named diagnostic, not work admission. The corrected
+tests include explicit v8 and v9 partial stores, a two-directory hard-link case, a
+write-turn repository race, and each owned cleanup path. This remains a local checkpoint:
+installed host paths/account, whole tick cancellation/settlement, CI and h2puni gate are
+unverified. Task 1.2f and all external acceptance remain open.
+
+On the corrected final runtime bytes, the explicit source-file activation-controller
+suite passed **538/538**, 2,293 assertions (seven files;
+`/tmp/activation-observation-state-correction-final-suite.log`). The exact command was
+`bash -c 'mapfile -t files < <(rg --files apps/twilight-structure/twilight-burokrat/cli/src/activation-controller -g "*.test.ts"); bun test "${files[@]}"'`.
+Uncached Nx `twilight-burokrat:lint:source`, `typecheck`, and `build` each printed
+`Successfully ran target` with exit 0. Strict OpenSpec passed 1/1 and all passed
+143/143. Changed-path Prettier and `git diff --check` passed. Normal commit hooks and
+exact local SHA follow in the commit record; CI and the h2puni gate have not run.

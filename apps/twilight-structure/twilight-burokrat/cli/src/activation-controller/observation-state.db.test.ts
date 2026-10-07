@@ -1,10 +1,13 @@
 import {
   chmodSync,
   existsSync,
+  linkSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -152,6 +155,134 @@ test('scheduled work and database cleanup failures retain both causes', async ()
   ).toBe('owned');
 });
 
+test('failed established open retains schema and close faults', async () => {
+  const source = fixture();
+  expect(await initializeObservationState(source.config)).toBe('initialized');
+  const database = new Database(source.databasePath, { create: false, strict: true });
+  database.run('DROP TABLE activation_check_dispatch_fact');
+  database.close();
+  const originalClose = Object.getOwnPropertyDescriptor(Database.prototype, 'close')?.value as (
+    this: Database,
+  ) => void;
+  const cleanupFault = new Error('mounted open-close fault');
+  Database.prototype.close = function () {
+    originalClose.call(this);
+    throw cleanupFault;
+  };
+  let caught: unknown;
+  try {
+    await withObservationAttempt(source.config, () => Promise.resolve());
+  } catch (error) {
+    caught = error;
+  } finally {
+    Database.prototype.close = originalClose;
+  }
+  expect(caught).toBeInstanceOf(AggregateError);
+  const failures = (caught as AggregateError).errors as unknown[];
+  expect(String(failures[0])).toContain('observation state partial');
+  expect(failures[1]).toBe(cleanupFault);
+});
+
+test('failed migration retains late primary and close fault', async () => {
+  const source = fixture();
+  createVersionEight(source);
+  const originalClose = Object.getOwnPropertyDescriptor(Database.prototype, 'close')?.value as (
+    this: Database,
+  ) => void;
+  const primaryFault = new Error('mounted late migration fault');
+  const cleanupFault = new Error('mounted migration-close fault');
+  Database.prototype.close = function () {
+    originalClose.call(this);
+    throw cleanupFault;
+  };
+  let caught: unknown;
+  try {
+    await migrateObservationState(source.config, () => {
+      throw primaryFault;
+    });
+  } catch (error) {
+    caught = error;
+  } finally {
+    Database.prototype.close = originalClose;
+  }
+  expect(caught).toBeInstanceOf(AggregateError);
+  expect((caught as AggregateError).errors).toEqual([primaryFault, cleanupFault]);
+  const reopened = new Database(source.databasePath, { create: false, strict: true });
+  expect(reopened.query('PRAGMA user_version').get()).toEqual({ user_version: 8 });
+  reopened.close();
+});
+
+test('failed initializer retains schema and close faults without publishing state', async () => {
+  const source = fixture();
+  const runDescriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'run');
+  if (runDescriptor === undefined) throw new Error('fixture run descriptor missing');
+  const originalRun = runDescriptor.value as (sql: string) => unknown;
+  const originalClose = Object.getOwnPropertyDescriptor(Database.prototype, 'close')?.value as (
+    this: Database,
+  ) => void;
+  const primaryFault = new Error('mounted initialization schema fault');
+  const cleanupFault = new Error('mounted initialization-close fault');
+  let closeFaultArmed = false;
+  Object.defineProperty(Database.prototype, 'run', {
+    ...runDescriptor,
+    value: function (this: Database, sql: string) {
+      if (sql.startsWith('CREATE TABLE activation_observation_schedule')) {
+        closeFaultArmed = true;
+        throw primaryFault;
+      }
+      return Reflect.apply(originalRun, this, [sql]);
+    },
+  });
+  Database.prototype.close = function () {
+    originalClose.call(this);
+    if (closeFaultArmed) throw cleanupFault;
+  };
+  let caught: unknown;
+  try {
+    await initializeObservationState(source.config);
+  } catch (error) {
+    caught = error;
+  } finally {
+    Object.defineProperty(Database.prototype, 'run', runDescriptor);
+    Database.prototype.close = originalClose;
+  }
+  expect(caught).toBeInstanceOf(AggregateError);
+  expect((caught as AggregateError).errors).toEqual([primaryFault, cleanupFault]);
+  expect(existsSync(source.databasePath)).toBe(false);
+});
+
+test('migration rollback failure retains the primary and rollback faults', async () => {
+  const source = fixture();
+  createVersionEight(source);
+  const runDescriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'run');
+  if (runDescriptor === undefined) throw new Error('fixture run descriptor missing');
+  const originalRun = runDescriptor.value as (sql: string) => unknown;
+  const primaryFault = new Error('mounted migration work fault');
+  const rollbackFault = new Error('mounted rollback fault');
+  Object.defineProperty(Database.prototype, 'run', {
+    ...runDescriptor,
+    value: function (this: Database, sql: string) {
+      if (sql === 'ROLLBACK') throw rollbackFault;
+      return Reflect.apply(originalRun, this, [sql]);
+    },
+  });
+  let caught: unknown;
+  try {
+    await migrateObservationState(source.config, () => {
+      throw primaryFault;
+    });
+  } catch (error) {
+    caught = error;
+  } finally {
+    Object.defineProperty(Database.prototype, 'run', runDescriptor);
+  }
+  expect(caught).toBeInstanceOf(AggregateError);
+  expect((caught as AggregateError).errors).toEqual([primaryFault, rollbackFault]);
+  const reopened = new Database(source.databasePath, { create: false, strict: true });
+  expect(reopened.query('PRAGMA user_version').get()).toEqual({ user_version: 8 });
+  reopened.close();
+});
+
 test('activation controller reopens the additive scheduler schema without resetting it', async () => {
   const source = fixture();
   expect(await initializeObservationState(source.config)).toBe('initialized');
@@ -293,6 +424,313 @@ test('explicit migration refuses an established foreign repository row', async (
   const reopened = new Database(source.databasePath, { create: false, strict: true });
   expect(reopened.query('PRAGMA user_version').get()).toEqual({ user_version: 8 });
   reopened.close();
+});
+
+test('explicit migration refuses partial version-eight schema without changes', async () => {
+  const source = fixture();
+  createVersionEight(source);
+  const database = new Database(source.databasePath, { create: false, strict: true });
+  database.run('DROP TABLE activation_check_dispatch_fact');
+  database.close();
+  await expectRefusal(() => migrateObservationState(source.config), 'observation state partial');
+  const reopened = new Database(source.databasePath, { create: false, strict: true });
+  expect(reopened.query('PRAGMA user_version').get()).toEqual({ user_version: 8 });
+  expect(
+    reopened
+      .query("SELECT 1 FROM sqlite_schema WHERE name='activation_observation_schedule'")
+      .get(),
+  ).toBeNull();
+  reopened.close();
+});
+
+test('foreign subject history alone prevents migration', async () => {
+  const source = fixture();
+  createVersionEight(source);
+  const database = new Database(source.databasePath, { create: false, strict: true });
+  database
+    .query('INSERT INTO activation_subject VALUES (?, ?, ?, ?)')
+    .run(9999, 'pull-request:1', 1, 1);
+  database.close();
+  await expectRefusal(() => migrateObservationState(source.config), 'source repository changed');
+  const reopened = new Database(source.databasePath, { create: false, strict: true });
+  expect(reopened.query('PRAGMA user_version').get()).toEqual({ user_version: 8 });
+  reopened.close();
+});
+
+test('migration joins the latest repository history after acquiring its write turn', async () => {
+  const source = fixture();
+  createVersionEight(source);
+  const runDescriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'run');
+  if (runDescriptor === undefined) throw new Error('fixture run descriptor missing');
+  const originalRun = runDescriptor.value as (sql: string) => unknown;
+  let inserted = false;
+  Object.defineProperty(Database.prototype, 'run', {
+    ...runDescriptor,
+    value: function (this: Database, sql: string) {
+      if (sql === 'BEGIN IMMEDIATE' && !inserted) {
+        inserted = true;
+        this.query('INSERT INTO activation_subject VALUES (?, ?, ?, ?)').run(
+          9999,
+          'pull-request:2',
+          1,
+          1,
+        );
+      }
+      return Reflect.apply(originalRun, this, [sql]);
+    },
+  });
+  try {
+    await expectRefusal(() => migrateObservationState(source.config), 'source repository changed');
+  } finally {
+    Object.defineProperty(Database.prototype, 'run', runDescriptor);
+  }
+  expect(inserted).toBe(true);
+  const reopened = new Database(source.databasePath, { create: false, strict: true });
+  expect(reopened.query('PRAGMA user_version').get()).toEqual({ user_version: 8 });
+  reopened.close();
+});
+
+test('hard-linked database cannot use a second process-lock inode', async () => {
+  const source = fixture();
+  expect(await initializeObservationState(source.config)).toBe('initialized');
+  const alias = mkdtempSync(join(tmpdir(), 'activation-observation-alias-'));
+  chmodSync(alias, 0o700);
+  scratch.push(alias);
+  linkSync(source.databasePath, join(alias, 'activation.sqlite'));
+  let called = 0;
+  await expectRefusal(
+    () =>
+      withObservationAttempt({ ...source.config, stateDirectory: alias }, () => {
+        called += 1;
+        return Promise.resolve();
+      }),
+    'malformed',
+  );
+  expect(called).toBe(0);
+});
+
+test('noncanonical or symlinked protected ancestry refuses before initialization', async () => {
+  const source = fixture();
+  const alias = join(source.directory, 'link');
+  symlinkSync(source.directory, alias);
+  await expectRefusal(
+    () => initializeObservationState({ ...source.config, stateDirectory: `${source.directory}/.` }),
+    'canonical absolute',
+  );
+  await expectRefusal(
+    () => initializeObservationState({ ...source.config, stateDirectory: `${alias}/.` }),
+    'protected path',
+  );
+  expect(existsSync(source.databasePath)).toBe(false);
+  await expectRefusal(
+    () => initializeObservationState({ ...source.config, stateDirectory: alias }),
+    'symlink',
+  );
+  const nested = join(source.directory, 'nested');
+  mkdirSync(nested, { mode: 0o700 });
+  await expectRefusal(
+    () => initializeObservationState({ ...source.config, stateDirectory: join(alias, 'nested') }),
+    'symlink',
+  );
+  const parent = mkdtempSync(join(tmpdir(), 'activation-replaceable-parent-'));
+  scratch.push(parent);
+  chmodSync(parent, 0o777);
+  const child = join(parent, 'protected');
+  mkdirSync(child, { mode: 0o700 });
+  await expectRefusal(
+    () => initializeObservationState({ ...source.config, stateDirectory: child }),
+    'ancestor replaceable',
+  );
+});
+
+test('partial v9 tables and inconsistent scheduler counters refuse before work', async () => {
+  for (const corrupt of ['drop-fact', 'drop-attempt', 'counter', 'null-time']) {
+    const source = fixture();
+    expect(await initializeObservationState(source.config)).toBe('initialized');
+    const database = new Database(source.databasePath, { create: false, strict: true });
+    if (corrupt === 'drop-fact') database.run('DROP TABLE activation_check_dispatch_fact');
+    if (corrupt === 'drop-attempt') database.run('DROP TABLE activation_check_attempt');
+    if (corrupt === 'counter')
+      database.run(`UPDATE activation_observation_schedule
+        SET attempt_sequence=1, burst_attempts=0, last_started_at=1000`);
+    if (corrupt === 'null-time')
+      database.run(`UPDATE activation_observation_schedule
+        SET attempt_sequence=1, burst_attempts=1, last_started_at=NULL`);
+    database.close();
+    let called = 0;
+    await expectRefusal(
+      () =>
+        withObservationAttempt(source.config, () => {
+          called += 1;
+          return Promise.resolve();
+        }),
+      corrupt === 'counter' || corrupt === 'null-time'
+        ? 'scheduler record malformed'
+        : 'observation state partial',
+    );
+    expect(called).toBe(0);
+  }
+});
+
+test('missing column or essential index and unsupported version refuse before work', async () => {
+  for (const corrupt of ['column', 'index', 'version', 'constraint']) {
+    const source = fixture();
+    expect(await initializeObservationState(source.config)).toBe('initialized');
+    const database = new Database(source.databasePath, { create: false, strict: true });
+    if (corrupt === 'column')
+      database.run('ALTER TABLE activation_delivery DROP COLUMN payload_digest');
+    if (corrupt === 'index') database.run('DROP INDEX activation_dispatch_request');
+    if (corrupt === 'version') database.run('PRAGMA user_version = 10');
+    if (corrupt === 'constraint') {
+      database.run('DROP TABLE activation_check_dispatch_progress');
+      database.run(`CREATE TABLE activation_check_dispatch_progress (
+        effect_key TEXT PRIMARY KEY, state TEXT NOT NULL, dispatch_attempts INTEGER NOT NULL,
+        owner_epoch INTEGER NOT NULL, owner_id TEXT NOT NULL, version INTEGER NOT NULL)`);
+    }
+    database.close();
+    let called = 0;
+    await expectRefusal(
+      () =>
+        withObservationAttempt(source.config, () => {
+          called += 1;
+          return Promise.resolve();
+        }),
+      corrupt === 'version' ? 'schema unsupported' : 'state partial',
+    );
+    expect(called).toBe(0);
+  }
+});
+
+test('policy ceilings and invalid clock refuse without spending an attempt', async () => {
+  const source = fixture();
+  await expectRefusal(
+    () =>
+      initializeObservationState({
+        ...source.config,
+        policy: { ...source.config.policy, maxAttempts: 0 },
+      }),
+    'must be at least 1',
+  );
+  await expectRefusal(
+    () =>
+      initializeObservationState({
+        ...source.config,
+        policy: { ...source.config.policy, wholeTickMs: 0 },
+      }),
+    'must be at least 1',
+  );
+  await expectRefusal(
+    () =>
+      initializeObservationState({
+        ...source.config,
+        policy: { ...source.config.policy, maxAttempts: 101 },
+      }),
+    'bounded limit',
+  );
+  await expectRefusal(
+    () =>
+      initializeObservationState({
+        ...source.config,
+        policy: { ...source.config.policy, wholeTickMs: 3_600_001 },
+      }),
+    'bounded limit',
+  );
+  expect(await initializeObservationState(source.config)).toBe('initialized');
+  for (const clock of [NaN, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    await expectRefusal(
+      () =>
+        withObservationAttempt({ ...source.config, clock: () => clock }, () => Promise.resolve()),
+      'clock malformed',
+    );
+  }
+  expect(
+    await withObservationAttempt(source.config, (attempt) => Promise.resolve(attempt.sequence)),
+  ).toEqual({
+    kind: 'owned',
+    value: 1,
+  });
+});
+
+test('malformed lock mode refuses without caller work', async () => {
+  const source = fixture();
+  expect(await initializeObservationState(source.config)).toBe('initialized');
+  chmodSync(join(source.directory, 'observation.lock'), 0o644);
+  let called = 0;
+  await expectRefusal(
+    () =>
+      withObservationAttempt(source.config, () => {
+        called += 1;
+        return Promise.resolve();
+      }),
+    'lock inode malformed',
+  );
+  expect(called).toBe(0);
+});
+
+test('hard-linked lock inode refuses without caller work', async () => {
+  const source = fixture();
+  expect(await initializeObservationState(source.config)).toBe('initialized');
+  linkSync(join(source.directory, 'observation.lock'), join(source.directory, 'extra-lock-link'));
+  let called = 0;
+  await expectRefusal(
+    () =>
+      withObservationAttempt(source.config, () => {
+        called += 1;
+        return Promise.resolve();
+      }),
+    'lock inode malformed',
+  );
+  expect(called).toBe(0);
+});
+
+test('protected state path type refusal is named before lock path construction', async () => {
+  const source = fixture();
+  chmodSync(source.config.bootstrapPath, 0o700);
+  await expectRefusal(
+    () =>
+      initializeObservationState({ ...source.config, stateDirectory: source.config.bootstrapPath }),
+    'protected path malformed',
+  );
+  expect(existsSync(source.databasePath)).toBe(false);
+});
+
+test('protected-path owner check refuses wrong owner before initialization', async () => {
+  const source = fixture();
+  const originalGetuid = process.getuid;
+  if (originalGetuid === undefined) throw new Error('fixture requires a POSIX UID');
+  const actualUid = originalGetuid();
+  let checks = 0;
+  process.getuid = () => {
+    checks += 1;
+    return checks <= 2 ? actualUid : actualUid + 1;
+  };
+  try {
+    await expectRefusal(
+      () => initializeObservationState(source.config),
+      'protected path malformed',
+    );
+  } finally {
+    process.getuid = originalGetuid;
+  }
+  expect(existsSync(source.databasePath)).toBe(false);
+});
+
+test('lock owner check refuses an independently mismatched lock inode', async () => {
+  const source = fixture();
+  const originalGetuid = process.getuid;
+  if (originalGetuid === undefined) throw new Error('fixture requires a POSIX UID');
+  const actualUid = originalGetuid();
+  let checks = 0;
+  process.getuid = () => {
+    checks += 1;
+    return checks === 2 ? actualUid + 1 : actualUid;
+  };
+  try {
+    await expectRefusal(() => initializeObservationState(source.config), 'lock inode malformed');
+  } finally {
+    process.getuid = originalGetuid;
+  }
+  expect(existsSync(source.databasePath)).toBe(false);
 });
 
 test('two real processes cannot read concurrently and crash releases the same lock inode', async () => {
