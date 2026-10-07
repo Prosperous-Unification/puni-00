@@ -842,3 +842,80 @@ strict passed 1/1 and all passed 143/143, zero failures
 (`/tmp/activation-dispatch-p2-final-{strict,all}.json`); changed-path
 Prettier and `git diff --check` passed. CI, canonical host gate, live provider,
 send/reconciliation and trusted activation were not run for this local slice.
+
+### Local review-dispatch recovery foundation (2026-10-07)
+
+The v6 additive progress/fact tables keep the v5 immutable reservation intact.
+The installed controller writes a `dispatching` intent, queries the exact effect
+key through a fake authenticated port, and increments a bounded attempt before
+awaiting a send. An unavailable or malformed query cannot authorize a send.
+An accepted remote fact is retained separately from acknowledgement; a stale
+worker may retain that fact but only the current evaluating lease can
+acknowledge it. The fake provider enforces the owner epoch and immutable target
+and payload at acceptance. This is a local port contract, not evidence that a
+live provider implements it. No endpoint or live credential is installed.
+
+Mounted cases cover accepted-query reconciliation after a lost send response
+and reopen without a second send, provider query failure/unavailability versus
+authenticated absence, target/payload/invocation binding, conflicting and
+corrupt retained facts, same-owner concurrent queries, takeover during a held
+query and immediately before fake acceptance, stale-worker fact retention,
+deadline/budget exhaustion with later accepted-fact reconciliation, and a fact
+commit followed by an injected acknowledgement-write failure. After the
+reservation checkpoint, a new mounted RED found that advanced subject
+generation and changed frozen plan/registered invocation could reach send;
+recovery now rechecks all three before provider work. A version-5 fixture
+upgrades an existing reservation as `reserved` with zero attempts and no fact;
+a late v6 table conflict preserves the exact prior schema/version/reservation.
+Missing and malformed progress rows refuse before querying.
+
+Each accepted fault below ran the named production-path fixture RED with only
+the stated predicate/dependency broken, then the same fixture GREEN on restored
+bytes. Logs are `/tmp/activation-dispatch-r5-<fault>-{red,green}.log`.
+
+| Fault                                                  | Observed RED                                                                                          |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `unavailable`                                          | Unknown disposition caused one send rather than zero.                                                 |
+| `accepted_query`, `query_bypass`                       | Already accepted effect reached an unexpected resend.                                                 |
+| `query_schema`                                         | Malformed query output reached the send path.                                                         |
+| `same_owner_version`                                   | Two same-owner queries both acquired send permission.                                                 |
+| `remote_target`, `remote_payload`, `remote_invocation` | A foreign accepted fact passed its corresponding binding.                                             |
+| `deadline`, `budget`                                   | A send occurred past its bound instead of `exhausted`.                                                |
+| `replay_digest`                                        | Changed schema-valid retained evidence replayed as acknowledged.                                      |
+| `intent`                                               | Provider query ran while the durable effect remained reserved.                                        |
+| `attempt_preawait`                                     | A started send did not increment its durable attempt count.                                           |
+| `fact_conflict`                                        | Conflicting remote acceptance was acknowledged using the earlier fact.                                |
+| `missing_fact`                                         | Acknowledged progress replayed after its retained fact was deleted.                                   |
+| `adapter_fence`                                        | Breaking the fake adapter's acceptance fence let the old worker send after takeover.                  |
+| `recovery_generation`                                  | Stale subject generation reached the provider.                                                        |
+| `recovery_plan`, `recovery_registration`               | Changed frozen plan or invocation registration reached the provider.                                  |
+| `progress_schema`                                      | Malformed progress reached the send path.                                                             |
+| `progress_fallback`                                    | Synthesized missing progress reached a provider query.                                                |
+| `v5_split`                                             | Moving v6 progress DDL outside the upgrade transaction left a partial table after the later conflict. |
+
+The `adapter_fence` mutation broke the fake dependency; it did not claim an
+installed external adapter. The first adapter-fence trial failed at a progress
+state assertion before measuring acceptance and is disqualified; the corrected
+test observes `accepted=1` versus expected zero. The 22 accepted fault names
+above restored byte-exact to pre-format source SHA-256
+`75e501277c1b1a6c8600ddc6a1c1c89ea4a6171dc20991892cef84e1b048b02f`.
+The current controller-only regression passed 166/166, 623 assertions,
+exit 0 (`/tmp/activation-recovery-final-controller-preformat.log`); final
+four-file, static, OpenSpec, formatting and hook results follow the final-byte
+checks. Tasks 1.2 and 3.3 remain open: this fake port has no live authenticated
+provider mapping, dispatch capability, or external recovery acceptance.
+
+On the formatted source/test bytes, the literal four-file Bun command above
+passed 176/176, 708 assertions, exit 0
+(`/tmp/activation-recovery-final-four2.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck`, and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-recovery-final-{lint2,type,build}.log`). Direct ESLint had
+first identified 11 uses of a synchronous Bun matcher with `await` and two
+optional-chain diagnostics; those were corrected before the final Nx run. The
+earlier failed lint is not counted green. Pinned OpenSpec strict passed 1/1
+and all passed 143/143 with zero failures
+(`/tmp/activation-recovery-final-{strict,all}.json`). Changed-path Prettier
+and `git diff --check` passed on final bytes. Normal-hook result is recorded
+with the local commit. Canonical host gate, CI, real provider dispatch, and
+trusted activation were not run.

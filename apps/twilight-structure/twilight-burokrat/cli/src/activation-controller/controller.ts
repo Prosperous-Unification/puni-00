@@ -203,6 +203,82 @@ export interface ReviewDispatchReservation {
   readonly maxDispatchAttempts: number;
 }
 
+export interface ReviewDispatchObservation {
+  readonly effectKey: string;
+  readonly requestIdentity: string;
+  readonly target: ReviewDispatchReservation['target'];
+  readonly payloadDigest: string;
+  readonly invocationId: string;
+  readonly remoteDispatchId: string;
+  readonly evidenceBytes: string;
+}
+
+export interface ReviewDispatchPort {
+  /** Authenticated lookup for this exact effect key; an unreadable lookup is not absence. */
+  readonly query: (
+    reservation: ReviewDispatchReservation,
+  ) => Promise<
+    | { readonly kind: 'absent' }
+    | { readonly kind: 'unavailable' }
+    | { readonly kind: 'accepted'; readonly observed: ReviewDispatchObservation }
+  >;
+  /** A concrete adapter must fence ownership and immutable target/payload at acceptance. */
+  readonly send: (
+    reservation: ReviewDispatchReservation,
+    fence: { readonly workerId: string; readonly leaseEpoch: number },
+  ) => Promise<
+    | { readonly kind: 'uncertain' }
+    | { readonly kind: 'accepted'; readonly observed: ReviewDispatchObservation }
+  >;
+}
+
+export interface ReviewDispatchProgress {
+  readonly effectKey: string;
+  readonly state: 'reserved' | 'dispatching' | 'uncertain' | 'acknowledged' | 'exhausted';
+  readonly dispatchAttempts: number;
+  readonly ownerEpoch: number;
+  readonly ownerId: string;
+}
+
+const StoredDispatchProgress = type({
+  effect_key: /^[0-9a-f]{64}$/,
+  state: "'reserved'|'dispatching'|'uncertain'|'acknowledged'|'exhausted'",
+  dispatch_attempts: 'number.integer>=0',
+  owner_epoch: 'number.integer>=0',
+  owner_id: 'string>=1',
+  version: 'number.integer>=0',
+}).onUndeclaredKey('reject');
+
+interface DispatchRows {
+  readonly stored: typeof StoredReviewDispatch.infer;
+  readonly progress: typeof StoredDispatchProgress.infer;
+  readonly reservation: ReviewDispatchReservation;
+}
+
+const LogicalReviewTarget = type({
+  kind: "'reviewer'",
+  providerId: 'string>=1',
+  executorId: 'string>=1',
+}).onUndeclaredKey('reject');
+
+const DispatchObservation = type({
+  effectKey: /^[0-9a-f]{64}$/,
+  requestIdentity: /^[0-9a-f]{64}$/,
+  target: LogicalReviewTarget,
+  payloadDigest: /^[0-9a-f]{64}$/,
+  invocationId: 'string>=1',
+  remoteDispatchId: 'string>=1',
+  evidenceBytes: 'string>=1',
+}).onUndeclaredKey('reject');
+
+const DispatchQuery = type({ kind: "'absent'" })
+  .onUndeclaredKey('reject')
+  .or(type({ kind: "'unavailable'" }).onUndeclaredKey('reject'))
+  .or(type({ kind: "'accepted'", observed: DispatchObservation }).onUndeclaredKey('reject'));
+const DispatchSend = type({ kind: "'uncertain'" })
+  .onUndeclaredKey('reject')
+  .or(type({ kind: "'accepted'", observed: DispatchObservation }).onUndeclaredKey('reject'));
+
 export interface ReviewAttemptRegistration {
   readonly requestIdentity: string;
   readonly reviewId: string;
@@ -573,11 +649,42 @@ function createReviewDispatchTable(database: Database): void {
   );
 }
 
+function createReviewDispatchRecoveryTables(database: Database): void {
+  // Proof: moving this DDL outside the v5 upgrade transaction left a partial progress table
+  // after the subsequent fact-table conflict instead of preserving the complete v5 schema.
+  database.run(`CREATE TABLE activation_review_dispatch_progress (
+    effect_key TEXT PRIMARY KEY,
+    state TEXT NOT NULL CHECK (state IN ('reserved', 'dispatching', 'uncertain', 'acknowledged', 'exhausted')),
+    dispatch_attempts INTEGER NOT NULL CHECK (dispatch_attempts >= 0),
+    owner_epoch INTEGER NOT NULL CHECK (owner_epoch >= 0),
+    owner_id TEXT NOT NULL,
+    version INTEGER NOT NULL CHECK (version >= 0),
+    FOREIGN KEY (effect_key) REFERENCES activation_review_dispatch(effect_key)
+  )`);
+  database.run(`CREATE TABLE activation_review_dispatch_fact (
+    effect_key TEXT PRIMARY KEY,
+    observation_bytes TEXT NOT NULL,
+    observation_digest TEXT NOT NULL,
+    FOREIGN KEY (effect_key) REFERENCES activation_review_dispatch(effect_key)
+  )`);
+  database.run(`INSERT INTO activation_review_dispatch_progress (
+    effect_key, state, dispatch_attempts, owner_epoch, owner_id, version
+  ) SELECT effect_key, 'reserved', 0, owner_epoch, owner_id, 0
+    FROM activation_review_dispatch`);
+}
+
 function initialize(database: Database): void {
   database.run('PRAGMA busy_timeout = 5000');
   const metadata: unknown = database.query('PRAGMA user_version').get();
   const version = parseOrThrow(type({ user_version: 'number.integer>=0' }), metadata).user_version;
-  if (version !== 0 && version !== 2 && version !== 3 && version !== 4 && version !== 5)
+  if (
+    version !== 0 &&
+    version !== 2 &&
+    version !== 3 &&
+    version !== 4 &&
+    version !== 5 &&
+    version !== 6
+  )
     // Proof: accepting old version 1 silently reopened storage without durable subject high-water.
     throw new Error(`unsupported activation store schema ${String(version)}`);
   if (version === 0) {
@@ -656,7 +763,8 @@ function initialize(database: Database): void {
         FOREIGN KEY (request_identity) REFERENCES activation_request(request_identity)
       )`);
       createReviewDispatchTable(database);
-      database.run('PRAGMA user_version = 5');
+      createReviewDispatchRecoveryTables(database);
+      database.run('PRAGMA user_version = 6');
     });
   }
   if (version === 2 || version === 3) {
@@ -693,13 +801,21 @@ function initialize(database: Database): void {
         FOREIGN KEY (request_identity) REFERENCES activation_request(request_identity)
       )`);
       createReviewDispatchTable(database);
-      database.run('PRAGMA user_version = 5');
+      createReviewDispatchRecoveryTables(database);
+      database.run('PRAGMA user_version = 6');
     });
   }
   if (version === 4) {
     transaction(database, () => {
       createReviewDispatchTable(database);
-      database.run('PRAGMA user_version = 5');
+      createReviewDispatchRecoveryTables(database);
+      database.run('PRAGMA user_version = 6');
+    });
+  }
+  if (version === 5) {
+    transaction(database, () => {
+      createReviewDispatchRecoveryTables(database);
+      database.run('PRAGMA user_version = 6');
     });
   }
 }
@@ -1415,6 +1531,13 @@ export class ActivationController {
           lease.leaseEpoch,
           lease.workerId,
         );
+      this.#database
+        .query(
+          `INSERT INTO activation_review_dispatch_progress (
+          effect_key, state, dispatch_attempts, owner_epoch, owner_id, version
+        ) VALUES (?, 'reserved', 0, ?, ?, 0)`,
+        )
+        .run(effectKey, lease.leaseEpoch, lease.workerId);
       return {
         effectKey,
         requestIdentity: request.requestIdentity,
@@ -1426,6 +1549,347 @@ export class ActivationController {
         maxDispatchAttempts: reservation.maxDispatchAttempts,
       };
     });
+  }
+
+  #dispatchRowsIn(effectKey: string): DispatchRows {
+    const rawReservation: unknown = this.#database
+      .query('SELECT * FROM activation_review_dispatch WHERE effect_key = ?')
+      .get(effectKey);
+    if (rawReservation === null) throw new Error('review dispatch reservation absent');
+    const stored = parseOrThrow(StoredReviewDispatch, rawReservation);
+    const rawProgress: unknown = this.#database
+      .query('SELECT * FROM activation_review_dispatch_progress WHERE effect_key = ?')
+      .get(effectKey);
+    // Proof: synthesizing a missing progress row reached the provider query; bypassing
+    // schema validation for malformed progress likewise reached the send path.
+    if (rawProgress === null) throw new Error('review dispatch progress absent');
+    const progress = parseOrThrow(StoredDispatchProgress, rawProgress);
+    if (hashBytes(stored.payload_bytes) !== stored.payload_digest)
+      throw new Error('review dispatch payload digest changed');
+    const target = parseOrThrow(LogicalReviewTarget, JSON.parse(stored.target_bytes));
+    const reservation: ReviewDispatchReservation = {
+      effectKey: stored.effect_key,
+      requestIdentity: stored.request_identity,
+      target,
+      payloadBytes: stored.payload_bytes,
+      payloadDigest: stored.payload_digest,
+      createdAt: stored.created_at,
+      deadlineAt: stored.deadline_at,
+      maxDispatchAttempts: stored.max_dispatch_attempts,
+    };
+    return { stored, progress, reservation };
+  }
+
+  #currentDispatchIn(lease: RequestLease, effectKey: string): DispatchRows {
+    const rows = this.#dispatchRowsIn(effectKey);
+    if (rows.stored.request_identity !== lease.requestIdentity)
+      throw new Error('review dispatch request changed');
+    const request = readRow(this.#database, lease.requestIdentity);
+    if (request?.current !== 1 || request.stage !== 'evaluating')
+      throw new Error('review dispatch request no longer current evaluating');
+    const selected = storedRequest(request).request;
+    const frozenRows: unknown[] = this.#database
+      .query('SELECT * FROM activation_obligation WHERE request_identity = ? ORDER BY rowid')
+      .all(selected.requestIdentity);
+    const obligations = frozenRows.map((entry) => parseOrThrow(StoredObligation, entry));
+    // Proof: changing the persisted cold protocol after reservation otherwise let
+    // recovery send under a plan digest that no longer described the frozen rows.
+    if (
+      request.evaluation_plan_identity === null ||
+      request.evaluation_plan_identity !== rows.stored.plan_identity ||
+      hashCanonical(reconstructFrozenPlan(selected, obligations)) !== rows.stored.plan_identity
+    )
+      throw new Error('review dispatch differs from frozen evaluation plan');
+    const rawRegistration: unknown = this.#database
+      .query(
+        'SELECT * FROM activation_review_attempt WHERE request_identity = ? AND review_id = ? AND attempt = ?',
+      )
+      .get(selected.requestIdentity, rows.stored.review_id, rows.stored.attempt);
+    // Proof: changing the durable invocation after reservation otherwise sent a
+    // payload that could not join its registered review attempt.
+    if (
+      rawRegistration === null ||
+      parseOrThrow(StoredReviewAttempt, rawRegistration).invocation_id !== rows.stored.invocation_id
+    )
+      throw new Error('review dispatch invocation registration changed');
+    const subject: unknown = this.#database
+      .query(
+        'SELECT high_water_generation FROM activation_subject WHERE repository_id = ? AND subject_key = ?',
+      )
+      .get(selected.repositoryId, subjectKey(selected.subject));
+    // Proof: omitting this recovery-time fence sent a reservation after the subject's
+    // durable generation advanced while its stale request row still appeared current.
+    if (
+      subject === null ||
+      parseOrThrow(type({ high_water_generation: 'number.integer>=0' }), subject)
+        .high_water_generation !== selected.auditGeneration
+    )
+      throw new Error('review dispatch generation changed');
+    const now = nowFrom(this.options.clock);
+    if (
+      request.lease_epoch !== lease.leaseEpoch ||
+      request.lease_owner !== lease.workerId ||
+      request.lease_expires_at === null ||
+      isExpiredLease(request.lease_expires_at, now)
+    )
+      throw new Error('review dispatch lease changed');
+    const bootstrap = readBootstrapConfiguration(this.options.bootstrapPath, this.options.pin);
+    if (
+      request.bootstrap_identity !== this.options.pin.identity ||
+      rows.stored.authority_identity !== this.options.pin.identity ||
+      storedRequest(request).request.authorityIdentity !== this.options.pin.identity
+    )
+      throw new Error('review dispatch authority changed');
+    const expectedTarget = serializeCanonical({
+      kind: 'reviewer',
+      providerId: bootstrap.reviewer.providerId,
+      executorId: bootstrap.reviewer.executorId,
+    });
+    if (rows.stored.target_bytes !== expectedTarget)
+      throw new Error('review dispatch target changed');
+    return rows;
+  }
+
+  #dispatchProgressIn(effectKey: string): ReviewDispatchProgress {
+    const progress = this.#dispatchRowsIn(effectKey).progress;
+    return {
+      effectKey,
+      state: progress.state,
+      dispatchAttempts: progress.dispatch_attempts,
+      ownerEpoch: progress.owner_epoch,
+      ownerId: progress.owner_id,
+    };
+  }
+
+  #retainedRemoteDispatchFactIn(
+    stored: typeof StoredReviewDispatch.infer,
+  ): ReviewDispatchObservation | null {
+    const rawFact: unknown = this.#database
+      .query(
+        'SELECT observation_bytes, observation_digest FROM activation_review_dispatch_fact WHERE effect_key = ?',
+      )
+      .get(stored.effect_key);
+    if (rawFact === null) return null;
+    const retained = parseOrThrow(
+      type({
+        observation_bytes: 'string>=1',
+        observation_digest: /^[0-9a-f]{64}$/,
+      }).onUndeclaredKey('reject'),
+      rawFact,
+    );
+    // Proof: corrupting the retained fact after acknowledgement was previously ignored by replay.
+    if (hashBytes(retained.observation_bytes) !== retained.observation_digest)
+      throw new Error('review dispatch remote fact digest changed');
+    const fact = parseOrThrow(DispatchObservation, JSON.parse(retained.observation_bytes));
+    if (
+      fact.effectKey !== stored.effect_key ||
+      fact.requestIdentity !== stored.request_identity ||
+      serializeCanonical(fact.target) !== stored.target_bytes ||
+      fact.payloadDigest !== stored.payload_digest ||
+      fact.invocationId !== stored.invocation_id
+    )
+      throw new Error('review dispatch remote fact differs from reservation');
+    return fact;
+  }
+
+  #markDispatchUncertain(
+    lease: RequestLease,
+    effectKey: string,
+    version: number,
+  ): ReviewDispatchProgress {
+    return transaction(this.#database, () => {
+      const rows = this.#dispatchRowsIn(effectKey);
+      if (
+        rows.progress.version === version &&
+        rows.progress.owner_epoch === lease.leaseEpoch &&
+        rows.progress.owner_id === lease.workerId &&
+        rows.progress.state !== 'acknowledged'
+      )
+        this.#database
+          .query(
+            `UPDATE activation_review_dispatch_progress
+          SET state = 'uncertain', version = version + 1 WHERE effect_key = ?`,
+          )
+          .run(effectKey);
+      return this.#dispatchProgressIn(effectKey);
+    });
+  }
+
+  #retainRemoteDispatchFact(
+    stored: typeof StoredReviewDispatch.infer,
+    observed: ReviewDispatchObservation,
+  ): void {
+    const fact = parseOrThrow(DispatchObservation, observed);
+    // Proof: independently omitting target, payload or invocation comparison retained a
+    // foreign accepted fact and let the mounted recovery advance beyond its refusal.
+    if (
+      fact.effectKey !== stored.effect_key ||
+      fact.requestIdentity !== stored.request_identity ||
+      serializeCanonical(fact.target) !== stored.target_bytes ||
+      fact.payloadDigest !== stored.payload_digest ||
+      fact.invocationId !== stored.invocation_id
+    )
+      throw new Error('review dispatch remote fact differs from reservation');
+    const bytes = serializeCanonical(fact);
+    transaction(this.#database, () => {
+      const prior: unknown = this.#database
+        .query(
+          'SELECT observation_bytes, observation_digest FROM activation_review_dispatch_fact WHERE effect_key = ?',
+        )
+        .get(stored.effect_key);
+      if (prior !== null) {
+        const retained = parseOrThrow(
+          type({
+            observation_bytes: 'string>=1',
+            observation_digest: /^[0-9a-f]{64}$/,
+          }).onUndeclaredKey('reject'),
+          prior,
+        );
+        // Proof: removing this conflict check accepted changed remote-dispatch bytes and
+        // acknowledged using an earlier retained fact.
+        if (
+          retained.observation_bytes !== bytes ||
+          retained.observation_digest !== hashBytes(bytes)
+        )
+          throw new Error('review dispatch remote fact conflicts');
+        return;
+      }
+      this.#database
+        .query(
+          `INSERT INTO activation_review_dispatch_fact
+        (effect_key, observation_bytes, observation_digest) VALUES (?, ?, ?)`,
+        )
+        .run(stored.effect_key, bytes, hashBytes(bytes));
+    });
+  }
+
+  #acknowledgeCurrentDispatch(
+    lease: RequestLease,
+    effectKey: string,
+    version: number,
+  ): ReviewDispatchProgress {
+    return transaction(this.#database, () => {
+      const rows = this.#dispatchRowsIn(effectKey);
+      if (this.#retainedRemoteDispatchFactIn(rows.stored) === null)
+        throw new Error('review dispatch remote fact absent');
+      if (rows.progress.state === 'acknowledged') return this.#dispatchProgressIn(effectKey);
+      const request = readRow(this.#database, lease.requestIdentity);
+      if (
+        request?.current !== 1 ||
+        request.stage !== 'evaluating' ||
+        request.lease_epoch !== lease.leaseEpoch ||
+        request.lease_owner !== lease.workerId ||
+        request.lease_expires_at === null ||
+        isExpiredLease(request.lease_expires_at, nowFrom(this.options.clock)) ||
+        rows.progress.version !== version ||
+        rows.progress.owner_epoch !== lease.leaseEpoch ||
+        rows.progress.owner_id !== lease.workerId
+      )
+        return this.#dispatchProgressIn(effectKey);
+      this.#currentDispatchIn(lease, effectKey);
+      this.#database
+        .query(
+          `UPDATE activation_review_dispatch_progress
+        SET state = 'acknowledged', version = version + 1 WHERE effect_key = ?`,
+        )
+        .run(effectKey);
+      return this.#dispatchProgressIn(effectKey);
+    });
+  }
+
+  /** Reconciles a reserved effect before any fake-provider send; no live adapter is installed. */
+  async recoverReviewDispatch(
+    lease: RequestLease,
+    effectKey: string,
+    port: ReviewDispatchPort,
+  ): Promise<ReviewDispatchProgress> {
+    if (!/^[0-9a-f]{64}$/.test(effectKey)) throw new Error('review dispatch effect key malformed');
+    const intent = transaction(this.#database, () => {
+      const rows = this.#currentDispatchIn(lease, effectKey);
+      if (rows.progress.state === 'acknowledged') {
+        // Proof: omitting this check replayed acknowledged progress after its fact was deleted.
+        if (this.#retainedRemoteDispatchFactIn(rows.stored) === null)
+          throw new Error('review dispatch remote fact absent');
+        return { kind: 'done' as const, progress: this.#dispatchProgressIn(effectKey) };
+      }
+      // Proof: omitting durable intent left the effect reserved while a provider query ran.
+      this.#database
+        .query(
+          `UPDATE activation_review_dispatch_progress SET
+        state = 'dispatching', owner_epoch = ?, owner_id = ?, version = version + 1
+        WHERE effect_key = ?`,
+        )
+        .run(lease.leaseEpoch, lease.workerId, effectKey);
+      const updated = this.#dispatchRowsIn(effectKey);
+      return {
+        kind: 'active' as const,
+        stored: updated.stored,
+        reservation: updated.reservation,
+        version: updated.progress.version,
+      };
+    });
+    if (intent.kind === 'done') return intent.progress;
+    // Proof: bypassing the query blindly resent an accepted effect; bypassing its schema
+    // treated malformed output as an absent fact and reached the send path.
+    const queried = parseOrThrow(DispatchQuery, await port.query(intent.reservation));
+    // Proof: omitting unavailable handling sent while the remote disposition was unknown.
+    if (queried.kind === 'unavailable')
+      return this.#markDispatchUncertain(lease, effectKey, intent.version);
+    // Proof: omitting accepted handling attempted a new send despite authenticated acceptance.
+    if (queried.kind === 'accepted') {
+      this.#retainRemoteDispatchFact(intent.stored, queried.observed);
+      return this.#acknowledgeCurrentDispatch(lease, effectKey, intent.version);
+    }
+    const permission = transaction(this.#database, () => {
+      const rows = this.#currentDispatchIn(lease, effectKey);
+      // Proof: omitting the progress-version comparison let two same-owner queries both send.
+      if (
+        rows.progress.version !== intent.version ||
+        rows.progress.owner_epoch !== lease.leaseEpoch ||
+        rows.progress.owner_id !== lease.workerId
+      )
+        throw new Error('review dispatch ownership changed before send');
+      const fact: unknown = this.#database
+        .query('SELECT effect_key FROM activation_review_dispatch_fact WHERE effect_key = ?')
+        .get(effectKey);
+      if (fact !== null)
+        throw new Error('review dispatch local fact conflicts with remote absence');
+      const now = nowFrom(this.options.clock);
+      // Proof: independent deadline and attempt-budget omissions each caused an extra send.
+      if (
+        now >= rows.stored.deadline_at ||
+        rows.progress.dispatch_attempts >= rows.stored.max_dispatch_attempts
+      ) {
+        this.#database
+          .query(
+            `UPDATE activation_review_dispatch_progress
+          SET state = 'exhausted', version = version + 1 WHERE effect_key = ?`,
+          )
+          .run(effectKey);
+        return { kind: 'exhausted' as const, progress: this.#dispatchProgressIn(effectKey) };
+      }
+      // Proof: omitting this increment hid a pre-await send attempt from durable recovery.
+      this.#database
+        .query(
+          `UPDATE activation_review_dispatch_progress
+        SET dispatch_attempts = dispatch_attempts + 1, version = version + 1
+        WHERE effect_key = ?`,
+        )
+        .run(effectKey);
+      return { kind: 'send' as const, version: this.#dispatchRowsIn(effectKey).progress.version };
+    });
+    if (permission.kind === 'exhausted') return permission.progress;
+    const sent = parseOrThrow(
+      DispatchSend,
+      await port.send(intent.reservation, {
+        workerId: lease.workerId,
+        leaseEpoch: lease.leaseEpoch,
+      }),
+    );
+    if (sent.kind === 'uncertain')
+      return this.#markDispatchUncertain(lease, effectKey, permission.version);
+    this.#retainRemoteDispatchFact(intent.stored, sent.observed);
+    return this.#acknowledgeCurrentDispatch(lease, effectKey, permission.version);
   }
 
   /** Authenticates the persisted obligation kind before committing exact receipt evidence. */

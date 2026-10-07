@@ -1701,6 +1701,8 @@ test('version-4 dispatch migration is additive and rolls back a late index confl
   controller.close();
   const database = new Database(source.databasePath);
   try {
+    database.run('DROP TABLE activation_review_dispatch_fact');
+    database.run('DROP TABLE activation_review_dispatch_progress');
     database.run('DROP TABLE activation_review_dispatch');
     database.run('PRAGMA user_version = 4');
     database.run(
@@ -1725,13 +1727,63 @@ test('version-4 dispatch migration is additive and rolls back a late index confl
   const upgraded = boundaryController(source, () => 1000);
   const migrated = new Database(source.databasePath);
   try {
-    expect(migrated.query('PRAGMA user_version').get()).toEqual({ user_version: 5 });
+    expect(migrated.query('PRAGMA user_version').get()).toEqual({ user_version: 6 });
     expect(upgraded.readRequest(request.requestIdentity)?.request.requestIdentity).toBe(
       request.requestIdentity,
     );
   } finally {
     migrated.close();
     upgraded.close();
+  }
+});
+
+test('installed fake dispatch queries its reserved effect before one send and acknowledges exact bytes', async () => {
+  const source = dispatchFixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    const reservation = controller.reserveReviewDispatch(lease, {
+      reviewId: 'review.primary',
+      attempt: 0,
+      invocationId: 'invocation.primary',
+      deadlineAt: 1200,
+      maxDispatchAttempts: 3,
+    });
+    const calls: string[] = [];
+    const observed = {
+      effectKey: reservation.effectKey,
+      requestIdentity: request.requestIdentity,
+      target: reservation.target,
+      payloadDigest: reservation.payloadDigest,
+      invocationId: 'invocation.primary',
+      remoteDispatchId: 'remote.primary',
+      evidenceBytes: serializeCanonical({ accepted: reservation.effectKey }),
+    };
+    const progress = await controller.recoverReviewDispatch(lease, reservation.effectKey, {
+      query: () => {
+        calls.push('query');
+        return Promise.resolve({ kind: 'absent' as const });
+      },
+      send: () => {
+        calls.push('send');
+        return Promise.resolve({ kind: 'accepted' as const, observed });
+      },
+    });
+    expect(calls).toEqual(['query', 'send']);
+    expect(progress.state).toBe('acknowledged');
+    expect(database.query('SELECT * FROM activation_review_dispatch_fact').all()).toHaveLength(1);
+    expect(
+      database
+        .query('SELECT state, dispatch_attempts FROM activation_review_dispatch_progress')
+        .get(),
+    ).toEqual({ state: 'acknowledged', dispatch_attempts: 1 });
+    expect(controller.readRequest(request.requestIdentity)?.stage).toBe('evaluating');
+  } finally {
+    database.close();
+    controller.close();
   }
 });
 
@@ -1809,6 +1861,779 @@ function boundaryController(source: ReturnType<typeof fixture>, clock: () => num
     currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
   });
 }
+
+function reservedDispatchFixture(
+  options: { readonly deadlineAt?: number; readonly maxDispatchAttempts?: number } = {},
+) {
+  let now = 1000;
+  const source = dispatchFixture();
+  const controller = boundaryController(source, () => now);
+  const database = new Database(source.databasePath);
+  const request = controller.observe(source.candidate);
+  const lease = controller.claim(request.requestIdentity, 'worker.first', 10);
+  controller.beginEvaluation(lease);
+  const reservation = controller.reserveReviewDispatch(lease, {
+    reviewId: 'review.primary',
+    attempt: 0,
+    invocationId: 'invocation.primary',
+    deadlineAt: options.deadlineAt ?? 1200,
+    maxDispatchAttempts: options.maxDispatchAttempts ?? 3,
+  });
+  const observed = {
+    effectKey: reservation.effectKey,
+    requestIdentity: request.requestIdentity,
+    target: reservation.target,
+    payloadDigest: reservation.payloadDigest,
+    invocationId: 'invocation.primary',
+    remoteDispatchId: 'remote.primary',
+    evidenceBytes: serializeCanonical({ accepted: reservation.effectKey }),
+  };
+  return {
+    source,
+    controller,
+    database,
+    request,
+    lease,
+    reservation,
+    observed,
+    setNow(value: number) {
+      now = value;
+    },
+    close() {
+      database.close();
+      controller.close();
+    },
+  };
+}
+
+test('dispatch query distinguishes authenticated absence from unreadable and malformed observations', async () => {
+  const unavailable = reservedDispatchFixture();
+  try {
+    let sends = 0;
+    const progress = await unavailable.controller.recoverReviewDispatch(
+      unavailable.lease,
+      unavailable.reservation.effectKey,
+      {
+        query: () => Promise.resolve({ kind: 'unavailable' as const }),
+        send: () => {
+          sends += 1;
+          return Promise.resolve({ kind: 'uncertain' as const });
+        },
+      },
+    );
+    expect(progress.state).toBe('uncertain');
+    expect(progress.dispatchAttempts).toBe(0);
+    expect(sends).toBe(0);
+    expect(
+      unavailable.database.query('SELECT * FROM activation_review_dispatch_fact').all(),
+    ).toEqual([]);
+  } finally {
+    unavailable.close();
+  }
+
+  const malformed = reservedDispatchFixture();
+  try {
+    let sends = 0;
+    await rejectedWith(
+      malformed.controller.recoverReviewDispatch(malformed.lease, malformed.reservation.effectKey, {
+        query: () => Promise.resolve({ kind: 'unknown' } as never),
+        send: () => {
+          sends += 1;
+          return Promise.resolve({ kind: 'uncertain' as const });
+        },
+      }),
+      'Validation failed',
+    );
+    expect(sends).toBe(0);
+    expect(malformed.database.query('SELECT * FROM activation_review_dispatch_fact').all()).toEqual(
+      [],
+    );
+    expect(
+      malformed.database
+        .query('SELECT state, dispatch_attempts FROM activation_review_dispatch_progress')
+        .get(),
+    ).toEqual({ state: 'dispatching', dispatch_attempts: 0 });
+  } finally {
+    malformed.close();
+  }
+});
+
+test('reopened recovery reconciles an accepted send without a blind resend', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    const calls: string[] = [];
+    const first = await fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      {
+        query: () => {
+          calls.push('query.absent');
+          return Promise.resolve({ kind: 'absent' as const });
+        },
+        send: () => {
+          calls.push('send.accepted.but.response.lost');
+          return Promise.resolve({ kind: 'uncertain' as const });
+        },
+      },
+    );
+    expect(first.state).toBe('uncertain');
+    expect(first.dispatchAttempts).toBe(1);
+    fixture.controller.close();
+    const reopened = boundaryController(fixture.source, () => 1000);
+    try {
+      const reconciled = await reopened.recoverReviewDispatch(
+        fixture.lease,
+        fixture.reservation.effectKey,
+        {
+          query: () => {
+            calls.push('query.accepted');
+            return Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed });
+          },
+          send: () => {
+            calls.push('unexpected.send');
+            return Promise.resolve({ kind: 'uncertain' as const });
+          },
+        },
+      );
+      expect(calls).toEqual(['query.absent', 'send.accepted.but.response.lost', 'query.accepted']);
+      expect(reconciled.state).toBe('acknowledged');
+      expect(reconciled.dispatchAttempts).toBe(1);
+      expect(
+        fixture.database.query('SELECT * FROM activation_review_dispatch_fact').all(),
+      ).toHaveLength(1);
+    } finally {
+      reopened.close();
+    }
+  } finally {
+    fixture.close();
+  }
+});
+
+test('foreign remote fact cannot acknowledge the reserved dispatch', async () => {
+  for (const changed of ['target', 'payload', 'invocation'] as const) {
+    const fixture = reservedDispatchFixture();
+    try {
+      const observed =
+        changed === 'target'
+          ? { ...fixture.observed, target: { ...fixture.observed.target, providerId: 'foreign' } }
+          : changed === 'payload'
+            ? { ...fixture.observed, payloadDigest: 'f'.repeat(64) }
+            : { ...fixture.observed, invocationId: 'foreign' };
+      await rejectedWith(
+        fixture.controller.recoverReviewDispatch(fixture.lease, fixture.reservation.effectKey, {
+          query: () => Promise.resolve({ kind: 'accepted' as const, observed }),
+          send: () => {
+            throw new Error('query acceptance must not send');
+          },
+        }),
+        'review dispatch remote fact differs from reservation',
+      );
+      expect(fixture.database.query('SELECT * FROM activation_review_dispatch_fact').all()).toEqual(
+        [],
+      );
+      expect(
+        fixture.database
+          .query('SELECT state, dispatch_attempts FROM activation_review_dispatch_progress')
+          .get(),
+      ).toEqual({ state: 'dispatching', dispatch_attempts: 0 });
+    } finally {
+      fixture.close();
+    }
+  }
+});
+
+test('dispatch exhaustion bars new sends but still reconciles an earlier remote acceptance', async () => {
+  const fixture = reservedDispatchFixture({ maxDispatchAttempts: 1 });
+  try {
+    let sends = 0;
+    const port = {
+      query: () => Promise.resolve({ kind: 'absent' as const }),
+      send: () => {
+        sends += 1;
+        return Promise.resolve({ kind: 'uncertain' as const });
+      },
+    };
+    const first = await fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      port,
+    );
+    expect(first.state).toBe('uncertain');
+    expect(first.dispatchAttempts).toBe(1);
+    const exhausted = await fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      port,
+    );
+    expect(exhausted.state).toBe('exhausted');
+    expect(sends).toBe(1);
+    const reconciled = await fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      {
+        query: () => Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed }),
+        send: () => {
+          throw new Error('accepted remote fact must not send');
+        },
+      },
+    );
+    expect(reconciled.state).toBe('acknowledged');
+    expect(reconciled.dispatchAttempts).toBe(1);
+  } finally {
+    fixture.close();
+  }
+});
+
+test('dispatch deadline bars new sends but permits an already accepted remote fact', async () => {
+  const fixture = reservedDispatchFixture({ deadlineAt: 1001 });
+  try {
+    fixture.setNow(1001);
+    let sends = 0;
+    const exhausted = await fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      {
+        query: () => Promise.resolve({ kind: 'absent' as const }),
+        send: () => {
+          sends += 1;
+          return Promise.resolve({ kind: 'uncertain' as const });
+        },
+      },
+    );
+    expect(exhausted.state).toBe('exhausted');
+    expect(exhausted.dispatchAttempts).toBe(0);
+    expect(sends).toBe(0);
+    const reconciled = await fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      {
+        query: () => Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed }),
+        send: () => {
+          throw new Error('accepted remote fact must not send');
+        },
+      },
+    );
+    expect(reconciled.state).toBe('acknowledged');
+  } finally {
+    fixture.close();
+  }
+});
+
+test('held dispatch query cannot send after another worker takes the evaluating lease', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    let releaseQuery: ((value: { kind: 'absent' }) => void) | undefined;
+    const query = new Promise<{ kind: 'absent' }>((resolve) => {
+      releaseQuery = resolve;
+    });
+    let sends = 0;
+    const pending = fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      {
+        query: () => query,
+        send: () => {
+          sends += 1;
+          return Promise.resolve({ kind: 'uncertain' as const });
+        },
+      },
+    );
+    expect(
+      fixture.database
+        .query('SELECT state, dispatch_attempts FROM activation_review_dispatch_progress')
+        .get(),
+    ).toEqual({ state: 'dispatching', dispatch_attempts: 0 });
+    fixture.setNow(1010);
+    const successor = fixture.controller.recoverEvaluationLease(
+      fixture.request.requestIdentity,
+      'worker.second',
+      10,
+    );
+    expect(successor.leaseEpoch).toBeGreaterThan(fixture.lease.leaseEpoch);
+    releaseQuery?.({ kind: 'absent' });
+    await rejectedWith(pending, 'review dispatch lease changed');
+    expect(sends).toBe(0);
+    expect(fixture.database.query('SELECT * FROM activation_review_dispatch_fact').all()).toEqual(
+      [],
+    );
+  } finally {
+    fixture.close();
+  }
+});
+
+test('fake provider fences takeover after local pre-send intent and retains no old-owner acknowledgement', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    let releaseSend: (() => void) | undefined;
+    const sendGate = new Promise<void>((resolve) => {
+      releaseSend = resolve;
+    });
+    let accepted = 0;
+    const pending = fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      {
+        query: () => Promise.resolve({ kind: 'absent' as const }),
+        send: async (reservation, fence) => {
+          await sendGate;
+          const owner = fixture.database
+            .query(
+              'SELECT lease_owner, lease_epoch FROM activation_request WHERE request_identity = ?',
+            )
+            .get(fixture.request.requestIdentity) as { lease_owner: string; lease_epoch: number };
+          if (owner.lease_owner !== fence.workerId || owner.lease_epoch !== fence.leaseEpoch)
+            return { kind: 'uncertain' as const };
+          expect(reservation.payloadDigest).toBe(fixture.reservation.payloadDigest);
+          accepted += 1;
+          return { kind: 'accepted' as const, observed: fixture.observed };
+        },
+      },
+    );
+    await Promise.resolve();
+    expect(
+      fixture.database
+        .query('SELECT dispatch_attempts FROM activation_review_dispatch_progress')
+        .get(),
+    ).toEqual({ dispatch_attempts: 1 });
+    fixture.setNow(1010);
+    fixture.controller.recoverEvaluationLease(fixture.request.requestIdentity, 'worker.second', 10);
+    releaseSend?.();
+    const progress = await pending;
+    expect(accepted).toBe(0);
+    expect(fixture.database.query('SELECT * FROM activation_review_dispatch_fact').all()).toEqual(
+      [],
+    );
+    expect(progress.state).toBe('uncertain');
+  } finally {
+    fixture.close();
+  }
+});
+
+test('acknowledged dispatch replay refuses corrupted retained remote fact', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    const port = {
+      query: () => Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed }),
+      send: () => {
+        throw new Error('remote fact was already accepted');
+      },
+    };
+    const first = await fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      port,
+    );
+    expect(first.state).toBe('acknowledged');
+    fixture.database
+      .query(
+        `UPDATE activation_review_dispatch_fact SET observation_bytes = ?
+      WHERE effect_key = ?`,
+      )
+      .run(
+        serializeCanonical({ ...fixture.observed, evidenceBytes: 'tampered' }),
+        fixture.reservation.effectKey,
+      );
+    await rejectedWith(
+      fixture.controller.recoverReviewDispatch(fixture.lease, fixture.reservation.effectKey, port),
+      'review dispatch remote fact digest changed',
+    );
+    expect(
+      fixture.database.query('SELECT state FROM activation_review_dispatch_progress').get(),
+    ).toEqual({ state: 'acknowledged' });
+  } finally {
+    fixture.close();
+  }
+});
+
+test('acknowledged dispatch replay refuses a missing retained remote fact', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    const port = {
+      query: () => Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed }),
+      send: () => {
+        throw new Error('remote fact was already accepted');
+      },
+    };
+    const first = await fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      port,
+    );
+    expect(first.state).toBe('acknowledged');
+    fixture.database
+      .query('DELETE FROM activation_review_dispatch_fact WHERE effect_key = ?')
+      .run(fixture.reservation.effectKey);
+    await rejectedWith(
+      fixture.controller.recoverReviewDispatch(fixture.lease, fixture.reservation.effectKey, port),
+      'review dispatch remote fact absent',
+    );
+  } finally {
+    fixture.close();
+  }
+});
+
+test('version-5 reserved effect migrates as unsent and late version-6 failure rolls back schema', () => {
+  const fixture = reservedDispatchFixture();
+  const effectKey = fixture.reservation.effectKey;
+  const source = fixture.source;
+  fixture.close();
+  const database = new Database(source.databasePath);
+  try {
+    database.run('DROP TABLE activation_review_dispatch_progress');
+    database.run('PRAGMA user_version = 5');
+    const before = {
+      version: database.query('PRAGMA user_version').get(),
+      schema: database
+        .query("SELECT name, sql FROM sqlite_schema WHERE type = 'table' ORDER BY name")
+        .all(),
+      reservation: database.query('SELECT * FROM activation_review_dispatch').all(),
+    };
+    expect(() => boundaryController(source, () => 1000)).toThrow(
+      'activation_review_dispatch_fact already exists',
+    );
+    expect({
+      version: database.query('PRAGMA user_version').get(),
+      schema: database
+        .query("SELECT name, sql FROM sqlite_schema WHERE type = 'table' ORDER BY name")
+        .all(),
+      reservation: database.query('SELECT * FROM activation_review_dispatch').all(),
+    }).toEqual(before);
+    database.run('DROP TABLE activation_review_dispatch_fact');
+  } finally {
+    database.close();
+  }
+  const upgraded = boundaryController(source, () => 1000);
+  const migrated = new Database(source.databasePath);
+  try {
+    expect(migrated.query('PRAGMA user_version').get()).toEqual({ user_version: 6 });
+    expect(
+      migrated
+        .query(
+          'SELECT effect_key, state, dispatch_attempts FROM activation_review_dispatch_progress',
+        )
+        .get(),
+    ).toEqual({ effect_key: effectKey, state: 'reserved', dispatch_attempts: 0 });
+    expect(migrated.query('SELECT * FROM activation_review_dispatch_fact').all()).toEqual([]);
+  } finally {
+    migrated.close();
+    upgraded.close();
+  }
+});
+
+test.each(['missing', 'malformed'] as const)(
+  'recovery refuses %s durable progress before querying the provider',
+  async (damage) => {
+    const fixture = reservedDispatchFixture();
+    try {
+      if (damage === 'missing') {
+        fixture.database
+          .query('DELETE FROM activation_review_dispatch_progress WHERE effect_key = ?')
+          .run(fixture.reservation.effectKey);
+      } else {
+        fixture.database
+          .query('UPDATE activation_review_dispatch_progress SET owner_id = ? WHERE effect_key = ?')
+          .run('', fixture.reservation.effectKey);
+      }
+      let queries = 0;
+      let refusal: unknown;
+      try {
+        await fixture.controller.recoverReviewDispatch(
+          fixture.lease,
+          fixture.reservation.effectKey,
+          {
+            query: () => {
+              queries += 1;
+              return Promise.resolve({ kind: 'absent' as const });
+            },
+            send: () => {
+              throw new Error('invalid progress must not send');
+            },
+          },
+        );
+      } catch (error) {
+        refusal = error;
+      }
+      expect(queries).toBe(0);
+      expect(refusal).toBeInstanceOf(Error);
+      expect((refusal as Error).message).toContain(
+        damage === 'missing' ? 'review dispatch progress absent' : 'owner_id must be non-empty',
+      );
+      expect(fixture.database.query('SELECT * FROM activation_review_dispatch_fact').all()).toEqual(
+        [],
+      );
+    } finally {
+      fixture.close();
+    }
+  },
+);
+
+test('stale worker retains an already accepted fact but only successor acknowledges it', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    let releaseQuery:
+      ((value: { kind: 'accepted'; observed: typeof fixture.observed }) => void) | undefined;
+    const query = new Promise<{ kind: 'accepted'; observed: typeof fixture.observed }>(
+      (resolve) => {
+        releaseQuery = resolve;
+      },
+    );
+    const stale = fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      {
+        query: () => query,
+        send: () => {
+          throw new Error('accepted fact must not send');
+        },
+      },
+    );
+    fixture.setNow(1010);
+    const successor = fixture.controller.recoverEvaluationLease(
+      fixture.request.requestIdentity,
+      'worker.second',
+      10,
+    );
+    releaseQuery?.({ kind: 'accepted', observed: fixture.observed });
+    const staleProgress = await stale;
+    expect(staleProgress.state).toBe('dispatching');
+    expect(
+      fixture.database.query('SELECT * FROM activation_review_dispatch_fact').all(),
+    ).toHaveLength(1);
+    const current = await fixture.controller.recoverReviewDispatch(
+      successor,
+      fixture.reservation.effectKey,
+      {
+        query: () => Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed }),
+        send: () => {
+          throw new Error('already accepted fact must not send');
+        },
+      },
+    );
+    expect(current.state).toBe('acknowledged');
+    expect(current.dispatchAttempts).toBe(0);
+    expect(
+      fixture.database.query('SELECT * FROM activation_review_dispatch_fact').all(),
+    ).toHaveLength(1);
+  } finally {
+    fixture.close();
+  }
+});
+
+test('fact retention survives an acknowledgement write failure without granting progress', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    fixture.database.run(`CREATE TRIGGER fail_dispatch_ack BEFORE UPDATE OF state
+      ON activation_review_dispatch_progress WHEN NEW.state = 'acknowledged'
+      BEGIN SELECT RAISE(ABORT, 'modeled dispatch acknowledgement failure'); END`);
+    const port = {
+      query: () => Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed }),
+      send: () => {
+        throw new Error('accepted fact must not send');
+      },
+    };
+    await rejectedWith(
+      fixture.controller.recoverReviewDispatch(fixture.lease, fixture.reservation.effectKey, port),
+      'modeled dispatch acknowledgement failure',
+    );
+    expect(
+      fixture.database.query('SELECT state FROM activation_review_dispatch_progress').get(),
+    ).toEqual({ state: 'dispatching' });
+    expect(
+      fixture.database.query('SELECT * FROM activation_review_dispatch_fact').all(),
+    ).toHaveLength(1);
+    fixture.database.run('DROP TRIGGER fail_dispatch_ack');
+    const reconciled = await fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      port,
+    );
+    expect(reconciled.state).toBe('acknowledged');
+    expect(
+      fixture.database.query('SELECT * FROM activation_review_dispatch_fact').all(),
+    ).toHaveLength(1);
+  } finally {
+    fixture.close();
+  }
+});
+
+test('two same-owner recovery queries cannot each authorize a send', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    let releaseFirst: ((value: { kind: 'absent' }) => void) | undefined;
+    const held = new Promise<{ kind: 'absent' }>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let sends = 0;
+    const first = fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      {
+        query: () => held,
+        send: () => {
+          sends += 1;
+          return Promise.resolve({ kind: 'uncertain' as const });
+        },
+      },
+    );
+    const second = await fixture.controller.recoverReviewDispatch(
+      fixture.lease,
+      fixture.reservation.effectKey,
+      {
+        query: () => Promise.resolve({ kind: 'absent' as const }),
+        send: () => {
+          sends += 1;
+          return Promise.resolve({ kind: 'uncertain' as const });
+        },
+      },
+    );
+    expect(second.dispatchAttempts).toBe(1);
+    releaseFirst?.({ kind: 'absent' });
+    await rejectedWith(first, 'review dispatch ownership changed before send');
+    expect(sends).toBe(1);
+    expect(
+      fixture.database
+        .query('SELECT dispatch_attempts FROM activation_review_dispatch_progress')
+        .get(),
+    ).toEqual({ dispatch_attempts: 1 });
+  } finally {
+    fixture.close();
+  }
+});
+
+test('query transport failure remains uncertain and never authorizes a blind send', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    let sends = 0;
+    await rejectedWith(
+      fixture.controller.recoverReviewDispatch(fixture.lease, fixture.reservation.effectKey, {
+        query: () => Promise.reject(new Error('modeled provider query unavailable')),
+        send: () => {
+          sends += 1;
+          return Promise.resolve({ kind: 'uncertain' as const });
+        },
+      }),
+      'modeled provider query unavailable',
+    );
+    expect(sends).toBe(0);
+    expect(
+      fixture.database
+        .query('SELECT state, dispatch_attempts FROM activation_review_dispatch_progress')
+        .get(),
+    ).toEqual({ state: 'dispatching', dispatch_attempts: 0 });
+  } finally {
+    fixture.close();
+  }
+});
+
+test('dispatch recovery refuses an advanced durable subject generation before provider work', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    fixture.database.run(
+      'UPDATE activation_subject SET high_water_generation = high_water_generation + 1',
+    );
+    let queries = 0;
+    await rejectedWith(
+      fixture.controller.recoverReviewDispatch(fixture.lease, fixture.reservation.effectKey, {
+        query: () => {
+          queries += 1;
+          return Promise.resolve({ kind: 'absent' as const });
+        },
+        send: () => {
+          throw new Error('stale generation must not send');
+        },
+      }),
+      'review dispatch generation changed',
+    );
+    expect(queries).toBe(0);
+    expect(
+      fixture.database
+        .query('SELECT state, dispatch_attempts FROM activation_review_dispatch_progress')
+        .get(),
+    ).toEqual({ state: 'reserved', dispatch_attempts: 0 });
+  } finally {
+    fixture.close();
+  }
+});
+
+test('dispatch recovery refuses changed frozen plan or registered invocation before provider work', async () => {
+  for (const changed of ['plan', 'invocation'] as const) {
+    const fixture = reservedDispatchFixture();
+    try {
+      if (changed === 'plan') {
+        fixture.database
+          .query(
+            `UPDATE activation_obligation SET protocol_identity = ?
+          WHERE request_identity = ? AND kind = 'audit' AND phase = 'cold'`,
+          )
+          .run('f'.repeat(64), fixture.request.requestIdentity);
+      } else {
+        fixture.database
+          .query(
+            `UPDATE activation_review_attempt SET invocation_id = ?
+          WHERE request_identity = ?`,
+          )
+          .run('invocation.changed', fixture.request.requestIdentity);
+      }
+      let queries = 0;
+      await rejectedWith(
+        fixture.controller.recoverReviewDispatch(fixture.lease, fixture.reservation.effectKey, {
+          query: () => {
+            queries += 1;
+            return Promise.resolve({ kind: 'absent' as const });
+          },
+          send: () => {
+            throw new Error('changed dispatch bindings must not send');
+          },
+        }),
+        changed === 'plan'
+          ? 'review dispatch differs from frozen evaluation plan'
+          : 'review dispatch invocation registration changed',
+      );
+      expect(queries).toBe(0);
+      expect(
+        fixture.database
+          .query('SELECT state, dispatch_attempts FROM activation_review_dispatch_progress')
+          .get(),
+      ).toEqual({ state: 'reserved', dispatch_attempts: 0 });
+    } finally {
+      fixture.close();
+    }
+  }
+});
+
+test('remote fact replay refuses conflicting accepted bytes before acknowledgement', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    const bytes = serializeCanonical(fixture.observed);
+    fixture.database
+      .query(
+        `INSERT INTO activation_review_dispatch_fact
+      (effect_key, observation_bytes, observation_digest) VALUES (?, ?, ?)`,
+      )
+      .run(fixture.reservation.effectKey, bytes, hashBytes(bytes));
+    await rejectedWith(
+      fixture.controller.recoverReviewDispatch(fixture.lease, fixture.reservation.effectKey, {
+        query: () =>
+          Promise.resolve({
+            kind: 'accepted' as const,
+            observed: { ...fixture.observed, remoteDispatchId: 'remote.other' },
+          }),
+        send: () => {
+          throw new Error('remote fact exists');
+        },
+      }),
+      'review dispatch remote fact conflicts',
+    );
+    expect(
+      fixture.database.query('SELECT state FROM activation_review_dispatch_progress').get(),
+    ).toEqual({ state: 'dispatching' });
+    expect(
+      fixture.database.query('SELECT observation_bytes FROM activation_review_dispatch_fact').get(),
+    ).toEqual({ observation_bytes: bytes });
+  } finally {
+    fixture.close();
+  }
+});
 
 test('evaluation fences an old epoch independently of current owner and version', () => {
   const source = fixture();
@@ -3464,6 +4289,8 @@ test.each([2, 3] as const)(
     first.close();
     const database = new Database(source.databasePath);
     try {
+      database.run('DROP TABLE activation_review_dispatch_fact');
+      database.run('DROP TABLE activation_review_dispatch_progress');
       database.run('DROP TABLE activation_review_dispatch');
       database.run('DROP TABLE activation_review_attempt');
       if (legacyVersion === 2) {
