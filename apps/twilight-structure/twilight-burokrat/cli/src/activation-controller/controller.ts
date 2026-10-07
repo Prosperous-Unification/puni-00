@@ -1,7 +1,7 @@
 import { parseOrThrow, type } from '@shared/validation';
 import { Database } from 'bun:sqlite';
 
-import { hashCanonical } from '../evidence/content-manifest';
+import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
 import { readBootstrapConfiguration, type TrustedBootstrapPin } from './bootstrap';
 import { type ObservedActivationCandidate, prepareObservedRequest } from './ingress';
 import {
@@ -44,6 +44,35 @@ const EvaluationPlan = type({
 }).onUndeclaredKey('reject');
 export type EvaluationPlan = typeof EvaluationPlan.infer;
 
+const AuthenticatedReceipt = type({
+  receiptIdentity: /^[0-9a-f]{64}$/,
+  issuerId: 'string>=1',
+  requestIdentity: /^[0-9a-f]{64}$/,
+  obligationIdentity: /^[0-9a-f]{64}$/,
+  kind: "'check'",
+  attempt: 'number.integer>=0',
+  executorId: 'string>=1',
+  protocolIdentity: /^[0-9a-f]{64}$/,
+  commandIdentity: /^[0-9a-f]{64}$/,
+  status: "'passed'|'failed'|'skipped'",
+})
+  .onUndeclaredKey('reject')
+  .or(
+    type({
+      receiptIdentity: /^[0-9a-f]{64}$/,
+      issuerId: 'string>=1',
+      requestIdentity: /^[0-9a-f]{64}$/,
+      obligationIdentity: /^[0-9a-f]{64}$/,
+      kind: "'audit'",
+      attempt: 'number.integer>=0',
+      executorId: 'string>=1',
+      protocolIdentity: /^[0-9a-f]{64}$/,
+      phase: "'cold'|'informed'",
+      status: "'passed'|'failed'|'skipped'",
+    }).onUndeclaredKey('reject'),
+  );
+export type AuthenticatedReceipt = typeof AuthenticatedReceipt.infer;
+
 const StoredObligation = type({
   request_identity: /^[0-9a-f]{64}$/,
   obligation_identity: /^[0-9a-f]{64}$/,
@@ -53,8 +82,18 @@ const StoredObligation = type({
   command_identity: type(/^[0-9a-f]{64}$/).or('null'),
   phase: "'cold'|'informed'|null",
   attempt: 'number.integer>=0',
-  state: "'pending'",
-  receipt_identity: 'null',
+  state: "'pending'|'passed'|'failed'|'skipped'",
+  receipt_identity: type(/^[0-9a-f]{64}$/).or('null'),
+}).onUndeclaredKey('reject');
+
+const StoredAttempt = type({
+  request_identity: /^[0-9a-f]{64}$/,
+  obligation_identity: /^[0-9a-f]{64}$/,
+  attempt: 'number.integer>=0',
+  receipt_identity: /^[0-9a-f]{64}$/,
+  receipt_bytes: 'string>=1',
+  authentication_bytes: 'string>=1',
+  status: "'passed'|'failed'|'skipped'",
 }).onUndeclaredKey('reject');
 
 const StoredRow = type({
@@ -69,6 +108,7 @@ const StoredRow = type({
   lease_owner: 'string|null',
   lease_expires_at: 'number.integer|null',
   evaluation_plan_identity: type(/^[0-9a-f]{64}$/).or('null'),
+  evidence_set_identity: type(/^[0-9a-f]{64}$/).or('null'),
   current: '0|1',
 }).onUndeclaredKey('reject');
 type StoredRow = typeof StoredRow.infer;
@@ -79,6 +119,7 @@ export interface StoredRequest {
   readonly version: number;
   readonly leaseEpoch: number;
   readonly current: boolean;
+  readonly evidenceSetIdentity: string | null;
 }
 
 export interface RequestLease {
@@ -101,6 +142,7 @@ export interface ActivationControllerOptions {
     { readonly kind: 'ready'; readonly candidate: ObservedCandidate } | { readonly kind: 'closed' }
   >;
   readonly selectObligations: (request: ActivationRequest) => EvaluationPlan;
+  readonly authenticateReceipt?: (receiptBytes: string) => Promise<unknown>;
 }
 
 const DeliveryRecord = type({
@@ -139,6 +181,7 @@ function storedRequest(row: StoredRow): StoredRequest {
     version: row.version,
     leaseEpoch: row.lease_epoch,
     current: row.current === 1,
+    evidenceSetIdentity: row.evidence_set_identity,
   };
 }
 
@@ -169,7 +212,7 @@ function initialize(database: Database): void {
   database.run('PRAGMA busy_timeout = 5000');
   const metadata: unknown = database.query('PRAGMA user_version').get();
   const version = parseOrThrow(type({ user_version: 'number.integer>=0' }), metadata).user_version;
-  if (version !== 0 && version !== 2)
+  if (version !== 0 && version !== 2 && version !== 3)
     // Proof: accepting old version 1 silently reopened storage without durable subject high-water.
     throw new Error(`unsupported activation store schema ${String(version)}`);
   if (version === 0) {
@@ -191,6 +234,7 @@ function initialize(database: Database): void {
         lease_owner TEXT,
         lease_expires_at INTEGER,
         evaluation_plan_identity TEXT,
+        evidence_set_identity TEXT,
         current INTEGER NOT NULL CHECK (current IN (0, 1))
       )`);
       database.run(
@@ -223,7 +267,40 @@ function initialize(database: Database): void {
         PRIMARY KEY (request_identity, obligation_identity),
         FOREIGN KEY (request_identity) REFERENCES activation_request(request_identity)
       )`);
-      database.run('PRAGMA user_version = 2');
+      database.run(`CREATE TABLE activation_attempt (
+        request_identity TEXT NOT NULL,
+        obligation_identity TEXT NOT NULL,
+        attempt INTEGER NOT NULL CHECK (attempt >= 0),
+        receipt_identity TEXT NOT NULL,
+        receipt_bytes TEXT NOT NULL,
+        authentication_bytes TEXT NOT NULL,
+        status TEXT NOT NULL,
+        PRIMARY KEY (request_identity, obligation_identity, attempt),
+        UNIQUE (receipt_identity),
+        FOREIGN KEY (request_identity, obligation_identity)
+          REFERENCES activation_obligation(request_identity, obligation_identity)
+      )`);
+      database.run('PRAGMA user_version = 3');
+    });
+  }
+  if (version === 2) {
+    // Proof: omitting this versioned migration made a persisted evaluating request lose its attempt table.
+    transaction(database, () => {
+      database.run('ALTER TABLE activation_request ADD COLUMN evidence_set_identity TEXT');
+      database.run(`CREATE TABLE activation_attempt (
+        request_identity TEXT NOT NULL,
+        obligation_identity TEXT NOT NULL,
+        attempt INTEGER NOT NULL CHECK (attempt >= 0),
+        receipt_identity TEXT NOT NULL,
+        receipt_bytes TEXT NOT NULL,
+        authentication_bytes TEXT NOT NULL,
+        status TEXT NOT NULL,
+        PRIMARY KEY (request_identity, obligation_identity, attempt),
+        UNIQUE (receipt_identity),
+        FOREIGN KEY (request_identity, obligation_identity)
+          REFERENCES activation_obligation(request_identity, obligation_identity)
+      )`);
+      database.run('PRAGMA user_version = 3');
     });
   }
 }
@@ -583,6 +660,240 @@ export class ActivationController {
         .run(hashCanonical(plan), lease.requestIdentity);
       const advanced = readRow(this.#database, lease.requestIdentity);
       if (advanced === undefined) throw new Error('advanced activation request absent');
+      return storedRequest(advanced);
+    });
+  }
+
+  /** Persists independently authenticated evidence; a local fake verifier cannot establish external provenance. */
+  async recordReceipt(lease: RequestLease, receiptBytes: string): Promise<StoredRequest> {
+    // Proof: omission sent absent bytes to the verifier and lost the boundary refusal.
+    if (typeof receiptBytes !== 'string' || receiptBytes.length === 0) {
+      throw new Error('activation receipt bytes absent');
+    }
+    const authenticate = this.options.authenticateReceipt;
+    // Proof: omission changed the missing-verifier refusal into an unmodeled invocation error.
+    if (authenticate === undefined) throw new Error('activation receipt verifier absent');
+    const receipt = parseOrThrow(AuthenticatedReceipt, await authenticate(receiptBytes));
+    // Proof: replacing exact-byte identity let a verifier relabel receipt bytes for another obligation.
+    if (receipt.receiptIdentity !== hashBytes(receiptBytes)) {
+      throw new Error('authenticated receipt digest differs from exact bytes');
+    }
+    return transaction(this.#database, () => {
+      const now = nowFrom(this.options.clock);
+      const row = readRow(this.#database, lease.requestIdentity);
+      if (row === undefined) throw new Error('activation request absent');
+      // Proof: omitting current changed held-verifier supersession into a later generation refusal.
+      if (row.current !== 1) throw new Error('activation request superseded');
+      const request = storedRequest(row).request;
+      const subject: unknown = this.#database
+        .query(
+          'SELECT high_water_generation FROM activation_subject WHERE repository_id = ? AND subject_key = ?',
+        )
+        .get(request.repositoryId, subjectKey(request.subject));
+      // Proof: omitting this join accepted a receipt against inconsistent subject high-water history.
+      if (
+        subject === null ||
+        parseOrThrow(type({ high_water_generation: 'number.integer>=0' }), subject)
+          .high_water_generation !== request.auditGeneration
+      ) {
+        throw new Error('activation request generation changed');
+      }
+      const configuration = readBootstrapConfiguration(
+        this.options.bootstrapPath,
+        this.options.pin,
+      );
+      // Proof: bypassing the pin reread let receipt recording continue after the trusted file disappeared.
+      // Proof: omitting the old-request authority comparison accepted a second valid bootstrap pin.
+      if (
+        request.authorityIdentity !== this.options.pin.identity ||
+        row.bootstrap_identity !== this.options.pin.identity
+      ) {
+        throw new Error('activation request authority changed');
+      }
+      // Proof: issuer omission accepted another journal identity in the mounted receipt owner.
+      if (receipt.issuerId !== configuration.journal.issuerId) {
+        throw new Error('authenticated receipt issuer differs from pinned journal');
+      }
+      // Proof: request omission accepted a receipt authenticated for another canonical request.
+      if (receipt.requestIdentity !== request.requestIdentity) {
+        throw new Error('authenticated receipt request differs from current request');
+      }
+      const rawObligation: unknown = this.#database
+        .query(
+          'SELECT * FROM activation_obligation WHERE request_identity = ? AND obligation_identity = ?',
+        )
+        .get(request.requestIdentity, receipt.obligationIdentity);
+      // Proof: omission lost the named refusal for a foreign obligation identity.
+      if (rawObligation === null) throw new Error('authenticated receipt obligation absent');
+      const obligation = parseOrThrow(StoredObligation, rawObligation);
+      // Proof: kind omission changed the explicit kind refusal into a later shape refusal.
+      if (receipt.kind !== obligation.kind) {
+        throw new Error('authenticated receipt kind differs from frozen obligation');
+      }
+      // Proof: independently removing executor, protocol, command and phase comparisons
+      // accepted receipts with the corresponding wrong frozen-plan binding.
+      if (
+        receipt.executorId !== obligation.executor_id ||
+        receipt.protocolIdentity !== obligation.protocol_identity ||
+        (receipt.kind === 'check'
+          ? receipt.commandIdentity !== obligation.command_identity
+          : receipt.phase !== obligation.phase)
+      ) {
+        throw new Error('authenticated receipt differs from frozen obligation');
+      }
+      // Proof: attempt omission accepted a receipt for an unreserved attempt number.
+      if (receipt.attempt !== obligation.attempt) {
+        throw new Error('authenticated receipt attempt differs from reserved attempt');
+      }
+      const authenticationBytes = serializeCanonical(receipt);
+      const existing: unknown = this.#database
+        .query(
+          'SELECT * FROM activation_attempt WHERE request_identity = ? AND obligation_identity = ? AND attempt = ?',
+        )
+        .get(request.requestIdentity, obligation.obligation_identity, receipt.attempt);
+      if (existing !== null) {
+        const prior = parseOrThrow(StoredAttempt, existing);
+        // Proof: omitting the whole immutable comparison replaced a conflicting attempt's refusal.
+        if (
+          prior.receipt_identity !== receipt.receiptIdentity ||
+          prior.receipt_bytes !== receiptBytes ||
+          prior.authentication_bytes !== authenticationBytes
+        ) {
+          throw new Error('authenticated receipt attempt conflicts with immutable evidence');
+        }
+        return storedRequest(row);
+      }
+      // Proof: stage omission let a failed request return to evaluating on another receipt.
+      if (row.stage !== 'evaluating') throw new Error('activation request is not evaluating');
+      // Proof: independent epoch, owner, null-expiry and elapsed-expiry omissions
+      // accepted a stale or malformed completion at the receipt owner.
+      if (
+        row.lease_epoch !== lease.leaseEpoch ||
+        row.lease_owner !== lease.workerId ||
+        row.lease_expires_at === null ||
+        isExpiredLease(row.lease_expires_at, now)
+      ) {
+        throw new Error('activation request lease changed');
+      }
+      // Proof: omission accepted a nonpending obligation whose selected attempt was absent.
+      if (obligation.state !== 'pending' || obligation.receipt_identity !== null) {
+        throw new Error('activation obligation already completed');
+      }
+      // Proof: cold-order omission admitted informed audit evidence before its cold obligation.
+      if (receipt.kind === 'audit' && receipt.phase === 'informed') {
+        const cold: unknown = this.#database
+          .query(
+            "SELECT COUNT(*) AS completed FROM activation_obligation WHERE request_identity = ? AND kind = 'audit' AND phase = 'cold' AND state = 'passed'",
+          )
+          .get(request.requestIdentity);
+        if (parseOrThrow(type({ completed: 'number.integer>=0' }), cold).completed === 0) {
+          throw new Error('informed audit requires completed cold audit');
+        }
+      }
+      // Proof: splitting commit immediately after this insert left a second receipt attempt
+      // after the verified-stage write failed, while the earlier check remained committed.
+      this.#database
+        .query(
+          `INSERT INTO activation_attempt (
+        request_identity, obligation_identity, attempt, receipt_identity,
+        receipt_bytes, authentication_bytes, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          request.requestIdentity,
+          obligation.obligation_identity,
+          receipt.attempt,
+          receipt.receiptIdentity,
+          receiptBytes,
+          authenticationBytes,
+          receipt.status,
+        );
+      // Proof: omitting the selected-obligation update left both receipts recorded but never verified.
+      this.#database
+        .query(
+          'UPDATE activation_obligation SET state = ?, receipt_identity = ? WHERE request_identity = ? AND obligation_identity = ?',
+        )
+        .run(
+          receipt.status,
+          receipt.receiptIdentity,
+          request.requestIdentity,
+          obligation.obligation_identity,
+        );
+      const selectedRows: unknown[] = this.#database
+        .query('SELECT * FROM activation_obligation WHERE request_identity = ? ORDER BY rowid')
+        .all(request.requestIdentity);
+      const selected = selectedRows.map((entry) => parseOrThrow(StoredObligation, entry));
+      const frozenObligations = selected.map((entry) => {
+        const common = {
+          identity: entry.obligation_identity,
+          executorId: entry.executor_id,
+          protocolIdentity: entry.protocol_identity,
+        };
+        if (entry.kind === 'check') {
+          if (entry.command_identity === null || entry.phase !== null) {
+            throw new Error('stored check obligation malformed');
+          }
+          return parseOrThrow(EvaluationObligation, {
+            ...common,
+            kind: 'check',
+            commandIdentity: entry.command_identity,
+          });
+        }
+        if (entry.command_identity !== null || entry.phase === null) {
+          throw new Error('stored audit obligation malformed');
+        }
+        return parseOrThrow(EvaluationObligation, {
+          ...common,
+          kind: 'audit',
+          phase: entry.phase,
+        });
+      });
+      // Proof: omitting the frozen-plan join let one surviving passed obligation verify
+      // after the other required row had disappeared from the durable plan.
+      if (
+        row.evaluation_plan_identity !==
+        hashCanonical({
+          requestIdentity: request.requestIdentity,
+          policyIdentity: request.policyIdentity,
+          obligations: frozenObligations,
+        })
+      ) {
+        throw new Error('authenticated receipts differ from frozen evaluation plan');
+      }
+      // Proof: forcing completeness after only the first receipt advanced before the audit existed.
+      const complete = selected.every(
+        (entry) => entry.state === 'passed' && entry.receipt_identity !== null,
+      );
+      // Proof: omitting terminal failure handling left a failed required receipt evaluating.
+      const nextStage: RequestStage =
+        receipt.status !== 'passed' ? 'failed' : complete ? 'verified' : 'evaluating';
+      // Proof: replacing the selected-set digest with an empty-set digest failed the exact identity assertion.
+      const evidenceSetIdentity = complete
+        ? hashCanonical(
+            selected
+              .toSorted((left, right) =>
+                left.obligation_identity < right.obligation_identity
+                  ? -1
+                  : left.obligation_identity > right.obligation_identity
+                    ? 1
+                    : 0,
+              )
+              .map((entry) => ({
+                obligationIdentity: entry.obligation_identity,
+                receiptIdentity: entry.receipt_identity,
+              })),
+          )
+        : null;
+      const updated = this.#database
+        .query(
+          'UPDATE activation_request SET stage = ?, evidence_set_identity = ?, version = version + 1 WHERE request_identity = ? AND version = ?',
+        )
+        .run(nextStage, evidenceSetIdentity, request.requestIdentity, row.version);
+      // Proof: omitting this affected-row check returned success when a trigger ignored
+      // the verified update; the owner instead rolls back the second receipt atomically.
+      if (updated.changes !== 1) throw new Error('activation request version changed');
+      const advanced = readRow(this.#database, request.requestIdentity);
+      if (advanced === undefined) throw new Error('activation request absent after receipt');
       return storedRequest(advanced);
     });
   }

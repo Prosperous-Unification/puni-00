@@ -280,3 +280,62 @@ conditional after the expiry correction; direct ESLint identified the rule, and
 the final explicit expiry helper passed the declared target. Nx used its in-process
 plugin fallback after the sandbox denied its socket. Tasks 1.1/1.2 and all
 external-provider acceptance remain open.
+
+### Local 2.4 evidence-join checkpoint (2026-10-07)
+
+This is a repo-side controller contract exercised with a fake verifier. It does not
+authenticate a real journal, prove independent execution, dispatch a check/audit, or
+unblock 030.6. Task 2.4 remains unchecked pending installed provider/attempt recovery
+acceptance. On corrected source, the following command passed 73/73 tests,
+329 assertions, exit 0 (`/tmp/activation-24-four-green.log`):
+
+```sh
+bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/bootstrap.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/request.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/ingress.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/controller.db.test.ts
+```
+
+The controller now stores exact authenticated receipt bytes and immutable per-obligation
+attempts in schema v3 (with explicit v2 migration), retains failed/skipped evidence,
+and joins only the frozen check/audit plan before a deterministic selected-set identity
+and verified transition. The verifier returns bindings after authenticating bytes outside
+the SQLite writer; the writer rechecks current request/generation, pinned authority,
+issuer, obligation/attempt, evaluating stage and lease. Independent check/audit completions
+do not compare a stale global request version. All receipt, selection and request writes
+share one transaction. Identical receipt replay is idempotent; conflicting bytes refuse.
+
+Accepted named RED/restored GREEN faults against the mounted controller test path:
+
+| Boundary             | Watched omission RED logs and assertion                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Exact bytes/provider | `/tmp/activation-24-empty-bytes-red.log`, `missing-verifier-red.log`, `digest-red.log`: lost named refusal or accepted altered digest.                                                                                                                                                                                                                                                     |
+| Trusted request      | `/tmp/activation-24-current-red.log`, `generation-red.log`, `authority-red.log`, `pin-reread-red.log`, `issuer-red.log`, `request-red.log`: foreign/stale authority reached a later refusal or was accepted.                                                                                                                                                                               |
+| Frozen obligation    | `/tmp/activation-24-obligation-red.log`, `kind-red.log`, `executor-red.log`, `protocol-red.log`, `command-red.log`, `phase-red.log`, `attempt-red.log`, `nonpending-red.log`, `frozen-plan-red.log`: wrong/missing obligation binding or incomplete frozen set lost its named refusal. The frozen-plan baseline itself first failed because a deleted audit row let the sole check verify. |
+| Lifecycle/lease      | `/tmp/activation-24-receipt-stage-red.log`, `receipt-epoch-red.log`, `receipt-owner-red.log`, `receipt-null-expiry-red.log`, `receipt-expiry-red.log`: failed/stale/malformed completion lost its refusal. Epoch alteration is a staged durable recovery transition; the recovery owner is not installed.                                                                                  |
+| Whole evidence join  | `/tmp/activation-24-incomplete-red.log`, `failed-red.log`, `cold-red.log`, `obligation-record-red.log`, `selected-set-red.log`, `immutable-red-try2.log`: early verified/failed reset, informed-before-cold, omitted recording, wrong set identity or conflicting replay reached an exact assertion.                                                                                       |
+| Atomicity/schema     | `/tmp/activation-24-split-commit-red.log` reached a full row-snapshot mismatch after second-receipt failure; `/tmp/activation-24-update-cas-red.log` returned success after an ignored verified update; `/tmp/activation-24-v2-migration-red.log` lost persisted v2 evaluation on reopen.                                                                                                  |
+
+Each accepted fault exited 1 in the named mounted test; the v2 migration omission
+failed when the reopened owner lacked its attempt storage, while the other accepted
+faults reached their specified refusal, selected-state or snapshot assertions.
+Source was restored before the 73/329 GREEN run. The first immutable-guard trial
+(`/tmp/activation-24-immutable-red.log`) stayed GREEN because the remaining byte and
+authentication comparisons still refused the conflict. It is disqualified; the accepted
+try2 omitted the complete conflict predicate. A first test attempt used the existing
+`claim` API to simulate takeover of an evaluating request; that API rightly refused
+the stage. The corrected lease-epoch test stages only the future recovery transition
+in SQLite and does not count as installed recovery-owner proof. Other negative tests
+exercise missing/failed/skipped evidence, cold/informed order, held-verifier supersession,
+parallel completion, same-byte replay and full rollback. The host gate and CI
+remain unverified.
+
+For this checkpoint the declared `twilight-burokrat:lint:source`, `:typecheck`
+and `:build` targets each printed explicit Nx success summaries on corrected bytes.
+The first typecheck found a test fake-verifier callback that returned an object where
+the port requires a Promise; after the test-only correction, typecheck and build
+were rerun successfully. Nx used its in-process plugin fallback after the sandbox
+denied its socket. The provider/issuer, isolated worker, immutable publisher,
+required workflow, merge and host acceptance are not installed here. No task box
+or WBS status is advanced by this local fake-verifier checkpoint.
+
+The pinned `@fission-ai/openspec@1.12.0` strict validation passed 1/1 and
+`validate --all --json` passed 143/143 (125 changes, 18 specs). Changed-path
+Prettier and `git diff --check` passed after formatting this ledger.
