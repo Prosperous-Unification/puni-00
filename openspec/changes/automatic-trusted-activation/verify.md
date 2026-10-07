@@ -2358,3 +2358,77 @@ Pinned OpenSpec strict passed 1/1 and all passed 143/143
 (`/tmp/activation-12e-structure-openspec-{strict,all}.json`); changed-path
 Prettier and `git diff --check` passed. Normal commit hooks run with the local
 commit. No host gate or CI ran on this unpublished local SHA.
+
+### 1.2f finite observation tick, local composition only
+
+The observation-only tick composes the protected scheduled owner, GitHub source
+and controller under one monotonic deadline and caller signal. It refuses
+incomplete success, keeps earlier committed subjects, waits for its controller
+continuation before closing SQLite or releasing the process lock, and exits a
+supervised child with status 124 if local cleanup cannot settle. CLI statuses
+for complete/busy/deadline/SIGINT/SIGTERM are 0/75/124/130/143. A complete
+tick leaves its request `observed`, without a lease, obligation, attempt,
+review-dispatch or check-dispatch row. A mounted fetch spy records no outbound
+effect call. No service/timer, live GitHub read, worker, reviewer, publisher,
+admission, merge or WBS integration is claimed.
+
+Mounted tests cover abort-ignoring held list/current reads, already-cancelled
+preflight, cancellation during response validation, stale source-version retry,
+cancellation just after one subject commits, synchronous transaction overrun,
+retention of an earlier subject commit, cleanup aggregation, and real
+SIGINT/SIGTERM children. A separate real child holds the process lock until
+exit 124 after cleanup expiry; a second process sees `busy` before that exit.
+
+The isolated source substitutions are retained as
+`/tmp/activation-f10-<fault>-{red,green}.log`. Each log includes the literal
+`bun test <source file> --test-name-pattern <witness>` command, exit and named
+assertion. Every accepted row below is RED exit 1 / restored GREEN exit 0.
+Each restoration log records the matching pre/post source SHA-256. These are
+historical mutation hashes, not claims about subsequently formatted bytes.
+
+| Fault                                                     | Mounted RED with only that dependency changed                                                                       |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `controller_pre_read`                                     | Already-cancelled tick called `readyCandidates` once instead of zero.                                               |
+| `controller_post_list`                                    | Cancelled discovery still queried durable active subjects once.                                                     |
+| `controller_next_read`                                    | Stale retry called current twice instead of once after cancellation.                                                |
+| `controller_post_read`                                    | Abort-ignoring current response started `BEGIN IMMEDIATE` after abort.                                              |
+| `controller_transaction_entry`                            | Cancellation at `BEGIN` attempted two subject writes before rollback.                                               |
+| `controller_final_commit`                                 | Synchronous over-budget transaction committed one request instead of rolling back.                                  |
+| `controller_final_outcome`                                | Abort after a subject COMMIT returned complete instead of refusing while retaining that commit.                     |
+| `controller_deadline_shape`                               | A NaN fence completed a provider scan instead of refusing.                                                          |
+| `source_pre_cancel`                                       | Already-aborted discovery called its reader once instead of zero.                                                   |
+| `source_list_signal`, `source_parent_signal`              | Each list/get signal omission left the held reader signal un-aborted.                                               |
+| `source_cancel_reject`                                    | An abort-ignoring list read hit the mounted watchdog instead of settling.                                           |
+| `source_list_final_cancel`, `source_current_final_cancel` | Cancellation during consumed-response validation returned a complete list or ready selection.                       |
+| `tick_pre_cancel`                                         | Already-aborted tick returned complete and called the provider.                                                     |
+| `tick_await_settle`                                       | Omitting await closed SQLite while the controller continuation still used it.                                       |
+| `cleanup_fatal`                                           | Omitting fatal cleanup-budget exit left the held child alive until the watchdog.                                    |
+| `cleanup_aggregate`                                       | Dropping one cleanup cause lost the provider/close dual-error assertion.                                            |
+| `cli_busy_exit`                                           | Busy mapped to success 0 instead of 75.                                                                             |
+| `cleanup_bound`                                           | Zero cleanup budget completed instead of refusing malformed policy.                                                 |
+| `forbidden_claim`, `forbidden_dispatch`                   | Injected evaluation claim set `lease_owner=forbidden-probe`; injected fetch raised the zero-effect-call spy to one. |
+
+The first `source_cancel_race` trial is **disqualified**: dropping the race
+member left its cancellation promise rejecting without an observer, so the
+test failed on an unhandled rejection rather than liveness. The corrected
+`source_cancel_reject` watch fails at the named watchdog assertion. An initial
+`forbidden_claim` trial used the wrong `identity` property and failed at
+`request absent`; its log was replaced by the correct `requestIdentity` trial.
+`tick_bound` is diagnostic only: removing this duplicate pre-lock validation
+changed the refusal to the existing state-policy parser's error, without
+admitting work. Its RED/GREEN logs are retained but it is not credited as a
+safety bypass.
+
+Final local validation used the explicit eight-file command
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/{bootstrap.test.ts,request.test.ts,ingress.test.ts,controller.db.test.ts,github-reader.db.test.ts,github-source.db.test.ts,observation-state.db.test.ts,observation-tick.db.test.ts}`:
+**572/572**, 2,474 assertions, exit 0 at `/tmp/activation-f10-final-eight.log`.
+Uncached Nx `twilight-burokrat:lint:source`, `typecheck` and `build` each
+printed `Successfully ran target` and exit 0 at
+`/tmp/activation-f10-nx-{lint-final,typecheck,build}.log`. The first lint
+attempt failed on fixture method typing; direct ESLint named the lines,
+they were corrected, and the declared target then passed. Pinned OpenSpec
+strict passed 1/1 and all passed 143/143 at
+`/tmp/activation-f10-openspec-{strict,all}.json`. Changed-path Prettier and
+`git diff --check` passed. Normal commit hooks follow with the local commit.
+The host gate cannot validate this unpublished SHA until it exists on the
+target host; no CI, host-wide lock or deployment ran here.

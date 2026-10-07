@@ -70,11 +70,16 @@ async function readBeforeDeadline<T>(
   read: (signal: AbortSignal) => Promise<T>,
   deadline: number,
   aborter: AbortController,
+  parentSignal?: AbortSignal,
 ): Promise<T> {
   const remaining = requireBeforeDeadline(deadline, aborter);
+  // Proof: removing this already-aborted preflight called the mounted
+  // discovery reader once despite a cancelled parent signal.
+  if (parentSignal?.aborted) throw new Error('GitHub PR read cancelled');
   // Proof: omitting this pre-read guard invoked page two after page-one validation consumed
   // the whole-list budget; the mounted test required zero later provider reads.
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let onParentAbort: (() => void) | undefined;
   try {
     // Proof: moving the provider call before this timer failed the mounted
     // source-arms-deadline test's armedAtRead assertion.
@@ -86,10 +91,25 @@ async function readBeforeDeadline<T>(
     });
     // Proof: a reader that never settles still rejects by this deadline, aborts its signal,
     // and leaves the durable request unchanged in the mounted list/get tests.
-    const response = await Promise.race([read(aborter.signal), timeout]);
+    const cancelled = new Promise<never>((_resolve, reject) => {
+      if (parentSignal === undefined) return;
+      onParentAbort = () => {
+        // Proof: omitting the reader abort left the held list/get signal live
+        // after shutdown in the mounted discovery/current witnesses.
+        aborter.abort();
+        // Proof: omitting rejection made an abort-ignoring discovery reader
+        // outlive the mounted cancellation watchdog.
+        reject(new Error('GitHub PR read cancelled'));
+      };
+      parentSignal.addEventListener('abort', onParentAbort, { once: true });
+      if (parentSignal.aborted) onParentAbort();
+    });
+    const response = await Promise.race([read(aborter.signal), timeout, cancelled]);
     return response;
   } finally {
     if (timer !== undefined) clearTimeout(timer);
+    if (parentSignal !== undefined && onParentAbort !== undefined)
+      parentSignal.removeEventListener('abort', onParentAbort);
   }
 }
 
@@ -148,7 +168,7 @@ export function createGitHubPullRequestSource(
 ): Pick<ActivationControllerOptions, 'readyCandidates' | 'currentCandidate'> {
   const binding = validateGitHubRepositoryBinding(rawBinding);
   return {
-    readyCandidates: async () => {
+    readyCandidates: async (parentSignal?: AbortSignal) => {
       const candidates: ObservedCandidate[] = [];
       const seen = new Set<number>();
       const deadline = performance.now() + binding.readDeadlineMs;
@@ -158,6 +178,9 @@ export function createGitHubPullRequestSource(
           (signal) => reader.listOpenPullRequests(binding.owner, binding.name, page, signal),
           deadline,
           aborter,
+          // Proof: substituting undefined kept the mounted held discovery
+          // reader's signal live after caller shutdown.
+          parentSignal,
         );
         const listed = parseOrThrow(PullPage, response);
         // Proof: accepting a provider-selected cursor could omit later ready PRs or loop forever.
@@ -177,13 +200,20 @@ export function createGitHubPullRequestSource(
           // Proof: omitting this final check returned a last page whose validation itself
           // exhausted the whole-list budget in the mounted source test.
           requireBeforeDeadline(deadline, aborter);
+          // Proof: removing this parent-signal check returned a complete scan
+          // after a consumed page getter cancelled the tick during validation.
+          if (parentSignal?.aborted) throw new Error('GitHub PR read cancelled');
           return candidates;
         }
       }
       // Proof: returning here let a continuing 100-page scan silently report an incomplete list.
       throw new Error('GitHub PR pagination exceeds bounded scan');
     },
-    currentCandidate: async (repositoryId: number, subject: ActivationSubject) => {
+    currentCandidate: async (
+      repositoryId: number,
+      subject: ActivationSubject,
+      parentSignal?: AbortSignal,
+    ) => {
       // Proof: independently omitting the unsupported-kind predicate called the PR reader
       // with a merge-group locator before the later number guard refused it.
       // A foreign repository likewise must not trigger a read under this credential.
@@ -196,6 +226,9 @@ export function createGitHubPullRequestSource(
         (signal) => reader.getPullRequest(binding.owner, binding.name, subject.number, signal),
         deadline,
         aborter,
+        // Proof: substituting undefined kept the mounted held current reader's
+        // signal live after caller shutdown.
+        parentSignal,
       );
       const pull = checkedPull(response, binding);
       // Proof: a response for another PR number must never select this subject's request.
@@ -206,6 +239,9 @@ export function createGitHubPullRequestSource(
       // Proof: this final check prevents post-read response validation from granting a
       // current observation after the source budget has elapsed.
       requireBeforeDeadline(deadline, aborter);
+      // Proof: removing this parent-signal check selected ready after a
+      // consumed current-response getter cancelled during validation.
+      if (parentSignal?.aborted) throw new Error('GitHub PR read cancelled');
       return observed;
     },
   };

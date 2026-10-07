@@ -2,10 +2,11 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
 import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
-import { openActivationController } from './controller';
+import { type ObservedCandidate, openActivationController } from './controller';
 import { createGitHubPullRequestSource, type GitHubPullRequestReader } from './github-source';
 
 const scratch: string[] = [];
@@ -149,6 +150,511 @@ test('timer discovers a ready PR but commits only a fresh exact current read', a
     expect(reconciled[0]?.headSha).toBe('9'.repeat(40));
     expect(controller.listRequests()).toHaveLength(1);
   } finally {
+    controller.close();
+  }
+});
+
+test('cancelled held current response cannot commit an observation', async () => {
+  const source = fixture();
+  let releaseCurrent: ((pull: unknown) => void) | undefined;
+  let markStarted: (() => void) | undefined;
+  let observedSignal: AbortSignal | undefined;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  const held = new Promise<unknown>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const controller = controllerFor(source, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
+    getPullRequest: (_owner, _name, _number, signal) => {
+      observedSignal = signal;
+      markStarted?.();
+      return held;
+    },
+  });
+  const aborter = new AbortController();
+  try {
+    const tick = controller.reconcileReady({
+      signal: aborter.signal,
+      deadline: performance.now() + 1000,
+    });
+    await finishWithin(started, 500);
+    aborter.abort();
+    expect(observedSignal?.aborted).toBe(true);
+    releaseCurrent?.(source.pull);
+    await expectRefusal(() => finishWithin(tick, 500), 'cancel');
+    expect(controller.listRequests()).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+test('cancelled held discovery aborts the reader and cannot report a complete scan', async () => {
+  const source = fixture();
+  let markStarted: (() => void) | undefined;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  let readerSignal: AbortSignal | undefined;
+  const controller = controllerFor(source, {
+    listOpenPullRequests: (_owner, _name, _page, signal) => {
+      readerSignal = signal;
+      markStarted?.();
+      return new Promise<never>(() => {
+        /* Ignore the abort deliberately. */
+      });
+    },
+    getPullRequest: () => Promise.reject(new Error('unexpected current read')),
+  });
+  const aborter = new AbortController();
+  try {
+    const tick = controller.reconcileReady({
+      signal: aborter.signal,
+      deadline: performance.now() + 1000,
+    });
+    await finishWithin(started, 500);
+    aborter.abort();
+    expect(readerSignal?.aborted).toBe(true);
+    await expectRefusal(() => finishWithin(tick, 500), 'cancel');
+    expect(controller.listRequests()).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+test('cancellation during final list validation refuses a complete scan', async () => {
+  const source = fixture();
+  const aborter = new AbortController();
+  const page = {
+    get pulls() {
+      aborter.abort();
+      return [source.pull];
+    },
+    nextPage: null,
+  };
+  const observed = createGitHubPullRequestSource(source.binding, {
+    listOpenPullRequests: () => Promise.resolve(page),
+    getPullRequest: () => Promise.reject(new Error('unexpected current read')),
+  });
+  await expectRefusal(() => observed.readyCandidates(aborter.signal), 'cancel');
+});
+
+test('source refuses an already-cancelled discovery before invoking its reader', async () => {
+  const source = fixture();
+  const aborter = new AbortController();
+  aborter.abort();
+  let reads = 0;
+  const observed = createGitHubPullRequestSource(source.binding, {
+    listOpenPullRequests: () => {
+      reads += 1;
+      return Promise.resolve({ pulls: [], nextPage: null });
+    },
+    getPullRequest: () => Promise.reject(new Error('unexpected current read')),
+  });
+  await expectRefusal(() => observed.readyCandidates(aborter.signal), 'cancel');
+  expect(reads).toBe(0);
+});
+
+test('cancellation during current response validation refuses ready selection', async () => {
+  const source = fixture();
+  const aborter = new AbortController();
+  const pull = {
+    ...source.pull,
+    get head() {
+      aborter.abort();
+      return source.pull.head;
+    },
+  };
+  const observed = createGitHubPullRequestSource(source.binding, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [], nextPage: null }),
+    getPullRequest: () => Promise.resolve(pull),
+  });
+  await expectRefusal(
+    () =>
+      observed.currentCandidate(
+        source.binding.repositoryId,
+        {
+          kind: 'pull-request',
+          number: source.pull.number,
+        },
+        aborter.signal,
+      ),
+    'cancel',
+  );
+});
+
+test('cancelled tick refuses before the first provider read', async () => {
+  const source = fixture();
+  let reads = 0;
+  const controller = openActivationController({
+    databasePath: source.databasePath,
+    bootstrapPath: source.bootstrapPath,
+    pin: source.pin,
+    clock: () => 1000,
+    readyCandidates: () => {
+      reads += 1;
+      return Promise.resolve([]);
+    },
+    currentCandidate: () => {
+      reads += 1;
+      return Promise.resolve({ kind: 'closed' });
+    },
+    selectObligations: () => {
+      throw new Error('observation cannot evaluate');
+    },
+  });
+  const aborter = new AbortController();
+  aborter.abort();
+  try {
+    await expectRefusal(
+      () =>
+        controller.reconcileReady({
+          signal: aborter.signal,
+          deadline: performance.now() + 1000,
+        }),
+      'cancel',
+    );
+    expect(reads).toBe(0);
+    expect(controller.listRequests()).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+test('malformed monotonic deadline never invokes a provider read', async () => {
+  const source = fixture();
+  let reads = 0;
+  const controller = openActivationController({
+    databasePath: source.databasePath,
+    bootstrapPath: source.bootstrapPath,
+    pin: source.pin,
+    clock: () => 1000,
+    readyCandidates: () => {
+      reads += 1;
+      return Promise.resolve([]);
+    },
+    currentCandidate: () => {
+      reads += 1;
+      return Promise.resolve({ kind: 'closed' });
+    },
+    selectObligations: () => {
+      throw new Error('observation cannot evaluate');
+    },
+  });
+  try {
+    await expectRefusal(
+      () =>
+        controller.reconcileReady({
+          signal: new AbortController().signal,
+          deadline: Number.NaN,
+        }),
+      'deadline malformed',
+    );
+    expect(reads).toBe(0);
+  } finally {
+    controller.close();
+  }
+});
+
+test('cancelled discovery stops before scanning durable active subjects', async () => {
+  const source = fixture();
+  const aborter = new AbortController();
+  const controller = openActivationController({
+    databasePath: source.databasePath,
+    bootstrapPath: source.bootstrapPath,
+    pin: source.pin,
+    clock: () => 1000,
+    readyCandidates: () => {
+      aborter.abort();
+      return Promise.resolve([]);
+    },
+    currentCandidate: () => Promise.reject(new Error('unexpected current read')),
+    selectObligations: () => {
+      throw new Error('observation cannot evaluate');
+    },
+  });
+  const queryDescriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'query');
+  const originalQuery: unknown = queryDescriptor?.value;
+  if (typeof originalQuery !== 'function') throw new Error('database query fixture absent');
+  let activeScans = 0;
+  Database.prototype.query = function (this: Database, sql: string) {
+    if (aborter.signal.aborted && sql === 'SELECT * FROM activation_request WHERE current = 1')
+      activeScans += 1;
+    return Reflect.apply(originalQuery, this, [sql]) as ReturnType<Database['query']>;
+  } as typeof Database.prototype.query;
+  try {
+    await expectRefusal(
+      () =>
+        controller.reconcileReady({
+          signal: aborter.signal,
+          deadline: performance.now() + 1000,
+        }),
+      'cancel',
+    );
+    expect(activeScans).toBe(0);
+    expect(controller.listRequests()).toEqual([]);
+  } finally {
+    if (queryDescriptor !== undefined)
+      Object.defineProperty(Database.prototype, 'query', queryDescriptor);
+    controller.close();
+  }
+});
+
+test('abort-ignoring current response is fenced by the controller after await', async () => {
+  const source = fixture();
+  let releaseCurrent:
+    ((candidate: { kind: 'ready'; candidate: ObservedCandidate }) => void) | undefined;
+  let markStarted: (() => void) | undefined;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  const held = new Promise<{ kind: 'ready'; candidate: ObservedCandidate }>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const observed = createGitHubPullRequestSource(source.binding, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
+    getPullRequest: () => Promise.resolve(source.pull),
+  });
+  const controller = openActivationController({
+    databasePath: source.databasePath,
+    bootstrapPath: source.bootstrapPath,
+    pin: source.pin,
+    clock: () => 1000,
+    readyCandidates: observed.readyCandidates,
+    currentCandidate: () => {
+      markStarted?.();
+      return held;
+    },
+    selectObligations: () => {
+      throw new Error('observation cannot evaluate');
+    },
+  });
+  const aborter = new AbortController();
+  const runDescriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'run');
+  const originalRun: unknown = runDescriptor?.value;
+  if (typeof originalRun !== 'function') throw new Error('database run fixture absent');
+  let transactionStartsAfterAbort = 0;
+  try {
+    const tick = controller.reconcileReady({
+      signal: aborter.signal,
+      deadline: performance.now() + 1000,
+    });
+    await finishWithin(started, 500);
+    Database.prototype.run = function (sql: string, ...bindings: unknown[]) {
+      if (aborter.signal.aborted && sql === 'BEGIN IMMEDIATE') transactionStartsAfterAbort += 1;
+      return Reflect.apply(originalRun, this, [sql, ...bindings]) as ReturnType<Database['run']>;
+    };
+    aborter.abort();
+    const selected = await observed.currentCandidate(source.binding.repositoryId, {
+      kind: 'pull-request',
+      number: source.pull.number,
+    });
+    if (selected.kind !== 'ready') throw new Error('selected fixture missing');
+    releaseCurrent?.(selected);
+    await expectRefusal(() => finishWithin(tick, 500), 'cancel');
+    expect(transactionStartsAfterAbort).toBe(0);
+    expect(controller.listRequests()).toEqual([]);
+  } finally {
+    if (runDescriptor !== undefined)
+      Object.defineProperty(Database.prototype, 'run', runDescriptor);
+    controller.close();
+  }
+});
+
+test('shutdown after one current read never starts the next subject read', async () => {
+  const source = fixture();
+  const second = { ...source.pull, number: 283 };
+  const observed = createGitHubPullRequestSource(source.binding, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull, second], nextPage: null }),
+    getPullRequest: () => Promise.resolve(source.pull),
+  });
+  const aborter = new AbortController();
+  let currentReads = 0;
+  const controller = openActivationController({
+    databasePath: source.databasePath,
+    bootstrapPath: source.bootstrapPath,
+    pin: source.pin,
+    clock: () => 1000,
+    readyCandidates: observed.readyCandidates,
+    currentCandidate: async () => {
+      currentReads += 1;
+      const selected = await observed.currentCandidate(source.binding.repositoryId, {
+        kind: 'pull-request',
+        number: source.pull.number,
+      });
+      if (currentReads === 1) aborter.abort();
+      return selected;
+    },
+    selectObligations: () => {
+      throw new Error('observation cannot evaluate');
+    },
+  });
+  try {
+    await expectRefusal(
+      () =>
+        controller.reconcileReady({
+          signal: aborter.signal,
+          deadline: performance.now() + 1000,
+        }),
+      'cancel',
+    );
+    expect(currentReads).toBe(1);
+    expect(controller.listRequests()).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+test('cancellation at observation transaction entry starts no subject write', async () => {
+  const source = fixture();
+  const controller = controllerFor(source, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
+    getPullRequest: () => Promise.resolve(source.pull),
+  });
+  const aborter = new AbortController();
+  const runDescriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'run');
+  const queryDescriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'query');
+  const originalRun: unknown = runDescriptor?.value;
+  const originalQuery: unknown = queryDescriptor?.value;
+  if (typeof originalRun !== 'function' || typeof originalQuery !== 'function')
+    throw new Error('database method fixture absent');
+  let writes = 0;
+  let aborted = false;
+  Database.prototype.run = function (sql: string, ...bindings: unknown[]) {
+    const answer = Reflect.apply(originalRun, this, [sql, ...bindings]) as ReturnType<
+      Database['run']
+    >;
+    if (sql === 'BEGIN IMMEDIATE' && !aborted) {
+      aborted = true;
+      aborter.abort();
+    }
+    return answer;
+  };
+  Database.prototype.query = function (this: Database, sql: string) {
+    if (aborter.signal.aborted && /^(INSERT INTO|UPDATE) activation_(request|subject)/.test(sql))
+      writes += 1;
+    return Reflect.apply(originalQuery, this, [sql]) as ReturnType<Database['query']>;
+  } as typeof Database.prototype.query;
+  try {
+    await expectRefusal(
+      () =>
+        controller.reconcileReady({
+          signal: aborter.signal,
+          deadline: performance.now() + 1000,
+        }),
+      'cancel',
+    );
+    expect(aborted).toBe(true);
+    expect(writes).toBe(0);
+    expect(controller.listRequests()).toEqual([]);
+  } finally {
+    if (runDescriptor !== undefined)
+      Object.defineProperty(Database.prototype, 'run', runDescriptor);
+    if (queryDescriptor !== undefined)
+      Object.defineProperty(Database.prototype, 'query', queryDescriptor);
+    controller.close();
+  }
+});
+
+test('cancellation after stale source-version retry starts no second current read', async () => {
+  const source = fixture();
+  const observed = createGitHubPullRequestSource(source.binding, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
+    getPullRequest: () => Promise.resolve(source.pull),
+  });
+  const selected = await observed.currentCandidate(source.binding.repositoryId, {
+    kind: 'pull-request',
+    number: source.pull.number,
+  });
+  if (selected.kind !== 'ready') throw new Error('selected fixture missing');
+  const options = {
+    databasePath: source.databasePath,
+    bootstrapPath: source.bootstrapPath,
+    pin: source.pin,
+    clock: () => 1000,
+    ...observed,
+    selectObligations: () => {
+      throw new Error('observation cannot evaluate');
+    },
+  };
+  const competing = openActivationController(options);
+  const aborter = new AbortController();
+  let currentReads = 0;
+  let abortOnCommit = false;
+  const primary = openActivationController({
+    ...options,
+    currentCandidate: () => {
+      currentReads += 1;
+      if (currentReads === 1) {
+        competing.observe(selected.candidate);
+        abortOnCommit = true;
+      }
+      return Promise.resolve(selected);
+    },
+  });
+  const runDescriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'run');
+  const originalRun: unknown = runDescriptor?.value;
+  if (typeof originalRun !== 'function') throw new Error('database run fixture absent');
+  Database.prototype.run = function (sql: string, ...bindings: unknown[]) {
+    const answer = Reflect.apply(originalRun, this, [sql, ...bindings]) as ReturnType<
+      Database['run']
+    >;
+    if (sql === 'COMMIT' && abortOnCommit) {
+      abortOnCommit = false;
+      aborter.abort();
+    }
+    return answer;
+  };
+  try {
+    await expectRefusal(
+      () =>
+        primary.reconcileReady({
+          signal: aborter.signal,
+          deadline: performance.now() + 1000,
+        }),
+      'cancel',
+    );
+    expect(currentReads).toBe(1);
+    expect(primary.listRequests()).toHaveLength(1);
+  } finally {
+    if (runDescriptor !== undefined)
+      Object.defineProperty(Database.prototype, 'run', runDescriptor);
+    primary.close();
+    competing.close();
+  }
+});
+
+test('shutdown after a committed subject retains it without reporting complete scan', async () => {
+  const source = fixture();
+  const controller = controllerFor(source, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
+    getPullRequest: () => Promise.resolve(source.pull),
+  });
+  const aborter = new AbortController();
+  const runDescriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'run');
+  const originalRun: unknown = runDescriptor?.value;
+  if (typeof originalRun !== 'function') throw new Error('database run fixture absent');
+  Database.prototype.run = function (sql: string, ...bindings: unknown[]) {
+    const answer = Reflect.apply(originalRun, this, [sql, ...bindings]) as ReturnType<
+      Database['run']
+    >;
+    if (sql === 'COMMIT') aborter.abort();
+    return answer;
+  };
+  try {
+    await expectRefusal(
+      () =>
+        controller.reconcileReady({
+          signal: aborter.signal,
+          deadline: performance.now() + 1000,
+        }),
+      'cancel',
+    );
+    expect(controller.listRequests()).toHaveLength(1);
+  } finally {
+    if (runDescriptor !== undefined)
+      Object.defineProperty(Database.prototype, 'run', runDescriptor);
     controller.close();
   }
 });

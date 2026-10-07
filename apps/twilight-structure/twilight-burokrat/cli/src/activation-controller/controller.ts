@@ -590,10 +590,11 @@ export interface ActivationControllerOptions {
   /** Independently pinned, retained authority history for query-only orphan reconciliation. */
   readonly historicalAuthorityRegistry?: HistoricalAuthorityRegistryPin;
   readonly clock: () => number;
-  readonly readyCandidates: () => Promise<readonly ObservedCandidate[]>;
+  readonly readyCandidates: (signal?: AbortSignal) => Promise<readonly ObservedCandidate[]>;
   readonly currentCandidate: (
     repositoryId: number,
     subject: ActivationSubject,
+    signal?: AbortSignal,
   ) => Promise<
     { readonly kind: 'ready'; readonly candidate: ObservedCandidate } | { readonly kind: 'closed' }
   >;
@@ -618,6 +619,23 @@ export interface ActivationControllerOptions {
   readonly stageDiagnostics?: StageDiagnostics;
   /** Authenticates one registered review invocation and its retained phase evidence. */
   readonly verifyReview?: (submission: ReviewSubmission) => Promise<VerifiedReview>;
+}
+
+/** A monotonic observation-only fence; it grants no evaluation or dispatch authority. */
+export interface ObservationFence {
+  readonly signal: AbortSignal;
+  readonly deadline: number;
+}
+
+function requireObservationFence(fence?: ObservationFence): void {
+  if (fence === undefined) return;
+  // Proof: omitting finite-deadline validation let a NaN fence complete a
+  // provider scan instead of refusing before its first read.
+  if (!Number.isFinite(fence.deadline) || fence.deadline < 0)
+    throw new Error('activation observation deadline malformed');
+  if (fence.signal.aborted) throw new Error('activation observation cancelled');
+  if (performance.now() >= fence.deadline)
+    throw new Error('activation observation deadline exceeded');
 }
 
 export interface PreparedSelectedCheck {
@@ -1355,13 +1373,24 @@ export class ActivationController {
     repositoryId: number,
     subject: ActivationSubject,
     delivery?: ObservedDelivery,
+    fence?: ObservationFence,
   ): Promise<ActivationRequest | undefined> {
     const key = subjectKey(subject);
     // Proof: extending this bound to four reads failed the mounted three-attempt contention
     // assertion; the source-version fence below still refused each stale attempt.
     for (let observationAttempt = 0; observationAttempt < 3; observationAttempt += 1) {
+      // Proof: omitting this retry preflight called currentCandidate twice
+      // after a stale source-version transaction ended in cancellation.
+      requireObservationFence(fence);
       const observedVersion = this.#subjectVersion(repositoryId, key);
-      const authoritative = await this.options.currentCandidate(repositoryId, subject);
+      const authoritative = await this.options.currentCandidate(
+        repositoryId,
+        subject,
+        fence?.signal,
+      );
+      // Proof: omitting this post-await fence started a SQLite transaction after
+      // an abort-ignoring current response was released under cancellation.
+      requireObservationFence(fence);
       if (
         authoritative.kind === 'ready' &&
         (authoritative.candidate.repositoryId !== repositoryId ||
@@ -1379,6 +1408,9 @@ export class ActivationController {
             )
           : undefined;
       const accepted = transaction(this.#database, () => {
+        // Proof: aborting at BEGIN with this guard omitted attempted two subject
+        // writes before the final rollback, violating the no-write boundary.
+        requireObservationFence(fence);
         // Proof: removing the subject-version comparison let a delayed A response supersede newer B.
         if (this.#subjectVersion(repositoryId, key) !== observedVersion) {
           return { kind: 'stale' as const };
@@ -1424,6 +1456,9 @@ export class ActivationController {
             )
             .run(delivery.sourceId, delivery.deliveryId, delivery.payloadDigest);
         }
+        // Proof: omitting the in-transaction monotonic fence let synchronous
+        // source/work overrun commit after the timer could no longer fire.
+        requireObservationFence(fence);
         return { kind: 'accepted' as const, request };
       });
       if (accepted.kind === 'accepted') {
@@ -1433,8 +1468,14 @@ export class ActivationController {
     throw new Error('authoritative subject observation did not converge');
   }
 
-  async reconcileReady(): Promise<readonly ActivationRequest[]> {
-    const candidates = await this.options.readyCandidates();
+  async reconcileReady(fence?: ObservationFence): Promise<readonly ActivationRequest[]> {
+    // Proof: omitting this pre-read guard called readyCandidates once despite
+    // an already-cancelled tick; the mounted assertion required zero reads.
+    requireObservationFence(fence);
+    const candidates = await this.options.readyCandidates(fence?.signal);
+    // Proof: omission scanned durable active subjects after discovery itself
+    // cancelled; the mounted post-list assertion observed one unwanted scan.
+    requireObservationFence(fence);
     const subjects = new Map<
       string,
       { readonly repositoryId: number; readonly subject: ActivationSubject }
@@ -1458,9 +1499,12 @@ export class ActivationController {
     const requests: ActivationRequest[] = [];
     for (const { repositoryId, subject } of subjects.values()) {
       // Proof: using the timer-listed candidate directly persisted stale A after source advanced to B.
-      const request = await this.#observeAuthoritative(repositoryId, subject);
+      const request = await this.#observeAuthoritative(repositoryId, subject, undefined, fence);
       if (request !== undefined) requests.push(request);
     }
+    // Proof: aborting after a subject COMMIT with this final fence omitted
+    // returned a complete scan instead of retaining the commit and refusing.
+    requireObservationFence(fence);
     return requests;
   }
 
