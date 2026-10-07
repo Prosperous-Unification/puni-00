@@ -3369,15 +3369,15 @@ Tasks 6k and 6k.a–e remain unchecked. The matrix below is a register of requir
 not RED/GREEN evidence. The packet contains each named witness, injected fault and expected
 assertion. No proposed fault has been run as part of this docs-only amendment.
 
-| Required proof rows                                                                                | Planned owner/slice                      | Observed result for 6k                                                      |
-| -------------------------------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------- |
-| K1/K2: installed selected publication and H1/nonselected silence                                   | 6k.b outcome owner                       | Unverified; implementation not started here                                 |
-| K3: selected replacement/eviction, Fast and addressed-cause negatives                              | 6k.c complete cache mutation             | Unverified                                                                  |
-| K4: equal-hash modeled availability, including empty bookings                                      | 6k.b real borrowed projection            | Unverified; a valid admitted mounted fixture is required                    |
-| K5–K8: borrowed capture, atomic rollback, after-capture failure and no-op/legacy/isolated silence  | 6k.b outcome owner                       | Unverified                                                                  |
-| K9/K10/K13: decision independence, tracking/error reporting, exact delivery and recipient reaction | 6k.a consumer, then 6k.b installed owner | Unverified; consumer-only evidence cannot close the installed obligation    |
-| K11: generation/cache eviction with original observation identity                                  | 6k.d observation owner                   | Unverified                                                                  |
-| K12: admission status-only silence and retirement inventory                                        | 6k.e closure                             | Unverified; existing 6j proofs are regressions, not proof of new 6k binding |
+| Required proof rows                                                                                                                | Planned owner/slice                                   | Observed result for 6k                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| K1/K2: installed selected publication and H1/nonselected silence                                                                   | 6k.b outcome owner                                    | Unverified; implementation not started here                                                       |
+| K3: selected replacement/eviction, Fast and addressed-cause negatives                                                              | 6k.c complete cache mutation                          | Unverified                                                                                        |
+| K4: mounted empty-booking availability at unchanged canonical/admission H, plus separate equal-captured-hash comparator regression | 6k.b borrowed projection and existing pure comparator | Unverified; unconditional mounted suppression and conditional pure regression are distinct proofs |
+| K5–K8: borrowed capture, atomic rollback, after-capture failure and no-op/legacy/isolated silence                                  | 6k.b outcome owner                                    | Unverified                                                                                        |
+| K9/K10/K13: decision independence, tracking/error reporting, exact delivery and recipient reaction                                 | 6k.a consumer, then 6k.b installed owner              | Unverified; consumer-only evidence cannot close the installed obligation                          |
+| K11: generation/cache eviction with original observation identity                                                                  | 6k.d observation owner                                | Unverified                                                                                        |
+| K12: admission status-only silence and retirement inventory                                                                        | 6k.e closure                                          | Unverified; existing 6j proofs are regressions, not proof of new 6k binding                       |
 
 For implementation acceptance, append exact test commands/counts, accepted fault/restoration
 logs and adjacent production `Proof:` locations for each changed dependency. Keep disqualified
@@ -3405,3 +3405,22 @@ commands were repeated after this evidence text was added. Dependencies for thes
 reuse the base worktree's `node_modules`; this is not a fresh frozen-install claim. No runtime
 suite, Nx product lint/typecheck/build, canonical host gate, CI, publication, 6l closure,
 UI/mode work or trusted activation was performed by this amendment.
+
+### 6k K4 proof-plan correction
+
+Independent review of `de054d5ef15fd2c857df8ebec1e2d6960f605c1c` identified a P2 proof-plan
+mismatch: the proposed calendar-range mounted witness preserves canonical/admission Input hash
+H, but `readFanoutObservationIn` changes its nullable captured hash from H to null. A conditional
+fault that suppresses availability only for equal captured hashes would not break that witness.
+The packet now requires unconditional suppression of availability comparison for the mounted
+empty-booking `available` → `calendar_range` witness; the required downstream event must disappear.
+The existing equal-captured-hash conditional fault remains a separate pure comparator regression
+(`shared-people-fanout.test.ts::equal hashes retain availability transitions with no bookings`).
+Neither proof is attributed to the other. This correction changes no production shape, domain
+term, task completion status or implementation evidence; both future proof obligations remain open.
+
+Correction validation: the same pinned strict/all commands above passed 1/1 and 149/149,
+respectively; Prettier on the two changed Markdown files and `git diff --check` passed, all
+exit 0 (`/tmp/shared-people-6k-k4-{strict,all}.json`,
+`/tmp/shared-people-6k-k4-{format,diff}.log`). These commands were repeated after this ledger
+entry. No runtime mutation/test or gate was run for the proof-plan correction.
