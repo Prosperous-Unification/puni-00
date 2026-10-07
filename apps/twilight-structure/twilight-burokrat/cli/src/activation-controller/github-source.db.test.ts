@@ -205,6 +205,31 @@ test('trusted PR read deadline is finite and capped before a provider call', () 
   expect(reads).toBe(0);
 });
 
+test('source arms its deadline before invoking the mounted provider reader', async () => {
+  const source = fixture();
+  let scheduled = false;
+  let armedAtRead = false;
+  const controller = controllerFor(source, {
+    listOpenPullRequests: () => {
+      armedAtRead = scheduled;
+      return Promise.resolve({ pulls: [], nextPage: null });
+    },
+    getPullRequest: () => Promise.resolve(source.pull),
+  });
+  const schedule = globalThis.setTimeout;
+  globalThis.setTimeout = ((...arguments_: Parameters<typeof setTimeout>) => {
+    scheduled = true;
+    return schedule(...arguments_);
+  }) as typeof setTimeout;
+  try {
+    expect(await controller.reconcileReady()).toEqual([]);
+    expect(armedAtRead).toBe(true);
+  } finally {
+    globalThis.setTimeout = schedule;
+    controller.close();
+  }
+});
+
 test('whole-list deadline refuses before reading another page after costly validation', async () => {
   const source = fixture();
   source.binding.readDeadlineMs = 10;
@@ -231,6 +256,96 @@ test('whole-list deadline refuses before reading another page after costly valid
   try {
     await expectRefusal(() => controller.reconcileReady(), 'GitHub PR read deadline exceeded');
     expect(laterPages).toBe(0);
+    expect(controller.listRequests()).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+for (const operation of ['list', 'get'] as const) {
+  test(`late synchronous ${operation} success cannot outlive its source deadline`, async () => {
+    const source = fixture();
+    source.binding.readDeadlineMs = 10;
+    const signals: AbortSignal[] = [];
+    const delayed = (signal: AbortSignal, response: unknown) => {
+      signals.push(signal);
+      const until = performance.now() + 40;
+      while (performance.now() < until) {
+        /* model synchronous provider work before its promise is returned */
+      }
+      return Promise.resolve(response);
+    };
+    const controller = controllerFor(source, {
+      listOpenPullRequests: (_owner, _name, _page, signal) =>
+        operation === 'list'
+          ? delayed(signal, { pulls: [source.pull], nextPage: null })
+          : Promise.resolve({ pulls: [source.pull], nextPage: null }),
+      getPullRequest: (_owner, _name, _number, signal) =>
+        operation === 'get' ? delayed(signal, source.pull) : Promise.resolve(source.pull),
+    });
+    try {
+      await expectRefusal(() => controller.reconcileReady(), 'GitHub PR read deadline exceeded');
+      expect(signals).toHaveLength(1);
+      expect(signals[0]?.aborted).toBe(true);
+      expect(controller.listRequests()).toEqual([]);
+    } finally {
+      controller.close();
+    }
+  });
+}
+
+test('costly final-page validation cannot return a successful whole-list scan after deadline', async () => {
+  const source = fixture();
+  source.binding.readDeadlineMs = 10;
+  let signal: AbortSignal | undefined;
+  const controller = controllerFor(source, {
+    listOpenPullRequests: (_owner, _name, _page, readSignal) => {
+      signal = readSignal;
+      return Promise.resolve({
+        get pulls() {
+          const until = performance.now() + 40;
+          while (performance.now() < until) {
+            /* consume the whole-list budget on its last page */
+          }
+          return [source.pull];
+        },
+        nextPage: null,
+      });
+    },
+    getPullRequest: () => Promise.resolve(source.pull),
+  });
+  try {
+    await expectRefusal(() => controller.reconcileReady(), 'GitHub PR read deadline exceeded');
+    expect(signal?.aborted).toBe(true);
+    expect(controller.listRequests()).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+test('costly current-response validation cannot return a ready observation after deadline', async () => {
+  const source = fixture();
+  source.binding.readDeadlineMs = 10;
+  let signal: AbortSignal | undefined;
+  const controller = controllerFor(source, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
+    getPullRequest: (_owner, _name, _number, readSignal) => {
+      signal = readSignal;
+      return Promise.resolve({
+        ...source.pull,
+        get head() {
+          const until = performance.now() + 40;
+          while (performance.now() < until) {
+            /* consume the current-read budget during response validation */
+          }
+          return source.pull.head;
+        },
+      });
+    },
+  });
+  try {
+    await expectRefusal(() => controller.reconcileReady(), 'GitHub PR read deadline exceeded');
+    expect(signal?.aborted).toBe(true);
     expect(controller.listRequests()).toEqual([]);
   } finally {
     controller.close();

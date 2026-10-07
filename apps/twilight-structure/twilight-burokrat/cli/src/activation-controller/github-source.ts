@@ -59,28 +59,37 @@ export interface GitHubPullRequestReader {
 async function readBeforeDeadline<T>(
   read: (signal: AbortSignal) => Promise<T>,
   deadline: number,
+  aborter: AbortController,
 ): Promise<T> {
-  const remaining = deadline - performance.now();
+  const remaining = requireBeforeDeadline(deadline, aborter);
   // Proof: omitting this pre-read guard invoked page two after page-one validation consumed
   // the whole-list budget; the mounted test required zero later provider reads.
-  if (remaining <= 0) throw new Error('GitHub PR read deadline exceeded');
-  const aborter = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    // Proof: invoking the reader before arming this timer let synchronous provider work
+    // return after the deadline in the mounted late-list/get tests.
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        aborter.abort();
+        reject(new Error('GitHub PR read deadline exceeded'));
+      }, remaining);
+    });
     // Proof: a reader that never settles still rejects by this deadline, aborts its signal,
     // and leaves the durable request unchanged in the mounted list/get tests.
-    return await Promise.race([
-      read(aborter.signal),
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          aborter.abort();
-          reject(new Error('GitHub PR read deadline exceeded'));
-        }, remaining);
-      }),
-    ]);
+    const response = await Promise.race([read(aborter.signal), timeout]);
+    return response;
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }
+}
+
+function requireBeforeDeadline(deadline: number, aborter: AbortController): number {
+  const remaining = deadline - performance.now();
+  if (remaining <= 0) {
+    aborter.abort();
+    throw new Error('GitHub PR read deadline exceeded');
+  }
+  return remaining;
 }
 
 function checkedPull(raw: unknown, binding: GitHubRepositoryBinding): Pull {
@@ -135,10 +144,12 @@ export function createGitHubPullRequestSource(
       const candidates: ObservedCandidate[] = [];
       const seen = new Set<number>();
       const deadline = performance.now() + binding.readDeadlineMs;
+      const aborter = new AbortController();
       for (let page = 1; page <= 100; page += 1) {
         const response = await readBeforeDeadline(
           (signal) => reader.listOpenPullRequests(binding.owner, binding.name, page, signal),
           deadline,
+          aborter,
         );
         const listed = parseOrThrow(PullPage, response);
         // Proof: accepting a provider-selected cursor could omit later ready PRs or loop forever.
@@ -154,7 +165,12 @@ export function createGitHubPullRequestSource(
           seen.add(pull.number);
           if (isEligible(pull, binding)) candidates.push(candidate(pull, binding));
         }
-        if (listed.nextPage === null) return candidates;
+        if (listed.nextPage === null) {
+          // Proof: omitting this final check returned a last page whose validation itself
+          // exhausted the whole-list budget in the mounted source test.
+          requireBeforeDeadline(deadline, aborter);
+          return candidates;
+        }
       }
       // Proof: returning here let a continuing 100-page scan silently report an incomplete list.
       throw new Error('GitHub PR pagination exceeds bounded scan');
@@ -166,16 +182,23 @@ export function createGitHubPullRequestSource(
       if (repositoryId !== binding.repositoryId || subject.kind !== 'pull-request') {
         throw new Error('GitHub source cannot observe this repository subject');
       }
+      const deadline = performance.now() + binding.readDeadlineMs;
+      const aborter = new AbortController();
       const response = await readBeforeDeadline(
         (signal) => reader.getPullRequest(binding.owner, binding.name, subject.number, signal),
-        performance.now() + binding.readDeadlineMs,
+        deadline,
+        aborter,
       );
       const pull = checkedPull(response, binding);
       // Proof: a response for another PR number must never select this subject's request.
       if (pull.number !== subject.number) throw new Error('GitHub PR read differs from subject');
-      return isEligible(pull, binding)
+      const observed = isEligible(pull, binding)
         ? { kind: 'ready' as const, candidate: candidate(pull, binding) }
         : { kind: 'closed' as const };
+      // Proof: this final check prevents post-read response validation from granting a
+      // current observation after the source budget has elapsed.
+      requireBeforeDeadline(deadline, aborter);
+      return observed;
     },
   };
 }

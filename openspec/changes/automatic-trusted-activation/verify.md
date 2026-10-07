@@ -1909,3 +1909,39 @@ and all passed 143/143, zero failures
 (`/tmp/activation-github-correction-final2-{strict,all}.json`). These are local
 synthetic source checks. Live GitHub transport/authentication, signed webhook,
 deployed timer, host gate, CI and full task 1.2 acceptance remain open.
+
+### GitHub source deadline completion correction
+
+Astra's exact `ad37807164513992a0d5bf0e4b6da8a9d2d89a47` review reproduced
+a synchronous 40 ms list/current reader accepted under a 10 ms deadline
+(`/tmp/activation-ad37807-astra-deadline.log`). The mounted regression tests
+first failed 3/3 at the missing named deadline refusal
+(`/tmp/activation-github-deadline-red.log`). The source now arms the timer before
+invoking the provider, retains the whole-list abort signal through validation,
+and checks monotonic expiry before returning a final list or current observation.
+The corrected focused suite passed 5/5, including costly final-page and current
+validation (`/tmp/activation-github-deadline-focused-green.log`).
+
+The four single-source fault trials used
+`/tmp/activation-github-deadline-watch.py`; each changed the named expression,
+ran the matching mounted `bun test -t` command, restored the original bytes,
+and reran the same test. Full commands, exits and assertions are retained at
+`/tmp/activation-github-deadline-<watch>-{red,green}.log`.
+
+| Watch                 | Injected fault and observed result                                                                                                                                                     |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `timer_before_reader` | Moved the provider call ahead of timer installation; the mounted provider observed the deadline was not armed. RED exit 1, restored GREEN exit 0.                                      |
+| `final_list`          | Omitted final whole-list expiry check; costly last-page validation returned success after its budget. RED exit 1, restored GREEN exit 0.                                               |
+| `final_current`       | Omitted final current-observation expiry check; costly response validation committed a late ready request. RED exit 1, restored GREEN exit 0.                                          |
+| `post_await`          | A separate post-await check stayed GREEN when omitted because the final-list/current guards still refused the late value. This trial was disqualified and the redundant guard removed. |
+
+The source file was restored after the mutation run; the subsequent removal of
+the redundant guard is the only change after its recorded restoration hash.
+On the final source and test bytes, the five-file mounted suite passed
+**459/459**, 1,957 assertions (`/tmp/activation-github-deadline-final-five.log`).
+Uncached Nx `lint:source`, `typecheck`, and `build` each printed
+`Successfully ran target`; direct spec-test typecheck exited 0. Pinned OpenSpec
+strict passed 1/1 and all passed 143/143
+(`/tmp/activation-github-deadline-final-{strict,all}.json`); changed-path
+Prettier and `git diff --check` exited 0. These local checks do not verify live
+GitHub transport/authentication, a deployed timer, host gate or CI.

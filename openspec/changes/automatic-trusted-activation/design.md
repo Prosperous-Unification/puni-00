@@ -108,7 +108,9 @@ arbitrary clone/download URL. Trusted snapshot acquisition remains a later adapt
 
 Pagination has finite page/entry/time bounds, validated origin and monotonic continuation.
 The bounded source port requires a trusted 1–60,000 ms read deadline; the adapter
-passes an abort signal and rejects by its own timer even if a reader ignores it.
+arms its timer before invoking a reader, passes an abort signal, and rejects even if
+the reader ignores it. It rechecks monotonic expiry after final response validation
+before returning a list or current observation, including synchronous reader work.
 Refuse repeated/conflicting pages, malformed links and incomplete traversal; never send a
 credential to an arbitrary continuation URL. Complete validation before returning discovery
 so a truncated page set cannot masquerade as an empty successful inventory. A successful
