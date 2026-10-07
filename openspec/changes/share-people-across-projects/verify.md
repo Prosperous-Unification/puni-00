@@ -3424,3 +3424,28 @@ respectively; Prettier on the two changed Markdown files and `git diff --check` 
 exit 0 (`/tmp/shared-people-6k-k4-{strict,all}.json`,
 `/tmp/shared-people-6k-k4-{format,diff}.log`). These commands were repeated after this ledger
 entry. No runtime mutation/test or gate was run for the proof-plan correction.
+
+### 6k revalidation after the 6j merge
+
+PR #282 merged at `ae7c1ff110731277e776ea3de45cd980614b2d67`. Comparing that tree with the
+packet's original source `a8c6c641584001407f5277b8cada6748263300fe` found changes only in
+`docs/code-organization/kinds.json` and `tools/tool-devsync/src/service-kinds.test.ts`: the five
+6j optimizer owners are classified as features, and the policy's existing negative-proof
+comment records their omission failure. WBS source, contracts, tests and this change's prior
+specification are identical across those source revisions. No transaction/caller redesign
+is required.
+
+The two reviewed docs commits ending at `5f30a49fa0afcf1d296e10d1f0ed22ec4ce0e345` were rebased
+onto that exact merged main without conflicts. The packet now names the merged checkpoint and
+requires any new owner file to follow the merged service-kind policy. Its K4 correction and
+6k.a–e ordering are preserved. All 6k implementation/proof obligations remain unchecked;
+6l, UI, mode routes and trusted activation remain deferred.
+
+Revalidation commands: the five-path Prettier check and pinned OpenSpec commands listed above
+passed again (strict 1/1; all 149/149), each with exit 0, as did `git diff --check`.
+`git range-diff a8c6c641584001407f5277b8cada6748263300fe..5f30a49fa0afcf1d296e10d1f0ed22ec4ce0e345 ae7c1ff110731277e776ea3de45cd980614b2d67..HEAD`
+reported both rebased planning commits patch-equivalent before this revalidation amendment.
+The formatting, strict/all and diff checks were repeated after this evidence text was added.
+
+This is source and documentation revalidation only. No implementation, runtime mutation/test,
+Nx product check, canonical host gate, CI, push or merge was performed for this update.

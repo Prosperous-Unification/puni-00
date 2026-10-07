@@ -2,8 +2,8 @@
 
 ## Context
 
-Normative implementation checkpoint for task 6k, based on reviewed source
-`a8c6c641584001407f5277b8cada6748263300fe`. The [design](design.md),
+Normative implementation checkpoint for task 6k, revalidated against merged main
+`ae7c1ff110731277e776ea3de45cd980614b2d67` (PR #282). The [design](design.md),
 [delta specification](specs/shared-people-mode/spec.md) and [6j ownership packet](6j-architecture.md)
 remain authoritative. This packet specifies work; it records no implemented behavior or runtime
 acceptance. [tasks.md](tasks.md) carries the ordered slices and [verify.md](verify.md) their evidence.
@@ -77,6 +77,11 @@ Use the established async `sqliteUnitOfWork` lifetime around synchronous raw ope
 not make Drizzle transaction callbacks async. A small borrowed synchronous repository helper
 may retain outcome adaptation/envelope validation for both direct and installed paths; do not
 duplicate fences or weaken the direct repository's atomic outcome/event behavior.
+
+Follow the merged service-kind policy when adding outcome or observation owners. New backend
+service files without a kind suffix must be classified in `docs/code-organization/kinds.json`,
+as the five installed 6j owners are. Keep their feature classification and run
+`tools/tool-devsync/src/service-kinds.test.ts` with each slice that adds an owner file.
 
 `readFanoutObservationIn` → `readChainSnapshotIn` → `readChain` uses the captured scheduler and
 its installed Contract version/budget configuration. It derives current shared input from the
