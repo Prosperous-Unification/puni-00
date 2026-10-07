@@ -50,6 +50,43 @@ Keep pure transition rules in Twilight Burokrat and external effects behind moun
       phases, absent reads/raw response/telemetry and unresolved findings. Cover absence and
       unreadability separately where the provider distinguishes them. Local mocked evidence
       cannot satisfy the final external-provider acceptance.
+      Execute these bounded components in order; none alone closes 2.1.
+      First, freeze stable `reviewId` on exactly one cold/informed pair and define immutable
+      `(requestIdentity, reviewId, attempt) -> invocationId` registration. Tests:
+      `selected review pair has exactly one phase each`,
+      `different reviews cannot borrow cold evidence`,
+      `new review attempt retains selection and old evidence`, and
+      `legacy obligations cannot acquire guessed pairing`. F3/F4/F10 independently remove
+      pair/cardinality, registration conflict, attempt and legacy-refusal guards. Reserve
+      registration before any dispatch; a receipt must not create its own authority.
+      Second, compose the read-only external-verifier adapter with controller receipt recording,
+      using existing review/phase schemas. Tests:
+      `one invocation completes only its authenticated phase pair`,
+      `phase relabel cannot satisfy the other obligation`,
+      `informed completion binds its paired cold artifact`, and
+      `missing invocation observations refuse completion`. F2/F4 independently bypass
+      exact submission, request/review/obligation/attempt/invocation/phase, issuer/executor,
+      protocol/prompt, raw-response/read/telemetry and finding-disposition checks. A fake
+      verifier may exercise this composition but cannot establish independent provenance.
+      Finally, test the pre-await expectation and post-await transaction together:
+      `held verifier refuses changed review registration`,
+      `unrelated completion preserves review expectation`, and
+      `informed write failure retains only earlier cold evidence`. F10/F11 remove the
+      own-attempt/registration fence and split receipt insertion from the later join;
+      compare complete affected rows after refusal/rollback, including prior evidence.
+      Record each exact mutation, observed assertion and restored GREEN with adjacent Proof.
+      Keep `invocationId` out of the immutable selected plan. Version pairing storage explicitly;
+      no migration may infer missing pairing from row order or a lone cold obligation.
+      Tests: `v2 and v3 unpaired review history remains readable but cannot resume`,
+      `paired replanning uses a new request audit generation`, and
+      `pairing migration failure preserves old schema and rows`. F1/F3/F10 independently
+      permit legacy completion/admission, backfill guessed pair/invocation values, or split
+      schema/version writes; watch exact refusal or full version/row snapshots fail.
+      Preserve old frozen-plan hashes and evidence; the existing v2-to-v3 attempt migration
+      proves no pairing. Execution resumes only through trusted supersession/replanning.
+      The local adapter does not require 2.2 dispatch first. Before real 2.1/2.2 dispatch,
+      complete durable effect reservation and lease/attempt recovery under 1.2/3.3, and select
+      the independently controlled provider/journal transport and authority through bootstrap.
 - [ ] 2.2 Run selected commands in isolated workers and authenticate measured receipts — tests:
       `installed checks preserve failed and skipped outcomes`,
       `candidate cannot read publisher or mutate journal`; negatives F5/F6 suppress exit/skip

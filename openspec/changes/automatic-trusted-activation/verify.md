@@ -156,3 +156,42 @@ Before implementation completion, run the canonical host gate and retain the pri
 outputs. Do not invoke raw full Nx gates on h2puni.
 
 No remote publication, permission/secret/variable change, release or activation was attempted.
+
+### Review pairing design amendment (2026-10-07)
+
+The bounded 2.1 design review found that phase-only frozen obligations do not identify
+which cold completion an informed review may use. The amendment freezes stable `reviewId`
+on the selected cold/informed pair and keeps actual `invocationId` in immutable shared-attempt
+registration/evidence. It adds no runtime code, installed provider or execution claim.
+The internal verifier contract reuses existing review/phase evidence without relabeling
+local-cooperative journal validation as external provenance. Historical evidence remains
+historical; missing legacy pairing cannot acquire defaults.
+
+| Planned proof                 | Required watched fault and observable failure                                                                                                                             | Status  |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| Pair and phase                | Omit pair/cardinality or authenticated-phase binding; a duplicate/missing partner, relabeled phase or another review's cold completion is accepted                        | NOT RUN |
+| Registered invocation         | Omit request/review/attempt/invocation or immutable-registration join; an unregistered or conflicting execution reaches receipt acceptance                                | NOT RUN |
+| Retry identity                | Reset the selected plan or reuse prior cold evidence for a new invocation; exact frozen-plan/prior-evidence or refusal assertion fails                                    | NOT RUN |
+| Retained protocol evidence    | Omit cold-artifact, issuer/executor/protocol/prompt, retained response/read/telemetry or finding checks independently; incomplete/mismatched evidence advances            | NOT RUN |
+| Post-await ownership          | Omit own registration/attempt fence after held authentication; stale completion writes, while an unrelated completion remains a required positive witness                 | NOT RUN |
+| Atomic informed completion    | Split new receipt insertion from later join and inject transition failure; full affected-row snapshot retains partial new evidence instead of only earlier cold evidence  | NOT RUN |
+| Legacy refusal                | Infer pairing/invocation from old rows; unpaired legacy state becomes eligible instead of refusing without historical writes                                              | NOT RUN |
+| Versioned legacy preservation | Permit v2/v3 evaluating/verified history to resume, rewrite its frozen plan, or split migration schema/version writes; refusal or complete old-version/row snapshot fails | NOT RUN |
+
+Each new safety guard needs an adjacent Proof naming its own observed production-path fault.
+Malformed parser input alone cannot prove a later binding comparison; use schema-valid
+mismatches to reach that comparison. Local fake-verifier proofs do not close installed 2.1,
+2.2, 2.4, bootstrap or unattended 030.6 acceptance. All task boxes remain open.
+
+Fresh docs-only checks on 2026-10-07:
+
+| Command                                                                                  | Observed result                                                          |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `bunx @fission-ai/openspec@1.12.0 validate automatic-trusted-activation --strict --json` | 1/1 valid, zero issues; `/tmp/activation-pairing-strict.json`            |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                 | 143/143 valid: 125 changes, 18 specs; `/tmp/activation-pairing-all.json` |
+
+Changed-path Prettier passed (`/tmp/activation-pairing-format.log`) and `git diff --check`
+exited 0. Normal commit hooks remain required for the local commit.
+No runtime tests/mutations, provider authentication, host gate, CI or publication were run
+for this docs-only amendment. The proof rows above are requirements, not inherited runtime
+acceptance from the implementation branch.
