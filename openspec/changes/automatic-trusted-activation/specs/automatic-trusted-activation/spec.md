@@ -218,6 +218,20 @@ The independently pinned sandbox profile SHALL provide positive finite safe-
 integer limits for manifest bytes, entry count, depth, path bytes, file bytes
 and total bytes, enforced independently for candidate and runtime trees.
 
+Before selected-command execution, an uncached required worker target SHALL
+refuse with named unavailable controls unless the exact mandatory namespace,
+delegated cgroup quota, pinned AppArmor policy and FD/mount isolation are
+independently observed. An inert namespace probe alone SHALL NOT grant worker
+admission. An unavailable control SHALL make the required target fail; the
+target SHALL neither skip nor fall back to unsandboxed execution.
+
+#### Scenario: Namespace setup succeeds without quota or policy
+
+- **WHEN** an inert namespace probe succeeds but the worker has no verified
+  delegated `cpu`/`memory`/`pids` quota leaf or pinned AppArmor policy
+- **THEN** the uncached worker target reports each unavailable control, exits
+  nonzero, and runs no selected command or measured receipt
+
 #### Scenario: Source tree changes during anchored staging
 
 - **WHEN** a source root or ancestor is renamed, a child symlink or file is

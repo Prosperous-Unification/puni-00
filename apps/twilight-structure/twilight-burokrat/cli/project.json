@@ -25,6 +25,14 @@
         "cwd": "apps/twilight-structure/twilight-burokrat/cli"
       }
     },
+    "test:worker": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["{workspaceRoot}/tools/worker-isolation/**/*", "{projectRoot}/project.json"],
+      "options": {
+        "command": "bun test tools/worker-isolation/capability.test.ts && bun tools/worker-isolation/readiness.ts"
+      }
+    },
     "lint": {
       "executor": "nx:run-commands",
       "cache": false,

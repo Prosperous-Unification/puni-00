@@ -1697,3 +1697,46 @@ Pinned OpenSpec strict passed 1/1 and all passed 143/143, zero failures
 (`/tmp/activation-b1-opaque-final2-{strict,all}.json`). Changed-path Prettier
 and `git diff --check` passed
 (`/tmp/activation-b1-opaque-final2-{format,diff}.log`).
+
+### B2 worker readiness boundary (no selected-command execution)
+
+The first explicit `test:worker` fixture was RED before its capability module
+existed: `bun test tools/worker-isolation/capability.test.ts` exited 1 with
+`Cannot find module './capability'`. The separate uncached Nx target runs only
+that test file and read-only host reporting; it is outside the CLI unit-test
+collection. Four capability classification tests pass on the current source.
+The required `bun tools/worker-isolation/readiness.ts` and
+`nx run twilight-burokrat:test:worker --skip-nx-cache` both exit 1 on this
+host, naming Bubblewrap network-namespace EPERM in the default sandbox,
+undelegated cgroup controllers, AppArmor `unconfined`, and unrun exact-profile
+FD/mount sentinels. The earlier approved elevated inert `/bin/true` probe
+succeeded, but establishes namespace setup only. No selected command, worker
+fixture, receipt, or activation was executed. The target is not wired into CI
+or the h2puni gate before trusted cgroup/AppArmor provisioning and exact
+runtime sentinel validation. Task 2.2 remains open.
+
+The source-guard omission watch removed one capability from the classifier at
+a time while retaining all other evidence. The named expected reason
+disappeared and the mounted test failed for namespace (3/4), cgroup (2/4),
+AppArmor (2/4), and FD/mount (2/4); the restored source passed 4/4. These
+prove typed reporting/refusal at the readiness classifier boundary, not
+actual host isolation. An earlier patch attempt appended three guard lines
+outside the function and failed parsing; those syntax failures are
+disqualified, and the source was restored before the valid omission watches.
+Read-only inspection cannot verify a writable cgroup quota leaf, policy
+contents, or FD/mount denial, so no `available` production-path claim or
+candidate-run sentinel proof is made.
+
+On the final source bytes, the dedicated Bun suite passed **4/4**, four
+assertions, exit 0; `bunx tsc --noEmit -p
+tools/worker-isolation/tsconfig.json` and `bunx eslint
+tools/worker-isolation` exited 0. Uncached Nx `lint:source`, `typecheck` and
+`build` each printed `Successfully ran target`, exit 0. The uncached
+`test:worker` target ran only the dedicated four tests and then printed the
+four named unavailable reasons above; Nx correctly exited 1 with `Running
+target test:worker ... failed`. It was never treated as a passing worker
+isolation test. Pinned OpenSpec strict passed 1/1 and all passed 143/143,
+zero failures. Changed-path Prettier and `git diff --check` passed. Host gate,
+CI, live cgroup quota, loaded AppArmor policy, FD/mount sentinel and selected
+worker execution remain unrun. No workflow was wired to this target while
+those host prerequisites are absent.

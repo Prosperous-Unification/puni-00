@@ -349,6 +349,28 @@ step remains inert and launches no worker. Filesystem races after enumeration
 cannot add bytes to the staged tree, but installed launcher containment and
 host namespace/cgroup capability still require separate acceptance.
 
+#### Required worker capability target before launch
+
+`twilight-burokrat:test:worker` is an uncached, separate required target. It
+first tests fail-closed capability classification, then reports the actual
+host state and exits nonzero when any required control is unavailable. The
+read-only inspection uses only an inert `/bin/true` Bubblewrap namespace
+probe; it never runs a selected command. It distinguishes mandatory namespace
+setup, delegated cgroup v2 `cpu`/`memory`/`pids` quota control, the pinned
+AppArmor policy, and exact-profile FD/mount sentinel proof. A successful
+namespace probe alone cannot certify the other controls. Read-only cgroup
+inspection cannot establish a writable quota-enforced execution leaf, and a
+non-`unconfined` AppArmor label alone cannot establish the pinned policy; both
+remain unavailable until independently installed and measured. There is no
+fallback, skip, candidate fixture or receipt authority in this target.
+
+The target is outside ordinary CLI unit-test collection. CI and the host gate
+must require it only after an independently provisioned service/scope and
+specific loaded policy provide a measurable quota leaf and exact sentinel
+tests. Provisioning cannot be attempted by candidate code or a PR-time sudo
+step. B2 worker execution, authenticated completion and activation remain
+separate later work.
+
 1. Freeze and verify the request against GitHub's current repository/PR state.
 2. Resolve independently pinned toolkit, prior authority and selected policy. A change to policy,
    launcher, workflow, harness or trust configuration is reviewed under the preceding authority.
