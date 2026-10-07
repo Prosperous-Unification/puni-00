@@ -39,7 +39,7 @@ Retention subject; retention deadline; client designation; erasure record.
 
 ## Decisions Recorded
 
-- [ADR 0033](../../../docs/adr/0033-retention-journal-survives-website-database-restore.md)
+- [ADR 0038](../../../docs/adr/0038-retention-journal-survives-website-database-restore.md)
 
 ## Impact
 

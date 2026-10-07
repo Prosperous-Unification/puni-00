@@ -27,7 +27,7 @@ The local `docs/website/prototypes/funnel.html` walkthrough is a UX decision aid
 
 - Created `Prosperous-Unification/puni-pr-00` after the user selected this topology. `gh repo view Prosperous-Unification/puni-pr-00 --json nameWithOwner,isPrivate,defaultBranchRef,url` returned `isPrivate: true` and an empty default branch. This proves repository creation/privacy, not an installed management baseline.
 - An independent GPT-6 Sol reviewer at medium effort approved the final plan, proposed WBS graph, private-companion ADR and prototype. The reviewer checked the known existing edges and new DAG; final live WBS reconciliation is recorded separately after applying.
-- `bunx prettier --check LLM_README.md CONTEXT-MAP.md docs/adr/0032-public-and-private-monorepos-share-a-portable-project-contract.md docs/website openspec/changes/puni-website-funnel` passed after formatting the prototype. `LLM_README.md` has 132 lines.
+- `bunx prettier --check LLM_README.md CONTEXT-MAP.md docs/adr/0037-public-and-private-monorepos-share-a-portable-project-contract.md docs/website openspec/changes/puni-website-funnel` passed after formatting the prototype. `LLM_README.md` has 132 lines.
 - Final local Chromium smoke after formatting: `bun /tmp/puni-funnel-smoke.ts`, exit 0. Output: `happy: 6 steps passed`; `cancel: 4 steps passed`; `limit: 5 steps passed`; `outage: 5 steps passed`; `manual: 3 steps passed`; `user content stays text`; `desktop/mobile browser smoke passed; no page errors, network calls, or mobile overflow`. It opened the standalone file and checked the 390-pixel layout. Desktop and mobile screenshots were inspected. The script and screenshots are session scratch files, not a committed test suite.
 
 ## Failure-proof status

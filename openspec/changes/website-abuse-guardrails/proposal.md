@@ -44,7 +44,7 @@ Request window; Daily cap; Login lockout; Browser check; Inference pause; Guardr
 
 ## Decisions Recorded
 
-- [ADR 0035](../../../docs/adr/0035-bot-deterrence-is-a-self-hosted-proof-of-work.md)
+- [ADR 0040](../../../docs/adr/0040-bot-deterrence-is-a-self-hosted-proof-of-work.md)
 
 ## Impact
 

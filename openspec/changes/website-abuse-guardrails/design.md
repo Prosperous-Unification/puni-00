@@ -77,7 +77,7 @@ A table `login_failure (scope, key_hash, failures, window_opened_at, locked_unti
 
 ### D4. Browser check: a self-hosted proof of work once per conversation
 
-Rationale and the rejected Turnstile path: [ADR 0035](../../../docs/adr/0035-bot-deterrence-is-a-self-hosted-proof-of-work.md). The mechanism:
+Rationale and the rejected Turnstile path: [ADR 0040](../../../docs/adr/0040-bot-deterrence-is-a-self-hosted-proof-of-work.md). The mechanism:
 
 - **Challenge.** `GET /conversation` returns `challenge: { salt, challenge, maxnumber, expiresAt } | null`. It is non-null only while the conversation has no admitted operation and the provider is `openrouter`. The server picks a random `n` in `[0, maxnumber]`, `salt = "<claimHashPrefix16>.<mintedUtcDay>.<expiresMs>.<random8>"`, `challenge = sha256(salt ‖ n)`, and signs it: `signature = HMAC-SHA256(key, challenge)`. The key is derived from the day salt already in the store, `key = HMAC-SHA256(sourceSalt(mintedUtcDay), "puni-browser-check-v1")`, so blue and green agree, nothing new is stored, and the key dies with the salt. A challenge minted yesterday is still verifiable today because yesterday's salt is kept; one minted the day before is expired by construction. Minting writes nothing.
 - **Solving.** The harness solves in a Web Worker (`@noble/hashes` `sha256`, synchronous, zero dependencies; WebCrypto's async digest is an order of magnitude too slow for this) by counting `n` up until `sha256(salt ‖ n) === challenge`. Expected work is `maxnumber / 2` hashes. It starts in the background as soon as the harness loads with a live provider, so by the time a visitor has read the page the answer is ready. If the answer is older than its `expiresAt` at Send, the harness re-reads `GET /conversation`, shows `Checking your browser…` (`aria-live="polite"`) and solves again.
@@ -238,7 +238,7 @@ In the unarchived `build-ai-chat-harness/specs/anonymous-conversation/spec.md`: 
 
 ## Risks / Trade-offs
 
-- The browser check is a cost multiplier, not a gate: a GPU solver pays it for nothing. The ceilings and the pause are the gate; the check only prices out the lazy script. Accepted (ADR 0035).
+- The browser check is a cost multiplier, not a gate: a GPU solver pays it for nothing. The ceilings and the pause are the gate; the check only prices out the lazy script. Accepted (ADR 0040).
 - A pause stops paid replies for every visitor until a human resumes. That is the point, and the state is visible with the manual path beside it.
 - Daily site caps on proposals can be used to block real submissions for a day. Bounded, visible, alerted at 50%, and far above real traffic.
 - Minute windows are not durable. One doubled minute during a swap, by design (D1).

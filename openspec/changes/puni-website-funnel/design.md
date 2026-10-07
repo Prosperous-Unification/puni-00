@@ -1,6 +1,6 @@
 ## Context
 
-WBS item `060` selects static Astro/Novaform; `060.2` approved PUNI-only branding and 12-month privacy terms; `060.4` puts the request field above the pitch; `080.12` requires intake and chat to survive reload. The latest user choice puts the site in private `puni-pr-00/apps/website/site` under [ADR 0032](../../../docs/adr/0032-public-and-private-monorepos-share-a-portable-project-contract.md). The private repository exists and is empty; the theme archive is available for a later private import. EmDash research is historical.
+WBS item `060` selects static Astro/Novaform; `060.2` approved PUNI-only branding and 12-month privacy terms; `060.4` puts the request field above the pitch; `080.12` requires intake and chat to survive reload. The latest user choice puts the site in private `puni-pr-00/apps/website/site` under [ADR 0032](../../../docs/adr/0037-public-and-private-monorepos-share-a-portable-project-contract.md). The private repository exists and is empty; the theme archive is available for a later private import. EmDash research is historical.
 
 ## Goals / Non-Goals
 

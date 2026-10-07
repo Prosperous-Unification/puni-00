@@ -38,7 +38,7 @@ Conversation stage; Visitor turn; Conversation allowance; Source.
 
 ## Decisions Recorded
 
-- [ADR 0034](../../../docs/adr/0034-anonymous-paid-chat-bound-to-the-browser-claim.md)
+- [ADR 0039](../../../docs/adr/0039-anonymous-paid-chat-bound-to-the-browser-claim.md)
 
 ## Impact
 
