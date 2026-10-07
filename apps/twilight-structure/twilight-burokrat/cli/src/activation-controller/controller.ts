@@ -27,6 +27,7 @@ import {
   CheckManifestRefusal,
   decodeCheckInvocationManifest,
 } from './check-manifest';
+import { stageCheckTrees, type StagedCheckTrees, type StageDiagnostics } from './check-stage';
 import { type ObservedActivationCandidate, prepareObservedRequest } from './ingress';
 import {
   type ActivationRequest,
@@ -607,6 +608,14 @@ export interface ActivationControllerOptions {
   readonly resolveCheckSandboxProfile?: (profileIdentity: string) => Promise<unknown>;
   /** Independently selected candidate snapshot; this carries no launch capability. */
   readonly resolveCandidateSnapshot?: (request: ActivationRequest) => Promise<unknown>;
+  /** Independently trusted complete candidate tree; old opaque snapshots cannot stage. */
+  readonly resolveCandidateTree?: (request: ActivationRequest) => Promise<unknown>;
+  /** Independently trusted complete executable tree; no candidate-derived fallback. */
+  readonly resolveExecutableTree?: (treeIdentity: string) => Promise<unknown>;
+  /** Private supervisor-owned staging parent; no worker can access it in this slice. */
+  readonly stageBase?: string;
+  /** Trusted diagnostic seam for deterministic descriptor-race proofs. */
+  readonly stageDiagnostics?: StageDiagnostics;
   /** Authenticates one registered review invocation and its retained phase evidence. */
   readonly verifyReview?: (submission: ReviewSubmission) => Promise<VerifiedReview>;
 }
@@ -1868,6 +1877,79 @@ export class ActivationController {
       prepared.manifest,
     );
     return { ...prepared, request, runtime, sandboxProfile, candidateSnapshot };
+  }
+
+  /** Stages verified selected bytes and toolchain without launching or recording a receipt. */
+  async stageCheckLaunch(
+    lease: RequestLease,
+    obligationIdentity: string,
+  ): Promise<StagedCheckTrees> {
+    const prepared = await this.prepareCheckLaunch(lease, obligationIdentity);
+    const expectedSelection = (({
+      request: _request,
+      runtime: _runtime,
+      sandboxProfile: _profile,
+      candidateSnapshot: _snapshot,
+      manifest: _manifest,
+      ...selection
+    }) => selection)(prepared);
+    const recheckSelection = (): void => {
+      const current = transaction(this.#database, () =>
+        this.#selectedCheckIn(lease, obligationIdentity),
+      );
+      if (hashCanonical(current) !== hashCanonical(expectedSelection))
+        throw new Error('selected check changed during tree staging');
+    };
+    const candidateResolver = this.options.resolveCandidateTree;
+    const executableResolver = this.options.resolveExecutableTree;
+    const stageBase = this.options.stageBase;
+    if (candidateResolver === undefined) throw new Error('check candidate tree resolver absent');
+    if (executableResolver === undefined) throw new Error('check runtime tree resolver absent');
+    if (stageBase === undefined) throw new Error('check private stage base absent');
+    let candidateInput: unknown;
+    try {
+      candidateInput = await candidateResolver(prepared.request);
+    } catch (cause) {
+      throw new Error('check candidate tree unreadable', { cause });
+    }
+    if (candidateInput === undefined) throw new Error('check candidate tree absent');
+    // Proof: omitting this held-resolution fence invoked the runtime resolver
+    // after the mounted current request had changed.
+    recheckSelection();
+    const candidateSource = parseOrThrow(type({ bytes: 'string', root: 'string' }), candidateInput);
+    if (candidateSource.root !== prepared.candidateSnapshot.root)
+      throw new Error('check candidate tree differs from selected snapshot root');
+    let executableInput: unknown;
+    try {
+      executableInput = await executableResolver(prepared.runtime.executableTreeIdentity);
+    } catch (cause) {
+      throw new Error('check runtime tree unreadable', { cause });
+    }
+    if (executableInput === undefined) throw new Error('check runtime tree absent');
+    recheckSelection();
+    const executableSource = parseOrThrow(
+      type({ bytes: 'string', root: 'string' }),
+      executableInput,
+    );
+    const staged = stageCheckTrees({
+      request: prepared.request,
+      snapshotIdentity: prepared.candidateSnapshot.snapshotIdentity,
+      runtime: prepared.runtime,
+      profile: prepared.sandboxProfile,
+      candidate: candidateSource,
+      executable: executableSource,
+      stageBase,
+      diagnostics: this.options.stageDiagnostics,
+    });
+    try {
+      // Proof: omitting this final fence returned a ready staged tree after
+      // the mounted request ceased to be current during the copy.
+      recheckSelection();
+      return staged;
+    } catch (cause) {
+      staged.dispose();
+      throw cause;
+    }
   }
 
   /** Atomically registers and reserves a frozen check effect; this cannot launch a worker. */

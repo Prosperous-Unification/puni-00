@@ -303,6 +303,46 @@ created by this preparation step. A later acceptance fence must recheck these
 bindings and the installed runtime/profile before launch; actual namespace,
 cgroup and filesystem isolation remains unverified until that separate slice.
 
+#### Anchored execution-tree staging before worker admission
+
+The snapshot identity commits to a versioned canonical complete-tree manifest
+selected by trusted authority for the exact request and head. The runtime
+descriptor's executable-tree identity similarly commits to a complete trusted
+toolchain manifest. Each inventory names every directory and regular file by
+relative component path, expected mode and file-content SHA-256; no candidate
+file supplies or amends it. A source root is only a trusted locator, never
+proof of the selected bytes. Missing, unreadable, malformed, noncanonical or
+identity-mismatched manifests refuse staging. A prior descriptor without a
+complete inventory cannot be promoted by guessing entries.
+
+The candidate manifest is canonical UTF-8
+`{schemaVersion:1,kind:'candidate-snapshot',requestIdentity,headSha,entries}`;
+the runtime manifest is canonical UTF-8
+`{schemaVersion:1,kind:'executable-tree',entries}`. Each identity is SHA-256 of
+its exact canonical bytes. An entry is a directory with mode `0755`, or a
+regular file with mode `0644` or `0755`, safe-integer size and lowercase
+SHA-256. Root is implicit. All other directories, including empty ones, are
+explicit and every parent is present. Entries are unique and sorted by UTF-8
+byte order. Relative POSIX components reject empty, `.`, `..`, slash within a
+component, backslash, NUL and normalization aliases. Source roots remain
+external trusted locators. The pinned profile declares positive safe-integer
+limits for manifest bytes, entry count, depth, path bytes, file bytes and total
+bytes; Linux components also stay within 255 bytes and paths within 4096.
+
+The supervisor traverses each root and child one validated basename at a time
+under retained directory descriptors with no-follow opens. It checks file type,
+mode and content hash from opened descriptors, enumerates directories to refuse
+unexpected entries, and keeps the opened sources until their verified bytes and
+modes have been materialized into a fresh private supervisor-owned staging
+tree. It never reopens an original pathname after validation. The same
+procedure stages the toolchain closure. A rename, symlink substitution,
+modified leaf, wrong full-tree hash or closed/reused descriptor must result in
+the exact verified bytes or refusal, with every descriptor closed on refusal.
+Only the immutable staged trees may become later worker mount inputs; this
+step remains inert and launches no worker. Filesystem races after enumeration
+cannot add bytes to the staged tree, but installed launcher containment and
+host namespace/cgroup capability still require separate acceptance.
+
 1. Freeze and verify the request against GitHub's current repository/PR state.
 2. Resolve independently pinned toolkit, prior authority and selected policy. A change to policy,
    launcher, workflow, harness or trust configuration is reviewed under the preceding authority.

@@ -31,7 +31,7 @@ export type CheckRuntimeDescriptor = typeof RuntimeDescriptor.infer;
 
 const SandboxProfile = type({
   // Proof: independently widening namespace, network, capability or descriptor literals returned a plan for the matching forbidden profile.
-  schemaVersion: '1',
+  schemaVersion: '2',
   kind: "'check-sandbox-profile'",
   namespaces: "'private-all'",
   network: "'none'",
@@ -46,6 +46,14 @@ const SandboxProfile = type({
   memoryBytes: 'number.integer>=1',
   processCount: 'number.integer>=1',
   maxOutputBytes: 'number.integer>=1',
+  // Proof: independently widening each of the six positive staging-budget
+  // fields accepted its mounted zero-budget profile.
+  maxManifestBytes: 'number.integer>=1',
+  maxEntries: 'number.integer>=1',
+  maxDepth: 'number.integer>=1',
+  maxPathBytes: 'number.integer>=1',
+  maxFileBytes: 'number.integer>=1',
+  maxTotalBytes: 'number.integer>=1',
 })
   .onUndeclaredKey('reject')
   // Proof: independent mount/environment and upper resource-bound omissions returned a plan for their forbidden profile.
@@ -62,7 +70,21 @@ const SandboxProfile = type({
       profile.cpuTimeMilliseconds <= 600_000 &&
       profile.memoryBytes <= 4_294_967_296 &&
       profile.processCount <= 64 &&
-      profile.maxOutputBytes <= 10_485_760,
+      profile.maxOutputBytes <= 10_485_760 &&
+      // Proof: independently omitting each pinned staging-budget upper bound
+      // accepted its mounted over-budget profile before any stage was prepared.
+      Number.isSafeInteger(profile.maxManifestBytes) &&
+      profile.maxManifestBytes <= 1_048_576 &&
+      Number.isSafeInteger(profile.maxEntries) &&
+      profile.maxEntries <= 10_000 &&
+      Number.isSafeInteger(profile.maxDepth) &&
+      profile.maxDepth <= 64 &&
+      Number.isSafeInteger(profile.maxPathBytes) &&
+      profile.maxPathBytes <= 4_096 &&
+      Number.isSafeInteger(profile.maxFileBytes) &&
+      profile.maxFileBytes <= 536_870_912 &&
+      Number.isSafeInteger(profile.maxTotalBytes) &&
+      profile.maxTotalBytes <= 1_073_741_824,
   );
 export type CheckSandboxProfile = typeof SandboxProfile.infer;
 

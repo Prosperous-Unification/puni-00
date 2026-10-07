@@ -1,11 +1,20 @@
 import { spawnSync } from 'node:child_process';
 import {
+  chmodSync,
+  closeSync,
+  constants,
   existsSync,
+  linkSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
+  readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
+  statSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -6666,7 +6675,11 @@ function selectedCheckFixture(
   launchResolvers: Partial<
     Pick<
       ActivationControllerOptions,
-      'resolveCheckRuntime' | 'resolveCheckSandboxProfile' | 'resolveCandidateSnapshot'
+      | 'resolveCheckRuntime'
+      | 'resolveCheckSandboxProfile'
+      | 'resolveCandidateSnapshot'
+      | 'resolveCandidateTree'
+      | 'resolveExecutableTree'
     >
   > = {},
 ) {
@@ -6712,7 +6725,13 @@ function selectedLaunchFixture(
   overrides: Partial<
     Pick<
       ActivationControllerOptions,
-      'resolveCheckRuntime' | 'resolveCheckSandboxProfile' | 'resolveCandidateSnapshot'
+      | 'resolveCheckRuntime'
+      | 'resolveCheckSandboxProfile'
+      | 'resolveCandidateSnapshot'
+      | 'resolveCandidateTree'
+      | 'resolveExecutableTree'
+      | 'stageBase'
+      | 'stageDiagnostics'
     >
   > = {},
   cwd = '.',
@@ -6735,7 +6754,7 @@ function selectedLaunchFixture(
       ? JSON.stringify(JSON.parse(canonicalRuntimeBytes), null, 2)
       : canonicalRuntimeBytes;
   const profileBytes = serializeCanonical({
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: 'check-sandbox-profile',
     namespaces: 'private-all',
     network: 'none',
@@ -6750,6 +6769,12 @@ function selectedLaunchFixture(
     memoryBytes: 536_870_912,
     processCount: 16,
     maxOutputBytes: 65_536,
+    maxManifestBytes: 1_048_576,
+    maxEntries: 10_000,
+    maxDepth: 64,
+    maxPathBytes: 4_096,
+    maxFileBytes: 536_870_912,
+    maxTotalBytes: 1_073_741_824,
     ...profileChanges,
   });
   const manifest = {
@@ -8701,6 +8726,559 @@ test('selected check launch preparation permits a normal nested snapshot root', 
   }
 });
 
+function selectedStageFixture(
+  overrides: Partial<
+    Pick<
+      ActivationControllerOptions,
+      'resolveCandidateTree' | 'resolveExecutableTree' | 'stageDiagnostics'
+    >
+  > = {},
+  profileChanges: Record<string, unknown> = {},
+  candidateEntries: readonly unknown[] = [
+    { path: 'main.txt', type: 'file', mode: 420, size: 4, sha256: hashBytes('main') },
+  ],
+  sourceRoot?: string,
+) {
+  const executableTreeBytes = serializeCanonical({
+    schemaVersion: 1,
+    kind: 'executable-tree',
+    entries: [{ path: 'bun', type: 'file', mode: 493, size: 7, sha256: hashBytes('runtime') }],
+  });
+  const runtimeRoot = mkdtempSync(join(tmpdir(), 'activation-runtime-source-'));
+  scratch.push(runtimeRoot);
+  const stageBase = mkdtempSync(join(tmpdir(), 'activation-stage-base-'));
+  scratch.push(stageBase);
+  writeFileSync(join(runtimeRoot, 'bun'), 'runtime', { mode: 0o755 });
+  const candidateTreeBytes = (request: ActivationRequest) =>
+    serializeCanonical({
+      schemaVersion: 1,
+      kind: 'candidate-snapshot',
+      requestIdentity: request.requestIdentity,
+      headSha: request.headSha,
+      entries: candidateEntries,
+    });
+  const selected = selectedLaunchFixture(
+    {
+      resolveCandidateSnapshot: (request) =>
+        Promise.resolve({
+          schemaVersion: 1,
+          kind: 'candidate-snapshot',
+          requestIdentity: request.requestIdentity,
+          headSha: request.headSha,
+          snapshotIdentity: hashBytes(candidateTreeBytes(request)),
+          root: sourceRoot ?? selected.snapshotRoot,
+        }),
+      resolveCandidateTree: (request) =>
+        Promise.resolve({
+          bytes: candidateTreeBytes(request),
+          root: sourceRoot ?? selected.snapshotRoot,
+        }),
+      resolveExecutableTree: () =>
+        Promise.resolve({ bytes: executableTreeBytes, root: runtimeRoot }),
+      stageBase,
+      ...overrides,
+    },
+    '.',
+    profileChanges,
+    '.',
+    { executableTreeIdentity: hashBytes(executableTreeBytes) },
+  );
+  writeFileSync(join(sourceRoot ?? selected.snapshotRoot, 'main.txt'), 'main', { mode: 0o644 });
+  return {
+    ...selected,
+    snapshotRoot: sourceRoot ?? selected.snapshotRoot,
+    runtimeRoot,
+    stageBase,
+    candidateTreeBytes,
+    executableTreeBytes,
+  };
+}
+
+test('selected check stages only bytes from trusted complete-tree manifests', async () => {
+  const selected = selectedStageFixture();
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    const descriptorsBefore = readdirSync('/proc/self/fd').length;
+    const staged = await selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64));
+    try {
+      expect(readFileSync(join(staged.stageRoot, 'candidate', 'main.txt'), 'utf8')).toBe('main');
+      expect(readFileSync(join(staged.stageRoot, 'runtime', 'bun'), 'utf8')).toBe('runtime');
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+      expect(readdirSync('/proc/self/fd').length).toBe(descriptorsBefore);
+    } finally {
+      staged.dispose();
+    }
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check traverses a renamed ancestor through its retained directory descriptor', async () => {
+  const outer = mkdtempSync(join(tmpdir(), 'activation-ancestor-'));
+  scratch.push(outer);
+  const sourceRoot = join(outer, 'source');
+  mkdirSync(sourceRoot);
+  const selected = selectedStageFixture(
+    {
+      stageDiagnostics: {
+        afterDirectoryOpened: (kind, path) => {
+          if (kind !== 'candidate' || path !== outer) return;
+          const moved = `${outer}-moved`;
+          scratch.push(moved);
+          renameSync(outer, moved);
+          mkdirSync(outer);
+          mkdirSync(join(outer, 'source'));
+          writeFileSync(join(outer, 'source', 'main.txt'), 'evil');
+        },
+      },
+    },
+    {},
+    undefined,
+    sourceRoot,
+  );
+  try {
+    const staged = await selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64));
+    try {
+      expect(readFileSync(join(staged.stageRoot, 'candidate', 'main.txt'), 'utf8')).toBe('main');
+    } finally {
+      staged.dispose();
+    }
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test.each(['hash', 'mode', 'hardlink', 'extra'] as const)(
+  'selected check refuses runtime tree %s mismatch and cleans candidate staging',
+  async (fault) => {
+    const selected = selectedStageFixture({
+      stageDiagnostics: {
+        afterTreeCopied: (kind) => {
+          if (kind !== 'candidate') return;
+          const visible = readdirSync(selected.stageBase);
+          expect(visible).toHaveLength(1);
+          expect(visible[0]?.startsWith('.pending-')).toBe(true);
+        },
+      },
+    });
+    try {
+      const executable = join(selected.runtimeRoot, 'bun');
+      if (fault === 'hash') writeFileSync(executable, 'changed');
+      if (fault === 'mode') chmodSync(executable, 0o644);
+      if (fault === 'hardlink') {
+        const external = mkdtempSync(join(tmpdir(), 'activation-runtime-hardlink-'));
+        scratch.push(external);
+        linkSync(executable, join(external, 'sibling'));
+      }
+      if (fault === 'extra') writeFileSync(join(selected.runtimeRoot, 'unlisted'), 'x');
+      const descriptorsBefore = readdirSync('/proc/self/fd').length;
+      await rejectsWith(
+        selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+        'check runtime tree source differs from manifest',
+      );
+      expect(readdirSync(selected.stageBase)).toEqual([]);
+      expect(readdirSync('/proc/self/fd').length).toBe(descriptorsBefore);
+    } finally {
+      selected.controller.close();
+    }
+  },
+);
+
+test.each([
+  ['attempt', "UPDATE activation_obligation SET attempt = 1 WHERE kind = 'check'"],
+  ['lease', 'UPDATE activation_request SET lease_expires_at = 1000'],
+  ['authority', `UPDATE activation_request SET bootstrap_identity = '${'f'.repeat(64)}'`],
+  ['generation', 'UPDATE activation_subject SET high_water_generation = high_water_generation + 1'],
+  ['plan', "UPDATE activation_obligation SET executor_id = 'other.audit' WHERE kind = 'audit'"],
+  ['current', 'UPDATE activation_request SET current = 0'],
+] as const)(
+  'held candidate tree resolution refuses changed %s before staging',
+  async (_name, mutation) => {
+    let release: ((source: unknown) => void) | undefined;
+    let entered: (() => void) | undefined;
+    let observedRequest: ActivationRequest | undefined;
+    let executableCalls = 0;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const held = new Promise<unknown>((resolve) => {
+      release = resolve;
+    });
+    const selected = selectedStageFixture({
+      resolveCandidateTree: (request) => {
+        observedRequest = request;
+        entered?.();
+        return held;
+      },
+      resolveExecutableTree: () => {
+        executableCalls += 1;
+        return Promise.resolve({ bytes: selected.executableTreeBytes, root: selected.runtimeRoot });
+      },
+    });
+    const database = new Database(selected.source.databasePath);
+    try {
+      const pending = selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64));
+      await started;
+      database.run(mutation);
+      const before = checkDispatchRows(selected.source.databasePath);
+      if (observedRequest === undefined) throw new Error('candidate tree request absent');
+      release?.({
+        bytes: selected.candidateTreeBytes(observedRequest),
+        root: selected.snapshotRoot,
+      });
+      await rejectsWith(pending, 'selected check');
+      expect(executableCalls).toBe(0);
+      expect(readdirSync(selected.stageBase)).toEqual([]);
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      database.close();
+      selected.controller.close();
+    }
+  },
+);
+
+test('selected check discards a complete staged tree if its current request changes before return', async () => {
+  const database: { current: Database | undefined } = { current: undefined };
+  const selected = selectedStageFixture({
+    stageDiagnostics: {
+      afterTreeCopied: (kind) => {
+        if (kind === 'runtime') database.current?.run('UPDATE activation_request SET current = 0');
+      },
+    },
+  });
+  database.current = new Database(selected.source.databasePath);
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'selected check',
+    );
+    expect(readdirSync(selected.stageBase)).toEqual([]);
+    expect(checkDispatchRows(selected.source.databasePath)).not.toEqual(before);
+  } finally {
+    database.current.close();
+    selected.controller.close();
+  }
+});
+
+test('selected check refuses a staged file changed after its source tree was copied', async () => {
+  let runtimeCopied = 0;
+  const selected = selectedStageFixture({
+    stageDiagnostics: {
+      afterTreeCopied: (kind, pendingRoot) => {
+        if (kind !== 'runtime') return;
+        runtimeCopied += 1;
+        writeFileSync(join(pendingRoot, '..', 'candidate', 'main.txt'), 'evil');
+      },
+    },
+  });
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'staged check tree differs from manifest',
+    );
+    expect(runtimeCopied).toBe(1);
+    expect(readdirSync(selected.stageBase)).toEqual([]);
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check refuses a trusted tree manifest whose full digest differs from its snapshot identity', async () => {
+  const selected = selectedStageFixture({
+    resolveCandidateTree: (request) =>
+      Promise.resolve({
+        bytes: serializeCanonical({
+          schemaVersion: 1,
+          kind: 'candidate-snapshot',
+          requestIdentity: request.requestIdentity,
+          headSha: request.headSha,
+          entries: [{ path: 'main.txt', type: 'file', mode: 420, size: 4, sha256: 'f'.repeat(64) }],
+        }),
+        root: selected.snapshotRoot,
+      }),
+  });
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check candidate tree differs from frozen identity',
+    );
+    expect(readdirSync(selected.stageBase)).toEqual([]);
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test.each(['extra', 'hardlink', 'fifo'] as const)(
+  'selected check refuses %s in source and cleans its private stage',
+  async (fault) => {
+    const selected = selectedStageFixture();
+    try {
+      if (fault === 'extra') writeFileSync(join(selected.snapshotRoot, 'extra.txt'), 'extra');
+      if (fault === 'hardlink') {
+        const original = join(selected.snapshotRoot, 'main.txt');
+        const external = mkdtempSync(join(tmpdir(), 'activation-hardlink-'));
+        scratch.push(external);
+        linkSync(original, join(external, 'sibling'));
+      }
+      if (fault === 'fifo') {
+        rmSync(join(selected.snapshotRoot, 'main.txt'));
+        const created = spawnSync('mkfifo', [join(selected.snapshotRoot, 'main.txt')]);
+        expect(created.status).toBe(0);
+      }
+      const before = checkDispatchRows(selected.source.databasePath);
+      await rejectsWith(
+        selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+        'check candidate tree source differs from manifest',
+      );
+      expect(readdirSync(selected.stageBase)).toEqual([]);
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      selected.controller.close();
+    }
+  },
+);
+
+test('selected check stages verified bytes after its opened root is renamed and replaced', async () => {
+  const selected = selectedStageFixture({
+    stageDiagnostics: {
+      afterRootOpened: (kind) => {
+        if (kind !== 'candidate') return;
+        const moved = `${selected.snapshotRoot}-moved`;
+        scratch.push(moved);
+        renameSync(selected.snapshotRoot, moved);
+        mkdirSync(selected.snapshotRoot);
+        writeFileSync(join(selected.snapshotRoot, 'main.txt'), 'evil');
+      },
+    },
+  });
+  try {
+    const staged = await selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64));
+    try {
+      expect(readFileSync(join(staged.stageRoot, 'candidate', 'main.txt'), 'utf8')).toBe('main');
+    } finally {
+      staged.dispose();
+    }
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check refuses a leaf replaced after its root descriptor was selected', async () => {
+  const selected = selectedStageFixture({
+    stageDiagnostics: {
+      afterRootOpened: (kind) => {
+        if (kind !== 'candidate') return;
+        rmSync(join(selected.snapshotRoot, 'main.txt'));
+        writeFileSync(join(selected.snapshotRoot, 'main.txt'), 'evil');
+      },
+    },
+  });
+  try {
+    await rejectsWith(
+      selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check candidate tree source differs from manifest',
+    );
+    expect(readdirSync(selected.stageBase)).toEqual([]);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check copies from the opened leaf rather than reopening its replaced pathname', async () => {
+  const selected = selectedStageFixture({
+    stageDiagnostics: {
+      afterFileOpened: (kind, path) => {
+        if (kind !== 'candidate' || path !== 'main.txt') return;
+        const external = mkdtempSync(join(tmpdir(), 'activation-open-leaf-'));
+        scratch.push(external);
+        renameSync(join(selected.snapshotRoot, 'main.txt'), join(external, 'original'));
+        writeFileSync(join(selected.snapshotRoot, 'main.txt'), 'evil');
+      },
+    },
+  });
+  try {
+    const staged = await selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64));
+    try {
+      expect(readFileSync(join(staged.stageRoot, 'candidate', 'main.txt'), 'utf8')).toBe('main');
+    } finally {
+      staged.dispose();
+    }
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check refuses a closed and reused source descriptor', async () => {
+  const selected = selectedStageFixture({
+    stageDiagnostics: {
+      afterFileOpened: (kind, path, descriptor) => {
+        if (kind !== 'candidate' || path !== 'main.txt') return;
+        const external = mkdtempSync(join(tmpdir(), 'activation-reused-fd-'));
+        scratch.push(external);
+        const replacement = join(external, 'same-bytes');
+        writeFileSync(replacement, 'main', { mode: 0o644 });
+        const original = statSync(join(selected.snapshotRoot, 'main.txt'));
+        utimesSync(replacement, original.atime, original.mtime);
+        closeSync(descriptor);
+        expect(openSync(replacement, constants.O_RDONLY)).toBe(descriptor);
+      },
+    },
+  });
+  try {
+    await rejectsWith(
+      selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check candidate tree source differs from manifest',
+    );
+    expect(readdirSync(selected.stageBase)).toEqual([]);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test.each([
+  ['maxManifestBytes', { maxManifestBytes: 40 }],
+  ['maxPathBytes', { maxPathBytes: 4 }],
+  ['maxFileBytes', { maxFileBytes: 3 }],
+  ['maxTotalBytes', { maxTotalBytes: 3 }],
+] as const)('selected check refuses exhausted %s staging budget', async (_name, profileChanges) => {
+  let fileOpens = 0;
+  const selected = selectedStageFixture(
+    {
+      stageDiagnostics: {
+        afterFileOpened: () => {
+          fileOpens += 1;
+        },
+      },
+    },
+    profileChanges,
+  );
+  try {
+    let failure: unknown;
+    try {
+      await selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64));
+    } catch (cause) {
+      failure = cause;
+    }
+    expect(fileOpens).toBe(0);
+    expect(failure).toBeInstanceOf(Error);
+    if (failure instanceof Error)
+      expect(failure.message).toContain('check candidate tree malformed');
+    expect(readdirSync(selected.stageBase)).toEqual([]);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test.each([
+  [
+    'maxEntries',
+    { maxEntries: 1 },
+    [
+      { path: 'main.txt', type: 'file', mode: 420, size: 4, sha256: hashBytes('main') },
+      { path: 'other.txt', type: 'file', mode: 420, size: 4, sha256: hashBytes('main') },
+    ],
+  ],
+  [
+    'maxDepth',
+    { maxDepth: 1 },
+    [
+      { path: 'sub', type: 'directory', mode: 493 },
+      { path: 'sub/leaf', type: 'file', mode: 420, size: 4, sha256: hashBytes('main') },
+    ],
+  ],
+] as const)(
+  'selected check refuses exhausted %s inventory budget',
+  async (_name, profile, entries) => {
+    const selected = selectedStageFixture({}, profile, entries);
+    try {
+      if (_name === 'maxEntries')
+        writeFileSync(join(selected.snapshotRoot, 'other.txt'), 'main', { mode: 0o644 });
+      if (_name === 'maxDepth') {
+        rmSync(join(selected.snapshotRoot, 'main.txt'));
+        mkdirSync(join(selected.snapshotRoot, 'sub'));
+        chmodSync(join(selected.snapshotRoot, 'sub'), 0o755);
+        writeFileSync(join(selected.snapshotRoot, 'sub', 'leaf'), 'main', { mode: 0o644 });
+      }
+      await rejectsWith(
+        selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+        'check candidate tree malformed',
+      );
+      expect(readdirSync(selected.stageBase)).toEqual([]);
+    } finally {
+      selected.controller.close();
+    }
+  },
+);
+
+test.each([
+  ['duplicate', ['main.txt', 'main.txt']],
+  ['dot', ['main.txt', 'a/./b']],
+  ['parent', ['main.txt', 'a/../b']],
+  ['backslash', ['main.txt', 'a\\b']],
+  ['normalization alias', ['main.txt', 'e\u0301']],
+  ['missing parent', ['main.txt', 'sub/leaf']],
+] as const)('selected check refuses %s trusted inventory paths', async (_name, paths) => {
+  const entries = paths.map((path) => ({
+    path,
+    type: 'file',
+    mode: 420,
+    size: 4,
+    sha256: hashBytes('main'),
+  }));
+  const selected = selectedStageFixture({}, {}, entries);
+  try {
+    await rejectsWith(
+      selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check candidate tree malformed',
+    );
+    expect(readdirSync(selected.stageBase)).toEqual([]);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test.each(['mode', 'size', 'hash', 'missing', 'symlink'] as const)(
+  'selected check refuses source %s mismatch before exposing a stage',
+  async (fault) => {
+    let copiedTrees = 0;
+    const selected = selectedStageFixture({
+      stageDiagnostics: {
+        afterTreeCopied: () => {
+          copiedTrees += 1;
+        },
+      },
+    });
+    try {
+      const source = join(selected.snapshotRoot, 'main.txt');
+      if (fault === 'mode') chmodSync(source, 0o755);
+      if (fault === 'size') writeFileSync(source, 'longer');
+      if (fault === 'hash') writeFileSync(source, 'evil');
+      if (fault === 'missing') rmSync(source);
+      if (fault === 'symlink') {
+        rmSync(source);
+        const external = mkdtempSync(join(tmpdir(), 'activation-symlink-target-'));
+        scratch.push(external);
+        const target = join(external, 'same-bytes');
+        writeFileSync(target, 'main', { mode: 0o644 });
+        symlinkSync(target, source, 'file');
+      }
+      await rejectsWith(
+        selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+        'check candidate tree source differs from manifest',
+      );
+      expect(copiedTrees).toBe(0);
+      expect(readdirSync(selected.stageBase)).toEqual([]);
+    } finally {
+      selected.controller.close();
+    }
+  },
+);
+
 test('selected check launch preparation refuses a snapshot without a valid content identity', async () => {
   const selected = selectedLaunchFixture({
     resolveCandidateSnapshot: (request) =>
@@ -8820,6 +9398,18 @@ test.each([
   ['unbounded CPU time', { cpuTimeMilliseconds: 600_001 }, 'check sandbox profile malformed'],
   ['unbounded process count', { processCount: 65 }, 'check sandbox profile malformed'],
   ['unbounded output', { maxOutputBytes: 10_485_761 }, 'check sandbox profile malformed'],
+  ['unbounded manifest', { maxManifestBytes: 1_048_577 }, 'check sandbox profile malformed'],
+  ['unbounded entries', { maxEntries: 10_001 }, 'check sandbox profile malformed'],
+  ['unbounded depth', { maxDepth: 65 }, 'check sandbox profile malformed'],
+  ['unbounded path', { maxPathBytes: 4_097 }, 'check sandbox profile malformed'],
+  ['unbounded file', { maxFileBytes: 536_870_913 }, 'check sandbox profile malformed'],
+  ['unbounded tree', { maxTotalBytes: 1_073_741_825 }, 'check sandbox profile malformed'],
+  ['zero manifest', { maxManifestBytes: 0 }, 'check sandbox profile malformed'],
+  ['zero entries', { maxEntries: 0 }, 'check sandbox profile malformed'],
+  ['zero depth', { maxDepth: 0 }, 'check sandbox profile malformed'],
+  ['zero path', { maxPathBytes: 0 }, 'check sandbox profile malformed'],
+  ['zero file', { maxFileBytes: 0 }, 'check sandbox profile malformed'],
+  ['zero tree', { maxTotalBytes: 0 }, 'check sandbox profile malformed'],
   ['zero CPU budget', { cpuTimeMilliseconds: 0 }, 'check sandbox profile malformed'],
   ['zero memory budget', { memoryBytes: 0 }, 'check sandbox profile malformed'],
   ['zero process budget', { processCount: 0 }, 'check sandbox profile malformed'],

@@ -1542,3 +1542,71 @@ correction. Pinned OpenSpec strict passed 1/1 and all passed 143/143, with zero
 failures (`/tmp/activation-22-check-recovery-final-{strict,all}.json`). The
 changed-path Prettier check and `git diff --check` passed. Normal-hook output
 belongs to the local checkpoint commit; no h2puni gate or CI was run.
+
+### B1 anchored execution-tree staging (local, inert)
+
+The mounted `stageCheckLaunch` path first failed 0/1 because the entry point
+was absent (`/tmp/activation-b1-first-red.log`); the expanded nine-case RED is
+`/tmp/activation-b1-expanded-red.log`. The implementation resolves trusted
+canonical candidate/runtime manifests, traverses source components from
+retained directory descriptors with no-follow opens, copies and hashes from
+opened regular files, checks complete inventories and explicit profile budgets,
+and exposes a private staged tree only after both trees verify. It does not
+launch a worker or grant receipt authority. The mounted matrix before final
+Proof edits passed 31/31 (`/tmp/activation-b1-matrix4.log`), and six held
+resolver/lease/authority/currentness cases passed 6/6
+(`/tmp/activation-b1-held-matrix.log`). Root/ancestor rename, leaf replacement,
+same-FD copy, FIFO/hardlink/symlink, runtime corruption, descriptor counts and
+failed-stage cleanup are covered. Direct post-copy corruption passed 1/1
+(`/tmp/activation-b1-staged-verify-green.log`): a changed private staged file
+is refused with no ready tree, dispatch write, or FD leak.
+
+Each accepted production-path omission below failed its named mounted assertion
+with exit 1, then passed after exact source restoration with exit 0. Logs are
+`/tmp/activation-b1-r5-<name>-{red,green}.log`:
+
+| Fault name                                                        | Observed lost boundary                                                                                            |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `manifest_cap`, `entry_cap`, `depth_cap`, `path_cap`, `total_cap` | An over-budget canonical inventory was no longer refused at its pinned limit.                                     |
+| `file_cap`                                                        | An oversized file was opened instead of refused before source access; the streamed cap still prevented authority. |
+| `hardlink`, `no_follow`, `inventory`, `ancestor_open`             | A hardlink, same-byte symlink, extra entry, or renamed-ancestor replacement crossed its source boundary.          |
+| `source_hash`                                                     | Changed source bytes crossed the early copy refusal; final staged verification still prevented authority.         |
+| `atomic_name`, `cleanup`                                          | Ready naming or failed pending-tree cleanup lost its mounted assertion.                                           |
+| `staged_hash`                                                     | A corrupted private copy was returned when final staged digest comparison was omitted.                            |
+| `candidate_recheck`, `final_recheck`                              | Changed currentness invoked the next resolver or returned a staged tree.                                          |
+
+The six newly required positive staging-profile caps also have independent
+upper and zero-boundary proofs. The mounted profile matrix passed 12/12, 36
+assertions (`/tmp/activation-b1-profile-caps-green.log`). Each field-specific
+`profile_{unbounded,zero}_{manifest,entries,depth,path,file,tree}` omission
+failed its named selected-check preparation assertion with exit 1 and passed
+after restoration with exit 0 (`/tmp/activation-b1-r5-profile_*-{red,green}.log`).
+
+The first `entry_cap` and `depth_cap` fixtures were disqualified because their
+source modes were wrong; corrected valid inventories produced the listed RED and
+GREEN. Initial `file_cap` and `source_hash` omissions stayed GREEN at the
+final-authority assertion because independent downstream checks masked them;
+the refined proofs are **early diagnostic/refusal only**. The closed-and-reused
+FD functional sentinel still refuses and cleans up, but removing the first
+dev/inode comparison alone, then both first/final dev/inode comparisons, stayed
+GREEN under other fstat protections (`fd_identity`, `fd_identity_pair` logs).
+Neither is counted as an independent omission proof. The final staged hash has
+its own accepted authority-loss proof above. The verified copy is not an atomic
+source snapshot or provenance attestation. B1 does not run Bubblewrap, enforce
+namespaces/cgroups, execute candidate code, authenticate a receipt, or satisfy
+host gate/CI. Final-byte tests and static/docs checks follow below.
+
+The final formatted four-file Bun suite passed **421/421**, 1,785 assertions,
+exit 0 (`/tmp/activation-b1-final3-four.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck` and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-b1-final3-{lint,type,build}.log`). The first lint run failed
+with six concrete ESLint diagnostics; import order, an interface definition, a
+void-returning shorthand and a test-only `prefer-const` violation were fixed,
+then the declared Nx target passed. Pinned OpenSpec
+`@fission-ai/openspec@1.12.0` strict passed 1/1 and all passed 143/143, zero
+failures (`/tmp/activation-b1-final-{strict,all}.json`). An initial
+`bunx openspec` command was unavailable because that is not the pinned package
+and is excluded. Changed-path Prettier and `git diff --check` passed
+(`/tmp/activation-b1-final-{format,diff}.log`); normal-hook result belongs to
+the local commit. No host gate or CI was run for this unpublished B1 slice.

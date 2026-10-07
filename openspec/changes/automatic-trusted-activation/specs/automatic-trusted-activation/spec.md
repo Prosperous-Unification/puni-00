@@ -204,6 +204,34 @@ SHALL bind the exact frozen check command, both descriptors, the candidate
 snapshot, and the current request, attempt, lease and authority. Preparation
 SHALL grant no process-launch or receipt authority.
 
+Before worker admission, a trusted complete-tree manifest SHALL bind the
+candidate snapshot identity to the exact request/head and every directory and
+regular file's relative path, mode and content digest. A corresponding trusted
+manifest SHALL bind the runtime executable-tree identity to its complete
+toolchain closure. The supervisor SHALL traverse one basename at a time under
+retained no-follow directory descriptors, reject symlinks, special or
+unexpected entries, and stage only verified bytes and modes into fresh private
+trees without reopening original paths. Failure SHALL close descriptors and
+leave no launch-capable staging result. Staging SHALL not execute a worker or
+create a measured receipt.
+The independently pinned sandbox profile SHALL provide positive finite safe-
+integer limits for manifest bytes, entry count, depth, path bytes, file bytes
+and total bytes, enforced independently for candidate and runtime trees.
+
+#### Scenario: Source tree changes during anchored staging
+
+- **WHEN** a source root or ancestor is renamed, a child symlink or file is
+  substituted, a selected file changes, or the complete-tree digest differs
+- **THEN** staging returns only the exact manifest-verified bytes and modes or
+  refuses, closes its descriptors, and creates no worker or receipt
+
+#### Scenario: Source inventory is not exact
+
+- **WHEN** a source contains an unlisted entry, symlink, special file,
+  malformed path or missing trusted full-tree manifest
+- **THEN** staging refuses without deriving a manifest from candidate files or
+  using an old descriptor as a guessed inventory
+
 #### Scenario: Runtime or profile authority is missing or drifts
 
 - **WHEN** a selected check's runtime or sandbox descriptor is absent,
