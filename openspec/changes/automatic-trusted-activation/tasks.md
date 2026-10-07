@@ -68,6 +68,16 @@ Use the typed ports and boundaries in [design](design.md#bounded-ordinary-pr-obs
       GREEN; classify API/authentication/scheduler deployment as unverified by synthetic tests.
       Keep webhook verification, merge groups, protected revisions and live timer installation
       for later 1.2 slices; do not add write credentials, workers, publication or merge here.
+- [ ] 1.2d Implement the GET-only GitHub REST reader behind the existing source port.
+      First mount fake-HTTP list/current responses through the durable owner, including an
+      anonymous public read and an optional trusted token. Require fixed API origin/version,
+      JSON accept, redirect/cache refusal, same-origin validated Link metadata with locally
+      reconstructed next page, finite page/response-byte/deadline bounds and abort through
+      body consumption. A non-200 status, inaccessible PR, malformed body or ambiguous rate
+      limit must never become empty discovery or closed state. Watch isolated status, Link
+      origin/path/query/page, redirect, body cap, abort and token-leak faults, then restore
+      the same mounted tests. Keep live credentials, one-tick service and webhook deployment
+      open; this adapter has no write or merge capability.
 
 ## 2. Independent execution and evidence
 

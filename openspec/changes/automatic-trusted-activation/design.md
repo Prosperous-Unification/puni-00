@@ -130,6 +130,20 @@ GitHub authentication, a running timer or real external-review provenance. Webho
 verification, merge-group/protected-revision discovery, credential provisioning, worker
 execution, publication, admission, merge and deployment remain outside this increment.
 
+The next GET-only transport increment implements the existing reader port against the
+fixed `https://api.github.com` origin. It accepts an optional credential only from trusted
+runtime configuration; public repository reads can omit it. Requests carry a fixed API
+version and JSON accept header, disable redirects and caches, and pass the source abort
+signal through headers and streamed body consumption. A bounded body is parsed as JSON
+only after the byte cap succeeds. List responses must be arrays; the reader validates
+every Link URL against the fixed origin, exact repository pulls path, expected query keys
+and monotonic page, then constructs the next request locally. It never follows a Link URL.
+Only HTTP 200 is a successful read; 304, 3xx, 401, 403, 404, 422, 429 and 5xx are
+explicit refusals, with rate limits distinguished as retryable, never empty discovery or
+confirmed closure. Existing source validation owns the consumed PR fields and repository
+joins. This increment has fake-HTTP tests but no live credential, scheduled process,
+webhook verification, write endpoint or external-review authority.
+
 ### Unattended implementation sequence and provisioning boundary
 
 Continue in ordered, independently reviewable slices after ordinary-PR observation:

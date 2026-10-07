@@ -79,6 +79,15 @@ without manufacturing a closed subject, new authority or successful activation.
 - **THEN** current eligibility is retired without asserting a merge, and its return receives
   a fresh generation rather than inheriting the retired request's work authority
 
+#### Scenario: Bounded GET-only PR transport
+
+- **WHEN** the installed ordinary-PR reader lists or fetches through GitHub REST
+- **THEN** it sends only GET to the fixed API origin with a trusted optional credential,
+  validates same-origin pagination metadata before locally constructing the next request,
+  and bounds response bytes and elapsed time before returning untrusted provider JSON
+- **AND** redirects, non-200 statuses, rate limits, malformed bodies and ambiguous reads
+  refuse rather than becoming empty discovery, closed PR state or activation authority
+
 ### Requirement: Exact candidate and trust identity
 
 Every activation request SHALL bind its typed subject, qualified target ref, candidate head

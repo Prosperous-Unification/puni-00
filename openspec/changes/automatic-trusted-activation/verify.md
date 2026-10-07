@@ -1945,3 +1945,66 @@ strict passed 1/1 and all passed 143/143
 (`/tmp/activation-github-deadline-final-{strict,all}.json`); changed-path
 Prettier and `git diff --check` exited 0. These local checks do not verify live
 GitHub transport/authentication, a deployed timer, host gate or CI.
+
+### GET-only GitHub REST reader increment (1.2d, local evidence)
+
+Official GitHub REST documentation identifies public unauthenticated pull-request GETs,
+`per_page` up to 100, Link pagination, and the anonymous primary rate limit
+([pull requests](https://docs.github.com/en/rest/pulls/pulls),
+[pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api),
+[rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)).
+The new transport uses a fixed `https://api.github.com` origin, version
+`2026-03-10`, a trusted optional token, GET only, redirect refusal and locally
+constructed page URLs. It passes raw JSON to the previously mounted source
+boundary; it does not choose PR identity from a response URL. Its only local
+effect is a read. Initial missing-module RED was disqualified as setup failure;
+the installed controller test then failed at the production reader's
+`GitHub REST reader unavailable` refusal before implementation
+(`/tmp/activation-github-reader-mounted-red.log`). The first positive fake-HTTP
+controller run passed 1/1 (`/tmp/activation-github-reader-first-green.log`).
+
+The exact fault harness `/tmp/activation-github-reader-watch.py` replaced only
+one named source expression at a time, ran `bun test -t '<fixture>'
+src/activation-controller/github-reader.db.test.ts`, restored source bytes and
+reran the same fixture. Every **35** final watch rows was RED exit 1 and
+restored GREEN exit 0; commands and assertion output are retained at
+`/tmp/activation-github-reader-<watch>-{red,green}.log`, with the final matrix
+receipt `/tmp/activation-github-reader-watch-final.log`. The restored reader
+SHA-256 was `9bfb5b7613c8850ad24f50773915e329d0a1853aea7ae27061e0c9d764e46908`.
+The earlier `link_syntax` trial changed the refusal to a TypeError and the
+`link_origin` trial was masked by a different-path fixture; those attempts were
+disqualified, then the grammar catch placement and same-path foreign-origin
+fixture isolated each final predicate. A first 9/10 suite had an invalid test
+projection (`StoredRequest.requestIdentity` instead of `.request.requestIdentity`)
+and was disqualified; the corrected 10/10 run preceded expansion. An initial
+Prettier command used root-relative paths from the CLI directory and found no
+files; it was rerun from repository root.
+
+| Watch group                                                                                  | Exact omitted or altered condition; observed RED                                                                                                                                                                                                               |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `origin`, `version`, `method`, `cache`, `credentials`                                        | Fixed API origin/version or GET/no-store/omit request settings changed; the mounted exact request assertion failed.                                                                                                                                            |
+| `redirect`, `token`, `diagnostic_token`                                                      | Redirect follow forwarded the harmless token to the mounted foreign-origin spy; dropping the trusted header failed its exact value assertion; copying token bytes into a transport error failed the no-secret diagnostic assertion.                            |
+| `status`, `rate`                                                                             | A 302 reached a later list-shape refusal instead of the non-200 boundary; 429 lost its named retryable rate classification. Neither mutant granted authority.                                                                                                  |
+| `link_syntax`, `link_origin`, `link_path`, `link_query`, `link_per_page`, `link_extra_query` | Malformed grammar changed to the distinct URL refusal; each origin/path/query alteration crossed its exact Link refusal and failed the mounted no-second-read or named-error assertion.                                                                        |
+| `link_username`, `link_password`, `link_fragment`, `link_page_shape`                         | The corresponding schema-valid Link alteration crossed its own guard; the mounted named refusal changed before any credentialed second read.                                                                                                                   |
+| `link_page`, `link_duplicate`, `link_continuation`, `link_last_conflict`                     | Skipped, repeated or contradictory continuation metadata escaped the reader boundary and failed the exact refusal/call-count assertion. A later source/current check still refused in some mutants; those rows prove the reader boundary, not final admission. |
+| `length_cap`, `length_shape`, `stream_cap`, `json_parse`                                     | Oversized/malformed length or streamed bytes, or invalid JSON, became an accepted empty inventory when its check was omitted.                                                                                                                                  |
+| `body_abort`, `body_missing`, `list_shape`                                                   | Removing post-read abort made a cancelled direct reader return `[]`; null-body and list-shape omissions changed to later TypeError/source-schema refusals, without admitting a request.                                                                        |
+| `page_bound`, `number_bound`, `current_link`, `empty_token`                                  | The direct reader made forbidden page 101 or PR 0 GETs; a paginated current response created a request; empty trusted token constructed a reader before any provider call.                                                                                     |
+
+This fake-HTTP composition proves refusal and credential routing of the local
+reader port. It does not prove live GitHub connectivity, a protected credential
+issuer, scheduled process, webhook verification or independent audit provenance.
+One anonymous public GET smoke through the actual reader was attempted with an
+8-second abort and no token; it exited 1 at the named
+`GitHub PR GET unavailable` transport boundary
+(`/tmp/activation-github-reader-anonymous-smoke.log`). Live connectivity
+therefore remains unverified; this refusal was not counted as a passing live test.
+The final six-file mounted suite passed **496/496**, 2,091 assertions
+(`/tmp/activation-github-reader-final-six.log`).
+Uncached Nx `lint:source`, `typecheck` and `build` each printed
+`Successfully ran target` with exit 0; direct spec-test TypeScript checking
+exited 0. Pinned OpenSpec strict passed 1/1 and all passed 143/143
+(`/tmp/activation-github-reader-final-{strict,all}.json`). The first
+changed-path Prettier check found only this appended ledger unformatted; after
+formatting it, changed-path Prettier and `git diff --check` exited 0.

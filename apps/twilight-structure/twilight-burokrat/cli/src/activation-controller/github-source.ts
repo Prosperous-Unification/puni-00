@@ -36,7 +36,9 @@ type Pull = typeof Pull.infer;
 const PullPage = type({ pulls: Pull.array(), nextPage: 'number.integer>=1|null' });
 
 /**
- * Authenticated GitHub API reads supplied by the independently controlled controller runtime.
+ * GitHub API reads supplied by the independently controlled controller runtime. HTTPS
+ * transport may be anonymous for a public repository; neither it nor an optional API token
+ * establishes independent reviewer or activation provenance.
  * A missing/404/failed read throws; it is never represented as a closed pull request.
  * The reader receives a signal for transport cancellation; this adapter also rejects at its
  * own deadline when a reader ignores the signal.
