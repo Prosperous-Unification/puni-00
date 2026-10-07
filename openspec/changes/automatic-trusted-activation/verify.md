@@ -1763,6 +1763,43 @@ CI, live cgroup quota, loaded AppArmor policy, FD/mount sentinel and selected
 worker execution remain unrun. No workflow was wired to this target while
 those host prerequisites are absent.
 
+### Ordinary-PR observation design amendment
+
+Planning baseline: local implementation `1520d3b58c34149d0c35b4ac021cc3c2a4f368b9`.
+This amendment changes design/spec/tasks/verification only. The first increment is the mounted
+read-only provider plus durable reconciliation tick, not deployment or activation. Existing
+local foundations and their historical observations above remain scoped to their exact commits.
+No new runtime proof is claimed by this amendment; the following rows are acceptance targets.
+
+| Fault family | Independent source fault                                                                                                        | Mounted observation required                                                                                  | Status  |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------- |
+| F10-P1       | Omit repository, PR, eligibility, target, head/base or explicit source-policy validation separately                             | Foreign/malformed provider response cannot create or replace a current request                                | NOT RUN |
+| F10-P2       | Accept arbitrary continuation origin, repeated/conflicting page, missing required pagination state or exceeded bound separately | Invalid discovery refuses before any synthetic successful inventory; no credential sent outside pinned origin | NOT RUN |
+| F10-P3       | Stop reconciling durable active subjects absent from discovery                                                                  | Lost-close witness leaves stale request current and fails its persisted-state assertion                       | NOT RUN |
+| F10-P4       | Use listing bytes without current refetch; map ambiguous read to closure; discard high-water on draft separately                | Stale-discovery, inaccessible-current and draft-return witnesses fail exact identity/history assertions       | NOT RUN |
+| F10-P5       | Remove subject observation-version compare/refetch                                                                              | Held older source response revives or replaces newer durable generation and the mounted race assertion fails  | NOT RUN |
+| F11-P1       | Remove finite provider traversal/current-read convergence bounds                                                                | Bounded retry witness observes excess calls or explicit convergence failure at its controlled deadline        | NOT RUN |
+
+Every accepted trial needs the exact named command, injected source omission, intended failing
+assertion, RED exit, restored GREEN exit and restored source digest. Compilation errors, unrelated
+failures and runner timeouts without the intended observation are disqualified. Where existing
+owner guards already have accepted proof, cite the exact existing test/commit and exercise the
+new installed adapter composition; do not relabel an old pure test as a new mounted proof.
+
+Not exercised: external GitHub access/authentication, a running scheduler or signed webhook,
+independent audit provider, selected-command sandbox, archive publication, required-workflow
+rerun/admission, protected merge, actual merged-SHA certification, h2puni installation or WBS.
+One-time GitHub/provider/storage/worker/host administration remains a prerequisite; no recurring
+per-PR operator step is introduced. WBS 030.6 is not cleared by this local planning increment.
+
+Fresh design checks on 2026-10-07: `bunx @fission-ai/openspec@1.12.0 validate
+ automatic-trusted-activation --strict --json` passed 1/1 with zero issues;
+`bunx @fission-ai/openspec@1.12.0 validate --all --json` passed 143/143 (125 changes,
+18 specs). Explicit four-path Prettier check and `git diff --check` passed. A read-only
+word/link/anchor inspection found unchanged intent at 301 words and four resolving local
+links/anchors. Runtime tests, fault trials, full Nx/host gate and CI were not run for this
+docs-only amendment and are not claimed as passing.
+
 ### 1.2 bounded GitHub PR observation source (2026-10-07)
 
 The local `github-source.ts` adapter supplies PR discovery hints and an exact fresh
