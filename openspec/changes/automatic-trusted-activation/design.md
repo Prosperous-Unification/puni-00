@@ -338,6 +338,12 @@ tree. It never reopens an original pathname after validation. The same
 procedure stages the toolchain closure. A rename, symlink substitution,
 modified leaf, wrong full-tree hash or closed/reused descriptor must result in
 the exact verified bytes or refusal, with every descriptor closed on refusal.
+The staging module exclusively owns source descriptors: diagnostic callbacks
+receive paths and a callback-scoped, one-shot file-close control, never a raw
+descriptor number. Closing through that control invalidates ownership before
+the syscall; cleanup skips the released entry and still closes the rest. A
+dev/inode match is not treated as proof that a reused number is the same open
+file description.
 Only the immutable staged trees may become later worker mount inputs; this
 step remains inert and launches no worker. Filesystem races after enumeration
 cannot add bytes to the staged tree, but installed launcher containment and

@@ -1617,18 +1617,14 @@ Astra reproduced that closing a candidate leaf descriptor without reusing its
 number caused the old cleanup loop to throw `EBADF` at its first close, masking
 the source refusal and leaking three retained ancestor descriptors. The mounted
 test failed on that original byte sequence
-(`/tmp/activation-b1-fd-cleanup-red.log`, 0/1, exit 1). Cleanup now records
-the dev/inode of each opened descriptor, attempts every owned close once,
-refuses to close a number reused for a different inode, and reports both the
-original source failure and any cleanup failures in an `AggregateError`. The
-restored close-without-reuse and close-with-reuse tests passed 2/2, 13
-assertions (`/tmp/activation-b1-fd-cleanup-green3.log`). They assert complete
-stage cleanup, full dispatch-state preservation, baseline FD count after the
-closed leaf, and that the unrelated reused descriptor remains open. Independently
-replacing cleanup with a first-error-aborting loop or omitting reused-FD
-ownership comparison failed the mounted tests and passed after restoration
-(`/tmp/activation-b1-r5-{cleanup_continue,cleanup_reuse}-{red,green}.log`, RED
-exit 1, GREEN exit 0). No closed number is blindly retried.
+(`/tmp/activation-b1-fd-cleanup-red.log`, 0/1, exit 1). The `0a2744b84`
+checkpoint recorded dev/inode on each opened descriptor, continued cleanup
+after an error, and aggregated source and cleanup failures. Its
+close-without-reuse/close-with-different-inode tests passed 2/2, 13 assertions
+(`/tmp/activation-b1-fd-cleanup-green3.log`), with watched
+`cleanup_continue`/`cleanup_reuse` pairs. These were historical results for
+that checkpoint; dev/inode is **not** an open-file-description identity, and
+the same-inode reuse defect and replacement proof are recorded below.
 
 The exact-review R5 gap was filled with canonical, digest, request and head
 fixtures whose trusted selected snapshot identities were recomputed from the
@@ -1657,3 +1653,47 @@ OpenSpec strict passed 1/1 and all passed 143/143, zero failures
 and `git diff --check` passed
 (`/tmp/activation-b1-fix-final2-{format,diff}.log`). Normal-hook result belongs
 to the local correction commit. Host gate and CI remain unrun.
+
+### B1 descriptor ownership correction after `0a2744b84`
+
+Astra found that a trusted diagnostic holding a raw FD could close it and
+reopen the **same inode** under the same number. The dev/inode comparison then
+treated the caller's new descriptor as owned: the first mounted regression
+failed because staging returned success, and cleanup closed the caller FD
+(`/tmp/activation-b1-same-inode-red.log`, 0/1, exit 1). The production seam
+now gives diagnostics no raw FD number. A file callback gets a one-shot,
+callback-scoped `closeOpenedFile()` control; it marks the owned entry released
+before closing and expires immediately after the callback. Staging refuses if
+that control was used. Cleanup skips only released entries and closes every
+remaining owned descriptor; unexpected close failures are still collected with
+the original failure, without retrying an arbitrary number. The mounted
+same-inode test obtains the recycled number independently from `/proc/self/fd`,
+reopens the original file, and asserts the new caller FD stays open while
+staging refuses, the private stage disappears and dispatch rows do not change.
+The different-inode, closed-without-reuse, double-use and retained-control
+cases are also mounted (`/tmp/activation-b1-opaque-{green1,green2}.log`).
+Independently omitting the pre-close release mark, cleanup's released-entry
+skip, or callback-scope invalidation failed its production-path test, then
+passed after restoration
+(`/tmp/activation-b1-r5-{opaque_release_mark,opaque_cleanup_skip,opaque_scope}-{red,green}.log`,
+each RED exit 1, GREEN exit 0). The older dev/inode ownership claim and its
+`cleanup_reuse` proof are superseded; no current safety claim rests on them.
+
+On the corrected source/test bytes, the four-file Bun suite passed **430/430**,
+1,834 assertions, exit 0 (`/tmp/activation-b1-opaque-final2-four.log`). Nx
+`twilight-burokrat:lint:source`, `:typecheck` and `:build` each printed explicit
+success, exit 0 (`/tmp/activation-b1-opaque-final2-{lint,type,build}.log`). The
+first full-suite run had one transient raw `/proc/self/fd` total-count failure:
+the runtime-extra case saw 15 FDs before and 13 after, with no evidence of a
+leak; its isolated rerun passed. That case now asserts no remaining source-root
+FDs and no total-count increase, so unrelated harness FD closure cannot fail
+the test. The first lint run found two void-returning test shorthand callbacks;
+they were fixed, and the declared target then passed. Pinned OpenSpec,
+changed-path Prettier and diff check follow on the final ledger bytes; normal
+hooks belong to the local correction commit. No real worker, host gate, CI or
+trusted activation was run.
+
+Pinned OpenSpec strict passed 1/1 and all passed 143/143, zero failures
+(`/tmp/activation-b1-opaque-final2-{strict,all}.json`). Changed-path Prettier
+and `git diff --check` passed
+(`/tmp/activation-b1-opaque-final2-{format,diff}.log`).

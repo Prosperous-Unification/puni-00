@@ -59,28 +59,28 @@ interface Tree {
 
 interface OwnedDescriptor {
   readonly descriptor: number;
-  readonly device: number;
-  readonly inode: number;
+  released: boolean;
 }
 
-function rememberDescriptor(descriptors: OwnedDescriptor[], descriptor: number): number {
-  const stat = fstatSync(descriptor);
-  descriptors.push({ descriptor, device: stat.dev, inode: stat.ino });
-  return descriptor;
+function rememberDescriptor(descriptors: OwnedDescriptor[], descriptor: number): OwnedDescriptor {
+  const owned = { descriptor, released: false };
+  descriptors.push(owned);
+  return owned;
 }
 
-/** Trusted diagnostic events used to make descriptor races deterministic in mounted tests. */
+/** One-shot, callback-scoped authority to close only the file selected by staging. */
+export interface OpenedFileControl {
+  closeOpenedFile(): void;
+}
+
+/** Trusted diagnostic events; callbacks never receive a numeric source descriptor. */
 export interface StageDiagnostics {
-  readonly afterDirectoryOpened?: (
-    kind: 'candidate' | 'runtime',
-    absolutePath: string,
-    descriptor: number,
-  ) => void;
-  readonly afterRootOpened?: (kind: 'candidate' | 'runtime', descriptor: number) => void;
+  readonly afterDirectoryOpened?: (kind: 'candidate' | 'runtime', absolutePath: string) => void;
+  readonly afterRootOpened?: (kind: 'candidate' | 'runtime') => void;
   readonly afterFileOpened?: (
     kind: 'candidate' | 'runtime',
     path: string,
-    descriptor: number,
+    control: OpenedFileControl,
   ) => void;
   readonly afterTreeCopied?: (kind: 'candidate' | 'runtime', pendingRoot: string) => void;
 }
@@ -217,15 +217,15 @@ function openRoot(
   let parent = rememberDescriptor(
     descriptors,
     openSync('/', constants.O_RDONLY | constants.O_DIRECTORY | O_CLOEXEC),
-  );
+  ).descriptor;
   let ancestorPath = '';
   for (const basename of root.split('/').filter(Boolean)) {
     if (basename === '.' || basename === '..' || basename.includes('\\') || basename.includes('\0'))
       throw new Error('check tree root malformed');
     // Proof: reopening a renamed ancestor by pathname staged its replacement sentinel.
-    parent = rememberDescriptor(descriptors, openChild(parent, basename, true));
+    parent = rememberDescriptor(descriptors, openChild(parent, basename, true)).descriptor;
     ancestorPath = `${ancestorPath}/${basename}`;
-    diagnostics?.afterDirectoryOpened?.(kind, ancestorPath, parent);
+    diagnostics?.afterDirectoryOpened?.(kind, ancestorPath);
   }
   return parent;
 }
@@ -246,7 +246,6 @@ function copyFile(
   entry: Extract<Entry, { type: 'file' }>,
   profile: CheckSandboxProfile,
   kind: 'candidate' | 'runtime',
-  diagnostics: StageDiagnostics | undefined,
 ): void {
   const before = fstatSync(source);
   if (
@@ -257,7 +256,6 @@ function copyFile(
     before.size !== entry.size
   )
     refuseSource(kind);
-  diagnostics?.afterFileOpened?.(kind, entry.path, source);
   const opened = fstatSync(source);
   if (opened.dev !== before.dev || opened.ino !== before.ino || !opened.isFile())
     refuseSource(kind);
@@ -321,7 +319,7 @@ function stageTree(
   try {
     const root = openRoot(sourceRoot, descriptors, kind, diagnostics);
     opened.set('', root);
-    diagnostics?.afterRootOpened?.(kind, root);
+    diagnostics?.afterRootOpened?.(kind);
     const rootStat = fstatSync(root);
     if (!rootStat.isDirectory()) refuseSource(kind);
     mkdirSync(destinationRoot, { mode: 0o700 });
@@ -339,7 +337,7 @@ function stageTree(
       } catch (cause) {
         refuseSource(kind, cause);
       }
-      rememberDescriptor(descriptors, descriptor);
+      const owned = rememberDescriptor(descriptors, descriptor);
       if (entry.type === 'directory') {
         const stat = fstatSync(descriptor);
         if (!stat.isDirectory() || (stat.mode & 0o777) !== entry.mode) refuseSource(kind);
@@ -347,7 +345,23 @@ function stageTree(
         mkdirSync(destination, { mode: entry.mode });
         chmodSync(destination, entry.mode);
       } else {
-        copyFile(descriptor, destination, entry, profile, kind, diagnostics);
+        let callbackActive = true;
+        try {
+          diagnostics?.afterFileOpened?.(kind, entry.path, {
+            closeOpenedFile: () => {
+              if (!callbackActive || owned.released)
+                throw new Error('check tree file control expired');
+              // Proof: omitting this release mark closed a caller FD reopened on
+              // the same inode after the test seam closed the owned file.
+              owned.released = true;
+              closeSync(owned.descriptor);
+            },
+          });
+        } finally {
+          callbackActive = false;
+        }
+        if (owned.released) refuseSource(kind);
+        copyFile(descriptor, destination, entry, profile, kind);
       }
     }
     for (const [path, descriptor] of opened) {
@@ -362,17 +376,11 @@ function stageTree(
         : new Error(`check ${kind} tree source differs from manifest`, { cause });
   }
   const cleanupFailures: Error[] = [];
-  // Proof: removing per-descriptor failure isolation leaked the mounted ancestor
-  // descriptors after a diagnostic closed one leaf descriptor without reuse.
+  // The staging module exclusively owns these descriptors. A diagnostic can
+  // release one only through its one-shot control, which marks it before close.
   for (const owned of descriptors.reverse()) {
+    if (owned.released) continue;
     try {
-      const current = fstatSync(owned.descriptor);
-      // Proof: omitting ownership comparison closed a reused descriptor owned
-      // by the mounted diagnostic rather than leaving that file open.
-      if (current.dev !== owned.device || current.ino !== owned.inode) {
-        cleanupFailures.push(new Error('check tree descriptor ownership changed'));
-        continue;
-      }
       closeSync(owned.descriptor);
     } catch (cause) {
       cleanupFailures.push(new Error('check tree descriptor cleanup failed', { cause }));

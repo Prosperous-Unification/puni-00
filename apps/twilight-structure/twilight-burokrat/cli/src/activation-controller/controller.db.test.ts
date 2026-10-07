@@ -11,6 +11,7 @@ import {
   openSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   renameSync,
   rmSync,
   statSync,
@@ -8983,7 +8984,18 @@ test.each(['hash', 'mode', 'hardlink', 'extra'] as const)(
         'check runtime tree source differs from manifest',
       );
       expect(readdirSync(selected.stageBase)).toEqual([]);
-      expect(readdirSync('/proc/self/fd').length).toBe(descriptorsBefore);
+      const openTargets = readdirSync('/proc/self/fd').flatMap((entry) => {
+        try {
+          return [readlinkSync(`/proc/self/fd/${entry}`)];
+        } catch (cause) {
+          // /proc lists a transient directory FD that can close before readlink.
+          if (!(cause instanceof Error && cause.message.includes('ENOENT'))) throw cause;
+          return [];
+        }
+      });
+      expect(openTargets.some((target) => target.startsWith(selected.snapshotRoot))).toBe(false);
+      expect(openTargets.some((target) => target.startsWith(selected.runtimeRoot))).toBe(false);
+      expect(readdirSync('/proc/self/fd').length).toBeLessThanOrEqual(descriptorsBefore);
     } finally {
       selected.controller.close();
     }
@@ -9223,7 +9235,7 @@ test('selected check refuses a closed and reused source descriptor', async () =>
   let reusedDescriptor: number | undefined;
   const selected = selectedStageFixture({
     stageDiagnostics: {
-      afterFileOpened: (kind, path, descriptor) => {
+      afterFileOpened: (kind, path, control) => {
         if (kind !== 'candidate' || path !== 'main.txt') return;
         const external = mkdtempSync(join(tmpdir(), 'activation-reused-fd-'));
         scratch.push(external);
@@ -9231,9 +9243,15 @@ test('selected check refuses a closed and reused source descriptor', async () =>
         writeFileSync(replacement, 'main', { mode: 0o644 });
         const original = statSync(join(selected.snapshotRoot, 'main.txt'));
         utimesSync(replacement, original.atime, original.mtime);
-        closeSync(descriptor);
+        const before = readdirSync('/proc/self/fd');
+        control.closeOpenedFile();
+        expect(() => {
+          control.closeOpenedFile();
+        }).toThrow('check tree file control expired');
+        const closed = before.filter((entry) => !readdirSync('/proc/self/fd').includes(entry));
         reusedDescriptor = openSync(replacement, constants.O_RDONLY);
-        expect(reusedDescriptor).toBe(descriptor);
+        expect(closed).toHaveLength(1);
+        expect(String(reusedDescriptor)).toBe(closed[0]);
       },
     },
   });
@@ -9251,36 +9269,78 @@ test('selected check refuses a closed and reused source descriptor', async () =>
   }
 });
 
+test('selected check expires an unused file control when its callback returns', async () => {
+  let closeLater: (() => void) | undefined;
+  const selected = selectedStageFixture({
+    stageDiagnostics: {
+      afterFileOpened: (kind, path, control) => {
+        if (kind === 'candidate' && path === 'main.txt')
+          closeLater = () => {
+            control.closeOpenedFile();
+          };
+      },
+    },
+  });
+  try {
+    const staged = await selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64));
+    try {
+      if (closeLater === undefined) throw new Error('file control absent');
+      expect(closeLater).toThrow('check tree file control expired');
+      expect(readFileSync(join(staged.stageRoot, 'candidate', 'main.txt'), 'utf8')).toBe('main');
+    } finally {
+      staged.dispose();
+    }
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check never closes a caller descriptor reopened on the same inode', async () => {
+  let reopened: number | undefined;
+  const selected = selectedStageFixture({
+    stageDiagnostics: {
+      afterFileOpened: (kind, path, control) => {
+        if (kind !== 'candidate' || path !== 'main.txt') return;
+        const before = readdirSync('/proc/self/fd');
+        control.closeOpenedFile();
+        const closed = before.filter((entry) => !readdirSync('/proc/self/fd').includes(entry));
+        reopened = openSync(join(selected.snapshotRoot, 'main.txt'), constants.O_RDONLY);
+        expect(closed).toHaveLength(1);
+        expect(String(reopened)).toBe(closed[0]);
+      },
+    },
+  });
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check candidate tree source differs from manifest',
+    );
+    if (reopened === undefined) throw new Error('same-inode reopen absent');
+    expect(fstatSync(reopened).isFile()).toBe(true);
+    expect(readdirSync(selected.stageBase)).toEqual([]);
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    if (reopened !== undefined) closeSync(reopened);
+    selected.controller.close();
+  }
+});
+
 test('selected check closes remaining owned descriptors after a leaf descriptor was closed', async () => {
   const selected = selectedStageFixture({
     stageDiagnostics: {
-      afterFileOpened: (kind, path, descriptor) => {
-        if (kind === 'candidate' && path === 'main.txt') closeSync(descriptor);
+      afterFileOpened: (kind, path, control) => {
+        if (kind === 'candidate' && path === 'main.txt') control.closeOpenedFile();
       },
     },
   });
   try {
     const before = checkDispatchRows(selected.source.databasePath);
     const descriptorsBefore = readdirSync('/proc/self/fd').length;
-    let refusal: unknown;
-    try {
-      await selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64));
-    } catch (cause) {
-      refusal = cause;
-    }
-    expect(refusal).toBeInstanceOf(AggregateError);
-    if (refusal instanceof AggregateError) {
-      expect(refusal.message).toContain('check candidate tree source differs from manifest');
-      expect(refusal.errors).toHaveLength(2);
-      const originalFailure: unknown = refusal.errors[0];
-      const cleanupFailure: unknown = refusal.errors[1];
-      expect(originalFailure).toBeInstanceOf(Error);
-      expect(cleanupFailure).toBeInstanceOf(Error);
-      if (originalFailure instanceof Error)
-        expect(originalFailure.message).toContain('check candidate tree source differs');
-      if (cleanupFailure instanceof Error)
-        expect(cleanupFailure.message).toContain('check tree descriptor cleanup failed');
-    }
+    await rejectsWith(
+      selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check candidate tree source differs from manifest',
+    );
     expect(readdirSync('/proc/self/fd').length).toBe(descriptorsBefore);
     expect(readdirSync(selected.stageBase)).toEqual([]);
     expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
