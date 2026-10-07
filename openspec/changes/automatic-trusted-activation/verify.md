@@ -2383,8 +2383,8 @@ The isolated source substitutions are retained as
 `/tmp/activation-f10-<fault>-{red,green}.log`. Each log includes the literal
 `bun test <source file> --test-name-pattern <witness>` command, exit and named
 assertion. Every accepted row below is RED exit 1 / restored GREEN exit 0.
-Each restoration log records the matching pre/post source SHA-256. These are
-historical mutation hashes, not claims about subsequently formatted bytes.
+Each GREEN log records the restored source SHA-256. These are historical
+mutation hashes, not claims about subsequently formatted bytes.
 
 | Fault                                                     | Mounted RED with only that dependency changed                                                                       |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -2432,3 +2432,65 @@ strict passed 1/1 and all passed 143/143 at
 `git diff --check` passed. Normal commit hooks follow with the local commit.
 The host gate cannot validate this unpublished SHA until it exists on the
 target host; no CI, host-wide lock or deployment ran here.
+
+#### 1.2f bounded cleanup, subject policy and CLI diagnostic correction
+
+After the 65a53a8 local checkpoint, mounted corrections prove that a synchronous
+controller close cannot return a successful tick after the monotonic whole-tick
+deadline or release the process lock after the absolute cleanup deadline. The
+real controller-close and scheduler-database-close children each write
+`close-entered`, hold the lock while synchronous close runs, and exit 124
+before `close-returned`; another owner observes `busy`. A separate
+witness crosses only the tick deadline within cleanup grace and returns
+`cancelled`, not `complete`. Timer callbacks are wakeups, never deadline authority.
+
+The required protected `maxSubjects` policy is an integer in 1..10,000 and is
+included in the existing configuration identity. The controller bounds the
+ready-plus-durable-active subject union before any authoritative current read;
+a disjoint ready/active overflow leaves all request rows unchanged. The durable
+active query itself reads at most `maxSubjects + 1` rows. There is no policy
+default or successful truncation. The CLI reports thrown tick failures through
+a required typed diagnostic callback with a fixed action and code; a provider
+`Bearer harmless-sentinel-token` error never reaches the reporter. Busy and
+cancelled retain their modeled exit statuses.
+
+The isolated mutation harness `/tmp/activation-f10-correction-watch.py` ran each
+`bun test <file> --test-name-pattern <name>` command and retained its literal
+command, stdout/stderr, exit and restored source SHA-256 in
+`/tmp/activation-f10-correction-<fault>-{red,green}.log`. All ten accepted
+rows below are RED exit 1 and restored GREEN exit 0.
+
+| Fault          | Exact mounted RED observation                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `fence_cap`    | A NaN subject budget passed discovery and current reads instead of preflight refusal.                                                |
+| `ready_cap`    | Two ready subjects were accepted instead of the named `subject limit` refusal.                                                       |
+| `union_cap`    | One ready plus one disjoint durable subject was accepted instead of refusal.                                                         |
+| `sync_cleanup` | Both controller-close and scheduler-close children wrote `close-returned` before fatal exit; each required absence assertion failed. |
+| `lock_release` | Skipping the lock-held final deadline callback let scheduler closure write `close-returned`; the absence assertion failed.           |
+| `post_close`   | Synchronous close returned `complete` instead of `cancelled` inside cleanup grace.                                                   |
+| `cli_report`   | Failure returned exit 1 but the required diagnostic array was empty.                                                                 |
+| `cli_redact`   | The reported action contained `Bearer harmless-sentinel-token`.                                                                      |
+| `policy_cap`   | Policy with `maxSubjects=10,001` initialized instead of refusing.                                                                    |
+| `policy_lower` | Policy with `maxSubjects=0` initialized instead of refusing.                                                                         |
+
+The initial ready-cap omission was disqualified: a second, redundant map-size
+guard still refused, so it did not prove the first guard. The redundant
+candidate-count guard was removed; the retained map-size guard produced the
+listed RED. The first post-close omission was likewise masked by a second
+final fence; the redundant inner fence was removed and the final fence
+produced the listed RED. No worker, reviewer, publisher, admission, merge,
+WBS write, installed service or host gate was exercised by this correction.
+
+Final local eight-file run on the corrected bytes: `bun test
+apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/{bootstrap.test.ts,request.test.ts,ingress.test.ts,controller.db.test.ts,github-reader.db.test.ts,github-source.db.test.ts,observation-state.db.test.ts,observation-tick.db.test.ts}`
+passed **579/579**, 2,510 assertions, exit 0 at
+`/tmp/activation-f10-correction-final-eight-fixed.log`. Two preceding full
+runs had one unrelated selected-check fixture failure: a global `/proc/self/fd`
+count fell 15→13 and 15→14 while source-root descriptors were already closed;
+the exact test passed in isolation. Its assertion now checks that no descriptor
+targets either owned source tree, so unrelated descriptor closure cannot mask
+the intended lifecycle observation. Uncached Nx lint:source, typecheck and
+build each exited 0; pinned OpenSpec strict passed 1/1 and all passed 143/143;
+changed-path Prettier and `git diff --check` passed. Normal commit hooks run
+with the local commit. The h2puni gate, CI and installed service were not run
+on this unpublished SHA.

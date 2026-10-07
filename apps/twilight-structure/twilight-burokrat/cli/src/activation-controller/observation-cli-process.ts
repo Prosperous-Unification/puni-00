@@ -15,6 +15,9 @@ const state: ObservationStateConfig = { ...serialized, clock: () => 1000 };
 const code = await runObservationCli({
   state,
   cleanupMs: 500,
+  reportDiagnostic: () => {
+    throw new Error('unexpected diagnostic');
+  },
   reader: {
     listOpenPullRequests: () => {
       writeFileSync(enteredPath, 'entered');

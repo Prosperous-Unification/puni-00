@@ -158,6 +158,11 @@ binding, an explicit persistent state path and a trusted scheduling policy. The 
 whole-tick and cleanup deadlines, workload limits, transient attempt budget, retry delays and
 slow recovery-probe interval. Validate finite positive bounded values and their ordering;
 never infer configuration from candidate files, the current directory or ambient credentials.
+The local observation increment requires `maxSubjects` in the protected, hashed policy:
+an integer from 1 through 10,000. Discovery hints and durable active subjects form one
+union before any authoritative current read; exceeding the limit refuses the entire tick
+without reporting complete or truncating that union. Existing protected state with a
+different policy identity requires explicit authority to migrate, never a default.
 Use a monotonic clock for live deadlines and validated absolute time for persisted cooldowns.
 Retain the existing source's per-read bounds under the shorter remaining tick deadline.
 No SQLite transaction spans an HTTP wait, process-lock wait or cleanup await.

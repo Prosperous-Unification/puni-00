@@ -625,10 +625,20 @@ export interface ActivationControllerOptions {
 export interface ObservationFence {
   readonly signal: AbortSignal;
   readonly deadline: number;
+  readonly maxSubjects?: number;
 }
 
 function requireObservationFence(fence?: ObservationFence): void {
   if (fence === undefined) return;
+  // Proof: omitting finite subject-budget validation let a NaN budget pass
+  // discovery and current reads instead of refusing before either call.
+  if (
+    fence.maxSubjects !== undefined &&
+    (!Number.isSafeInteger(fence.maxSubjects) ||
+      fence.maxSubjects < 1 ||
+      fence.maxSubjects > 10_000)
+  )
+    throw new Error('activation observation subject budget malformed');
   // Proof: omitting finite-deadline validation let a NaN fence complete a
   // provider scan instead of refusing before its first read.
   if (!Number.isFinite(fence.deadline) || fence.deadline < 0)
@@ -1485,16 +1495,27 @@ export class ActivationController {
       const subject = parseOrThrow(ActivationSubject, candidate.subject);
       subjects.set(`${String(repositoryId)}:${subjectKey(subject)}`, { repositoryId, subject });
     }
+    // Proof: omitting this pre-current cap admitted two ready PRs under a
+    // one-subject policy and called the authoritative reader.
+    if (fence?.maxSubjects !== undefined && subjects.size > fence.maxSubjects)
+      throw new Error('activation observation subject limit exceeded');
     // Proof: polling only ready candidates left a durable active request current after a lost close event.
-    const activeRows: unknown[] = this.#database
-      .query('SELECT * FROM activation_request WHERE current = 1')
-      .all();
+    const activeRows: unknown[] =
+      fence?.maxSubjects === undefined
+        ? this.#database.query('SELECT * FROM activation_request WHERE current = 1').all()
+        : this.#database
+            .query('SELECT * FROM activation_request WHERE current = 1 LIMIT ?')
+            .all(fence.maxSubjects + 1);
     for (const activeRow of activeRows) {
       const active = storedRequest(parseOrThrow(StoredRow, activeRow)).request;
       subjects.set(`${String(active.repositoryId)}:${subjectKey(active.subject)}`, {
         repositoryId: active.repositoryId,
         subject: active.subject,
       });
+      // Proof: omitting the union cap let one ready plus one disjoint durable
+      // active subject exceed the configured budget and start current reads.
+      if (fence?.maxSubjects !== undefined && subjects.size > fence.maxSubjects)
+        throw new Error('activation observation subject limit exceeded');
     }
     const requests: ActivationRequest[] = [];
     for (const { repositoryId, subject } of subjects.values()) {

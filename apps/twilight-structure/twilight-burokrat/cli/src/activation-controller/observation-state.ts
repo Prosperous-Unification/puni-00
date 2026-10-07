@@ -32,6 +32,9 @@ const CloseOnExec = 0o2000000;
 const SchedulePolicy = type({
   maxAttempts: 'number.integer>=1',
   wholeTickMs: 'number.integer>=1',
+  // Proof: changing the lower bound to zero let an unbounded/empty-workload
+  // policy initialize in the mounted policy fixture.
+  maxSubjects: 'number.integer>=1',
 }).onUndeclaredKey('reject');
 const ScheduleRow = type({
   singleton: '1',
@@ -47,7 +50,11 @@ export interface ObservationStateConfig {
   readonly bootstrapPath: string;
   readonly pin: TrustedBootstrapPin;
   readonly binding: GitHubRepositoryBinding;
-  readonly policy: { readonly maxAttempts: number; readonly wholeTickMs: number };
+  readonly policy: {
+    readonly maxAttempts: number;
+    readonly wholeTickMs: number;
+    readonly maxSubjects: number;
+  };
   readonly clock: () => number;
 }
 
@@ -133,7 +140,9 @@ function prepare(config: ObservationStateConfig): PreparedState {
   const policy = parseOrThrow(SchedulePolicy, config.policy);
   // Proof: independently omitting either ceiling admitted its out-of-bound
   // configured value in the mounted policy test.
-  if (policy.maxAttempts > 100 || policy.wholeTickMs > 3_600_000) {
+  // Proof: omitting this subject ceiling let 10,001 subjects initialize,
+  // despite the finite trusted workload policy.
+  if (policy.maxAttempts > 100 || policy.wholeTickMs > 3_600_000 || policy.maxSubjects > 10_000) {
     throw new Error('observation schedule policy exceeds bounded limit');
   }
   return {
@@ -188,6 +197,7 @@ function rethrowWithCleanup(cause: unknown, cleanup: () => void): never {
 async function withLock<T>(
   directory: string,
   work: () => T | Promise<T>,
+  beforeRelease?: () => void,
 ): Promise<{ readonly kind: 'busy' } | { readonly kind: 'owned'; readonly value: T }> {
   inspectProtected(directory, true);
   const lockPath = join(directory, 'observation.lock');
@@ -196,6 +206,7 @@ async function withLock<T>(
     constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW | CloseOnExec,
     0o600,
   );
+  let owned = false;
   return settleWithCleanup(
     async () => {
       const opened = fstatSync(descriptor);
@@ -224,9 +235,13 @@ async function withLock<T>(
         if (errno === 11) return { kind: 'busy' };
         throw new Error(`observation lock unavailable: errno ${String(errno)}`);
       }
+      owned = true;
       return { kind: 'owned', value: await work() };
     },
     () => {
+      // Proof: skipping the lock-held release callback let synchronous
+      // controller close return after cleanup expiry before fatal exit.
+      if (owned) beforeRelease?.();
       // Proof: moving this close ahead of awaited work let the second process run.
       // The inode is never removed; the kernel releases ownership on process death.
       closeSync(descriptor);
@@ -714,46 +729,51 @@ export async function migrateObservationState(
 export async function withObservationAttempt<T>(
   config: ObservationStateConfig,
   work: (attempt: ObservationAttempt) => Promise<T>,
+  beforeLockRelease?: () => void,
 ): Promise<{ readonly kind: 'busy' } | { readonly kind: 'owned'; readonly value: T }> {
-  return withLock(config.stateDirectory, async () => {
-    const state = prepare(config);
-    const database = openEstablished(state);
-    return settleWithCleanup(
-      async () => {
-        const now = config.clock();
-        // Proof: omitting integer or negative validation separately let an
-        // invalid clock spend an attempt in the mounted policy fixture.
-        if (!Number.isSafeInteger(now) || now < 0) throw new Error('observation clock malformed');
-        database.run('BEGIN IMMEDIATE');
-        let sequence: number;
-        try {
-          const row = readSchedule(database, state);
-          // Proof: omitting this budget check let a third persisted attempt begin.
-          if (row.burst_attempts >= state.maxAttempts)
-            throw new Error('observation attempt budget exhausted');
-          sequence = row.attempt_sequence + 1;
-          database
-            .query(
-              `UPDATE activation_observation_schedule SET
+  return withLock(
+    config.stateDirectory,
+    async () => {
+      const state = prepare(config);
+      const database = openEstablished(state);
+      return settleWithCleanup(
+        async () => {
+          const now = config.clock();
+          // Proof: omitting integer or negative validation separately let an
+          // invalid clock spend an attempt in the mounted policy fixture.
+          if (!Number.isSafeInteger(now) || now < 0) throw new Error('observation clock malformed');
+          database.run('BEGIN IMMEDIATE');
+          let sequence: number;
+          try {
+            const row = readSchedule(database, state);
+            // Proof: omitting this budget check let a third persisted attempt begin.
+            if (row.burst_attempts >= state.maxAttempts)
+              throw new Error('observation attempt budget exhausted');
+            sequence = row.attempt_sequence + 1;
+            database
+              .query(
+                `UPDATE activation_observation_schedule SET
           attempt_sequence = ?, burst_attempts = burst_attempts + 1, last_started_at = ?
           WHERE singleton = 1`,
-            )
-            // Proof: failing to persist the new sequence made the post-crash
-            // attempt reuse sequence 1 rather than advance to sequence 2.
-            .run(sequence, now);
-          database.run('COMMIT');
-        } catch (cause) {
-          // Proof: replacing this scheduled rollback aggregation with raw
-          // ROLLBACK lost the primary budget fault when rollback also threw.
-          rethrowWithCleanup(cause, () => {
-            database.run('ROLLBACK');
-          });
-        }
-        return work({ sequence });
-      },
-      () => {
-        database.close();
-      },
-    );
-  });
+              )
+              // Proof: failing to persist the new sequence made the post-crash
+              // attempt reuse sequence 1 rather than advance to sequence 2.
+              .run(sequence, now);
+            database.run('COMMIT');
+          } catch (cause) {
+            // Proof: replacing this scheduled rollback aggregation with raw
+            // ROLLBACK lost the primary budget fault when rollback also threw.
+            rethrowWithCleanup(cause, () => {
+              database.run('ROLLBACK');
+            });
+          }
+          return work({ sequence });
+        },
+        () => {
+          database.close();
+        },
+      );
+    },
+    beforeLockRelease,
+  );
 }

@@ -659,6 +659,97 @@ test('shutdown after a committed subject retains it without reporting complete s
   }
 });
 
+test('configured subject cap refuses ready candidates before any current read or write', async () => {
+  const source = fixture();
+  const second = { ...source.pull, number: 283 };
+  let currentReads = 0;
+  const controller = controllerFor(source, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull, second], nextPage: null }),
+    getPullRequest: (_owner, _name, number) => {
+      currentReads += 1;
+      return Promise.resolve(number === source.pull.number ? source.pull : second);
+    },
+  });
+  try {
+    await expectRefusal(
+      () =>
+        controller.reconcileReady({
+          signal: new AbortController().signal,
+          deadline: performance.now() + 1000,
+          maxSubjects: 1,
+        }),
+      'subject limit',
+    );
+    expect(currentReads).toBe(0);
+    expect(controller.listRequests()).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+test('malformed subject cap refuses before discovery or current reads', async () => {
+  const source = fixture();
+  let reads = 0;
+  const controller = controllerFor(source, {
+    listOpenPullRequests: () => {
+      reads += 1;
+      return Promise.resolve({ pulls: [source.pull], nextPage: null });
+    },
+    getPullRequest: () => {
+      reads += 1;
+      return Promise.resolve(source.pull);
+    },
+  });
+  try {
+    await expectRefusal(
+      () =>
+        controller.reconcileReady({
+          signal: new AbortController().signal,
+          deadline: performance.now() + 1000,
+          maxSubjects: Number.NaN,
+        }),
+      'subject budget malformed',
+    );
+    expect(reads).toBe(0);
+    expect(controller.listRequests()).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+test('configured subject cap refuses ready plus durable active union before any current read', async () => {
+  const source = fixture();
+  const second = { ...source.pull, number: 283 };
+  let listed = [source.pull];
+  let currentReads = 0;
+  const controller = controllerFor(source, {
+    listOpenPullRequests: () => Promise.resolve({ pulls: listed, nextPage: null }),
+    getPullRequest: (_owner, _name, number) => {
+      currentReads += 1;
+      return Promise.resolve(number === source.pull.number ? source.pull : second);
+    },
+  });
+  try {
+    expect(await controller.reconcileReady()).toHaveLength(1);
+    listed = [second];
+    currentReads = 0;
+    const previous = controller.listRequests();
+    await expectRefusal(
+      () =>
+        controller.reconcileReady({
+          signal: new AbortController().signal,
+          deadline: performance.now() + 1000,
+          maxSubjects: 1,
+        }),
+      'subject limit',
+    );
+    expect(currentReads).toBe(0);
+    expect(controller.listRequests()).toEqual(previous);
+  } finally {
+    controller.close();
+  }
+});
+
 for (const operation of ['list', 'get'] as const) {
   test(`a hanging ${operation} read has a finite deadline and aborts the source request`, async () => {
     const source = fixture();

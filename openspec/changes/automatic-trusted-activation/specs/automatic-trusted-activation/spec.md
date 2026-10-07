@@ -114,6 +114,25 @@ evaluation, worker, review, publication, admission, merge or WBS effects.
 - **THEN** the supervised process fails and terminates with ownership retained until exit,
   without releasing the lock while an old continuation can still mutate durable state
 
+#### Scenario: Synchronous cleanup overruns the monotonic budget
+
+- **WHEN** controller or scheduler database closure blocks the event loop across the
+  whole-tick and cleanup deadlines
+- **THEN** the tick does not report complete and terminates before releasing its
+  process lock, even when a timer callback could not run during closure
+
+#### Scenario: Bounded subject union exceeds trusted policy
+
+- **WHEN** ready discovery and durable active subjects exceed the configured positive
+  `maxSubjects` limit before authoritative current reads
+- **THEN** the tick refuses without a partial successful scan or new subject writes
+
+#### Scenario: Tick failure contains provider credentials
+
+- **WHEN** a provider or protected-state failure causes a nonzero CLI exit
+- **THEN** a required typed diagnostic reports a fixed actionable code and action
+  without raw provider error text or credentials
+
 #### Scenario: Restart occurs after a failed or interrupted attempt
 
 - **WHEN** a process exits after reserving an attempt or persisting a provider cooldown

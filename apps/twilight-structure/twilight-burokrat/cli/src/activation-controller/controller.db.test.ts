@@ -8905,13 +8905,22 @@ test('selected check stages only bytes from trusted complete-tree manifests', as
   const selected = selectedStageFixture();
   try {
     const before = checkDispatchRows(selected.source.databasePath);
-    const descriptorsBefore = readdirSync('/proc/self/fd').length;
     const staged = await selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64));
     try {
       expect(readFileSync(join(staged.stageRoot, 'candidate', 'main.txt'), 'utf8')).toBe('main');
       expect(readFileSync(join(staged.stageRoot, 'runtime', 'bun'), 'utf8')).toBe('runtime');
       expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
-      expect(readdirSync('/proc/self/fd').length).toBe(descriptorsBefore);
+      const openTargets = readdirSync('/proc/self/fd').flatMap((entry) => {
+        try {
+          return [readlinkSync(`/proc/self/fd/${entry}`)];
+        } catch (cause) {
+          // /proc can close its own listing descriptor before readlink.
+          if (!(cause instanceof Error && cause.message.includes('ENOENT'))) throw cause;
+          return [];
+        }
+      });
+      expect(openTargets.some((target) => target.startsWith(selected.snapshotRoot))).toBe(false);
+      expect(openTargets.some((target) => target.startsWith(selected.runtimeRoot))).toBe(false);
     } finally {
       staged.dispose();
     }

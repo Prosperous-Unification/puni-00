@@ -87,7 +87,7 @@ function fixture() {
       toolkitIdentity: '5'.repeat(64),
       readDeadlineMs: 1000,
     },
-    policy: { maxAttempts: 2, wholeTickMs: 5000 },
+    policy: { maxAttempts: 2, wholeTickMs: 5000, maxSubjects: 100 },
     clock: () => 1000,
   };
   return { directory, config, databasePath: join(directory, 'activation.sqlite') };
@@ -791,6 +791,22 @@ for (const fault of [
 
 test('policy ceilings and invalid clock refuse without spending an attempt', async () => {
   const source = fixture();
+  await expectRefusal(
+    () =>
+      initializeObservationState({
+        ...source.config,
+        policy: { ...source.config.policy, maxSubjects: 0 },
+      }),
+    'must be at least 1',
+  );
+  await expectRefusal(
+    () =>
+      initializeObservationState({
+        ...source.config,
+        policy: { ...source.config.policy, maxSubjects: 10_001 },
+      }),
+    'bounded limit',
+  );
   await expectRefusal(
     () =>
       initializeObservationState({
