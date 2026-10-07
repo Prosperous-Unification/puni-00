@@ -164,6 +164,61 @@ const StoredReviewAttempt = type({
   invocation_id: 'string>=1',
 }).onUndeclaredKey('reject');
 
+const CheckDispatchInput = type({
+  invocationId: 'string>=1',
+  deadlineAt: 'number.integer>=0',
+  maxDispatchAttempts: 'number.integer>=1',
+}).onUndeclaredKey('reject');
+export type CheckDispatchInput = typeof CheckDispatchInput.infer;
+
+const StoredCheckAttempt = type({
+  request_identity: /^[0-9a-f]{64}$/,
+  obligation_identity: /^[0-9a-f]{64}$/,
+  attempt: 'number.integer>=0',
+  invocation_id: 'string>=1',
+}).onUndeclaredKey('reject');
+
+const StoredCheckDispatch = type({
+  effect_key: /^[0-9a-f]{64}$/,
+  request_identity: /^[0-9a-f]{64}$/,
+  plan_identity: /^[0-9a-f]{64}$/,
+  obligation_identity: /^[0-9a-f]{64}$/,
+  attempt: 'number.integer>=0',
+  invocation_id: 'string>=1',
+  command_identity: /^[0-9a-f]{64}$/,
+  protocol_identity: /^[0-9a-f]{64}$/,
+  manifest_bytes: 'string>=1',
+  toolchain_identity: /^[0-9a-f]{64}$/,
+  sandbox_profile_identity: /^[0-9a-f]{64}$/,
+  authority_identity: /^[0-9a-f]{64}$/,
+  target_bytes: 'string>=1',
+  payload_bytes: 'string>=1',
+  payload_digest: /^[0-9a-f]{64}$/,
+  created_at: 'number.integer>=0',
+  deadline_at: 'number.integer>=0',
+  max_dispatch_attempts: 'number.integer>=1',
+}).onUndeclaredKey('reject');
+
+const StoredCheckProgress = type({
+  effect_key: /^[0-9a-f]{64}$/,
+  state: "'reserved'|'dispatching'|'uncertain'|'acknowledged'|'exhausted'",
+  dispatch_attempts: 'number.integer>=0',
+  owner_epoch: 'number.integer>=0',
+  owner_id: 'string>=1',
+  version: 'number.integer>=0',
+}).onUndeclaredKey('reject');
+
+export interface CheckDispatchReservation {
+  readonly effectKey: string;
+  readonly requestIdentity: string;
+  readonly target: { readonly kind: 'local-check-worker'; readonly executorId: string };
+  readonly payloadBytes: string;
+  readonly payloadDigest: string;
+  readonly createdAt: number;
+  readonly deadlineAt: number;
+  readonly maxDispatchAttempts: number;
+}
+
 const ReviewDispatchInput = type({
   reviewId: 'string>=1',
   attempt: 'number.integer>=0',
@@ -761,6 +816,50 @@ function createReviewDispatchRecoveryTables(database: Database): void {
     FROM activation_review_dispatch`);
 }
 
+function createCheckDispatchTables(database: Database): void {
+  database.run(`CREATE TABLE activation_check_attempt (
+    request_identity TEXT NOT NULL,
+    obligation_identity TEXT NOT NULL,
+    attempt INTEGER NOT NULL CHECK (attempt >= 0),
+    invocation_id TEXT NOT NULL UNIQUE,
+    PRIMARY KEY (request_identity, obligation_identity, attempt),
+    FOREIGN KEY (request_identity, obligation_identity)
+      REFERENCES activation_obligation(request_identity, obligation_identity)
+  )`);
+  database.run(`CREATE TABLE activation_check_dispatch (
+    effect_key TEXT PRIMARY KEY,
+    request_identity TEXT NOT NULL,
+    plan_identity TEXT NOT NULL,
+    obligation_identity TEXT NOT NULL,
+    attempt INTEGER NOT NULL CHECK (attempt >= 0),
+    invocation_id TEXT NOT NULL,
+    command_identity TEXT NOT NULL,
+    protocol_identity TEXT NOT NULL,
+    manifest_bytes TEXT NOT NULL,
+    toolchain_identity TEXT NOT NULL,
+    sandbox_profile_identity TEXT NOT NULL,
+    authority_identity TEXT NOT NULL,
+    target_bytes TEXT NOT NULL,
+    payload_bytes TEXT NOT NULL,
+    payload_digest TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    deadline_at INTEGER NOT NULL,
+    max_dispatch_attempts INTEGER NOT NULL CHECK (max_dispatch_attempts >= 1),
+    UNIQUE (request_identity, obligation_identity, attempt),
+    FOREIGN KEY (request_identity, obligation_identity, attempt)
+      REFERENCES activation_check_attempt(request_identity, obligation_identity, attempt)
+  )`);
+  database.run(`CREATE TABLE activation_check_dispatch_progress (
+    effect_key TEXT PRIMARY KEY,
+    state TEXT NOT NULL CHECK (state IN ('reserved', 'dispatching', 'uncertain', 'acknowledged', 'exhausted')),
+    dispatch_attempts INTEGER NOT NULL CHECK (dispatch_attempts >= 0),
+    owner_epoch INTEGER NOT NULL CHECK (owner_epoch >= 0),
+    owner_id TEXT NOT NULL,
+    version INTEGER NOT NULL CHECK (version >= 0),
+    FOREIGN KEY (effect_key) REFERENCES activation_check_dispatch(effect_key)
+  )`);
+}
+
 function initialize(database: Database): void {
   database.run('PRAGMA busy_timeout = 5000');
   const metadata: unknown = database.query('PRAGMA user_version').get();
@@ -771,7 +870,8 @@ function initialize(database: Database): void {
     version !== 3 &&
     version !== 4 &&
     version !== 5 &&
-    version !== 6
+    version !== 6 &&
+    version !== 7
   )
     // Proof: accepting old version 1 silently reopened storage without durable subject high-water.
     throw new Error(`unsupported activation store schema ${String(version)}`);
@@ -852,7 +952,8 @@ function initialize(database: Database): void {
       )`);
       createReviewDispatchTable(database);
       createReviewDispatchRecoveryTables(database);
-      database.run('PRAGMA user_version = 6');
+      createCheckDispatchTables(database);
+      database.run('PRAGMA user_version = 7');
     });
   }
   if (version === 2 || version === 3) {
@@ -890,20 +991,31 @@ function initialize(database: Database): void {
       )`);
       createReviewDispatchTable(database);
       createReviewDispatchRecoveryTables(database);
-      database.run('PRAGMA user_version = 6');
+      createCheckDispatchTables(database);
+      database.run('PRAGMA user_version = 7');
     });
   }
   if (version === 4) {
     transaction(database, () => {
       createReviewDispatchTable(database);
       createReviewDispatchRecoveryTables(database);
-      database.run('PRAGMA user_version = 6');
+      createCheckDispatchTables(database);
+      database.run('PRAGMA user_version = 7');
     });
   }
   if (version === 5) {
     transaction(database, () => {
       createReviewDispatchRecoveryTables(database);
-      database.run('PRAGMA user_version = 6');
+      createCheckDispatchTables(database);
+      database.run('PRAGMA user_version = 7');
+    });
+  }
+  if (version === 6) {
+    // Proof: splitting this upgrade after two table writes left partial v7 schema;
+    // the mounted late-failure snapshot now restores v6 version, schema and review rows.
+    transaction(database, () => {
+      createCheckDispatchTables(database);
+      database.run('PRAGMA user_version = 7');
     });
   }
 }
@@ -1472,6 +1584,190 @@ export class ActivationController {
       throw new Error('selected check changed during manifest resolution');
     }
     return { ...current, manifest };
+  }
+
+  /** Atomically registers and reserves a frozen check effect; this cannot launch a worker. */
+  async reserveCheckDispatch(
+    lease: RequestLease,
+    obligationIdentity: string,
+    input: CheckDispatchInput,
+  ): Promise<CheckDispatchReservation> {
+    // Proof: omitting strict input parsing accepted a caller-supplied target override.
+    const dispatch = parseOrThrow(CheckDispatchInput, input);
+    const prepared = await this.prepareSelectedCheck(lease, obligationIdentity);
+    return transaction(this.#database, () => {
+      const { manifest: _manifest, ...preparedSelection } = prepared;
+      const selected = this.#selectedCheckIn(lease, obligationIdentity);
+      // Proof: omitting this post-resolution comparison reserved a changed selected attempt.
+      if (hashCanonical(selected) !== hashCanonical(preparedSelection)) {
+        throw new Error('selected check changed before reservation');
+      }
+      const now = nowFrom(this.options.clock);
+      // Proof: omitting the deadline guard registered an already-expired effect.
+      if (dispatch.deadlineAt <= now) throw new Error('check dispatch deadline elapsed');
+      const row = readRow(this.#database, selected.requestIdentity);
+      if (row === undefined) throw new Error('selected check request absent');
+      const request = storedRequest(row).request;
+      const manifestBytes = serializeCanonical(prepared.manifest);
+      // Proof: a changed internal manifest passed through reservation when this digest check was removed.
+      if (hashBytes(manifestBytes) !== selected.commandIdentity) {
+        throw new Error('check dispatch manifest differs from frozen command');
+      }
+      // Proof: substituting the reviewer executor for the selected check executor failed the mounted target assertion.
+      const target = {
+        kind: 'local-check-worker' as const,
+        executorId: selected.executorId,
+      };
+      const targetBytes = serializeCanonical(target);
+      // Proof: changing the effect kind changed the mounted exact key assertion.
+      const effectKey = hashCanonical({
+        kind: 'check-dispatch',
+        requestIdentity: selected.requestIdentity,
+        obligationIdentity: selected.obligationIdentity,
+        attempt: selected.attempt,
+      });
+      // Proof: omitting the full request changed the mounted canonical payload assertion.
+      const payloadBytes = serializeCanonical({
+        request,
+        planIdentity: selected.planIdentity,
+        obligationIdentity: selected.obligationIdentity,
+        attempt: selected.attempt,
+        invocationId: dispatch.invocationId,
+        commandIdentity: selected.commandIdentity,
+        manifestBytes,
+        executorId: selected.executorId,
+        protocolIdentity: selected.protocolIdentity,
+        toolchainIdentity: prepared.manifest.toolchainIdentity,
+        sandboxProfileIdentity: prepared.manifest.sandboxProfileIdentity,
+        authorityIdentity: this.options.pin.identity,
+        target,
+        deadlineAt: dispatch.deadlineAt,
+        maxDispatchAttempts: dispatch.maxDispatchAttempts,
+      });
+      const payloadDigest = hashBytes(payloadBytes);
+      const rawAttempt: unknown = this.#database
+        .query(
+          'SELECT * FROM activation_check_attempt WHERE request_identity = ? AND obligation_identity = ? AND attempt = ?',
+        )
+        .get(selected.requestIdentity, selected.obligationIdentity, selected.attempt);
+      if (rawAttempt !== null) {
+        const prior = parseOrThrow(StoredCheckAttempt, rawAttempt);
+        if (prior.invocation_id !== dispatch.invocationId) {
+          throw new Error('check dispatch invocation conflicts');
+        }
+      } else {
+        const borrowed: unknown = this.#database
+          .query('SELECT invocation_id FROM activation_check_attempt WHERE invocation_id = ?')
+          .get(dispatch.invocationId);
+        if (borrowed !== null) throw new Error('check invocation already registered');
+        this.#database
+          .query(
+            'INSERT INTO activation_check_attempt (request_identity, obligation_identity, attempt, invocation_id) VALUES (?, ?, ?, ?)',
+          )
+          .run(
+            selected.requestIdentity,
+            selected.obligationIdentity,
+            selected.attempt,
+            dispatch.invocationId,
+          );
+      }
+      const rawReservation: unknown = this.#database
+        .query('SELECT * FROM activation_check_dispatch WHERE effect_key = ?')
+        .get(effectKey);
+      if (rawReservation !== null) {
+        const prior = parseOrThrow(StoredCheckDispatch, rawReservation);
+        // Proof: independently omitting each stored target, payload, digest, manifest,
+        // toolchain, sandbox profile, protocol, command, deadline or budget comparison
+        // accepted its corresponding changed-column exact replay.
+        if (
+          prior.request_identity !== selected.requestIdentity ||
+          prior.plan_identity !== selected.planIdentity ||
+          prior.obligation_identity !== selected.obligationIdentity ||
+          prior.attempt !== selected.attempt ||
+          prior.invocation_id !== dispatch.invocationId ||
+          prior.command_identity !== selected.commandIdentity ||
+          prior.protocol_identity !== selected.protocolIdentity ||
+          prior.manifest_bytes !== manifestBytes ||
+          prior.toolchain_identity !== prepared.manifest.toolchainIdentity ||
+          prior.sandbox_profile_identity !== prepared.manifest.sandboxProfileIdentity ||
+          prior.authority_identity !== this.options.pin.identity ||
+          prior.target_bytes !== targetBytes ||
+          prior.payload_bytes !== payloadBytes ||
+          prior.payload_digest !== payloadDigest ||
+          prior.deadline_at !== dispatch.deadlineAt ||
+          prior.max_dispatch_attempts !== dispatch.maxDispatchAttempts
+        ) {
+          throw new Error('check dispatch reservation conflicts');
+        }
+        const rawProgress: unknown = this.#database
+          .query('SELECT * FROM activation_check_dispatch_progress WHERE effect_key = ?')
+          .get(effectKey);
+        // Proof: omission changed the named absent-progress refusal to an ArkType null error;
+        // no authority was granted. A malformed progress row was accepted when its shape check was removed.
+        if (rawProgress === null) throw new Error('check dispatch progress absent');
+        parseOrThrow(StoredCheckProgress, rawProgress);
+        return {
+          effectKey,
+          requestIdentity: selected.requestIdentity,
+          target,
+          payloadBytes,
+          payloadDigest,
+          createdAt: prior.created_at,
+          deadlineAt: dispatch.deadlineAt,
+          maxDispatchAttempts: dispatch.maxDispatchAttempts,
+        };
+      }
+      // Proof: splitting the transaction after registration or reservation retained
+      // partial rows when the next INSERT failed; the same mounted snapshots now roll back.
+      this.#database
+        .query(
+          `INSERT INTO activation_check_dispatch (
+            effect_key, request_identity, plan_identity, obligation_identity, attempt,
+            invocation_id, command_identity, protocol_identity, manifest_bytes,
+            toolchain_identity, sandbox_profile_identity, authority_identity, target_bytes,
+            payload_bytes, payload_digest, created_at, deadline_at, max_dispatch_attempts
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          effectKey,
+          selected.requestIdentity,
+          selected.planIdentity,
+          selected.obligationIdentity,
+          selected.attempt,
+          dispatch.invocationId,
+          selected.commandIdentity,
+          selected.protocolIdentity,
+          manifestBytes,
+          prepared.manifest.toolchainIdentity,
+          prepared.manifest.sandboxProfileIdentity,
+          this.options.pin.identity,
+          targetBytes,
+          payloadBytes,
+          payloadDigest,
+          now,
+          dispatch.deadlineAt,
+          dispatch.maxDispatchAttempts,
+        );
+      // Proof: omitting the progress insert, or replacing its owner epoch, failed the
+      // mounted initial-progress assertion before any worker could launch.
+      this.#database
+        .query(
+          `INSERT INTO activation_check_dispatch_progress
+            (effect_key, state, dispatch_attempts, owner_epoch, owner_id, version)
+            VALUES (?, 'reserved', 0, ?, ?, 0)`,
+        )
+        .run(effectKey, lease.leaseEpoch, lease.workerId);
+      return {
+        effectKey,
+        requestIdentity: selected.requestIdentity,
+        target,
+        payloadBytes,
+        payloadDigest,
+        createdAt: now,
+        deadlineAt: dispatch.deadlineAt,
+        maxDispatchAttempts: dispatch.maxDispatchAttempts,
+      };
+    });
   }
 
   /** Reserves one authenticated invocation for a frozen review pair before external dispatch. */

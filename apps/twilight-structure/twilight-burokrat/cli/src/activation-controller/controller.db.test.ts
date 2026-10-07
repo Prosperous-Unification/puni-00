@@ -1711,6 +1711,9 @@ test('version-4 dispatch migration is additive and rolls back a late index confl
   controller.close();
   const database = new Database(source.databasePath);
   try {
+    database.run('DROP TABLE activation_check_dispatch_progress');
+    database.run('DROP TABLE activation_check_dispatch');
+    database.run('DROP TABLE activation_check_attempt');
     database.run('DROP TABLE activation_review_dispatch_fact');
     database.run('DROP TABLE activation_review_dispatch_progress');
     database.run('DROP TABLE activation_review_dispatch');
@@ -1737,7 +1740,7 @@ test('version-4 dispatch migration is additive and rolls back a late index confl
   const upgraded = boundaryController(source, () => 1000);
   const migrated = new Database(source.databasePath);
   try {
-    expect(migrated.query('PRAGMA user_version').get()).toEqual({ user_version: 6 });
+    expect(migrated.query('PRAGMA user_version').get()).toEqual({ user_version: 7 });
     expect(upgraded.readRequest(request.requestIdentity)?.request.requestIdentity).toBe(
       request.requestIdentity,
     );
@@ -2980,6 +2983,9 @@ test('version-5 reserved effect migrates as unsent and late version-6 failure ro
   fixture.close();
   const database = new Database(source.databasePath);
   try {
+    database.run('DROP TABLE activation_check_dispatch_progress');
+    database.run('DROP TABLE activation_check_dispatch');
+    database.run('DROP TABLE activation_check_attempt');
     database.run('DROP TABLE activation_review_dispatch_progress');
     database.run('PRAGMA user_version = 5');
     const before = {
@@ -3006,7 +3012,7 @@ test('version-5 reserved effect migrates as unsent and late version-6 failure ro
   const upgraded = boundaryController(source, () => 1000);
   const migrated = new Database(source.databasePath);
   try {
-    expect(migrated.query('PRAGMA user_version').get()).toEqual({ user_version: 6 });
+    expect(migrated.query('PRAGMA user_version').get()).toEqual({ user_version: 7 });
     expect(
       migrated
         .query(
@@ -5231,6 +5237,9 @@ test.each([2, 3] as const)(
     first.close();
     const database = new Database(source.databasePath);
     try {
+      database.run('DROP TABLE activation_check_dispatch_progress');
+      database.run('DROP TABLE activation_check_dispatch');
+      database.run('DROP TABLE activation_check_attempt');
       database.run('DROP TABLE activation_review_dispatch_fact');
       database.run('DROP TABLE activation_review_dispatch_progress');
       database.run('DROP TABLE activation_review_dispatch');
@@ -6230,6 +6239,526 @@ function selectedCheckFixture(
   controller.beginEvaluation(lease);
   return { source, manifest, bytes, identity, controller, request, lease };
 }
+
+test('selected check reservation atomically registers an invocation and frozen effect', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      { invocationId: 'check.invocation.1', deadlineAt: 2000, maxDispatchAttempts: 3 },
+    );
+    expect(reservation.effectKey).toBe(
+      hashCanonical({
+        kind: 'check-dispatch',
+        requestIdentity: selected.request.requestIdentity,
+        obligationIdentity: 'a'.repeat(64),
+        attempt: 0,
+      }),
+    );
+    expect(reservation.target).toEqual({ kind: 'local-check-worker', executorId: 'worker.check' });
+    expect(JSON.parse(reservation.payloadBytes)).toMatchObject({
+      request: selected.request,
+      obligationIdentity: 'a'.repeat(64),
+      attempt: 0,
+      invocationId: 'check.invocation.1',
+      commandIdentity: selected.identity,
+      manifestBytes: selected.bytes,
+      executorId: 'worker.check',
+      protocolIdentity: 'b'.repeat(64),
+      toolchainIdentity: '6'.repeat(64),
+      sandboxProfileIdentity: '7'.repeat(64),
+      authorityIdentity: selected.source.pin.identity,
+      deadlineAt: 2000,
+      maxDispatchAttempts: 3,
+    });
+    const database = new Database(selected.source.databasePath);
+    try {
+      expect(database.query('SELECT * FROM activation_check_attempt').all()).toHaveLength(1);
+      expect(database.query('SELECT * FROM activation_check_dispatch').all()).toHaveLength(1);
+      expect(database.query('SELECT * FROM activation_check_dispatch_progress').all()).toEqual([
+        {
+          effect_key: reservation.effectKey,
+          state: 'reserved',
+          dispatch_attempts: 0,
+          owner_epoch: selected.lease.leaseEpoch,
+          owner_id: selected.lease.workerId,
+          version: 0,
+        },
+      ]);
+    } finally {
+      database.close();
+    }
+  } finally {
+    selected.controller.close();
+  }
+});
+
+function checkDispatchRows(databasePath: string) {
+  const database = new Database(databasePath);
+  try {
+    return {
+      requests: database.query('SELECT * FROM activation_request ORDER BY request_identity').all(),
+      obligations: database
+        .query('SELECT * FROM activation_obligation ORDER BY obligation_identity')
+        .all(),
+      attempts: database
+        .query('SELECT * FROM activation_check_attempt ORDER BY invocation_id')
+        .all(),
+      reservations: database
+        .query('SELECT * FROM activation_check_dispatch ORDER BY effect_key')
+        .all(),
+      progress: database
+        .query('SELECT * FROM activation_check_dispatch_progress ORDER BY effect_key')
+        .all(),
+    };
+  } finally {
+    database.close();
+  }
+}
+
+test('selected check reservation replays exactly after reopen and rejects changed input', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const input = { invocationId: 'check.invocation.1', deadlineAt: 2000, maxDispatchAttempts: 3 };
+  const second = openActivationController({
+    ...selected.source,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () =>
+      Promise.resolve({ kind: 'ready', candidate: selected.source.candidate }),
+    resolveCheckManifest: () => Promise.resolve(selected.bytes),
+  });
+  try {
+    const first = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      input,
+    );
+    const before = checkDispatchRows(selected.source.databasePath);
+    expect(await second.reserveCheckDispatch(selected.lease, 'a'.repeat(64), input)).toEqual(first);
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    for (const changed of [
+      { ...input, invocationId: 'check.invocation.other' },
+      { ...input, deadlineAt: 3000 },
+      { ...input, maxDispatchAttempts: 4 },
+    ]) {
+      await rejectsWith(
+        second.reserveCheckDispatch(selected.lease, 'a'.repeat(64), changed),
+        'conflicts',
+      );
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    }
+  } finally {
+    second.close();
+    selected.controller.close();
+  }
+});
+
+test('selected check reservation refuses caller overrides and untrusted manifest bytes', async () => {
+  const cases: readonly { name: string; resolve: () => Promise<unknown> }[] = [
+    { name: 'absent', resolve: () => Promise.resolve(undefined) },
+    { name: 'malformed', resolve: () => Promise.resolve('{broken') },
+    {
+      name: 'changed command',
+      resolve: () =>
+        Promise.resolve(
+          serializeCanonical({
+            schemaVersion: 1,
+            kind: 'check-invocation',
+            argv: ['other'],
+            cwd: '.',
+            env: {},
+            skipChannel: 'none',
+            skipProbe: null,
+            toolchainIdentity: '6'.repeat(64),
+            sandboxProfileIdentity: '7'.repeat(64),
+            timeoutMilliseconds: 30_000,
+            maxOutputBytes: 16_384,
+          }),
+        ),
+    },
+  ];
+  for (const scenario of cases) {
+    const selected = selectedCheckFixture(() => scenario.resolve());
+    try {
+      const before = checkDispatchRows(selected.source.databasePath);
+      await rejectsWith(
+        selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), {
+          invocationId: 'check.invocation.1',
+          deadlineAt: 2000,
+          maxDispatchAttempts: 3,
+        }),
+        'check invocation manifest',
+      );
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      selected.controller.close();
+    }
+  }
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    const forgedInput = {
+      invocationId: 'check.invocation.1',
+      deadlineAt: 2000,
+      maxDispatchAttempts: 3,
+      target: { kind: 'reviewer', executorId: 'review.executor' },
+    };
+    await rejectsWith(
+      selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), forgedInput),
+      'target',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check reservation refuses an elapsed deadline without invocation writes', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), {
+        invocationId: 'check.invocation.expired',
+        deadlineAt: 1000,
+        maxDispatchAttempts: 3,
+      }),
+      'deadline elapsed',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test.each(['missing', 'malformed'] as const)(
+  'selected check reservation refuses %s durable progress on replay',
+  async (state) => {
+    const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+    const input = { invocationId: 'check.invocation.1', deadlineAt: 2000, maxDispatchAttempts: 3 };
+    const database = new Database(selected.source.databasePath);
+    try {
+      await selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), input);
+      if (state === 'missing') {
+        database.run('DELETE FROM activation_check_dispatch_progress');
+      } else {
+        database.run("UPDATE activation_check_dispatch_progress SET owner_id = ''");
+      }
+      const before = checkDispatchRows(selected.source.databasePath);
+      await rejectsWith(
+        selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), input),
+        state === 'missing' ? 'progress absent' : 'owner_id',
+      );
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      database.close();
+      selected.controller.close();
+    }
+  },
+);
+
+test.each([
+  [
+    'target_bytes',
+    serializeCanonical({ kind: 'local-check-worker', executorId: 'review.executor' }),
+  ],
+  ['payload_bytes', serializeCanonical({ forged: true })],
+  ['payload_digest', 'f'.repeat(64)],
+  ['manifest_bytes', serializeCanonical({ forged: true })],
+  ['toolchain_identity', 'f'.repeat(64)],
+  ['sandbox_profile_identity', 'f'.repeat(64)],
+  ['protocol_identity', 'f'.repeat(64)],
+  ['command_identity', 'f'.repeat(64)],
+  ['deadline_at', 3000],
+  ['max_dispatch_attempts', 4],
+] as const)(
+  'selected check reservation refuses changed stored %s on exact replay',
+  async (column, changed) => {
+    const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+    const input = { invocationId: 'check.invocation.1', deadlineAt: 2000, maxDispatchAttempts: 3 };
+    const database = new Database(selected.source.databasePath);
+    try {
+      await selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), input);
+      database.query(`UPDATE activation_check_dispatch SET ${column} = ?`).run(changed);
+      const before = checkDispatchRows(selected.source.databasePath);
+      await rejectsWith(
+        selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), input),
+        'reservation conflicts',
+      );
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      database.close();
+      selected.controller.close();
+    }
+  },
+);
+
+test('held check resolution cannot reserve after current authority or selected state changes', async () => {
+  const cases = [
+    {
+      name: 'current',
+      statement: 'UPDATE activation_request SET current = 0 WHERE request_identity = ?',
+      message: 'current evaluating',
+    },
+    {
+      name: 'stage',
+      statement: "UPDATE activation_request SET stage = 'failed' WHERE request_identity = ?",
+      message: 'current evaluating',
+    },
+    {
+      name: 'lease epoch',
+      statement:
+        'UPDATE activation_request SET lease_epoch = lease_epoch + 1 WHERE request_identity = ?',
+      message: 'lease changed',
+    },
+    {
+      name: 'lease owner',
+      statement:
+        "UPDATE activation_request SET lease_owner = 'worker.other' WHERE request_identity = ?",
+      message: 'lease changed',
+    },
+    {
+      name: 'lease expiry',
+      statement: 'UPDATE activation_request SET lease_expires_at = NULL WHERE request_identity = ?',
+      message: 'lease changed',
+    },
+    {
+      name: 'authority',
+      statement: `UPDATE activation_request SET bootstrap_identity = '${'f'.repeat(64)}' WHERE request_identity = ?`,
+      message: 'authority changed',
+    },
+    {
+      name: 'generation',
+      statement:
+        'UPDATE activation_subject SET high_water_generation = high_water_generation + 1 WHERE repository_id = 8241',
+      message: 'generation changed',
+    },
+    {
+      name: 'plan',
+      statement:
+        "UPDATE activation_obligation SET executor_id = 'review.other' WHERE request_identity = ? AND phase = 'cold'",
+      message: 'frozen plan changed',
+    },
+    {
+      name: 'check state',
+      statement:
+        "UPDATE activation_obligation SET state = 'passed' WHERE request_identity = ? AND kind = 'check'",
+      message: 'obligation unavailable',
+    },
+    {
+      name: 'attempt',
+      statement:
+        "UPDATE activation_obligation SET attempt = 1 WHERE request_identity = ? AND kind = 'check'",
+      message: 'changed during manifest resolution',
+    },
+  ];
+  for (const scenario of cases) {
+    let release: ((bytes: string) => void) | undefined;
+    let enteredResolve: (() => void) | undefined;
+    const entered = new Promise<void>((resolve) => {
+      enteredResolve = resolve;
+    });
+    const held = new Promise<string>((resolve) => {
+      release = resolve;
+    });
+    const selected = selectedCheckFixture(() => {
+      enteredResolve?.();
+      return held;
+    });
+    try {
+      const pending = selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), {
+        invocationId: 'check.invocation.held',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      });
+      await entered;
+      const database = new Database(selected.source.databasePath);
+      try {
+        database.query(scenario.statement).run(selected.request.requestIdentity);
+      } finally {
+        database.close();
+      }
+      const before = checkDispatchRows(selected.source.databasePath);
+      release?.(selected.bytes);
+      await rejectsWith(pending, scenario.message);
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      selected.controller.close();
+    }
+  }
+});
+
+test('check reservation rechecks the selected attempt after manifest preparation returns', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const original = selected.controller.prepareSelectedCheck.bind(selected.controller);
+  let changed: ReturnType<typeof checkDispatchRows> | undefined;
+  selected.controller.prepareSelectedCheck = async (lease, identity) => {
+    const prepared = await original(lease, identity);
+    const database = new Database(selected.source.databasePath);
+    try {
+      database
+        .query(
+          "UPDATE activation_obligation SET attempt = 1 WHERE request_identity = ? AND kind = 'check'",
+        )
+        .run(selected.request.requestIdentity);
+    } finally {
+      database.close();
+    }
+    changed = checkDispatchRows(selected.source.databasePath);
+    return prepared;
+  };
+  try {
+    await rejectsWith(
+      selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), {
+        invocationId: 'check.invocation.stale',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      }),
+      'selected check changed before reservation',
+    );
+    if (changed === undefined) throw new Error('test did not change the selected attempt');
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(changed);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('check reservation refuses a changed internal manifest before writing an effect', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const original = selected.controller.prepareSelectedCheck.bind(selected.controller);
+  selected.controller.prepareSelectedCheck = async (lease, identity) => {
+    const prepared = await original(lease, identity);
+    return { ...prepared, manifest: { ...prepared.manifest, argv: ['changed'] } };
+  };
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), {
+        invocationId: 'check.invocation.changed',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      }),
+      'manifest differs from frozen command',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test.each(['reservation', 'progress-before', 'progress-after'] as const)(
+  'check reservation %s insertion failure rolls back invocation and effect',
+  async (failure) => {
+    const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+    const database = new Database(selected.source.databasePath);
+    try {
+      const table =
+        failure === 'reservation'
+          ? 'activation_check_dispatch'
+          : 'activation_check_dispatch_progress';
+      const timing = failure === 'progress-after' ? 'AFTER' : 'BEFORE';
+      database.run(`CREATE TRIGGER fail_check_insert ${timing} INSERT ON ${table}
+        BEGIN SELECT RAISE(ABORT, 'injected check insert failure'); END`);
+      const before = checkDispatchRows(selected.source.databasePath);
+      await rejectsWith(
+        selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), {
+          invocationId: 'check.invocation.fail',
+          deadlineAt: 2000,
+          maxDispatchAttempts: 3,
+        }),
+        'injected check insert failure',
+      );
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      database.close();
+      selected.controller.close();
+    }
+  },
+);
+
+test('version-6 populated review history gains empty check tables atomically', () => {
+  const review = reservedDispatchFixture();
+  const source = review.source;
+  review.close();
+  const database = new Database(source.databasePath);
+  try {
+    database.run('DROP TABLE activation_check_dispatch_progress');
+    database.run('DROP TABLE activation_check_dispatch');
+    database.run('DROP TABLE activation_check_attempt');
+    database.run('PRAGMA user_version = 6');
+    const retained = database.query('SELECT * FROM activation_review_dispatch').all();
+    const upgraded = boundaryController(source, () => 1000);
+    try {
+      expect(database.query('PRAGMA user_version').get()).toEqual({ user_version: 7 });
+      expect(database.query('SELECT * FROM activation_review_dispatch').all()).toEqual(retained);
+      expect(database.query('SELECT * FROM activation_check_attempt').all()).toEqual([]);
+      expect(database.query('SELECT * FROM activation_check_dispatch').all()).toEqual([]);
+      expect(database.query('SELECT * FROM activation_check_dispatch_progress').all()).toEqual([]);
+    } finally {
+      upgraded.close();
+    }
+  } finally {
+    database.close();
+  }
+});
+
+test('late version-7 check-table failure restores version-6 schema and prior review rows', () => {
+  const review = reservedDispatchFixture();
+  const source = review.source;
+  review.close();
+  const database = new Database(source.databasePath);
+  try {
+    database.run('DROP TABLE activation_check_dispatch_progress');
+    database.run('DROP TABLE activation_check_dispatch');
+    database.run('DROP TABLE activation_check_attempt');
+    database.run('PRAGMA user_version = 6');
+    database.run('CREATE TABLE activation_check_dispatch_progress (marker TEXT)');
+    const before = {
+      version: database.query('PRAGMA user_version').get(),
+      schema: database
+        .query("SELECT name, sql FROM sqlite_schema WHERE type = 'table' ORDER BY name")
+        .all(),
+      reviews: database.query('SELECT * FROM activation_review_dispatch').all(),
+    };
+    expect(() => boundaryController(source, () => 1000)).toThrow(
+      'activation_check_dispatch_progress already exists',
+    );
+    expect({
+      version: database.query('PRAGMA user_version').get(),
+      schema: database
+        .query("SELECT name, sql FROM sqlite_schema WHERE type = 'table' ORDER BY name")
+        .all(),
+      reviews: database.query('SELECT * FROM activation_review_dispatch').all(),
+    }).toEqual(before);
+  } finally {
+    database.close();
+  }
+});
+
+test('selected check reservation storage is additive on a fresh controller store', () => {
+  const selected = selectedCheckFixture();
+  try {
+    const database = new Database(selected.source.databasePath);
+    try {
+      expect(database.query('PRAGMA user_version').get()).toEqual({ user_version: 7 });
+      const names = database
+        .query(
+          "SELECT name FROM sqlite_schema WHERE type = 'table' AND name LIKE 'activation_check_%' ORDER BY name",
+        )
+        .all();
+      expect(names).toEqual([
+        { name: 'activation_check_attempt' },
+        { name: 'activation_check_dispatch' },
+        { name: 'activation_check_dispatch_progress' },
+      ]);
+    } finally {
+      database.close();
+    }
+  } finally {
+    selected.controller.close();
+  }
+});
 
 async function rejectsWith(operation: Promise<unknown>, phrase: string): Promise<void> {
   let rejection: unknown;

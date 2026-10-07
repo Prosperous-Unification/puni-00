@@ -1210,3 +1210,68 @@ failures (`/tmp/activation-22-p2-final-{strict2,all2}.json`). Changed-path
 Prettier and diff checks passed. Normal-hook result belongs to the local
 correction commit.
 No worker launch, live provider, host gate, CI or trusted activation is claimed.
+
+### Check-dispatch reservation foundation (local, 2026-10-07)
+
+Task 2.2 remains open. This slice adds a version-7, additive, **inert** check
+invocation/reservation/progress store and `reserveCheckDispatch`. It resolves the
+frozen selected-check manifest outside SQLite, then in one transaction repeats
+current request/generation, pinned authority, evaluating lease, persisted plan,
+check obligation and attempt selection before registering the invocation and
+reserving the canonical effect. The effect key binds `check-dispatch`, request,
+obligation and attempt; the immutable payload binds the full request, selected
+plan/obligation, invocation, exact manifest bytes and command digest, executor,
+protocol, toolchain and sandbox profile, pinned controller authority, typed
+`local-check-worker` target, deadline and retry budget. The target executor is
+the check executor even when the reviewer executor differs. The progress row is
+initially `reserved`, zero sends, and owned by the current lease. The API has no
+worker launch, query, send or receipt capability. The pinned bootstrap identity
+is controller authority, not a certification of a worker installation.
+
+The installed first tests failed on the absent `reserveCheckDispatch` API
+(`/tmp/activation-22-reservation-first-red.log`) and fresh schema version 6
+instead of 7 (`/tmp/activation-22-v7-first-red.log`). Mounted tests now cover
+exact replay after reopen, changed invocation/deadline/budget conflicts, strict
+caller input, absent/malformed/substituted manifest, held resolver movement of
+current/stage/lease epoch-owner-expiry/authority/generation/plan/check state and
+attempt, elapsed deadline, corrupted persisted reservation/progress, injected
+failures before and after registration/reservation/progress writes, and a
+populated v6 upgrade preserving review history. A late v7 DDL failure restores
+all v6 schema/version/data. Every refusal snapshots full relevant request,
+obligation, attempt, reservation and progress rows. No provider work occurs.
+
+Twenty-five accepted watched source faults each produced a named RED, were
+restored, and passed the same focused GREEN. Logs use
+`/tmp/activation-22-reservation-r5-<fault>-red.log` and `-green.log`, except
+corrected deadline/budget conflict REDs use `-red2.log`:
+
+| Faults                                                                                                                                                                                                 | Observed RED                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `input_override`, `final_selection`, `selected_tuple`, `deadline`, `manifest_hash`                                                                                                                     | Caller target override was accepted; held selection/attempt reserved the stale tuple; elapsed deadline registered rows; changed manifest reached reservation.               |
+| `target_bytes`, `payload_bytes`, `payload_digest`, `manifest_bytes`, `toolchain_identity`, `sandbox_profile_identity`, `protocol_identity`, `command_identity`, `deadline_conflict`, `budget_conflict` | Removing only the named stored-field comparison accepted its changed-column exact replay.                                                                                   |
+| `split_registration`, `split_reservation`, `migration_split`                                                                                                                                           | A later injected insert/DDL failure retained partial rows or schema instead of the original full snapshot.                                                                  |
+| `progress_absent`, `progress_shape`                                                                                                                                                                    | Missing-progress omission changed the named refusal to a later ArkType null error, diagnostic specificity only; malformed progress was accepted when its parse was omitted. |
+| `effect_kind`, `target_executor`, `payload_request`, `progress_owner_epoch`, `omit_progress_insert`                                                                                                    | The mounted exact effect-key, check target, canonical full-request payload, or initial progress assertion failed.                                                           |
+
+The initial `deadline_conflict` and `budget_conflict` mutations stayed GREEN
+because canonical payload equality still rejected the altered input; those runs
+are disqualified. Separate changed persisted-column fixtures made the isolated
+comparisons breakable and are the accepted `-red2.log` rows. No accepted fault
+claims a worker dispatch, external provenance or exactly-once effect. Final-byte
+suite, declared Nx targets, pinned OpenSpec, format/diff and hook receipts follow
+in the local checkpoint; host gate/CI remain unrun for this unpublished slice.
+
+On the formatted reservation source/test bytes, the literal four-file Bun command
+for `bootstrap.test.ts`, `request.test.ts`, `ingress.test.ts` and
+`controller.db.test.ts` passed **269/269**, 1,189 assertions, exit 0
+(`/tmp/activation-22-reservation-final-four.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck` and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-22-reservation-final-{lint,type,build}.log`). Changed-path
+Prettier check and `git diff --check` passed. Pinned
+`@fission-ai/openspec@1.12.0` strict passed 1/1 and all passed 143/143
+(`/tmp/activation-22-reservation-final-{strict,all}.json`). An initial
+`bunx openspec` attempt exited 1 because that package name has no executable;
+it is excluded in favor of the repository-pinned command. Normal hook output
+belongs to the local commit. No h2puni gate, CI, authenticated check worker,
+provider mapping, publisher, or trusted activation is claimed.
