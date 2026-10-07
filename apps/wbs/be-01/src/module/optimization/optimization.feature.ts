@@ -2,7 +2,6 @@ import {
   dispositionOfExitCode,
   dispositionOfPreflightFailure,
 } from '@wbs/contracts/solver/solver-failure-disposition';
-import type { RecordedEvent } from '@wbs/core';
 import type { CommittedProjectEvent } from '@wbs/core/service/committed-fanout';
 import type { Schedule, SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
@@ -13,7 +12,6 @@ import {
 } from '../../service/solver-exit-outcome';
 import { buildSolverRequestPair, type SolverRequestPair } from '../../service/solver-request-pair';
 import type {
-  OptimizationOutcomeEvent,
   OptimizationOutcomeWrite,
   OptimizationRepository,
   ReservedSolverChild,
@@ -66,13 +64,6 @@ export interface OptimizationCoordinatorOptions {
   readonly runChild?: (options: SolverChildLifecycleOptions) => Promise<SolverChildLifecycleResult>;
   readonly onChildError: (error: unknown) => void;
   readonly deliverCommitted: (events: readonly CommittedProjectEvent[]) => Promise<void>;
-  /** Durable half of a newly stored result's project event. */
-  /** Best-effort live half, invoked only after the outcome transaction commits. */
-  readonly pushRecorded: (
-    subscription: string,
-    recorded: RecordedEvent,
-    event: OptimizationOutcomeEvent,
-  ) => Promise<void>;
   readonly editDebounceMs?: number;
   readonly sleep?: (milliseconds: number) => Promise<void>;
   readonly setInterval?: (callback: () => void, milliseconds: number) => unknown;
@@ -122,20 +113,23 @@ export class OptimizationCoordinator {
     if (envelopes.length === 0) return;
     const tracked = Promise.resolve()
       // Proof: invoking delivery synchronously let a thrown transport error
-      // replace an already committed accepted Retry decision.
+      // replace an already committed accepted Retry decision. The outcome
+      // invocation fault likewise replaced a durable preflight decision.
       .then(() => this.options.deliverCommitted(envelopes))
       .catch((error: unknown) => {
         // Proof: swallowing this error left the held/rejected Retry test's
         // error sink empty even though its durable event remained replayable.
         // Rethrowing it also made installed FIFO stop reject after B's
-        // committed event and C's exact token had already persisted.
+        // committed event and C's exact token had already persisted. The
+        // outcome rejection fault failed after its durable event and slot release.
         this.options.onChildError(error);
       })
       .finally(() => this.inFlight.delete(tracked));
     // Proof: omitting tracking let stop settle while an empty-dequeue
     // envelope's postcommit transport promise was still held. The installed
     // FIFO test independently finished C's child while B's push stayed held;
-    // omitting this registration then let stop settle early.
+    // omitting this registration then let stop settle early. The outcome
+    // tracking omission also let stop settle during held outcome transport.
     this.inFlight.add(tracked);
   }
 
@@ -275,16 +269,17 @@ export class OptimizationCoordinator {
     write: OptimizationOutcomeWrite,
   ): Promise<'stored' | 'superseded' | 'already-recorded'> {
     const committed = await this.options.repository.recordOutcome(write);
-    if (committed.kind === 'stored') {
-      const tracked = this.options
-        .pushRecorded(committed.subscription, committed.recorded, committed.event)
-        .catch((error: unknown) => {
-          this.options.onChildError(error);
-        })
-        .finally(() => this.inFlight.delete(tracked));
-      this.inFlight.add(tracked);
+    const { decision, envelopes } = committed;
+    if (decision.kind === 'stored') {
+      // Proof: dropping downstream envelopes left the terminal outcome's
+      // recipient row absent from its delivered batch after exact-slot release.
+      // Awaiting delivery here instead retained the exact slot while transport held.
+      this.trackCommittedDelivery([
+        { projectId: decision.event.projectId, event: decision.event, recorded: decision.recorded },
+        ...envelopes,
+      ]);
     }
-    return committed.kind;
+    return decision.kind;
   }
 
   /**

@@ -3449,3 +3449,69 @@ The formatting, strict/all and diff checks were repeated after this evidence tex
 
 This is source and documentation revalidation only. No implementation, runtime mutation/test,
 Nx product check, canonical host gate, CI, push or merge was performed for this update.
+
+### 6k.a committed outcome handoff (consumer checkpoint)
+
+Implemented from clean source `6b08217e53dc0d79d0457e7d1c7020c0f005e248` in
+`feat/shared-people-fanout-6ka`. `recordOutcome` now returns the typed durable decision and
+downstream envelopes; the direct adapter returns an empty downstream list for stored,
+already-recorded and superseded decisions. The coordinator hands the stored outcome envelope
+first, followed by downstream records, to the existing tracked `deliverCommitted` boundary
+after commit. The obsolete optimizer-specific `pushRecorded` port and DI wiring were removed.
+The new coordinator witness injects one separately recorded downstream row at the repository
+port: it proves the consumer, **not** the 6k.b installed transactional producer. The composed
+delivery test uses the real in-memory event log and broadcaster to prove reaction before held
+outcome transport and unchanged original sequences. Two optimizer objectives explain the two
+reported errors in the synchronous-throw test.
+
+First TDD RED: `bun test apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts
+--test-name-pattern 'hands off the stored outcome before downstream'` failed 0/1 because the
+combined batch was absent (`/tmp/shared-people-6ka-first-red.log`); the same test passed 1/1
+after the port/adapter/coordinator change (`/tmp/shared-people-6ka-first-green.log`).
+No-op adapter assertions cover empty downstream arrays for both already-recorded and
+superseded. The held/rejected consumer test checks exact-slot release, pending stop while only
+transport holds, one ordered outcome/downstream batch, three distinct original sequences,
+three durable event rows and one reported rejection. The synchronous-throw case checks the
+plan-read decision, durable rows and released slots.
+
+| Watched production fault                              | Required failure                                       | RED log                                                  | Restored GREEN                                   |
+| ----------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------- | ------------------------------------------------ |
+| Await delivery before returning the committed outcome | Exact slot remains while transport holds               | `/tmp/shared-people-6ka-await-before-handoff-red.log`    | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Drop downstream envelopes                             | Recipient absent from delivered batch                  | `/tmp/shared-people-6ka-drop-downstream-red.log`         | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Omit in-flight tracking                               | Stop settles during held transport                     | `/tmp/shared-people-6ka-omit-tracking-red.log`           | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Omit delivery error reporting                         | Reported errors 0 instead of 1                         | `/tmp/shared-people-6ka-omit-error-report-red.log`       | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Rethrow delivery rejection                            | Held rejection fails the committed lifecycle test      | `/tmp/shared-people-6ka-rethrow-delivery-red.log`        | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Invoke synchronous transport before deferred tracking | Throw replaces the committed read decision             | `/tmp/shared-people-6ka-sync-invocation-red.log`         | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Omit recipient reaction                               | Recipient callback list empty before held outcome push | `/tmp/shared-people-6ka-omit-recipient-reaction-red.log` | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Republish instead of pushing recorded rows            | First push advances original sequence 0 to 1           | `/tmp/shared-people-6ka-republish-red.log`               | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+
+Final nine-file regression command: `bun test apps/wbs/be-01/src/module/optimization/module.test.ts
+apps/wbs/be-01/src/repository/optimization.db.test.ts
+apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts
+apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts
+apps/wbs/be-01/src/service/optimization-events.db.test.ts
+apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts
+apps/wbs/be-01/src/service/optimization-restart.db.test.ts
+apps/wbs/be-01/src/service/optimization-spawn-handshake.proc.db.test.ts
+libs/wbs/application/core/src/compose.test.ts`: 139/139 passed, 19,124 assertions, exit 0
+(`/tmp/shared-people-6ka-focused-unsandboxed.log`). The same sandboxed batch reported
+138 pass/1 fail because the real child process's stdin pipe returned `EPERM`; diagnostic
+`/tmp/shared-people-6ka-spawn-diagnostic.log` showed that boundary, and the exact process
+test passed outside the sandbox 1/1, 13 assertions
+(`/tmp/shared-people-6ka-spawn-escalated.log`).
+
+`NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6ka-nx bunx nx run wbs-be-01:lint
+--skip-nx-cache` passed (`/tmp/shared-people-6ka-nx-lint.log`). The corresponding
+`wbs-be-01:typecheck` (including `typecheck:module`) and `wbs-be-01:build` targets passed
+(`/tmp/shared-people-6ka-nx-{typecheck,build}.log`). `git diff --name-only -z | xargs -0 bunx
+prettier --check` passed all changed paths (`/tmp/shared-people-6ka-prettier-check.log`), and
+`git diff --check` exited 0 (`/tmp/shared-people-6ka-diff-check.log`). Pinned OpenSpec 1.12.0
+strict validation passed 1/1 and `--all` passed 149/149
+(`/tmp/shared-people-6ka-openspec-{strict,all}.json`). The canonical host gate, CI, independent
+exact-SHA review, installed 6k.b owner and trusted activation remain open; no push or merge
+was performed.
+
+After this ledger append, the final documentation bytes passed pinned strict OpenSpec 1/1,
+all OpenSpec 149/149, changed-path Prettier and `git diff --check`; outputs are
+`/tmp/shared-people-6ka-final-{strict,all}.json` and
+`/tmp/shared-people-6ka-final-{format,diff}.log`.

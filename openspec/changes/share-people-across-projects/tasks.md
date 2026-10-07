@@ -378,7 +378,7 @@ input hash`, `event failure rolls back cache and fan-out`, and `already-recorded
 does not fan out twice`. R5: fan out on any insertion, compare only input hash, substitute
       Fast, detach the comparison snapshot and omit the transactional event binding. Retain
       all generation/token/cancellation/enablement and blue/green multi-input proofs.
-- [ ] 6k.a. **Committed outcome handoff.** Preserve the typed durable outcome decision while
+- [x] 6k.a. **Committed outcome handoff.** Preserve the typed durable outcome decision while
       handing downstream envelopes to the coordinator's tracked delivery after commit. RED
       held/rejected/synchronous-throw delivery, child/slot terminal while transport alone holds
       stop, recipient reactions before held outcome push, and exact sequence/no duplicate push.

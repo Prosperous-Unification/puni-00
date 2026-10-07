@@ -166,7 +166,6 @@ describe('the two-coordinator spawn handshake', () => {
           return attempt.child;
         },
         deliverCommitted: () => Promise.resolve(),
-        pushRecorded: () => Promise.resolve(),
         onChildError: (error) => errors.push(error),
       });
     const blueCoordinator = coordinator(blue, 'blue');

@@ -326,9 +326,8 @@ function coordinator(world: World, owner: Owner): OptimizationCoordinator {
       });
     },
     onChildError: (error) => world.errors.push(error),
-    deliverCommitted: () => Promise.resolve(),
-    pushRecorded: (...push) => {
-      if (incarnation === world.incarnations[owner]) world.pushes.push(push);
+    deliverCommitted: (events) => {
+      if (incarnation === world.incarnations[owner]) world.pushes.push(...events);
       return Promise.resolve();
     },
     sleep: () => Promise.resolve(),

@@ -131,7 +131,6 @@ function restarted(
       });
     },
     deliverCommitted: () => Promise.resolve(),
-    pushRecorded: () => Promise.resolve(),
     setInterval: interval,
     clearInterval: () => undefined,
     onChildError: (error) => {

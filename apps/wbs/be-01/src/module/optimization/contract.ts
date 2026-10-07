@@ -301,8 +301,10 @@ export interface OptimizationRepository extends SolverSlotRepository {
     readonly attemptToken: () => string;
     readonly scoped?: { readonly organizationId: string; readonly actorId: string };
   }): Promise<CommittedDecision<OptimizationRetryDecision>>;
-  /** Atomically write the outcome and durable event; a superseded attempt publishes neither. Slot release is separate. */
-  recordOutcome(write: OptimizationOutcomeWrite): Promise<RecordedOptimizationOutcome>;
+  /** Commit the outcome and event before returning downstream envelopes; slot release is separate. */
+  recordOutcome(
+    write: OptimizationOutcomeWrite,
+  ): Promise<CommittedDecision<RecordedOptimizationOutcome>>;
   reconcileDrains(now: number): Promise<{
     readonly reclaimed: number;
     readonly finished: number;

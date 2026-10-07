@@ -239,8 +239,6 @@ export function buildServices(options: ServicesOptions): BeServices {
       captureOf: async (projectId) => await graph.workItems.optimizationInput(projectId),
       hashInput: scheduleInputHash,
       spawn: optimizer.spawn,
-      pushRecorded: (subscription, recorded, event) =>
-        graph.gatewayBroadcaster.pushRecorded(subscription, recorded, event),
       deliverCommitted: (events) => graph.committedFanout.deliverCommitted(events),
       onChildError: (error) => {
         options.logger.error({ err: error }, 'optimizer child failed');

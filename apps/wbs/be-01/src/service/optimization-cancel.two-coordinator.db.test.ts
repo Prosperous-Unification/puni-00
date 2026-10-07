@@ -261,7 +261,6 @@ describe('cross-coordinator cancellation', () => {
         return runSolverChildLifecycle({ ...options, sleep: attempt.heartbeat.sleep });
       },
       deliverCommitted: () => Promise.resolve(),
-      pushRecorded: () => Promise.resolve(),
       onChildError: (error) => errors.push(error),
     });
 
