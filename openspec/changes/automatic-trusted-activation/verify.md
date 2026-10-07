@@ -248,8 +248,9 @@ audit generation remain unchanged. This correction remains local and partial.
 
 The same review found missing watched proof for worker-claim/evaluation fences.
 Each row below removes only the named production condition, runs the named mounted
-controller test, restores the source hash, and reruns GREEN. Each refusal test also
-compares persisted request rows and obligations before/after the refused call.
+controller test, restores the source hash, and reruns GREEN. The claim tests compare
+projected request state before/after the refusal; evaluation tests additionally compare
+the obligation projections. These assertions do not claim a full raw-row comparison.
 
 | Fence              | Accepted omission RED (each 0/1)                                                                       | Restored witness                                                              |
 | ------------------ | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
