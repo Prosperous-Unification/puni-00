@@ -49,8 +49,11 @@ credential is intentionally absent from the steady-state playbook.
 
 The four supported cluster IDs are `platform-local`, `platform-production`,
 `workers-local` and `workers-production`. Each overlay binds its own kubeconfig
-Secret; the fleet check refuses cross-cluster substitution. Production uses the
-hcloud storage controllers, while local clusters use the k3s local-path class.
+Secret; the fleet check refuses cross-cluster substitution. Local clusters and
+`platform-production` use the k3s local-path class (`storage/production-existing-hosts` is
+`storage/local`): the adopted h4claw and h3mon kubelets run no external cloud provider, so a
+`puni-retain` volume stays on its node until the hcloud storage packet (WBS 070.8) moves it.
+`workers-production` keeps the hcloud storage controllers.
 
 Ordinary `wbs` and `workers` namespaces enforce Restricted Pod Security and
 default-deny networking. The `wbs-solver` and `puni-forge` namespaces admit their

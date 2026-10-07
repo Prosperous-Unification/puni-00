@@ -316,6 +316,32 @@ describe('validatePlatform', () => {
     );
   });
 
+  it('rejects platform-production storage that installs the hcloud controllers', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/clusters/platform/production/storage.yaml',
+      'path: ./infra/platform/storage/production-existing-hosts',
+      'path: ./infra/platform/storage/production',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(
+      /platform-production.*storage.*wrong platform path/,
+    );
+  });
+
+  it('rejects a production-existing-hosts storage overlay that diverges from local', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/storage/production-existing-hosts/kustomization.yaml',
+      '  - ../local',
+      '  - ../production',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(
+      /production-existing-hosts.*differ from the locked graph/,
+    );
+  });
+
   it('rejects a Flux bootstrap that gives controllers a loopback kubeconfig', async () => {
     const root = await mutablePlatform();
     await replaceManifestText(
