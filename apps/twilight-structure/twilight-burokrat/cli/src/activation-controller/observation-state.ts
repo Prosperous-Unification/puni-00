@@ -85,8 +85,8 @@ function inspectProtected(path: string, directory: boolean): void {
         throw new Error(`observation protected path absent: ${ancestor}`, { cause });
       throw new Error(`observation protected path unreadable: ${ancestor}`, { cause });
     }
-    // Proof: removing this component check admitted the nested path through a
-    // symlinked ancestor even though its final directory was ordinary.
+    // Proof: removing this component check changed the nested-link refusal
+    // to the later ancestor-type diagnostic; it did not admit work.
     if (entry.isSymbolicLink()) throw new Error(`observation protected path symlink: ${ancestor}`);
     if (ancestor !== path && !entry.isDirectory())
       throw new Error(`observation protected ancestor malformed: ${ancestor}`);
@@ -306,8 +306,35 @@ function assertActivationSchema(database: Database): void {
   };
   const nullable: Record<string, string> = {
     activation_request:
-      'lease_owner lease_expires_at evaluation_plan_identity evidence_set_identity',
+      'request_identity lease_owner lease_expires_at evaluation_plan_identity evidence_set_identity',
     activation_obligation: 'review_id command_identity phase receipt_identity',
+    activation_review_dispatch: 'effect_key',
+    activation_review_dispatch_progress: 'effect_key',
+    activation_review_dispatch_fact: 'effect_key',
+    activation_check_dispatch: 'effect_key',
+    activation_check_dispatch_progress: 'effect_key',
+    activation_check_dispatch_fact: 'effect_key',
+  };
+  const integerColumns: Record<string, string> = {
+    activation_request:
+      'repository_id version lease_epoch lease_expires_at pairing_version current',
+    activation_subject: 'repository_id high_water_generation observation_version',
+    activation_obligation: 'attempt',
+    activation_attempt: 'attempt',
+    activation_review_attempt: 'attempt',
+    activation_review_dispatch:
+      'attempt created_at deadline_at max_dispatch_attempts owner_epoch version',
+    activation_review_dispatch_progress: 'dispatch_attempts owner_epoch version',
+    activation_check_attempt: 'attempt',
+    activation_check_dispatch: 'attempt created_at deadline_at max_dispatch_attempts',
+    activation_check_dispatch_progress: 'dispatch_attempts owner_epoch version',
+  };
+  const uniqueColumns: Partial<Record<string, string>> = {
+    activation_attempt: 'receipt_identity',
+    activation_review_attempt: 'invocation_id',
+    activation_review_dispatch: 'request_identity review_id attempt',
+    activation_check_attempt: 'invocation_id',
+    activation_check_dispatch: 'request_identity obligation_identity attempt',
   };
   const requiredChecks: Record<string, string> = {
     activation_request: 'CHECK (pairing_version IN (0, 1));CHECK (current IN (0, 1))',
@@ -327,16 +354,16 @@ function assertActivationSchema(database: Database): void {
   const requiredForeign: Record<string, string> = {
     activation_obligation: 'request_identity:activation_request:request_identity',
     activation_attempt:
-      'obligation_identity:activation_obligation:obligation_identity request_identity:activation_obligation:request_identity',
+      'request_identity:activation_obligation:request_identity obligation_identity:activation_obligation:obligation_identity',
     activation_review_attempt: 'request_identity:activation_request:request_identity',
     activation_review_dispatch:
-      'attempt:activation_review_attempt:attempt request_identity:activation_review_attempt:request_identity review_id:activation_review_attempt:review_id',
+      'request_identity:activation_review_attempt:request_identity review_id:activation_review_attempt:review_id attempt:activation_review_attempt:attempt',
     activation_review_dispatch_progress: 'effect_key:activation_review_dispatch:effect_key',
     activation_review_dispatch_fact: 'effect_key:activation_review_dispatch:effect_key',
     activation_check_attempt:
-      'obligation_identity:activation_obligation:obligation_identity request_identity:activation_obligation:request_identity',
+      'request_identity:activation_obligation:request_identity obligation_identity:activation_obligation:obligation_identity',
     activation_check_dispatch:
-      'attempt:activation_check_attempt:attempt obligation_identity:activation_check_attempt:obligation_identity request_identity:activation_check_attempt:request_identity',
+      'request_identity:activation_check_attempt:request_identity obligation_identity:activation_check_attempt:obligation_identity attempt:activation_check_attempt:attempt',
     activation_check_dispatch_progress: 'effect_key:activation_check_dispatch:effect_key',
     activation_check_dispatch_fact: 'effect_key:activation_check_dispatch:effect_key',
   };
@@ -350,7 +377,12 @@ function assertActivationSchema(database: Database): void {
     const definition = parseOrThrow(type({ sql: 'string' }), found).sql;
     const actualColumns: unknown = database.query(`PRAGMA table_info(${name})`).all();
     const columnNames = parseOrThrow(
-      type({ name: 'string', notnull: 'number.integer>=0', pk: 'number.integer>=0' }).array(),
+      type({
+        name: 'string',
+        type: 'string',
+        notnull: 'number.integer>=0',
+        pk: 'number.integer>=0',
+      }).array(),
       actualColumns,
     );
     // Proof: omitting column inventory admitted a delivery table without payload_digest.
@@ -374,28 +406,106 @@ function assertActivationSchema(database: Database): void {
         .sort((left, right) => left.pk - right.pk)
         .map((column) => column.name)
         .join(' ') !== requiredPrimary[name] ||
+      // Proof: omitting this per-column join let nullable delivery source_id
+      // retain its composite PK ordinal while running scheduled work.
       columnNames.some(
         (column) =>
-          column.pk === 0 &&
-          column.notnull !== 1 &&
-          !(nullable[name] ?? '').split(' ').includes(column.name),
+          column.notnull !== ((nullable[name] ?? '').split(' ').includes(column.name) ? 0 : 1),
+      ) ||
+      // Proof: replacing delivery payload_digest TEXT with INTEGER reached
+      // scheduled work when this declared-affinity join was removed.
+      columnNames.some(
+        (column) =>
+          column.type !==
+          ((integerColumns[name] ?? '').split(' ').includes(column.name) ? 'INTEGER' : 'TEXT'),
       )
     )
       throw new Error(`observation state partial constraints: ${name}`);
     const foreignRows: unknown = database.query(`PRAGMA foreign_key_list(${name})`).all();
     const foreign = parseOrThrow(
-      type({ table: 'string', from: 'string', to: 'string' }).array(),
+      type({
+        id: 'number.integer>=0',
+        seq: 'number.integer>=0',
+        table: 'string',
+        from: 'string',
+        to: 'string',
+        on_update: 'string',
+        on_delete: 'string',
+        match: 'string',
+      }).array(),
       foreignRows,
     );
-    // Proof: removing this exact FK join let a structurally named progress
-    // table without its reservation parent run the scheduled callback.
+    const expectedForeign = (requiredForeign[name] ?? '').split(' ').filter(Boolean);
+    // Proof: omitting the group/sequence join let one composite obligation
+    // reference become two independent FKs and still run scheduled work.
     if (
       foreign
-        .map((row) => `${row.from}:${row.table}:${row.to}`)
-        .sort()
-        .join(' ') !== (requiredForeign[name] ?? '').split(' ').filter(Boolean).sort().join(' ')
+        .map(
+          (row) =>
+            `${String(row.id)}:${String(row.seq)}:${row.from}:${row.table}:${row.to}:${row.on_update}:${row.on_delete}:${row.match}`,
+        )
+        .join(' ') !==
+      expectedForeign
+        .map((binding, sequence) => `0:${String(sequence)}:${binding}:NO ACTION:NO ACTION:NONE`)
+        .join(' ')
     )
       throw new Error(`observation state partial foreign keys: ${name}`);
+    const indexRows: unknown = database.query(`PRAGMA index_list(${name})`).all();
+    const indexes = parseOrThrow(
+      type({
+        name: 'string',
+        unique: 'number.integer>=0',
+        origin: 'string',
+        partial: 'number.integer>=0',
+      }).array(),
+      indexRows,
+    );
+    const signatures = indexes
+      .map((index) => {
+        const indexColumns: unknown = database
+          .query('SELECT * FROM pragma_index_info(?)')
+          .all(index.name);
+        const keys = parseOrThrow(
+          type({ seqno: 'number.integer>=0', name: 'string' }).array(),
+          indexColumns,
+        );
+        const indexedAttributes: unknown = database
+          .query('SELECT * FROM pragma_index_xinfo(?)')
+          .all(index.name);
+        const attributes = parseOrThrow(
+          type({
+            key: 'number.integer>=0',
+            desc: 'number.integer>=0',
+            coll: 'string|null',
+          }).array(),
+          indexedAttributes,
+        );
+        // Proof: omitting the binary/ascending key check let a delivery PK
+        // rebuilt with NOCASE source_id collation run scheduled work.
+        if (
+          attributes.some(
+            (attribute) =>
+              attribute.key === 1 && (attribute.desc !== 0 || attribute.coll !== 'BINARY'),
+          )
+        )
+          throw new Error(`observation state partial index attributes: ${name}`);
+        return `${index.origin}:${String(index.unique)}:${String(index.partial)}:${keys
+          .sort((left, right) => left.seqno - right.seqno)
+          .map((key) => key.name)
+          .join(' ')}`;
+      })
+      .sort();
+    const inlineUnique = uniqueColumns[name];
+    const expectedIndexes = [
+      `pk:1:0:${requiredPrimary[name]}`,
+      ...(inlineUnique === undefined ? [] : [`u:1:0:${inlineUnique}`]),
+      ...(name === 'activation_request' ? ['c:1:1:repository_id subject_key'] : []),
+      ...(name === 'activation_review_dispatch' ? ['c:0:0:request_identity'] : []),
+    ].sort();
+    // Proof: dropping review invocation_id UNIQUE kept the named table and
+    // PK but admitted work until this complete index signature was joined.
+    if (signatures.join(';') !== expectedIndexes.join(';'))
+      throw new Error(`observation state partial indexes: ${name}`);
   }
   const requiredIndexes = {
     activation_current_subject: {

@@ -727,6 +727,68 @@ test('scheduler refuses unconstrained duplicate-row schema before work', async (
   expect(called).toBe(0);
 });
 
+for (const fault of [
+  'nullable-delivery-pk',
+  'missing-review-unique',
+  'split-attempt-fk',
+  'wrong-delivery-affinity',
+  'collated-delivery-pk',
+]) {
+  test(`${fault} refuses scheduled work without changing state`, async () => {
+    const source = fixture();
+    expect(await initializeObservationState(source.config)).toBe('initialized');
+    const database = new Database(source.databasePath, { create: false, strict: true });
+    const table =
+      fault === 'nullable-delivery-pk' ||
+      fault === 'wrong-delivery-affinity' ||
+      fault === 'collated-delivery-pk'
+        ? 'activation_delivery'
+        : fault === 'missing-review-unique'
+          ? 'activation_review_attempt'
+          : 'activation_attempt';
+    const owned = database
+      .query("SELECT sql FROM sqlite_schema WHERE type='table' AND name=?")
+      .get(table) as { sql: string };
+    const replacement =
+      fault === 'nullable-delivery-pk'
+        ? owned.sql.replace('source_id TEXT NOT NULL', 'source_id TEXT')
+        : fault === 'wrong-delivery-affinity'
+          ? owned.sql.replace('payload_digest TEXT NOT NULL', 'payload_digest INTEGER NOT NULL')
+          : fault === 'collated-delivery-pk'
+            ? owned.sql.replace('source_id TEXT NOT NULL', 'source_id TEXT NOT NULL COLLATE NOCASE')
+            : fault === 'missing-review-unique'
+              ? owned.sql.replace(
+                  'invocation_id TEXT NOT NULL UNIQUE',
+                  'invocation_id TEXT NOT NULL',
+                )
+              : owned.sql.replace(
+                  /FOREIGN KEY \(request_identity, obligation_identity\)\s+REFERENCES activation_obligation\(request_identity, obligation_identity\)/,
+                  'FOREIGN KEY(request_identity) REFERENCES activation_obligation(request_identity), FOREIGN KEY(obligation_identity) REFERENCES activation_obligation(obligation_identity)',
+                );
+    expect(replacement).not.toBe(owned.sql);
+    const before = database.query('SELECT * FROM activation_observation_schedule').all();
+    database.run(`DROP TABLE ${table}`);
+    database.run(replacement);
+    database.close();
+    let called = 0;
+    await expectRefusal(
+      () =>
+        withObservationAttempt(source.config, () => {
+          called += 1;
+          return Promise.resolve();
+        }),
+      'observation state partial',
+    );
+    expect(called).toBe(0);
+    const reopened = new Database(source.databasePath, { create: false, strict: true });
+    expect(reopened.query('SELECT * FROM activation_observation_schedule').all()).toEqual(before);
+    expect(
+      reopened.query("SELECT sql FROM sqlite_schema WHERE type='table' AND name=?").get(table),
+    ).toEqual({ sql: replacement });
+    reopened.close();
+  });
+}
+
 test('policy ceilings and invalid clock refuse without spending an attempt', async () => {
   const source = fixture();
   await expectRefusal(

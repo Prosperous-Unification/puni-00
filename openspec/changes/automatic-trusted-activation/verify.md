@@ -2304,3 +2304,57 @@ lint passed. Pinned OpenSpec strict passed 1/1 and all passed 143/143 at
 `/tmp/activation-12e-openspec-{strict,all}.json`. Changed-path Prettier and
 `git diff --check` passed. These local checks do not replace CI or the required
 h2puni gate, which remain unrun on this unpublished branch.
+
+### 1.2e exact schema-signature correction after `a225cb3ae`
+
+Astra's public-entry probe `/tmp/activation-a225cb3-astra-probes.log`
+showed three stores that still ran scheduled work: a nullable delivery
+`source_id` inside its composite primary key, a review invocation column
+without its inline `UNIQUE`, and an attempt table whose two-column foreign
+key was split into two independent one-column keys. The earlier validator
+excluded all PK columns from its nullability check, inventoried only two
+named indexes, and flattened foreign key members without grouping. The
+corrected read compares known v8/v9 declared types and nullability (including
+PK members), complete primary/inline-unique/named-index signatures, and
+ordered foreign-key groups and actions. Index keys also require the owned
+binary ascending attributes. Legacy `TEXT PRIMARY KEY` columns
+whose owned schema reports `notnull=0` retain that exact known signature;
+the composite PK columns explicitly declared `NOT NULL` require `notnull=1`.
+
+Four named production-path tests replace one structural property each while
+leaving all other properties valid, then compare the full scheduler row and
+corrupt table SQL after refusal. `/tmp/activation-12e-structure-watch.py`
+independently omitted each new comparison and restored source after the same
+test. The corresponding `/tmp/activation-12e-structure-<fault>-{red,green}.log`
+retains literal command, exit and assertion; every row is RED exit 1 and
+restored GREEN exit 0. The pre-comment restoration SHA-256 was
+`6a12fb6fd36e693092f6c84895bcc08736f027345b8b74ff965aa90a03b3e7e8`.
+
+| Fault             | Mounted effect with only the comparison removed                                |
+| ----------------- | ------------------------------------------------------------------------------ |
+| `pk_nullability`  | Nullable `activation_delivery.source_id` ran scheduled work.                   |
+| `inline_unique`   | Missing `activation_review_attempt.invocation_id UNIQUE` ran work.             |
+| `column_affinity` | `payload_digest INTEGER` replaced the owned TEXT declaration and ran work.     |
+| `composite_fk`    | Two independent attempt→obligation FKs replaced one composite FK and ran work. |
+
+The separate `collated-delivery-pk` fixture changed only the first delivery
+PK column to `COLLATE NOCASE`; omitting the `index_xinfo` binary/ascending
+comparison ran work (RED exit 1), restoring it refused before work (GREEN
+exit 0). `/tmp/activation-12e-collation-{red,green}.log` contains the literal
+commands and outcomes; restoration SHA-256 was
+`dc474cb90f54b018c22eea68a641669e7aa0043afa8727d83807306c5d3855fc`.
+
+The `nested_symlink` omission from the preceding section changed refusal
+specificity only: the following ancestor-type guard still refused. Its
+adjacent source `Proof:` now states that observed diagnostic result; the
+historical claim of admitted work remains disqualified. CI, host gate and an
+installed scheduler remain unverified for this local correction.
+
+On the final corrected runtime bytes, the explicit seven-file suite passed
+**547/547**, 2,370 assertions (`/tmp/activation-12e-structure-final-seven.log`).
+Uncached Nx lint:source, typecheck and build each printed `Successfully ran
+target` with exit 0 (`/tmp/activation-12e-structure-nx-{lint,typecheck,build}.log`).
+Pinned OpenSpec strict passed 1/1 and all passed 143/143
+(`/tmp/activation-12e-structure-openspec-{strict,all}.json`); changed-path
+Prettier and `git diff --check` passed. Normal commit hooks run with the local
+commit. No host gate or CI ran on this unpublished local SHA.
