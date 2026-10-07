@@ -3607,3 +3607,79 @@ Prettier check and `git diff --check` both exited 0
 (`/tmp/shared-people-6kb-final-doc-{format,diff}.log`).
 6k.c–e, 6k parent, activation, host gate and CI remain open at this local
 checkpoint.
+
+Independent review of local candidate `8438eb7f1eeb2b0141670c997de37f93177e5890`
+reopened 6k.b. Its held B-transport fixture invoked private `storeOutcome`
+with a seeded slot, so it did not prove the installed child callback, exact
+terminal slot release, or a held **outcome** push. URL counts and an HTTP 400
+through the gateway's modeled log path also did not prove coordinator
+`onChildError`, original recorded sequence/order, recipient reactions, or
+republish prevention. The 6k.b checkbox is open pending mounted child-path
+tests and watched K9/K10/K13 faults. The earlier owner, rollback, K4 and K5
+proofs remain valid for their stated boundaries; no publication occurred.
+
+### 6k.b installed child-path correction (review pending)
+
+The earlier 123/759 two-file run and B-held fixture above are historical owner
+evidence, not closure of installed K9/K10/K13. The corrected fixture enters
+the actual `buildServices` FIFO pump with one PRI request and a solver response
+accepted by `revalidateSolverResult`. The child traverses reservation, bind,
+exit evaluation, installed `recordOutcome`, and exact-slot release. Only A's
+`schedule_optimized` transport is held; B's durable `elsewhere_changed` row
+and recipient reaction finish, the terminal A slot is absent, a second SQLite
+writer progresses, and `stop` stays pending solely for the held outcome
+delivery. Releasing it pushes the original A seq 0 then B seq 0 without a
+new row or sequence. The reporting fixture injects synchronous throw and
+rejected `deliverCommitted` at the composed coordinator callback, then checks
+the logged `optimizer child failed` boundary, committed A/B rows, absent slot,
+and modeled delivery counts. Its rejected promise is held until `drain` has
+begun observing it; this separates rejection propagation from teardown.
+
+The mounted tests use `bun test apps/wbs/be-01/src/services.db.test.ts
+--test-name-pattern '<case name>'`. Accepted independent R5 faults below
+failed the stated installed assertion and then passed again after exact-byte
+source restoration:
+
+| Boundary                  | Observed RED                                                                                                                                                     | Restored GREEN                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| K9 child handoff          | Awaiting the whole composed delivery batch before returning outcome left the terminal A slot counted: `/tmp/shared-people-6kb-child-await-handoff-red-try2.log`. | `/tmp/shared-people-6kb-child-await-handoff-restored-green.log` |
+| K10 tracked stop          | Omitting `inFlight.add` let stop settle during the held A push: `/tmp/shared-people-6kb-child-tracking-omission-red.log`.                                        | `/tmp/shared-people-6kb-child-tracking-restored-green.log`      |
+| K13 downstream envelope   | Dropping outcome downstream envelopes prevented B reaction: `/tmp/shared-people-6kb-child-downstream-omission-red.log`.                                          | `/tmp/shared-people-6kb-child-downstream-restored-green.log`    |
+| K13 recipient reaction    | Omitting `reactToProjectEvent` kept B's edit epoch absent: `/tmp/shared-people-6kb-child-reaction-omission-red.log`.                                             | `/tmp/shared-people-6kb-child-reaction-restored-green.log`      |
+| K13 original republish    | Replacing `pushRecorded` with `publish` added an A seq 1 row, violating the original seq 0 assertion: `/tmp/shared-people-6kb-child-republish-red.log`.          | `/tmp/shared-people-6kb-child-republish-restored-green.log`     |
+| K10 error report          | Omitting `onChildError` left the installed child-error log absent: `/tmp/shared-people-6kb-child-report-omission-red.log`.                                       | `/tmp/shared-people-6kb-child-report-restored-green.log`        |
+| K10 rejection containment | Rethrowing after `onChildError` made the held-rejection `drain` settle `rejected` instead of `fulfilled`: `/tmp/shared-people-6kb-child-rethrow-gated-red.log`.  | `/tmp/shared-people-6kb-child-rethrow-gated-restored-green.log` |
+
+The first K9 mutation also triggered a duplicate B reaction before the slot
+assertion, so its log is disqualified (`/tmp/shared-people-6kb-child-await-handoff-red.log`).
+The first rethrow trial failed through a closed-DB teardown race and is also
+disqualified (`/tmp/shared-people-6kb-child-rethrow-red-try2.log`). An invalid
+solver response trial did not reach the installed outcome and is excluded.
+The malformed-envelope guard retains its previously observed 1-versus-0
+cache-row Proof beside the extracted repository helper. These tests and
+ledger have not yet received independent exact-SHA review; 6k.b stays open.
+
+After the test-only response literal was narrowed to the required wire version,
+the final `bun test apps/wbs/be-01/src/services.db.test.ts
+apps/wbs/be-01/src/repository/optimization.db.test.ts --timeout=30000` passed
+125/125, 792 assertions (`/tmp/shared-people-6kb-followup-two-file-final.log`).
+The nine-file regression command recorded in the 6k.a section passed 139/139,
+19,124 assertions outside the sandbox
+(`/tmp/shared-people-6kb-followup-nine-file-unsandboxed.log`). Its sandbox
+run failed only the child-process marker handshake at 138/139; that process
+fixture's Bun child stdin pipe is sandbox-restricted here, so the sandbox
+run is unavailable evidence for that case
+(`/tmp/shared-people-6kb-followup-nine-file.log`). The initial full BE lint
+found three test callback return-type errors, fixed by asserting event
+sequence and message separately. A subsequent BE typecheck found the fixture
+wire version widened from literal 3 to `number`, fixed with `3 as const`.
+Both failure logs remain
+(`/tmp/shared-people-6kb-followup-nx-{lint,typecheck}.log`). The corrected
+declared `wbs-be-01:{lint,typecheck,build} --skip-nx-cache` targets each have
+an explicit Nx success summary
+(`/tmp/shared-people-6kb-followup-nx-{lint-fixed,typecheck-fixed,build}.log`).
+Pinned OpenSpec strict validation passed 1/1 and `--all` passed 149/149 on
+this ledger (`/tmp/shared-people-6kb-followup-final-{strict,all}.json`).
+Changed-path Prettier and `git diff --check` passed
+(`/tmp/shared-people-6kb-followup-{format-check,diff-check}.log`). Normal
+commit hooks remain the final local check.

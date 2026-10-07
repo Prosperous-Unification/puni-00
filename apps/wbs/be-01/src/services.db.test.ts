@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
+import { revalidateSolverResult } from '@wbs/contracts/solver/revalidate-solver-result';
 import type { EditAdmission } from '@wbs/core';
 import { subscriptionFor } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
@@ -100,6 +101,7 @@ function bootstrap(
   pushFetch?: ServicesOptions['pushFetch'],
   omitFanoutCapture = false,
   afterOptimizerTurn?: (answer: unknown, db: ReturnType<typeof openDrizzle>) => void,
+  logLines?: string[],
 ) {
   const pushUrls: string[] = [];
   const dir = mkdtempSync(join(tmpdir(), 'wbs-services-'));
@@ -138,7 +140,18 @@ function bootstrap(
     : source;
   const services = buildServices({
     source: installedSource,
-    logger: createLogger({ service: 'be-01' }),
+    logger: createLogger({
+      service: 'be-01',
+      ...(logLines === undefined
+        ? {}
+        : {
+            destination: {
+              write: (line: string) => {
+                logLines.push(line);
+              },
+            },
+          }),
+    }),
     jwtKey: 'k'.repeat(32),
     gwUrl: 'http://gw.invalid',
     internalAuthSecret: 's'.repeat(32),
@@ -511,6 +524,87 @@ function installedOutcomeStore(optimizer: OptimizationCoordinator) {
   };
 }
 
+function completedSelectedChild(
+  request: ReservedSpawnRequest,
+  onBound: () => void = () => undefined,
+): ReturnType<ReservedSpawner> {
+  const response = {
+    wireVersion: 3 as const,
+    status: 'feasible' as const,
+    offsets: { [sliceKey('A', 'A-step')]: 48, [sliceKey('long', 'A-step')]: 0 },
+    objectiveValues: {
+      makespan: { value: 96, stageValue: 96, bound: 96, status: 'optimal' as const },
+      priority: { value: 0, stageValue: 0, bound: 0, status: 'optimal' as const },
+      movement: { value: 48, stageValue: 48, bound: 48, status: 'optimal' as const },
+    },
+  };
+  expect(revalidateSolverResult(request.request, response)).toMatchObject({
+    ok: true,
+    published: true,
+  });
+  return Promise.resolve({
+    pid: 8801,
+    stdout: new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(JSON.stringify(response)));
+        controller.close();
+      },
+    }),
+    stderr: new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.close();
+      },
+    }),
+    exited: Promise.resolve(0),
+    verdict: (decision) => {
+      if (decision === 'bound') onBound();
+    },
+    kill: () => undefined,
+  });
+}
+
+async function enqueueSelectedOutcome(
+  db: ReturnType<typeof openDrizzle>,
+  path: string,
+  services: ReturnType<typeof buildServices>,
+): Promise<void> {
+  seedSharedLifecycle(path);
+  db.run(
+    sql.raw(
+      "INSERT INTO work_item (id, project_id, position, name) VALUES ('long', 'A', 20, 'long')",
+    ),
+  );
+  db.run(
+    sql.raw(
+      "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('long', 'A-step', 2, 2, 2)",
+    ),
+  );
+  db.run(
+    sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+  );
+  const captured = await services.workItems.optimizationInput('A');
+  if (captured.kind !== 'scheduled') throw new Error('installed child input unavailable');
+  const contractVersion = contractVersionOf('0.2.0');
+  const generation = allocateGeneration(
+    db,
+    'A',
+    contractVersion,
+    scheduleInputHash(captured.input),
+    1,
+  );
+  db.insert(solverQueue)
+    .values({
+      projectId: 'A',
+      contractVersion,
+      generation,
+      objective: 'pri',
+      budgetMs: 1000,
+      admittedCancelEpoch: 0,
+      enqueuedAt: 1,
+    })
+    .run();
+}
+
 function seedOtherLifecycleSlot(
   db: ReturnType<typeof openDrizzle>,
   projectId: string,
@@ -646,6 +740,237 @@ describe('buildServices', () => {
       expect(delivered).toHaveLength(2);
     } finally {
       releaseDelivery.resolve();
+    }
+  });
+
+  it('releases the exact terminal child while only its installed outcome transport holds stop', async () => {
+    const outcomeEntered = signal();
+    const releaseOutcome = signal();
+    const launches: ReservedSpawnRequest[] = [];
+    const boundTokens: string[] = [];
+    const pushed: { subscription: string; seq: number; message: { type: string } }[] = [];
+    const { db, path, services } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: (request) => {
+          launches.push(request);
+          return completedSelectedChild(request, () => {
+            boundTokens.push(
+              ...db
+                .select({ attemptToken: solverSlot.attemptToken })
+                .from(solverSlot)
+                .where(sql`project_id = 'A'`)
+                .all()
+                .map(({ attemptToken }) => attemptToken),
+            );
+          });
+        },
+      },
+      undefined,
+      (_url, request) => {
+        const payload = request?.body;
+        if (typeof payload !== 'string') throw new Error('outcome push body must be JSON text');
+        const pushedEvent: unknown = JSON.parse(payload);
+        if (
+          typeof pushedEvent !== 'object' ||
+          pushedEvent === null ||
+          !('subscription' in pushedEvent) ||
+          typeof pushedEvent.subscription !== 'string' ||
+          !('seq' in pushedEvent) ||
+          typeof pushedEvent.seq !== 'number' ||
+          !('message' in pushedEvent) ||
+          typeof pushedEvent.message !== 'object' ||
+          pushedEvent.message === null ||
+          !('type' in pushedEvent.message) ||
+          typeof pushedEvent.message.type !== 'string'
+        )
+          throw new Error('outcome push was not a recorded project event');
+        pushed.push({
+          subscription: pushedEvent.subscription,
+          seq: pushedEvent.seq,
+          message: { type: pushedEvent.message.type },
+        });
+        if (
+          pushedEvent.subscription === 'project:A' &&
+          pushedEvent.message.type === 'schedule_optimized'
+        ) {
+          outcomeEntered.resolve();
+          return releaseOutcome.promise.then(() => Response.json({ delivered_to_sockets: 0 }));
+        }
+        return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+      },
+    );
+    await enqueueSelectedOutcome(db, path, services);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    try {
+      await beginInstalledQueuePump(optimizer);
+      await Promise.race([
+        outcomeEntered.promise,
+        Bun.sleep(1000).then(() => {
+          throw new Error('installed outcome transport did not start');
+        }),
+      ]);
+      expect(launches).toHaveLength(1);
+      expect(boundTokens).toEqual([launches[0]?.admission.attemptToken]);
+      const mounted = optimizer as unknown as {
+        editEpoch: Map<string, number>;
+        inFlight: Set<Promise<void>>;
+      };
+      // Proof: dropping the downstream envelope or recipient reaction made
+      // this mounted child assertion fail before held outcome transport ended.
+      expect(mounted.editEpoch.get('B')).toBe(1);
+      const events = new DrizzleEventLogStore(db, OPEN);
+      const outcome = await events.rangeSince('project:A', -1);
+      const recipient = await events.rangeSince('project:B', -1);
+      expect(outcome.map(({ seq }) => seq)).toEqual([0]);
+      expect(outcome[0]?.message).toMatchObject({ type: 'schedule_optimized' });
+      expect(recipient.map(({ seq, message }) => [seq, message])).toEqual([
+        [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+      ]);
+      expect(pushed).toEqual([
+        { subscription: 'project:A', seq: 0, message: { type: 'schedule_optimized' } },
+      ]);
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        if (
+          db
+            .select()
+            .from(solverSlot)
+            .where(sql`project_id = 'A'`)
+            .all().length === 0 &&
+          !mounted.editEpoch.has('B') &&
+          mounted.inFlight.size <= 1
+        )
+          break;
+        await Bun.sleep(10);
+      }
+      // Proof: awaiting composed delivery before outcome handoff left the
+      // terminal child's exact slot counted while outcome transport was held.
+      expect(
+        db
+          .select()
+          .from(solverSlot)
+          .where(sql`project_id = 'A'`)
+          .all(),
+      ).toEqual([]);
+      expect(mounted.editEpoch.has('B')).toBe(false);
+      const second = openDatabase(path);
+      try {
+        second.run('PRAGMA busy_timeout = 50');
+        second.run("UPDATE project SET name = 'outcome second writer' WHERE id = 'B'");
+      } finally {
+        second.close();
+      }
+      let stopSettled = false;
+      const stopping = optimizer.stop().then(() => {
+        stopSettled = true;
+      });
+      await Bun.sleep(100);
+      // Proof: omitting committed-delivery tracking settled stop after child
+      // completion while this outcome push was still held.
+      expect(stopSettled).toBe(false);
+      releaseOutcome.resolve();
+      await stopping;
+      // Proof: republishing the recorded row inserted another A sequence;
+      // preserving the original push keeps A then B at their recorded seq 0.
+      expect(pushed).toEqual([
+        { subscription: 'project:A', seq: 0, message: { type: 'schedule_optimized' } },
+        { subscription: 'project:B', seq: 0, message: { type: 'elsewhere_changed' } },
+      ]);
+      expect(await events.rangeSince('project:A', -1)).toEqual(outcome);
+      expect(await events.rangeSince('project:B', -1)).toEqual(recipient);
+    } finally {
+      releaseOutcome.resolve();
+    }
+  });
+
+  it('reports synchronous and rejected composed outcome delivery without replacing the terminal decision', async () => {
+    for (const mode of ['synchronous', 'rejected'] as const) {
+      const logs: string[] = [];
+      const pushed: string[] = [];
+      const launches: ReservedSpawnRequest[] = [];
+      const deliveryEntered = signal();
+      const releaseRejected = signal();
+      const { db, path, services } = bootstrap(
+        {
+          solverVersion: '0.2.0',
+          budgetMs: 1000,
+          spawn: (request) => {
+            launches.push(request);
+            return completedSelectedChild(request);
+          },
+        },
+        undefined,
+        (_url, request) => {
+          const payload = request?.body;
+          if (typeof payload !== 'string') throw new Error('reported push body must be JSON text');
+          pushed.push(payload);
+          return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+        },
+        false,
+        undefined,
+        logs,
+      );
+      await enqueueSelectedOutcome(db, path, services);
+      const delivery = services.committedFanout;
+      const original = delivery.deliverCommitted.bind(delivery);
+      Object.defineProperty(delivery, 'deliverCommitted', {
+        value: (events: Parameters<typeof original>[0]) => {
+          if (mode === 'synchronous') throw new Error('injected synchronous composed delivery');
+          return original(events).then(async () => {
+            deliveryEntered.resolve();
+            await releaseRejected.promise;
+            throw new Error('injected rejected composed delivery');
+          });
+        },
+      });
+      const optimizer = services.optimizer;
+      if (optimizer === undefined) throw new Error('optimizer was not installed');
+      await beginInstalledQueuePump(optimizer);
+      if (mode === 'rejected') {
+        await Promise.race([
+          deliveryEntered.promise,
+          Bun.sleep(1000).then(() => {
+            throw new Error('rejected outcome delivery did not start');
+          }),
+        ]);
+        const drainState = optimizer.drain().then(
+          () => 'fulfilled',
+          () => 'rejected',
+        );
+        releaseRejected.resolve();
+        // Proof: rethrowing after onChildError changed this settled drain
+        // from fulfilled to rejected after the child outcome had committed.
+        expect(await drainState).toBe('fulfilled');
+      } else {
+        await optimizer.drain();
+      }
+      expect(launches).toHaveLength(1);
+      const events = new DrizzleEventLogStore(db, OPEN);
+      const outcome = await events.rangeSince('project:A', -1);
+      const recipient = await events.rangeSince('project:B', -1);
+      expect(outcome.map(({ seq }) => seq)).toEqual([0]);
+      expect(outcome[0]?.message).toMatchObject({ type: 'schedule_optimized' });
+      expect(recipient.map(({ seq }) => seq)).toEqual([0]);
+      expect(recipient[0]?.message).toMatchObject({ type: 'elsewhere_changed' });
+      expect(
+        db
+          .select()
+          .from(solverSlot)
+          .where(sql`project_id = 'A'`)
+          .all(),
+      ).toEqual([]);
+      // Proof: omitting onChildError lost the modeled synchronous/rejected
+      // failure report while the committed outcome and slot release survived.
+      expect(
+        logs.some(
+          (line) =>
+            line.includes(`injected ${mode} composed delivery`) &&
+            line.includes('optimizer child failed'),
+        ),
+      ).toBe(true);
+      expect(pushed).toHaveLength(mode === 'rejected' ? 2 : 0);
     }
   });
 

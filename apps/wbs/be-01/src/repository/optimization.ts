@@ -175,7 +175,9 @@ export function recordOptimizationOutcomeIn(
     {
       recordEventIn: (tx, subscription, message, createdAt) => {
         const recorded = eventLog.recordEventIn(tx, subscription, message, createdAt);
-        // Proof: a malformed writer's missing envelope must roll back the cache row.
+        // Proof: an injected event writer returning undefined left one
+        // committed cache row when this guard was removed; the malformed
+        // envelope test observed 1 instead of 0 before restoration.
         if (!isRecordedEvent(recorded))
           throw new Error('stored optimization outcome has no durable event envelope');
         return recorded;
