@@ -10,10 +10,29 @@ Keep pure transition rules in Twilight Burokrat and external effects behind moun
       negatives F1/F2/F3 remove each validation in turn, including distinct absent/unreadable/
       malformed state, wrong issuer, local-cooperative relabel and equal-tree changed identities.
       Select the concrete provider/store adapters without inventing credentials.
+      Bind typed PR/merge-group/protected-revision subjects and qualified target refs in the
+      canonical hash, current-request validation and receipt/descriptor contract. Tests:
+      `same commits do not alias different PR subjects`,
+      `PR and protected revision cannot share approval`,
+      `retargeting the same base changes admission`,
+      `ordered group members bind the request`, and
+      `old request schema cannot acquire default authority`. F3 omits each discriminator,
+      subject member, ordered-member binding or target-ref join separately; test both canonical
+      identity and installed current-request refusal so a hashing-only check cannot mask a
+      missing admission comparison.
 - [ ] 1.2 Add durable request stages, compare-and-swap ownership and automatic event/timer
       reconciliation — tests: `duplicate and lost events converge`, `expired worker is fenced`;
       negatives F10/F11 bypass request-key, stage and lease comparisons while two workers race.
       Prove both eligible PR discovery and supersession after head/base movement.
+      Mount ingestion/reconciliation and durable effects for
+      `webhook and polling converge on one request`,
+      `conflicting delivery reuse is refused`,
+      `delayed events cannot supersede another subject`, and
+      `returning candidate never revives its old worker`. Keep authenticated delivery/run/time
+      metadata outside request identity. F10 separately removes payload-digest conflict refusal,
+      logical-subject scoping, authoritative current-state reconciliation and durable generation
+      advancement for A → B → A; F11 removes the obsolete worker's effect fence. Assert durable
+      records and publication/merge call counts, not only pure planner return values.
 
 ## 2. Independent execution and evidence
 
@@ -57,6 +76,10 @@ Keep pure transition rules in Twilight Burokrat and external effects behind moun
       `merge-group recomposition requires new evidence`; negatives F12 remove each check
       separately. Prove existing required checks still block merge and crash recovery reads
       actual PR disposition before another merge request.
+      Include wrong PR number, wrong subject kind, retargeting to a ref at the same base SHA,
+      changed qualified group identity and reordered/member-head-changed group composition.
+      Remove subject/target propagation independently at receipt, descriptor, admission and
+      merge boundaries; a matching commit alone must never authorize the substituted subject.
 - [ ] 4.2 Certify the actual merged SHA before downstream admission — test:
       `merged revision cannot borrow PR certificate`; negatives F13 replace the actual SHA
       with PR head, merge-group SHA, ancestor and equal-tree commit in turn. Keep the existing

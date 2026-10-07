@@ -72,15 +72,55 @@ alter the review protocol. Missing observations refuse certification.
 
 ### Request and durable state
 
-The canonical request binds repository identity, head SHA, base SHA, policy/mapping identities,
-toolkit digest and audit generation. An authenticated descriptor adds archive/manifest digests
-and issuer identity. Store immutable requests and stage receipts outside the candidate.
+The canonical request binds immutable repository ID, a typed subject, qualified target ref,
+head SHA, base SHA, policy/mapping identities, toolkit digest and audit generation. Distinct
+PRs can share all commit and trust fields: SHA equality cannot identify the workflow subject.
+The subject variants share the request's repository ID:
+
+| Kind               | Subject fields                                                                                                    | Logical key for supersession                  |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| PR                 | PR number                                                                                                         | Repository ID and PR number                   |
+| Merge group        | Verified qualified group identity/ref and ordered members, each binding its repository ID, PR number and head SHA | Repository ID and verified group identity/ref |
+| Protected revision | Qualified protected ref                                                                                           | Repository ID and protected ref               |
+
+The target ref is a canonical field, even when two target branches share a base SHA. PR
+retargeting supersedes the request within the same logical PR; it does not create a different
+PR or reuse another target's policy. The protected subject ref must match its target ref;
+merge-group target and ordered membership must match authoritative provider state. Preserve
+member order rather than sorting away composition. Refuse unavailable group identity or
+membership; do not manufacture it from event labels. Validate all subject fields at ingress.
+
+Include the full subject and target ref in canonical hashing and current-request comparison,
+and bind that request identity through authenticated receipts, descriptors, admission and
+merge effects. An authenticated descriptor also joins archive/manifest digests and issuer.
+Equivalent archive bytes cannot transfer a different subject's approval or effect ownership.
+Store immutable requests and stage receipts outside the candidate.
+
+Keep authenticated source type/identity, delivery ID, workflow-run ID where present, observation
+timestamp and payload digest in provenance records, outside canonical request identity.
+Webhook redelivery and timer polling converge when the authoritative request tuple matches.
+Deduplicate deliveries within their authenticated source namespace; an existing delivery ID
+with a different payload digest is a conflict. A delivery identifier is not itself evidence
+that the source is authentic. Neither timestamps nor arrival order establish current state.
 
 Stages are observed → checking/reviewing → verified → published → admitted → merge-requested →
 merged → merged-certified → host-ready. Failed and superseded are explicit dispositions.
 Checks and review may run concurrently; publication depends on both. Each mutation compares
 the stored stage/version and lease epoch. Effects have deterministic request-derived keys.
 An old worker cannot publish under a replacement worker's lease.
+
+Maintain the active request pointer per logical subject. Superseding PR A never supersedes
+PR B, a merge group or a protected-revision request sharing A's commits. Reconcile current
+authoritative state before applying delayed events, including close/reopen and retargeting.
+For an A → B → A tuple sequence, assign a new durable audit generation when A returns;
+retain the old request as superseded and reject its worker's stage, publication and merge
+effects. Retry attempts and delivery IDs do not themselves allocate a new audit generation.
+The durable store serializes active-pointer/generation allocation and lease ownership.
+
+An older persisted schema without subject/target binding cannot be accepted with defaults.
+Either reject it or use an explicit versioned migration that verifies the missing fields
+against authoritative state and creates newly fenced requests without inherited approval.
+Do not silently reinterpret existing request hashes under the amended schema.
 
 Candidate evaluations may run concurrently. Serialize actual merges per protected branch;
 head preconditions and protection enforce current base freshness. A merge queue, when enabled,
