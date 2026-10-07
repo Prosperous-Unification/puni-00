@@ -24,6 +24,9 @@ pre-commit:
       # Proof: restoring the legacy glob made the parsed production hook oracle receive
       # apps/be-01/drizzle/**/*.sql instead of the moved root (0 passed / 2 failed).
       glob: 'apps/wbs/{be-01,mcp-01}/drizzle/**/*.sql'
+    website-migration-lint:
+      run: bun run tools/tool-git-hooks/src/hooks/migration-lint.ts {staged_files}
+      glob: 'libs/website/adapters/store-sqlite/src/**'
 
     doc-caps:
       run: bun run tools/tool-git-hooks/src/hooks/doc-caps.ts

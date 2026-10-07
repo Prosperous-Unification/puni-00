@@ -1,0 +1,1424 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>PUNI — local funnel walkthrough</title>
+    <style>
+      :root {
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+        color: #211d32;
+        background: #f8f6f4;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      button,
+      textarea,
+      input {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:focus-visible,
+      textarea:focus-visible,
+      input:focus-visible,
+      a:focus-visible {
+        outline: 3px solid #8c69d7;
+        outline-offset: 3px;
+      }
+      a {
+        color: inherit;
+      }
+      .shell {
+        max-width: 1260px;
+        margin: auto;
+        padding: 0 30px;
+      }
+      .demo {
+        background: #241e39;
+        color: #fff;
+        font-size: 0.82rem;
+        letter-spacing: 0.01em;
+      }
+      .demo .shell {
+        display: flex;
+        gap: 16px;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 12px;
+        padding-bottom: 12px;
+      }
+      .demo strong {
+        color: #ffc5b9;
+      }
+      .demo button {
+        color: white;
+        background: transparent;
+        border: 1px solid #a9a2bd;
+        padding: 6px 12px;
+        border-radius: 999px;
+      }
+      header {
+        background: #f8f6f4;
+        border-bottom: 1px solid #e6e0e5;
+      }
+      .nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 20px;
+        padding-bottom: 20px;
+        gap: 20px;
+      }
+      .logo {
+        font-size: 1.45rem;
+        font-weight: 900;
+        letter-spacing: -0.08em;
+        text-decoration: none;
+      }
+      .logo span {
+        color: #df715d;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 25px;
+        font-size: 0.86rem;
+      }
+      .nav-links a {
+        text-decoration: none;
+      }
+      .tiny {
+        font-size: 0.76rem;
+        text-transform: uppercase;
+        letter-spacing: 0.13em;
+        font-weight: 750;
+      }
+      .button {
+        border: 0;
+        border-radius: 8px;
+        background: #262039;
+        color: white;
+        padding: 13px 18px;
+        font-weight: 720;
+        line-height: 1.2;
+      }
+      .button:hover {
+        background: #43365f;
+      }
+      .button.secondary {
+        color: #262039;
+        background: #eee9f6;
+      }
+      .button.secondary:hover {
+        background: #e3d9f2;
+      }
+      .button.ghost {
+        color: #332c45;
+        background: transparent;
+        border: 1px solid #c9c1d1;
+      }
+      .button.coral {
+        color: #2c2230;
+        background: #ffbdad;
+      }
+      .button.coral:hover {
+        background: #ffa994;
+      }
+      .button:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+      .hero {
+        position: relative;
+        overflow: hidden;
+        background: #f1ecf5;
+        min-height: 600px;
+      }
+      .hero::before {
+        content: '';
+        position: absolute;
+        width: 450px;
+        height: 450px;
+        border: 1px solid #d7cee5;
+        border-radius: 50%;
+        right: -75px;
+        top: -80px;
+        box-shadow:
+          0 0 0 80px #ffffff30,
+          0 0 0 160px #ffffff29;
+      }
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.18fr) minmax(300px, 0.82fr);
+        gap: 65px;
+        align-items: center;
+        padding-top: 84px;
+        padding-bottom: 86px;
+        position: relative;
+      }
+      .hero h1,
+      h2,
+      h3,
+      .serif {
+        font-family: Georgia, 'Times New Roman', serif;
+        font-weight: 400;
+      }
+      .hero h1 {
+        font-size: clamp(3.15rem, 6.1vw, 5.9rem);
+        line-height: 0.98;
+        letter-spacing: -0.055em;
+        margin: 15px 0 28px;
+        max-width: 850px;
+      }
+      .hero h1 em {
+        color: #7957b5;
+        font-weight: 400;
+      }
+      .lede {
+        font-size: 1.1rem;
+        line-height: 1.65;
+        max-width: 590px;
+        color: #554e63;
+      }
+      .prompt-card {
+        background: white;
+        padding: 22px;
+        border: 1px solid #ddd5e5;
+        border-radius: 14px;
+        box-shadow: 14px 16px 0 #dcd2e7;
+        max-width: 610px;
+        margin-top: 31px;
+      }
+      .prompt-card label {
+        display: block;
+        margin-bottom: 11px;
+      }
+      textarea,
+      input {
+        border: 1px solid #c9c0d0;
+        border-radius: 8px;
+        background: #fff;
+        color: #241e39;
+        width: 100%;
+      }
+      textarea {
+        resize: vertical;
+        min-height: 110px;
+        padding: 14px;
+        line-height: 1.5;
+      }
+      input {
+        padding: 11px 12px;
+      }
+      .prompt-foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 11px;
+        gap: 15px;
+      }
+      .hint {
+        color: #696275;
+        font-size: 0.83rem;
+        line-height: 1.5;
+      }
+      .hero-art {
+        min-height: 400px;
+        position: relative;
+      }
+      .orbit {
+        border: 1px solid #c8b8d8;
+        border-radius: 50%;
+        width: 320px;
+        height: 320px;
+        margin: 30px auto;
+        display: grid;
+        place-items: center;
+        transform: rotate(-12deg);
+      }
+      .orbit::before {
+        content: '';
+        width: 230px;
+        height: 230px;
+        background: #ddd0ed;
+        border-radius: 50%;
+        position: absolute;
+      }
+      .art-card {
+        position: absolute;
+        border: 1px solid #453b55;
+        box-shadow: 9px 9px 0 #c3b1d7;
+        background: #fff;
+        padding: 20px;
+        border-radius: 11px;
+        transform: rotate(12deg);
+        width: 260px;
+      }
+      .art-card p {
+        font-size: 0.86rem;
+        color: #6c6077;
+      }
+      .art-line {
+        height: 9px;
+        background: #e7def0;
+        border-radius: 4px;
+        margin: 11px 0;
+      }
+      .art-line.short {
+        width: 62%;
+        background: #ffbaa9;
+      }
+      .spark {
+        position: absolute;
+        background: #ffb8a7;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        right: 24px;
+        bottom: 44px;
+      }
+      .section {
+        padding-top: 80px;
+        padding-bottom: 80px;
+      }
+      .section h2 {
+        font-size: clamp(2.2rem, 4vw, 3.7rem);
+        line-height: 1.07;
+        letter-spacing: -0.04em;
+        margin: 12px 0 22px;
+      }
+      .section-lede {
+        max-width: 630px;
+        color: #645d70;
+        line-height: 1.7;
+      }
+      .offer-grid,
+      .blog-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+        margin-top: 34px;
+      }
+      .offer,
+      .post {
+        border: 1px solid #e0d9e3;
+        background: #fff;
+        border-radius: 11px;
+        padding: 25px;
+      }
+      .offer b {
+        color: #8863bd;
+      }
+      .offer h3,
+      .post h3 {
+        font-size: 1.45rem;
+        line-height: 1.2;
+        margin: 19px 0 10px;
+      }
+      .offer p,
+      .post p {
+        color: #665e70;
+        line-height: 1.6;
+        font-size: 0.92rem;
+      }
+      .blog {
+        background: #eee8f2;
+      }
+      .post {
+        min-height: 220px;
+      }
+      .post .tiny {
+        color: #8a5caa;
+      }
+      footer {
+        border-top: 1px solid #ded8df;
+        padding: 28px 0;
+        color: #675f70;
+        font-size: 0.83rem;
+      }
+      .workspace {
+        background: #f4f1f6;
+        min-height: 620px;
+        padding: 56px 0 82px;
+      }
+      .worktop {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        align-items: flex-start;
+        margin-bottom: 29px;
+      }
+      .worktop h1 {
+        font-family: Georgia, serif;
+        font-weight: 400;
+        font-size: clamp(2.4rem, 4vw, 3.7rem);
+        letter-spacing: -0.04em;
+        line-height: 1.08;
+        margin: 8px 0;
+      }
+      .worktop p {
+        color: #635b6e;
+        max-width: 650px;
+        line-height: 1.55;
+      }
+      .stage {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 20px;
+      }
+      .rail,
+      .panel {
+        background: white;
+        border: 1px solid #e0d9e5;
+        border-radius: 12px;
+      }
+      .rail {
+        padding: 22px;
+        align-self: start;
+      }
+      .rail ol {
+        padding-left: 19px;
+        margin: 20px 0 0;
+        color: #81798a;
+        line-height: 2.4;
+        font-size: 0.84rem;
+      }
+      .rail li.active {
+        color: #6443a1;
+        font-weight: 750;
+      }
+      .panel {
+        padding: clamp(23px, 4vw, 42px);
+        min-height: 420px;
+      }
+      .panel h2 {
+        font-size: clamp(1.9rem, 3vw, 2.7rem);
+        letter-spacing: -0.03em;
+        margin: 0 0 15px;
+      }
+      .panel p {
+        color: #615b6c;
+        line-height: 1.6;
+      }
+      .callout {
+        padding: 16px 18px;
+        border-left: 4px solid #ab8ad1;
+        background: #f5f0fa;
+        border-radius: 4px;
+        margin: 21px 0;
+        line-height: 1.55;
+        overflow-wrap: anywhere;
+      }
+      .callout.coral {
+        border-color: #ee927e;
+        background: #fff1ec;
+      }
+      .button-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 22px;
+        align-items: center;
+      }
+      .question {
+        padding: 17px 20px;
+        border-radius: 10px;
+        background: #f2ecf8;
+        margin: 18px 0;
+      }
+      .question .tiny {
+        color: #8158b6;
+      }
+      .question p {
+        color: #211d32;
+        margin-bottom: 0;
+        font-weight: 650;
+      }
+      .conversation {
+        border: 1px solid #e1dbe5;
+        border-radius: 10px;
+        padding: 16px;
+        max-height: 300px;
+        overflow: auto;
+        background: #fdfcff;
+      }
+      .message {
+        padding: 11px 14px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        max-width: 90%;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+      .message.user {
+        background: #f3e8e5;
+        margin-left: auto;
+      }
+      .message.guide {
+        background: #f0ebf6;
+      }
+      .message span {
+        display: block;
+        color: #755e7f;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.11em;
+        margin-bottom: 5px;
+      }
+      .count {
+        color: #675d70;
+        font-size: 0.85rem;
+      }
+      .brief-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .field label {
+        display: block;
+        font-weight: 700;
+        font-size: 0.86rem;
+        margin-bottom: 7px;
+      }
+      .field textarea {
+        min-height: 93px;
+      }
+      .wide {
+        grid-column: 1 / -1;
+      }
+      .concept {
+        border: 1px solid #d4c9e1;
+        border-radius: 11px;
+        overflow: hidden;
+        margin-top: 22px;
+      }
+      .concept-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        background: #392e51;
+        color: #fff;
+        padding: 14px 18px;
+        font-size: 0.83rem;
+      }
+      .concept-body {
+        display: grid;
+        grid-template-columns: 130px 1fr;
+        min-height: 205px;
+      }
+      .concept-menu {
+        background: #eee8f6;
+        padding: 20px 12px;
+        font-size: 0.78rem;
+        line-height: 2.5;
+      }
+      .concept-main {
+        padding: 20px;
+      }
+      .concept-main h3 {
+        font-size: 1.4rem;
+        margin: 0 0 12px;
+      }
+      .concept-task {
+        display: flex;
+        justify-content: space-between;
+        background: #faf8fc;
+        border: 1px solid #e8e1ee;
+        border-radius: 6px;
+        padding: 9px;
+        font-size: 0.78rem;
+        margin: 7px 0;
+      }
+      .concept-task span {
+        color: #8f67b8;
+      }
+      details.state {
+        margin-top: 26px;
+        background: #fff;
+        border: 1px solid #ddd5e4;
+        border-radius: 9px;
+      }
+      details.state summary {
+        cursor: pointer;
+        padding: 14px 18px;
+        font-weight: 700;
+      }
+      .state-lines {
+        padding: 0 18px 17px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 9px;
+        font-size: 0.82rem;
+      }
+      .state-lines div {
+        background: #f7f4f9;
+        padding: 9px;
+        border-radius: 5px;
+        overflow-wrap: anywhere;
+      }
+      .scenario {
+        background: #fff;
+        border-top: 1px solid #e5deea;
+        padding: 32px 0 40px;
+      }
+      .scenario-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .scenario-row button {
+        border: 1px solid #cfc3dd;
+        border-radius: 999px;
+        background: #fff;
+        padding: 9px 15px;
+        color: #493b60;
+      }
+      .scenario-row button[aria-selected='true'] {
+        background: #432f64;
+        color: white;
+      }
+      .scenario-steps {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 15px;
+        align-items: center;
+      }
+      .scenario-steps button {
+        border: 0;
+        border-radius: 7px;
+        padding: 9px 13px;
+        background: #f1eafb;
+        color: #4a3274;
+      }
+      .scenario-steps button:disabled {
+        background: #eee;
+        color: #888;
+      }
+      .status {
+        min-height: 22px;
+        color: #7a4d9b;
+        font-size: 0.84rem;
+        margin-top: 10px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      @media (max-width: 850px) {
+        .hero-grid {
+          grid-template-columns: 1fr;
+          padding-top: 60px;
+          gap: 15px;
+        }
+        .hero-art {
+          min-height: 240px;
+        }
+        .orbit {
+          width: 210px;
+          height: 210px;
+          margin: 0 auto;
+        }
+        .orbit::before {
+          width: 160px;
+          height: 160px;
+        }
+        .art-card {
+          width: 200px;
+          padding: 12px;
+        }
+        .offer-grid,
+        .blog-grid {
+          grid-template-columns: 1fr;
+        }
+        .stage {
+          grid-template-columns: 1fr;
+        }
+        .rail ol {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px 26px;
+          line-height: 1.5;
+        }
+        .brief-grid {
+          grid-template-columns: 1fr;
+        }
+        .state-lines {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      @media (max-width: 560px) {
+        .shell {
+          padding-left: 18px;
+          padding-right: 18px;
+        }
+        .nav-links a {
+          display: none;
+        }
+        .demo .shell {
+          align-items: flex-start;
+        }
+        .demo button {
+          white-space: nowrap;
+        }
+        .hero-grid {
+          padding-top: 45px;
+        }
+        .hero h1 {
+          font-size: 3.35rem;
+        }
+        .prompt-foot,
+        .worktop {
+          align-items: stretch;
+          flex-direction: column;
+        }
+        .hero-art {
+          display: none;
+        }
+        .section {
+          padding-top: 55px;
+          padding-bottom: 55px;
+        }
+        .rail {
+          display: none;
+        }
+        .state-lines {
+          grid-template-columns: 1fr;
+        }
+        .concept-body {
+          grid-template-columns: 92px 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="demo">
+      <div class="shell">
+        <div>
+          <strong>LOCAL WALKTHROUGH · THROWAWAY PROTOTYPE</strong> — Sign-in, AI chat, concept
+          preview and submission are simulated. Nothing is sent, saved or shared. Use a fictional
+          idea; never enter a real password or personal information.
+        </div>
+        <button id="reset-top" type="button">Reset demo</button>
+      </div>
+    </div>
+    <header>
+      <div class="shell nav">
+        <a class="logo" href="#home" aria-label="PUNI home">PU<span>N</span>I.</a>
+        <nav class="nav-links" aria-label="Main">
+          <a href="#approach">What we do</a><a href="#journal">Journal drafts</a
+          ><button class="button ghost" id="nav-contact" type="button">Request a proposal</button>
+        </nav>
+      </div>
+    </header>
+    <main>
+      <section class="hero" id="home">
+        <div class="shell hero-grid">
+          <div>
+            <div class="tiny">Prosperous Unification · software services</div>
+            <h1>What would you <em>build</em> if you had the right partner?</h1>
+            <form class="prompt-card" id="prompt-form">
+              <label class="tiny" for="initial-prompt">Start with an idea, however rough</label
+              ><textarea
+                id="initial-prompt"
+                maxlength="2000"
+                placeholder="For example: a simple place to track projects, decisions and next steps for our small team"
+                required
+              ></textarea>
+              <div class="prompt-foot">
+                <span class="hint" id="prompt-count"
+                  >0 / 2,000 characters · fictional example only</span
+                ><button class="button coral" type="submit">Continue with this idea ↗</button>
+              </div>
+              <div class="button-row">
+                <button class="button ghost" id="resume-signin" type="button" hidden>
+                  Resume simulated sign-in
+                </button>
+              </div>
+            </form>
+            <p class="lede">
+              Tell us what your team needs. We’ll shape the first useful version with you, then a
+              person can follow up with a proposal.
+            </p>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <div class="orbit">
+              <div class="art-card">
+                <span class="tiny">From idea to first version</span>
+                <p>What matters to your team?</p>
+                <div class="art-line"></div>
+                <div class="art-line short"></div>
+                <div class="art-line"></div>
+              </div>
+            </div>
+            <div class="spark"></div>
+          </div>
+        </div>
+      </section>
+      <section class="workspace" id="walkthrough" hidden>
+        <div class="shell">
+          <div class="worktop">
+            <div>
+              <div class="tiny">A guided local walkthrough</div>
+              <h1 id="work-title">Make room for the idea.</h1>
+              <p id="work-subtitle"></p>
+            </div>
+            <button class="button ghost" id="work-contact" type="button">
+              Request a proposal early ↗
+            </button>
+          </div>
+          <div class="stage">
+            <aside class="rail">
+              <div class="tiny">Your path</div>
+              <ol id="stage-list">
+                <li>Idea</li>
+                <li>Sign in</li>
+                <li>Scope together</li>
+                <li>Review brief</li>
+                <li>Proposal request</li>
+              </ol>
+            </aside>
+            <section class="panel" id="panel" aria-live="polite"></section>
+          </div>
+          <details class="state">
+            <summary>See current demo state</summary>
+            <div class="state-lines" id="state-lines"></div>
+          </details>
+        </div>
+      </section>
+      <section class="scenario" id="scenarios">
+        <div class="shell">
+          <div class="tiny">Explore the awkward moments</div>
+          <h2 class="serif">Try a path through the idea</h2>
+          <p class="section-lede">
+            Each scenario resets this local page to a known starting point. Its steps use the same
+            controls as the free-play walkthrough above.
+          </p>
+          <div class="scenario-row" role="tablist" aria-label="Guided scenarios">
+            <button type="button" role="tab" data-scenario="happy">From idea to request</button
+            ><button type="button" role="tab" data-scenario="cancel">Cancelled sign-in</button
+            ><button type="button" role="tab" data-scenario="limit">Twelve-turn limit</button
+            ><button type="button" role="tab" data-scenario="outage">AI unavailable</button
+            ><button type="button" role="tab" data-scenario="manual">Direct human request</button>
+          </div>
+          <p id="scenario-description" class="section-lede"></p>
+          <div class="scenario-steps" id="scenario-steps"></div>
+          <div class="status" id="scenario-status" role="status"></div>
+        </div>
+      </section>
+      <section class="section shell" id="approach">
+        <div class="tiny">What we do</div>
+        <h2>Small starts. Useful software.</h2>
+        <p class="section-lede">
+          We help teams turn a rough need into a clear first release. The conversation is about the
+          people who will use it, the work it should improve, and the choices worth making early.
+        </p>
+        <div class="offer-grid">
+          <article class="offer">
+            <b>01</b>
+            <h3>Find the real problem</h3>
+            <p>We ask about current work, frustrating handoffs and the result you hope to see.</p>
+          </article>
+          <article class="offer">
+            <b>02</b>
+            <h3>Shape the first version</h3>
+            <p>
+              We separate what is essential now from what can wait, with room for a simple concept.
+            </p>
+          </article>
+          <article class="offer">
+            <b>03</b>
+            <h3>Talk with a person</h3>
+            <p>
+              Review your brief and request a proposal when you are ready. A human decides what
+              comes next.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section class="section blog" id="journal">
+        <div class="shell">
+          <div class="tiny">Journal · draft topics</div>
+          <h2>Notes from building the factory.</h2>
+          <p class="section-lede">
+            Future writing about what worked, what broke, and what changed our minds. These are
+            sample drafts, not published case studies.
+          </p>
+          <div class="blog-grid">
+            <article class="post">
+              <span class="tiny">Draft outline · process</span>
+              <h3>How we decide what belongs in a first release</h3>
+              <p>Questions that help turn a sprawling request into a smaller, testable product.</p>
+            </article>
+            <article class="post">
+              <span class="tiny">Draft outline · lessons</span>
+              <h3>Where an automated check gave false confidence</h3>
+              <p>A candid outline for examining what a check really proved.</p>
+            </article>
+            <article class="post">
+              <span class="tiny">Draft outline · design</span>
+              <h3>Giving an early concept enough room to be wrong</h3>
+              <p>Why an editable brief matters before an interface becomes a promise.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <div class="shell">
+        PUNI · Prosperous Unification · local prototype, no services connected.
+      </div>
+    </footer>
+    <script>
+      const questions = [
+        'Who would use this first, and what do they do today?',
+        'What part of that work causes the most friction?',
+        'What would a useful first version help them do?',
+        'What needs to connect to another tool or system?',
+        'What information would people need to see or change?',
+        'Who needs permission to approve or edit the work?',
+        'Is there a deadline or event shaping the first version?',
+        'What can wait until a later version?',
+        'How would your team know the first version helped?',
+        'What constraints should we plan around?',
+        'Is there an important detail we missed?',
+      ];
+      const sampleIdea =
+        'A simple project space where our small team can see tasks, decisions, and what needs attention next.';
+      const scenarioCopy = {
+        happy: {
+          description:
+            'The shortest full path. Notice that the original idea stays with the account, and the proposal request is a separate action.',
+          steps: [
+            'Use sample idea',
+            'Simulate sign-in',
+            'Answer one question',
+            'Review brief',
+            'Show concept',
+            'Request proposal',
+          ],
+        },
+        cancel: {
+          description:
+            'A visitor backs out of sign-in. The draft is still present locally and can be resumed without retyping.',
+          steps: ['Use sample idea', 'Cancel sign-in', 'Resume sign-in', 'Simulate sign-in'],
+        },
+        limit: {
+          description:
+            'The twelfth user turn ends the scripted chat. The brief and proposal path remain available.',
+          steps: [
+            'Use sample idea',
+            'Simulate sign-in',
+            'Fill to turn 12',
+            'Review brief',
+            'Request proposal',
+          ],
+        },
+        outage: {
+          description:
+            'The demo AI becomes unavailable. The visitor can still edit a brief and ask for a human proposal.',
+          steps: [
+            'Use sample idea',
+            'Simulate sign-in',
+            'Simulate AI unavailable',
+            'Review brief',
+            'Request proposal',
+          ],
+        },
+        manual: {
+          description:
+            'A visitor skips AI entirely. They can fill an editable brief and simulate a proposal request without signing in.',
+          steps: ['Request proposal directly', 'Fill manual brief', 'Request proposal'],
+        },
+      };
+      const initialState = () => ({
+        phase: 'landing',
+        prompt: '',
+        signedIn: false,
+        turns: [],
+        brief: { goal: '', users: '', firstVersion: '', notes: '' },
+        contactEmail: '',
+        preview: false,
+        aiUnavailable: false,
+        limitReached: false,
+        message: '',
+        scenario: 'happy',
+        scenarioStep: -1,
+      });
+      let state = initialState();
+      const byId = (name) => document.getElementById(name);
+      function nextState(current, action) {
+        const updated = {
+          ...current,
+          brief: { ...current.brief },
+          turns: [...current.turns],
+          message: '',
+        };
+        if (action.type === 'RESET') return initialState();
+        if (action.type === 'START' && action.prompt.trim() && action.prompt.length <= 2000) {
+          updated.prompt = action.prompt.trim();
+          updated.phase = 'signin';
+          updated.message = 'Your idea is held in this page until you continue.';
+        } else if (action.type === 'CANCEL_SIGNIN' && current.phase === 'signin') {
+          updated.phase = 'landing';
+          updated.message = 'Sign-in cancelled. Your idea remains in this local page.';
+        } else if (
+          action.type === 'RESUME_SIGNIN' &&
+          current.phase === 'landing' &&
+          current.prompt
+        ) {
+          updated.phase = 'signin';
+          updated.message = 'Your original idea is still here.';
+        } else if (action.type === 'SIGNIN' && current.phase === 'signin') {
+          updated.signedIn = true;
+          updated.phase = 'chat';
+          updated.turns = [{ role: 'user', text: current.prompt }];
+          updated.brief.goal = current.prompt;
+          updated.message = 'Demo sign-in complete. Your original idea is now turn 1 of 12.';
+        } else if (
+          action.type === 'ANSWER' &&
+          current.phase === 'chat' &&
+          !current.aiUnavailable &&
+          current.turns.filter((turn) => turn.role === 'user').length < 12 &&
+          action.text.trim()
+        ) {
+          updated.turns.push({ role: 'user', text: action.text.trim() });
+          const count = updated.turns.filter((turn) => turn.role === 'user').length;
+          if (count === 12) {
+            updated.limitReached = true;
+            updated.message =
+              'The 12-turn demo limit is reached. Review or edit your brief, then request a proposal.';
+          } else updated.message = `Turn ${count} of 12 saved in this page.`;
+        } else if (action.type === 'OUTAGE' && current.signedIn) {
+          updated.aiUnavailable = true;
+          updated.message =
+            'The scripted AI step is unavailable in this scenario. Your brief is still editable.';
+        } else if (action.type === 'REVIEW' && current.signedIn) {
+          updated.phase = 'brief';
+          updated.message = 'Edit this summary before deciding whether to request a proposal.';
+        } else if (action.type === 'CHAT' && current.signedIn) {
+          updated.phase = 'chat';
+        } else if (
+          action.type === 'EDIT' &&
+          (current.signedIn || current.phase === 'manual') &&
+          Object.hasOwn(updated.brief, action.field)
+        ) {
+          updated.brief[action.field] = action.text;
+        } else if (action.type === 'CONTACT_EMAIL' && current.phase === 'manual') {
+          updated.contactEmail = action.text;
+        } else if (action.type === 'PREVIEW' && current.signedIn) {
+          updated.preview = true;
+          updated.phase = 'brief';
+          updated.message =
+            'This fixed task-board concept is illustrative; it was not generated from your idea.';
+        } else if (action.type === 'PROPOSAL' && (current.signedIn || current.phase === 'manual')) {
+          updated.phase = 'submitted';
+          updated.message = 'Demo confirmation only. No request was sent to PUNI.';
+        } else if (action.type === 'CONTACT' && !current.signedIn) {
+          updated.phase = 'manual';
+          updated.prompt = (action.prompt || current.prompt).trim();
+          updated.brief.goal ||= updated.prompt;
+          updated.message = 'The manual proposal path is available without sign-in or AI.';
+        } else if (action.type === 'CONTACT' && current.signedIn) {
+          updated.phase = 'brief';
+          updated.message =
+            'You can request a proposal now, without finishing chat or showing a concept.';
+        } else return current;
+        return updated;
+      }
+      function dispatch(action) {
+        state = nextState(state, action);
+        render();
+      }
+      function make(tag, className, content) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (content !== undefined) node.textContent = content;
+        return node;
+      }
+      function button(label, action, className = 'button') {
+        const control = make('button', className, label);
+        control.type = 'button';
+        control.addEventListener('click', action);
+        return control;
+      }
+      function appendActions(panel, actions) {
+        const row = make('div', 'button-row');
+        for (const [label, action, style] of actions)
+          row.append(button(label, action, style || 'button'));
+        panel.append(row);
+      }
+      function renderLanding() {
+        byId('home').hidden = state.phase !== 'landing';
+        byId('walkthrough').hidden = state.phase === 'landing';
+        byId('initial-prompt').value = state.prompt;
+        byId('resume-signin').hidden = !state.prompt;
+        byId('prompt-count').textContent =
+          `${byId('initial-prompt').value.length} / 2,000 characters · fictional example only`;
+      }
+      function renderSignIn(panel) {
+        panel.append(make('h2', '', 'Keep this idea close.'));
+        panel.append(
+          make(
+            'p',
+            '',
+            'In the intended product, you would sign in before any AI conversation. Here, the buttons only change local demo state. There is no account or password field.',
+          ),
+        );
+        panel.append(
+          make(
+            'div',
+            'callout',
+            `Your idea: ${state.prompt || 'No idea entered yet. You can still request human contact.'}`,
+          ),
+        );
+        appendActions(panel, [
+          ['Simulate sign-in', () => dispatch({ type: 'SIGNIN' }), 'button coral'],
+          ['Cancel sign-in', () => dispatch({ type: 'CANCEL_SIGNIN' }), 'button secondary'],
+        ]);
+      }
+      function renderChat(panel) {
+        panel.append(make('h2', '', 'Shape the first useful version.'));
+        panel.append(
+          make(
+            'p',
+            '',
+            'These are fixed demo questions. Your words are kept in this page; no model is responding.',
+          ),
+        );
+        const count = state.turns.filter((turn) => turn.role === 'user').length;
+        panel.append(
+          make('div', 'count', `${count} / 12 user turns used · ${12 - count} remaining`),
+        );
+        const thread = make('div', 'conversation');
+        state.turns.forEach((turn) => {
+          const bubble = make('div', `message ${turn.role}`, turn.text);
+          const label = make('span', '', turn.role === 'user' ? 'You' : 'Demo guide');
+          bubble.prepend(label);
+          thread.append(bubble);
+        });
+        panel.append(thread);
+        if (state.aiUnavailable || state.limitReached) {
+          panel.append(
+            make(
+              'div',
+              'callout coral',
+              state.aiUnavailable
+                ? 'The scripted AI step is unavailable. You can review the brief or request a proposal with a person.'
+                : 'The 12-turn demo limit is reached. You can review the brief or request a proposal with a person.',
+            ),
+          );
+        } else {
+          const question = make('div', 'question');
+          question.append(make('div', 'tiny', `Scripted demo question ${count} of 11`));
+          question.append(make('p', '', questions[Math.min(count - 1, questions.length - 1)]));
+          panel.append(question);
+          const form = make('form');
+          const label = make('label', 'tiny', 'Your answer');
+          label.htmlFor = 'answer';
+          const answer = make('textarea');
+          answer.id = 'answer';
+          answer.maxLength = 4000;
+          answer.placeholder = 'A short answer is enough for this demo';
+          answer.required = true;
+          form.append(label, answer);
+          form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            dispatch({ type: 'ANSWER', text: answer.value });
+          });
+          const send = make('button', 'button coral', 'Save answer');
+          send.type = 'submit';
+          const sendRow = make('div', 'button-row');
+          sendRow.append(send);
+          form.append(sendRow);
+          panel.append(form);
+        }
+        appendActions(panel, [
+          ['Review editable brief', () => dispatch({ type: 'REVIEW' }), 'button secondary'],
+          ['Request proposal now', () => dispatch({ type: 'CONTACT' }), 'button ghost'],
+        ]);
+      }
+      function renderBrief(panel) {
+        panel.append(make('h2', '', 'Your brief, in your words.'));
+        panel.append(
+          make(
+            'p',
+            '',
+            state.phase === 'manual'
+              ? 'Write a short brief for a person to review. This local path uses no sign-in or AI.'
+              : 'The first field carries your initial idea. Add or change anything here. This demo does not turn chat answers into an AI summary.',
+          ),
+        );
+        const fields = [
+          ['goal', 'What you want to build'],
+          ['users', 'Who will use it'],
+          ['firstVersion', 'First useful version'],
+          ['notes', 'Constraints and anything else'],
+        ];
+        const grid = make('div', 'brief-grid');
+        fields.forEach(([key, labelText], index) => {
+          const field = make('div', index === 0 || index === 3 ? 'field wide' : 'field');
+          const label = make('label', '', labelText);
+          label.htmlFor = `brief-${key}`;
+          const input = make('textarea');
+          input.id = `brief-${key}`;
+          input.maxLength = 4000;
+          input.value = state.brief[key];
+          input.addEventListener('input', () => {
+            state = nextState(state, { type: 'EDIT', field: key, text: input.value });
+            renderState();
+          });
+          field.append(label, input);
+          grid.append(field);
+        });
+        panel.append(grid);
+        if (state.phase === 'manual') {
+          const contact = make('div', 'field');
+          const label = make('label', '', 'Demo contact email · fictional only');
+          label.htmlFor = 'contact-email';
+          const email = make('input');
+          email.id = 'contact-email';
+          email.type = 'email';
+          email.placeholder = 'example@invalid';
+          email.value = state.contactEmail;
+          email.addEventListener('input', () => {
+            state = nextState(state, { type: 'CONTACT_EMAIL', text: email.value });
+            renderState();
+          });
+          contact.append(label, email);
+          panel.append(contact);
+          appendActions(panel, [
+            ['Simulate proposal request', () => dispatch({ type: 'PROPOSAL' }), 'button coral'],
+          ]);
+        } else
+          appendActions(panel, [
+            ['Request a proposal', () => dispatch({ type: 'PROPOSAL' }), 'button coral'],
+            ['Show optional concept', () => dispatch({ type: 'PREVIEW' }), 'button secondary'],
+            ['Back to conversation', () => dispatch({ type: 'CHAT' }), 'button ghost'],
+          ]);
+        if (state.preview) renderConcept(panel);
+      }
+      function renderConcept(panel) {
+        const note = make(
+          'div',
+          'callout',
+          'Concept preview only — this fixed task/project example is illustrative. It is not generated from your brief and does not represent built software.',
+        );
+        panel.append(note);
+        const concept = make('div', 'concept');
+        const head = make('div', 'concept-head');
+        head.append(
+          make('strong', '', 'Little project space ✦'),
+          make('span', '', 'Example concept'),
+        );
+        concept.append(head);
+        const body = make('div', 'concept-body');
+        const menu = make('div', 'concept-menu');
+        ['◈ Overview', '□ Tasks', '◇ Decisions'].forEach((label) =>
+          menu.append(make('div', '', label)),
+        );
+        const main = make('div', 'concept-main');
+        main.append(make('h3', '', 'This week'));
+        [
+          ['Plan first release', 'In progress'],
+          ['Review team notes', 'Next'],
+          ['Choose a pilot', 'Next'],
+        ].forEach(([task, status]) => {
+          const row = make('div', 'concept-task');
+          row.append(make('b', '', task), make('span', '', status));
+          main.append(row);
+        });
+        body.append(menu, main);
+        concept.append(body);
+        panel.append(concept);
+      }
+      function renderSubmitted(panel) {
+        panel.append(
+          make('div', 'tiny', 'Demo confirmation'),
+          make('h2', '', 'A clear next step.'),
+        );
+        panel.append(
+          make(
+            'div',
+            'callout coral',
+            'This proposal request was NOT sent. This page has no server, inbox or contact integration.',
+          ),
+        );
+        panel.append(
+          make(
+            'p',
+            '',
+            'In the intended product, a successful request would confirm receipt and explain how a person will follow up. Here, you can restart to test another route.',
+          ),
+        );
+        appendActions(panel, [
+          ['Reset walkthrough', () => dispatch({ type: 'RESET' }), 'button coral'],
+        ]);
+      }
+      function renderState() {
+        const statePanel = byId('state-lines');
+        statePanel.replaceChildren();
+        const lines = [
+          ['Stage', state.phase],
+          ['Demo signed in', state.signedIn ? 'Yes' : 'No'],
+          ['Original idea', state.prompt || 'Empty'],
+          ['User turns', `${state.turns.filter((turn) => turn.role === 'user').length} of 12`],
+          ['AI available', state.aiUnavailable ? 'No' : 'Scripted demo only'],
+          ['Turn limit', state.limitReached ? 'Reached' : 'Open'],
+          ['Brief goal', state.brief.goal || 'Empty'],
+          ['Brief users', state.brief.users || 'Empty'],
+          ['Brief first version', state.brief.firstVersion || 'Empty'],
+          ['Brief notes', state.brief.notes || 'Empty'],
+          ['Demo contact email', state.contactEmail || 'Empty'],
+          ['Concept shown', state.preview ? 'Yes' : 'No'],
+          ['Last change', state.message || 'None'],
+        ];
+        lines.forEach(([label, value]) => {
+          const line = make('div');
+          line.append(make('strong', '', `${label}: `), document.createTextNode(value));
+          statePanel.append(line);
+        });
+      }
+      function renderScenario() {
+        document
+          .querySelectorAll('[data-scenario]')
+          .forEach((tab) =>
+            tab.setAttribute('aria-selected', String(tab.dataset.scenario === state.scenario)),
+          );
+        const scenario = scenarioCopy[state.scenario];
+        byId('scenario-description').textContent = scenario.description;
+        const steps = byId('scenario-steps');
+        steps.replaceChildren();
+        scenario.steps.forEach((label, index) => {
+          const control = button(`${index + 1}. ${label}`, () => runScenarioStep(index), '');
+          control.disabled = index !== state.scenarioStep + 1;
+          steps.append(control);
+        });
+        byId('scenario-status').textContent =
+          state.scenarioStep < 0
+            ? 'Choose step 1 to begin.'
+            : state.scenarioStep === scenario.steps.length - 1
+              ? 'Scenario complete. You can keep exploring freely above.'
+              : `Step ${state.scenarioStep + 1} complete. Continue with the next button.`;
+      }
+      function render() {
+        renderLanding();
+        renderScenario();
+        renderState();
+        if (state.phase === 'landing') {
+          if (state.message) byId('scenario-status').textContent = state.message;
+          return;
+        }
+        const titles = {
+          signin: 'Your idea, still here.',
+          chat: "Let's give it shape.",
+          brief: 'A brief you can change.',
+          manual: 'Ask a person directly.',
+          submitted: 'A request, clearly confirmed.',
+        };
+        byId('work-title').textContent = titles[state.phase];
+        byId('work-subtitle').textContent =
+          state.message || 'Explore this local path at your own pace.';
+        byId('work-contact').hidden = state.phase === 'submitted';
+        document
+          .querySelectorAll('#stage-list li')
+          .forEach((step, index) =>
+            step.classList.toggle(
+              'active',
+              index === { signin: 1, chat: 2, brief: 3, manual: 3, submitted: 4 }[state.phase],
+            ),
+          );
+        const panel = byId('panel');
+        panel.replaceChildren();
+        if (state.phase === 'signin') renderSignIn(panel);
+        if (state.phase === 'chat') renderChat(panel);
+        if (state.phase === 'brief' || state.phase === 'manual') renderBrief(panel);
+        if (state.phase === 'submitted') renderSubmitted(panel);
+      }
+      function runScenarioStep(index) {
+        if (index !== state.scenarioStep + 1) return;
+        const scenario = state.scenario;
+        const steps = scenarioCopy[scenario].steps;
+        const label = steps[index];
+        if (label === 'Use sample idea') dispatch({ type: 'START', prompt: sampleIdea });
+        if (label === 'Simulate sign-in' || label === 'Resume sign-in')
+          dispatch(label === 'Resume sign-in' ? { type: 'RESUME_SIGNIN' } : { type: 'SIGNIN' });
+        if (label === 'Cancel sign-in') dispatch({ type: 'CANCEL_SIGNIN' });
+        if (label === 'Answer one question')
+          dispatch({
+            type: 'ANSWER',
+            text: 'Our team leads use it to see what needs attention each morning.',
+          });
+        if (label === 'Fill to turn 12')
+          for (
+            let turn = state.turns.filter((entry) => entry.role === 'user').length;
+            turn < 12;
+            turn++
+          )
+            dispatch({
+              type: 'ANSWER',
+              text: `Demo answer ${turn}: we want a small, clear first version.`,
+            });
+        if (label === 'Review brief') dispatch({ type: 'REVIEW' });
+        if (label === 'Show concept') dispatch({ type: 'PREVIEW' });
+        if (label === 'Request proposal') dispatch({ type: 'PROPOSAL' });
+        if (label === 'Simulate AI unavailable') dispatch({ type: 'OUTAGE' });
+        if (label === 'Request proposal directly')
+          dispatch({ type: 'CONTACT', prompt: sampleIdea });
+        if (label === 'Fill manual brief')
+          dispatch({
+            type: 'EDIT',
+            field: 'firstVersion',
+            text: 'A small shared view of tasks and decisions.',
+          });
+        state = { ...state, scenarioStep: index };
+        render();
+        byId('walkthrough').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      byId('prompt-form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const prompt = byId('initial-prompt').value;
+        dispatch({ type: 'START', prompt });
+        byId('walkthrough').scrollIntoView({ behavior: 'smooth' });
+      });
+      byId('initial-prompt').addEventListener('input', () => {
+        byId('prompt-count').textContent =
+          `${byId('initial-prompt').value.length} / 2,000 characters · fictional example only`;
+      });
+      byId('resume-signin').addEventListener('click', () => {
+        dispatch({ type: 'RESUME_SIGNIN' });
+        byId('walkthrough').scrollIntoView({ behavior: 'smooth' });
+      });
+      document.querySelectorAll('[data-scenario]').forEach((tab) =>
+        tab.addEventListener('click', () => {
+          state = { ...initialState(), scenario: tab.dataset.scenario };
+          render();
+          byId('scenarios').scrollIntoView({ behavior: 'smooth' });
+        }),
+      );
+      byId('nav-contact').addEventListener('click', () => {
+        dispatch({ type: 'CONTACT', prompt: byId('initial-prompt').value });
+        byId('walkthrough').scrollIntoView({ behavior: 'smooth' });
+      });
+      byId('work-contact').addEventListener('click', () => dispatch({ type: 'CONTACT' }));
+      byId('reset-top').addEventListener('click', () => {
+        dispatch({ type: 'RESET' });
+        byId('home').scrollIntoView({ behavior: 'smooth' });
+      });
+      render();
+    </script>
+  </body>
+</html>

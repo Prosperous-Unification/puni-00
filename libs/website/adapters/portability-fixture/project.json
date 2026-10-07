@@ -1,0 +1,36 @@
+{
+  "name": "website-portability-fixture",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/website/adapters/portability-fixture",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:fixture", "runtime:isomorphic", "ring:adapter", "product:website"],
+  "metadata": {
+    "portability": {
+      "visibility": "public",
+      "dependencies": ["libs/shared/domain/portability-format"],
+      "aliases": []
+    }
+  },
+  "targets": {
+    "test": {
+      "command": "bun test libs/website/adapters/portability-fixture --timeout=30000"
+    },
+    "lint": {
+      "command": "bunx eslint --config tools/workspace/eslint.portable.mjs libs/website/adapters/portability-fixture && bunx prettier --config tools/workspace/prettier.portable.json --check libs/website/adapters/portability-fixture",
+      "inputs": [
+        "default",
+        "{workspaceRoot}/tools/workspace/eslint.portable.mjs",
+        "{workspaceRoot}/tools/workspace/prettier.portable.json"
+      ]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/website/adapters/portability-fixture/tsconfig.json"
+      }
+    },
+    "build": {
+      "command": "bun build libs/website/adapters/portability-fixture/index.ts --target=bun --outdir=dist/libs/website/adapters/portability-fixture"
+    }
+  }
+}
