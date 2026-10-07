@@ -64,6 +64,26 @@ Prettier passed; `git diff --check` exited 0. Read-only word/link/structure insp
 301 intent words, four resolving local links, 10 requirements and 31 scenarios. No runtime
 test, mutation, provider invocation, activation or external setting was exercised.
 
+## Durable lifecycle correction
+
+The exclusive checking/reviewing stage model did not express concurrent obligations or the
+proof required for later stages. This amendment uses one evaluating phase, immutable attempts,
+complete authenticated evidence joins and guarded transitions; durable reservations and
+acknowledgements model external effects without claiming exactly-once execution.
+
+Source inspection of the in-progress 1.2 owner also identified generation reset after closing
+an active request and conflation of bootstrap authority generation with durable request audit
+generation. The contract now requires independent subject high-water/tombstone state and
+subject-version-fenced authoritative reads. PR, merge-group and protected-revision routes are
+distinct; controller-driven branch advancement waits through actual merge-SHA certification.
+These observations are design findings, not observed runtime negatives or completed fixes.
+
+Fresh lifecycle-amendment checks on 2026-10-07 used the recorded commands: strict OpenSpec
+1/1 with zero issues; all-item OpenSpec 143/143 (125 changes, 18 specs); explicit-path Prettier
+passed; `git diff --check` exited 0. Read-only inspection confirmed 301 intent words, four
+resolving local links, 13 requirements, 43 scenarios and 17 uniquely numbered ordered tasks.
+The mounted tests below remain NOT RUN.
+
 ## Task completion and delta sync
 
 All tasks remain unchecked and block archive. The new `automatic-trusted-activation`
@@ -96,6 +116,23 @@ adjust the witness until the intended assertion observes the removed protection.
 | F14 | Host and retention                | Accept missing/unreadable/corrupt host bytes or delete referenced evidence early                                                                                 | host consumes CI archive; live admission prevents early deletion                                                                                                                                                                           | NOT RUN         |
 | F15 | Bootstrap transition              | Admit partial variable tuple or incompatible workflow/trust transition                                                                                           | bootstrap transition never admits partial variables                                                                                                                                                                                        | NOT RUN         |
 | F16 | Completion evidence               | Accept simulated provider, missing merged/host proof or stale WBS revision                                                                                       | closure requires complete current evidence                                                                                                                                                                                                 | NOT RUN         |
+
+### Lifecycle-specific trials within F3–F14
+
+Each subrow is an independently watched production-path trial, not a substitute for the family
+rows above. No runtime or external-effect proof was executed for this documentation amendment.
+
+| Family  | Planned fault                                                                                                                        | Planned observing test                                                                                                                                         | Observed result |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| F3      | Use bootstrap authority generation as current subject audit generation; omit independent authority pin validation                    | current request separates authority and audit generation                                                                                                       | NOT RUN         |
+| F4/F5   | Omit check or audit obligation; accept foreign receipt; replace failed attempt; split receipt/join transaction                       | checks and audit complete in either order; incomplete receipt set cannot verify; attempt evidence cannot be replaced                                           | NOT RUN         |
+| F8/F10  | Dispatch without reservation; accept another payload/target acknowledgement; split acknowledgement/stage commit                      | unreserved effect cannot dispatch; foreign acknowledgement cannot advance stage; lost publish response resumes exact bytes                                     | NOT RUN         |
+| F9      | Treat posted controller status as sufficient required-workflow success                                                               | required workflow rejects unbound green status                                                                                                                 | NOT RUN         |
+| F10     | Reset high-water on close; accept an old asynchronous source response; use a stale global dispatch version for parallel completion   | close and reopen retain generation history; older source response refetches after subject advancement; checks and audit complete in either order               | NOT RUN         |
+| F11     | Omit new-dispatch fence at publisher or permit obsolete acknowledgement to grant current authority                                   | in-flight completion after takeover cannot grant admission                                                                                                     | NOT RUN         |
+| F12     | Route a merge group into ordinary PR merge; resend merge blindly after response loss                                                 | merge group admission never invokes ordinary PR merge; merge acknowledgement and revision request commit together                                              | NOT RUN         |
+| F10/F13 | Split actual merge acknowledgement from child request creation; substitute linked SHA; recursively merge child; release branch early | merge acknowledgement and revision request commit together; protected revision never recursively merges; branch waits for actual merged revision certification | NOT RUN         |
+| F14     | Mark host-ready without exact child archive/revision acknowledgement                                                                 | host-ready requires exact acknowledgement                                                                                                                      | NOT RUN         |
 
 ## Installed acceptance and authority prerequisites
 

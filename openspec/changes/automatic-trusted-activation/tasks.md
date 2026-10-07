@@ -33,6 +33,14 @@ Keep pure transition rules in Twilight Burokrat and external effects behind moun
       logical-subject scoping, authoritative current-state reconciliation and durable generation
       advancement for A → B → A; F11 removes the obsolete worker's effect fence. Assert durable
       records and publication/merge call counts, not only pure planner return values.
+      Persist per-subject high-water generation and closed-subject tombstones independently
+      of the active pointer. Tests: `close and reopen retain generation history`,
+      `current request separates authority and audit generation`, and
+      `older source response refetches after subject advancement`. F3/F10 omit each independent
+      authority/generation comparison, reset history on close, or accept an unfenced external
+      read. Mount overlapping provider reads with two durable store owners; do not hold a SQLite
+      transaction across the provider await. Define guarded transition and obligation/effect
+      storage contracts here; unimplemented later-stage proof paths must refuse advancement.
 
 ## 2. Independent execution and evidence
 
@@ -53,21 +61,41 @@ Keep pure transition rules in Twilight Burokrat and external effects behind moun
       runtime closure and extraction/descriptor containment guard. Retain existing archive
       and toolkit-release checks; do not execute candidate-owned preparer code with authority.
 
+- [ ] 2.4 Join independent check/audit obligation completion inside one evaluating phase —
+      tests: `checks and audit complete in either order`,
+      `incomplete receipt set cannot verify`, and `attempt evidence cannot be replaced`.
+      F4/F5 omit one required obligation, accept a wrong-request/kind receipt, replace a failed
+      attempt or trust a generic stage command without proof. Exercise simultaneous completions
+      with independent attempt versions; an unrelated completion's request-version increment
+      cannot discard a valid receipt. Receipt recording, evidence-set identity and transition
+      must commit together; retain immutable earlier attempts and prove rollback.
+
 ## 3. Immutable publication and required admission
 
 - [ ] 3.1 Publish authenticated candidate-addressed descriptors and archives — tests:
       `concurrent candidates resolve independently`, `lost publish response resumes exact bytes`;
       negatives F3/F7/F8 remove request/issuer/digest checks and immutable conflict refusal.
       Kill the publisher after the external write and before its durable acknowledgement.
+      Persist exact effect reservations before dispatch; tests:
+      `unreserved effect cannot dispatch` and `foreign acknowledgement cannot advance stage`.
+      F8/F10 remove reservation/payload/target checks or split acknowledgement from the local
+      transition. Verify immutable remote state before recovery; no exactly-once claim follows
+      from SQLite CAS alone.
 - [ ] 3.2 Wire the production trusted-wiki workflow and host resolver to the trusted selection
       source — test: `required workflow rejects unbound green status`; negatives F7/F9 replace
       the authentic descriptor with a candidate-provided URL, forged App status or changed
       workflow admission output. Preserve the organization-required workflow and verify its
       actual configured identity; a YAML snapshot assertion alone is insufficient.
+      F9 independently permits published → admitted from a posted controller status without
+      the required workflow's observed exact-request success and watches durable admission fail.
 - [ ] 3.3 Implement bounded retry and crash reconciliation across publication and admission —
       tests: `retry exhaustion stays failed`, `unreadable state never becomes absent`;
       negatives F1/F10/F11 remove attempt/time bounds, swallow read failure and allow stale
       worker advancement. Required diagnostics and immutable evidence survive recovery.
+      Test: `in-flight completion after takeover cannot grant admission`; F11 bypasses the
+      publisher's new-dispatch authority fence separately from the local acknowledgement fence.
+      Preserve observed facts for an operation already sent while authorized; do not claim
+      lease expiry revokes that remote operation or discard its effects as if they never happened.
 
 ## 4. Merge, merged revision and host
 
@@ -80,15 +108,26 @@ Keep pure transition rules in Twilight Burokrat and external effects behind moun
       changed qualified group identity and reordered/member-head-changed group composition.
       Remove subject/target propagation independently at receipt, descriptor, admission and
       merge boundaries; a matching commit alone must never authorize the substituted subject.
+      Test: `merge group admission never invokes ordinary PR merge`; F12 routes a group into
+      the ordinary merge adapter and observes the forbidden call. Reserve merge effects before
+      dispatch and reconcile actual disposition after a lost response.
 - [ ] 4.2 Certify the actual merged SHA before downstream admission — test:
       `merged revision cannot borrow PR certificate`; negatives F13 replace the actual SHA
       with PR head, merge-group SHA, ancestor and equal-tree commit in turn. Keep the existing
       `emitIntegrationBinding` sole-parent refusal; ordinary GitHub merge certification must
       not weaken that separate contract.
+      Tests: `merge acknowledgement and revision request commit together`,
+      `protected revision never recursively merges`, and
+      `branch waits for actual merged revision certification`. F10/F13 split acknowledgement
+      from child creation, substitute the linked revision, permit a recursive merge or release
+      branch coordination before certification. Exercise crash/reopen, duplicate acknowledgement,
+      rollback and external branch advancement; incomplete/superseded work is not completion.
 - [ ] 4.3 Install the same authenticated archive atomically on the host and retain referenced
       evidence — tests: `host consumes CI archive`, `live admission prevents early deletion`;
       negatives F14 remove archive/revision joins and retention-root checks. Missing, unreadable,
       partial and corrupt host installations refuse use and recover from the trusted store.
+      Test: `host-ready requires exact acknowledgement`; F14 advances host-ready without the
+      linked protected revision's authenticated archive/revision acknowledgement.
 
 ## 5. Bootstrap and operational closure
 
