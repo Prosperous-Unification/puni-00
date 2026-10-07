@@ -1156,3 +1156,47 @@ established the target result. Pinned OpenSpec strict passed 1/1 and all passed
 Prettier formatted source/test/ledger and `git diff --check` exited 0. Normal-hook
 result belongs to the local commit. Task 2.2 remains open: no check reservation, worker, bwrap execution,
 measured receipt, external verifier, host gate, CI or activation is claimed.
+
+### Manifest boundary correction after `f8d8a900` review (2026-10-07)
+
+Independent exact-`f8d8a900` review ran the four-file suite 240/240,
+1,046 assertions and reproduced three functional defects: opening a real FIFO
+with blocking `O_RDONLY` timed out before `fstat` could reject it; the writer
+accepted an over-1 MiB canonical manifest that the reader refused; and the
+relative cwd schema admitted NUL in main and skip-probe cwd. Probes are
+`/tmp/activation-f8d8a9-astra-{registry-probe,manifest-boundary}.log`.
+Mounted old-byte tests for NUL cwd and oversized writer failed 0/2
+(`/tmp/activation-22-p2-initial-red.log`); the corrected tests passed 2/2,
+24 assertions. Real FIFO, root-symlink and oversized-reader fixtures pass
+promptly on the corrected reader. The registry now opens entries nonblocking
+and no-follow before requiring a regular file, and writer/reader share the
+same UTF-8 byte cap. A redundant root-is-symlink disjunct was removed because
+`lstat(...).isDirectory()` already excludes symlinks.
+
+Ten more independent watched omissions produced RED and restored GREEN in
+`/tmp/activation-22-p2-<fault>-{red,green}.log`:
+
+| Fault                                           | Observed RED and limit                                                                                                                      |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cwd_nul`, `skip_cwd_nul`                       | Main and skip-probe cwd NUL each returned a descriptor when the shared NUL predicate was omitted.                                           |
+| `timeout_upper`, `output_lower`, `output_upper` | The mounted manifest returned a descriptor with 600001 ms, zero output bytes, or 10485761 output bytes when its isolated bound was removed. |
+| `writer_size`, `reader_size`                    | Writer returned an identity and created an oversized entry; reader returned a descriptor for an oversized canonical entry.                  |
+| `root_directory`                                | A symlinked registry root supplied a descriptor when the directory check was omitted.                                                       |
+| `regular_file`                                  | Omission changed the real FIFO's named unreadable refusal to malformed; this is diagnostic specificity only, with no granted authority.     |
+| `fifo_nonblock`                                 | Omission hung the real FIFO fixture until the bounded subprocess timeout exited 124. Restored test refused promptly.                        |
+
+Each restored test passed 1/1. The FIFO old-byte timeout is a bounded
+negative, not a claim that a hanging test's exit code proves a successful
+assertion. All 33 accepted faults (the original 23 plus these 10) were
+restored; the regular-file fault proves diagnostic specificity only. On the
+corrected source/test bytes, the four-file Bun command passed 244/244 tests,
+1,067 assertions, exit 0 (`/tmp/activation-22-p2-final-four2.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck` and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-22-p2-final-{lint2,type,build}.log`). An earlier lint run
+failed on test import ordering; the import was sorted before these final
+checks. Pinned OpenSpec strict passed 1/1 and all passed 143/143, zero
+failures (`/tmp/activation-22-p2-final-{strict2,all2}.json`). Changed-path
+Prettier and diff checks passed. Normal-hook result belongs to the local
+correction commit.
+No worker launch, live provider, host gate, CI or trusted activation is claimed.

@@ -1,4 +1,13 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -6350,10 +6359,15 @@ test('selected check preparation rejects unsafe paths, environment and legacy ma
   const cases = [
     { ...baseline.manifest, schemaVersion: 0 },
     { ...baseline.manifest, cwd: '../journal' },
+    { ...baseline.manifest, cwd: 'workspace\0journal' },
     { ...baseline.manifest, argv: [] },
     { ...baseline.manifest, env: { PUBLISHER_TOKEN: 'sentinel' } },
     { ...baseline.manifest, skipProbe: { argv: ['bun', 'test'], cwd: '/journal', env: {} } },
+    { ...baseline.manifest, skipProbe: { argv: ['bun', 'test'], cwd: 'probe\0journal', env: {} } },
     { ...baseline.manifest, timeoutMilliseconds: 0 },
+    { ...baseline.manifest, timeoutMilliseconds: 600_001 },
+    { ...baseline.manifest, maxOutputBytes: 0 },
+    { ...baseline.manifest, maxOutputBytes: 10_485_761 },
   ];
   for (const manifest of cases) {
     const bytes = serializeCanonical(manifest);
@@ -6366,6 +6380,25 @@ test('selected check preparation rejects unsafe paths, environment and legacy ma
     } finally {
       selected.controller.close();
     }
+  }
+});
+
+test('selected check preparation refuses a NUL skip-probe cwd independently', async () => {
+  const baseline = selectedCheckFixture();
+  baseline.controller.close();
+  const manifest = {
+    ...baseline.manifest,
+    skipProbe: { argv: ['bun', 'test'], cwd: 'probe\0journal', env: {} },
+  };
+  const bytes = serializeCanonical(manifest);
+  const selected = selectedCheckFixture(() => Promise.resolve(bytes), manifest);
+  try {
+    await rejectsWith(
+      selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
+      'check invocation manifest malformed',
+    );
+  } finally {
+    selected.controller.close();
   }
 });
 
@@ -6469,6 +6502,81 @@ test('selected check registry distinguishes absent, unreadable and symlinked ent
       selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
       'check invocation manifest unreadable',
     );
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check registry refuses oversized writer bytes before creating an entry', () => {
+  const selected = selectedCheckFixture();
+  const registry = join(selected.source.databasePath, '..', 'oversized-check-registry');
+  mkdirSync(registry);
+  try {
+    const oversized = { ...selected.manifest, argv: ['a'.repeat(1_048_577)] };
+    const identity = hashBytes(serializeCanonical(oversized));
+    expect(() => storeCheckInvocationManifest(registry, oversized)).toThrow(
+      'check invocation manifest too large',
+    );
+    expect(existsSync(join(registry, `${identity}.json`))).toBe(false);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check registry refuses a FIFO promptly before reading it', async () => {
+  let registry = '';
+  const selected = selectedCheckFixture((identity) =>
+    Promise.resolve(readCheckInvocationManifest(registry, identity)),
+  );
+  registry = join(selected.source.databasePath, '..', 'fifo-check-registry');
+  mkdirSync(registry);
+  try {
+    const fifo = join(registry, `${selected.identity}.json`);
+    const created = spawnSync('mkfifo', [fifo], { encoding: 'utf8' });
+    expect(created.status).toBe(0);
+    await rejectsWith(
+      selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
+      'check invocation manifest unreadable',
+    );
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check registry refuses a symlinked root and oversized reader entry', async () => {
+  let registry = '';
+  const selected = selectedCheckFixture((identity) =>
+    Promise.resolve(readCheckInvocationManifest(registry, identity)),
+  );
+  const parent = join(selected.source.databasePath, '..');
+  const actual = join(parent, 'real-check-registry');
+  registry = join(parent, 'linked-check-registry');
+  mkdirSync(actual);
+  try {
+    storeCheckInvocationManifest(actual, selected.manifest);
+    symlinkSync(actual, registry);
+    await rejectsWith(
+      selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
+      'check invocation registry unreadable',
+    );
+    registry = actual;
+    const oversized = { ...selected.manifest, argv: ['a'.repeat(1_048_577)] };
+    const bytes = serializeCanonical(oversized);
+    const identity = hashBytes(bytes);
+    writeFileSync(join(actual, `${identity}.json`), bytes);
+    const largeSelected = selectedCheckFixture(
+      (frozen) => Promise.resolve(readCheckInvocationManifest(actual, frozen)),
+      oversized,
+      identity,
+    );
+    try {
+      await rejectsWith(
+        largeSelected.controller.prepareSelectedCheck(largeSelected.lease, 'a'.repeat(64)),
+        'check invocation manifest unreadable',
+      );
+    } finally {
+      largeSelected.controller.close();
+    }
   } finally {
     selected.controller.close();
   }

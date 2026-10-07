@@ -27,11 +27,14 @@ const Environment = type({ '[string]': 'string' }).narrow((env) =>
     ([name, value]) => ['CI', 'LANG', 'LC_ALL', 'TZ'].includes(name) && !value.includes('\0'),
   ),
 );
+// Proof: omitting the NUL check accepted canonical main and skip-probe cwd
+// manifests in separate mounted preparation tests.
 const RelativeDirectory = type('string').narrow(
   (path) =>
     path === '.' ||
     (path.length > 0 &&
       !path.startsWith('/') &&
+      !path.includes('\0') &&
       !path.includes('\\') &&
       path
         .split('/')
@@ -54,7 +57,9 @@ const CheckInvocationManifest = type({
     .or('null'),
   toolchainIdentity: Sha256,
   sandboxProfileIdentity: Sha256,
+  // Proof: omitting the upper bound returned a descriptor with a 600001 ms limit.
   timeoutMilliseconds: type('number.integer>=1').narrow((milliseconds) => milliseconds <= 600_000),
+  // Proof: independent lower and upper omissions accepted 0 and 10485761 byte caps.
   maxOutputBytes: type('number.integer>=1').narrow((bytes) => bytes <= 10_485_760),
 }).onUndeclaredKey('reject');
 
@@ -98,7 +103,8 @@ function manifestPath(registry: string, identity: string): string {
     }
     throw new CheckManifestRefusal('check invocation registry unreadable', { cause });
   }
-  if (!root.isDirectory() || root.isSymbolicLink()) {
+  // Proof: omitting the directory check accepted a symlinked registry root.
+  if (!root.isDirectory()) {
     throw new CheckManifestRefusal('check invocation registry unreadable');
   }
   return join(registry, `${identity}.json`);
@@ -109,8 +115,9 @@ export function readCheckInvocationManifest(registry: string, identity: string):
   const path = manifestPath(registry, identity);
   let descriptor: number;
   try {
-    // Proof: omitting O_NOFOLLOW accepted a symlink to bytes outside the trusted registry.
-    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    // Proof: omitting O_NOFOLLOW accepted an entry symlink outside the registry;
+    // omitting O_NONBLOCK made the mounted FIFO refusal time out before fstat.
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   } catch (cause) {
     if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') {
       throw new CheckManifestRefusal('check invocation manifest absent', { cause });
@@ -119,6 +126,9 @@ export function readCheckInvocationManifest(registry: string, identity: string):
   }
   try {
     const entry = fstatSync(descriptor);
+    // Proof: omitting the file-type check changed the FIFO's named unreadable
+    // refusal to malformed (diagnostic only); omitting the byte cap accepted
+    // an oversized canonical entry as a prepared descriptor.
     if (!entry.isFile() || entry.size > 1_048_576) {
       throw new CheckManifestRefusal('check invocation manifest unreadable');
     }
@@ -132,6 +142,11 @@ export function readCheckInvocationManifest(registry: string, identity: string):
 export function storeCheckInvocationManifest(registry: string, candidate: unknown): string {
   const manifest = parseOrThrow(CheckInvocationManifest, candidate);
   const bytes = serializeCanonical(manifest);
+  // Proof: omitting this bound returned an identity and created a >1 MiB entry
+  // that the reader then refused; the mounted writer test requires no entry.
+  if (Buffer.byteLength(bytes, 'utf8') > 1_048_576) {
+    throw new CheckManifestRefusal('check invocation manifest too large');
+  }
   const identity = hashBytes(bytes);
   const path = manifestPath(registry, identity);
   try {
