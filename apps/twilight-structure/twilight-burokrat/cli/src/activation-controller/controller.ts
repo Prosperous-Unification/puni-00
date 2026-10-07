@@ -630,8 +630,8 @@ export interface ObservationFence {
 
 function requireObservationFence(fence?: ObservationFence): void {
   if (fence === undefined) return;
-  // Proof: omitting finite subject-budget validation let a NaN budget pass
-  // discovery and current reads instead of refusing before either call.
+  // Proof: omitting finite subject-budget validation called discovery once
+  // before a later SQLite LIMIT mismatch instead of refusing before any read.
   if (
     fence.maxSubjects !== undefined &&
     (!Number.isSafeInteger(fence.maxSubjects) ||

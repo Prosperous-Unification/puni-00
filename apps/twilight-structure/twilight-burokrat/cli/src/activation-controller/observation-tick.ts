@@ -87,6 +87,8 @@ export async function runObservationTick(
           const requests = await controller.reconcileReady({
             signal: aborter.signal,
             deadline,
+            // Proof: omitting this protected cap made the mounted one-subject
+            // tick reconcile two PRs and report complete instead of refusing.
             maxSubjects: config.state.policy.maxSubjects,
           });
           outcome = isCancelled()

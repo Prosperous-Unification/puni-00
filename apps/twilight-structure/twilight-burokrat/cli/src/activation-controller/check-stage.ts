@@ -378,6 +378,8 @@ function stageTree(
   const cleanupFailures: Error[] = [];
   // The staging module exclusively owns these descriptors. A diagnostic can
   // release one only through its one-shot control, which marks it before close.
+  // Proof: omitting only the last two ancestor-directory closes left an owned
+  // `/` descriptor open in the mounted complete-stage lifecycle assertion.
   for (const owned of descriptors.reverse()) {
     if (owned.released) continue;
     try {

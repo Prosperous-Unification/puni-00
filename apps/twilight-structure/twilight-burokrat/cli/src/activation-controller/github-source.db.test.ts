@@ -701,16 +701,18 @@ test('malformed subject cap refuses before discovery or current reads', async ()
     },
   });
   try {
-    await expectRefusal(
-      () =>
-        controller.reconcileReady({
-          signal: new AbortController().signal,
-          deadline: performance.now() + 1000,
-          maxSubjects: Number.NaN,
-        }),
-      'subject budget malformed',
-    );
+    let refusal: unknown;
+    try {
+      await controller.reconcileReady({
+        signal: new AbortController().signal,
+        deadline: performance.now() + 1000,
+        maxSubjects: Number.NaN,
+      });
+    } catch (cause) {
+      refusal = cause;
+    }
     expect(reads).toBe(0);
+    expect(String(refusal)).toContain('subject budget malformed');
     expect(controller.listRequests()).toEqual([]);
   } finally {
     controller.close();

@@ -166,6 +166,39 @@ test('one complete tick records the selected PR without downstream work', async 
   expect(Object.values(observationRows(source.databasePath))).toEqual([0, 0, 0, 0, 0, 0]);
 });
 
+test('composed tick binds protected subject cap before any current read', async () => {
+  const source = fixture();
+  const state = { ...source.state, policy: { ...source.state.policy, maxSubjects: 1 } };
+  expect(await initializeObservationState(state)).toBe('initialized');
+  let currentReads = 0;
+  let refusal: unknown;
+  try {
+    await runObservationTick({
+      state,
+      signal: new AbortController().signal,
+      cleanupMs: 500,
+      reader: {
+        listOpenPullRequests: () =>
+          Promise.resolve({
+            pulls: [source.pull, { ...source.pull, number: 283 }],
+            nextPage: null,
+          }),
+        getPullRequest: (_owner, _name, number) => {
+          currentReads += 1;
+          return Promise.resolve(
+            number === source.pull.number ? source.pull : { ...source.pull, number },
+          );
+        },
+      },
+    });
+  } catch (cause) {
+    refusal = cause;
+  }
+  expect(String(refusal)).toContain('observation tick failed');
+  expect(currentReads).toBe(0);
+  expect(requestCount(source.databasePath)).toBe(0);
+});
+
 test('CLI status mapping never reports busy, cancellation or failure as success', async () => {
   expect(observationExitCode({ kind: 'complete', requestCount: 0 })).toBe(0);
   expect(observationExitCode({ kind: 'busy' })).toBe(75);

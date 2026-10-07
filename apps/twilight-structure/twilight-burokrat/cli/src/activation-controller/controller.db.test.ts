@@ -8902,25 +8902,55 @@ test('selected check refuses noncanonical runtime tree bytes even under their fr
 });
 
 test('selected check stages only bytes from trusted complete-tree manifests', async () => {
-  const selected = selectedStageFixture();
+  const descriptorTargets = (): Map<string, string> =>
+    new Map(
+      readdirSync('/proc/self/fd').flatMap((entry) => {
+        try {
+          return [[entry, readlinkSync(`/proc/self/fd/${entry}`)] as const];
+        } catch (cause) {
+          // The procfs directory descriptor can close before readlink.
+          if (!(cause instanceof Error && cause.message.includes('ENOENT'))) throw cause;
+          return [];
+        }
+      }),
+    );
+  const opened: (readonly [string, string])[] = [];
+  let baseline = new Map<string, string>();
+  const selected = selectedStageFixture({
+    stageDiagnostics: {
+      afterRootOpened: () => {
+        for (const [descriptor, target] of descriptorTargets()) {
+          if (baseline.get(descriptor) !== target) opened.push([descriptor, target]);
+        }
+      },
+      afterFileOpened: () => {
+        for (const [descriptor, target] of descriptorTargets()) {
+          if (baseline.get(descriptor) !== target) opened.push([descriptor, target]);
+        }
+      },
+    },
+  });
   try {
+    baseline = descriptorTargets();
+    const ownedPaths = new Set([
+      '/',
+      '/tmp',
+      selected.snapshotRoot,
+      selected.runtimeRoot,
+      join(selected.snapshotRoot, 'main.txt'),
+      join(selected.runtimeRoot, 'bun'),
+    ]);
     const before = checkDispatchRows(selected.source.databasePath);
     const staged = await selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64));
     try {
       expect(readFileSync(join(staged.stageRoot, 'candidate', 'main.txt'), 'utf8')).toBe('main');
       expect(readFileSync(join(staged.stageRoot, 'runtime', 'bun'), 'utf8')).toBe('runtime');
       expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
-      const openTargets = readdirSync('/proc/self/fd').flatMap((entry) => {
-        try {
-          return [readlinkSync(`/proc/self/fd/${entry}`)];
-        } catch (cause) {
-          // /proc can close its own listing descriptor before readlink.
-          if (!(cause instanceof Error && cause.message.includes('ENOENT'))) throw cause;
-          return [];
-        }
-      });
-      expect(openTargets.some((target) => target.startsWith(selected.snapshotRoot))).toBe(false);
-      expect(openTargets.some((target) => target.startsWith(selected.runtimeRoot))).toBe(false);
+      const selectedDescriptors = opened.filter(([, target]) => ownedPaths.has(target));
+      expect(new Set(selectedDescriptors.map(([, target]) => target))).toEqual(ownedPaths);
+      const after = descriptorTargets();
+      for (const [descriptor, target] of selectedDescriptors)
+        expect(after.get(descriptor)).not.toBe(target);
     } finally {
       staged.dispose();
     }

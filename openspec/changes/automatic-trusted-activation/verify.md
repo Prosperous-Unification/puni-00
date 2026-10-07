@@ -2460,18 +2460,18 @@ command, stdout/stderr, exit and restored source SHA-256 in
 `/tmp/activation-f10-correction-<fault>-{red,green}.log`. All ten accepted
 rows below are RED exit 1 and restored GREEN exit 0.
 
-| Fault          | Exact mounted RED observation                                                                                                        |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `fence_cap`    | A NaN subject budget passed discovery and current reads instead of preflight refusal.                                                |
-| `ready_cap`    | Two ready subjects were accepted instead of the named `subject limit` refusal.                                                       |
-| `union_cap`    | One ready plus one disjoint durable subject was accepted instead of refusal.                                                         |
-| `sync_cleanup` | Both controller-close and scheduler-close children wrote `close-returned` before fatal exit; each required absence assertion failed. |
-| `lock_release` | Skipping the lock-held final deadline callback let scheduler closure write `close-returned`; the absence assertion failed.           |
-| `post_close`   | Synchronous close returned `complete` instead of `cancelled` inside cleanup grace.                                                   |
-| `cli_report`   | Failure returned exit 1 but the required diagnostic array was empty.                                                                 |
-| `cli_redact`   | The reported action contained `Bearer harmless-sentinel-token`.                                                                      |
-| `policy_cap`   | Policy with `maxSubjects=10,001` initialized instead of refusing.                                                                    |
-| `policy_lower` | Policy with `maxSubjects=0` initialized instead of refusing.                                                                         |
+| Fault          | Exact mounted RED observation                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `fence_cap`    | A NaN subject budget called discovery once instead of refusing before a provider read; a later SQLite datatype mismatch also refused. |
+| `ready_cap`    | Two ready subjects were accepted instead of the named `subject limit` refusal.                                                        |
+| `union_cap`    | One ready plus one disjoint durable subject was accepted instead of refusal.                                                          |
+| `sync_cleanup` | Both controller-close and scheduler-close children wrote `close-returned` before fatal exit; each required absence assertion failed.  |
+| `lock_release` | Skipping the lock-held final deadline callback let scheduler closure write `close-returned`; the absence assertion failed.            |
+| `post_close`   | Synchronous close returned `complete` instead of `cancelled` inside cleanup grace.                                                    |
+| `cli_report`   | Failure returned exit 1 but the required diagnostic array was empty.                                                                  |
+| `cli_redact`   | The reported action contained `Bearer harmless-sentinel-token`.                                                                       |
+| `policy_cap`   | Policy with `maxSubjects=10,001` initialized instead of refusing.                                                                     |
+| `policy_lower` | Policy with `maxSubjects=0` initialized instead of refusing.                                                                          |
 
 The initial ready-cap omission was disqualified: a second, redundant map-size
 guard still refused, so it did not prove the first guard. The redundant
@@ -2494,3 +2494,42 @@ build each exited 0; pinned OpenSpec strict passed 1/1 and all passed 143/143;
 changed-path Prettier and `git diff --check` passed. Normal commit hooks run
 with the local commit. The h2puni gate, CI and installed service were not run
 on this unpublished SHA.
+
+#### Exact-review 1.2f proof follow-up
+
+The previous `fence_cap` log only changed refusal specificity: without the
+preflight a NaN `LIMIT` caused a SQLite datatype error after discovery. The
+corrected mounted test asserts zero discovery calls before checking the named
+refusal. Omitting only that preflight now fails `Expected: 0; Received: 1`;
+RED exit 1/restored GREEN exit 0 at
+`/tmp/activation-f10-review-fence_cap-{red,green}.log`. It does **not** claim
+that a current read or durable admission occurred.
+
+A composed `runObservationTick` test uses protected `maxSubjects=1` and two
+ready PRs. Omitting only `maxSubjects: config.state.policy.maxSubjects` from
+the controller call lets the tick reconcile both and resolve successfully;
+the required rejection assertion fails. The exact command, RED exit 1,
+restored GREEN exit 0 and source SHA-256 are at
+`/tmp/activation-f10-review-tick_cap-{red,green}.log`. This proves the
+protected policy reaches the installed tick boundary, not only a direct
+controller method.
+
+The selected-check staging test now captures descriptor numbers and targets
+at the trusted root/file diagnostic boundary, including `/`, `/tmp`, both
+source roots and both files. It asserts all captured source-owned descriptors
+no longer point at those objects after successful staging. Omitting only the
+last two ancestor-directory closes leaves `/` open and fails the exact
+lifecycle assertion; RED exit 1/restored GREEN exit 0 are at
+`/tmp/activation-f10-review-ancestor_close-{red,green}.log`. This replaces
+the earlier global FD-count fixture, whose count could shrink when unrelated
+runtime descriptors closed.
+
+The exact follow-up eight-file run passed **580/580**, 2,526 assertions,
+exit 0 at `/tmp/activation-f10-review-final-eight-final.log`. An immediately
+preceding run exposed a masked fixture assumption: a descriptor number already
+present at baseline can be reused for a different owned source object. The
+capture now compares the number **and** target; the ancestor-only close fault
+still fails at the open `/` descriptor assertion. This follows the
+historical 579/579 correction run above; both are retained as separate
+checkpoints. The follow-up remains local and uninstalled: host gate, CI,
+external reviewer, publisher and service activation were not run.
