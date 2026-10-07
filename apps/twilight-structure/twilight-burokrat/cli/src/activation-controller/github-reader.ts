@@ -97,7 +97,21 @@ function nextPage(link: string | null, path: string, page: number): number | nul
       }
       next = linkedPage;
     }
-    if (match[2] === 'last') last = linkedPage;
+    // Proof: omitting this relation accepted a page-2 previous link on page 1.
+    if (match[2] === 'prev' && (page === 1 || linkedPage !== page - 1)) {
+      throw new GitHubReadFailure('invalid-response', 'GitHub PR pagination previous page changed');
+    }
+    // Proof: omitting this relation accepted a first-page link to page 2.
+    if (match[2] === 'first' && linkedPage !== 1) {
+      throw new GitHubReadFailure('invalid-response', 'GitHub PR pagination first page changed');
+    }
+    if (match[2] === 'last') {
+      // Proof: omitting this comparison accepted last page 1 while reading page 2.
+      if (linkedPage < page) {
+        throw new GitHubReadFailure('invalid-response', 'GitHub PR pagination last page changed');
+      }
+      last = linkedPage;
+    }
   }
   // Proof: omitting the future-last check accepted a truncated Link set as a complete
   // inventory in the mounted test.
@@ -110,11 +124,23 @@ function nextPage(link: string | null, path: string, page: number): number | nul
   return next;
 }
 
+async function cancelBody(body: ReadableStream<Uint8Array> | null): Promise<void> {
+  if (body === null) return;
+  try {
+    await body.cancel();
+  } catch {
+    // Proof: rethrowing a cleanup error exposed the harmless Bearer sentinel.
+    throw new GitHubReadFailure('unavailable', 'GitHub PR GET unavailable');
+  }
+}
+
 async function boundedJson(response: Response, signal: AbortSignal): Promise<unknown> {
   const length = response.headers.get('content-length');
   // Proof: removing the declared size or numeric-shape predicate independently accepted
   // an otherwise valid empty inventory with untrusted length metadata.
   if (length !== null && (!/^\d+$/.test(length) || Number(length) > maxBodyBytes)) {
+    // Proof: omitting cancellation left the declared-oversize stream active (0 calls).
+    await cancelBody(response.body);
     throw new GitHubReadFailure('invalid-response', 'GitHub PR response byte limit exceeded');
   }
   if (response.body === null) {
@@ -123,9 +149,18 @@ async function boundedJson(response: Response, signal: AbortSignal): Promise<unk
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let bytes = 0;
+  let abortRead: (() => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    abortRead = () => {
+      reject(new DOMException('GitHub PR body read aborted', 'AbortError'));
+    };
+    // Proof: omitting this abort listener left a pending body read unsettled;
+    // the mounted test exceeded its explicit four-second timeout (exit 124).
+    signal.addEventListener('abort', abortRead, { once: true });
+  });
   try {
     for (;;) {
-      const chunk = await reader.read();
+      const chunk = await Promise.race([reader.read(), aborted]);
       // Proof: omitting the post-read abort check let a cancelled body finish as a
       // successful list in the direct production reader test.
       signal.throwIfAborted();
@@ -138,7 +173,13 @@ async function boundedJson(response: Response, signal: AbortSignal): Promise<unk
       }
       chunks.push(chunk.value);
     }
+  } catch (error) {
+    // Proof: omitting cancellation left the streamed-oversize stream active (0 calls).
+    await reader.cancel();
+    signal.throwIfAborted();
+    throw error;
   } finally {
+    if (abortRead !== undefined) signal.removeEventListener('abort', abortRead);
     reader.releaseLock();
   }
   const combined = new Uint8Array(bytes);
@@ -203,6 +244,8 @@ export function createGitHubRestReader(options: GitHubRestReaderOptions): GitHub
         (response.status === 403 &&
           (response.headers.get('x-ratelimit-remaining') === '0' ||
             response.headers.has('retry-after')));
+      // Proof: omitting cancellation left the HTTP refusal stream active (0 calls).
+      await cancelBody(response.body);
       throw new GitHubReadFailure(
         rateLimited ? 'rate-limited' : response.status >= 500 ? 'unavailable' : 'inaccessible',
         rateLimited
@@ -211,7 +254,14 @@ export function createGitHubRestReader(options: GitHubRestReaderOptions): GitHub
         response.status,
       );
     }
-    return { body: await boundedJson(response, signal), link: response.headers.get('link') };
+    try {
+      return { body: await boundedJson(response, signal), link: response.headers.get('link') };
+    } catch (error) {
+      signal.throwIfAborted();
+      if (error instanceof GitHubReadFailure) throw error;
+      // Proof: rethrowing a body error exposed the harmless Bearer sentinel.
+      throw new GitHubReadFailure('unavailable', 'GitHub PR GET unavailable');
+    }
   }
 
   return {

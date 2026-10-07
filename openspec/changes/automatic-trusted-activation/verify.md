@@ -2008,3 +2008,47 @@ exited 0. Pinned OpenSpec strict passed 1/1 and all passed 143/143
 (`/tmp/activation-github-reader-final-{strict,all}.json`). The first
 changed-path Prettier check found only this appended ledger unformatted; after
 formatting it, changed-path Prettier and `git diff --check` exited 0.
+
+### GET-only reader review correction (local evidence)
+
+Astra's exact `ff7e6a7` review reproduced three failures: a stream error leaked
+a harmless Bearer sentinel, refused HTTP/oversized streams were not canceled,
+and contradictory `prev`/`first` Link relations ended discovery as a complete
+inventory. Mounted tests first failed **6/43** at those exact assertions. The
+reader now normalizes body/cleanup errors without echoing provider text, actively
+cancels refused bodies and aborted reads, and checks `prev = current - 1`,
+`first = 1`, and `last >= current`. A valid page-two Link remains accepted.
+
+`/tmp/activation-github-reader-fix-watch.py` applied one source omission at a
+time to `github-reader.ts`, ran the named mounted test, restored source bytes,
+and reran that test. Logs at
+`/tmp/activation-github-reader-fix-<watch>-{red,green}.log` retain exact commands,
+exits and assertions. Nine final watches were RED then restored GREEN:
+
+| Watch                                                 | Observed RED                                                                                                                                                               |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `redact_stream`, `redact_cleanup`                     | Replacing the safe error with the raw exception leaked the harmless Bearer sentinel; the named no-secret/type assertion failed (exit 1).                                   |
+| `cancel_status`, `cancel_declared`, `cancel_streamed` | The rejected response stream's cancel count became zero instead of one (exit 1).                                                                                           |
+| `cancel_abort`                                        | Removing the abort listener left the pending read unsettled; the explicit `timeout 4s` wrapper returned 124. Restored test settled and observed one cancellation (exit 0). |
+| `link_prev`, `link_first`, `link_last`                | The contradictory relation was accepted; the named refusal assertion failed (exit 1).                                                                                      |
+
+The first abort mutation removed the `Promise.race` consumer while leaving its
+rejecting promise active; Bun reported an unhandled AbortError rather than the
+intended cancellation assertion. That trial was disqualified. The final listener
+omission above is the bounded liveness witness. The restored source SHA-256
+on the final runtime bytes was
+`c154408177a8cf26de3e968b2cdacc41c86849213c742f700791da4291e4d728`
+(`/tmp/activation-github-reader-fix-watch-final.log`).
+The correction proves only local fake-HTTP behavior. Whole-tick retry metadata
+and cancellation, a deployed scheduler, live GitHub connectivity, host gate and
+CI remain unverified and outside this slice.
+
+The final mounted six-file suite passed **506/506**, 2,118 assertions
+(`/tmp/activation-github-reader-fix-final3-six.log`). Uncached Nx
+`twilight-burokrat:lint:source`, `typecheck` and `build` each printed
+`Successfully ran target` with exit 0
+(`/tmp/activation-github-reader-fix-final3-{lint,type,build}.log`). An earlier
+Nx attempt without `NX_DAEMON=false NX_ISOLATE_PLUGINS=false` exited 0 after
+socket refusal without printing a target summary; it was disqualified, not
+counted as a passing check. Pinned OpenSpec strict and all passed on the
+correction; final docs-only formatting and validation follow this ledger edit.

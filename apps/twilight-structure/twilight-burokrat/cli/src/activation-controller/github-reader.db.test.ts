@@ -591,3 +591,185 @@ test('reader aborts a body that completes only after its signal was cancelled', 
   deliver(new TextEncoder().encode('[]'));
   await expectRefusal(() => pending, 'AbortError');
 });
+
+test('body stream failure never exposes the trusted credential', async () => {
+  const source = fixture();
+  const token = 'harmless_body_secret';
+  const fetcher: GitHubFetch = () =>
+    Promise.resolve(
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(stream) {
+            stream.error(new Error(`Bearer ${token}`));
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+  const controller = mountedReader(source, fetcher, token);
+  try {
+    let caught: unknown;
+    try {
+      await controller.reconcileReady();
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GitHubReadFailure);
+    expect(String(caught)).toContain('GitHub PR GET unavailable');
+    expect(String(caught)).not.toContain(token);
+    expect(controller.listRequests()).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+for (const [name, status, length] of [
+  ['HTTP refusal', 503, undefined],
+  ['declared oversize', 200, String(8 * 1024 * 1024 + 1)],
+  ['streamed oversize', 200, undefined],
+] as const) {
+  test(`${name} cancels its rejected response body`, async () => {
+    let cancelled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      start(stream) {
+        stream.enqueue(new Uint8Array(name === 'streamed oversize' ? 8 * 1024 * 1024 + 1 : 2));
+      },
+      cancel() {
+        cancelled += 1;
+      },
+    });
+    const reader = createGitHubRestReader({
+      fetcher: () =>
+        Promise.resolve(
+          new Response(body, {
+            status,
+            headers: length === undefined ? undefined : { 'content-length': length },
+          }),
+        ),
+    });
+    await expectRefusal(
+      () =>
+        reader.listOpenPullRequests(
+          'Prosperous-Unification',
+          'puni-00',
+          1,
+          new AbortController().signal,
+        ),
+      name === 'HTTP refusal' ? 'GET refused' : 'response byte limit exceeded',
+    );
+    expect(cancelled).toBe(1);
+  });
+}
+
+for (const relation of ['prev', 'first'] as const) {
+  test(`contradictory ${relation} page refuses complete inventory`, async () => {
+    const source = fixture();
+    const link = `<https://api.github.com/repos/Prosperous-Unification/puni-00/pulls?state=open&per_page=100&page=2>; rel="${relation}"`;
+    const controller = mountedReader(source, () =>
+      Promise.resolve(new Response('[]', { status: 200, headers: { Link: link } })),
+    );
+    try {
+      await expectRefusal(() => controller.reconcileReady(), 'pagination');
+      expect(controller.listRequests()).toEqual([]);
+    } finally {
+      controller.close();
+    }
+  });
+}
+
+test('aborting a pending body read cancels the response stream', async () => {
+  const aborter = new AbortController();
+  let cancelled = 0;
+  let reading: (() => void) | undefined;
+  const started = new Promise<void>((resolve) => {
+    reading = resolve;
+  });
+  const body = new ReadableStream<Uint8Array>(
+    {
+      pull() {
+        reading?.();
+      },
+      cancel() {
+        cancelled += 1;
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const reader = createGitHubRestReader({
+    fetcher: () => Promise.resolve(new Response(body, { status: 200 })),
+  });
+  const pending = reader.listOpenPullRequests(
+    'Prosperous-Unification',
+    'puni-00',
+    1,
+    aborter.signal,
+  );
+  await started;
+  aborter.abort();
+  await expectRefusal(() => pending, 'AbortError');
+  expect(cancelled).toBe(1);
+});
+
+test('body cleanup failure cannot disclose a trusted credential', async () => {
+  const token = 'harmless_cleanup_secret';
+  const body = new ReadableStream<Uint8Array>({
+    cancel() {
+      throw new Error(`Bearer ${token}`);
+    },
+  });
+  const reader = createGitHubRestReader({
+    token,
+    fetcher: () => Promise.resolve(new Response(body, { status: 503 })),
+  });
+  let caught: unknown;
+  try {
+    await reader.listOpenPullRequests(
+      'Prosperous-Unification',
+      'puni-00',
+      1,
+      new AbortController().signal,
+    );
+  } catch (error) {
+    caught = error;
+  }
+  expect(caught).toBeInstanceOf(GitHubReadFailure);
+  expect(String(caught)).not.toContain(token);
+});
+
+test('pagination refuses a last page behind the current page', async () => {
+  const link =
+    '<https://api.github.com/repos/Prosperous-Unification/puni-00/pulls?state=open&per_page=100&page=1>; rel="last"';
+  const reader = createGitHubRestReader({
+    fetcher: () => Promise.resolve(new Response('[]', { status: 200, headers: { Link: link } })),
+  });
+  await expectRefusal(
+    () =>
+      reader.listOpenPullRequests(
+        'Prosperous-Unification',
+        'puni-00',
+        2,
+        new AbortController().signal,
+      ),
+    'pagination last page changed',
+  );
+});
+
+test('pagination accepts consistent first, previous and last page metadata', async () => {
+  const path =
+    'https://api.github.com/repos/Prosperous-Unification/puni-00/pulls?state=open&per_page=100&page=';
+  const link = `<${path}1>; rel="first", <${path}1>; rel="prev", <${path}2>; rel="last"`;
+  const reader = createGitHubRestReader({
+    fetcher: () => Promise.resolve(new Response('[]', { status: 200, headers: { Link: link } })),
+  });
+  expect(
+    await reader.listOpenPullRequests(
+      'Prosperous-Unification',
+      'puni-00',
+      2,
+      new AbortController().signal,
+    ),
+  ).toEqual({
+    pulls: [],
+    nextPage: null,
+  });
+});
