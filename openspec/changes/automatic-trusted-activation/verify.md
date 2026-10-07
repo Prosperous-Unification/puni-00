@@ -1187,7 +1187,17 @@ Ten more independent watched omissions produced RED and restored GREEN in
 
 Each restored test passed 1/1. The FIFO old-byte timeout is a bounded
 negative, not a claim that a hanging test's exit code proves a successful
-assertion. All 33 accepted faults (the original 23 plus these 10) were
+assertion. The FIFO omission was rerun exactly as
+`timeout 2 bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/controller.db.test.ts --test-name-pattern 'selected check registry refuses a FIFO'`;
+the terminal exit was **124**, and the redirected RED log contains only Bun
+startup because the blocking open prevented the assertion from running.
+The exact command and terminal exit are retained at
+`/tmp/activation-22-p2-fifo_nonblock-receipt.txt`, with startup output at
+`/tmp/activation-22-p2-fifo_nonblock-red-explicit.log`. After restoring the
+committed source SHA-256 `57d1740ac3fa2b8cee36fa70807a2567f0858e606877275faf0536bf9d9386f6`,
+the same focused test passed 1/1, three assertions, exit 0
+(`/tmp/activation-22-p2-fifo_nonblock-green-explicit.log`). All 33 accepted
+faults (the original 23 plus these 10) were
 restored; the regular-file fault proves diagnostic specificity only. On the
 corrected source/test bytes, the four-file Bun command passed 244/244 tests,
 1,067 assertions, exit 0 (`/tmp/activation-22-p2-final-four2.log`). Declared Nx
