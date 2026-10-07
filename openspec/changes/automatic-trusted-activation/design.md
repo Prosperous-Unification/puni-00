@@ -103,11 +103,39 @@ Deduplicate deliveries within their authenticated source namespace; an existing 
 with a different payload digest is a conflict. A delivery identifier is not itself evidence
 that the source is authentic. Neither timestamps nor arrival order establish current state.
 
-Stages are observed → checking/reviewing → verified → published → admitted → merge-requested →
-merged → merged-certified → host-ready. Failed and superseded are explicit dispositions.
-Checks and review may run concurrently; publication depends on both. Each mutation compares
-the stored stage/version and lease epoch. Effects have deterministic request-derived keys.
-An old worker cannot publish under a replacement worker's lease.
+Use one `evaluating` stage with independent check and audit obligations, rather than mutually
+exclusive checking/reviewing stages. The transition graph is guarded by durable evidence:
+
+| Transition                    | Required evidence and atomic local mutation                                                                                                               |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| observed → evaluating         | Freeze all selected check/audit obligations and create their work records                                                                                 |
+| evaluating → verified         | Every required obligation has an authenticated, complete, passing receipt for this request; store the selected receipt set and combined evidence identity |
+| verified → published          | A durable publication reservation has an independently verified archive/descriptor acknowledgement; record its exact remote identity with the transition  |
+| published → admitted          | Observe the required trusted workflow's success for this exact request and revision; a posted controller status is insufficient                           |
+| admitted → merge-requested    | For a PR, verify current eligibility, acquire branch coordination and reserve the exact merge effect                                                      |
+| merge-requested → merged      | Verify the provider's actual merge disposition and SHA; atomically record them and create/link the protected-revision certification request               |
+| merged → merged-certified     | The linked actual-commit request has completed its own certification and admission                                                                        |
+| merged-certified → host-ready | The host has acknowledged the linked revision's exact authenticated archive                                                                               |
+
+Failed and superseded requests retain their evidence and effect history but cannot acquire new
+authority-bearing work. They never reset to observed. Read-only remote reconciliation may record
+facts about effects already initiated; it cannot revive approval or erase a completed remote
+effect. Do not expose an unrestricted `advance(nextStage)`: each transition requires its
+specific receipts/reservations and rejects missing proof, even if the caller holds a lease.
+
+Each obligation stores its identity, kind, expected executor/command/protocol, attempt, state
+and selected authenticated receipt. Checks and audit can complete in either order; cold and
+informed audit phases retain protocol order. Retain every attempt's evidence immutably and
+reject conflicting bytes for an existing receipt identity. A check cannot satisfy an audit
+obligation or vice versa; a terminal failed/skipped required command cannot be erased by a
+later success. Only explicitly classified transient failures use bounded retry policy.
+
+External receipt authentication occurs outside a short database transaction. Inside the
+transaction, revalidate immutable bindings, active subject generation, current authority pin,
+lease epoch and obligation attempt/version; record the receipt and evaluate the completion
+join atomically. Independent completions must not invalidate one another merely because
+the other incremented the request version. Compare the current transactional request version
+and the completion's own attempt, not an obsolete global version captured at dispatch.
 
 Maintain the active request pointer per logical subject. Superseding PR A never supersedes
 PR B, a merge group or a protected-revision request sharing A's commits. Reconcile current
@@ -115,17 +143,57 @@ authoritative state before applying delayed events, including close/reopen and r
 For an A → B → A tuple sequence, assign a new durable audit generation when A returns;
 retain the old request as superseded and reject its worker's stage, publication and merge
 effects. Retry attempts and delivery IDs do not themselves allocate a new audit generation.
-The durable store serializes active-pointer/generation allocation and lease ownership.
+The durable store serializes active-pointer/generation allocation and lease ownership. Retain
+a per-subject generation high-water mark and closed-subject tombstone independently of the
+active request pointer. Closing a PR cannot reset its generation when it reopens.
+
+The bootstrap authority pin and request audit generation are different dimensions. Re-observe
+the independently pinned authority, but compare candidate fields using the durable active
+request's audit generation; do not rebuild current identity with bootstrap authorityGeneration
+and thereby reject a legitimate later subject generation. Authority-pin changes invalidate
+prior authority and create a newly fenced request through subject generation allocation.
+
+Before an asynchronous source observation, read the subject version (or reserve an observation
+epoch). Accept the response only while that version/epoch remains current. If another
+reconciliation advances it, discard the stale observation and refetch authoritative state.
+Do not keep SQLite transactions open across provider calls, and do not use event timestamps
+as a substitute for this fence. A source change after observation is still checked at admission
+and through provider-enforced head/base protection before merge.
 
 An older persisted schema without subject/target binding cannot be accepted with defaults.
 Either reject it or use an explicit versioned migration that verifies the missing fields
 against authoritative state and creates newly fenced requests without inherited approval.
 Do not silently reinterpret existing request hashes under the amended schema.
 
-Candidate evaluations may run concurrently. Serialize actual merges per protected branch;
-head preconditions and protection enforce current base freshness. A merge queue, when enabled,
-requires merge-group evaluation and invalidates evidence on changed composition. Do not assume
-the GitHub merge API provides a base compare-and-swap merely because it accepts a head SHA.
+Candidate evaluations may run concurrently. During initial rollout, serialize controller-driven
+branch advancement through actual merged-SHA certification and admission, not just the merge
+API response. Head preconditions and protection enforce current base freshness. A merge queue,
+when enabled, requires merge-group evaluation and invalidates evidence on changed composition.
+Do not assume the GitHub merge API provides a base compare-and-swap merely because it accepts
+a head SHA. External branch advancement can supersede an unfinished revision; retain an explicit
+incomplete/superseded disposition rather than declaring it merged-certified.
+
+### External effect reservations
+
+Persist an outbox reservation before each publication, workflow/check dispatch or merge call.
+It binds a deterministic request-derived effect key, exact subject/request, payload digest,
+expected remote target, current ownership epoch and effect state. Acknowledgements bind the
+observed provider identity and verified bytes/disposition. Reserve and acknowledge in short
+local transactions; execute network calls between them. Concurrent recovery uses the same
+effect key and first queries the existing remote effect.
+
+After publication response loss, verify the occupied archive/descriptor before reuse. After
+merge response loss, query actual PR disposition and commit before another merge action.
+An acknowledgement with another request, payload, target or remote identity is refused.
+Recording an acknowledgement and its request-stage transition is atomic. Recording actual
+merge disposition and creating/linking its certification request is atomic and idempotent.
+
+SQLite CAS does not provide exactly-once remote execution. The publisher must enforce fencing
+at its own authority boundary before accepting a new dispatch. An effect authorized before
+lease expiry may already be in flight or complete remotely: recovery retains that fact and
+prevents a stale completion from granting current admission. Do not claim that a local lease
+can revoke a GitHub request already sent. If an adapter cannot enforce required authorization,
+idempotency or reconciliation, it is not ready for activation.
 
 ### Review, checks and publication
 
@@ -155,6 +223,14 @@ one adapter at bootstrap. Plain SHA-256 with an attacker-selected URL is insuffi
 An occupied key with different bytes is corruption/conflict, not permission to overwrite.
 
 ### Merge and downstream admission
+
+Only PR subjects take the ordinary merge-requested route. A merge-group request reaches admitted
+and awaits the provider's queue outcome; it must not independently invoke ordinary PR merging.
+Reconcile the resulting actual commit(s) and link their protected-revision requests.
+A protected-revision request follows observed → evaluating → verified → published → admitted →
+host-ready, without merge-requested or merged. Its exact certification/host evidence supplies
+the linked PR's merged-certified/host-ready transitions. A normal PR evaluation never recursively
+creates another PR merge from its protected-revision child.
 
 Enable automatic merge only after all required checks and current head/base conditions pass.
 Keep the existing merge method during initial rollout. If GitHub produces another SHA, create a

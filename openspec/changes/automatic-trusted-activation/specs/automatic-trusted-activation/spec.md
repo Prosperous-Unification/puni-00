@@ -161,6 +161,60 @@ Different candidates SHALL have independent selections after bootstrap.
 - **THEN** the controller fails without replacing it; an identical existing publication is
   verified before being reused
 
+### Requirement: Guarded parallel evidence completion
+
+The controller SHALL freeze required check and audit obligations when a request enters one
+evaluation phase. Their independent completion SHALL join only authenticated, complete,
+passing evidence for every selected obligation before verified state. Recording a receipt
+and evaluating this join SHALL be atomic and SHALL preserve per-attempt evidence immutably.
+Transitions to published and admitted SHALL respectively require verified publication
+acknowledgement and the exact required workflow's observed success. A lease alone SHALL NOT
+authorize these transitions, and terminal failure or supersession SHALL NOT reset to observed.
+
+#### Scenario: Checks and audit complete in either order
+
+- **WHEN** checks and audit complete in either order, including concurrently
+- **THEN** both valid completions are retained and verified is reached only after the entire
+  authenticated receipt set is present, without rejecting one solely for the other's version change
+
+#### Scenario: Incomplete or conflicting evidence attempts to advance
+
+- **WHEN** a required receipt is absent, failed, skipped, wrong-request, wrong-obligation or
+  conflicting with already recorded bytes
+- **THEN** advancement is refused and earlier attempt evidence remains intact
+
+#### Scenario: Caller requests a later stage without its proof
+
+- **WHEN** a leased caller requests published or admitted without its specific verified
+  acknowledgement or required workflow conclusion
+- **THEN** the durable stage remains unchanged and the missing proof is reported
+
+### Requirement: Durable external effect reservations
+
+Publication, workflow/check dispatch and merge effects SHALL have durable reservations before
+external calls, binding effect key, request/subject, payload digest, expected target and ownership.
+Recovery SHALL reconcile observed external state before retrying an uncertain effect.
+Acknowledgement and its corresponding request transition SHALL commit atomically.
+The publisher SHALL enforce current authorization before new dispatch; a local database lease
+SHALL NOT be treated as revocation of a remote operation already sent or as exactly-once execution.
+
+#### Scenario: Acknowledgement belongs to another effect
+
+- **WHEN** an acknowledgement differs in request, subject, payload, target or expected remote identity
+- **THEN** no publication/admission/merge stage is advanced
+
+#### Scenario: Remote merge succeeds before the controller crashes
+
+- **WHEN** merge succeeds remotely and the controller crashes before durable acknowledgement
+- **THEN** recovery observes the actual merged commit and atomically records it with exactly one
+  linked protected-revision certification request, without blindly invoking merge again
+
+#### Scenario: Previously authorized effect completes after takeover
+
+- **WHEN** a remote effect dispatched while authorized completes after lease expiry or supersession
+- **THEN** recovery retains its actual immutable disposition, while the obsolete worker cannot
+  authorize new dispatch or use its completion to grant current admission
+
 ### Requirement: Protected workflow and merge identities
 
 The required trusted workflow SHALL remain enforced and SHALL independently verify exact
@@ -202,6 +256,33 @@ remain enforced unless changed by a separately specified and proven contract.
 - **WHEN** a two-parent GitHub merge is presented to the existing sole-parent binding emitter
 - **THEN** the binding is refused rather than weakening the parent check
 
+### Requirement: Subject-specific completion routes
+
+PR subjects SHALL use protected merge reservation and actual merged-revision certification.
+Merge-group subjects SHALL await the provider's queue outcome after admission rather than
+independently issuing ordinary PR merges. Protected-revision subjects SHALL certify and
+provision their exact revision without entering a merge route. Initial rollout SHALL serialize
+controller-driven branch advancement through actual merged-SHA certification and admission.
+
+#### Scenario: Protected revision reaches admission
+
+- **WHEN** the linked protected-revision request reaches authenticated admission
+- **THEN** it can provision its exact archive and satisfy the parent's merged-certified evidence,
+  without issuing a recursive merge
+
+#### Scenario: Merge group reaches admission
+
+- **WHEN** an admitted merge group awaits integration
+- **THEN** the controller reconciles the provider's queue outcome and links actual revision
+  certification instead of issuing independent ordinary PR merge calls
+
+#### Scenario: Another candidate is ready during merged certification
+
+- **WHEN** one controller-driven merge awaits actual-SHA certification and another PR is ready
+- **THEN** the second evaluation can continue but controller-driven branch advancement waits
+- **AND** external branch movement leaves an explicit incomplete/superseded disposition rather
+  than fabricating certification of the unfinished revision
+
 ### Requirement: Durable bounded recovery
 
 The controller SHALL persist stage ownership, immutable request identities and external effect
@@ -212,6 +293,30 @@ Supersession SHALL be scoped to the logical subject, not a repository or SHA alo
 events SHALL be reconciled against current authoritative subject state before changing active
 requests. A subject returning to an earlier candidate tuple SHALL receive a new durable
 generation, and SHALL NOT revive an old lease, approval or merge effect.
+The controller SHALL retain a per-subject generation high-water mark and closed-subject
+tombstone independently of the active request. Request audit generation SHALL remain separate
+from the bootstrap authority generation/pin. Asynchronous authoritative observations SHALL be
+fenced against intervening subject-state changes and refetched on conflict.
+
+#### Scenario: A subject closes and reopens
+
+- **WHEN** closing removes the active request and the same subject later reopens
+- **THEN** its next audit generation exceeds the retained high-water mark and no old worker,
+  lease, request hash or approval is revived
+
+#### Scenario: Durable generation exceeds the bootstrap generation
+
+- **WHEN** candidate reconciliation preserves current authority but the subject's audit
+  generation has legitimately advanced beyond the bootstrap authority generation
+- **THEN** current-request validation uses the durable subject generation and accepts otherwise
+  matching identity, while a changed authority pin still invalidates prior authority
+
+#### Scenario: An older source read returns after newer reconciliation
+
+- **WHEN** an asynchronous authoritative read returns after another reconciliation advances
+  the same subject's version or observation epoch
+- **THEN** its response cannot replace newer state and the controller refetches authoritative
+  state before changing the active request
 
 #### Scenario: An old event arrives after another subject advances
 
@@ -234,7 +339,8 @@ generation, and SHALL NOT revive an old lease, approval or merge effect.
 #### Scenario: Lease expires while an old worker finishes
 
 - **WHEN** a replacement worker owns the request after expiry
-- **THEN** the obsolete worker cannot publish, advance state or merge under the old ownership
+- **THEN** the obsolete worker cannot authorize new publication/merge dispatch or advance
+  admission under the old ownership; already dispatched effects follow remote reconciliation
 
 #### Scenario: Retry budget is exhausted
 
