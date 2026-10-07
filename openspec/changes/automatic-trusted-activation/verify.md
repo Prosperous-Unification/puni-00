@@ -673,3 +673,39 @@ validation passed 1/1 and 143/143 respectively, zero failures
 (`/tmp/activation-early-cold-final-{strict4,all4}.json`). No host gate, CI,
 provider credentials, remote publication, dispatch worker or activation was
 run for this local checkpoint.
+
+### 2.1 cold-only source-guard follow-up (2026-10-07)
+
+Independent exact-`ee972a37f50771f8b8c4c1cffcd60e28a99a1ccb` review
+passed the four-file suite 134/134, 522 assertions
+(`/tmp/activation-ee972a-astra-four.log`) and found five new cold-only
+source checks without independent watched faults. Each follow-up fixture
+supplies a schema-valid altered cold source with a recomputed authenticated
+source digest through the same public `recordReceipt` owner. It asserts the
+full preattempt row snapshot on refusal.
+
+| Removed cold-only predicate                               | Mounted RED                                                                                                                                                                                         | Restored GREEN                                                        |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Cold invocation equals registered invocation              | Foreign cold invocation fulfilled, 0/1 (`/tmp/activation-early-cold-p2-invocation-red.log`).                                                                                                        | 1/1 (`/tmp/activation-early-cold-p2-invocation-green.log`).           |
+| Cold protocol blob equals frozen protocol                 | Foreign protocol fulfilled, 0/1 (`/tmp/activation-early-cold-p2-protocol-red.log`).                                                                                                                 | 1/1 (`/tmp/activation-early-cold-p2-protocol-green.log`).             |
+| Cold telemetry is verified                                | Unverified telemetry changed the named refusal to a TypeError on the subsequent missing receipt access, 0/1; it did not grant authority (`/tmp/activation-early-cold-p2-telemetry-status-red.log`). | 1/1 (`/tmp/activation-early-cold-p2-telemetry-status-green.log`).     |
+| Telemetry receipt invocation equals registered invocation | Foreign receipt invocation fulfilled, 0/1 (`/tmp/activation-early-cold-p2-telemetry-invocation-red.log`).                                                                                           | 1/1 (`/tmp/activation-early-cold-p2-telemetry-invocation-green.log`). |
+| Cold observed reads are nonempty                          | Empty observed reads fulfilled, 0/1 (`/tmp/activation-early-cold-p2-observed-red.log`).                                                                                                             | 1/1 (`/tmp/activation-early-cold-p2-observed-green.log`).             |
+
+Each fault was independently restored to historical source SHA-256
+`aaf41b1d2b6885fd7929a39ca74abec769e1fd9ad94c4d0e716e4b7127c30c46`
+before the next watch. Adjacent `Proof:` comments identify the observed
+failure at each predicate. The follow-up changes only tests, proof comments
+and this ledger; full final-byte validation is recorded below. The external
+provider, dispatch recovery, host gate and task 2.1 acceptance remain open.
+
+On the follow-up source/test bytes, the literal four-file Bun command above
+passed 139/139, 537 assertions, exit 0
+(`/tmp/activation-early-cold-p2-final-four.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck` and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-early-cold-p2-final-{lint,type,build}.log`). Pinned OpenSpec
+strict passed 1/1 and all passed 143/143, zero failures; final ledger-byte
+rerun logs are `/tmp/activation-early-cold-p2-docs-{strict,all}.json`.
+Changed-path Prettier and diff check passed. Normal commit hooks and
+independent exact-SHA review are pending for this follow-up.

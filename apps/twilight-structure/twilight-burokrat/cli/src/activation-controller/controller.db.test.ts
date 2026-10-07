@@ -667,6 +667,71 @@ test.each([
     }),
     'source digest differs',
   ],
+  [
+    'foreign cold invocation',
+    (review: VerifiedColdTerminal) =>
+      bindColdTerminal({
+        ...review,
+        cold: { ...review.cold, invocationId: 'invocation.foreign' },
+      }),
+    'cold terminal review evidence incomplete',
+  ],
+  [
+    'foreign cold protocol',
+    (review: VerifiedColdTerminal) =>
+      bindColdTerminal({
+        ...review,
+        cold: {
+          ...review.cold,
+          protocol: { ...review.cold.protocol, protocolBlob: '0'.repeat(64) },
+        },
+      }),
+    'cold terminal review evidence incomplete',
+  ],
+  [
+    'unverified cold telemetry',
+    (review: VerifiedColdTerminal) =>
+      bindColdTerminal({
+        ...review,
+        cold: {
+          ...review.cold,
+          telemetry: {
+            status: 'unverified' as const,
+            reason: 'provider receipt unavailable',
+            missingRequirements: ['invocation receipt'],
+            observed: {},
+          },
+        },
+      }),
+    'cold terminal review evidence incomplete',
+  ],
+  [
+    'foreign telemetry invocation',
+    (review: VerifiedColdTerminal) => {
+      if (review.cold.telemetry.status !== 'verified')
+        throw new Error('fixture cold telemetry not verified');
+      return bindColdTerminal({
+        ...review,
+        cold: {
+          ...review.cold,
+          telemetry: {
+            ...review.cold.telemetry,
+            receipt: { ...review.cold.telemetry.receipt, invocationId: 'invocation.foreign' },
+          },
+        },
+      });
+    },
+    'cold terminal review evidence incomplete',
+  ],
+  [
+    'missing cold observed reads',
+    (review: VerifiedColdTerminal) =>
+      bindColdTerminal({
+        ...review,
+        cold: { ...review.cold, cold: { ...review.cold.cold, observedReadIds: [] } },
+      }),
+    'cold terminal review evidence incomplete',
+  ],
 ] as const)(
   'cold-only terminal refuses %s without inserting evidence',
   async (_, corrupt, message) => {

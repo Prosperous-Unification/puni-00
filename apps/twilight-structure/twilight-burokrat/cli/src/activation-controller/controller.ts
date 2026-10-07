@@ -301,12 +301,18 @@ function authenticatedReview(submission: ReviewSubmission, verification: unknown
       throw new Error('cold terminal review phase differs from frozen obligation');
     const cold = decodeColdHarnessOutput(source.cold);
     if (
+      // Proof: omitting this comparison accepted a schema-valid foreign cold invocation.
       cold.invocationId !== expected.invocationId ||
+      // Proof: omitting this comparison accepted a schema-valid foreign protocol blob.
       cold.protocol.protocolBlob !== expected.protocolIdentity ||
+      // Proof: omitting the status check changed the modeled unverified-telemetry refusal
+      // to a TypeError at the following receipt access; it did not grant authority.
       cold.telemetry.status !== 'verified' ||
+      // Proof: omitting this comparison accepted a verified receipt for another invocation.
       cold.telemetry.receipt.invocationId !== expected.invocationId ||
       // Proof: omitting this check accepted a schema-valid cold source with empty raw response.
       cold.rawResponse.payload.length === 0 ||
+      // Proof: omitting this check accepted cold evidence with no observed reads.
       cold.cold.observedReadIds.length === 0
     ) {
       throw new Error('cold terminal review evidence incomplete or inconsistent');
