@@ -2194,6 +2194,36 @@ test('orphan query refuses a reserved effect that was never sent', async () => {
   }
 });
 
+test('orphan query retains an old sent attempt after both selected phases advance', async () => {
+  const fixture = await initiatedOrphanFixture('superseded');
+  try {
+    fixture.database
+      .query(
+        "UPDATE activation_obligation SET attempt = 1 WHERE kind = 'audit' AND request_identity = ?",
+      )
+      .run(fixture.request.requestIdentity);
+    const before = dispatchState(fixture.database);
+    const retained = await fixture.reopened.reconcileOrphanReviewDispatch(
+      fixture.reservation.effectKey,
+      { query: () => Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed }) },
+    );
+    expect(retained.kind).toBe('retained');
+    const after = dispatchState(fixture.database);
+    expect(after.requests).toEqual(before.requests);
+    expect(after.obligations).toEqual(before.obligations);
+    expect(after.registrations).toEqual(before.registrations);
+    expect(after.reservations).toEqual(before.reservations);
+    expect(after.progress).toEqual(before.progress);
+    expect(after.facts).toHaveLength(1);
+    expect(fixture.database.query('SELECT attempt FROM activation_review_dispatch').get()).toEqual({
+      attempt: 0,
+    });
+  } finally {
+    fixture.reopened.close();
+    fixture.close();
+  }
+});
+
 test.each(['unconfigured', 'absent', 'unreadable', 'malformed', 'unpinned', 'unlisted'] as const)(
   'orphan query refuses %s independently pinned historical authority before provider work',
   async (damage) => {
@@ -2387,6 +2417,57 @@ test('orphan query rejects malformed provider output without changing rows', asy
   }
 });
 
+test('orphan query rejects remote absence after an accepted fact was retained', async () => {
+  const fixture = await initiatedOrphanFixture('superseded');
+  try {
+    await fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+      query: () => Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed }),
+    });
+    const before = dispatchState(fixture.database);
+    await rejectedWith(
+      fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+        query: () => Promise.resolve({ kind: 'absent' as const }),
+      }),
+      'review dispatch remote absence conflicts with retained fact',
+    );
+    expect(dispatchState(fixture.database)).toEqual(before);
+  } finally {
+    fixture.reopened.close();
+    fixture.close();
+  }
+});
+
+test('orphan absent response rechecks a fact retained while query was held', async () => {
+  const fixture = await initiatedOrphanFixture('superseded');
+  try {
+    let release: ((answer: { kind: 'absent' }) => void) | undefined;
+    let queried: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      queried = resolve;
+    });
+    const answer = new Promise<{ kind: 'absent' }>((resolve) => {
+      release = resolve;
+    });
+    const pending = fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+      query: () => {
+        queried?.();
+        return answer;
+      },
+    });
+    await started;
+    await fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+      query: () => Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed }),
+    });
+    const before = dispatchState(fixture.database);
+    release?.({ kind: 'absent' });
+    await rejectedWith(pending, 'review dispatch remote absence conflicts with retained fact');
+    expect(dispatchState(fixture.database)).toEqual(before);
+  } finally {
+    fixture.reopened.close();
+    fixture.close();
+  }
+});
+
 test.each(['effect', 'request', 'target', 'payload', 'invocation'] as const)(
   'orphan query rejects foreign %s remote fact without writes',
   async (changed) => {
@@ -2553,8 +2634,6 @@ test.each([
   ['authority', 'review dispatch original authority changed'],
   ['plan', 'review dispatch original plan changed'],
   ['registration', 'review dispatch original invocation changed'],
-  ['cold attempt', 'review dispatch original pair changed'],
-  ['informed attempt', 'review dispatch original pair changed'],
   ['target', 'review dispatch original reservation changed'],
   ['payload', 'review dispatch original reservation changed'],
 ] as const)(
@@ -2576,12 +2655,6 @@ test.each([
         fixture.database
           .query('UPDATE activation_review_attempt SET invocation_id = ?')
           .run('invocation.changed');
-      } else if (damage === 'cold attempt' || damage === 'informed attempt') {
-        fixture.database
-          .query(
-            'UPDATE activation_obligation SET attempt = attempt + 1 WHERE obligation_identity = ?',
-          )
-          .run(damage === 'cold attempt' ? 'd'.repeat(64) : 'f'.repeat(64));
       } else if (damage === 'target') {
         fixture.database.query('UPDATE activation_review_dispatch SET target_bytes = ?').run(
           serializeCanonical({

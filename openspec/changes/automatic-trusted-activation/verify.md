@@ -1041,7 +1041,6 @@ GREEN (`/tmp/activation-orphan-r5-<fault>-{red,green}.log`):
 | `history_fallback`, `history_absent`, `history_unreadable`, `history_malformed`, `history_digest` | Fallback queried with current bootstrap; digest omission queried with unpinned registry bytes. The absent, unreadable and malformed omissions changed the precise trusted-state refusal without granting query authority. |
 | `terminal_stage`, `never_initiated`                                                               | A nonterminal request or never-sent reservation reached query.                                                                                                                                                            |
 | `original_authority`, `original_plan`, `original_registration`                                    | Changed original authority, frozen check command, or registered invocation reached query.                                                                                                                                 |
-| `cold_attempt`, `informed_attempt`                                                                | Independently changed persisted phase attempts reached query under the old reservation.                                                                                                                                   |
 | `original_target`, `original_payload`                                                             | Changed reviewer target or coherently changed payload/digest reached query.                                                                                                                                               |
 | `no_send`, `no_revival`                                                                           | An injected send appeared in the mounted call log, or the old superseded request changed back to evaluating.                                                                                                              |
 | `post_await_history`, `retained_absent`                                                           | A changed history after held query allowed fact retention, or disappearing fact was reported as retained.                                                                                                                 |
@@ -1051,8 +1050,11 @@ GREEN: the later retained-fact revalidation rejected those bytes and the outer
 transaction rolled back. They are disqualified, not counted as accepted
 orphan proofs. Earlier current-evaluating recovery has separate accepted
 retention-boundary faults; the orphan foreign-fact tests independently verify
-the final no-write outcome. The accepted orphan total is 18 watched
-RED/restored GREEN pairs. The fake query port establishes only local
+the final no-write outcome. Two earlier cold/informed selected-attempt
+omissions also produced RED under `ddc391e8`, but independent review found
+their required refusal incorrect for historical effects: later attempts may
+legitimately advance. Those logs are now disqualified. The orphan foundation
+has 16 accepted watched RED/restored GREEN pairs. The fake query port establishes only local
 controller behavior; no live provider, authenticated historical registry
 issuer, external dispatch capability, host gate, CI, or trusted activation is
 claimed. Tasks 1.2 and 3.3 remain open.
@@ -1069,3 +1071,42 @@ passed 1/1 and all passed 143/143, zero failures on this ledger
 (`/tmp/activation-orphan-final-{strict3,all3}.json`). Changed-path Prettier
 and `git diff --check` passed. Normal-hook status belongs to the local
 commit. No host gate or CI was run.
+
+### Orphan history and remote-absence correction after `ddc391e8` review (2026-10-07)
+
+Independent exact-`ddc391e8` review reproduced two P2s
+(`/tmp/activation-ddc391-astra-orphan-history.log`). The orphan query had
+compared the **currently selected** cold/informed attempts to the old
+reservation attempt, so an already initiated attempt 0 could not be queried
+after both phases advanced to attempt 1. The original reservation and
+registration still bind attempt 0; the query-only owner now retains that
+historical fact without changing the terminal request, obligations, lease,
+replacement, or progress. The current-evaluating **send** owner keeps its
+attempt fences. The second P2 was a remote `absent` result reported despite
+an accepted fact already retained locally. The absent path now rechecks the
+original pinned authority and retained fact after the provider await, in a
+short transaction; a concurrent accepted-fact insert causes a conflict
+refusal with all rows preserved.
+
+All three mounted tests failed on the old algorithm (0/3,
+`/tmp/activation-orphan-p2-red.log`): old sent attempt, retained-fact versus
+remote absence, and held absent query raced with accepted-fact insertion.
+The corrected targeted group passed 32/32, 161 assertions
+(`/tmp/activation-orphan-p2-current-green.log`). Independently removing only
+the new absent-versus-fact predicate caused the held-query case to return
+absence (0/1 RED); restored source passed 1/1 GREEN
+(`/tmp/activation-orphan-r5-absent_conflict-{red,green}.log`). This raises the
+accepted orphan R5 total from 16 to 17. The old two attempt-refusal logs and
+two masked foreign-fact omission trials remain explicitly disqualified.
+
+On the corrected formatted source/test bytes, the literal four-file Bun
+command above passed 228/228 tests, 937 assertions, exit 0
+(`/tmp/activation-orphan-p2-final-four.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck`, and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-orphan-p2-final-{lint,type,build}.log`). Pinned OpenSpec
+strict passed 1/1 and all passed 143/143, zero failures
+(`/tmp/activation-orphan-p2-final-{strict,all}.json`). Changed-path Prettier
+and `git diff --check` passed. Normal-hook result belongs to the local
+correction commit. Tasks 1.2/3.3 and live provider acceptance remain open;
+no push, host gate, CI or activation is claimed.

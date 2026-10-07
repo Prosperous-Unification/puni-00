@@ -1710,13 +1710,12 @@ export class ActivationController {
     );
     const cold = phases.find((phase) => phase.phase === 'cold');
     const informed = phases.find((phase) => phase.phase === 'informed');
-    // Proof: separate cold/informed attempt omissions each queried a post-reservation attempt.
+    // A terminal request may select a later attempt after this effect was sent;
+    // the immutable reservation and registration retain the original attempt.
     if (
       phases.length !== 2 ||
       cold === undefined ||
       informed === undefined ||
-      cold.attempt !== rows.stored.attempt ||
-      informed.attempt !== rows.stored.attempt ||
       cold.executor_id !== bootstrap.reviewer.executorId ||
       informed.executor_id !== bootstrap.reviewer.executorId ||
       cold.protocol_identity !== bootstrap.reviewer.protocolIdentity ||
@@ -2128,7 +2127,17 @@ export class ActivationController {
     );
     // Proof: injecting a send here made the mounted query-only call log query then send.
     const queried = parseOrThrow(DispatchQuery, await port.query(reservation));
-    if (queried.kind !== 'accepted') return { kind: queried.kind };
+    if (queried.kind === 'unavailable') return { kind: 'unavailable' };
+    if (queried.kind === 'absent') {
+      return transaction(this.#database, () => {
+        // Proof: omitting this post-await check reported absence despite a prior accepted
+        // fact, including one retained while an absent query was held.
+        const rows = this.#orphanDispatchIn(effectKey);
+        if (this.#retainedRemoteDispatchFactIn(rows.stored) !== null)
+          throw new Error('review dispatch remote absence conflicts with retained fact');
+        return { kind: 'absent' };
+      });
+    }
     return transaction(this.#database, () => {
       // Proof: replacing this post-await validation with a raw row read retained a fact after
       // the independently pinned history changed while the provider query was held.
