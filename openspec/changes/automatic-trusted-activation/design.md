@@ -144,6 +144,139 @@ confirmed closure. Existing source validation owns the consumed PR fields and re
 joins. This increment has fake-HTTP tests but no live credential, scheduled process,
 webhook verification, write endpoint or external-review authority.
 
+### Observation-only tick and uninstalled service increment
+
+Baseline `e13eee341ed29ac43d6846a009bf5cab616017c1` supplies the GET reader and durable
+observation owner. Add one finite `runObservationTick` composition and uninstalled systemd
+oneshot/timer templates after task 1.2d. A tick only discovers and reconciles ordinary PRs.
+It does not select evaluation work, acquire evaluation leases, execute candidate commands,
+authenticate reviews, publish archives, report admission, merge or update WBS. Keep these
+capabilities absent from its composition rather than accepting a caller-selected mode.
+
+The local entrypoint consumes independently pinned bootstrap bytes, a validated repository
+binding, an explicit persistent state path and a trusted scheduling policy. The policy binds
+whole-tick and cleanup deadlines, workload limits, transient attempt budget, retry delays and
+slow recovery-probe interval. Validate finite positive bounded values and their ordering;
+never infer configuration from candidate files, the current directory or ambient credentials.
+Use a monotonic clock for live deadlines and validated absolute time for persisted cooldowns.
+Retain the existing source's per-read bounds under the shorter remaining tick deadline.
+No SQLite transaction spans an HTTP wait, process-lock wait or cleanup await.
+
+| Tick outcome | Required meaning                                                                                                        |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `reconciled` | Discovery and every subject selected for this bounded tick completed; atomically record successful scheduler completion |
+| `busy`       | Another process owns the single-flight lock; no provider reads or state mutation occurred                               |
+| `deferred`   | Valid persisted cooldown prevents another attempt; no provider reads or success record occurred                         |
+| `cancelled`  | Controlled shutdown fenced unfinished observations and completed local teardown; prior valid subject commits remain     |
+
+Required-work failures throw with redacted typed diagnostics and a nonzero command exit.
+Busy/deferred may exit successfully only with their explicit outcome, never a successful
+reconciliation or activation claim. A tick may commit earlier subjects before a later refusal;
+record incomplete completion and preserve those valid observations. Enforce finite whole-tick
+and subject-count limits. Capacity exhaustion is visible failure, not successful truncation;
+resumable scheduling for repositories exceeding this bounded increment remains separate work.
+
+#### Process ownership and state initialization
+
+Use one nonblocking host-local OS process lock for the configured state store. Every production
+invocation, including explicit initialization, goes through the same lock owner. Contention
+returns `busy` before HTTP or database mutation. Keep the stable lock inode in the protected
+state directory; never unlink it, replace it or rely only on a PID file. Hold ownership through
+all tick continuations, scheduler completion, database closure and resource cleanup. Release
+only owned resources, aggregate cleanup failures without losing the original error, and do
+not hand numeric lock descriptors to callbacks. Process termination releases ownership.
+The systemd unit adds scheduling serialization but is not the only lock guard. Do not reuse
+request evaluation leases for observation scheduling. Multiple hosts/shared-network-filesystem
+locks and distributed lease takeover are outside this single-host contract.
+
+Normal ticks require an initialized persistent database and scheduler record; absent,
+unreadable, corrupt, partial, wrong-repository or unsupported-schema state refuses before
+provider calls. An explicit initialization operation validates the external bootstrap first,
+creates new state atomically and records its repository/configuration binding. It cannot erase
+existing state, silently repair a partial store or guess missing authority. Scheduled execution
+must not use the controller's current create-if-missing constructor path to recreate lost state.
+Version scheduler storage additively in the existing SQLite state owner; preserve activation
+requests, subject high-water history and observations across migration/reopen/rollback. If new
+migration.sql files are introduced, ship their matching down.sql files.
+
+#### Cancellation and settle-before-close
+
+Compose caller shutdown, SIGTERM/SIGINT and the whole-tick deadline into one cancellation
+boundary and propagate it through discovery, current reads, body consumption and retry waits.
+Check cancellation before another read/refetch and inside the observation transaction before
+any subject/request write. Also recheck monotonic expiry before that commit: an event-loop
+timer alone cannot catch synchronous work that consumed the budget. A held old response must
+not mutate observation state after cancellation, even if the transport ignores its signal.
+Previously committed observations remain; cancellation does not roll back the entire poll.
+
+After cancellation, await the controller-facing tick continuation and its resource cleanup
+before closing SQLite or releasing the lock. A timeout race must not leave a continuation
+able to access the closed database. Transport promises isolated from controller state may
+finish late only to release their own response resources, with observed rejection handling.
+A cleanup deadline bounds graceful shutdown; if local work cannot settle, the supervised
+process fails and is terminated while retaining the process lock until exit. Never unlock and
+start another tick while an old owner can still write. Scheduler bookkeeping may record the
+cancelled/failed attempt after the observation fence; it must not advance candidate authority.
+
+#### Durable attempts, cooldown and GitHub timing
+
+Reserve a scheduler attempt durably before the first provider read. Bind its identifier and
+configuration identity, start time and finite budget. Reopening after a crash retains the
+consumed attempt and accounts for unfinished work; it cannot reset counters or pretend the
+attempt succeeded. Each invocation makes at most one reconciliation attempt and holds no lock
+while sleeping between scheduled attempts.
+
+Extend the typed GitHub read failure to retain validated retry timing without raw response
+headers, bodies or credentials. Parse supported `Retry-After` timing and relevant rate-limit
+reset epoch with explicit numeric/date, overflow and clock checks. When multiple applicable
+bounds exist, respect the latest provider minimum and the local delay. An absent optional
+header uses an explicitly configured conservative fallback; a present malformed header refuses
+as invalid-response. A valid provider minimum beyond the automatic scheduling horizon must
+produce a visible deferred/exhausted condition, never be shortened to the local backoff cap.
+Provider timing cannot change repository, authority, attempt limit or command identity.
+
+Persist bounded exponential cooldown for modeled transient unavailable/rate-limited failures.
+Inaccessible, invalid-response and trusted-state failures do not enter a rapid retry loop.
+On transient-budget exhaustion, persist failed health and throw. A configured slower recovery
+probe may run on later timer ticks, at most once per persisted probe interval, while retaining
+failed health/history until a complete successful tick. Such probes are not hidden resets of
+the exhausted burst. Cancellation does not become a provider error. Reboot, process restart,
+clock rollback and repeated timer delivery cannot shorten persisted provider cooldowns or
+refresh the attempt budget. Any unresolvable clock inconsistency refuses scheduling visibly.
+
+#### Service artifacts and bootstrap limits
+
+Keep proposed runtime files under the activation-controller module: `observation-tick.ts`,
+its mounted database/process tests and `observation-cli.ts`; extend `github-reader.ts` only
+for typed retry timing and source/controller interfaces only for explicit cancellation/fencing.
+Place uninstalled service/timer templates with a short provisioning runbook under
+`infra/ci/burokrat/observation/`. Reference that runbook from the activation runbook when the
+artifacts are implemented. No template contains real credentials or invented bootstrap pins.
+
+The oneshot template uses a dedicated non-sudo service account, a protected pinned executable
+outside candidate checkouts, read-only trusted configuration and an explicitly writable private
+state directory. Require restrictive creation modes, no privilege escalation, empty capability
+sets, protected system/home paths and private temporary storage. Permit only the networking
+needed for fixed-origin HTTPS/DNS; this observer's confinement is not a candidate worker sandbox.
+Do not add unverified options incompatible with the pinned Bun runtime. State/config/lock paths
+must not alias candidate paths or be replaceable by candidate users.
+
+Set a finite startup timeout greater than the tick plus cleanup budgets, a finite stop timeout
+covering graceful cleanup, whole-service-group termination and no automatic restart storm.
+Use one named oneshot service and a persistent calendar timer; application cooldowns govern
+whether a tick may read GitHub. Do not rely on timer coalescing for cross-process exclusion.
+Render explicit account/path/timing values during one-time administration. Template parsing
+and negative configuration checks prove the artifact contract only; installed systemd behavior
+requires separate host acceptance.
+
+Local implementation can exercise process locking, SQLite recovery, cancellation and cooldown
+with synthetic transport and test-only bootstrap fixtures. It cannot establish independent
+bootstrap authority from those fixtures. Protected account/directory creation, real bootstrap
+pins, optional read credential installation, unit installation/enablement and live host restart
+acceptance remain one-time authorized provisioning. Publisher, reviewer and merge secrets are
+not accessible to this service. No host configuration, unit deployment, activation or WBS
+completion is authorized by this artifact increment; 030.6 remains blocked.
+
 ### Unattended implementation sequence and provisioning boundary
 
 Continue in ordered, independently reviewable slices after ordinary-PR observation:
