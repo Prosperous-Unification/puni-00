@@ -1220,6 +1220,11 @@ _Avoid_: logout cookie, retry flag, browser binding
 
 ### Architecture
 
+**Activation controller**:
+The authority that coordinates independent review, certification and publication of a toolkit
+activation for an exact candidate and its admission context.
+_Avoid_: self-certifier, approval bot
+
 **Radical Modularity**:
 The approach to scaling model-assisted work by making responsibility boundaries
 explicit and their granularity adjustable, with quality, time and cost measured.
