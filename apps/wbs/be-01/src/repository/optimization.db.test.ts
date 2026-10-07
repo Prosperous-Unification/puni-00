@@ -382,7 +382,7 @@ describe('Optimization SQLite adapter', () => {
       expect(settled).toBe(false);
       release.resolve(undefined);
       await outer;
-      expect((await recorded).kind).toBe('stored');
+      expect(decisionOf(await recorded).kind).toBe('stored');
       expect(db.all(sql.raw('SELECT count(*) AS count FROM optimized_schedule_cache'))).toEqual([
         { count: 1 },
       ]);
@@ -649,7 +649,7 @@ describe('Optimization SQLite adapter', () => {
           outcome: { kind: 'failed', reason: 'internal-error' },
           now: 20,
         })
-      ).kind,
+      ).decision.kind,
     ).toBe('stored');
     await repository.releaseSlot(slot);
     let release: (() => void) | undefined;
@@ -733,7 +733,7 @@ describe('Optimization SQLite adapter', () => {
           outcome: { kind: 'failed', reason: 'internal-error' },
           now: 11,
         })
-      ).kind,
+      ).decision.kind,
     ).toBe('stored');
     await repository.releaseSlot(slot);
     expect(observed.pair.pri.state).toEqual({ state: 'idle' });
@@ -787,10 +787,20 @@ describe('Optimization SQLite adapter', () => {
       now: 20,
     };
     const committed = await repository.recordOutcome(write);
-    expect(committed.kind).toBe('stored');
-    if (committed.kind !== 'stored') throw new Error('fixture outcome refused');
-    expect(committed.event.type).toBe('schedule_optimization_failed');
-    expect(await repository.recordOutcome(write)).toEqual({ kind: 'already-recorded' });
+    expect(committed.envelopes).toEqual([]);
+    expect(committed.decision.kind).toBe('stored');
+    if (committed.decision.kind !== 'stored') throw new Error('fixture outcome refused');
+    expect(committed.decision.event.type).toBe('schedule_optimization_failed');
+    expect(await repository.recordOutcome(write)).toEqual({
+      decision: { kind: 'already-recorded' },
+      envelopes: [],
+    });
+    expect(
+      await repository.recordOutcome({ ...write, claim: { ...slot, attemptToken: 'stale' } }),
+    ).toEqual({
+      decision: { kind: 'superseded' },
+      envelopes: [],
+    });
     await repository.releaseSlot(slot);
     let tokens = 0;
     const retry = () =>

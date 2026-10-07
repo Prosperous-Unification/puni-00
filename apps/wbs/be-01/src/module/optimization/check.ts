@@ -55,9 +55,6 @@ export function installOptimization(requirements: OptimizationRequirements): Opt
       onChildError: DiBag.createProvider(() => requirements.onChildError, {
         factoryReturnKind: 'sync-value',
       }),
-      pushRecorded: DiBag.createProvider(() => requirements.pushRecorded, {
-        factoryReturnKind: 'sync-value',
-      }),
       // Proof: omitting this provider made the installed Retry envelope test
       // fail at DI resolution before the committed event could be delivered.
       deliverCommitted: DiBag.createProvider(() => requirements.deliverCommitted, {

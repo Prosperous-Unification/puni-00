@@ -30,6 +30,7 @@ import {
 } from '@wbs/store-sqlite/optimized-schedule-cache';
 
 import type {
+  CommittedDecision,
   OptimizationCachedPair,
   OptimizationRepository,
   OptimizationRetryDecision,
@@ -300,7 +301,7 @@ export function createOptimizationRepository(
       gate.enter(() => Promise.resolve().then(() => reconcileOptimizationDrains(db, now))),
     // Proof: omitting this turn lost the committed cache and event on owner rollback.
     recordOutcome: (write) =>
-      gate.enter<RecordedOptimizationOutcome>(() =>
+      gate.enter<CommittedDecision<RecordedOptimizationOutcome>>(() =>
         Promise.resolve().then(() => {
           // Proof: splitting cache storage into its own transaction made the throwing
           // event-writer test observe one cache row instead of zero.
@@ -324,7 +325,8 @@ export function createOptimizationRepository(
                   : write.outcome,
             },
           );
-          if (committed.result !== 'stored') return { kind: committed.result };
+          if (committed.result !== 'stored')
+            return { decision: { kind: committed.result }, envelopes: [] };
           // The store's legacy optional fields are safe here because recordEventIn
           // validates the envelope inside the same transaction before commit.
           const envelope = committed as {
@@ -333,10 +335,13 @@ export function createOptimizationRepository(
             readonly event: Extract<RecordedOptimizationOutcome, { kind: 'stored' }>['event'];
           };
           return {
-            kind: 'stored',
-            subscription: envelope.subscription,
-            recorded: envelope.recorded,
-            event: envelope.event,
+            decision: {
+              kind: 'stored',
+              subscription: envelope.subscription,
+              recorded: envelope.recorded,
+              event: envelope.event,
+            },
+            envelopes: [],
           };
         }),
       ),

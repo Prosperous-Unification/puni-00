@@ -43,7 +43,6 @@ export const optimizationModule = DiBag.createBuilder()
         spawn,
         runChild,
         onChildError,
-        pushRecorded,
         deliverCommitted,
         editDebounceMs,
         sleep,
@@ -65,7 +64,6 @@ export const optimizationModule = DiBag.createBuilder()
         runChild: CoordinatorOption<'runChild'>;
         onChildError: CoordinatorOption<'onChildError'>;
 
-        pushRecorded: CoordinatorOption<'pushRecorded'>;
         deliverCommitted: CoordinatorOption<'deliverCommitted'>;
         editDebounceMs: CoordinatorOption<'editDebounceMs'>;
         sleep: CoordinatorOption<'sleep'>;
@@ -97,7 +95,6 @@ export const optimizationModule = DiBag.createBuilder()
         // the supplied sink left `reports a failed edit read to the error sink installOptimization
         // wires` failing (5 pass, 1 fail): it received `[]`.
         onChildError,
-        pushRecorded,
         // Proof: omitting this forwarding made installed Retry call an absent
         // delivery function and lose its test-injected committed envelope.
         deliverCommitted,

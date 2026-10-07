@@ -3354,3 +3354,164 @@ Store-sqlite and store-memory declare no build target. Final two-path Prettier c
 passed 1/1 and all-change validation passed 148/148
 (`/tmp/shared-people-6jf-final-openspec-{strict,all}.json`). These are local checks; this
 closure has not run the canonical host gate or CI.
+
+## 6k architecture amendment — planning evidence only
+
+The [6k packet](6k-architecture.md) was traced against clean source
+`a8c6c641584001407f5277b8cada6748263300fe` in an isolated
+`plan/shared-people-fanout-6k-architecture` worktree. It resolves the async source UoW around
+synchronous outcome/event and admission-observation savepoints, committed decision/envelope
+handoff, complete generation/cache replacement/eviction inventory, and the distinction between
+optimization-status labels and modeled scheduling availability. The existing `CONTEXT.md` terms
+and 6j transaction decisions are preserved; no glossary entry, ADR or production edit was needed.
+
+Tasks 6k and 6k.a–e remain unchecked. The matrix below is a register of required future proofs,
+not RED/GREEN evidence. The packet contains each named witness, injected fault and expected
+assertion. No proposed fault has been run as part of this docs-only amendment.
+
+| Required proof rows                                                                                                                | Planned owner/slice                                   | Observed result for 6k                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| K1/K2: installed selected publication and H1/nonselected silence                                                                   | 6k.b outcome owner                                    | Unverified; implementation not started here                                                       |
+| K3: selected replacement/eviction, Fast and addressed-cause negatives                                                              | 6k.c complete cache mutation                          | Unverified                                                                                        |
+| K4: mounted empty-booking availability at unchanged canonical/admission H, plus separate equal-captured-hash comparator regression | 6k.b borrowed projection and existing pure comparator | Unverified; unconditional mounted suppression and conditional pure regression are distinct proofs |
+| K5–K8: borrowed capture, atomic rollback, after-capture failure and no-op/legacy/isolated silence                                  | 6k.b outcome owner                                    | Unverified                                                                                        |
+| K9/K10/K13: decision independence, tracking/error reporting, exact delivery and recipient reaction                                 | 6k.a consumer, then 6k.b installed owner              | Unverified; consumer-only evidence cannot close the installed obligation                          |
+| K11: generation/cache eviction with original observation identity                                                                  | 6k.d observation owner                                | Unverified                                                                                        |
+| K12: admission status-only silence and retirement inventory                                                                        | 6k.e closure                                          | Unverified; existing 6j proofs are regressions, not proof of new 6k binding                       |
+
+For implementation acceptance, append exact test commands/counts, accepted fault/restoration
+logs and adjacent production `Proof:` locations for each changed dependency. Keep disqualified
+trials explicit. Do not infer a mounted proof from mocked envelopes or pure comparison. A
+calendar-availability fixture that cannot pass existing admitted-result validation requires
+design review, not a new availability state or removal of the required test.
+
+Planning validation commands (run from this isolated worktree):
+
+```sh
+BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json
+BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json
+bunx prettier --check openspec/changes/share-people-across-projects/6k-architecture.md openspec/changes/share-people-across-projects/design.md openspec/changes/share-people-across-projects/tasks.md openspec/changes/share-people-across-projects/specs/shared-people-mode/spec.md openspec/changes/share-people-across-projects/verify.md
+git diff --check
+```
+
+Initial pinned strict validation passed 1/1 and all validation passed 149/149, exit 0
+(`/tmp/shared-people-6k-strict.json`, `/tmp/shared-people-6k-all.json`), before this ledger append.
+The all count reflects this integrated base; historical 148/148 evidence above is unchanged.
+Final five-path Prettier and diff checks passed, exit 0
+(`/tmp/shared-people-6k-final-format.log`, `/tmp/shared-people-6k-final-diff.log`); pinned strict
+passed 1/1 and all passed 149/149, exit 0
+(`/tmp/shared-people-6k-final-strict.json`, `/tmp/shared-people-6k-final-all.json`). The same
+commands were repeated after this evidence text was added. Dependencies for these docs tools
+reuse the base worktree's `node_modules`; this is not a fresh frozen-install claim. No runtime
+suite, Nx product lint/typecheck/build, canonical host gate, CI, publication, 6l closure,
+UI/mode work or trusted activation was performed by this amendment.
+
+### 6k K4 proof-plan correction
+
+Independent review of `de054d5ef15fd2c857df8ebec1e2d6960f605c1c` identified a P2 proof-plan
+mismatch: the proposed calendar-range mounted witness preserves canonical/admission Input hash
+H, but `readFanoutObservationIn` changes its nullable captured hash from H to null. A conditional
+fault that suppresses availability only for equal captured hashes would not break that witness.
+The packet now requires unconditional suppression of availability comparison for the mounted
+empty-booking `available` → `calendar_range` witness; the required downstream event must disappear.
+The existing equal-captured-hash conditional fault remains a separate pure comparator regression
+(`shared-people-fanout.test.ts::equal hashes retain availability transitions with no bookings`).
+Neither proof is attributed to the other. This correction changes no production shape, domain
+term, task completion status or implementation evidence; both future proof obligations remain open.
+
+Correction validation: the same pinned strict/all commands above passed 1/1 and 149/149,
+respectively; Prettier on the two changed Markdown files and `git diff --check` passed, all
+exit 0 (`/tmp/shared-people-6k-k4-{strict,all}.json`,
+`/tmp/shared-people-6k-k4-{format,diff}.log`). These commands were repeated after this ledger
+entry. No runtime mutation/test or gate was run for the proof-plan correction.
+
+### 6k revalidation after the 6j merge
+
+PR #282 merged at `ae7c1ff110731277e776ea3de45cd980614b2d67`. Comparing that tree with the
+packet's original source `a8c6c641584001407f5277b8cada6748263300fe` found changes only in
+`docs/code-organization/kinds.json` and `tools/tool-devsync/src/service-kinds.test.ts`: the five
+6j optimizer owners are classified as features, and the policy's existing negative-proof
+comment records their omission failure. WBS source, contracts, tests and this change's prior
+specification are identical across those source revisions. No transaction/caller redesign
+is required.
+
+The two reviewed docs commits ending at `5f30a49fa0afcf1d296e10d1f0ed22ec4ce0e345` were rebased
+onto that exact merged main without conflicts. The packet now names the merged checkpoint and
+requires any new owner file to follow the merged service-kind policy. Its K4 correction and
+6k.a–e ordering are preserved. All 6k implementation/proof obligations remain unchecked;
+6l, UI, mode routes and trusted activation remain deferred.
+
+Revalidation commands: the five-path Prettier check and pinned OpenSpec commands listed above
+passed again (strict 1/1; all 149/149), each with exit 0, as did `git diff --check`.
+`git range-diff a8c6c641584001407f5277b8cada6748263300fe..5f30a49fa0afcf1d296e10d1f0ed22ec4ce0e345 ae7c1ff110731277e776ea3de45cd980614b2d67..HEAD`
+reported both rebased planning commits patch-equivalent before this revalidation amendment.
+The formatting, strict/all and diff checks were repeated after this evidence text was added.
+
+This is source and documentation revalidation only. No implementation, runtime mutation/test,
+Nx product check, canonical host gate, CI, push or merge was performed for this update.
+
+### 6k.a committed outcome handoff (consumer checkpoint)
+
+Implemented from clean source `6b08217e53dc0d79d0457e7d1c7020c0f005e248` in
+`feat/shared-people-fanout-6ka`. `recordOutcome` now returns the typed durable decision and
+downstream envelopes; the direct adapter returns an empty downstream list for stored,
+already-recorded and superseded decisions. The coordinator hands the stored outcome envelope
+first, followed by downstream records, to the existing tracked `deliverCommitted` boundary
+after commit. The obsolete optimizer-specific `pushRecorded` port and DI wiring were removed.
+The new coordinator witness injects one separately recorded downstream row at the repository
+port: it proves the consumer, **not** the 6k.b installed transactional producer. The composed
+delivery test uses the real in-memory event log and broadcaster to prove reaction before held
+outcome transport and unchanged original sequences. Two optimizer objectives explain the two
+reported errors in the synchronous-throw test.
+
+First TDD RED: `bun test apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts
+--test-name-pattern 'hands off the stored outcome before downstream'` failed 0/1 because the
+combined batch was absent (`/tmp/shared-people-6ka-first-red.log`); the same test passed 1/1
+after the port/adapter/coordinator change (`/tmp/shared-people-6ka-first-green.log`).
+No-op adapter assertions cover empty downstream arrays for both already-recorded and
+superseded. The held/rejected consumer test checks exact-slot release, pending stop while only
+transport holds, one ordered outcome/downstream batch, three distinct original sequences,
+three durable event rows and one reported rejection. The synchronous-throw case checks the
+plan-read decision, durable rows and released slots.
+
+| Watched production fault                              | Required failure                                       | RED log                                                  | Restored GREEN                                   |
+| ----------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------- | ------------------------------------------------ |
+| Await delivery before returning the committed outcome | Exact slot remains while transport holds               | `/tmp/shared-people-6ka-await-before-handoff-red.log`    | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Drop downstream envelopes                             | Recipient absent from delivered batch                  | `/tmp/shared-people-6ka-drop-downstream-red.log`         | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Omit in-flight tracking                               | Stop settles during held transport                     | `/tmp/shared-people-6ka-omit-tracking-red.log`           | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Omit delivery error reporting                         | Reported errors 0 instead of 1                         | `/tmp/shared-people-6ka-omit-error-report-red.log`       | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Rethrow delivery rejection                            | Held rejection fails the committed lifecycle test      | `/tmp/shared-people-6ka-rethrow-delivery-red.log`        | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Invoke synchronous transport before deferred tracking | Throw replaces the committed read decision             | `/tmp/shared-people-6ka-sync-invocation-red.log`         | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Omit recipient reaction                               | Recipient callback list empty before held outcome push | `/tmp/shared-people-6ka-omit-recipient-reaction-red.log` | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+| Republish instead of pushing recorded rows            | First push advances original sequence 0 to 1           | `/tmp/shared-people-6ka-republish-red.log`               | `/tmp/shared-people-6ka-focused-unsandboxed.log` |
+
+Final nine-file regression command: `bun test apps/wbs/be-01/src/module/optimization/module.test.ts
+apps/wbs/be-01/src/repository/optimization.db.test.ts
+apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts
+apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts
+apps/wbs/be-01/src/service/optimization-events.db.test.ts
+apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts
+apps/wbs/be-01/src/service/optimization-restart.db.test.ts
+apps/wbs/be-01/src/service/optimization-spawn-handshake.proc.db.test.ts
+libs/wbs/application/core/src/compose.test.ts`: 139/139 passed, 19,124 assertions, exit 0
+(`/tmp/shared-people-6ka-focused-unsandboxed.log`). The same sandboxed batch reported
+138 pass/1 fail because the real child process's stdin pipe returned `EPERM`; diagnostic
+`/tmp/shared-people-6ka-spawn-diagnostic.log` showed that boundary, and the exact process
+test passed outside the sandbox 1/1, 13 assertions
+(`/tmp/shared-people-6ka-spawn-escalated.log`).
+
+`NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6ka-nx bunx nx run wbs-be-01:lint
+--skip-nx-cache` passed (`/tmp/shared-people-6ka-nx-lint.log`). The corresponding
+`wbs-be-01:typecheck` (including `typecheck:module`) and `wbs-be-01:build` targets passed
+(`/tmp/shared-people-6ka-nx-{typecheck,build}.log`). `git diff --name-only -z | xargs -0 bunx
+prettier --check` passed all changed paths (`/tmp/shared-people-6ka-prettier-check.log`), and
+`git diff --check` exited 0 (`/tmp/shared-people-6ka-diff-check.log`). Pinned OpenSpec 1.12.0
+strict validation passed 1/1 and `--all` passed 149/149
+(`/tmp/shared-people-6ka-openspec-{strict,all}.json`). The canonical host gate, CI, independent
+exact-SHA review, installed 6k.b owner and trusted activation remain open; no push or merge
+was performed.
+
+After this ledger append, the final documentation bytes passed pinned strict OpenSpec 1/1,
+all OpenSpec 149/149, changed-path Prettier and `git diff --check`; outputs are
+`/tmp/shared-people-6ka-final-{strict,all}.json` and
+`/tmp/shared-people-6ka-final-{format,diff}.log`.

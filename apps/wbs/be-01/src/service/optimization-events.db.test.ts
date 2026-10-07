@@ -84,6 +84,49 @@ afterEach(() => {
 });
 
 describe('optimized outcome events', () => {
+  it('reports a synchronous delivery throw after the durable outcome and exact-slot release', async () => {
+    const { path, db } = database();
+    const errors: unknown[] = [];
+    const instance = new OptimizationCoordinator({
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
+      hashInput: scheduleInputHash,
+      contractVersion: CONTRACT,
+      solverVersion: '0.2.0',
+      budgetMs: BUDGET,
+      ownerId: 'blue',
+      now: () => 10,
+      attemptToken: () => 'attempt-1',
+      inputOf: () => Promise.resolve(INPUT),
+      enabledOf: () => Promise.resolve(true),
+      spawn: () => {
+        throw new Error('preflight failure reached launcher');
+      },
+      deliverCommitted: () => {
+        throw new Error('synchronous outcome transport failure');
+      },
+      onChildError: (error) => {
+        errors.push(error);
+      },
+    });
+    const tooLate: ScheduleInput = { ...INPUT, notBefore: new Map([['w-1', 50_000_000]]) };
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: tooLate })).toBeNull();
+    await instance.drain();
+    expect(errors).toHaveLength(2);
+    expect(
+      errors.every(
+        (error) =>
+          error instanceof Error && error.message === 'synchronous outcome transport failure',
+      ),
+    ).toBe(true);
+    const raw = openDatabase(path);
+    try {
+      expect((raw.query('SELECT COUNT(*) AS n FROM event_log').get() as { n: number }).n).toBe(2);
+      expect((raw.query('SELECT COUNT(*) AS n FROM solver_slot').get() as { n: number }).n).toBe(0);
+    } finally {
+      raw.close();
+    }
+  });
+
   it('records and pushes both preflight failures without launching a process', async () => {
     const { db } = database();
     const pushed: OptimizationOutcomeEvent[] = [];
@@ -104,9 +147,11 @@ describe('optimized outcome events', () => {
         launches += 1;
         throw new Error('preflight failure reached launcher');
       },
-      deliverCommitted: () => Promise.resolve(),
-      pushRecorded: (_subscription, _recorded, event) => {
-        pushed.push(event);
+      deliverCommitted: (events) => {
+        for (const { event } of events) {
+          if (event.type !== 'schedule_optimization_failed') throw new Error('unexpected event');
+          pushed.push(event);
+        }
         return Promise.resolve();
       },
       onChildError: (error) => {
@@ -166,9 +211,12 @@ describe('optimized outcome events', () => {
         await options.onExit({ code: 0, stdout: INFEASIBLE_RESPONSE, stderr: '' });
         return { kind: 'exited', code: 0 };
       },
-      deliverCommitted: () => Promise.resolve(),
-      pushRecorded: (_subscription, _recorded, event) => {
-        pushed.push(event);
+      deliverCommitted: (events) => {
+        for (const { event } of events) {
+          if (event.type !== 'schedule_optimization_infeasible')
+            throw new Error('unexpected event');
+          pushed.push(event);
+        }
         return Promise.resolve();
       },
       onChildError: (error) => {
@@ -268,8 +316,7 @@ describe('optimized outcome events', () => {
         await options.onExit({ code: 0, stdout: RESPONSE, stderr: '' });
         return { kind: 'exited', code: 0 };
       },
-      deliverCommitted: () => Promise.resolve(),
-      pushRecorded: (_subscription, recorded, event) => {
+      deliverCommitted: (events) => {
         const raw = openDatabase(path);
         try {
           const cacheCount = raw
@@ -285,7 +332,10 @@ describe('optimized outcome events', () => {
         } finally {
           raw.close();
         }
-        pushed.push({ recorded, event });
+        for (const { recorded, event } of events) {
+          if (event.type !== 'schedule_optimized') throw new Error('unexpected event');
+          pushed.push({ recorded, event });
+        }
         return Promise.resolve();
       },
       onChildError: (error) => {

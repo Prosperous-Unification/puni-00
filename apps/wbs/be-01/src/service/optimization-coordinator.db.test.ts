@@ -194,7 +194,6 @@ function coordinator(
       return await childOf(request);
     },
     runChild,
-    pushRecorded: () => Promise.resolve(),
     onChildError,
     deliverCommitted: committedFanout
       ? (events) => committedFanout.deliverCommitted(events)
@@ -257,6 +256,87 @@ function seedReadyVariant(
 }
 
 describe('OptimizationCoordinator read', () => {
+  it('hands off the stored outcome before downstream rows and releases its slot while delivery is held', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const log = new DrizzleEventLogStore(db, OPEN);
+    // The extra durable row is injected at the consumer boundary; 6k.b owns
+    // the installed transactional producer proof.
+    const downstream = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await log.recordEvent('project:p-1', downstream, 3);
+    const envelope = { projectId: 'p-1', event: downstream, recorded };
+    const held = deferred<undefined>();
+    const delivered: CommittedProjectEvent[][] = [];
+    const errors: unknown[] = [];
+    const instance = coordinator(
+      db,
+      [],
+      'blue',
+      () => ({
+        pid: 42,
+        stdout: stream(FEASIBLE_RESPONSE),
+        stderr: stream(''),
+        exited: Promise.resolve(0),
+        verdict: () => undefined,
+        kill: () => undefined,
+      }),
+      runSolverChildLifecycle,
+      (error) => errors.push(error),
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        recordOutcome: async (write) => {
+          const committed = await repository.recordOutcome(write);
+          return write.claim.objective === 'pri' && committed.decision.kind === 'stored'
+            ? { ...committed, envelopes: [envelope] }
+            : committed;
+        },
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: async (events) => {
+          delivered.push([...events]);
+          if (events.some((entry) => entry.event.type === 'elsewhere_changed')) await held.promise;
+        },
+      },
+    );
+    await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT });
+    for (let turn = 0; turn < 100 && db.select().from(solverSlot).all().length > 0; turn += 1)
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+    const outcomeDelivery = delivered.find((events) =>
+      events.some((entry) => entry.event.type === 'elsewhere_changed'),
+    );
+    expect(outcomeDelivery?.map(({ event }) => event.type)).toEqual([
+      'schedule_optimized',
+      'elsewhere_changed',
+    ]);
+    expect(outcomeDelivery?.[1]).toEqual(envelope);
+    expect(outcomeDelivery?.map(({ recorded }) => recorded.seq)).toEqual([
+      recorded.seq + 1,
+      recorded.seq,
+    ]);
+    expect(delivered.flat()).toHaveLength(3);
+    expect(new Set(delivered.flat().map(({ recorded }) => recorded.seq)).size).toBe(3);
+    expect(db.select().from(eventLog).all()).toHaveLength(3);
+    let stopped = false;
+    const stopping = instance.stop().then(() => {
+      stopped = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(stopped).toBe(false);
+    held.reject(new Error('outcome transport rejected after commit'));
+    await stopping;
+    expect(errors).toHaveLength(1);
+    if (!(errors[0] instanceof Error)) throw new Error('outcome delivery error was not reported');
+    expect(errors[0].message).toBe('outcome transport rejected after commit');
+  });
+
   it('does not invoke committed delivery for empty adapter envelopes', async () => {
     const { path, db } = database();
     seedProject(path);
@@ -578,7 +658,6 @@ describe('OptimizationCoordinator read', () => {
       enabledOf: () => Promise.resolve(true),
       spawn: () => Promise.reject(new Error('reconcile cannot launch')),
       deliverCommitted: () => Promise.resolve(),
-      pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
       },
@@ -664,7 +743,6 @@ describe('OptimizationCoordinator read', () => {
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
       deliverCommitted: () => Promise.resolve(),
-      pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
       },
@@ -861,7 +939,6 @@ describe('OptimizationCoordinator read', () => {
         throw new Error('a drain reconciliation must not resume a solve');
       },
       deliverCommitted: () => Promise.resolve(),
-      pushRecorded: () => Promise.resolve(),
       onChildError: (error) => errors.push(error),
       setInterval: (callback, milliseconds) => {
         tick = callback;
@@ -928,7 +1005,6 @@ describe('OptimizationCoordinator read', () => {
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
       deliverCommitted: () => Promise.resolve(),
-      pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
       },
@@ -1330,7 +1406,6 @@ describe('OptimizationCoordinator read', () => {
         throw new Error('an OFF project reached the launcher');
       },
       deliverCommitted: () => Promise.resolve(),
-      pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
       },
@@ -1401,7 +1476,6 @@ describe('OptimizationCoordinator read', () => {
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
       deliverCommitted: () => Promise.resolve(),
-      pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
       },
@@ -1462,7 +1536,6 @@ describe('OptimizationCoordinator read', () => {
         throw new Error('an OFF project reached the launcher');
       },
       deliverCommitted: () => Promise.resolve(),
-      pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
       },
@@ -2600,7 +2673,6 @@ describe('OptimizationCoordinator Retry admission', () => {
         });
       },
       deliverCommitted: () => Promise.resolve(),
-      pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
       },
@@ -2695,7 +2767,6 @@ describe('OptimizationCoordinator Retry admission', () => {
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
       deliverCommitted: () => Promise.resolve(),
-      pushRecorded: () => Promise.resolve(),
       onChildError: (error) => errors.push(error),
       setInterval: () => 'drain-timer',
       clearInterval: () => undefined,
@@ -2909,7 +2980,6 @@ describe('wire 3 preflight admission cleanup', () => {
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
       deliverCommitted: () => Promise.resolve(),
-      pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         errors.push(error);
       },
@@ -3085,7 +3155,6 @@ describe('wire 3 preflight admission cleanup', () => {
           },
           runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
           deliverCommitted: () => Promise.resolve(),
-          pushRecorded: () => Promise.resolve(),
           onChildError: (error) => errors.push(error),
           setInterval: () => 'preflight-timer',
           clearInterval: () => undefined,

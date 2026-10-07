@@ -365,6 +365,8 @@ retirement removes cache/generation rows and must compare any resulting selected
 Space membership removal is not project deletion.
 
 `optimized-outcome.ts::storeOptimizedOutcomeAndRecord` is the optimizer transaction boundary.
+The normative [6k architecture checkpoint](6k-architecture.md) fixes its borrowed source UoW,
+committed outcome/envelope handoff, generation/cache-eviction inventory and ordered proof matrix.
 Retain admitted-result validation and existing generation/token/cancellation/enablement
 fences. Compare the current selected display around storage: an H1 insertion under current H2
 is not itself a display change. Record existing outcome and downstream events atomically and

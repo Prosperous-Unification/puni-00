@@ -118,7 +118,7 @@ function fixture() {
   };
 }
 
-test('committed fan-out notifies the recipient before held transport and preserves its durable sequence', async () => {
+test('stored outcome and downstream recipient retain their sequences while reaction precedes held outcome transport', async () => {
   const given = fixture();
   const transport = signal();
   const changed: string[] = [];
@@ -143,12 +143,28 @@ test('committed fan-out notifies the recipient before held transport and preserv
     projectId: 'recipient',
     causeProjectId: 'cause',
   };
+  const outcome = {
+    type: 'schedule_optimization_failed' as const,
+    projectId: 'origin',
+    generation: 1,
+    inputHash: 'captured-input',
+    objective: 'pri' as const,
+    contractVersion: '7+0.2.0',
+    budgetMs: 60_000,
+    failureReason: 'internal-error' as const,
+  };
+  const recordedOutcome = await given.source.stores.eventLog.recordEvent(
+    'project:origin',
+    outcome,
+    1_000,
+  );
   const recorded = await given.source.stores.eventLog.recordEvent(
     'project:recipient',
     event,
     1_000,
   );
   const delivering = graph.committedFanout.deliverCommitted([
+    { projectId: 'origin', event: outcome, recorded: recordedOutcome },
     { projectId: 'recipient', event, recorded },
   ]);
   expect(changed).toEqual(['recipient']);
@@ -157,10 +173,15 @@ test('committed fan-out notifies the recipient before held transport and preserv
   );
   expect(secondWriter).toBe('entered');
   expect(pushed).toEqual([
-    { subscription: 'project:recipient', seq: recorded.seq, message: event },
+    { subscription: 'project:origin', seq: recordedOutcome.seq, message: outcome },
   ]);
   transport.resolve();
   await delivering;
+  expect(pushed).toEqual([
+    { subscription: 'project:origin', seq: recordedOutcome.seq, message: outcome },
+    { subscription: 'project:recipient', seq: recorded.seq, message: event },
+  ]);
+  expect(await given.source.stores.eventLog.latestSeq('project:origin')).toBe(recordedOutcome.seq);
   expect(await given.source.stores.eventLog.latestSeq('project:recipient')).toBe(recorded.seq);
 });
 

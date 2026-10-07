@@ -55,7 +55,6 @@ function requirements(): OptimizationRequirements {
     onChildError: (error) => {
       throw error;
     },
-    pushRecorded: () => Promise.resolve(),
     deliverCommitted: () => Promise.resolve(),
   };
 }
@@ -84,9 +83,6 @@ const hostRequirements = () => {
     hashInput: DiBag.createProvider(() => supplied.hashInput, { factoryReturnKind: 'sync-value' }),
     spawn: DiBag.createProvider(() => supplied.spawn, { factoryReturnKind: 'sync-value' }),
     runChild: DiBag.createProvider(() => supplied.runChild, { factoryReturnKind: 'sync-value' }),
-    pushRecorded: DiBag.createProvider(() => supplied.pushRecorded, {
-      factoryReturnKind: 'sync-value',
-    }),
     deliverCommitted: DiBag.createProvider(() => supplied.deliverCommitted, {
       factoryReturnKind: 'sync-value',
     }),
