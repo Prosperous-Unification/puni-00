@@ -33,6 +33,14 @@ import {
   nodeDigest,
   systemInterval,
 } from './runtime/bun-runtime';
+import { createDequeueReservationOwner } from './service/optimization-dequeue-reservation';
+import { createInitialReservationOwner } from './service/optimization-initial-reservation';
+import {
+  createOptimizationLifecycle,
+  type OptimizationLifecycle,
+} from './service/optimization-lifecycle';
+import { createOptimizationReconciliation } from './service/optimization-reconciliation';
+import { createRetryReservationOwner } from './service/optimization-retry-reservation';
 import { optimizerWiring } from './service/optimizer-wiring';
 
 const EVENT_LOG_MAX_PER_SUBSCRIPTION = 1_000;
@@ -60,6 +68,7 @@ export interface ServicesOptions {
 
 export interface BeServices extends AccountfulServices {
   readonly optimizer: OptimizationCoordinator | undefined;
+  readonly optimizationLifecycle: OptimizationLifecycle;
   readonly gate: SqliteSource['gate'];
   readonly projectRanks: ProjectRankStore;
 }
@@ -164,14 +173,58 @@ export function buildServices(options: ServicesOptions): BeServices {
       planEventRetentionDays: PLAN_EVENT_RETENTION_DAYS,
     },
   });
+  const optimizationLifecycle = createOptimizationLifecycle(
+    source.db,
+    boundSource.uow,
+    graph.committedFanout,
+  );
+  const initialReservation = createInitialReservationOwner(
+    source.db,
+    boundSource.uow,
+    graph.committedFanout,
+  );
+  const retryReservation = createRetryReservationOwner(
+    source.db,
+    boundSource.uow,
+    graph.committedFanout,
+  );
+  const dequeueReservation = createDequeueReservationOwner(
+    source.db,
+    boundSource.uow,
+    graph.committedFanout,
+  );
+  const reconciliation = createOptimizationReconciliation(
+    source.db,
+    source.gate,
+    boundSource.uow,
+    graph.committedFanout,
+  );
   if (options.optimizer !== undefined) {
     const optimizer = options.optimizer;
     coordinator = installOptimization({
-      repository: createOptimizationRepository(
-        source.db,
-        new DrizzleEventLogStore(source.db, source.gate),
-        source.gate,
-      ),
+      repository: {
+        ...createOptimizationRepository(
+          source.db,
+          new DrizzleEventLogStore(source.db, source.gate),
+          source.gate,
+        ),
+        // Proof: omitting this installed binding made the mounted terminal
+        // child and, independently, initial/Retry preflight and queued cleanup
+        // delete A without B's old-cause event.
+        releaseSlot: (slot) => optimizationLifecycle.releaseSlot(slot),
+        // Proof: omitting this installer binding reclaimed A but lost B's durable
+        // event in the mounted initial-admission test.
+        reserveSlot: initialReservation,
+        // Proof: omitting this installed owner lost B's durable A-cause event;
+        // the mounted second-event rollback case no longer rejected.
+        dequeueRequest: dequeueReservation,
+        // Proof: omitting the source-bound reconciliation installer let
+        // startup delete populated A without B's durable recipient event.
+        reconcileDrains: reconciliation,
+        // Proof: omitting this binding let installed Retry delete A without
+        // B's durable elsewhere_changed event; the mounted Retry test failed.
+        admitRetry: retryReservation,
+      },
       contractVersion: contractVersionOf(optimizer.solverVersion),
       solverVersion: optimizer.solverVersion,
       budgetMs: optimizer.budgetMs,
@@ -188,6 +241,7 @@ export function buildServices(options: ServicesOptions): BeServices {
       spawn: optimizer.spawn,
       pushRecorded: (subscription, recorded, event) =>
         graph.gatewayBroadcaster.pushRecorded(subscription, recorded, event),
+      deliverCommitted: (events) => graph.committedFanout.deliverCommitted(events),
       onChildError: (error) => {
         options.logger.error({ err: error }, 'optimizer child failed');
       },
@@ -199,6 +253,9 @@ export function buildServices(options: ServicesOptions): BeServices {
   return {
     ...graph,
     optimizer: coordinator,
+    // Proof: omitting the unconditional binding left the mounted lifecycle
+    // undefined when this process had no active solver runtime.
+    optimizationLifecycle,
     gate: source.gate,
     projectRanks: standaloneRankStore(publicRanks, boundSource.uow, graph.committedFanout),
   };

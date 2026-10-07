@@ -463,6 +463,267 @@ describe('finishing a project deletion', () => {
     expect(slotRowsByProject()).toEqual([`p-1/${GREEN}/time/20`]);
   });
 
+  it('keeps a populated project graph intact while a child remains counted', () => {
+    const seed = openDatabase(path);
+    try {
+      seed.run(
+        "INSERT INTO step (id, project_id, name, position) VALUES ('s-1', 'p-1', 'Work', 10)",
+      );
+      seed.run(
+        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-1', 'p-1', 10, 'Work')",
+      );
+      seed.run(
+        "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('w-1', 's-1', 1, 1, 1)",
+      );
+    } finally {
+      seed.close();
+    }
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedSlot(BLUE, 'time', null);
+    expect(beginOptimizationDrain(db, 'p-1', stampAt(20))).toBe(1);
+
+    expect(finishOptimizationDrain(db, 'p-1')).toBe('waiting');
+    const inspect = openDatabase(path);
+    try {
+      for (const [table, column, id] of [
+        ['project', 'id', 'p-1'],
+        ['step', 'id', 's-1'],
+        ['work_item', 'id', 'w-1'],
+        ['estimate', 'work_item_id', 'w-1'],
+      ]) {
+        expect(inspect.query(`SELECT * FROM ${table} WHERE ${column} = ?`).all(id)).toHaveLength(1);
+      }
+      expect(inspect.query('PRAGMA foreign_key_check').all()).toEqual([]);
+    } finally {
+      inspect.close();
+    }
+  });
+
+  it('refuses a cross-project dependency instead of cascading another project’s edge', () => {
+    const seed = openDatabase(path);
+    try {
+      seed.run(
+        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-1', 'p-1', 10, 'A')",
+      );
+      seed.run(
+        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-2', 'p-2', 10, 'B')",
+      );
+      seed.run(
+        "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('foreign-edge', 'p-2', 'w-1', 'w-2')",
+      );
+    } finally {
+      seed.close();
+    }
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+    const inspect = openDatabase(path);
+    try {
+      const before = {
+        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        workItems: inspect.query('SELECT * FROM work_item ORDER BY id').all(),
+        dependencies: inspect.query('SELECT * FROM dependency ORDER BY id').all(),
+      };
+      expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-project');
+      expect({
+        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        workItems: inspect.query('SELECT * FROM work_item ORDER BY id').all(),
+        dependencies: inspect.query('SELECT * FROM dependency ORDER BY id').all(),
+      }).toEqual(before);
+      expect(inspect.query('PRAGMA foreign_key_check').all()).toEqual([]);
+    } finally {
+      inspect.close();
+    }
+  });
+
+  it('refuses a cross-project typed dependency instead of cascading another project’s edge', () => {
+    const seed = openDatabase(path);
+    try {
+      seed.run(
+        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-1', 'p-1', 10, 'A')",
+      );
+      seed.run(
+        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-2', 'p-2', 10, 'B')",
+      );
+      seed.run(
+        "INSERT INTO typed_dependency (id, project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('foreign-typed-edge', 'p-2', 'w-1', 'whole', 'w-2', 'whole', 'FS')",
+      );
+    } finally {
+      seed.close();
+    }
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+    const inspect = openDatabase(path);
+    try {
+      const before = {
+        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        workItems: inspect.query('SELECT * FROM work_item ORDER BY id').all(),
+        dependencies: inspect.query('SELECT * FROM typed_dependency ORDER BY id').all(),
+      };
+      expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-project');
+      expect({
+        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        workItems: inspect.query('SELECT * FROM work_item ORDER BY id').all(),
+        dependencies: inspect.query('SELECT * FROM typed_dependency ORDER BY id').all(),
+      }).toEqual(before);
+      expect(inspect.query('PRAGMA foreign_key_check').all()).toEqual([]);
+    } finally {
+      inspect.close();
+    }
+  });
+
+  it('refuses a typed edge pointing at a target step from another project', () => {
+    const seed = openDatabase(path);
+    try {
+      seed.run("INSERT INTO step (id, project_id, name, position) VALUES ('s-1', 'p-1', 'A', 10)");
+      seed.run(
+        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-2', 'p-2', 10, 'B')",
+      );
+      seed.run(
+        "INSERT INTO typed_dependency (id, project_id, predecessor_work_item_id, predecessor_scope, predecessor_step_id, successor_work_item_id, successor_scope, type) VALUES ('foreign-step-edge', 'p-2', 'w-2', 'node', 's-1', 'w-2', 'whole', 'FS')",
+      );
+    } finally {
+      seed.close();
+    }
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+    const inspect = openDatabase(path);
+    try {
+      const before = {
+        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        steps: inspect.query('SELECT * FROM step ORDER BY id').all(),
+        dependencies: inspect.query('SELECT * FROM typed_dependency ORDER BY id').all(),
+      };
+      expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-project');
+      expect({
+        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        steps: inspect.query('SELECT * FROM step ORDER BY id').all(),
+        dependencies: inspect.query('SELECT * FROM typed_dependency ORDER BY id').all(),
+      }).toEqual(before);
+      expect(inspect.query('PRAGMA foreign_key_check').all()).toEqual([]);
+    } finally {
+      inspect.close();
+    }
+  });
+
+  for (const relation of ['dependency', 'typed_dependency'] as const) {
+    it(`refuses a target-owned ${relation} whose endpoints both belong to a bystander`, () => {
+      const seed = openDatabase(path);
+      try {
+        seed.run(
+          "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-2', 'p-2', 10, 'B')",
+        );
+        if (relation === 'dependency') {
+          seed.run(
+            "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('foreign-owned-edge', 'p-1', 'w-2', 'w-2')",
+          );
+        } else {
+          seed.run(
+            "INSERT INTO typed_dependency (id, project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('foreign-owned-typed-edge', 'p-1', 'w-2', 'whole', 'w-2', 'whole', 'FS')",
+          );
+        }
+      } finally {
+        seed.close();
+      }
+      beginOptimizationDrain(db, 'p-1', stampAt(20));
+      const inspect = openDatabase(path);
+      try {
+        const before = inspect.query(`SELECT * FROM ${relation}`).all();
+        expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-project');
+        expect(inspect.query(`SELECT * FROM ${relation}`).all()).toEqual(before);
+        expect(inspect.query("SELECT id FROM project WHERE id = 'p-1'").all()).toHaveLength(1);
+      } finally {
+        inspect.close();
+      }
+    });
+  }
+
+  it('lets the restrictive foreign key roll back a cross-project parent reference', () => {
+    const seed = openDatabase(path);
+    try {
+      seed.run(
+        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-1', 'p-1', 10, 'A')",
+      );
+      seed.run(
+        "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-2', 'p-2', 'w-1', 10, 'B')",
+      );
+    } finally {
+      seed.close();
+    }
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+    const inspect = openDatabase(path);
+    try {
+      const before = {
+        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        workItems: inspect.query('SELECT * FROM work_item ORDER BY id').all(),
+      };
+      expect(() => finishOptimizationDrain(db, 'p-1')).toThrow();
+      expect({
+        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        workItems: inspect.query('SELECT * FROM work_item ORDER BY id').all(),
+      }).toEqual(before);
+      expect(inspect.query('PRAGMA foreign_key_check').all()).toEqual([]);
+    } finally {
+      inspect.close();
+    }
+  });
+
+  it('cannot store a typed endpoint naming a step that does not exist', () => {
+    const seed = openDatabase(path);
+    try {
+      seed.run(
+        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-1', 'p-1', 10, 'A')",
+      );
+      expect(() =>
+        seed.run(
+          "INSERT INTO typed_dependency (id, project_id, predecessor_work_item_id, predecessor_scope, predecessor_step_id, successor_work_item_id, successor_scope, type) VALUES ('missing-step', 'p-1', 'w-1', 'node', 'missing', 'w-1', 'whole', 'FS')",
+        ),
+      ).toThrow();
+      expect(seed.query('SELECT * FROM typed_dependency').all()).toEqual([]);
+      expect(seed.query('PRAGMA foreign_key_check').all()).toEqual([]);
+    } finally {
+      seed.close();
+    }
+  });
+
+  it('rolls back an earlier estimate delete when a later populated cleanup fails', () => {
+    const seed = openDatabase(path);
+    try {
+      seed.run(
+        "INSERT INTO step (id, project_id, name, position) VALUES ('s-1', 'p-1', 'Work', 10)",
+      );
+      seed.run(
+        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-1', 'p-1', 10, 'Work')",
+      );
+      seed.run(
+        "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('w-1', 's-1', 1, 1, 1)",
+      );
+      seed.run(
+        `CREATE TRIGGER fail_step_cleanup BEFORE DELETE ON step
+         WHEN OLD.project_id = 'p-1'
+           AND NOT EXISTS (SELECT 1 FROM work_item WHERE project_id = 'p-1')
+         BEGIN SELECT RAISE(ABORT, 'later raw cleanup failed'); END`,
+      );
+    } finally {
+      seed.close();
+    }
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+    const inspect = openDatabase(path);
+    try {
+      const before = {
+        project: inspect.query("SELECT * FROM project WHERE id = 'p-1'").all(),
+        step: inspect.query("SELECT * FROM step WHERE project_id = 'p-1'").all(),
+        workItems: inspect.query("SELECT * FROM work_item WHERE project_id = 'p-1'").all(),
+        estimates: inspect.query("SELECT * FROM estimate WHERE work_item_id = 'w-1'").all(),
+      };
+      expect(() => finishOptimizationDrain(db, 'p-1')).toThrow();
+      expect({
+        project: inspect.query("SELECT * FROM project WHERE id = 'p-1'").all(),
+        step: inspect.query("SELECT * FROM step WHERE project_id = 'p-1'").all(),
+        workItems: inspect.query("SELECT * FROM work_item WHERE project_id = 'p-1'").all(),
+        estimates: inspect.query("SELECT * FROM estimate WHERE work_item_id = 'w-1'").all(),
+      }).toEqual(before);
+    } finally {
+      inspect.close();
+    }
+  });
+
   it('refuses a project nobody is deleting, which is most projects', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
 

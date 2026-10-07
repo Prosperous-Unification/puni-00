@@ -165,20 +165,25 @@ describe('the two-coordinator spawn handshake', () => {
           if (owner === 'blue') await paused.promise;
           return attempt.child;
         },
+        deliverCommitted: () => Promise.resolve(),
         pushRecorded: () => Promise.resolve(),
         onChildError: (error) => errors.push(error),
       });
     const blueCoordinator = coordinator(blue, 'blue');
     const greenCoordinator = coordinator(green, 'green');
 
-    expect(blueCoordinator.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(
+      await blueCoordinator.read({ projectId: 'p-1', objective: 'pri', input: INPUT }),
+    ).toBeNull();
     await until(() => blueAttempts.length === 2);
     const firstRows = blue.select().from(solverSlot).all();
     expect(firstRows).toHaveLength(2);
     expect(firstRows.every(({ lifecycle }) => lifecycle === 'starting')).toBe(true);
     now = Math.max(...firstRows.map(({ admittedDeadlineAt }) => admittedDeadlineAt)) + 1;
 
-    expect(greenCoordinator.read({ projectId: 'p-1', objective: 'time', input: INPUT })).toBeNull();
+    expect(
+      await greenCoordinator.read({ projectId: 'p-1', objective: 'time', input: INPUT }),
+    ).toBeNull();
     await until(
       () => greenAttempts.length === 2 && greenAttempts.every(({ marker }) => existsSync(marker)),
     );

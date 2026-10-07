@@ -464,6 +464,8 @@ function selectedSchedule(
   if (ready === null) {
     throw new Error('optimized plan reader reported ready without a schedule');
   }
+  // Proof: forcing Fast here made the mounted borrowed arrange/freeze command
+  // order lower-work before lower-other despite the ready selected schedule.
   return { schedule: ready, displayed: project.scheduleObjective, awaitingSolve: false };
 }
 
@@ -986,6 +988,8 @@ export interface WorkItemServiceOptions {
   admission: EditAdmission;
   /** The installed scheduling capabilities for live plan reads. */
   scheduler: Scheduler;
+  /** A borrowed command scope reads the captured cache on its own source connection. */
+  schedulerMode?: 'capture';
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock: Clock;
 }
@@ -1681,7 +1685,7 @@ export class WorkItemService {
           // solver seat. Keep `tree`'s captured display even if it starts work.
           // Proof: skipping this admission left the mounted shared tree with
           // zero holder-bearing requests and zero durable slots.
-          this.opts.scheduler.read({
+          await this.opts.scheduler.read({
             projectId,
             input: captured.chain.input,
             engine: captured.project.scheduleEngine,
@@ -2145,13 +2149,13 @@ export class WorkItemService {
     );
     let scheduling: TreeSchedule;
     try {
-      scheduling = this.opts.scheduler.read({
+      scheduling = await this.opts.scheduler.read({
         projectId,
         input: canonical.input,
         engine: project.scheduleEngine,
         objective: project.scheduleObjective,
         enabled: project.optimizationEnabled,
-        mode: 'live',
+        mode: this.opts.schedulerMode ?? 'live',
       });
     } catch (failure) {
       if (failure instanceof ScheduleCycleError)
@@ -3610,13 +3614,13 @@ export class WorkItemService {
       const read =
         shared?.kind === 'scheduled'
           ? shared.scheduled
-          : this.opts.scheduler.read({
+          : await this.opts.scheduler.read({
               projectId: project.id,
               input: canonical.input,
               engine: project.scheduleEngine,
               objective: project.scheduleObjective,
               enabled: project.optimizationEnabled,
-              mode: 'live',
+              mode: this.opts.schedulerMode ?? 'live',
             });
       if (read.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
       selected = selectedSchedule(project, read.fast, read.optimization);

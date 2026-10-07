@@ -11,11 +11,13 @@ import {
   openReadOnlyConnection,
 } from './db';
 import {
+  authorizeImportIn,
   authorizeProjectFanoutIn,
   authorizeRankMoveIn,
   authorizeStepFanoutIn,
   readFanoutObservationIn,
   resolveDirectoryWriteIn,
+  resolveLifecycleOwnerIn,
 } from './fanout-capture';
 import { OPEN, WriteCoordinator } from './gate';
 import { probeSchema } from './health-probe';
@@ -123,6 +125,13 @@ function openSqliteSourceWithSeams(
             authorizeProjectUpdate: authorizeProjectFanoutIn(process.db),
             authorizeStepRemoval: authorizeStepFanoutIn(process.db),
             authorizeRankMove: authorizeRankMoveIn(process.db),
+            // Proof: removing this borrowed binding made a valid mounted
+            // scoped import answer 500 before capture rather than 201.
+            authorizeImport: authorizeImportIn(process.db),
+            // Proof: omitting this borrowed resolver stopped the mounted
+            // selected-retirement path before its B←A durable event.
+            resolveLifecycleOwner: (projectId) =>
+              Promise.resolve(resolveLifecycleOwnerIn(process.db, projectId)),
             resolveDirectoryWrite: (address) =>
               resolveDirectoryWriteIn(process.db, admitted.directory, address),
           },

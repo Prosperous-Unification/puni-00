@@ -279,6 +279,95 @@ compares both directions`, `directory edit has causes without project-row edits`
       and `repeated finish records nothing`. R5: omit import binding, record at delete request
       only, drop old closure after delete, omit one release/reconcile path and record outside
       the final transaction. Space membership removal must not masquerade as project deletion.
+- [x] 6j.a. **Import owner first.** Follow [6j architecture](6j-architecture.md): carry original
+      actor/access, recheck current organization write authority before capture, preserve raw
+      borrowed import graph, capture once around complete success and record before commit.
+      Prove real tied-creation-order import displacement/pairs, shared-person tail events only to
+      the new recipient, unused-person silence, typed late
+      refusal, queued demotion and full multi-event rollback. Independently omit installer and
+      owner bindings, move authority after capture, inject capture/event failure, and restore GREEN.
+      Add installed malformed-role and absent/demoted-membership negatives with independent role
+      validation/admission omission faults; corruption throws before capture/write/delivery.
+      Bind explicit actor/access `authorizeImport` on the borrowed capture capability; watch its
+      missing scoped binding throw before capture/write. Preserve explicit legacy fixtures and
+      refuse scoped sources lacking transactional authority rather than trust cached roles.
+- [x] 6j.b. **Async persistence ownership prerequisite.** Make live optimizer persistence wait
+      for the same source turn; propagate explicit asynchronous live scheduling and every
+      mutation/observation caller while preserving non-admitting captured reads. Prove concurrent
+      live admission, heartbeat, bind/queue/outcome and lifecycle operations cannot join an
+      awaited owner or vanish with its rollback. Watch each gate omission fail. Review before 6j.c;
+      no async Drizzle callbacks, detached capture or child/network waits under the writer.
+      Replace callback-shaped readPairAndAdmit with callback-free observeForAdmission(key, now):
+      idle or observed generation/pair/objective requests from one gated synchronous immediate
+      transaction. Await public reservation/enqueue/outcome/release only after it returns;
+      keep raw reserve helpers inside dequeue/Retry owners. No public-to-public gate entry.
+      Complete the packet's eight serialization proofs: coherent observation; held heartbeat;
+      each other public operation; callback-free completion/miss-only policy; pre-admission pair;
+      intervening generation/disable/drain; awaited heartbeat/release/dequeue; captured command
+      arrange/freeze including isolated fallback. Watch each named gate/fence/await/binding fault
+      fail independently, preserve all existing lifecycle/cache regressions and review before 6j.c.
+- [x] 6j.c. **Direct begin/finish and retirement.** Install source-bound owners over raw savepoints,
+      preserve pending old topology and addressed causes even at equal hash/local facts. Prove
+      actual selected retirement change, silent unchanged/nonselected/repeated finish, complete
+      event-failure rollback and post-release delivery/replay rows. Independently remove old
+      capture, addressed cause and transactional recording; watch each fail.
+      Prove missing/malformed scoped ownership and missing installed capability refuse before
+      observation/write; watch each new guard omission. Cover conflicting ownership where physically
+      representable or prove its schema exclusion; distinguish absent target, pre-activation/legacy
+      and valid isolated silence. Repeat the resolver boundary for implicit global-reclaim victims.
+      Install separate BeServices.optimizationLifecycle beginDrain/finishDrain from the same
+      source connection, bound UoW and committed delivery even without optimizer runtime; no new
+      route or unused repository admin methods. Preserve raw synchronous ownership/fences and
+      outcomes; repair populated project cleanup only in the shared raw finalizer's project arm.
+      Before production edits, run installed populated-finish REDs against migrated FKs: nested
+      work items, estimates, typed step endpoints, access, history/snapshots and placement, with
+      shared-directory and populated-bystander sentinels. Implement explicit ordered owned-row
+      cleanup under marker/zero-slot gates; no migration, FK disabling or dependency-refusal state.
+      Prove complete closure, clean foreign_key_check, retained shared/audit/replay state, waiting
+      contents and contract-only retirement. Watch omission of each new cleanup family and
+      broadening of each destructive ownership predicate fail independently. Add incoming and
+      outgoing cross-project corruption REDs before each required guard; fail before cleanup,
+      or prove schema exclusion for impossible shapes. Inject failure after partial cleanup,
+      separately after-capture failure and a later real event insert; assert complete rollback.
+      Complete the packet's populated-deletion matrix and seven direct-lifecycle groups: installed pending
+      bridge/final old cause; selected/equal-display/nonselected retirement; full multi-event
+      rollback; modeled no-ops; ownership/installation negatives; writer release/notifications;
+      and durable event identity after rejected delivery. Watch each listed binding/cause/guard/
+      transaction/delivery fault independently and retain all 6j.b serialization regressions.
+      Document the raw finalizer's explicit cleanup contract in JSDoc; record migrated-FK
+      inventory, populated coverage and exact restored R5 logs in verify.md. This direct checkpoint
+      does not authorize publication/activation of deletion before the 6j.d/e owners are bound.
+- [x] 6j.d. **All release and implicit global-reclaim callers.** Bind and await normal exit, cancellation after terminal
+      evidence, queued cleanup and initial/Retry preflight. Prove exact token and all prior fences,
+      last-slot deletion atomicity, failure recovery and no early pump/completion. Independently
+      omit each binding/await and watch production caller assertions fail.
+      Bind initial reservation, dequeue and Retry around their enclosing global reclaim transactions,
+      capturing every potential victim organization and old cause before deletion. Preserve
+      non-reserved commits, queue-loop/admitted-time cutoffs and reservation/queue/recovery-audit
+      atomicity. Prove requester X with victims Y/Z, successful and closed/capacity-blocked outcomes,
+      later queue cutoff, future deadline, full event-failure rollback and repeated silence.
+      Use populated victims and the same 6j.c raw cleanup under each actual enclosing owner;
+      verify child contents/cascades roll back with slot, reservation, queue, audit and fan-out.
+      Never preclean separately or recursively invoke the public lifecycle capability.
+      Independently omit all three owners, restrict victim capture to requester/head/initial time,
+      discard non-reserved delivery and move recording outside commit; watch each fail.
+      For initial/dequeue/Retry reservations, hold then reject transport and prove the coordinator
+      retains the committed token/decision and launches once or completes exact-token cleanup;
+      track/report delivery separately, retain replay rows and never re-admit. Watch delivery
+      before handoff and rejection-replaces-decision mutations fail without relying on expiry.
+- [x] 6j.e. **Startup and periodic reconciliation.** Preserve per-sweep transactions and
+      generation-before-project ordering; acquire and recheck before capture. Prove persisted
+      deadlines, later-sweep rollback with earlier commit retained, retry idempotence, awaited
+      shutdown and both installed triggers. Independently omit each trigger, deadline/order and
+      tracking guard and watch the named negatives fail. Include populated victims: shared raw
+      cleanup belongs to each sweep owner, and a later failed sweep restores its full contents
+      while earlier committed deletions/events remain. Close this and 6j.d before integration
+      claims or publication/activation of populated deletion through the new capability.
+- [x] 6j.f. **Boundary regression closure.** Reconcile the full packet proof matrix and run
+      affected import/drain/coordinator/child/command suites plus 6a–f release negatives. Physical
+      capability stays isolated-only; shared restore refuses before write; space membership
+      removal is not deletion. Record exact commands/fault logs and independent review before
+      checking 6j complete. Outcome/admission fan-out and full replay closure remain 6k/6l.
 - [ ] 6k. **Optimized display atomicity.** Resolve the synchronous transaction/projection seam
       before modifying `optimized-outcome.ts`, repository/coordinator or display-changing
       admission/Retry/retirement paths. RED real outcome/event and mounted tests:

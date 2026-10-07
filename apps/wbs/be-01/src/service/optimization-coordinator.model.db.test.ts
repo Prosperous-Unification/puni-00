@@ -326,6 +326,7 @@ function coordinator(world: World, owner: Owner): OptimizationCoordinator {
       });
     },
     onChildError: (error) => world.errors.push(error),
+    deliverCommitted: () => Promise.resolve(),
     pushRecorded: (...push) => {
       if (incarnation === world.incarnations[owner]) world.pushes.push(push);
       return Promise.resolve();
@@ -635,7 +636,7 @@ class ReadPlan implements Command {
       model.queue.clear();
     }
     if (model.enabled) predictRead(model, world, this.owner, hash);
-    const read = world.coordinators[this.owner].readPlan({
+    const read = await world.coordinators[this.owner].readPlan({
       projectId: 'p-1',
       objective: 'pri',
       input,
@@ -1071,7 +1072,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
   it('holds counted admissions while cancellation arrives before scheduled spawn answers', async () => {
     const world = createWorld(sampledScheduler());
     try {
-      world.coordinators.east.readPlan({
+      await world.coordinators.east.readPlan({
         projectId: 'p-1',
         objective: 'pri',
         input: inputAt(0),
@@ -1125,7 +1126,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
             expectedSlots.push({ project, generation: 1, objective, owner: 'east', token });
           else expectedQueue.push({ project, generation: 1, objective });
         }
-        const read = world.coordinators.east.readPlan({
+        const read = await world.coordinators.east.readPlan({
           projectId: project,
           objective: 'pri',
           input: inputAt(0),
@@ -1171,7 +1172,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
   it('keeps a matching queue head behind a crashed owner until its stored deadline', async () => {
     const world = createWorld(sampledScheduler());
     try {
-      world.coordinators.east.readPlan({
+      await world.coordinators.east.readPlan({
         projectId: 'p-1',
         objective: 'pri',
         input: inputAt(0),
@@ -1186,7 +1187,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
         OPEN,
       );
       expect(
-        repository.enqueueRequest({
+        await repository.enqueueRequest({
           projectId: 'p-1',
           contractVersion: CONTRACT,
           generation: original.generation,
@@ -1207,6 +1208,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
       const deadline = (original as Row & { admitted_deadline_at: number }).admitted_deadline_at;
       world.now = deadline;
       world.ticks.west();
+      await settle();
       expect(
         rows(world, 'solver_slot').some(
           (row) => row.owner_id === 'west' && row.objective === 'pri',

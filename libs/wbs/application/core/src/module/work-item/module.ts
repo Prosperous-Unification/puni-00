@@ -58,6 +58,7 @@ export const workItemModule = DiBag.createBuilder()
         broadcast,
         editAdmission,
         scheduler,
+        schedulerMode,
         clock,
       }: {
         livePlans: LivePlanStore | undefined;
@@ -77,6 +78,7 @@ export const workItemModule = DiBag.createBuilder()
         broadcast: Broadcaster;
         editAdmission: EditAdmission;
         scheduler: Scheduler;
+        schedulerMode: WorkItemServiceOptions['schedulerMode'];
         clock: Clock;
       }): WorkItemServiceOptions => ({
         ...(livePlans === undefined ? {} : { livePlans }),
@@ -100,6 +102,9 @@ export const workItemModule = DiBag.createBuilder()
         broadcast,
         admission: editAdmission,
         scheduler,
+        // Proof: omitting this option made the isolated mounted arrange
+        // enter live admission and answer 500 instead of 200.
+        ...(schedulerMode === undefined ? {} : { schedulerMode }),
         clock,
       }),
       { factoryReturnKind: 'sync-value' },

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
+import type { CapturedScheduleAsk, LiveScheduleAsk, ScheduleAsk, ScheduleRead } from '@wbs/core';
 import { readChain, scheduleInputOfCaptured, SharedPeopleReader } from '@wbs/core';
 import { SavedPlanResource } from '@wbs/core/module/saved-plans/saved-plan.resource';
 import { SavedPlanService } from '@wbs/core/module/saved-plans/saved-plans.feature';
@@ -857,15 +858,18 @@ describe('detached live snapshot guards', () => {
   });
   it('reuses captured scheduling across aggregate target closures', async () => {
     let schedules = 0;
+    function read(ask: CapturedScheduleAsk): ScheduleRead;
+    function read(ask: LiveScheduleAsk): Promise<ScheduleRead>;
+    function read(ask: ScheduleAsk): ScheduleRead | Promise<ScheduleRead> {
+      schedules++;
+      return ask.mode === 'capture' ? fast.read(ask) : fast.read(ask);
+    }
     const store = createLivePlanStore({
       kind: 'owned',
       openConnection: () => openReadOnlyConnection(path),
       schedulerOf: () => ({
         supports: (engine) => fast.supports(engine),
-        read: (ask) => {
-          schedules++;
-          return fast.read(ask);
-        },
+        read,
       }),
     });
     const observed = await store.readAggregate('ada', access);

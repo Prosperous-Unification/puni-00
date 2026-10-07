@@ -164,8 +164,11 @@ export function heartbeatSolverSlot(
 export function reserveSolverSlotIn(
   tx: Transaction,
   request: SolverSlotRequest,
+  onFinished?: (target: { readonly projectId: string; readonly contractVersion?: string }) => void,
 ): SolverSlotAdmission {
-  reclaimExpiredSolverSlotsIn(tx, request.now);
+  // Proof: dropping the finished-target forwarding lost B's event for a
+  // selected contract retired by initial admission while A stayed present.
+  reclaimExpiredSolverSlotsIn(tx, request.now, undefined, onFinished);
 
   const generation = readGeneration(tx, request.projectId, request.contractVersion);
   const projectState = tx
@@ -176,6 +179,9 @@ export function reserveSolverSlotIn(
     .from(project)
     .where(eq(project.id, request.projectId))
     .get();
+  // Proof: independently omitting generation, enabled or open-admission
+  // rechecks launched a stale request after the initial observation; the
+  // mounted coordinator fence cases each fail at the launcher assertion.
   if (
     generation?.generation !== request.generation ||
     generation.admissionState !== 'open' ||
@@ -239,6 +245,11 @@ export function reserveSolverSlotIn(
   };
 }
 
-export function reserveSolverSlot(db: Drizzle, request: SolverSlotRequest): SolverSlotAdmission {
-  return db.transaction((tx) => reserveSolverSlotIn(tx, request));
+export function reserveSolverSlot(
+  db: Drizzle,
+  request: SolverSlotRequest,
+  onFinished?: (target: { readonly projectId: string; readonly contractVersion?: string }) => void,
+): SolverSlotAdmission {
+  // Proof: omitting this wrapper forwarding produced the same mounted loss.
+  return db.transaction((tx) => reserveSolverSlotIn(tx, request, onFinished));
 }

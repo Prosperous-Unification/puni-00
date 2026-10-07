@@ -83,6 +83,8 @@ export interface ServicesOverOptions {
   readonly clock: Clock;
   readonly broadcast: Broadcaster;
   readonly scheduler: Scheduler;
+  /** A borrowed command graph reads the transaction-captured cache without live admission. */
+  readonly schedulerMode?: 'capture';
   /** Who may write a project through the built services; see {@link EditAdmission}. */
   readonly admission: EditAdmission;
   /** Scoped dependent writes use this only after their own unit of work grants it. */
@@ -166,6 +168,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       broadcast,
       admission,
       scheduler,
+      ...(shared.schedulerMode === undefined ? {} : { schedulerMode: shared.schedulerMode }),
     }).workItems,
   };
 }
@@ -314,6 +317,11 @@ export function composeServices(
       clock: runtime.clock,
       broadcast,
       scheduler: runtime.scheduler,
+      // Borrowed command reads use this source connection's captured cache;
+      // live admission would wait for the writer turn this batch already owns.
+      // Proof: omitting capture mode made the isolated mounted arrange command
+      // enter the throwing live optimizer and answer 500 instead of 200.
+      schedulerMode: 'capture',
       admission,
       recoveryAdmission: admission,
       beforeProjectUpdate,
@@ -358,8 +366,13 @@ export function composeServices(
       scheduler: runtime.scheduler,
       uow: source.uow,
       announcements,
+      // Proof: dropping this binding made the mounted tied import answer 500
+      // instead of recording (B,A); watched in 6j.a.
+      committedFanout,
       // An import writes only the project it creates for its importer, whom
       // the creator rule admits.
+      // Proof: replacing this borrowed directory with the public standalone
+      // wrapper made the mounted import hit its bounded nested-owner refusal.
       batchServices: (scope, broadcast) => batch(scope, broadcast, CREATOR_ADMISSION),
     }).imports,
     commands: installPlanCommands({

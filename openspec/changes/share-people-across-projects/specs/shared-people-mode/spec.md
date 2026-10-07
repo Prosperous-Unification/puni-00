@@ -104,6 +104,208 @@ display SHALL receive the same comparison even without a new optimizer outcome.
 - **WHEN** slot release or reconciliation completes the actual deletion
 - **THEN** surviving old-closure recipients are recorded atomically with that deletion
 
+### Requirement: Import and drain owners preserve authority and transaction boundaries
+
+An import SHALL recheck the acting user's current organization write authority inside its
+owning transaction before observing shared state or writing. Refusal SHALL preserve the
+existing typed import outcome and perform no shared capture, fan-out or mutation. Successful
+import SHALL compare its complete before/after state once; a silent comparison SHALL not
+fabricate events. Borrowed import stores SHALL not acquire independent standalone owners.
+
+Final drain operations SHALL record fan-out in their actual transaction, including direct
+finish, exact-token slot release, startup reconciliation and periodic reconciliation.
+Reconciliation SHALL retain per-sweep commits, generation-before-project order and persisted
+slot deadlines. Async capture SHALL not allow unrelated optimizer writes to join or observe
+its uncommitted transaction. Callers SHALL await committed persistence before reporting its
+completion or pumping newly available capacity, and shutdown SHALL await owned sweeps.
+
+#### Scenario: an import loses authority while queued
+
+- **GIVEN** an admitted import waits for the writer and its actor loses organization write authority
+- **WHEN** it acquires the turn
+- **THEN** it returns typed forbidden before shared capture, writes, events or optimizer notification
+
+#### Scenario: import actually precedes an existing project
+
+- **GIVEN** dated imported A precedes existing B under the real unranked creation-time/ID order and both name the same person
+- **WHEN** the complete import changes B's incoming bookings
+- **THEN** its applicable `(B,A)` event commits atomically with the import
+- **AND** an unrelated import with no shared-person connection emits no fan-out
+- **AND** a last-ranked shared-person import emits no event to pre-existing projects, while retaining the normal event to the new recipient for its new incoming basis
+
+#### Scenario: contract retirement changes display at unchanged input
+
+- **GIVEN** retirement removes A's selected ready schedule while its input hash and local scheduling facts stay equal
+- **WHEN** the resulting displayed bookings or availability changes
+- **THEN** the owning transaction compares A as a direct cause and records the applicable surviving recipients
+- **AND** unchanged or nonselected display produces no fan-out
+
+#### Scenario: a later reconciliation sweep fails
+
+- **GIVEN** one sweep has committed and a later sweep fails recording a real downstream event
+- **WHEN** the pass fails
+- **THEN** the earlier commit remains and the failing sweep restores its slot, cache, generation, project and event state
+- **AND** a subsequent pass converges without duplicating previously committed pairs
+
+#### Scenario: reservation finalizes drains in other organizations
+
+- **GIVEN** a requester belongs to X and expired slots belong to pending drains in Y and Z
+- **WHEN** initial admission, dequeue or Retry globally reclaims them inside its reservation transaction
+- **THEN** all applicable surviving recipients retain the old victim cause IDs and commit with that transaction
+- **AND** this holds even if the reservation result is closed or capacity-blocked
+- **AND** event failure restores reclaimed state, reservation, queue, recovery audit and event sequences together
+
+#### Scenario: a later dequeue entry advances the reclaim cutoff
+
+- **GIVEN** dequeue skips an earlier invalid or closed entry and a later entry has a greater admitted timestamp
+- **WHEN** its reservation reclaims another pending drain at that persisted cutoff
+- **THEN** that victim's organization and old cause were captured before deletion and its fan-out commits once
+- **AND** slots whose persisted deadline remains in the future are not reclaimed
+
+#### Scenario: transport fails after a reservation with final-drain events
+
+- **GIVEN** initial admission, dequeue or Retry committed a new reservation and victim fan-out
+- **WHEN** post-commit transport stalls or rejects
+- **THEN** the coordinator retains the exact committed decision and token and launches it once or explicitly completes unlaunched cleanup
+- **AND** delivery failure is tracked and reported separately, original event rows remain replayable and the admission is not retried
+
+#### Scenario: trusted ownership or membership is corrupt
+
+- **GIVEN** an installed import has malformed stored membership or a present scoped lifecycle victim lacks required ownership
+- **WHEN** the owning operation resolves authority and organization before capture
+- **THEN** it throws without observing shared state, mutating state or delivering events
+- **AND** explicit legacy/isolated operation and an absent target retain their distinct modeled outcomes
+
+#### Scenario: another optimizer operation arrives during capture
+
+- **GIVEN** a source owner is paused inside borrowed capture
+- **WHEN** another live optimizer persistence operation arrives
+- **THEN** it waits outside that transaction and cannot read uncommitted rows or lose its writes with the owner's rollback
+- **AND** captured scheduling remains non-admitting and holds no child or transport wait
+
+### Requirement: Direct lifecycle composition preserves final-drain semantics
+
+An internal source-backed lifecycle capability SHALL own direct begin and finish transactions
+and remain installed without a running optimizer. Raw synchronous drain primitives SHALL
+retain their synchronous ownership, fencing and outcome contracts while completing populated
+project deletion as specified below; they SHALL NOT independently
+start asynchronous capture or delivery. The owning capability SHALL resolve trusted ownership
+and capture the delete-pending target before mutation, compare after, and record applicable
+pairs before committing. An explicit addressed cause SHALL NOT by itself force an event.
+
+#### Scenario: a counted child keeps the old bridge alive
+
+- **GIVEN** a dated shared-person bridge project has a counted solver child and deletion is pending
+- **WHEN** direct finish runs
+- **THEN** it returns waiting and retains the project, ownership, rank and captured bridge
+- **AND** unchanged displayed bookings and availability produce no event or sequence advance
+
+#### Scenario: selected retirement has unchanged displayed bookings
+
+- **GIVEN** the selected ready schedule has the same canonical bookings and availability as the display after retirement
+- **WHEN** direct contract finish removes its cache and generation
+- **THEN** no downstream event is forced by retirement, cache status or the addressed cause alone
+
+#### Scenario: direct lifecycle transport rejects after commit
+
+- **GIVEN** final deletion or retirement committed real downstream event rows
+- **WHEN** post-release transport rejects
+- **THEN** the error propagates while the mutation and original event identities remain committed and replayable
+- **AND** repeated finish produces no replacement event or sequence advance
+
+### Requirement: Final project deletion removes only its owned populated state
+
+After observing the durable project-deletion marker and zero affected solver slots in its
+enclosing transaction, the shared raw finalizer SHALL explicitly remove the project's owned
+contents and physical root with foreign-key enforcement enabled. It SHALL retain the existing
+absent, open, waiting and finished outcomes. It SHALL NOT treat ordinary populated contents
+as a new refusal or waiting state. Cleanup SHALL follow the migrated foreign-key graph and
+SHALL NOT introduce blanket schema cascades, disable constraints or delete through separately
+committed child operations. Begin and waiting finish SHALL retain the complete populated
+project; contract retirement SHALL retain its contents and other contract versions.
+
+Owned contents include work items, steps, estimates, actuals, progress, measures, assignments,
+dependencies, work-item directory joins, access rows, capacities, priority bands, calendar
+markers, project history, saved plans/bodies, optimization state and ownership/placement links.
+Existing cascades SHALL remove only these owned rows. Shared directory entities and their
+ownership, organizations, accounts, spaces, organization audit and all unrelated project state
+SHALL remain unchanged. Durable event-log rows and sequencers SHALL remain available for
+replay independently of project-owned history deletion.
+
+Schema-representable inconsistent cross-project relationships touching the deletion set SHALL
+be rejected before cleanup when their referential actions could remove or rewrite another
+project's state. Incoming and outgoing relationships SHALL be checked; corruption SHALL NOT
+enlarge the deletion set. Any cleanup, after-capture or event-recording failure SHALL roll back
+all cleanup and cascades with the complete enclosing finalization operation. Direct finish,
+release, reclaim and reconciliation SHALL use the same raw cleanup contract inside their
+respective fan-out owners; a direct-owner checkpoint alone SHALL NOT establish complete
+final-deletion integration for the other callers.
+
+#### Scenario: populated project finishes without erasing shared or neighboring state
+
+- **GIVEN** a marked project with nested work items, estimates, typed step dependencies, history and placement has no solver slots, alongside populated neighbors and shared directory entities
+- **WHEN** installed direct finish completes
+- **THEN** it returns finished with no project-owned residue or foreign-key violation
+- **AND** shared entities, neighbors, audit and durable replay identities are unchanged
+- **AND** surviving old-closure recipients receive only the comparison-derived events with the old project cause
+
+#### Scenario: populated project waits or retires one contract
+
+- **GIVEN** a populated project has either a counted child during deletion or a single contract marked for retirement
+- **WHEN** finish runs for that target
+- **THEN** waiting project finish preserves all populated contents and its old bridge
+- **AND** successful contract retirement removes only its own optimizer state and preserves the populated project and other contracts
+
+#### Scenario: cross-project corruption cannot cascade into a neighbor
+
+- **GIVEN** a schema-representable incoming or outgoing dependency touching a marked project's work items or steps conflicts with the owning project
+- **WHEN** installed finish validates the deletion set
+- **THEN** it throws before cleanup and retains complete domain, event and sequence state with no delivery
+
+#### Scenario: failure after partial cleanup restores the entire project
+
+- **GIVEN** at least one explicit cleanup statement has deleted populated project rows inside the finalization owner
+- **WHEN** a later cleanup statement fails, after-capture throws, or a later fan-out insert fails after an earlier event insert
+- **THEN** all project contents, cascades, ownership, optimizer state, history, event rows and sequences equal their pre-owner state
+- **AND** no optimizer notification or transport escapes rollback
+
+#### Scenario: committed populated deletion retains replay after transport failure
+
+- **GIVEN** populated deletion and its original comparison-derived envelopes committed atomically
+- **WHEN** transport rejects after the writer is released
+- **THEN** the project remains deleted and the original event identities replay unchanged
+- **AND** another writer can complete during held transport and repeated finish remains absent and silent
+
+### Requirement: Live optimizer observation does not recursively enter admission
+
+Live optimizer admission SHALL obtain generation, cached pair and miss-only objective requests
+from one committed source observation before calling public reservation or queue operations.
+No callback inside that observation SHALL call a public gated persistence method. Returned
+schedule evidence SHALL retain that observation's identity and pre-admission pair even when
+later preflight writes a marker. Reservation SHALL recheck existing current-generation,
+enablement and drain fences after waiting. Captured command scheduling SHALL remain
+non-admitting and SHALL NOT recursively acquire the live source gate.
+
+#### Scenario: admission writes a marker after observation
+
+- **GIVEN** a coherent observed pair contains a miss for an objective
+- **WHEN** later preflight commits a failure marker for that admission
+- **THEN** the current read retains its original pre-admission pair and generation
+- **AND** a later read may observe the committed marker without automatically retrying it
+
+#### Scenario: heartbeat waits behind a source owner
+
+- **GIVEN** a durable solver slot and a source owner paused inside its transaction
+- **WHEN** a public heartbeat arrives
+- **THEN** heartbeat_at remains unchanged and the heartbeat does not settle until that owner releases
+- **AND** child lifecycle decisions await the resulting heartbeat outcome
+
+#### Scenario: generation changes between observation and reservation
+
+- **GIVEN** a coherent observation has returned generation G and the source then supersedes G
+- **WHEN** its queued reservation acquires the writer
+- **THEN** the final admission fence refuses the stale reservation and no child launches for it
+
 ### Requirement: Command fan-out retains post-commit optimizer notifications
 
 A command batch, undo/redo or admitted route write SHALL compare once around its whole

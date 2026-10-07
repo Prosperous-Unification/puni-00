@@ -7,7 +7,7 @@ import type {
 } from './organization-access';
 import type { Project } from './project-values';
 import type { PlanInputReads } from './saved-plan-capture-values';
-import type { Scheduler } from './scheduler';
+import type { CapturedScheduler } from './scheduler';
 import type {
   ChainAccess,
   LivePlanAggregate,
@@ -26,7 +26,7 @@ export interface ChainSnapshot {
   }[];
   capturePlan(projectId: string): Promise<PlanInputReads>;
   /** Capture-mode reads select cache entries without admitting solver work. */
-  readonly scheduler: Scheduler;
+  readonly scheduler: CapturedScheduler;
 }
 
 /** One coherent read; every returned value must be detached before the connection closes. */

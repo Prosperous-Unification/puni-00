@@ -1,6 +1,7 @@
 import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import { readSharedPeople, scheduleInputOfCaptured } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { schedule } from '@wbs/domain';
 import { openConnection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { allocateGeneration } from '@wbs/store-sqlite/optimization-generation';
@@ -1341,6 +1342,161 @@ describe('shared displayed cache evidence', () => {
     for (const table of ['optimization_generation', 'solver_slot', 'solver_queue'])
       expect(h.sqlite.query(`SELECT * FROM ${table}`).all()).toEqual([]);
   });
+
+  it.each([true, false] as const)(
+    'uses captured ready optimization for borrowed arrange and freeze (shared=%s)',
+    async (shared) => {
+      const { higher, lower, lowerStep } = await seedSharedPlans(
+        true,
+        undefined,
+        undefined,
+        '0.2.0',
+      );
+      if (!shared) h.sqlite.run("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
+      h.sqlite.run(
+        "INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 20, 'other')",
+        ['lower-other', lower],
+      );
+      h.sqlite.run(
+        'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
+        ['lower-other', lowerStep],
+      );
+      h.sqlite.run(
+        "INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, 'ana')",
+        ['lower-other', lowerStep],
+      );
+      const capture = new SavedPlanCaptureRepository({
+        openConnection: () => openConnection(h.databasePath()),
+      });
+      const higherReads = await capture.readPlanInput(higher);
+      const lowerReads = await capture.readPlanInput(lower);
+      if (higherReads === null || lowerReads === null) throw new Error('missing command fixture');
+      const chain = readSharedPeople([higherReads, lowerReads], lower, fastScheduler);
+      if (chain.kind !== 'scheduled') throw new Error('missing shared command input');
+      const input = shared ? chain.input : scheduleInputOfCaptured(lowerReads);
+      const planned = schedule(
+        input.rows,
+        input.edges,
+        input.slices,
+        new Map([['lower-work', 8]]),
+        input.poolSizes,
+        input.reach,
+        input.deadlines,
+        input.typed,
+        undefined,
+        input.elsewhere,
+      );
+      const fast = schedule(
+        input.rows,
+        input.edges,
+        input.slices,
+        input.notBefore,
+        input.poolSizes,
+        input.reach,
+        input.deadlines,
+        input.typed,
+        undefined,
+        input.elsewhere,
+      );
+      expect(fast.workItems.get('lower-work')?.earliestStart).toBeLessThan(
+        fast.workItems.get('lower-other')?.earliestStart ?? -1,
+      );
+      expect(planned.workItems.get('lower-other')?.earliestStart).toBeLessThan(
+        planned.workItems.get('lower-work')?.earliestStart ?? -1,
+      );
+      h.sqlite.run(
+        "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+        [lower],
+      );
+      const connection = openConnection(h.databasePath());
+      try {
+        const inputHash = scheduleInputHash(input);
+        const generation = allocateGeneration(connection.db, lower, '15+0.2.0', inputHash, 1);
+        for (const objective of ['pri', 'time'] as const) {
+          connection.db
+            .insert(optimizedScheduleCache)
+            .values({
+              projectId: lower,
+              inputHash,
+              generation,
+              contractVersion: '15+0.2.0',
+              budgetMs: 60000,
+              objective,
+              status: 'ok',
+              failureReason: null,
+              createdAt: 1,
+              resultJson: JSON.stringify(
+                encodeOptimizedResult({
+                  publication: 'solver',
+                  objectiveValues: {
+                    makespan: { value: 9, stageValue: 9, bound: 9, status: 'optimal' },
+                    priority: { value: 0, stageValue: 0, bound: 0, status: 'optimal' },
+                    movement: { value: 0, stageValue: 0, bound: 0, status: 'optimal' },
+                  },
+                  schedule: planned,
+                }),
+              ),
+            })
+            .run();
+        }
+      } finally {
+        connection.close();
+      }
+      const before = [
+        'optimization_generation',
+        'optimized_schedule_cache',
+        'solver_slot',
+        'solver_queue',
+      ].map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
+      const optimizer = h.publicOptimizer();
+      const originalRead = optimizer.readPlan;
+      // Public post-commit tree publication may admit; only the borrowed graph is forbidden.
+      let borrowed = true;
+      let beforePublic: unknown[] | undefined;
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- spy preserves the resource receiver.
+      const announceNow = WorkItemService.prototype.announceTreeNow;
+      const publication = spyOn(WorkItemService.prototype, 'announceTreeNow').mockImplementation(
+        async function (this: WorkItemService, projectId) {
+          borrowed = false;
+          beforePublic = [
+            'optimization_generation',
+            'optimized_schedule_cache',
+            'solver_slot',
+            'solver_queue',
+          ].map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
+          await announceNow.call(this, projectId);
+        },
+      );
+      const live = spyOn(optimizer, 'readPlan').mockImplementation((ask) => {
+        if (borrowed) throw new Error('borrowed command entered live optimizer');
+        return originalRead(ask);
+      });
+      const background = spyOn(h.publicOptimizer(), 'inputChanged').mockImplementation(
+        () => undefined,
+      );
+      try {
+        const response = await h.call('ada', 'POST', `/api/projects/${lower}/commands`, {
+          commands: [{ kind: 'arrangeBySchedule' }, { kind: 'freezeProject' }],
+        });
+        expect(response.status).toBe(200);
+        expect(
+          h.sqlite
+            .query<{ id: string; position: number; frozen_number: string }, [string]>(
+              'SELECT id, position, frozen_number FROM work_item WHERE project_id = ? ORDER BY position',
+            )
+            .all(lower),
+        ).toEqual([
+          { id: 'lower-other', position: 10, frozen_number: '010' },
+          { id: 'lower-work', position: 20, frozen_number: '020' },
+        ]);
+        expect(beforePublic).toEqual(before);
+      } finally {
+        live.mockRestore();
+        publication.mockRestore();
+        background.mockRestore();
+      }
+    },
+  );
 
   it('edit admission hashes the changed upstream booking with its holder', async () => {
     const launched: ReservedSpawnRequest[] = [];

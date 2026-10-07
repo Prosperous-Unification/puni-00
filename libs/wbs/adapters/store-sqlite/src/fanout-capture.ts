@@ -1,14 +1,20 @@
 import { type DirectoryStore, readChain } from '@wbs/core';
 import type {
+  BeforeImport,
   BeforeProjectUpdate,
   BeforeRankMove,
   BeforeStepRemoval,
   CapturedFanout,
   DirectoryWriteAddress,
   DirectoryWriteResolution,
+  LifecycleOwnership,
 } from '@wbs/core/ports/fanout-capture-store';
 import { scheduleInputOfCaptured } from '@wbs/core/service/saved-plan-schedule';
-import { canEditProjectInOrganization, classifyProjectEdit } from '@wbs/domain';
+import {
+  canEditProjectInOrganization,
+  canWriteInOrganization,
+  classifyProjectEdit,
+} from '@wbs/domain';
 import { and, eq, sql } from 'drizzle-orm';
 
 import { type ChainSnapshotOptions, readChainSnapshotIn } from './chain-snapshot';
@@ -19,8 +25,65 @@ import { readOrganizationActivation } from './organization-activation';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
 import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
-import { organizationMembership } from './schema';
+import { organization, organizationMembership, project, projectOrganization } from './schema';
 import { readCapacityMode } from './shared-people-mode';
+
+/** Resolves a trusted maintenance target on its borrowed writer before any lifecycle mutation. */
+export function resolveLifecycleOwnerIn(db: Drizzle, projectId: string): LifecycleOwnership {
+  const target = db.select({ id: project.id }).from(project).where(eq(project.id, projectId)).get();
+  // Proof: omitting the absent-target branch changed the mounted no-op into
+  // a false missing-ownership corruption error for project `missing`.
+  if (target === undefined) return { kind: 'absent' };
+  if (readOrganizationActivation(db) === 'pre_activation') return { kind: 'legacy' };
+  const ownership = db
+    .select({ organizationId: projectOrganization.organizationId })
+    .from(projectOrganization)
+    .where(eq(projectOrganization.resourceId, projectId))
+    .get();
+  // Proof: omitting this refusal replaced trusted missing ownership with an
+  // incidental property error in the mounted active-project negative.
+  if (ownership === undefined)
+    throw new Error(`active project ${projectId} lacks organization ownership`);
+  const owner = db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, ownership.organizationId))
+    .get();
+  // Proof: omitting this check replaced a malformed trusted owner with an
+  // incidental property error before the mounted capture-zero assertion.
+  if (owner === undefined)
+    throw new Error(`project ${projectId} has malformed organization ownership`);
+  return { kind: 'scoped', organizationId: owner.id };
+}
+
+/** Current import write authority on the same borrowed connection as capture. */
+export function authorizeImportIn(db: Drizzle): BeforeImport {
+  return (actorId, access) => {
+    if (access.kind === 'legacy') return Promise.resolve({ ok: true });
+    const { organizationId } = access.scope;
+    const membership = db
+      .select({ role: organizationMembership.role })
+      .from(organizationMembership)
+      .where(
+        and(
+          eq(organizationMembership.organizationId, organizationId),
+          eq(organizationMembership.userId, actorId),
+        ),
+      )
+      .get();
+    // Proof: admitting a missing membership let a queued removed member's
+    // mounted import return 201 instead of the typed 403.
+    if (membership === undefined) return Promise.resolve({ ok: false, reason: 'forbidden' });
+    // Proof: replacing validation with admin let a queued malformed role
+    // import return 201 instead of surfacing trusted corruption as 500.
+    const role = validateStoredRole(membership.role, organizationId);
+    // Proof: admitting unconditionally let a queued viewer import return 201
+    // instead of the typed 403, with writes and capture after demotion.
+    return Promise.resolve(
+      canWriteInOrganization(role) ? { ok: true } : { ok: false, reason: 'forbidden' },
+    );
+  };
+}
 
 /** Rechecks current membership/project ownership without creating an audit or grant. */
 export function authorizeProjectFanoutIn(db: Drizzle): BeforeProjectUpdate {
