@@ -1650,6 +1650,18 @@ export class ActivationController {
           'SELECT * FROM activation_check_attempt WHERE request_identity = ? AND obligation_identity = ? AND attempt = ?',
         )
         .get(selected.requestIdentity, selected.obligationIdentity, selected.attempt);
+      const rawReservation: unknown = this.#database
+        .query('SELECT * FROM activation_check_dispatch WHERE effect_key = ?')
+        .get(effectKey);
+      const rawProgress: unknown = this.#database
+        .query('SELECT * FROM activation_check_dispatch_progress WHERE effect_key = ?')
+        .get(effectKey);
+      const present = [rawAttempt, rawReservation, rawProgress].filter((entry) => entry !== null);
+      // Proof: omitting the complete-bundle guard recreated a missing invocation
+      // registration or dispatch/progress row on exact replay of trusted partial state.
+      if (present.length !== 0 && present.length !== 3) {
+        throw new Error('check dispatch bundle incomplete');
+      }
       if (rawAttempt !== null) {
         const prior = parseOrThrow(StoredCheckAttempt, rawAttempt);
         if (prior.invocation_id !== dispatch.invocationId) {
@@ -1671,14 +1683,12 @@ export class ActivationController {
             dispatch.invocationId,
           );
       }
-      const rawReservation: unknown = this.#database
-        .query('SELECT * FROM activation_check_dispatch WHERE effect_key = ?')
-        .get(effectKey);
       if (rawReservation !== null) {
         const prior = parseOrThrow(StoredCheckDispatch, rawReservation);
-        // Proof: independently omitting each stored target, payload, digest, manifest,
-        // toolchain, sandbox profile, protocol, command, deadline or budget comparison
-        // accepted its corresponding changed-column exact replay.
+        // Proof: independently omitting each stored request, plan, obligation,
+        // attempt, invocation, authority, target, payload, digest, manifest,
+        // toolchain, sandbox profile, protocol, command, deadline or budget
+        // comparison accepted its corresponding changed-column exact replay.
         if (
           prior.request_identity !== selected.requestIdentity ||
           prior.plan_identity !== selected.planIdentity ||
@@ -1699,12 +1709,8 @@ export class ActivationController {
         ) {
           throw new Error('check dispatch reservation conflicts');
         }
-        const rawProgress: unknown = this.#database
-          .query('SELECT * FROM activation_check_dispatch_progress WHERE effect_key = ?')
-          .get(effectKey);
-        // Proof: omission changed the named absent-progress refusal to an ArkType null error;
-        // no authority was granted. A malformed progress row was accepted when its shape check was removed.
-        if (rawProgress === null) throw new Error('check dispatch progress absent');
+        // Proof: malformed progress was accepted when its shape check was removed;
+        // the complete-bundle guard already refuses an absent row before any write.
         parseOrThrow(StoredCheckProgress, rawProgress);
         return {
           effectKey,

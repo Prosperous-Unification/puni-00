@@ -6448,7 +6448,7 @@ test.each(['missing', 'malformed'] as const)(
       const before = checkDispatchRows(selected.source.databasePath);
       await rejectsWith(
         selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), input),
-        state === 'missing' ? 'progress absent' : 'owner_id',
+        state === 'missing' ? 'bundle incomplete' : 'owner_id',
       );
       expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
     } finally {
@@ -6459,6 +6459,42 @@ test.each(['missing', 'malformed'] as const)(
 );
 
 test.each([
+  ['attempt', ['activation_check_attempt']],
+  ['dispatch', ['activation_check_dispatch']],
+  ['progress', ['activation_check_dispatch_progress']],
+  ['attempt and dispatch', ['activation_check_attempt', 'activation_check_dispatch']],
+  ['attempt and progress', ['activation_check_attempt', 'activation_check_dispatch_progress']],
+  ['dispatch and progress', ['activation_check_dispatch', 'activation_check_dispatch_progress']],
+] as const)(
+  'selected check reservation refuses incomplete trusted bundle missing %s',
+  async (_missing, tables) => {
+    const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+    const input = { invocationId: 'check.invocation.1', deadlineAt: 2000, maxDispatchAttempts: 3 };
+    const database = new Database(selected.source.databasePath);
+    try {
+      await selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), input);
+      database.run('PRAGMA foreign_keys = OFF');
+      for (const table of tables) database.run(`DELETE FROM ${table}`);
+      const before = checkDispatchRows(selected.source.databasePath);
+      await rejectsWith(
+        selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), input),
+        'bundle incomplete',
+      );
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      database.close();
+      selected.controller.close();
+    }
+  },
+);
+
+test.each([
+  ['request_identity', 'f'.repeat(64)],
+  ['plan_identity', 'f'.repeat(64)],
+  ['obligation_identity', 'f'.repeat(64)],
+  ['attempt', 1],
+  ['invocation_id', 'foreign.invocation'],
+  ['authority_identity', 'f'.repeat(64)],
   [
     'target_bytes',
     serializeCanonical({ kind: 'local-check-worker', executorId: 'review.executor' }),
@@ -6480,6 +6516,7 @@ test.each([
     const database = new Database(selected.source.databasePath);
     try {
       await selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), input);
+      database.run('PRAGMA foreign_keys = OFF');
       database.query(`UPDATE activation_check_dispatch SET ${column} = ?`).run(changed);
       const before = checkDispatchRows(selected.source.databasePath);
       await rejectsWith(

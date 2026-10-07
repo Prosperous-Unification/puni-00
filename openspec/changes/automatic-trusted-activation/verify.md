@@ -1275,3 +1275,59 @@ Prettier check and `git diff --check` passed. Pinned
 it is excluded in favor of the repository-pinned command. Normal hook output
 belongs to the local commit. No h2puni gate, CI, authenticated check worker,
 provider mapping, publisher, or trusted activation is claimed.
+
+### Check-dispatch partial-bundle correction after `30908aac` review
+
+Astra reproduced a P2 in exact `30908aac`: the replay path inserted a missing
+`activation_check_attempt` before it inspected an existing dispatch/progress,
+and reconstructed a missing dispatch/progress when an attempt remained. Thus
+partial trusted state was silently repaired. Mounted pre-fix tests failed for
+all six nonempty proper subsets of the attempt, dispatch and progress bundle
+(`/tmp/activation-22-bundle-first-red.log`). The corrected path reads all
+three companion rows **before any insert**, permits only all absent for a new
+reservation or all present for an exact validated replay, and refuses every
+partial subset with `check dispatch bundle incomplete`. Each named refusal
+compares the complete request/obligation/attempt/dispatch/progress snapshot
+before and after; targeted corrected tests passed 8/8, 24 assertions
+(`/tmp/activation-22-bundle-green.log`). Malformed present progress still
+fails its independent shape check.
+
+Independently omitting only the new complete-bundle guard caused missing-attempt
+and missing-dispatch-plus-progress replays to **return without error**, not just
+to change diagnostics. Watched RED and restored GREEN are retained at
+`/tmp/activation-22-bundle-r5-{attempt,dispatch_and_progress}-{red,green}.log`.
+The exact controller source was restored after each fault (SHA-256
+`76926fec9fb98ec8a9b24f6dcc106fd8634bc929c9ca395b4e95a1057b4728a0`
+before subsequent formatting). The previous `progress_absent` diagnostic-only
+watch in the 30908aac ledger is historical: the new complete-bundle guard now
+rejects absence earlier, so that later named check was removed. It is not
+counted as a final-byte safety proof. No worker dispatch or external authority
+is introduced by this correction.
+
+The same exact-SHA review found six newly introduced replay joins without
+isolated proof. Mounted changed-column fixtures now independently corrupt
+`request_identity`, `plan_identity`, `obligation_identity`, `attempt`,
+`invocation_id` or `authority_identity` while retaining the effect key and
+snapshotting the full trusted bundle. All six refuse exact replay with
+`reservation conflicts` and leave the snapshot unchanged. Removing only each
+matching production comparison made its named test return successfully (0/1
+RED); restoring the source made each focused test pass (1/1 GREEN). Logs are
+`/tmp/activation-22-replay-r5-<column>-{red,green}.log`. This supplements the
+previous ten watched target/payload/manifest/dimension/deadline/budget replay
+joins; no other newly added compared replay field is untested. The source
+mutation script restored SHA-256
+`76926fec9fb98ec8a9b24f6dcc106fd8634bc929c9ca395b4e95a1057b4728a0`
+before the new adjacent Proof wording. Final-byte checks follow in the local
+correction commit.
+
+On the corrected, formatted source/test bytes, the literal four-file Bun
+command passed **281/281**, 1,225 assertions, exit 0
+(`/tmp/activation-22-correction-final-four.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck` and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-22-correction-final-{lint,type,build}.log`). Pinned
+OpenSpec strict passed 1/1 and all passed 143/143, zero failures
+(`/tmp/activation-22-correction-final-{strict,all}.json`). Changed-path
+Prettier check and `git diff --check` passed. Normal-hook output belongs to
+the local correction commit. Host gate and CI remain unrun for this unpublished
+local slice; external worker, publisher and activation acceptance remain open.
