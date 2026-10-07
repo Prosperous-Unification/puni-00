@@ -20,6 +20,12 @@
       "rationale": "buildServices installs createOptimizationLifecycle to begin or finish drains and release exact solver slots with fan-out recorded in the owning write unit"
     },
     {
+      "path": "apps/wbs/be-01/src/service/optimization-observation.ts",
+      "kind": "feature",
+      "capability": "Optimization generation observation",
+      "rationale": "buildServices installs createOptimizationObservationOwner to allocate generation and read the admission pair while recording shared-person cache-eviction fan-out in one source-owned write unit"
+    },
+    {
       "path": "apps/wbs/be-01/src/service/optimization-outcome.ts",
       "kind": "feature",
       "capability": "Optimized outcome fan-out",

@@ -235,6 +235,8 @@ test('every backend service file with no kind suffix is classified exactly once'
   // it on a `+` line; and changing the former path to assumed-assignee.resource.ts showed both
   // lines here (2026-09-20). Omitting the five new optimization owner entries also failed here
   // with their exact paths before the policy was repaired (2026-10-07).
+  // Proof: omitting optimization-observation.ts on 6k.d failed here with that
+  // exact candidate path; adding its feature entry restored this inventory.
   expect(classified).toEqual([...(await listServiceCandidates(WORKSPACE))]);
 });
 

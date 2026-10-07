@@ -3868,3 +3868,14 @@ pinned OpenSpec commands passed strict 1/1 and all 149/149
 passed and `git diff --check` exited 0
 (`/tmp/shared-people-6kd-{format-check,diff-check}-final.log`). No host gate,
 CI, push, merge or trusted activation was run for this local candidate.
+
+The first exact-SHA review of 6k.d found one test-inventory omission: its new
+`service/optimization-observation.ts` was absent from the closed
+`docs/code-organization/kinds.json` classification. The real
+`service-kinds.test.ts` candidate-inventory assertion failed 0/1 naming that
+exact path (`/tmp/shared-people-6kd-kinds-red.log`). Classifying this installed
+source-owned generation observation as a feature, with its capability and
+caller-based rationale, restored the full file to 17/17, 19 assertions
+(`/tmp/shared-people-6kd-kinds-green.log`). The adjacent test `Proof:` records
+the watched omission. This is a policy/test/evidence correction only; the
+observation implementation and its 340/340 runtime regression are unchanged.
