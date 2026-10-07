@@ -3354,3 +3354,54 @@ Store-sqlite and store-memory declare no build target. Final two-path Prettier c
 passed 1/1 and all-change validation passed 148/148
 (`/tmp/shared-people-6jf-final-openspec-{strict,all}.json`). These are local checks; this
 closure has not run the canonical host gate or CI.
+
+## 6k architecture amendment — planning evidence only
+
+The [6k packet](6k-architecture.md) was traced against clean source
+`a8c6c641584001407f5277b8cada6748263300fe` in an isolated
+`plan/shared-people-fanout-6k-architecture` worktree. It resolves the async source UoW around
+synchronous outcome/event and admission-observation savepoints, committed decision/envelope
+handoff, complete generation/cache replacement/eviction inventory, and the distinction between
+optimization-status labels and modeled scheduling availability. The existing `CONTEXT.md` terms
+and 6j transaction decisions are preserved; no glossary entry, ADR or production edit was needed.
+
+Tasks 6k and 6k.a–e remain unchecked. The matrix below is a register of required future proofs,
+not RED/GREEN evidence. The packet contains each named witness, injected fault and expected
+assertion. No proposed fault has been run as part of this docs-only amendment.
+
+| Required proof rows                                                                                | Planned owner/slice                      | Observed result for 6k                                                      |
+| -------------------------------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------- |
+| K1/K2: installed selected publication and H1/nonselected silence                                   | 6k.b outcome owner                       | Unverified; implementation not started here                                 |
+| K3: selected replacement/eviction, Fast and addressed-cause negatives                              | 6k.c complete cache mutation             | Unverified                                                                  |
+| K4: equal-hash modeled availability, including empty bookings                                      | 6k.b real borrowed projection            | Unverified; a valid admitted mounted fixture is required                    |
+| K5–K8: borrowed capture, atomic rollback, after-capture failure and no-op/legacy/isolated silence  | 6k.b outcome owner                       | Unverified                                                                  |
+| K9/K10/K13: decision independence, tracking/error reporting, exact delivery and recipient reaction | 6k.a consumer, then 6k.b installed owner | Unverified; consumer-only evidence cannot close the installed obligation    |
+| K11: generation/cache eviction with original observation identity                                  | 6k.d observation owner                   | Unverified                                                                  |
+| K12: admission status-only silence and retirement inventory                                        | 6k.e closure                             | Unverified; existing 6j proofs are regressions, not proof of new 6k binding |
+
+For implementation acceptance, append exact test commands/counts, accepted fault/restoration
+logs and adjacent production `Proof:` locations for each changed dependency. Keep disqualified
+trials explicit. Do not infer a mounted proof from mocked envelopes or pure comparison. A
+calendar-availability fixture that cannot pass existing admitted-result validation requires
+design review, not a new availability state or removal of the required test.
+
+Planning validation commands (run from this isolated worktree):
+
+```sh
+BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json
+BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json
+bunx prettier --check openspec/changes/share-people-across-projects/6k-architecture.md openspec/changes/share-people-across-projects/design.md openspec/changes/share-people-across-projects/tasks.md openspec/changes/share-people-across-projects/specs/shared-people-mode/spec.md openspec/changes/share-people-across-projects/verify.md
+git diff --check
+```
+
+Initial pinned strict validation passed 1/1 and all validation passed 149/149, exit 0
+(`/tmp/shared-people-6k-strict.json`, `/tmp/shared-people-6k-all.json`), before this ledger append.
+The all count reflects this integrated base; historical 148/148 evidence above is unchanged.
+Final five-path Prettier and diff checks passed, exit 0
+(`/tmp/shared-people-6k-final-format.log`, `/tmp/shared-people-6k-final-diff.log`); pinned strict
+passed 1/1 and all passed 149/149, exit 0
+(`/tmp/shared-people-6k-final-strict.json`, `/tmp/shared-people-6k-final-all.json`). The same
+commands were repeated after this evidence text was added. Dependencies for these docs tools
+reuse the base worktree's `node_modules`; this is not a fresh frozen-install claim. No runtime
+suite, Nx product lint/typecheck/build, canonical host gate, CI, publication, 6l closure,
+UI/mode work or trusted activation was performed by this amendment.

@@ -407,6 +407,40 @@ outcomes with no display/availability effect SHALL not produce downstream events
 - **WHEN** a current selected optimized outcome changes displayed bookings from the prior Fast schedule
 - **THEN** affected downstream events commit with the outcome and its existing outcome event
 
+#### Scenario: generation allocation removes the selected cache
+
+- **GIVEN** a generation-changing admission observation removes cache rows that supply the
+  current selected display
+- **WHEN** the observation commits
+- **THEN** its actual displayed-booking or modeled-availability change and downstream events
+  commit with the generation/cache mutation
+- **AND** the returned generation, original pair and admission requests remain one coherent
+  observation, without recursive live admission during comparison
+
+#### Scenario: storage replaces or evicts a selected cache row
+
+- **WHEN** an admitted outcome replaces a failed/corrupt marker or enforces the live budget bound
+- **THEN** comparison covers the complete storage and eviction operation using the current display
+- **AND** event or after-capture failure restores cache rows and event sequences together
+- **AND** a different Objective, Contract version or budget does not itself imply a display change
+
+#### Scenario: admission changes only optimization status
+
+- **GIVEN** reservation, enqueue, Retry or dequeue changes idle, pending or retrying status
+- **WHEN** displayed bookings and modeled scheduling availability remain unchanged
+- **THEN** that status change emits no downstream event
+- **AND** independent global reclaim or retirement effects in the same transaction still receive
+  their normal comparison
+
+#### Scenario: outcome transport is held after commit
+
+- **GIVEN** outcome storage and downstream events have committed and released their writer
+- **WHEN** delivery is pending or rejects
+- **THEN** the committed outcome decision remains usable and exact-slot cleanup can proceed
+- **AND** recipient optimization-input reactions run before transport is awaited
+- **AND** shutdown waits for tracked delivery and delivery errors are reported without replacing
+  the committed outcome or allocating another event sequence
+
 ### Requirement: Committed fan-out survives a missed push
 
 Fan-out SHALL use existing durable per-project event sequences and replay authorization.

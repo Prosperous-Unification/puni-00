@@ -368,8 +368,9 @@ compares both directions`, `directory edit has causes without project-row edits`
       capability stays isolated-only; shared restore refuses before write; space membership
       removal is not deletion. Record exact commands/fault logs and independent review before
       checking 6j complete. Outcome/admission fan-out and full replay closure remain 6k/6l.
-- [ ] 6k. **Optimized display atomicity.** Resolve the synchronous transaction/projection seam
-      before modifying `optimized-outcome.ts`, repository/coordinator or display-changing
+- [ ] 6k. **Optimized display atomicity.** Follow the resolved
+      [transaction/projection architecture](6k-architecture.md) before modifying
+      `optimized-outcome.ts`, repository/coordinator or display-changing
       admission/Retry/retirement paths. RED real outcome/event and mounted tests:
       `current selected outcome and fan-out commit together`, `old H1 publication under H2
 emits no fan-out`, `nonselected outcome is silent`, `availability changes despite equal
@@ -377,6 +378,38 @@ input hash`, `event failure rolls back cache and fan-out`, and `already-recorded
 does not fan out twice`. R5: fan out on any insertion, compare only input hash, substitute
       Fast, detach the comparison snapshot and omit the transactional event binding. Retain
       all generation/token/cancellation/enablement and blue/green multi-input proofs.
+- [ ] 6k.a. **Committed outcome handoff.** Preserve the typed durable outcome decision while
+      handing downstream envelopes to the coordinator's tracked delivery after commit. RED
+      held/rejected/synchronous-throw delivery, child/slot terminal while transport alone holds
+      stop, recipient reactions before held outcome push, and exact sequence/no duplicate push.
+      Watch independent await-before-handoff, rejection propagation, tracking/error-reporting,
+      dropped-envelope and republish faults (K9/K10/K13). Direct empty-envelope tests establish
+      only the consumer; keep the installed owner work open.
+- [ ] 6k.b. **Installed outcome owner.** Add the source-bound borrowed comparison around the
+      existing synchronous outcome/event savepoint. RED selected current outcome, eligible
+      H1-under-H2, nonselected silence, equal-hash modeled availability, already-recorded and
+      superseded silence, isolated/legacy behavior, second-event rollback and post-capture
+      failure. Watch K1/K2/K4–K8 independently; the split-commit fault must reach a full-state
+      assertion. Preserve admitted-result validation and existing fences; do not fabricate a
+      mounted availability proof from a mocked projection. Close installed K9/K10/K13 here.
+- [ ] 6k.c. **Replacement and eviction.** RED admitted Retry replacing older failed/corrupt
+      markers, selected-budget eviction, other-contract/budget isolation and unchanged-display
+      silence. Compare the complete outcome mutation; watch Fast substitution and addressed-cause
+      omission separately (K3). Retain multi-input blue/green proofs and rollback of eviction.
+- [ ] 6k.d. **Generation observation owner.** Preserve callback-free generation/pair/request
+      coherence while surrounding cache/queue removal with the borrowed source comparison.
+      RED selected-display eviction, original observation identity, idle/refusal silence and
+      held-writer serialization. Watch observation binding/recording/cause omissions (K11) and
+      retain split-generation/pair and preflight-reread negatives. Return committed envelopes
+      without merging observation, reservation and enqueue transactions.
+- [ ] 6k.e. **Own-display inventory closure.** Reconcile every operation in the packet against
+      installed initial/enqueue/Retry/FIFO/release/retirement/reconciliation witnesses. Prove
+      status-only transitions and unrelated retirement silent; compare any genuine own-display
+      transition inside its existing owner alongside 6j victim effects. Preserve Retry refusal
+      order/zero capture, FIFO whole-loop ownership and per-sweep reconciliation. Watch forced
+      admission fan-out (K12) and each added dependency's omission. Rerun affected regressions,
+      reconcile K1–K13 with exact evidence and obtain independent review before closing 6k;
+      6l, UI, mode route and deferred activation remain separate.
 - [ ] 6l. **Replay and release closure.** RED real event-log/realtime and mounted tests:
       `crash after commit before push replays from a cold process`, `pushRecorded preserves
 sequence`, `push failure retains durable event`, `expired replay requires snapshot` and
