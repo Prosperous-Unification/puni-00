@@ -219,6 +219,132 @@ export interface CheckDispatchReservation {
   readonly maxDispatchAttempts: number;
 }
 
+export interface CheckDispatchObservation {
+  readonly effectKey: string;
+  readonly requestIdentity: string;
+  readonly obligationIdentity: string;
+  readonly attempt: number;
+  readonly invocationId: string;
+  readonly target: CheckDispatchReservation['target'];
+  readonly payloadDigest: string;
+  readonly toolchainIdentity: string;
+  readonly sandboxProfileIdentity: string;
+  readonly executionId: string;
+  readonly evidenceBytes: string;
+}
+
+export interface CheckDispatchPort {
+  /** Query authenticated worker admission for the exact effect; unavailable is not absence. */
+  readonly query: (
+    reservation: CheckDispatchReservation,
+  ) => Promise<
+    | { readonly kind: 'absent' }
+    | { readonly kind: 'unavailable' }
+    | { readonly kind: 'accepted'; readonly observed: CheckDispatchObservation }
+  >;
+  /** The installed adapter must fence current ownership and runtime identity at acceptance. */
+  readonly send: (
+    reservation: CheckDispatchReservation,
+    fence: {
+      readonly workerId: string;
+      readonly leaseEpoch: number;
+      readonly progressVersion: number;
+      readonly authorityIdentity: string;
+    },
+  ) => Promise<
+    | { readonly kind: 'uncertain' }
+    | { readonly kind: 'accepted'; readonly observed: CheckDispatchObservation }
+  >;
+}
+
+export interface CheckDispatchProgress {
+  readonly effectKey: string;
+  readonly state: 'reserved' | 'dispatching' | 'uncertain' | 'acknowledged' | 'exhausted';
+  readonly dispatchAttempts: number;
+  readonly ownerEpoch: number;
+  readonly ownerId: string;
+}
+
+interface CheckDispatchRows {
+  readonly stored: typeof StoredCheckDispatch.infer;
+  readonly progress: typeof StoredCheckProgress.infer;
+  readonly reservation: CheckDispatchReservation;
+}
+
+const LogicalCheckTarget = type({
+  kind: "'local-check-worker'",
+  executorId: 'string>=1',
+}).onUndeclaredKey('reject');
+
+const CheckDispatchFact = type({
+  effectKey: /^[0-9a-f]{64}$/,
+  requestIdentity: /^[0-9a-f]{64}$/,
+  obligationIdentity: /^[0-9a-f]{64}$/,
+  attempt: 'number.integer>=0',
+  invocationId: 'string>=1',
+  target: LogicalCheckTarget,
+  payloadDigest: /^[0-9a-f]{64}$/,
+  toolchainIdentity: /^[0-9a-f]{64}$/,
+  sandboxProfileIdentity: /^[0-9a-f]{64}$/,
+  executionId: 'string>=1',
+  evidenceBytes: 'string>=1',
+}).onUndeclaredKey('reject');
+
+const CheckQuery = type({ kind: "'absent'" })
+  .onUndeclaredKey('reject')
+  .or(type({ kind: "'unavailable'" }).onUndeclaredKey('reject'))
+  .or(type({ kind: "'accepted'", observed: CheckDispatchFact }).onUndeclaredKey('reject'));
+const CheckSend = type({ kind: "'uncertain'" })
+  .onUndeclaredKey('reject')
+  .or(type({ kind: "'accepted'", observed: CheckDispatchFact }).onUndeclaredKey('reject'));
+
+function deriveCheckDispatchIdentity(
+  selected: Omit<PreparedSelectedCheck, 'manifest'>,
+  request: ActivationRequest,
+  manifest: CheckInvocationManifest,
+  invocationId: string,
+  authorityIdentity: string,
+  deadlineAt: number,
+  maxDispatchAttempts: number,
+) {
+  const manifestBytes = serializeCanonical(manifest);
+  if (hashBytes(manifestBytes) !== selected.commandIdentity)
+    throw new Error('check dispatch manifest differs from frozen command');
+  const target = { kind: 'local-check-worker' as const, executorId: selected.executorId };
+  const targetBytes = serializeCanonical(target);
+  const effectKey = hashCanonical({
+    kind: 'check-dispatch',
+    requestIdentity: selected.requestIdentity,
+    obligationIdentity: selected.obligationIdentity,
+    attempt: selected.attempt,
+  });
+  const payloadBytes = serializeCanonical({
+    request,
+    planIdentity: selected.planIdentity,
+    obligationIdentity: selected.obligationIdentity,
+    attempt: selected.attempt,
+    invocationId,
+    commandIdentity: selected.commandIdentity,
+    manifestBytes,
+    executorId: selected.executorId,
+    protocolIdentity: selected.protocolIdentity,
+    toolchainIdentity: manifest.toolchainIdentity,
+    sandboxProfileIdentity: manifest.sandboxProfileIdentity,
+    authorityIdentity,
+    target,
+    deadlineAt,
+    maxDispatchAttempts,
+  });
+  return {
+    target,
+    targetBytes,
+    effectKey,
+    payloadBytes,
+    payloadDigest: hashBytes(payloadBytes),
+    manifestBytes,
+  };
+}
+
 const ReviewDispatchInput = type({
   reviewId: 'string>=1',
   attempt: 'number.integer>=0',
@@ -860,6 +986,15 @@ function createCheckDispatchTables(database: Database): void {
   )`);
 }
 
+function createCheckDispatchFactTable(database: Database): void {
+  database.run(`CREATE TABLE activation_check_dispatch_fact (
+    effect_key TEXT PRIMARY KEY,
+    observation_bytes TEXT NOT NULL,
+    observation_digest TEXT NOT NULL,
+    FOREIGN KEY (effect_key) REFERENCES activation_check_dispatch(effect_key)
+  )`);
+}
+
 function initialize(database: Database): void {
   database.run('PRAGMA busy_timeout = 5000');
   const metadata: unknown = database.query('PRAGMA user_version').get();
@@ -871,7 +1006,8 @@ function initialize(database: Database): void {
     version !== 4 &&
     version !== 5 &&
     version !== 6 &&
-    version !== 7
+    version !== 7 &&
+    version !== 8
   )
     // Proof: accepting old version 1 silently reopened storage without durable subject high-water.
     throw new Error(`unsupported activation store schema ${String(version)}`);
@@ -953,7 +1089,8 @@ function initialize(database: Database): void {
       createReviewDispatchTable(database);
       createReviewDispatchRecoveryTables(database);
       createCheckDispatchTables(database);
-      database.run('PRAGMA user_version = 7');
+      createCheckDispatchFactTable(database);
+      database.run('PRAGMA user_version = 8');
     });
   }
   if (version === 2 || version === 3) {
@@ -992,7 +1129,8 @@ function initialize(database: Database): void {
       createReviewDispatchTable(database);
       createReviewDispatchRecoveryTables(database);
       createCheckDispatchTables(database);
-      database.run('PRAGMA user_version = 7');
+      createCheckDispatchFactTable(database);
+      database.run('PRAGMA user_version = 8');
     });
   }
   if (version === 4) {
@@ -1000,14 +1138,16 @@ function initialize(database: Database): void {
       createReviewDispatchTable(database);
       createReviewDispatchRecoveryTables(database);
       createCheckDispatchTables(database);
-      database.run('PRAGMA user_version = 7');
+      createCheckDispatchFactTable(database);
+      database.run('PRAGMA user_version = 8');
     });
   }
   if (version === 5) {
     transaction(database, () => {
       createReviewDispatchRecoveryTables(database);
       createCheckDispatchTables(database);
-      database.run('PRAGMA user_version = 7');
+      createCheckDispatchFactTable(database);
+      database.run('PRAGMA user_version = 8');
     });
   }
   if (version === 6) {
@@ -1015,7 +1155,44 @@ function initialize(database: Database): void {
     // the mounted late-failure snapshot now restores v6 version, schema and review rows.
     transaction(database, () => {
       createCheckDispatchTables(database);
-      database.run('PRAGMA user_version = 7');
+      createCheckDispatchFactTable(database);
+      database.run('PRAGMA user_version = 8');
+    });
+  }
+  if (version === 7) {
+    transaction(database, () => {
+      createCheckDispatchFactTable(database);
+      const incompleteAttempt: unknown = database
+        .query(
+          `SELECT 1 FROM activation_check_attempt a
+        LEFT JOIN activation_check_dispatch d ON d.request_identity = a.request_identity
+          AND d.obligation_identity = a.obligation_identity AND d.attempt = a.attempt
+        LEFT JOIN activation_check_dispatch_progress p ON p.effect_key = d.effect_key
+        WHERE d.effect_key IS NULL OR p.effect_key IS NULL LIMIT 1`,
+        )
+        .get();
+      const incompleteReservation: unknown = database
+        .query(
+          `SELECT 1 FROM activation_check_dispatch d
+        LEFT JOIN activation_check_attempt a ON a.request_identity = d.request_identity
+          AND a.obligation_identity = d.obligation_identity AND a.attempt = d.attempt
+        WHERE a.invocation_id IS NULL OR a.invocation_id <> d.invocation_id LIMIT 1`,
+        )
+        .get();
+      const incompleteProgress: unknown = database
+        .query(
+          `SELECT 1 FROM activation_check_dispatch_progress p
+        LEFT JOIN activation_check_dispatch d ON d.effect_key = p.effect_key
+        WHERE d.effect_key IS NULL LIMIT 1`,
+        )
+        .get();
+      if (
+        incompleteAttempt !== null ||
+        incompleteReservation !== null ||
+        incompleteProgress !== null
+      )
+        throw new Error('version-7 check dispatch bundle incomplete');
+      database.run('PRAGMA user_version = 8');
     });
   }
 }
@@ -1608,43 +1785,18 @@ export class ActivationController {
       const row = readRow(this.#database, selected.requestIdentity);
       if (row === undefined) throw new Error('selected check request absent');
       const request = storedRequest(row).request;
-      const manifestBytes = serializeCanonical(prepared.manifest);
-      // Proof: a changed internal manifest passed through reservation when this digest check was removed.
-      if (hashBytes(manifestBytes) !== selected.commandIdentity) {
-        throw new Error('check dispatch manifest differs from frozen command');
-      }
-      // Proof: substituting the reviewer executor for the selected check executor failed the mounted target assertion.
-      const target = {
-        kind: 'local-check-worker' as const,
-        executorId: selected.executorId,
-      };
-      const targetBytes = serializeCanonical(target);
-      // Proof: changing the effect kind changed the mounted exact key assertion.
-      const effectKey = hashCanonical({
-        kind: 'check-dispatch',
-        requestIdentity: selected.requestIdentity,
-        obligationIdentity: selected.obligationIdentity,
-        attempt: selected.attempt,
-      });
-      // Proof: omitting the full request changed the mounted canonical payload assertion.
-      const payloadBytes = serializeCanonical({
-        request,
-        planIdentity: selected.planIdentity,
-        obligationIdentity: selected.obligationIdentity,
-        attempt: selected.attempt,
-        invocationId: dispatch.invocationId,
-        commandIdentity: selected.commandIdentity,
-        manifestBytes,
-        executorId: selected.executorId,
-        protocolIdentity: selected.protocolIdentity,
-        toolchainIdentity: prepared.manifest.toolchainIdentity,
-        sandboxProfileIdentity: prepared.manifest.sandboxProfileIdentity,
-        authorityIdentity: this.options.pin.identity,
-        target,
-        deadlineAt: dispatch.deadlineAt,
-        maxDispatchAttempts: dispatch.maxDispatchAttempts,
-      });
-      const payloadDigest = hashBytes(payloadBytes);
+      // Proof: changing the manifest, target, effect kind or full request
+      // failed their mounted reservation assertions when each binding was omitted.
+      const { manifestBytes, target, targetBytes, effectKey, payloadBytes, payloadDigest } =
+        deriveCheckDispatchIdentity(
+          selected,
+          request,
+          prepared.manifest,
+          dispatch.invocationId,
+          this.options.pin.identity,
+          dispatch.deadlineAt,
+          dispatch.maxDispatchAttempts,
+        );
       const rawAttempt: unknown = this.#database
         .query(
           'SELECT * FROM activation_check_attempt WHERE request_identity = ? AND obligation_identity = ? AND attempt = ?',
@@ -1774,6 +1926,299 @@ export class ActivationController {
         maxDispatchAttempts: dispatch.maxDispatchAttempts,
       };
     });
+  }
+
+  #checkRowsIn(effectKey: string): CheckDispatchRows {
+    // Proof: omitting the payload digest comparison let a changed payload pass the mounted recovery readback.
+    const rawReservation: unknown = this.#database
+      .query('SELECT * FROM activation_check_dispatch WHERE effect_key = ?')
+      .get(effectKey);
+    if (rawReservation === null) throw new Error('check dispatch reservation absent');
+    const stored = parseOrThrow(StoredCheckDispatch, rawReservation);
+    const rawProgress: unknown = this.#database
+      .query('SELECT * FROM activation_check_dispatch_progress WHERE effect_key = ?')
+      .get(effectKey);
+    if (rawProgress === null) throw new Error('check dispatch progress absent');
+    const progress = parseOrThrow(StoredCheckProgress, rawProgress);
+    if (hashBytes(stored.payload_bytes) !== stored.payload_digest)
+      throw new Error('check dispatch payload digest changed');
+    const target = parseOrThrow(LogicalCheckTarget, JSON.parse(stored.target_bytes));
+    return {
+      stored,
+      progress,
+      reservation: {
+        effectKey: stored.effect_key,
+        requestIdentity: stored.request_identity,
+        target,
+        payloadBytes: stored.payload_bytes,
+        payloadDigest: stored.payload_digest,
+        createdAt: stored.created_at,
+        deadlineAt: stored.deadline_at,
+        maxDispatchAttempts: stored.max_dispatch_attempts,
+      },
+    };
+  }
+
+  #currentCheckDispatchIn(lease: RequestLease, effectKey: string): CheckDispatchRows {
+    // Proof: omitting post-query currentness or canonical payload reconstruction reached the fake send boundary in isolated mounted faults.
+    const rows = this.#checkRowsIn(effectKey);
+    if (rows.stored.request_identity !== lease.requestIdentity)
+      throw new Error('check dispatch request changed');
+    const selected = this.#selectedCheckIn(lease, rows.stored.obligation_identity);
+    const requestRow = readRow(this.#database, selected.requestIdentity);
+    if (requestRow === undefined) throw new Error('check dispatch request absent');
+    const request = storedRequest(requestRow).request;
+    const rawAttempt: unknown = this.#database
+      .query(
+        'SELECT * FROM activation_check_attempt WHERE request_identity = ? AND obligation_identity = ? AND attempt = ?',
+      )
+      .get(selected.requestIdentity, selected.obligationIdentity, selected.attempt);
+    if (
+      rawAttempt === null ||
+      parseOrThrow(StoredCheckAttempt, rawAttempt).invocation_id !== rows.stored.invocation_id
+    )
+      throw new Error('check dispatch invocation registration changed');
+    const manifest = decodeCheckInvocationManifest(
+      rows.stored.manifest_bytes,
+      selected.commandIdentity,
+    );
+    const expected = deriveCheckDispatchIdentity(
+      selected,
+      request,
+      manifest,
+      rows.stored.invocation_id,
+      this.options.pin.identity,
+      rows.stored.deadline_at,
+      rows.stored.max_dispatch_attempts,
+    );
+    if (
+      rows.stored.effect_key !== expected.effectKey ||
+      rows.stored.plan_identity !== selected.planIdentity ||
+      rows.stored.attempt !== selected.attempt ||
+      rows.stored.command_identity !== selected.commandIdentity ||
+      rows.stored.protocol_identity !== selected.protocolIdentity ||
+      rows.stored.manifest_bytes !== expected.manifestBytes ||
+      rows.stored.toolchain_identity !== manifest.toolchainIdentity ||
+      rows.stored.sandbox_profile_identity !== manifest.sandboxProfileIdentity ||
+      rows.stored.authority_identity !== this.options.pin.identity ||
+      rows.stored.target_bytes !== expected.targetBytes ||
+      rows.stored.payload_bytes !== expected.payloadBytes ||
+      rows.stored.payload_digest !== expected.payloadDigest
+    )
+      throw new Error('check dispatch canonical reservation changed');
+    return rows;
+  }
+
+  #checkProgressIn(effectKey: string): CheckDispatchProgress {
+    const progress = this.#checkRowsIn(effectKey).progress;
+    return {
+      effectKey,
+      state: progress.state,
+      dispatchAttempts: progress.dispatch_attempts,
+      ownerEpoch: progress.owner_epoch,
+      ownerId: progress.owner_id,
+    };
+  }
+
+  #retainedCheckFactIn(stored: typeof StoredCheckDispatch.infer): CheckDispatchObservation | null {
+    // Proof: deleting or corrupting the retained fact changed acknowledged replay into acceptance when this readback was omitted.
+    const rawFact: unknown = this.#database
+      .query(
+        'SELECT observation_bytes, observation_digest FROM activation_check_dispatch_fact WHERE effect_key = ?',
+      )
+      .get(stored.effect_key);
+    if (rawFact === null) return null;
+    const retained = parseOrThrow(
+      type({
+        observation_bytes: 'string>=1',
+        observation_digest: /^[0-9a-f]{64}$/,
+      }).onUndeclaredKey('reject'),
+      rawFact,
+    );
+    if (hashBytes(retained.observation_bytes) !== retained.observation_digest)
+      throw new Error('check dispatch retained fact digest changed');
+    const fact = parseOrThrow(CheckDispatchFact, JSON.parse(retained.observation_bytes));
+    this.#matchCheckFact(stored, fact);
+    return fact;
+  }
+
+  #matchCheckFact(stored: typeof StoredCheckDispatch.infer, fact: CheckDispatchObservation): void {
+    // Proof: independently omitting each of the nine immutable fact joins retained its matching foreign accepted observation.
+    if (
+      fact.effectKey !== stored.effect_key ||
+      fact.requestIdentity !== stored.request_identity ||
+      fact.obligationIdentity !== stored.obligation_identity ||
+      fact.attempt !== stored.attempt ||
+      fact.invocationId !== stored.invocation_id ||
+      serializeCanonical(fact.target) !== stored.target_bytes ||
+      fact.payloadDigest !== stored.payload_digest ||
+      fact.toolchainIdentity !== stored.toolchain_identity ||
+      fact.sandboxProfileIdentity !== stored.sandbox_profile_identity
+    )
+      throw new Error('check dispatch accepted fact differs from reservation');
+  }
+
+  #retainCheckFactIn(
+    stored: typeof StoredCheckDispatch.infer,
+    observed: CheckDispatchObservation,
+  ): void {
+    const fact = parseOrThrow(CheckDispatchFact, observed);
+    this.#matchCheckFact(stored, fact);
+    const bytes = serializeCanonical(fact);
+    const prior = this.#retainedCheckFactIn(stored);
+    if (prior !== null) {
+      if (serializeCanonical(prior) !== bytes)
+        throw new Error('check dispatch accepted fact conflicts');
+      return;
+    }
+    this.#database
+      .query(
+        'INSERT INTO activation_check_dispatch_fact (effect_key, observation_bytes, observation_digest) VALUES (?, ?, ?)',
+      )
+      .run(stored.effect_key, bytes, hashBytes(bytes));
+  }
+
+  #markCheckUncertain(
+    lease: RequestLease,
+    effectKey: string,
+    version: number,
+  ): CheckDispatchProgress {
+    return transaction(this.#database, () => {
+      const rows = this.#checkRowsIn(effectKey);
+      if (
+        rows.progress.version === version &&
+        rows.progress.owner_epoch === lease.leaseEpoch &&
+        rows.progress.owner_id === lease.workerId &&
+        rows.progress.state !== 'acknowledged'
+      )
+        this.#database
+          .query(
+            "UPDATE activation_check_dispatch_progress SET state = 'uncertain', version = version + 1 WHERE effect_key = ?",
+          )
+          .run(effectKey);
+      return this.#checkProgressIn(effectKey);
+    });
+  }
+
+  #acknowledgeCheckFact(
+    lease: RequestLease,
+    effectKey: string,
+    version: number,
+  ): CheckDispatchProgress {
+    return transaction(this.#database, () => {
+      // Proof: omitting the fact check acknowledged a deleted fact in the mounted replay fixture.
+      const rows = this.#checkRowsIn(effectKey);
+      if (this.#retainedCheckFactIn(rows.stored) === null)
+        throw new Error('check dispatch accepted fact absent');
+      if (rows.progress.state === 'acknowledged') return this.#checkProgressIn(effectKey);
+      const row = readRow(this.#database, lease.requestIdentity);
+      if (
+        row?.current !== 1 ||
+        row.stage !== 'evaluating' ||
+        row.lease_epoch !== lease.leaseEpoch ||
+        row.lease_owner !== lease.workerId ||
+        row.lease_expires_at === null ||
+        isExpiredLease(row.lease_expires_at, nowFrom(this.options.clock)) ||
+        rows.progress.version !== version ||
+        rows.progress.owner_epoch !== lease.leaseEpoch ||
+        rows.progress.owner_id !== lease.workerId
+      )
+        return this.#checkProgressIn(effectKey);
+      this.#currentCheckDispatchIn(lease, effectKey);
+      this.#database
+        .query(
+          "UPDATE activation_check_dispatch_progress SET state = 'acknowledged', version = version + 1 WHERE effect_key = ?",
+        )
+        .run(effectKey);
+      return this.#checkProgressIn(effectKey);
+    });
+  }
+
+  /** Reconciles a reserved check effect through a fake admission port; it never completes a check. */
+  async recoverCheckDispatch(
+    lease: RequestLease,
+    effectKey: string,
+    port: CheckDispatchPort,
+  ): Promise<CheckDispatchProgress> {
+    // Proof: treating unavailable or malformed query as absence, or skipping the post-query CAS, reached send in the mounted ambiguous/takeover fixtures.
+    if (!/^[0-9a-f]{64}$/.test(effectKey)) throw new Error('check dispatch effect key malformed');
+    const intent = transaction(this.#database, () => {
+      const rows = this.#currentCheckDispatchIn(lease, effectKey);
+      if (rows.progress.state === 'acknowledged') {
+        if (this.#retainedCheckFactIn(rows.stored) === null)
+          throw new Error('check dispatch accepted fact absent');
+        return { kind: 'done' as const, progress: this.#checkProgressIn(effectKey) };
+      }
+      this.#database
+        .query(
+          "UPDATE activation_check_dispatch_progress SET state = 'dispatching', owner_epoch = ?, owner_id = ?, version = version + 1 WHERE effect_key = ?",
+        )
+        .run(lease.leaseEpoch, lease.workerId, effectKey);
+      const updated = this.#checkRowsIn(effectKey);
+      return {
+        kind: 'active' as const,
+        stored: updated.stored,
+        reservation: updated.reservation,
+        version: updated.progress.version,
+      };
+    });
+    if (intent.kind === 'done') return intent.progress;
+    const queried = parseOrThrow(CheckQuery, await port.query(intent.reservation));
+    if (queried.kind === 'unavailable')
+      return this.#markCheckUncertain(lease, effectKey, intent.version);
+    if (queried.kind === 'accepted') {
+      transaction(this.#database, () => {
+        this.#retainCheckFactIn(intent.stored, queried.observed);
+      });
+      return this.#acknowledgeCheckFact(lease, effectKey, intent.version);
+    }
+    const permission = transaction(this.#database, () => {
+      const rows = this.#currentCheckDispatchIn(lease, effectKey);
+      if (
+        rows.progress.version !== intent.version ||
+        rows.progress.owner_epoch !== lease.leaseEpoch ||
+        rows.progress.owner_id !== lease.workerId
+      )
+        throw new Error('check dispatch ownership changed before send');
+      if (this.#retainedCheckFactIn(rows.stored) !== null)
+        throw new Error('check dispatch local fact conflicts with remote absence');
+      const now = nowFrom(this.options.clock);
+      if (
+        now >= rows.stored.deadline_at ||
+        rows.progress.dispatch_attempts >= rows.stored.max_dispatch_attempts
+      ) {
+        // Proof: omitting either bound dispatched at its exact deadline or after its final budgeted attempt.
+        this.#database
+          .query(
+            "UPDATE activation_check_dispatch_progress SET state = 'exhausted', version = version + 1 WHERE effect_key = ?",
+          )
+          .run(effectKey);
+        return { kind: 'exhausted' as const, progress: this.#checkProgressIn(effectKey) };
+      }
+      this.#database
+        .query(
+          'UPDATE activation_check_dispatch_progress SET dispatch_attempts = dispatch_attempts + 1, version = version + 1 WHERE effect_key = ?',
+        )
+        .run(effectKey);
+      // Proof: moving this durable increment after send let the fake receiver accept an uncounted execution.
+      return { kind: 'send' as const, version: this.#checkRowsIn(effectKey).progress.version };
+    });
+    if (permission.kind === 'exhausted') return permission.progress;
+    const sent = parseOrThrow(
+      CheckSend,
+      await port.send(intent.reservation, {
+        workerId: lease.workerId,
+        leaseEpoch: lease.leaseEpoch,
+        progressVersion: permission.version,
+        authorityIdentity: this.options.pin.identity,
+      }),
+    );
+    if (sent.kind === 'uncertain')
+      return this.#markCheckUncertain(lease, effectKey, permission.version);
+    transaction(this.#database, () => {
+      this.#retainCheckFactIn(intent.stored, sent.observed);
+    });
+    return this.#acknowledgeCheckFact(lease, effectKey, permission.version);
   }
 
   /** Reserves one authenticated invocation for a frozen review pair before external dispatch. */

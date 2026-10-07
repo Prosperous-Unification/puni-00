@@ -1331,3 +1331,73 @@ OpenSpec strict passed 1/1 and all passed 143/143, zero failures
 Prettier check and `git diff --check` passed. Normal-hook output belongs to
 the local correction commit. Host gate and CI remain unrun for this unpublished
 local slice; external worker, publisher and activation acceptance remain open.
+
+### Check-worker admission recovery foundation (local fake, task 2.2 still open)
+
+This slice adds an additive version-8 accepted-fact table and an inert
+`recoverCheckDispatch` owner for an already reserved selected check. It records
+durable query/send intent and bounded attempts, queries the same effect key
+before any send, and retains fake acceptance separately from progress
+acknowledgement. An acknowledged fact does **not** complete the check
+obligation or create a measured `CheckReceipt`. The fake receiver has an
+independently configured executor, toolchain and sandbox profile; no real
+worker, external provider or bwrap launch is installed. The current recovery
+entry point covers active evaluating requests only; query-only reconciliation
+after a failed or superseded request is still open.
+
+The first mounted test failed because `recoverCheckDispatch` was absent
+(`/tmp/activation-22-check-recovery-first-red.log`); the initial fake
+acceptance path then passed 1/1, five assertions
+(`/tmp/activation-22-check-recovery-first-acceptance.log`). The restored
+four-file Bun run before final Proof and ledger edits passed 318/318,
+1,394 assertions, exit 0
+(`/tmp/activation-22-check-recovery-preproof-four.log`). Mounted tests cover:
+
+| Boundary                | Observed assertion                                                                                                                                                                                                                                                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Query before send       | Authenticated absence permits one counted fake acceptance; response loss then reopen queries the same effect key without executing again. Unavailable, malformed or throwing query never becomes absence.                                                                                                                 |
+| Ownership               | Held query and held send takeover refuse the old owner. Same-owner overlapping query has one CAS winner; the fake receiver independently fences owner, epoch, progress version and authority at acceptance time.                                                                                                          |
+| Runtime                 | A receiver configured for a different executor, toolchain or sandbox profile accepts zero executions with an otherwise valid reservation.                                                                                                                                                                                 |
+| Budget                  | Deadline equality and the maximum attempt count stop new sends, while an already accepted fact remains queryable. The attempt count is durable before the send await.                                                                                                                                                     |
+| Retention               | Nine separately altered immutable fact fields refuse insertion; identical replay is idempotent, conflicts and missing/corrupt facts refuse. Accepted history can survive a stale owner without acknowledging progress. Remote absence contradicting a retained fact refuses, including insertion while the query is held. |
+| Atomicity and migration | Injected fact-insert and acknowledgement writes preserve full transaction snapshots; version-7 populated rows survive version-8 migration, and a late post-DDL fault restores schema, version and rows.                                                                                                                   |
+
+Twenty-five **controller production-path** omissions each caused a named
+mounted assertion RED and passed the same focused test after restoring exact
+source bytes. Logs use
+`/tmp/activation-22-check-recovery-r5-<name>-{red,green}.log`. Names are
+`post_query_current`, `progress_version`, `query_unavailable`, `deadline`,
+`budget`, `attempt_increment`, `fact_conflict`, `fact_digest`,
+`post_await_authority`, `migration_bundle`, `intent`, `canonical_payload`,
+`fact_effectKey`, `fact_requestIdentity`, `fact_obligationIdentity`,
+`fact_attempt`, `fact_invocationId`, `fact_target`, `fact_payloadDigest`,
+`fact_toolchainIdentity`, `fact_sandboxProfileIdentity`, `query_schema`,
+`send_schema`, `ack_fact` and `done_fact`. The first 21 restored source SHA-256
+was `1b05e8c514a1a41851abc1ba920d6f61eff571addd9711680886212007acffa2`;
+the final four restored the same source before adjacent Proof comments.
+Fact-field omissions each retained a foreign fact, not a completed check.
+
+Five **test fake acceptance** guard omissions separately failed their mounted
+assertions and restored GREEN: `executor`, `version`, `epoch`, `authority`,
+and `target`, with logs
+`/tmp/activation-22-receiver-r5-<name>-{red,green}.log`. Three trials
+(`toolchain`, `profile`, `payload`) stayed GREEN because independent fake
+comparisons still fenced the substitution. They are disqualified as isolated
+omission proofs; positive wrong-runtime and changed-payload fixtures establish
+the combined fake behavior. These fake-only checks are not evidence of an
+installed worker or external authentication. Final-byte suite, Nx, OpenSpec,
+format/diff and hook receipts follow in the local checkpoint. Host gate and CI
+remain unrun.
+
+On corrected, formatted source/test bytes, the literal four-file Bun command
+passed **318/318**, 1,394 assertions, exit 0
+(`/tmp/activation-22-check-recovery-final2-four.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck` and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-22-check-recovery-final2-{lint,type,build}.log`). The first
+lint attempt had 12 test matcher/style diagnostics and is excluded; direct
+ESLint and the declared target passed after the typed matcher and callback
+correction. Pinned OpenSpec strict passed 1/1 and all passed 143/143, with zero
+failures (`/tmp/activation-22-check-recovery-final-{strict,all}.json`). The
+changed-path Prettier check and `git diff --check` passed. Normal-hook output
+belongs to the local checkpoint commit; no h2puni gate or CI was run.

@@ -18,6 +18,9 @@ import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/conten
 import { readCheckInvocationManifest, storeCheckInvocationManifest } from './check-manifest';
 import {
   type ActivationController,
+  type CheckDispatchObservation,
+  type CheckDispatchPort,
+  type CheckDispatchReservation,
   type ObservedCandidate,
   openActivationController,
   type RequestLease,
@@ -787,6 +790,459 @@ test.each([
       expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
     } finally {
       evidence.controller.close();
+    }
+  },
+);
+
+test('remote check absence contradicting a fact inserted while query waited refuses before send', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const database = new Database(selected.source.databasePath);
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    let releaseQuery: ((answer: { kind: 'absent' }) => void) | undefined;
+    let sends = 0;
+    const pending = selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      {
+        query: () =>
+          new Promise((resolve) => {
+            releaseQuery = resolve;
+          }),
+        send: () => {
+          sends += 1;
+          return Promise.resolve({ kind: 'uncertain' as const });
+        },
+      },
+    );
+    const bytes = serializeCanonical(checkObservation(reservation));
+    database
+      .query(
+        'INSERT INTO activation_check_dispatch_fact (effect_key,observation_bytes,observation_digest) VALUES (?,?,?)',
+      )
+      .run(reservation.effectKey, bytes, hashBytes(bytes));
+    const before = checkDispatchRows(selected.source.databasePath);
+    releaseQuery?.({ kind: 'absent' });
+    await rejectsWith(pending, 'local fact conflicts with remote absence');
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    expect(sends).toBe(0);
+  } finally {
+    database.close();
+    selected.controller.close();
+  }
+});
+
+test('same accepted check fact replays idempotently but conflicting bytes refuse', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const database = new Database(selected.source.databasePath);
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    const observed = checkObservation(reservation);
+    const accepted = {
+      query: () => Promise.resolve({ kind: 'accepted' as const, observed }),
+      send: () => Promise.resolve({ kind: 'uncertain' as const }),
+    };
+    expect(
+      (
+        await selected.controller.recoverCheckDispatch(
+          selected.lease,
+          reservation.effectKey,
+          accepted,
+        )
+      ).state,
+    ).toBe('acknowledged');
+    const fact = checkDispatchRows(selected.source.databasePath).facts;
+    database.run("UPDATE activation_check_dispatch_progress SET state='uncertain'");
+    expect(
+      (
+        await selected.controller.recoverCheckDispatch(
+          selected.lease,
+          reservation.effectKey,
+          accepted,
+        )
+      ).state,
+    ).toBe('acknowledged');
+    expect(checkDispatchRows(selected.source.databasePath).facts).toEqual(fact);
+    database.run("UPDATE activation_check_dispatch_progress SET state='uncertain'");
+    let releaseQuery:
+      ((answer: { kind: 'accepted'; observed: CheckDispatchObservation }) => void) | undefined;
+    const pending = selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      {
+        query: () =>
+          new Promise((resolve) => {
+            releaseQuery = resolve;
+          }),
+        send: accepted.send,
+      },
+    );
+    const before = checkDispatchRows(selected.source.databasePath);
+    releaseQuery?.({
+      kind: 'accepted',
+      observed: { ...observed, evidenceBytes: 'conflicting fake evidence' },
+    });
+    await rejectsWith(pending, 'accepted fact conflicts');
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    selected.controller.close();
+  }
+});
+
+test('failed check fact insert rolls back its transaction without acknowledging or completing the check', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const database = new Database(selected.source.databasePath);
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    database.run(`CREATE TRIGGER fail_check_fact BEFORE INSERT ON activation_check_dispatch_fact
+      BEGIN SELECT RAISE(ABORT,'injected check fact failure'); END`);
+    let releaseQuery:
+      ((answer: { kind: 'accepted'; observed: CheckDispatchObservation }) => void) | undefined;
+    const pending = selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      {
+        query: () =>
+          new Promise((resolve) => {
+            releaseQuery = resolve;
+          }),
+        send: () => Promise.resolve({ kind: 'uncertain' as const }),
+      },
+    );
+    const before = checkDispatchRows(selected.source.databasePath);
+    releaseQuery?.({ kind: 'accepted', observed: checkObservation(reservation) });
+    await rejectsWith(pending, 'injected check fact failure');
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    expect(before.obligations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          obligation_identity: 'a'.repeat(64),
+          state: 'pending',
+          receipt_identity: null,
+        }),
+      ]) as unknown[],
+    );
+  } finally {
+    database.close();
+    selected.controller.close();
+  }
+});
+
+test('failed check acknowledgement retains the prior accepted fact and retries without another send', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const database = new Database(selected.source.databasePath);
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    database.run(`CREATE TRIGGER fail_check_ack BEFORE UPDATE OF state ON activation_check_dispatch_progress
+      WHEN NEW.state='acknowledged' BEGIN SELECT RAISE(ABORT,'injected check ack failure'); END`);
+    let releaseQuery:
+      ((answer: { kind: 'accepted'; observed: CheckDispatchObservation }) => void) | undefined;
+    const observed = checkObservation(reservation);
+    const pending = selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      {
+        query: () =>
+          new Promise((resolve) => {
+            releaseQuery = resolve;
+          }),
+        send: () => Promise.resolve({ kind: 'uncertain' as const }),
+      },
+    );
+    const before = checkDispatchRows(selected.source.databasePath);
+    releaseQuery?.({ kind: 'accepted', observed });
+    await rejectsWith(pending, 'injected check ack failure');
+    const retained = checkDispatchRows(selected.source.databasePath);
+    expect({ ...retained, facts: before.facts }).toEqual(before);
+    expect(retained.facts).toHaveLength(1);
+    database.run('DROP TRIGGER fail_check_ack');
+    let sends = 0;
+    const progress = await selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      {
+        query: () => Promise.resolve({ kind: 'accepted' as const, observed }),
+        send: () => {
+          sends += 1;
+          return Promise.resolve({ kind: 'uncertain' as const });
+        },
+      },
+    );
+    expect(progress.state).toBe('acknowledged');
+    expect(sends).toBe(0);
+    expect(checkDispatchRows(selected.source.databasePath).facts).toEqual(retained.facts);
+  } finally {
+    database.close();
+    selected.controller.close();
+  }
+});
+
+test('check recovery refuses coherently rehashed wrong payload before any query or send', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const database = new Database(selected.source.databasePath);
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    const payload = JSON.parse(reservation.payloadBytes) as { request: { headSha: string } };
+    payload.request.headSha = 'f'.repeat(40);
+    const bytes = serializeCanonical(payload);
+    database
+      .query('UPDATE activation_check_dispatch SET payload_bytes=?,payload_digest=?')
+      .run(bytes, hashBytes(bytes));
+    const before = checkDispatchRows(selected.source.databasePath);
+    let calls = 0;
+    await rejectsWith(
+      selected.controller.recoverCheckDispatch(selected.lease, reservation.effectKey, {
+        query: () => {
+          calls += 1;
+          return Promise.resolve({ kind: 'absent' as const });
+        },
+        send: () => {
+          calls += 1;
+          return Promise.resolve({ kind: 'uncertain' as const });
+        },
+      }),
+      'canonical reservation changed',
+    );
+    expect(calls).toBe(0);
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    selected.controller.close();
+  }
+});
+
+test('check acceptance after persisted authority movement retains fact without acknowledgement', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const database = new Database(selected.source.databasePath);
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    const observed = checkObservation(reservation);
+    let releaseQuery:
+      ((answer: { kind: 'accepted'; observed: CheckDispatchObservation }) => void) | undefined;
+    const pending = selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      {
+        query: () =>
+          new Promise((resolve) => {
+            releaseQuery = resolve;
+          }),
+        send: () => Promise.resolve({ kind: 'uncertain' as const }),
+      },
+    );
+    database.query('UPDATE activation_request SET bootstrap_identity = ?').run('f'.repeat(64));
+    releaseQuery?.({ kind: 'accepted', observed });
+    await rejectsWith(pending, 'selected check authority changed');
+    const after = checkDispatchRows(selected.source.databasePath);
+    expect(after.facts).toHaveLength(1);
+    expect(after.progress).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ state: 'dispatching', dispatch_attempts: 0 }),
+      ]) as unknown[],
+    );
+    expect(after.obligations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          obligation_identity: 'a'.repeat(64),
+          state: 'pending',
+          receipt_identity: null,
+        }),
+      ]) as unknown[],
+    );
+  } finally {
+    database.close();
+    selected.controller.close();
+  }
+});
+
+test('malformed fake check send answer never becomes accepted fact', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    await rejectsWith(
+      selected.controller.recoverCheckDispatch(selected.lease, reservation.effectKey, {
+        query: () => Promise.resolve({ kind: 'absent' as const }),
+        send: () => Promise.resolve({ kind: 'accepted', observed: { forged: true } } as never),
+      }),
+      'Validation failed',
+    );
+    const after = checkDispatchRows(selected.source.databasePath);
+    expect(after.facts).toEqual([]);
+    expect(after.progress).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ state: 'dispatching', dispatch_attempts: 1 }),
+      ]) as unknown[],
+    );
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('malformed uncertain check-send answer is refused rather than becoming modeled uncertainty', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    await rejectsWith(
+      selected.controller.recoverCheckDispatch(selected.lease, reservation.effectKey, {
+        query: () => Promise.resolve({ kind: 'absent' as const }),
+        send: () => Promise.resolve({ kind: 'uncertain', forged: true } as never),
+      }),
+      'Validation failed',
+    );
+    expect(checkDispatchRows(selected.source.databasePath).facts).toEqual([]);
+    expect(checkDispatchRows(selected.source.databasePath).progress).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ state: 'dispatching', dispatch_attempts: 1 }),
+      ]) as unknown[],
+    );
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('acknowledgement refuses a fact removed after its authenticated insertion', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const database = new Database(selected.source.databasePath);
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    database.run(`CREATE TRIGGER remove_check_fact AFTER INSERT ON activation_check_dispatch_fact
+      BEGIN DELETE FROM activation_check_dispatch_fact; END`);
+    const observed = checkObservation(reservation);
+    await rejectsWith(
+      selected.controller.recoverCheckDispatch(selected.lease, reservation.effectKey, {
+        query: () => Promise.resolve({ kind: 'accepted' as const, observed }),
+        send: () => Promise.resolve({ kind: 'uncertain' as const }),
+      }),
+      'accepted fact absent',
+    );
+    const after = checkDispatchRows(selected.source.databasePath);
+    expect(after.facts).toEqual([]);
+    expect(after.progress).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ state: 'dispatching', dispatch_attempts: 0 }),
+      ]) as unknown[],
+    );
+  } finally {
+    database.close();
+    selected.controller.close();
+  }
+});
+
+test.each(['missing', 'corrupt'] as const)(
+  'acknowledged check replay refuses %s retained acceptance',
+  async (damage) => {
+    const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+    const database = new Database(selected.source.databasePath);
+    try {
+      const reservation = await selected.controller.reserveCheckDispatch(
+        selected.lease,
+        'a'.repeat(64),
+        {
+          invocationId: 'check.invocation.1',
+          deadlineAt: 2000,
+          maxDispatchAttempts: 3,
+        },
+      );
+      const observed = checkObservation(reservation);
+      await selected.controller.recoverCheckDispatch(selected.lease, reservation.effectKey, {
+        query: () => Promise.resolve({ kind: 'accepted' as const, observed }),
+        send: () => Promise.resolve({ kind: 'uncertain' as const }),
+      });
+      if (damage === 'missing') database.run('DELETE FROM activation_check_dispatch_fact');
+      else
+        database.run(
+          "UPDATE activation_check_dispatch_fact SET observation_digest = 'f' || substr(observation_digest,2)",
+        );
+      const before = checkDispatchRows(selected.source.databasePath);
+      let queries = 0;
+      await rejectsWith(
+        selected.controller.recoverCheckDispatch(selected.lease, reservation.effectKey, {
+          query: () => {
+            queries += 1;
+            return Promise.resolve({ kind: 'absent' as const });
+          },
+          send: () => Promise.resolve({ kind: 'uncertain' as const }),
+        }),
+        damage === 'missing' ? 'accepted fact absent' : 'retained fact digest changed',
+      );
+      expect(queries).toBe(0);
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      database.close();
+      selected.controller.close();
     }
   },
 );
@@ -1711,6 +2167,7 @@ test('version-4 dispatch migration is additive and rolls back a late index confl
   controller.close();
   const database = new Database(source.databasePath);
   try {
+    database.run('DROP TABLE activation_check_dispatch_fact');
     database.run('DROP TABLE activation_check_dispatch_progress');
     database.run('DROP TABLE activation_check_dispatch');
     database.run('DROP TABLE activation_check_attempt');
@@ -1740,7 +2197,7 @@ test('version-4 dispatch migration is additive and rolls back a late index confl
   const upgraded = boundaryController(source, () => 1000);
   const migrated = new Database(source.databasePath);
   try {
-    expect(migrated.query('PRAGMA user_version').get()).toEqual({ user_version: 7 });
+    expect(migrated.query('PRAGMA user_version').get()).toEqual({ user_version: 8 });
     expect(upgraded.readRequest(request.requestIdentity)?.request.requestIdentity).toBe(
       request.requestIdentity,
     );
@@ -2983,6 +3440,7 @@ test('version-5 reserved effect migrates as unsent and late version-6 failure ro
   fixture.close();
   const database = new Database(source.databasePath);
   try {
+    database.run('DROP TABLE activation_check_dispatch_fact');
     database.run('DROP TABLE activation_check_dispatch_progress');
     database.run('DROP TABLE activation_check_dispatch');
     database.run('DROP TABLE activation_check_attempt');
@@ -3012,7 +3470,7 @@ test('version-5 reserved effect migrates as unsent and late version-6 failure ro
   const upgraded = boundaryController(source, () => 1000);
   const migrated = new Database(source.databasePath);
   try {
-    expect(migrated.query('PRAGMA user_version').get()).toEqual({ user_version: 7 });
+    expect(migrated.query('PRAGMA user_version').get()).toEqual({ user_version: 8 });
     expect(
       migrated
         .query(
@@ -5237,6 +5695,7 @@ test.each([2, 3] as const)(
     first.close();
     const database = new Database(source.databasePath);
     try {
+      database.run('DROP TABLE activation_check_dispatch_fact');
       database.run('DROP TABLE activation_check_dispatch_progress');
       database.run('DROP TABLE activation_check_dispatch');
       database.run('DROP TABLE activation_check_attempt');
@@ -6202,6 +6661,7 @@ function selectedCheckFixture(
   resolveCheckManifest?: (identity: string) => Promise<unknown>,
   selectedManifest?: Record<string, unknown>,
   frozenIdentity?: string,
+  clock: () => number = () => 1000,
 ) {
   const source = fixture();
   const manifest = selectedManifest ?? {
@@ -6229,7 +6689,7 @@ function selectedCheckFixture(
           obligation.kind === 'check' ? { ...obligation, commandIdentity: identity } : obligation,
         ),
     }),
-    clock: () => 1000,
+    clock,
     readyCandidates: () => Promise.resolve([]),
     currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
     resolveCheckManifest,
@@ -6294,6 +6754,659 @@ test('selected check reservation atomically registers an invocation and frozen e
   }
 });
 
+test('reserved check effect has a controller-bound recovery entry point', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    expect(reservation.effectKey).toMatch(/^[0-9a-f]{64}$/);
+    expect(typeof Reflect.get(selected.controller, 'recoverCheckDispatch')).toBe('function');
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('fake check admission queries before one send and retains acceptance without completing the check', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    const observed = {
+      effectKey: reservation.effectKey,
+      requestIdentity: reservation.requestIdentity,
+      obligationIdentity: 'a'.repeat(64),
+      attempt: 0,
+      invocationId: 'check.invocation.1',
+      target: reservation.target,
+      payloadDigest: reservation.payloadDigest,
+      toolchainIdentity: '6'.repeat(64),
+      sandboxProfileIdentity: '7'.repeat(64),
+      executionId: 'fake.execution.1',
+      evidenceBytes: 'fake acceptance evidence',
+    };
+    const calls: string[] = [];
+    const progress = await selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      {
+        query: () => {
+          calls.push('query');
+          return Promise.resolve({ kind: 'absent' } as const);
+        },
+        send: (_reserved, fence) => {
+          calls.push('send');
+          expect(fence).toMatchObject({
+            workerId: selected.lease.workerId,
+            leaseEpoch: selected.lease.leaseEpoch,
+            authorityIdentity: selected.source.pin.identity,
+          });
+          return Promise.resolve({ kind: 'accepted', observed } as const);
+        },
+      },
+    );
+    expect(calls).toEqual(['query', 'send']);
+    expect(progress).toMatchObject({ state: 'acknowledged', dispatchAttempts: 1 });
+    const rows = checkDispatchRows(selected.source.databasePath);
+    expect(rows.facts).toHaveLength(1);
+    expect(rows.obligations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          obligation_identity: 'a'.repeat(64),
+          state: 'pending',
+          receipt_identity: null,
+        }),
+      ]) as unknown[],
+    );
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('fake check receiver independently fences installed executor, toolchain and sandbox profile', async () => {
+  for (const installed of [
+    {
+      executorId: 'wrong.executor',
+      toolchainIdentity: '6'.repeat(64),
+      sandboxProfileIdentity: '7'.repeat(64),
+    },
+    {
+      executorId: 'worker.check',
+      toolchainIdentity: '8'.repeat(64),
+      sandboxProfileIdentity: '7'.repeat(64),
+    },
+    {
+      executorId: 'worker.check',
+      toolchainIdentity: '6'.repeat(64),
+      sandboxProfileIdentity: '9'.repeat(64),
+    },
+  ]) {
+    const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+    try {
+      const reservation = await selected.controller.reserveCheckDispatch(
+        selected.lease,
+        'a'.repeat(64),
+        {
+          invocationId: 'check.invocation.1',
+          deadlineAt: 2000,
+          maxDispatchAttempts: 3,
+        },
+      );
+      const receiver = fakeCheckReceiver(
+        selected.source.databasePath,
+        selected.source.pin.identity,
+        installed,
+      );
+      const progress = await selected.controller.recoverCheckDispatch(
+        selected.lease,
+        reservation.effectKey,
+        receiver.port,
+      );
+      expect(progress.state).toBe('uncertain');
+      expect(receiver.counts()).toEqual({ queries: 1, sends: 0 });
+      expect(checkDispatchRows(selected.source.databasePath).facts).toEqual([]);
+    } finally {
+      selected.controller.close();
+    }
+  }
+});
+
+test('fake check acceptance after response loss reconciles by effect key after reopen without another execution', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const reopened = openActivationController({
+    ...selected.source,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () =>
+      Promise.resolve({ kind: 'ready', candidate: selected.source.candidate }),
+    resolveCheckManifest: () => Promise.resolve(selected.bytes),
+  });
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    const receiver = fakeCheckReceiver(selected.source.databasePath, selected.source.pin.identity);
+    const first = await selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      {
+        query: receiver.port.query,
+        send: async (effect, fence) => {
+          await receiver.port.send(effect, fence);
+          return { kind: 'uncertain' as const };
+        },
+      },
+    );
+    expect(first.state).toBe('uncertain');
+    expect(receiver.counts()).toEqual({ queries: 1, sends: 1 });
+    expect(checkDispatchRows(selected.source.databasePath).facts).toEqual([]);
+    const second = await reopened.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      receiver.port,
+    );
+    expect(second.state).toBe('acknowledged');
+    expect(receiver.counts()).toEqual({ queries: 2, sends: 1 });
+    expect(checkDispatchRows(selected.source.databasePath).facts).toHaveLength(1);
+  } finally {
+    reopened.close();
+    selected.controller.close();
+  }
+});
+
+test('held check query refuses old lease before send after evaluating takeover', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const database = new Database(selected.source.databasePath);
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    let releaseQuery: ((answer: { kind: 'absent' }) => void) | undefined;
+    let sends = 0;
+    const pending = selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      {
+        query: () =>
+          new Promise((resolve) => {
+            releaseQuery = resolve;
+          }),
+        send: () => {
+          sends += 1;
+          return Promise.resolve({ kind: 'uncertain' as const });
+        },
+      },
+    );
+    expect(
+      database
+        .query('SELECT state, dispatch_attempts FROM activation_check_dispatch_progress')
+        .get(),
+    ).toEqual({
+      state: 'dispatching',
+      dispatch_attempts: 0,
+    });
+    database.run('UPDATE activation_request SET lease_expires_at = 1000');
+    const successor = selected.controller.recoverEvaluationLease(
+      selected.request.requestIdentity,
+      'worker.second',
+      100,
+    );
+    expect(successor.leaseEpoch).toBeGreaterThan(selected.lease.leaseEpoch);
+    releaseQuery?.({ kind: 'absent' });
+    await rejectsWith(pending, 'selected check lease changed');
+    expect(sends).toBe(0);
+    expect(checkDispatchRows(selected.source.databasePath).facts).toEqual([]);
+  } finally {
+    database.close();
+    selected.controller.close();
+  }
+});
+
+test('fake check receiver fences takeover between local send intent and acceptance', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const database = new Database(selected.source.databasePath);
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    let releaseSend: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseSend = resolve;
+    });
+    const receiver = fakeCheckReceiver(
+      selected.source.databasePath,
+      selected.source.pin.identity,
+      undefined,
+      () => gate,
+    );
+    const pending = selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      receiver.port,
+    );
+    await Promise.resolve();
+    expect(
+      database.query('SELECT dispatch_attempts FROM activation_check_dispatch_progress').get(),
+    ).toEqual({ dispatch_attempts: 1 });
+    database.run('UPDATE activation_request SET lease_expires_at = 1000');
+    selected.controller.recoverEvaluationLease(
+      selected.request.requestIdentity,
+      'worker.second',
+      100,
+    );
+    releaseSend?.();
+    const progress = await pending;
+    expect(progress.state).toBe('uncertain');
+    expect(receiver.counts()).toEqual({ queries: 1, sends: 0 });
+    expect(checkDispatchRows(selected.source.databasePath).facts).toEqual([]);
+  } finally {
+    database.close();
+    selected.controller.close();
+  }
+});
+
+test('fake check receiver fences same-owner progress-version movement before acceptance', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    let releaseSend: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseSend = resolve;
+    });
+    const receiver = fakeCheckReceiver(
+      selected.source.databasePath,
+      selected.source.pin.identity,
+      undefined,
+      () => gate,
+    );
+    const first = selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      receiver.port,
+    );
+    await Promise.resolve();
+    const second = await selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      {
+        query: () => Promise.resolve({ kind: 'unavailable' as const }),
+        send: () => Promise.resolve({ kind: 'uncertain' as const }),
+      },
+    );
+    expect(second.state).toBe('uncertain');
+    releaseSend?.();
+    expect((await first).state).toBe('uncertain');
+    expect(receiver.counts()).toEqual({ queries: 1, sends: 0 });
+    expect(checkDispatchRows(selected.source.databasePath).facts).toEqual([]);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test.each(['same-owner epoch', 'authority', 'payload', 'target'] as const)(
+  'fake check receiver refuses %s movement at acceptance',
+  async (movement) => {
+    const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+    const database = new Database(selected.source.databasePath);
+    try {
+      const reservation = await selected.controller.reserveCheckDispatch(
+        selected.lease,
+        'a'.repeat(64),
+        {
+          invocationId: 'check.invocation.1',
+          deadlineAt: 2000,
+          maxDispatchAttempts: 3,
+        },
+      );
+      let releaseSend: (() => void) | undefined;
+      const gate = new Promise<void>((resolve) => {
+        releaseSend = resolve;
+      });
+      const receiver = fakeCheckReceiver(
+        selected.source.databasePath,
+        selected.source.pin.identity,
+        undefined,
+        () => gate,
+      );
+      const pending = selected.controller.recoverCheckDispatch(
+        selected.lease,
+        reservation.effectKey,
+        receiver.port,
+      );
+      await Promise.resolve();
+      if (movement === 'same-owner epoch') {
+        const renewed = selected.controller.recoverEvaluationLease(
+          selected.request.requestIdentity,
+          selected.lease.workerId,
+          100,
+        );
+        expect(renewed.leaseEpoch).toBeGreaterThan(selected.lease.leaseEpoch);
+      } else if (movement === 'authority') {
+        database.query('UPDATE activation_request SET bootstrap_identity=?').run('f'.repeat(64));
+      } else if (movement === 'payload') {
+        const changed = serializeCanonical({
+          ...JSON.parse(reservation.payloadBytes),
+          forged: true,
+        });
+        database
+          .query('UPDATE activation_check_dispatch SET payload_bytes=?,payload_digest=?')
+          .run(changed, hashBytes(changed));
+      } else {
+        database
+          .query('UPDATE activation_check_dispatch SET target_bytes=?')
+          .run(serializeCanonical({ kind: 'local-check-worker', executorId: 'other.worker' }));
+      }
+      releaseSend?.();
+      expect((await pending).state).toBe('uncertain');
+      expect(receiver.counts()).toEqual({ queries: 1, sends: 0 });
+      expect(checkDispatchRows(selected.source.databasePath).facts).toEqual([]);
+    } finally {
+      database.close();
+      selected.controller.close();
+    }
+  },
+);
+
+test('authorized check acceptance can be retained after takeover without old-owner acknowledgement', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const database = new Database(selected.source.databasePath);
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    const receiver = fakeCheckReceiver(selected.source.databasePath, selected.source.pin.identity);
+    let releaseResponse: (() => void) | undefined;
+    const responseGate = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+    const pending = selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      {
+        query: receiver.port.query,
+        send: async (effect, fence) => {
+          const accepted = await receiver.port.send(effect, fence);
+          await responseGate;
+          return accepted;
+        },
+      },
+    );
+    await Promise.resolve();
+    expect(receiver.counts().sends).toBe(1);
+    database.run('UPDATE activation_request SET lease_expires_at = 1000');
+    selected.controller.recoverEvaluationLease(
+      selected.request.requestIdentity,
+      'worker.second',
+      100,
+    );
+    releaseResponse?.();
+    const progress = await pending;
+    expect(progress.state).toBe('dispatching');
+    expect(checkDispatchRows(selected.source.databasePath).facts).toHaveLength(1);
+    expect(checkDispatchRows(selected.source.databasePath).obligations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          obligation_identity: 'a'.repeat(64),
+          state: 'pending',
+          receipt_identity: null,
+        }),
+      ]) as unknown[],
+    );
+  } finally {
+    database.close();
+    selected.controller.close();
+  }
+});
+
+test('overlapping same-owner check queries use progress version to admit one send', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      {
+        invocationId: 'check.invocation.1',
+        deadlineAt: 2000,
+        maxDispatchAttempts: 3,
+      },
+    );
+    const releases: ((answer: { kind: 'absent' }) => void)[] = [];
+    let sends = 0;
+    const port = {
+      query: () =>
+        new Promise<{ kind: 'absent' }>((resolve) => {
+          releases.push(resolve);
+        }),
+      send: () => {
+        sends += 1;
+        return Promise.resolve({ kind: 'uncertain' as const });
+      },
+    };
+    const first = selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      port,
+    );
+    const second = selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      port,
+    );
+    expect(releases).toHaveLength(2);
+    releases[0]({ kind: 'absent' });
+    await rejectsWith(first, 'ownership changed before send');
+    releases[1]({ kind: 'absent' });
+    expect((await second).dispatchAttempts).toBe(1);
+    expect(sends).toBe(1);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('unavailable, malformed and thrown check queries never become permission to send', async () => {
+  for (const outcome of ['unavailable', 'malformed', 'throws'] as const) {
+    const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+    try {
+      const reservation = await selected.controller.reserveCheckDispatch(
+        selected.lease,
+        'a'.repeat(64),
+        {
+          invocationId: 'check.invocation.1',
+          deadlineAt: 2000,
+          maxDispatchAttempts: 3,
+        },
+      );
+      let sends = 0;
+      const pending = selected.controller.recoverCheckDispatch(
+        selected.lease,
+        reservation.effectKey,
+        {
+          query: () => {
+            if (outcome === 'throws') throw new Error('fake query unreadable');
+            if (outcome === 'malformed')
+              return Promise.resolve({ kind: 'absent', forged: true } as never);
+            return Promise.resolve({ kind: 'unavailable' as const });
+          },
+          send: () => {
+            sends += 1;
+            return Promise.resolve({ kind: 'uncertain' as const });
+          },
+        },
+      );
+      if (outcome === 'unavailable') {
+        expect((await pending).state).toBe('uncertain');
+      } else {
+        await rejectsWith(
+          pending,
+          outcome === 'throws' ? 'fake query unreadable' : 'Validation failed',
+        );
+      }
+      expect(sends).toBe(0);
+      expect(checkDispatchRows(selected.source.databasePath).facts).toEqual([]);
+    } finally {
+      selected.controller.close();
+    }
+  }
+});
+
+test('check deadline equality and attempt budget prevent new sends but still allow fact queries', async () => {
+  for (const boundary of ['deadline', 'budget'] as const) {
+    let now = 1000;
+    const selected = selectedCheckFixture(
+      () => Promise.resolve(selected.bytes),
+      undefined,
+      undefined,
+      () => now,
+    );
+    try {
+      const reservation = await selected.controller.reserveCheckDispatch(
+        selected.lease,
+        'a'.repeat(64),
+        {
+          invocationId: 'check.invocation.1',
+          deadlineAt: 1001,
+          maxDispatchAttempts: 1,
+        },
+      );
+      const receiver = fakeCheckReceiver(
+        selected.source.databasePath,
+        selected.source.pin.identity,
+      );
+      if (boundary === 'deadline') now = 1001;
+      else {
+        const first = await selected.controller.recoverCheckDispatch(
+          selected.lease,
+          reservation.effectKey,
+          {
+            query: receiver.port.query,
+            send: () => Promise.resolve({ kind: 'uncertain' as const }),
+          },
+        );
+        expect(first.dispatchAttempts).toBe(1);
+      }
+      let sends = 0;
+      const exhausted = await selected.controller.recoverCheckDispatch(
+        selected.lease,
+        reservation.effectKey,
+        {
+          query: receiver.port.query,
+          send: () => {
+            sends += 1;
+            return Promise.resolve({ kind: 'uncertain' as const });
+          },
+        },
+      );
+      expect(exhausted.state).toBe('exhausted');
+      expect(sends).toBe(0);
+      expect(checkDispatchRows(selected.source.databasePath).facts).toEqual([]);
+      expect(receiver.counts().queries).toBe(boundary === 'deadline' ? 1 : 2);
+    } finally {
+      selected.controller.close();
+    }
+  }
+});
+
+test.each([
+  ['effectKey', 'f'.repeat(64)],
+  ['requestIdentity', 'f'.repeat(64)],
+  ['obligationIdentity', 'f'.repeat(64)],
+  ['attempt', 1],
+  ['invocationId', 'foreign.invocation'],
+  ['target', { kind: 'local-check-worker', executorId: 'wrong.executor' }],
+  ['payloadDigest', 'f'.repeat(64)],
+  ['toolchainIdentity', 'f'.repeat(64)],
+  ['sandboxProfileIdentity', 'f'.repeat(64)],
+] as const)(
+  'fake check query refuses foreign accepted %s without retaining a fact',
+  async (field, changed) => {
+    const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+    try {
+      const reservation = await selected.controller.reserveCheckDispatch(
+        selected.lease,
+        'a'.repeat(64),
+        {
+          invocationId: 'check.invocation.1',
+          deadlineAt: 2000,
+          maxDispatchAttempts: 3,
+        },
+      );
+      const foreign = {
+        ...checkObservation(reservation),
+        [field]: changed,
+      };
+      let releaseQuery:
+        ((answer: { kind: 'accepted'; observed: CheckDispatchObservation }) => void) | undefined;
+      let sends = 0;
+      const pending = selected.controller.recoverCheckDispatch(
+        selected.lease,
+        reservation.effectKey,
+        {
+          query: () =>
+            new Promise((resolve) => {
+              releaseQuery = resolve;
+            }),
+          send: () => {
+            sends += 1;
+            return Promise.resolve({ kind: 'uncertain' as const });
+          },
+        },
+      );
+      const before = checkDispatchRows(selected.source.databasePath);
+      releaseQuery?.({ kind: 'accepted', observed: foreign });
+      await rejectsWith(pending, 'accepted fact differs from reservation');
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+      expect(sends).toBe(0);
+    } finally {
+      selected.controller.close();
+    }
+  },
+);
+
 function checkDispatchRows(databasePath: string) {
   const database = new Database(databasePath);
   try {
@@ -6311,10 +7424,149 @@ function checkDispatchRows(databasePath: string) {
       progress: database
         .query('SELECT * FROM activation_check_dispatch_progress ORDER BY effect_key')
         .all(),
+      facts: database
+        .query('SELECT * FROM activation_check_dispatch_fact ORDER BY effect_key')
+        .all(),
     };
   } finally {
     database.close();
   }
+}
+
+function fakeCheckReceiver(
+  databasePath: string,
+  authorityIdentity: string,
+  installed = {
+    executorId: 'worker.check',
+    toolchainIdentity: '6'.repeat(64),
+    sandboxProfileIdentity: '7'.repeat(64),
+  },
+  beforeAcceptance?: () => Promise<void>,
+) {
+  const accepted = new Map<string, CheckDispatchObservation>();
+  let queries = 0;
+  let sends = 0;
+  const port: CheckDispatchPort = {
+    query: (reservation) => {
+      queries += 1;
+      const observed = accepted.get(reservation.effectKey);
+      return Promise.resolve(
+        observed === undefined
+          ? { kind: 'absent' as const }
+          : { kind: 'accepted' as const, observed },
+      );
+    },
+    send: async (reservation: CheckDispatchReservation, fence) => {
+      if (beforeAcceptance !== undefined) await beforeAcceptance();
+      const database = new Database(databasePath);
+      try {
+        const request = database
+          .query(
+            'SELECT lease_owner, lease_epoch, bootstrap_identity, current, stage FROM activation_request WHERE request_identity = ?',
+          )
+          .get(reservation.requestIdentity) as {
+          lease_owner: string;
+          lease_epoch: number;
+          bootstrap_identity: string;
+          current: number;
+          stage: string;
+        };
+        const progress = database
+          .query(
+            'SELECT version, owner_epoch, owner_id FROM activation_check_dispatch_progress WHERE effect_key = ?',
+          )
+          .get(reservation.effectKey) as { version: number; owner_epoch: number; owner_id: string };
+        const stored = database
+          .query(
+            'SELECT target_bytes, payload_bytes, payload_digest, authority_identity, toolchain_identity, sandbox_profile_identity FROM activation_check_dispatch WHERE effect_key = ?',
+          )
+          .get(reservation.effectKey) as {
+          target_bytes: string;
+          payload_bytes: string;
+          payload_digest: string;
+          authority_identity: string;
+          toolchain_identity: string;
+          sandbox_profile_identity: string;
+        };
+        const payload = JSON.parse(reservation.payloadBytes) as {
+          obligationIdentity: string;
+          attempt: number;
+          invocationId: string;
+          toolchainIdentity: string;
+          sandboxProfileIdentity: string;
+          authorityIdentity: string;
+        };
+        if (
+          request.lease_owner !== fence.workerId ||
+          request.lease_epoch !== fence.leaseEpoch ||
+          request.bootstrap_identity !== authorityIdentity ||
+          request.current !== 1 ||
+          request.stage !== 'evaluating' ||
+          progress.version !== fence.progressVersion ||
+          progress.owner_epoch !== fence.leaseEpoch ||
+          progress.owner_id !== fence.workerId ||
+          fence.authorityIdentity !== authorityIdentity ||
+          stored.target_bytes !== serializeCanonical(reservation.target) ||
+          stored.payload_bytes !== reservation.payloadBytes ||
+          stored.payload_digest !== reservation.payloadDigest ||
+          stored.authority_identity !== authorityIdentity ||
+          stored.toolchain_identity !== installed.toolchainIdentity ||
+          stored.sandbox_profile_identity !== installed.sandboxProfileIdentity ||
+          reservation.target.executorId !== installed.executorId ||
+          payload.toolchainIdentity !== installed.toolchainIdentity ||
+          payload.sandboxProfileIdentity !== installed.sandboxProfileIdentity ||
+          payload.authorityIdentity !== authorityIdentity
+        )
+          return { kind: 'uncertain' as const };
+        const prior = accepted.get(reservation.effectKey);
+        if (prior !== undefined) {
+          if (prior.payloadDigest !== reservation.payloadDigest)
+            throw new Error('fake check effect payload conflicts');
+          return { kind: 'accepted' as const, observed: prior };
+        }
+        sends += 1;
+        const observed: CheckDispatchObservation = {
+          effectKey: reservation.effectKey,
+          requestIdentity: reservation.requestIdentity,
+          obligationIdentity: payload.obligationIdentity,
+          attempt: payload.attempt,
+          invocationId: payload.invocationId,
+          target: reservation.target,
+          payloadDigest: reservation.payloadDigest,
+          toolchainIdentity: installed.toolchainIdentity,
+          sandboxProfileIdentity: installed.sandboxProfileIdentity,
+          executionId: `fake.execution.${String(sends)}`,
+          evidenceBytes: `fake accepted effect ${reservation.effectKey}`,
+        };
+        accepted.set(reservation.effectKey, observed);
+        return { kind: 'accepted' as const, observed };
+      } finally {
+        database.close();
+      }
+    },
+  };
+  return { port, accepted, counts: () => ({ queries, sends }) };
+}
+
+function checkObservation(reservation: CheckDispatchReservation): CheckDispatchObservation {
+  const payload = JSON.parse(reservation.payloadBytes) as {
+    obligationIdentity: string;
+    attempt: number;
+    invocationId: string;
+  };
+  return {
+    effectKey: reservation.effectKey,
+    requestIdentity: reservation.requestIdentity,
+    obligationIdentity: payload.obligationIdentity,
+    attempt: payload.attempt,
+    invocationId: payload.invocationId,
+    target: reservation.target,
+    payloadDigest: reservation.payloadDigest,
+    toolchainIdentity: '6'.repeat(64),
+    sandboxProfileIdentity: '7'.repeat(64),
+    executionId: 'fake.execution.1',
+    evidenceBytes: 'fake accepted execution evidence',
+  };
 }
 
 test('selected check reservation replays exactly after reopen and rejects changed input', async () => {
@@ -6720,6 +7972,7 @@ test('version-6 populated review history gains empty check tables atomically', (
   review.close();
   const database = new Database(source.databasePath);
   try {
+    database.run('DROP TABLE activation_check_dispatch_fact');
     database.run('DROP TABLE activation_check_dispatch_progress');
     database.run('DROP TABLE activation_check_dispatch');
     database.run('DROP TABLE activation_check_attempt');
@@ -6727,7 +7980,7 @@ test('version-6 populated review history gains empty check tables atomically', (
     const retained = database.query('SELECT * FROM activation_review_dispatch').all();
     const upgraded = boundaryController(source, () => 1000);
     try {
-      expect(database.query('PRAGMA user_version').get()).toEqual({ user_version: 7 });
+      expect(database.query('PRAGMA user_version').get()).toEqual({ user_version: 8 });
       expect(database.query('SELECT * FROM activation_review_dispatch').all()).toEqual(retained);
       expect(database.query('SELECT * FROM activation_check_attempt').all()).toEqual([]);
       expect(database.query('SELECT * FROM activation_check_dispatch').all()).toEqual([]);
@@ -6746,6 +7999,7 @@ test('late version-7 check-table failure restores version-6 schema and prior rev
   review.close();
   const database = new Database(source.databasePath);
   try {
+    database.run('DROP TABLE activation_check_dispatch_fact');
     database.run('DROP TABLE activation_check_dispatch_progress');
     database.run('DROP TABLE activation_check_dispatch');
     database.run('DROP TABLE activation_check_attempt');
@@ -6773,12 +8027,78 @@ test('late version-7 check-table failure restores version-6 schema and prior rev
   }
 });
 
+test('version-7 populated check reservation gains an empty fact table without changing old rows', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  await selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), {
+    invocationId: 'check.invocation.1',
+    deadlineAt: 2000,
+    maxDispatchAttempts: 3,
+  });
+  selected.controller.close();
+  const database = new Database(selected.source.databasePath);
+  try {
+    database.run('DROP TABLE activation_check_dispatch_fact');
+    database.run('PRAGMA user_version = 7');
+    const before = {
+      attempts: database.query('SELECT * FROM activation_check_attempt').all(),
+      reservations: database.query('SELECT * FROM activation_check_dispatch').all(),
+      progress: database.query('SELECT * FROM activation_check_dispatch_progress').all(),
+    };
+    const reopened = boundaryController(selected.source, () => 1000);
+    try {
+      expect(database.query('PRAGMA user_version').get()).toEqual({ user_version: 8 });
+      expect(database.query('SELECT * FROM activation_check_dispatch_fact').all()).toEqual([]);
+      expect({
+        attempts: database.query('SELECT * FROM activation_check_attempt').all(),
+        reservations: database.query('SELECT * FROM activation_check_dispatch').all(),
+        progress: database.query('SELECT * FROM activation_check_dispatch_progress').all(),
+      }).toEqual(before);
+    } finally {
+      reopened.close();
+    }
+  } finally {
+    database.close();
+  }
+});
+
+test('late version-8 migration failure restores version-7 schema and rows after fact DDL', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  await selected.controller.reserveCheckDispatch(selected.lease, 'a'.repeat(64), {
+    invocationId: 'check.invocation.1',
+    deadlineAt: 2000,
+    maxDispatchAttempts: 3,
+  });
+  selected.controller.close();
+  const database = new Database(selected.source.databasePath);
+  try {
+    database.run('DROP TABLE activation_check_dispatch_fact');
+    database.run('PRAGMA user_version = 7');
+    database.run('DELETE FROM activation_check_dispatch_progress');
+    const snapshot = () => ({
+      version: database.query('PRAGMA user_version').get(),
+      schema: database
+        .query("SELECT name,sql FROM sqlite_schema WHERE type='table' ORDER BY name")
+        .all(),
+      attempts: database.query('SELECT * FROM activation_check_attempt').all(),
+      reservations: database.query('SELECT * FROM activation_check_dispatch').all(),
+      progress: database.query('SELECT * FROM activation_check_dispatch_progress').all(),
+    });
+    const before = snapshot();
+    expect(() => boundaryController(selected.source, () => 1000)).toThrow(
+      'version-7 check dispatch bundle incomplete',
+    );
+    expect(snapshot()).toEqual(before);
+  } finally {
+    database.close();
+  }
+});
+
 test('selected check reservation storage is additive on a fresh controller store', () => {
   const selected = selectedCheckFixture();
   try {
     const database = new Database(selected.source.databasePath);
     try {
-      expect(database.query('PRAGMA user_version').get()).toEqual({ user_version: 7 });
+      expect(database.query('PRAGMA user_version').get()).toEqual({ user_version: 8 });
       const names = database
         .query(
           "SELECT name FROM sqlite_schema WHERE type = 'table' AND name LIKE 'activation_check_%' ORDER BY name",
@@ -6787,6 +8107,7 @@ test('selected check reservation storage is additive on a fresh controller store
       expect(names).toEqual([
         { name: 'activation_check_attempt' },
         { name: 'activation_check_dispatch' },
+        { name: 'activation_check_dispatch_fact' },
         { name: 'activation_check_dispatch_progress' },
       ]);
     } finally {
