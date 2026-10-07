@@ -1,6 +1,36 @@
 {
-  "reviewed": "2026-09-20",
+  "reviewed": "2026-10-07",
   "entries": [
+    {
+      "path": "apps/wbs/be-01/src/service/optimization-dequeue-reservation.ts",
+      "kind": "feature",
+      "capability": "Queued optimization admission",
+      "rationale": "buildServices installs createDequeueReservationOwner to consume the FIFO queue and record cross-organization reclaim fan-out in one source-owned write unit"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/optimization-initial-reservation.ts",
+      "kind": "feature",
+      "capability": "Initial optimization admission",
+      "rationale": "buildServices installs createInitialReservationOwner to reserve a solver slot and record cross-organization reclaim fan-out in one source-owned write unit"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/optimization-lifecycle.ts",
+      "kind": "feature",
+      "capability": "Optimization drain and release",
+      "rationale": "buildServices installs createOptimizationLifecycle to begin or finish drains and release exact solver slots with fan-out recorded in the owning write unit"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/optimization-reconciliation.ts",
+      "kind": "feature",
+      "capability": "Optimization drain reconciliation",
+      "rationale": "buildServices installs createOptimizationReconciliation to recheck each persisted drain target and record its actual fan-out in a separate source-owned sweep"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/optimization-retry-reservation.ts",
+      "kind": "feature",
+      "capability": "Optimization retry admission",
+      "rationale": "buildServices installs createRetryReservationOwner to authorize Retry and commit reservation or queue, recovery audit and reclaim fan-out in one source-owned write unit"
+    },
     {
       "path": "apps/wbs/be-01/src/service/optimizer-wiring.ts",
       "kind": "support",
