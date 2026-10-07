@@ -18,6 +18,7 @@ import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/conten
 import { readCheckInvocationManifest, storeCheckInvocationManifest } from './check-manifest';
 import {
   type ActivationController,
+  type ActivationControllerOptions,
   type CheckDispatchObservation,
   type CheckDispatchPort,
   type CheckDispatchReservation,
@@ -6662,6 +6663,12 @@ function selectedCheckFixture(
   selectedManifest?: Record<string, unknown>,
   frozenIdentity?: string,
   clock: () => number = () => 1000,
+  launchResolvers: Partial<
+    Pick<
+      ActivationControllerOptions,
+      'resolveCheckRuntime' | 'resolveCheckSandboxProfile' | 'resolveCandidateSnapshot'
+    >
+  > = {},
 ) {
   const source = fixture();
   const manifest = selectedManifest ?? {
@@ -6693,11 +6700,94 @@ function selectedCheckFixture(
     readyCandidates: () => Promise.resolve([]),
     currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
     resolveCheckManifest,
+    ...launchResolvers,
   });
   const request = controller.observe(source.candidate);
   const lease = controller.claim(request.requestIdentity, 'worker.check', 100);
   controller.beginEvaluation(lease);
   return { source, manifest, bytes, identity, controller, request, lease };
+}
+
+function selectedLaunchFixture(
+  overrides: Partial<
+    Pick<
+      ActivationControllerOptions,
+      'resolveCheckRuntime' | 'resolveCheckSandboxProfile' | 'resolveCandidateSnapshot'
+    >
+  > = {},
+  cwd = '.',
+  profileChanges: Record<string, unknown> = {},
+  skipCwd = '.',
+  runtimeChanges: Record<string, unknown> = {},
+  probeExecutable = 'bun',
+  runtimeEncoding: 'canonical' | 'pretty' = 'canonical',
+  mainExecutable = 'bun',
+) {
+  const canonicalRuntimeBytes = serializeCanonical({
+    schemaVersion: 1,
+    kind: 'check-runtime',
+    executableTreeIdentity: '8'.repeat(64),
+    executables: ['bun'],
+    ...runtimeChanges,
+  });
+  const runtimeBytes =
+    runtimeEncoding === 'pretty'
+      ? JSON.stringify(JSON.parse(canonicalRuntimeBytes), null, 2)
+      : canonicalRuntimeBytes;
+  const profileBytes = serializeCanonical({
+    schemaVersion: 1,
+    kind: 'check-sandbox-profile',
+    namespaces: 'private-all',
+    network: 'none',
+    capabilities: 'drop-all',
+    descriptors: 'stdio-only',
+    readOnlyMounts: ['candidate-source', 'toolchain-runtime'],
+    writableMounts: ['workspace', 'tmp', 'home'],
+    virtualMounts: ['proc', 'dev'],
+    environmentAllowlist: ['CI', 'LANG', 'LC_ALL', 'TZ'],
+    wallTimeMilliseconds: 40_000,
+    cpuTimeMilliseconds: 40_000,
+    memoryBytes: 536_870_912,
+    processCount: 16,
+    maxOutputBytes: 65_536,
+    ...profileChanges,
+  });
+  const manifest = {
+    schemaVersion: 1,
+    kind: 'check-invocation',
+    argv: [mainExecutable, 'test', 'src/check.test.ts'],
+    cwd,
+    env: {},
+    skipChannel: 'bun-test',
+    skipProbe: { argv: [probeExecutable, 'test', 'src/skip.test.ts'], cwd: skipCwd, env: {} },
+    toolchainIdentity: hashBytes(runtimeBytes),
+    sandboxProfileIdentity: hashBytes(profileBytes),
+    timeoutMilliseconds: 30_000,
+    maxOutputBytes: 16_384,
+  };
+  const snapshotRoot = mkdtempSync(join(tmpdir(), 'activation-check-snapshot-'));
+  scratch.push(snapshotRoot);
+  const selected = selectedCheckFixture(
+    () => Promise.resolve(selected.bytes),
+    manifest,
+    undefined,
+    () => 1000,
+    {
+      resolveCheckRuntime: () => Promise.resolve(runtimeBytes),
+      resolveCheckSandboxProfile: () => Promise.resolve(profileBytes),
+      resolveCandidateSnapshot: (request) =>
+        Promise.resolve({
+          schemaVersion: 1,
+          kind: 'candidate-snapshot',
+          requestIdentity: request.requestIdentity,
+          headSha: request.headSha,
+          snapshotIdentity: '9'.repeat(64),
+          root: snapshotRoot,
+        }),
+      ...overrides,
+    },
+  );
+  return { ...selected, runtimeBytes, profileBytes, snapshotRoot };
 }
 
 test('selected check reservation atomically registers an invocation and frozen effect', async () => {
@@ -8214,6 +8304,577 @@ async function rejectsWith(operation: Promise<unknown>, phrase: string): Promise
   expect(rejection).toBeInstanceOf(Error);
   if (rejection instanceof Error) expect(rejection.message).toContain(phrase);
 }
+
+test('selected check launch preparation requires trusted runtime and grants no execution', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  try {
+    const preparation: unknown = Reflect.get(selected.controller, 'prepareCheckLaunch');
+    expect(typeof preparation).toBe('function');
+    if (typeof preparation !== 'function') return;
+    const prepare: unknown = Reflect.apply(preparation, selected.controller, [
+      selected.lease,
+      'a'.repeat(64),
+    ]);
+    await rejectsWith(prepare as Promise<unknown>, 'check runtime resolver absent');
+    expect(checkDispatchRows(selected.source.databasePath).attempts).toEqual([]);
+    expect(checkDispatchRows(selected.source.databasePath).facts).toEqual([]);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check launch preparation returns only frozen inert descriptor data', async () => {
+  const selected = selectedLaunchFixture();
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    const plan = await selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64));
+    const runtime: unknown = JSON.parse(selected.runtimeBytes) as unknown;
+    const sandboxProfile: unknown = JSON.parse(selected.profileBytes) as unknown;
+    expect(plan).toMatchObject({
+      requestIdentity: selected.request.requestIdentity,
+      commandIdentity: selected.identity,
+      request: selected.request,
+      manifest: selected.manifest,
+      runtime,
+      sandboxProfile,
+      candidateSnapshot: { root: selected.snapshotRoot, headSha: selected.request.headSha },
+    });
+    expect(Object.keys(plan).some((key) => ['send', 'spawn', 'receipt'].includes(key))).toBe(false);
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check launch preparation rejects altered or missing trusted runtime and profile', async () => {
+  for (const [overrides, phrase] of [
+    [{ resolveCheckRuntime: () => Promise.resolve(undefined) }, 'check runtime absent'],
+    [
+      {
+        resolveCheckRuntime: () =>
+          Promise.reject(Object.assign(new Error('missing'), { code: 'ENOENT' })),
+      },
+      'check runtime absent',
+    ],
+    [
+      {
+        resolveCheckRuntime: () =>
+          Promise.reject(Object.assign(new Error('unreadable'), { code: 'EACCES' })),
+      },
+      'check runtime unreadable',
+    ],
+    [{ resolveCheckRuntime: () => Promise.resolve('{}') }, 'check runtime malformed'],
+    [
+      {
+        resolveCheckRuntime: () =>
+          Promise.resolve(
+            serializeCanonical({
+              schemaVersion: 1,
+              kind: 'check-runtime',
+              executableTreeIdentity: 'f'.repeat(64),
+              executables: ['bun'],
+            }),
+          ),
+      },
+      'check runtime differs from frozen identity',
+    ],
+    [{ resolveCheckSandboxProfile: undefined }, 'check sandbox profile resolver absent'],
+    [
+      { resolveCheckSandboxProfile: () => Promise.resolve(undefined) },
+      'check sandbox profile absent',
+    ],
+    [
+      {
+        resolveCheckSandboxProfile: () =>
+          Promise.reject(Object.assign(new Error('unreadable'), { code: 'EACCES' })),
+      },
+      'check sandbox profile unreadable',
+    ],
+    [
+      { resolveCheckSandboxProfile: () => Promise.resolve('{}') },
+      'check sandbox profile malformed',
+    ],
+    [
+      {
+        resolveCheckSandboxProfile: () =>
+          Promise.resolve(serializeCanonical({ schemaVersion: 1, kind: 'check-sandbox-profile' })),
+      },
+      'check sandbox profile malformed',
+    ],
+    [{ resolveCandidateSnapshot: undefined }, 'check candidate snapshot resolver absent'],
+    [
+      { resolveCandidateSnapshot: () => Promise.resolve(undefined) },
+      'check candidate snapshot absent',
+    ],
+    [
+      {
+        resolveCandidateSnapshot: () =>
+          Promise.reject(Object.assign(new Error('unreadable'), { code: 'EACCES' })),
+      },
+      'check candidate snapshot unreadable',
+    ],
+  ] as const) {
+    const selected = selectedLaunchFixture(overrides);
+    try {
+      const before = checkDispatchRows(selected.source.databasePath);
+      await rejectsWith(
+        selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+        phrase,
+      );
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      selected.controller.close();
+    }
+  }
+});
+
+test('selected check launch preparation rejects noncanonical trusted runtime bytes', async () => {
+  const selected = selectedLaunchFixture({}, '.', {}, '.', {}, 'bun', 'pretty');
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check runtime malformed',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check launch preparation refuses an oversized canonical runtime descriptor', async () => {
+  const selected = selectedLaunchFixture({}, '.', {}, '.', {
+    executables: Array.from({ length: 220_000 }, () => 'bun'),
+  });
+  try {
+    expect(selected.runtimeBytes.length).toBeGreaterThan(1_048_576);
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check runtime malformed',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check launch preparation refuses a symlinked main cwd', async () => {
+  const selected = selectedLaunchFixture({}, 'escape');
+  try {
+    symlinkSync(tmpdir(), join(selected.snapshotRoot, 'escape'), 'dir');
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check candidate cwd is not a contained directory',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check launch preparation refuses a symlinked skip-probe cwd', async () => {
+  const selected = selectedLaunchFixture({}, '.', {}, 'escape');
+  try {
+    symlinkSync(tmpdir(), join(selected.snapshotRoot, 'escape'), 'dir');
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check candidate cwd is not a contained directory',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check launch preparation rejects a snapshot for a different request', async () => {
+  const selected = selectedLaunchFixture({
+    resolveCandidateSnapshot: (request) =>
+      Promise.resolve({
+        schemaVersion: 1,
+        kind: 'candidate-snapshot',
+        requestIdentity: 'f'.repeat(64),
+        headSha: request.headSha,
+        snapshotIdentity: '9'.repeat(64),
+        root: tmpdir(),
+      }),
+  });
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check candidate snapshot differs from current request',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test.each([
+  [
+    'head',
+    (request: ActivationRequest) => ({
+      schemaVersion: 1,
+      kind: 'candidate-snapshot',
+      requestIdentity: request.requestIdentity,
+      headSha: 'f'.repeat(40),
+      snapshotIdentity: '9'.repeat(64),
+      root: tmpdir(),
+    }),
+    'check candidate snapshot differs from current request',
+  ],
+  [
+    'relative root',
+    (request: ActivationRequest) => ({
+      schemaVersion: 1,
+      kind: 'candidate-snapshot',
+      requestIdentity: request.requestIdentity,
+      headSha: request.headSha,
+      snapshotIdentity: '9'.repeat(64),
+      root: 'relative-source',
+    }),
+    'check candidate snapshot root is not absolute',
+  ],
+] as const)(
+  'selected check launch preparation refuses wrong snapshot %s',
+  async (_name, snapshot, phrase) => {
+    const selected = selectedLaunchFixture({
+      resolveCandidateSnapshot: (request) => Promise.resolve(snapshot(request)),
+    });
+    try {
+      const before = checkDispatchRows(selected.source.databasePath);
+      await rejectsWith(
+        selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+        phrase,
+      );
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      selected.controller.close();
+    }
+  },
+);
+
+test('selected check launch preparation refuses a symlinked snapshot root', async () => {
+  const selected = selectedLaunchFixture({
+    resolveCandidateSnapshot: (request) =>
+      Promise.resolve({
+        schemaVersion: 1,
+        kind: 'candidate-snapshot',
+        requestIdentity: request.requestIdentity,
+        headSha: request.headSha,
+        snapshotIdentity: '9'.repeat(64),
+        root: `${selected.snapshotRoot}-link`,
+      }),
+  });
+  const link = `${selected.snapshotRoot}-link`;
+  scratch.push(link);
+  symlinkSync(selected.snapshotRoot, link, 'dir');
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check candidate cwd is not a contained directory',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check launch preparation refuses a snapshot without a valid content identity', async () => {
+  const selected = selectedLaunchFixture({
+    resolveCandidateSnapshot: (request) =>
+      Promise.resolve({
+        schemaVersion: 1,
+        kind: 'candidate-snapshot',
+        requestIdentity: request.requestIdentity,
+        headSha: request.headSha,
+        snapshotIdentity: 'unverified',
+        root: selected.snapshotRoot,
+      }),
+  });
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'Validation failed',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check launch preparation refuses runtime without the frozen main or probe executable', async () => {
+  const selected = selectedLaunchFixture({}, '.', {}, '.', { executables: ['node'] });
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check launch descriptor cannot run frozen commands',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check launch preparation refuses runtime without the frozen probe executable', async () => {
+  const selected = selectedLaunchFixture({}, '.', {}, '.', {}, 'node');
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check launch descriptor cannot run frozen commands',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check launch preparation refuses runtime without the frozen main executable', async () => {
+  const selected = selectedLaunchFixture({}, '.', {}, '.', {}, 'bun', 'canonical', 'node');
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check launch descriptor cannot run frozen commands',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check launch preparation refuses a host executable path in a trusted runtime', async () => {
+  const selected = selectedLaunchFixture(
+    {},
+    '.',
+    {},
+    '.',
+    { executables: ['/usr/bin/bun', 'bun'] },
+    'bun',
+    'canonical',
+    '/usr/bin/bun',
+  );
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check runtime malformed',
+    );
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test.each([
+  [
+    'host mount',
+    { readOnlyMounts: ['candidate-source', 'toolchain-runtime', '/home'] },
+    'check sandbox profile malformed',
+  ],
+  [
+    'writable candidate source',
+    { writableMounts: ['workspace', 'tmp', 'home', 'candidate-source'] },
+    'check sandbox profile malformed',
+  ],
+  [
+    'host device',
+    { virtualMounts: ['proc', 'dev', '/dev/kvm'] },
+    'check sandbox profile malformed',
+  ],
+  [
+    'inherited environment',
+    { environmentAllowlist: ['CI', 'HOME'] },
+    'check sandbox profile malformed',
+  ],
+  ['shared namespace', { namespaces: 'host' }, 'check sandbox profile malformed'],
+  ['shared network', { network: 'host' }, 'check sandbox profile malformed'],
+  ['retained capabilities', { capabilities: 'keep' }, 'check sandbox profile malformed'],
+  ['inherited descriptors', { descriptors: 'all' }, 'check sandbox profile malformed'],
+  ['unbounded memory', { memoryBytes: 4_294_967_297 }, 'check sandbox profile malformed'],
+  ['unbounded wall time', { wallTimeMilliseconds: 600_001 }, 'check sandbox profile malformed'],
+  ['unbounded CPU time', { cpuTimeMilliseconds: 600_001 }, 'check sandbox profile malformed'],
+  ['unbounded process count', { processCount: 65 }, 'check sandbox profile malformed'],
+  ['unbounded output', { maxOutputBytes: 10_485_761 }, 'check sandbox profile malformed'],
+  ['zero CPU budget', { cpuTimeMilliseconds: 0 }, 'check sandbox profile malformed'],
+  ['zero memory budget', { memoryBytes: 0 }, 'check sandbox profile malformed'],
+  ['zero process budget', { processCount: 0 }, 'check sandbox profile malformed'],
+  [
+    'short wall budget',
+    { wallTimeMilliseconds: 29_999 },
+    'check launch descriptor cannot run frozen commands',
+  ],
+  [
+    'short output budget',
+    { maxOutputBytes: 16_383 },
+    'check launch descriptor cannot run frozen commands',
+  ],
+] as const)(
+  'selected check launch preparation refuses %s profile policy',
+  async (_policy, changes, phrase) => {
+    const selected = selectedLaunchFixture({}, '.', changes);
+    try {
+      const before = checkDispatchRows(selected.source.databasePath);
+      await rejectsWith(
+        selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64)),
+        phrase,
+      );
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      selected.controller.close();
+    }
+  },
+);
+
+test.each([
+  [
+    'attempt',
+    "UPDATE activation_obligation SET attempt = 1 WHERE kind = 'check'",
+    'selected check changed during launch preparation',
+  ],
+  [
+    'lease',
+    'UPDATE activation_request SET lease_expires_at = 1000',
+    'selected check lease changed',
+  ],
+  [
+    'authority',
+    `UPDATE activation_request SET bootstrap_identity = '${'f'.repeat(64)}'`,
+    'selected check authority changed',
+  ],
+  [
+    'generation',
+    'UPDATE activation_subject SET high_water_generation = high_water_generation + 1',
+    'selected check generation changed',
+  ],
+  [
+    'plan',
+    "UPDATE activation_obligation SET executor_id = 'other.audit' WHERE kind = 'audit'",
+    'selected check frozen plan changed',
+  ],
+  [
+    'current',
+    'UPDATE activation_request SET current = 0',
+    'selected check request is not current evaluating',
+  ],
+] as const)(
+  'held runtime resolution refuses changed %s without producing a launch plan',
+  async (_boundary, mutation, phrase) => {
+    let releaseRuntime: ((bytes: string) => void) | undefined;
+    let started: (() => void) | undefined;
+    let profileCalls = 0;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const held = new Promise<string>((resolve) => {
+      releaseRuntime = resolve;
+    });
+    const selected = selectedLaunchFixture({
+      resolveCheckRuntime: () => {
+        started?.();
+        return held;
+      },
+      resolveCheckSandboxProfile: () => {
+        profileCalls += 1;
+        return Promise.resolve(selected.profileBytes);
+      },
+    });
+    const database = new Database(selected.source.databasePath);
+    try {
+      const pending = selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64));
+      await entered;
+      database.run(mutation);
+      const before = checkDispatchRows(selected.source.databasePath);
+      releaseRuntime?.(selected.runtimeBytes);
+      await rejectsWith(pending, phrase);
+      expect(profileCalls).toBe(0);
+      expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+    } finally {
+      database.close();
+      selected.controller.close();
+    }
+  },
+);
+
+test('held profile resolution refuses changed selected attempt before snapshot access', async () => {
+  let releaseProfile: ((bytes: string) => void) | undefined;
+  let started: (() => void) | undefined;
+  let snapshotCalls = 0;
+  const entered = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const held = new Promise<string>((resolve) => {
+    releaseProfile = resolve;
+  });
+  const selected = selectedLaunchFixture({
+    resolveCheckSandboxProfile: () => {
+      started?.();
+      return held;
+    },
+    resolveCandidateSnapshot: () => {
+      snapshotCalls += 1;
+      return Promise.resolve(null);
+    },
+  });
+  const database = new Database(selected.source.databasePath);
+  try {
+    const pending = selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64));
+    await entered;
+    database.run("UPDATE activation_obligation SET attempt = 1 WHERE kind = 'check'");
+    const before = checkDispatchRows(selected.source.databasePath);
+    releaseProfile?.(selected.profileBytes);
+    await rejectsWith(pending, 'selected check changed during launch preparation');
+    expect(snapshotCalls).toBe(0);
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    selected.controller.close();
+  }
+});
+
+test('held snapshot resolution refuses an expired lease before returning inert data', async () => {
+  let releaseSnapshot: ((snapshot: unknown) => void) | undefined;
+  let started: (() => void) | undefined;
+  const entered = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const held = new Promise<unknown>((resolve) => {
+    releaseSnapshot = resolve;
+  });
+  const selected = selectedLaunchFixture({
+    resolveCandidateSnapshot: () => {
+      started?.();
+      return held;
+    },
+  });
+  const database = new Database(selected.source.databasePath);
+  try {
+    const pending = selected.controller.prepareCheckLaunch(selected.lease, 'a'.repeat(64));
+    await entered;
+    database.run('UPDATE activation_request SET lease_expires_at = 1000');
+    const before = checkDispatchRows(selected.source.databasePath);
+    releaseSnapshot?.({
+      schemaVersion: 1,
+      kind: 'candidate-snapshot',
+      requestIdentity: selected.request.requestIdentity,
+      headSha: selected.request.headSha,
+      snapshotIdentity: '9'.repeat(64),
+      root: selected.snapshotRoot,
+    });
+    await rejectsWith(pending, 'selected check lease changed');
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    selected.controller.close();
+  }
+});
 
 test('selected check preparation refuses absent, unreadable and malformed trusted manifests', async () => {
   const cases: {

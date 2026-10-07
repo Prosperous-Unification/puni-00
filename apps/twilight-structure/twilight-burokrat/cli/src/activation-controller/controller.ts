@@ -15,6 +15,14 @@ import {
 } from '../review/protocol';
 import { readBootstrapConfiguration, type TrustedBootstrapPin } from './bootstrap';
 import {
+  type CheckCandidateSnapshot,
+  type CheckRuntimeDescriptor,
+  type CheckSandboxProfile,
+  decodeCheckRuntime,
+  decodeCheckSandboxProfile,
+  inspectCheckCandidateSnapshot,
+} from './check-launch';
+import {
   type CheckInvocationManifest,
   CheckManifestRefusal,
   decodeCheckInvocationManifest,
@@ -593,6 +601,12 @@ export interface ActivationControllerOptions {
   readonly authenticateCheck?: (receiptBytes: string) => Promise<unknown>;
   /** Independently controlled immutable resolver, keyed only by the frozen command identity. */
   readonly resolveCheckManifest?: (commandIdentity: string) => Promise<unknown>;
+  /** Independently controlled immutable runtime descriptor resolver. */
+  readonly resolveCheckRuntime?: (toolchainIdentity: string) => Promise<unknown>;
+  /** Independently controlled immutable sandbox-profile descriptor resolver. */
+  readonly resolveCheckSandboxProfile?: (profileIdentity: string) => Promise<unknown>;
+  /** Independently selected candidate snapshot; this carries no launch capability. */
+  readonly resolveCandidateSnapshot?: (request: ActivationRequest) => Promise<unknown>;
   /** Authenticates one registered review invocation and its retained phase evidence. */
   readonly verifyReview?: (submission: ReviewSubmission) => Promise<VerifiedReview>;
 }
@@ -606,6 +620,13 @@ export interface PreparedSelectedCheck {
   readonly executorId: string;
   readonly protocolIdentity: string;
   readonly manifest: CheckInvocationManifest;
+}
+
+export interface PreparedCheckLaunch extends PreparedSelectedCheck {
+  readonly request: ActivationRequest;
+  readonly runtime: CheckRuntimeDescriptor;
+  readonly sandboxProfile: CheckSandboxProfile;
+  readonly candidateSnapshot: CheckCandidateSnapshot;
 }
 
 export interface ReviewExpectation {
@@ -1761,6 +1782,92 @@ export class ActivationController {
       throw new Error('selected check changed during manifest resolution');
     }
     return { ...current, manifest };
+  }
+
+  /** Resolves an inert check launch description; it cannot send, spawn or record a receipt. */
+  async prepareCheckLaunch(
+    lease: RequestLease,
+    obligationIdentity: string,
+  ): Promise<PreparedCheckLaunch> {
+    const prepared = await this.prepareSelectedCheck(lease, obligationIdentity);
+    const runtimeResolver = this.options.resolveCheckRuntime;
+    // Proof: removing this refusal changed the missing trusted resolver diagnostic before any plan could return.
+    if (runtimeResolver === undefined) throw new Error('check runtime resolver absent');
+    const expectedSelection = (({ manifest: _manifest, ...selection }) => selection)(prepared);
+    const recheckSelection = (): void => {
+      const current = transaction(this.#database, () =>
+        this.#selectedCheckIn(lease, obligationIdentity),
+      );
+      if (hashCanonical(current) !== hashCanonical(expectedSelection))
+        throw new Error('selected check changed during launch preparation');
+    };
+    let runtimeBytes: unknown;
+    try {
+      runtimeBytes = await runtimeResolver(prepared.manifest.toolchainIdentity);
+    } catch (cause) {
+      // Proof: omitting ENOENT classification changed a missing registry entry into an unreadable refusal.
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')
+        throw new Error('check runtime absent', { cause });
+      throw new Error('check runtime unreadable', { cause });
+    }
+    // Proof: omitting explicit absence changed the missing-value refusal to malformed descriptor.
+    if (runtimeBytes === undefined) throw new Error('check runtime absent');
+    // Proof: omitting this post-runtime fence called the profile resolver after a held selection changed.
+    recheckSelection();
+    const runtime = decodeCheckRuntime(runtimeBytes, prepared.manifest.toolchainIdentity);
+    const profileResolver = this.options.resolveCheckSandboxProfile;
+    if (profileResolver === undefined) throw new Error('check sandbox profile resolver absent');
+    let profileBytes: unknown;
+    try {
+      profileBytes = await profileResolver(prepared.manifest.sandboxProfileIdentity);
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')
+        throw new Error('check sandbox profile absent', { cause });
+      throw new Error('check sandbox profile unreadable', { cause });
+    }
+    // Proof: omitting explicit absence changed the missing-value refusal to malformed descriptor.
+    if (profileBytes === undefined) throw new Error('check sandbox profile absent');
+    // Proof: omitting this post-profile fence called the snapshot resolver after a held attempt changed.
+    recheckSelection();
+    const sandboxProfile = decodeCheckSandboxProfile(
+      profileBytes,
+      prepared.manifest.sandboxProfileIdentity,
+    );
+    // Proof: independent main/probe executable and wall/output-fit omissions returned an inert plan for a command this runtime/profile cannot support.
+    if (
+      !runtime.executables.includes(prepared.manifest.argv[0] ?? '') ||
+      (prepared.manifest.skipProbe !== null &&
+        !runtime.executables.includes(prepared.manifest.skipProbe.argv[0] ?? '')) ||
+      sandboxProfile.wallTimeMilliseconds < prepared.manifest.timeoutMilliseconds ||
+      sandboxProfile.maxOutputBytes < prepared.manifest.maxOutputBytes
+    )
+      throw new Error('check launch descriptor cannot run frozen commands');
+    const request = transaction(this.#database, () => {
+      this.#selectedCheckIn(lease, obligationIdentity);
+      const row = readRow(this.#database, lease.requestIdentity);
+      if (row === undefined) throw new Error('check request absent during launch preparation');
+      return storedRequest(row).request;
+    });
+    const snapshotResolver = this.options.resolveCandidateSnapshot;
+    if (snapshotResolver === undefined) throw new Error('check candidate snapshot resolver absent');
+    let snapshotInput: unknown;
+    try {
+      snapshotInput = await snapshotResolver(request);
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')
+        throw new Error('check candidate snapshot absent', { cause });
+      throw new Error('check candidate snapshot unreadable', { cause });
+    }
+    // Proof: omitting explicit absence changed the missing-value refusal to malformed snapshot input.
+    if (snapshotInput === undefined) throw new Error('check candidate snapshot absent');
+    // Proof: omitting this final post-snapshot fence returned a plan after the held lease expired.
+    recheckSelection();
+    const candidateSnapshot = inspectCheckCandidateSnapshot(
+      snapshotInput,
+      request,
+      prepared.manifest,
+    );
+    return { ...prepared, request, runtime, sandboxProfile, candidateSnapshot };
   }
 
   /** Atomically registers and reserves a frozen check effect; this cannot launch a worker. */

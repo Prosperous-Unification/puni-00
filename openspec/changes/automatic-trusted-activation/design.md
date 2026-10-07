@@ -275,6 +275,34 @@ idempotency or reconciliation, it is not ready for activation.
 
 ### Review, checks and publication
 
+#### Inert selected-check launch preparation
+
+Before any check worker can be admitted, the controller resolves the frozen
+check manifest's `toolchainIdentity` and `sandboxProfileIdentity` through
+independently controlled, immutable registries. Each registry returns versioned
+canonical descriptor bytes whose SHA-256 equals the frozen identity. Missing,
+unreadable, malformed, noncanonical, changed or ambiguous descriptor state
+refuses preparation; candidate files and ambient host configuration are never
+fallbacks. The runtime descriptor identifies the exact read-only toolchain
+closure. The profile descriptor defines a finite, supported isolation policy:
+private namespaces and network, dropped capabilities, closed nonstandard file
+descriptors, an explicit logical mount allowlist, a sanitized fixed environment,
+and positive bounded time, memory, process and output budgets. It contains no
+credential, journal, publisher path or host-selected executable endpoint.
+
+The resulting launch plan is inert data, not a dispatch token. It joins the
+exact request/subject/head/base/generation, frozen obligation and attempt,
+manifest bytes and both descriptors with an independently pinned candidate
+snapshot identity. Main and optional skip-probe argv/cwd/env are copied only
+from the manifest; both use the same profile. Preparation verifies every cwd
+component remains inside the immutable candidate snapshot and is not a
+symlink. It rechecks request, generation, selected plan/attempt, lease and
+bootstrap authority after each asynchronous trusted resolution. No process is
+spawned, no result is measured, and no receipt or admission authority is
+created by this preparation step. A later acceptance fence must recheck these
+bindings and the installed runtime/profile before launch; actual namespace,
+cgroup and filesystem isolation remains unverified until that separate slice.
+
 1. Freeze and verify the request against GitHub's current repository/PR state.
 2. Resolve independently pinned toolkit, prior authority and selected policy. A change to policy,
    launcher, workflow, harness or trust configuration is reviewed under the preceding authority.

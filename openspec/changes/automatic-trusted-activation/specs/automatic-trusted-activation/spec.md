@@ -195,6 +195,30 @@ commands, execution identities, outputs, exit statuses and skips; failed or skip
 work SHALL prevent certification. The trusted preparer SHALL validate every activation role
 and the production launcher before publication.
 
+Selected-check launch preparation SHALL resolve versioned, canonical,
+content-addressed toolchain and sandbox-profile descriptors from independently
+controlled trusted state. The sandbox profile SHALL define an explicit logical
+mount and environment allowlist, private namespaces and network, dropped
+capabilities, and finite supported resource bounds. The prepared description
+SHALL bind the exact frozen check command, both descriptors, the candidate
+snapshot, and the current request, attempt, lease and authority. Preparation
+SHALL grant no process-launch or receipt authority.
+
+#### Scenario: Runtime or profile authority is missing or drifts
+
+- **WHEN** a selected check's runtime or sandbox descriptor is absent,
+  unreadable, malformed, noncanonical or differs from its frozen identity
+- **THEN** launch preparation refuses without falling back to candidate or
+  ambient host state, and no worker or receipt is created
+
+#### Scenario: Candidate path or current selection changes during preparation
+
+- **WHEN** the main or skip-probe cwd traverses a symlink outside the immutable
+  candidate snapshot, or the current subject, check attempt, lease or bootstrap
+  authority changes while trusted descriptors are resolving
+- **THEN** preparation refuses without returning a launch-capable token, worker
+  execution or receipt
+
 #### Scenario: Candidate attempts credential or journal access
 
 - **WHEN** candidate code attempts to use publication credentials or alter authenticated records

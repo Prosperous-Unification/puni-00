@@ -1431,6 +1431,70 @@ OpenSpec strict passed 1/1 and all passed 143/143
 Prettier check and `git diff --check` passed; normal-hook receipt belongs to
 the local correction commit.
 
+### Inert selected-check launch preparation (bounded 2.2 foundation)
+
+The prior design/spec described disposable isolation but did not define
+versioned runtime/profile descriptors, their independently resolved canonical
+bytes, logical mounts and environment, finite supported resource limits, or
+candidate snapshot containment. The adjacent design/spec now define those
+requirements. This local slice adds only `prepareCheckLaunch` and strict
+descriptor/snapshot validation. It returns inert data joining the frozen
+request, check selection and attempt, exact manifest, runtime and profile
+descriptors, and the trusted resolver's candidate snapshot. It never spawns a
+process, reserves a new effect, completes an obligation, or issues a receipt.
+The controller rechecks current request, plan, subject generation, lease and
+authority after each asynchronous resolution. Both main and skip-probe cwd
+components are checked with `lstat` against the supplied snapshot root.
+
+The first mounted test on exact base `a55866a72abd1a6c7bcc0db870de20b95c51ffb0`
+failed 0/1 because the controller had no `prepareCheckLaunch` entry point
+(`/tmp/activation-22-launch-prep-first-red.log`); the minimal missing-runtime
+refusal then passed 1/1 (`/tmp/activation-22-launch-prep-first-green.log`).
+The focused matrix covers an inert positive result with unchanged complete
+controller DB snapshot; absent, unreadable, malformed, noncanonical or
+wrong-digest runtime/profile; missing snapshot; wrong request/head/snapshot
+identity; symlinked root/main/skip cwd; unsupported executable, host mount,
+environment, namespace, capability, descriptor or finite resource policy; and
+held runtime/profile/snapshot resolution after attempt, plan, current, subject
+generation, lease or authority changes. An initial missing/ENOENT fixture
+exposed a boundary distinction: configured missing state was reported as
+malformed/unreadable. The named-refusal RED is
+`/tmp/activation-22-launch-prep-absent-red.log`; the corrected absent,
+unreadable and malformed controls passed
+(`/tmp/activation-22-launch-prep-absent-green.log`).
+
+Thirty-seven independent source omissions each made its named mounted test
+RED and passed restored GREEN. Logs use
+`/tmp/activation-22-launch-prep-r5-<name>-{red,green}.log`:
+
+| Group                   | Accepted fault names and observed dependency                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Descriptor and policy   | `runtime_canonical`, `runtime_digest`, `descriptor_size`, `runtime_host_path`, `profile_mount`, `profile_writable`, `profile_virtual`, `profile_environment`, `profile_namespace`, `profile_network`, `profile_capabilities`, `profile_descriptors`, `profile_memory`, `profile_wall_upper`, `profile_cpu_upper`, `profile_process_upper`, `profile_output_upper`, `profile_cpu_lower`, `profile_memory_lower`, `profile_process_lower`, `wall_fit`, `output_fit`, `main_executable`, `probe_executable`: forbidden descriptor or unsupported command returned as inert data when the named check was omitted. |
+| Snapshot and post-await | `snapshot_request`, `snapshot_head`, `snapshot_identity`, `cwd_directory`, `skip_cwd`, `snapshot_recheck`: wrong identity, symlinked cwd or stale lease returned as inert data. `runtime_recheck` and `profile_recheck` caused the next trusted resolver to be called after a held selection changed; final recheck still prevented a returned plan, so these prove early-fence behavior only.                                                                                                                                                                                                                 |
+| Refusal diagnostics     | `snapshot_root_absolute`, `runtime_absent`, `runtime_enoent`, `profile_absent`, `snapshot_absent`: omissions changed the specific modeled refusal to a later path or parse error. They did **not** return an inert plan or grant authority.                                                                                                                                                                                                                                                                                                                                                                    |
+
+All accepted faults restored exact source bytes before later Proof and format
+edits. No masked omission is counted. The descriptors and snapshot are supplied
+by trusted resolver ports exercised with test fakes: this slice does **not**
+attest the snapshot contents, verify an installed toolchain, establish host
+namespace/cgroup capability, run bwrap, or authenticate a measured receipt.
+The returned description cannot be used as spawn authority; task 2.2 and all
+external-provider/host acceptance remain open. Final-byte scoped tests, Nx,
+OpenSpec, format/diff and normal hooks follow in the local checkpoint; host
+gate and CI remain unrun for this unpublished branch.
+
+The final-byte launch-preparation four-file Bun command passed **362/362**,
+1,571 assertions, exit 0 (`/tmp/activation-22-launch-prep-final-four.log`).
+Declared Nx `twilight-burokrat:lint:source`, `:typecheck`, and `:build` each
+printed `Successfully ran target`, exit 0
+(`/tmp/activation-22-launch-prep-final-{lint,type,build}.log`). Pinned OpenSpec
+strict passed 1/1 and all passed 143/143, with zero failures
+(`/tmp/activation-22-launch-prep-final-{strict,all}.json`). Changed-path
+Prettier and `git diff --check` passed
+(`/tmp/activation-22-launch-prep-final-{format,diff}.log`). These checks do not
+establish an installed worker, host isolation, a measured receipt, h2puni gate,
+or CI; those remain unrun for this local slice.
+
 On corrected, formatted source/test bytes, the literal four-file Bun command
 passed **318/318**, 1,394 assertions, exit 0
 (`/tmp/activation-22-check-recovery-final2-four.log`). Declared Nx
