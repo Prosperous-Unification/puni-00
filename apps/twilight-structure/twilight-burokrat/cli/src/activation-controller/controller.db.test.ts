@@ -78,23 +78,59 @@ function fixture() {
         {
           identity: 'd'.repeat(64),
           kind: 'audit' as const,
+          reviewId: 'review.primary',
           executorId: 'review.executor',
           protocolIdentity: 'e'.repeat(64),
           phase: 'cold' as const,
+        },
+        {
+          identity: 'f'.repeat(64),
+          kind: 'audit' as const,
+          reviewId: 'review.primary',
+          executorId: 'review.executor',
+          protocolIdentity: 'e'.repeat(64),
+          phase: 'informed' as const,
         },
       ],
     }),
   };
 }
 
-function evidenceHarness(options?: {
+async function evidenceHarness(options?: {
   readonly clock?: () => number;
   readonly authenticate?: (bytes: string, receipt: unknown) => Promise<unknown>;
+  readonly skipCold?: boolean;
+  readonly secondPair?: boolean;
 }) {
   const source = fixture();
   const authenticated = new Map<string, unknown>();
+  let initializing = true;
   const controller = openActivationController({
     ...source,
+    selectObligations: options?.secondPair
+      ? (request) => ({
+          ...source.selectObligations(request),
+          obligations: [
+            ...source.selectObligations(request).obligations,
+            {
+              identity: '1'.repeat(64),
+              kind: 'audit' as const,
+              reviewId: 'review.second',
+              executorId: 'review.executor',
+              protocolIdentity: 'e'.repeat(64),
+              phase: 'cold' as const,
+            },
+            {
+              identity: '2'.repeat(64),
+              kind: 'audit' as const,
+              reviewId: 'review.second',
+              executorId: 'review.executor',
+              protocolIdentity: 'e'.repeat(64),
+              phase: 'informed' as const,
+            },
+          ],
+        })
+      : source.selectObligations,
     clock: options?.clock ?? (() => 1000),
     readyCandidates: () => Promise.resolve([]),
     currentCandidate: () =>
@@ -102,7 +138,7 @@ function evidenceHarness(options?: {
     authenticateReceipt: (bytes: string) => {
       const receipt = authenticated.get(bytes);
       if (receipt === undefined) throw new Error('fake verifier has no authenticated receipt');
-      return options?.authenticate === undefined
+      return initializing || options?.authenticate === undefined
         ? Promise.resolve(receipt)
         : options.authenticate(bytes, receipt);
     },
@@ -110,28 +146,54 @@ function evidenceHarness(options?: {
   const request = controller.observe(source.candidate);
   const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
   controller.beginEvaluation(lease);
-  function receipt(kind: 'check' | 'audit', status: 'passed' | 'failed' | 'skipped' = 'passed') {
-    const bytes = serializeCanonical({ request: request.requestIdentity, kind, status });
+  function receipt(
+    kind: 'check' | 'cold' | 'audit',
+    status: 'passed' | 'failed' | 'skipped' = 'passed',
+    reviewId = 'review.primary',
+  ) {
+    const bytes = serializeCanonical({ request: request.requestIdentity, kind, status, reviewId });
+    const audit = kind !== 'check';
+    const phase = kind === 'cold' ? 'cold' : 'informed';
+    const second = reviewId === 'review.second';
     const common = {
       receiptIdentity: hashBytes(bytes),
       issuerId: source.pin.journalIssuerId,
       requestIdentity: request.requestIdentity,
-      obligationIdentity: kind === 'check' ? 'a'.repeat(64) : 'd'.repeat(64),
-      kind,
+      obligationIdentity:
+        kind === 'check'
+          ? 'a'.repeat(64)
+          : kind === 'cold'
+            ? (second ? '1' : 'd').repeat(64)
+            : (second ? '2' : 'f').repeat(64),
+      kind: audit ? 'audit' : 'check',
       attempt: 0,
-      executorId: kind === 'check' ? 'worker.check' : 'review.executor',
-      protocolIdentity: kind === 'check' ? 'b'.repeat(64) : 'e'.repeat(64),
+      executorId: audit ? 'review.executor' : 'worker.check',
+      protocolIdentity: audit ? 'e'.repeat(64) : 'b'.repeat(64),
       status,
     };
     authenticated.set(
       bytes,
-      kind === 'check'
+      !audit
         ? { ...common, commandIdentity: 'c'.repeat(64) }
-        : { ...common, phase: 'cold' },
+        : {
+            ...common,
+            phase,
+            reviewId,
+            invocationId: second ? 'invocation.second' : 'invocation.primary',
+          },
     );
     return bytes;
   }
-  return { source, controller, request, lease, authenticated, receipt };
+  const cold = receipt('cold');
+  if (!options?.skipCold) {
+    controller.registerReviewAttempt(lease, 'review.primary', 0, 'invocation.primary');
+    if (options?.secondPair) {
+      controller.registerReviewAttempt(lease, 'review.second', 0, 'invocation.second');
+    }
+    await controller.recordReceipt(lease, cold);
+  }
+  initializing = false;
+  return { source, controller, request, lease, authenticated, receipt, cold };
 }
 
 function evidenceRows(databasePath: string) {
@@ -145,6 +207,11 @@ function evidenceRows(databasePath: string) {
       attempts: database
         .query(
           'SELECT * FROM activation_attempt ORDER BY request_identity, obligation_identity, attempt',
+        )
+        .all(),
+      reviewAttempts: database
+        .query(
+          'SELECT * FROM activation_review_attempt ORDER BY request_identity, review_id, attempt',
         )
         .all(),
     };
@@ -543,9 +610,18 @@ test('observed evaluation freezes independent check and audit obligations togeth
         {
           identity: 'd'.repeat(64),
           kind: 'audit',
+          reviewId: 'review.primary',
           executorId: 'review.executor',
           protocolIdentity: 'e'.repeat(64),
           phase: 'cold',
+        },
+        {
+          identity: 'f'.repeat(64),
+          kind: 'audit',
+          reviewId: 'review.primary',
+          executorId: 'review.executor',
+          protocolIdentity: 'e'.repeat(64),
+          phase: 'informed',
         },
       ],
     }),
@@ -558,6 +634,7 @@ test('observed evaluation freezes independent check and audit obligations togeth
     expect(controller.listObligations(request.requestIdentity).map(({ kind }) => kind)).toEqual([
       'check',
       'audit',
+      'audit',
     ]);
     expect('advance' in controller).toBe(false);
     expect(() => controller.beginEvaluation(lease)).toThrow();
@@ -566,76 +643,324 @@ test('observed evaluation freezes independent check and audit obligations togeth
   }
 });
 
-test('authenticated check and audit receipts join only after both complete', async () => {
+test('selected review pair refuses a missing informed phase before freezing', () => {
   const source = fixture();
-  const checkBytes = serializeCanonical({ receipt: 'check.passed' });
-  const auditBytes = serializeCanonical({ receipt: 'audit.passed' });
-  let requestIdentity = '';
-  const authenticated = new Map([
-    [
-      checkBytes,
-      {
-        receiptIdentity: hashBytes(checkBytes),
-        issuerId: source.pin.journalIssuerId,
-        requestIdentity,
-        obligationIdentity: 'a'.repeat(64),
-        kind: 'check' as const,
-        attempt: 0,
-        executorId: 'worker.check',
-        protocolIdentity: 'b'.repeat(64),
-        commandIdentity: 'c'.repeat(64),
-        status: 'passed' as const,
-      },
-    ],
-    [
-      auditBytes,
-      {
-        receiptIdentity: hashBytes(auditBytes),
-        issuerId: source.pin.journalIssuerId,
-        requestIdentity,
-        obligationIdentity: 'd'.repeat(64),
-        kind: 'audit' as const,
-        attempt: 0,
-        executorId: 'review.executor',
-        protocolIdentity: 'e'.repeat(64),
-        phase: 'cold' as const,
-        status: 'passed' as const,
-      },
-    ],
-  ]);
-  const options = {
+  const controller = openActivationController({
     ...source,
     clock: () => 1000,
     readyCandidates: () => Promise.resolve([]),
-    currentCandidate: () =>
-      Promise.resolve({ kind: 'ready' as const, candidate: source.candidate }),
-    authenticateReceipt: (bytes: string) => {
-      const receipt = authenticated.get(bytes);
-      if (receipt === undefined) throw new Error('fake verifier has no authenticated receipt');
-      return Promise.resolve({ ...receipt, requestIdentity });
-    },
-  };
-  const controller = openActivationController(options);
+    currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
+    selectObligations: (request) => ({
+      ...source.selectObligations(request),
+      obligations: source
+        .selectObligations(request)
+        .obligations.filter(
+          (obligation) => obligation.kind !== 'audit' || obligation.phase !== 'informed',
+        ),
+    }),
+  });
   try {
     const request = controller.observe(source.candidate);
-    requestIdentity = request.requestIdentity;
     const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
-    controller.beginEvaluation(lease);
-    expect((await controller.recordReceipt(lease, checkBytes)).stage).toBe('evaluating');
-    expect((await controller.recordReceipt(lease, auditBytes)).stage).toBe('verified');
-    expect(controller.listObligations(request.requestIdentity).map(({ kind }) => kind)).toEqual([
-      'check',
-      'audit',
-    ]);
+    const before = evidenceRows(source.databasePath);
+    expect(() => controller.beginEvaluation(lease)).toThrow('selected review pair incomplete');
+    expect(evidenceRows(source.databasePath)).toEqual(before);
   } finally {
     controller.close();
+  }
+});
+
+test('selected review pair refuses a duplicate cold phase before freezing', () => {
+  const source = fixture();
+  const controller = openActivationController({
+    ...source,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
+    selectObligations: (request) => ({
+      ...source.selectObligations(request),
+      obligations: [
+        ...source.selectObligations(request).obligations,
+        {
+          identity: '1'.repeat(64),
+          kind: 'audit' as const,
+          reviewId: 'review.primary',
+          executorId: 'review.executor',
+          protocolIdentity: 'e'.repeat(64),
+          phase: 'cold' as const,
+        },
+      ],
+    }),
+  });
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    const before = evidenceRows(source.databasePath);
+    expect(() => controller.beginEvaluation(lease)).toThrow('selected review pair duplicated');
+    expect(evidenceRows(source.databasePath)).toEqual(before);
+  } finally {
+    controller.close();
+  }
+});
+
+test('one selected review attempt registers one immutable invocation before dispatch', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    controller.registerReviewAttempt(lease, 'review.primary', 0, 'invocation.primary');
+    const registered = controller.registerReviewAttempt(
+      lease,
+      'review.primary',
+      0,
+      'invocation.primary',
+    );
+    expect(registered).toEqual({
+      requestIdentity: request.requestIdentity,
+      reviewId: 'review.primary',
+      attempt: 0,
+      invocationId: 'invocation.primary',
+    });
+    expect(
+      controller.registerReviewAttempt(lease, 'review.primary', 0, 'invocation.primary'),
+    ).toEqual(registered);
+    expect(() =>
+      controller.registerReviewAttempt(lease, 'review.primary', 0, 'invocation.other'),
+    ).toThrow('review attempt registration conflicts');
+    const before = evidenceRows(source.databasePath);
+    expect(() =>
+      controller.registerReviewAttempt(lease, 'review.primary', 1, 'invocation.new-attempt'),
+    ).toThrow('review attempt differs from frozen pair');
+    expect(evidenceRows(source.databasePath)).toEqual(before);
+  } finally {
+    controller.close();
+  }
+});
+
+test('another selected review cannot reuse the first review invocation', () => {
+  const source = fixture();
+  const controller = openActivationController({
+    ...source,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
+    selectObligations: (request) => ({
+      ...source.selectObligations(request),
+      obligations: [
+        ...source.selectObligations(request).obligations,
+        {
+          identity: '1'.repeat(64),
+          kind: 'audit' as const,
+          reviewId: 'review.second',
+          executorId: 'review.executor',
+          protocolIdentity: 'e'.repeat(64),
+          phase: 'cold' as const,
+        },
+        {
+          identity: '2'.repeat(64),
+          kind: 'audit' as const,
+          reviewId: 'review.second',
+          executorId: 'review.executor',
+          protocolIdentity: 'e'.repeat(64),
+          phase: 'informed' as const,
+        },
+      ],
+    }),
+  });
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    controller.registerReviewAttempt(lease, 'review.primary', 0, 'invocation.primary');
+    const before = evidenceRows(source.databasePath);
+    expect(() =>
+      controller.registerReviewAttempt(lease, 'review.second', 0, 'invocation.primary'),
+    ).toThrow('review invocation already registered');
+    expect(evidenceRows(source.databasePath)).toEqual(before);
+  } finally {
+    controller.close();
+  }
+});
+
+test.each([
+  ['superseded', 'activation request superseded'],
+  ['stage', 'activation request is not evaluating'],
+  ['lease', 'activation request lease changed'],
+] as const)(
+  'review attempt registration refuses %s request state without new authority',
+  (fault, message) => {
+    const source = fixture();
+    const controller = boundaryController(source, () => 1000);
+    const database = new Database(source.databasePath);
+    try {
+      const request = controller.observe(source.candidate);
+      const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+      controller.beginEvaluation(lease);
+      if (fault === 'superseded') {
+        controller.observe({ ...source.candidate, headSha: '9'.repeat(40) });
+        database
+          .query('UPDATE activation_request SET stage = ? WHERE request_identity = ?')
+          .run('evaluating', request.requestIdentity);
+      } else if (fault === 'stage') {
+        database
+          .query('UPDATE activation_request SET stage = ? WHERE request_identity = ?')
+          .run('verified', request.requestIdentity);
+      } else {
+        database
+          .query(
+            'UPDATE activation_request SET lease_epoch = lease_epoch + 1 WHERE request_identity = ?',
+          )
+          .run(request.requestIdentity);
+      }
+      const before = evidenceRows(source.databasePath);
+      expect(() =>
+        controller.registerReviewAttempt(lease, 'review.primary', 0, 'invocation.primary'),
+      ).toThrow(message);
+      expect(evidenceRows(source.databasePath)).toEqual(before);
+    } finally {
+      database.close();
+      controller.close();
+    }
+  },
+);
+
+test('review attempt registration refuses a different valid pinned authority', () => {
+  const source = fixture();
+  const first = boundaryController(source, () => 1000);
+  const request = first.observe(source.candidate);
+  const lease = first.claim(request.requestIdentity, 'worker.first', 100);
+  first.beginEvaluation(lease);
+  first.close();
+  const alternatePath = join(source.bootstrapPath, '..', 'alternate-review-bootstrap.json');
+  const alternateBytes = readFileSync(source.bootstrapPath, 'utf8').replace(
+    'review.provider',
+    'review.alternate',
+  );
+  writeFileSync(alternatePath, alternateBytes);
+  const second = openActivationController({
+    ...source,
+    bootstrapPath: alternatePath,
+    pin: { ...source.pin, identity: hashBytes(alternateBytes) },
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
+  });
+  try {
+    const before = evidenceRows(source.databasePath);
+    expect(() =>
+      second.registerReviewAttempt(lease, 'review.primary', 0, 'invocation.primary'),
+    ).toThrow('activation request authority changed');
+    expect(evidenceRows(source.databasePath)).toEqual(before);
+  } finally {
+    second.close();
+  }
+});
+
+test('legacy unpaired review cannot register a new invocation', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    database
+      .query('UPDATE activation_request SET pairing_version = 0 WHERE request_identity = ?')
+      .run(request.requestIdentity);
+    const before = evidenceRows(source.databasePath);
+    expect(() =>
+      controller.registerReviewAttempt(lease, 'review.primary', 0, 'invocation.primary'),
+    ).toThrow('legacy review pairing absent');
+    expect(evidenceRows(source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('audit receipt without a registered review invocation leaves evaluation unchanged', async () => {
+  const evidence = await evidenceHarness({ skipCold: true });
+  try {
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('cold')),
+      'review invocation absent',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    evidence.controller.close();
+  }
+});
+
+test.each([
+  ['reviewId', 'review.second', 'review differs from frozen pair'],
+  ['invocationId', 'invocation.other', 'invocation differs from registration'],
+] as const)(
+  'audit receipt with wrong %s leaves registered evaluation unchanged',
+  async (field, wrong, message) => {
+    const evidence = await evidenceHarness({ secondPair: field === 'reviewId' });
+    try {
+      const informed = evidence.receipt('audit');
+      const prior = evidence.authenticated.get(informed);
+      if (prior === undefined || prior === null || typeof prior !== 'object') {
+        throw new Error('fake informed receipt absent');
+      }
+      evidence.authenticated.set(informed, {
+        ...prior,
+        [field]: wrong,
+        ...(field === 'reviewId' ? { invocationId: 'invocation.second' } : {}),
+      });
+      const before = evidenceRows(evidence.source.databasePath);
+      await rejectedWith(evidence.controller.recordReceipt(evidence.lease, informed), message);
+      expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+    } finally {
+      evidence.controller.close();
+    }
+  },
+);
+
+test('another review cannot borrow a completed cold phase for its informed receipt', async () => {
+  const evidence = await evidenceHarness({ secondPair: true });
+  try {
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      evidence.controller.recordReceipt(
+        evidence.lease,
+        evidence.receipt('audit', 'passed', 'review.second'),
+      ),
+      'requires completed cold audit',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    evidence.controller.close();
+  }
+});
+
+test('authenticated check and audit receipts join only after all frozen obligations complete', async () => {
+  const evidence = await evidenceHarness();
+  try {
+    const check = evidence.receipt('check');
+    const informed = evidence.receipt('audit');
+    expect((await evidence.controller.recordReceipt(evidence.lease, check)).stage).toBe(
+      'evaluating',
+    );
+    expect((await evidence.controller.recordReceipt(evidence.lease, informed)).stage).toBe(
+      'verified',
+    );
+    expect(
+      evidence.controller.listObligations(evidence.request.requestIdentity).map(({ kind }) => kind),
+    ).toEqual(['check', 'audit', 'audit']);
+  } finally {
+    evidence.controller.close();
   }
 });
 
 test('opposite and concurrent receipt completion orders select the same evidence set', async () => {
   const identities: string[] = [];
   for (const order of ['check-first', 'audit-first', 'concurrent'] as const) {
-    const evidence = evidenceHarness();
+    const evidence = await evidenceHarness();
     try {
       const check = evidence.receipt('check');
       const audit = evidence.receipt('audit');
@@ -661,7 +986,8 @@ test('opposite and concurrent receipt completion orders select the same evidence
       expect(verified?.evidenceSetIdentity).toBe(
         hashCanonical([
           { obligationIdentity: 'a'.repeat(64), receiptIdentity: hashBytes(check) },
-          { obligationIdentity: 'd'.repeat(64), receiptIdentity: hashBytes(audit) },
+          { obligationIdentity: 'd'.repeat(64), receiptIdentity: hashBytes(evidence.cold) },
+          { obligationIdentity: 'f'.repeat(64), receiptIdentity: hashBytes(audit) },
         ]),
       );
       if (verified?.evidenceSetIdentity === undefined || verified.evidenceSetIdentity === null) {
@@ -676,7 +1002,7 @@ test('opposite and concurrent receipt completion orders select the same evidence
 });
 
 test('authenticated receipt replay is idempotent and conflicting bytes cannot replace an attempt', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   try {
     const check = evidence.receipt('check');
     const first = await evidence.controller.recordReceipt(evidence.lease, check);
@@ -708,7 +1034,7 @@ test('authenticated receipt replay is idempotent and conflicting bytes cannot re
 test.each(['failed', 'skipped'] as const)(
   '%s authenticated required evidence cannot be overwritten',
   async (status) => {
-    const evidence = evidenceHarness();
+    const evidence = await evidenceHarness();
     try {
       const failed = evidence.receipt('check', status);
       const terminal = await evidence.controller.recordReceipt(evidence.lease, failed);
@@ -740,7 +1066,7 @@ test.each([
 ] as const)(
   'authenticated %s binding rejects a foreign receipt without state changes',
   async (_name, field, wrong, message) => {
-    const evidence = evidenceHarness();
+    const evidence = await evidenceHarness();
     try {
       const check = evidence.receipt('check');
       const prior = evidence.authenticated.get(check);
@@ -754,7 +1080,7 @@ test.each([
         evidence.controller
           .listObligations(evidence.request.requestIdentity)
           .map(({ kind }) => kind),
-      ).toEqual(['check', 'audit']);
+      ).toEqual(['check', 'audit', 'audit']);
     } finally {
       evidence.controller.close();
     }
@@ -762,7 +1088,7 @@ test.each([
 );
 
 test('authenticated kind and audit phase must match the frozen obligation', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   try {
     const check = evidence.receipt('check');
     const checkPrior = evidence.authenticated.get(check);
@@ -771,13 +1097,19 @@ test('authenticated kind and audit phase must match the frozen obligation', asyn
     const other = Object.fromEntries(
       Object.entries(checkPrior).filter(([key]) => key !== 'commandIdentity'),
     );
-    evidence.authenticated.set(check, { ...other, kind: 'audit', phase: 'cold' });
+    evidence.authenticated.set(check, {
+      ...other,
+      kind: 'audit',
+      phase: 'cold',
+      reviewId: 'review.primary',
+      invocationId: 'invocation.primary',
+    });
     await rejectedWith(evidence.controller.recordReceipt(evidence.lease, check), 'kind differs');
     const audit = evidence.receipt('audit');
     const auditPrior = evidence.authenticated.get(audit);
     if (auditPrior === undefined || auditPrior === null || typeof auditPrior !== 'object')
       throw new Error('fake audit absent');
-    evidence.authenticated.set(audit, { ...auditPrior, phase: 'informed' });
+    evidence.authenticated.set(audit, { ...auditPrior, phase: 'cold' });
     await rejectedWith(
       evidence.controller.recordReceipt(evidence.lease, audit),
       'frozen obligation',
@@ -795,7 +1127,7 @@ test('a held verifier cannot commit evidence after its request is superseded', a
   const held = new Promise<unknown>((resolve) => {
     release = resolve;
   });
-  const evidence = evidenceHarness({ authenticate: () => held });
+  const evidence = await evidenceHarness({ authenticate: () => held });
   try {
     const check = evidence.receipt('check');
     const authentication = evidence.authenticated.get(check);
@@ -810,7 +1142,7 @@ test('a held verifier cannot commit evidence after its request is superseded', a
     expect(evidence.controller.readRequest(successor.requestIdentity)?.stage).toBe('observed');
     expect(
       evidence.controller.listObligations(evidence.request.requestIdentity).map(({ kind }) => kind),
-    ).toEqual(['check', 'audit']);
+    ).toEqual(['check', 'audit', 'audit']);
   } finally {
     evidence.controller.close();
   }
@@ -821,7 +1153,7 @@ test('an unrelated completion cannot invalidate a held authenticated receipt', a
   const held = new Promise<unknown>((resolve) => {
     release = resolve;
   });
-  const evidence = evidenceHarness({
+  const evidence = await evidenceHarness({
     authenticate: (bytes, receipt) =>
       bytes.includes('"kind":"check"') ? held : Promise.resolve(receipt),
   });
@@ -858,7 +1190,7 @@ test('held verification is fenced by durable lease epoch and own attempt changes
     const held = new Promise<unknown>((resolve) => {
       release = resolve;
     });
-    const evidence = evidenceHarness({ clock: () => now, authenticate: () => held });
+    const evidence = await evidenceHarness({ clock: () => now, authenticate: () => held });
     const database = new Database(evidence.source.databasePath);
     try {
       const check = evidence.receipt('check');
@@ -882,7 +1214,11 @@ test('held verification is fenced by durable lease epoch and own attempt changes
       if (release === undefined) throw new Error('receipt verification was not held');
       release(authentication);
       await rejectedWith(pending, fault === 'lease' ? 'lease changed' : 'reserved attempt');
-      expect(database.query('SELECT * FROM activation_attempt').all()).toEqual([]);
+      expect(
+        database
+          .query('SELECT obligation_identity FROM activation_attempt ORDER BY obligation_identity')
+          .all(),
+      ).toEqual([{ obligation_identity: 'd'.repeat(64) }]);
       expect(evidence.controller.readRequest(evidence.request.requestIdentity)?.stage).toBe(
         'evaluating',
       );
@@ -912,7 +1248,7 @@ test('receipt recording refuses absent verifier without changing durable evaluat
 });
 
 test('receipt recording refuses absent bytes before invoking authentication', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   try {
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
@@ -928,7 +1264,7 @@ test('receipt recording refuses absent bytes before invoking authentication', as
 test('expired receipt lease and missing trusted pin refuse before evidence insertion', async () => {
   for (const fault of ['expiry', 'bootstrap'] as const) {
     let now = 1000;
-    const evidence = evidenceHarness({ clock: () => now });
+    const evidence = await evidenceHarness({ clock: () => now });
     try {
       const check = evidence.receipt('check');
       if (fault === 'expiry') now = 1100;
@@ -947,7 +1283,7 @@ test('expired receipt lease and missing trusted pin refuse before evidence inser
 
 test('receipt owner and null-expiry fences refuse without evidence writes', async () => {
   for (const fault of ['owner', 'null-expiry'] as const) {
-    const evidence = evidenceHarness();
+    const evidence = await evidenceHarness();
     const database = new Database(evidence.source.databasePath);
     try {
       const check = evidence.receipt('check');
@@ -969,7 +1305,7 @@ test('receipt owner and null-expiry fences refuse without evidence writes', asyn
 });
 
 test('receipt generation guard refuses inconsistent durable subject history', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
     const check = evidence.receipt('check');
@@ -991,7 +1327,7 @@ test('receipt generation guard refuses inconsistent durable subject history', as
 });
 
 test('receipt join refuses a missing frozen obligation even when remaining evidence passes', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
     const check = evidence.receipt('check');
@@ -1013,7 +1349,7 @@ test('receipt join refuses a missing frozen obligation even when remaining evide
 });
 
 test('receipt join refuses a selected obligation whose immutable attempt is missing', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
     await evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check'));
@@ -1035,7 +1371,7 @@ test('receipt join refuses a selected obligation whose immutable attempt is miss
 });
 
 test('receipt join refuses a selected obligation whose retained authentication bytes conflict', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
     const check = evidence.receipt('check');
@@ -1073,7 +1409,7 @@ test('receipt join refuses a selected obligation whose retained authentication b
 });
 
 test('receipt join refuses malformed retained authentication bytes', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
     await evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check'));
@@ -1095,7 +1431,7 @@ test('receipt join refuses malformed retained authentication bytes', async () =>
 });
 
 test('receipt join refuses a check row carrying an audit phase', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
     database
@@ -1116,7 +1452,7 @@ test('receipt join refuses a check row carrying an audit phase', async () => {
 });
 
 test('receipt join refuses an audit row carrying a check command', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
     database
@@ -1137,7 +1473,7 @@ test('receipt join refuses an audit row carrying a check command', async () => {
 });
 
 test('receipt owner refuses a nonpending obligation with no selected attempt', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
     const check = evidence.receipt('check');
@@ -1158,55 +1494,128 @@ test('receipt owner refuses a nonpending obligation with no selected attempt', a
   }
 });
 
-test('version-two durable requests migrate to attempt storage without losing evaluation state', async () => {
+test.each([2, 3] as const)(
+  'version-%i unpaired review history remains readable but cannot resume evidence',
+  async (legacyVersion) => {
+    const source = fixture();
+    const first = boundaryController(source, () => 1000);
+    const request = first.observe(source.candidate);
+    const lease = first.claim(request.requestIdentity, 'worker.first', 100);
+    first.beginEvaluation(lease);
+    first.close();
+    const database = new Database(source.databasePath);
+    try {
+      database.run('DROP TABLE activation_review_attempt');
+      if (legacyVersion === 2) {
+        database.run('DROP TABLE activation_attempt');
+        database.run('ALTER TABLE activation_request DROP COLUMN evidence_set_identity');
+      }
+      database.run('ALTER TABLE activation_request DROP COLUMN pairing_version');
+      database.run('ALTER TABLE activation_obligation DROP COLUMN review_id');
+      database.run(legacyVersion === 2 ? 'PRAGMA user_version = 2' : 'PRAGMA user_version = 3');
+    } finally {
+      database.close();
+    }
+    const authenticated = new Map<string, unknown>();
+    const second = openActivationController({
+      ...source,
+      clock: () => 1000,
+      readyCandidates: () => Promise.resolve([]),
+      currentCandidate: () =>
+        Promise.resolve({ kind: 'ready' as const, candidate: source.candidate }),
+      authenticateReceipt: (bytes: string) => Promise.resolve(authenticated.get(bytes)),
+    });
+    try {
+      const check = serializeCanonical({ receipt: 'migrated-check' });
+      authenticated.set(check, {
+        receiptIdentity: hashBytes(check),
+        issuerId: source.pin.journalIssuerId,
+        requestIdentity: request.requestIdentity,
+        obligationIdentity: 'a'.repeat(64),
+        kind: 'check',
+        attempt: 0,
+        executorId: 'worker.check',
+        protocolIdentity: 'b'.repeat(64),
+        commandIdentity: 'c'.repeat(64),
+        status: 'passed',
+      });
+      const before = evidenceRows(source.databasePath);
+      await rejectedWith(second.recordReceipt(lease, check), 'legacy review pairing absent');
+      expect(evidenceRows(source.databasePath)).toEqual(before);
+      expect(second.readRequest(request.requestIdentity)?.request.requestIdentity).toBe(
+        request.requestIdentity,
+      );
+    } finally {
+      second.close();
+    }
+  },
+);
+
+test('failed pairing migration leaves the legacy version and rows unchanged', () => {
   const source = fixture();
   const first = boundaryController(source, () => 1000);
   const request = first.observe(source.candidate);
-  const lease = first.claim(request.requestIdentity, 'worker.first', 100);
-  first.beginEvaluation(lease);
   first.close();
   const database = new Database(source.databasePath);
   try {
-    database.run('DROP TABLE activation_attempt');
-    database.run('ALTER TABLE activation_request DROP COLUMN evidence_set_identity');
-    database.run('PRAGMA user_version = 2');
+    database.run('DROP TABLE activation_review_attempt');
+    database.run('ALTER TABLE activation_obligation DROP COLUMN review_id');
+    database.run('PRAGMA user_version = 3');
+    const before = {
+      version: database.query('PRAGMA user_version').get(),
+      schema: database
+        .query("SELECT name, sql FROM sqlite_schema WHERE type = 'table' ORDER BY name")
+        .all(),
+      requests: database.query('SELECT * FROM activation_request').all(),
+    };
+    expect(() => boundaryController(source, () => 1000)).toThrow('duplicate column name');
+    expect({
+      version: database.query('PRAGMA user_version').get(),
+      schema: database
+        .query("SELECT name, sql FROM sqlite_schema WHERE type = 'table' ORDER BY name")
+        .all(),
+      requests: database.query('SELECT * FROM activation_request').all(),
+    }).toEqual(before);
+    expect(request.requestIdentity).toBeDefined();
   } finally {
     database.close();
   }
-  const authenticated = new Map<string, unknown>();
-  const second = openActivationController({
-    ...source,
-    clock: () => 1000,
-    readyCandidates: () => Promise.resolve([]),
-    currentCandidate: () =>
-      Promise.resolve({ kind: 'ready' as const, candidate: source.candidate }),
-    authenticateReceipt: (bytes: string) => Promise.resolve(authenticated.get(bytes)),
-  });
-  try {
-    const check = serializeCanonical({ receipt: 'migrated-check' });
-    authenticated.set(check, {
-      receiptIdentity: hashBytes(check),
-      issuerId: source.pin.journalIssuerId,
-      requestIdentity: request.requestIdentity,
-      obligationIdentity: 'a'.repeat(64),
-      kind: 'check',
-      attempt: 0,
-      executorId: 'worker.check',
-      protocolIdentity: 'b'.repeat(64),
-      commandIdentity: 'c'.repeat(64),
-      status: 'passed',
-    });
-    expect((await second.recordReceipt(lease, check)).stage).toBe('evaluating');
-    expect(second.readRequest(request.requestIdentity)?.request.requestIdentity).toBe(
-      request.requestIdentity,
-    );
-  } finally {
-    second.close();
-  }
 });
 
+test.each(['claim', 'evaluation'] as const)(
+  'legacy unpaired request refuses %s before acquiring new authority',
+  (operation) => {
+    const source = fixture();
+    const controller = boundaryController(source, () => 1000);
+    const database = new Database(source.databasePath);
+    try {
+      const request = controller.observe(source.candidate);
+      const lease =
+        operation === 'evaluation'
+          ? controller.claim(request.requestIdentity, 'worker.first', 100)
+          : undefined;
+      database
+        .query('UPDATE activation_request SET pairing_version = 0 WHERE request_identity = ?')
+        .run(request.requestIdentity);
+      const before = evidenceRows(source.databasePath);
+      if (operation === 'claim') {
+        expect(() => controller.claim(request.requestIdentity, 'worker.first', 100)).toThrow(
+          'legacy review pairing absent',
+        );
+      } else {
+        if (lease === undefined) throw new Error('evaluating fixture lease absent');
+        expect(() => controller.beginEvaluation(lease)).toThrow('legacy review pairing absent');
+      }
+      expect(evidenceRows(source.databasePath)).toEqual(before);
+    } finally {
+      database.close();
+      controller.close();
+    }
+  },
+);
+
 test('receipt owner refuses a different valid bootstrap authority on the same durable request', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   evidence.controller.close();
   const alternatePath = join(
     evidence.source.bootstrapPath,
@@ -1239,7 +1648,7 @@ test('receipt owner refuses a different valid bootstrap authority on the same du
 });
 
 test('terminal failed evidence refuses another obligation before evidence insertion', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   try {
     await evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check', 'failed'));
     const before = evidenceRows(evidence.source.databasePath);
@@ -1262,25 +1671,13 @@ test('informed audit evidence waits for the selected cold audit while checks rem
     readyCandidates: () => Promise.resolve([]),
     currentCandidate: () =>
       Promise.resolve({ kind: 'ready' as const, candidate: source.candidate }),
-    selectObligations: (request) => ({
-      ...source.selectObligations(request),
-      obligations: [
-        ...source.selectObligations(request).obligations,
-        {
-          identity: 'f'.repeat(64),
-          kind: 'audit' as const,
-          executorId: 'review.executor',
-          protocolIdentity: 'e'.repeat(64),
-          phase: 'informed' as const,
-        },
-      ],
-    }),
     authenticateReceipt: (bytes: string) => Promise.resolve(authenticated.get(bytes)),
   });
   try {
     const request = controller.observe(source.candidate);
     const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
     controller.beginEvaluation(lease);
+    controller.registerReviewAttempt(lease, 'review.primary', 0, 'invocation.primary');
     function register(kind: 'check' | 'audit', phase: 'cold' | 'informed' = 'cold') {
       const bytes = serializeCanonical({ kind, phase });
       authenticated.set(
@@ -1308,6 +1705,8 @@ test('informed audit evidence waits for the selected cold audit while checks rem
               executorId: 'review.executor',
               protocolIdentity: 'e'.repeat(64),
               phase,
+              reviewId: 'review.primary',
+              invocationId: 'invocation.primary',
               status: 'passed',
             },
       );
@@ -1328,7 +1727,7 @@ test('informed audit evidence waits for the selected cold audit while checks rem
 });
 
 test('second receipt commit failure restores its attempt but retains earlier authenticated evidence', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
     const check = evidence.receipt('check');
@@ -1347,7 +1746,7 @@ test('second receipt commit failure restores its attempt but retains earlier aut
     const attempts: unknown[] = database
       .query('SELECT * FROM activation_attempt ORDER BY obligation_identity')
       .all();
-    expect(attempts).toHaveLength(1);
+    expect(attempts).toHaveLength(2);
     database.run('DROP TRIGGER fail_verified_activation');
     expect((await evidence.controller.recordReceipt(evidence.lease, audit)).stage).toBe('verified');
   } finally {
@@ -1357,7 +1756,7 @@ test('second receipt commit failure restores its attempt but retains earlier aut
 });
 
 test('ignored verified update refuses and rolls back the second receipt', async () => {
-  const evidence = evidenceHarness();
+  const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
     await evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check'));

@@ -30,6 +30,7 @@ const EvaluationObligation = type({
     type({
       identity: /^[0-9a-f]{64}$/,
       kind: "'audit'",
+      reviewId: 'string>=1',
       executorId: 'string>=1',
       protocolIdentity: /^[0-9a-f]{64}$/,
       phase: "'cold'|'informed'",
@@ -64,6 +65,8 @@ const AuthenticatedReceipt = type({
       requestIdentity: /^[0-9a-f]{64}$/,
       obligationIdentity: /^[0-9a-f]{64}$/,
       kind: "'audit'",
+      reviewId: 'string>=1',
+      invocationId: 'string>=1',
       attempt: 'number.integer>=0',
       executorId: 'string>=1',
       protocolIdentity: /^[0-9a-f]{64}$/,
@@ -77,6 +80,7 @@ const StoredObligation = type({
   request_identity: /^[0-9a-f]{64}$/,
   obligation_identity: /^[0-9a-f]{64}$/,
   kind: "'check'|'audit'",
+  review_id: 'string|null',
   executor_id: 'string>=1',
   protocol_identity: /^[0-9a-f]{64}$/,
   command_identity: type(/^[0-9a-f]{64}$/).or('null'),
@@ -96,6 +100,20 @@ const StoredAttempt = type({
   status: "'passed'|'failed'|'skipped'",
 }).onUndeclaredKey('reject');
 
+const StoredReviewAttempt = type({
+  request_identity: /^[0-9a-f]{64}$/,
+  review_id: 'string>=1',
+  attempt: 'number.integer>=0',
+  invocation_id: 'string>=1',
+}).onUndeclaredKey('reject');
+
+export interface ReviewAttemptRegistration {
+  readonly requestIdentity: string;
+  readonly reviewId: string;
+  readonly attempt: number;
+  readonly invocationId: string;
+}
+
 const StoredRow = type({
   request_identity: /^[0-9a-f]{64}$/,
   repository_id: 'number.integer>=1',
@@ -109,6 +127,7 @@ const StoredRow = type({
   lease_expires_at: 'number.integer|null',
   evaluation_plan_identity: type(/^[0-9a-f]{64}$/).or('null'),
   evidence_set_identity: type(/^[0-9a-f]{64}$/).or('null'),
+  pairing_version: '0|1',
   current: '0|1',
 }).onUndeclaredKey('reject');
 type StoredRow = typeof StoredRow.infer;
@@ -212,7 +231,7 @@ function initialize(database: Database): void {
   database.run('PRAGMA busy_timeout = 5000');
   const metadata: unknown = database.query('PRAGMA user_version').get();
   const version = parseOrThrow(type({ user_version: 'number.integer>=0' }), metadata).user_version;
-  if (version !== 0 && version !== 2 && version !== 3)
+  if (version !== 0 && version !== 2 && version !== 3 && version !== 4)
     // Proof: accepting old version 1 silently reopened storage without durable subject high-water.
     throw new Error(`unsupported activation store schema ${String(version)}`);
   if (version === 0) {
@@ -235,6 +254,7 @@ function initialize(database: Database): void {
         lease_expires_at INTEGER,
         evaluation_plan_identity TEXT,
         evidence_set_identity TEXT,
+        pairing_version INTEGER NOT NULL CHECK (pairing_version IN (0, 1)),
         current INTEGER NOT NULL CHECK (current IN (0, 1))
       )`);
       database.run(
@@ -257,6 +277,7 @@ function initialize(database: Database): void {
         request_identity TEXT NOT NULL,
         obligation_identity TEXT NOT NULL,
         kind TEXT NOT NULL,
+        review_id TEXT,
         executor_id TEXT NOT NULL,
         protocol_identity TEXT NOT NULL,
         command_identity TEXT,
@@ -280,7 +301,15 @@ function initialize(database: Database): void {
         FOREIGN KEY (request_identity, obligation_identity)
           REFERENCES activation_obligation(request_identity, obligation_identity)
       )`);
-      database.run('PRAGMA user_version = 3');
+      database.run(`CREATE TABLE activation_review_attempt (
+        request_identity TEXT NOT NULL,
+        review_id TEXT NOT NULL,
+        attempt INTEGER NOT NULL CHECK (attempt >= 0),
+        invocation_id TEXT NOT NULL UNIQUE,
+        PRIMARY KEY (request_identity, review_id, attempt),
+        FOREIGN KEY (request_identity) REFERENCES activation_request(request_identity)
+      )`);
+      database.run('PRAGMA user_version = 4');
     });
   }
   if (version === 2) {
@@ -301,6 +330,24 @@ function initialize(database: Database): void {
           REFERENCES activation_obligation(request_identity, obligation_identity)
       )`);
       database.run('PRAGMA user_version = 3');
+    });
+  }
+  if (version === 2 || version === 3) {
+    // Proof: legacy unpaired obligations remain readable but cannot inherit a guessed review pair.
+    transaction(database, () => {
+      database.run(
+        'ALTER TABLE activation_request ADD COLUMN pairing_version INTEGER NOT NULL DEFAULT 0 CHECK (pairing_version IN (0, 1))',
+      );
+      database.run('ALTER TABLE activation_obligation ADD COLUMN review_id TEXT');
+      database.run(`CREATE TABLE activation_review_attempt (
+        request_identity TEXT NOT NULL,
+        review_id TEXT NOT NULL,
+        attempt INTEGER NOT NULL CHECK (attempt >= 0),
+        invocation_id TEXT NOT NULL UNIQUE,
+        PRIMARY KEY (request_identity, review_id, attempt),
+        FOREIGN KEY (request_identity) REFERENCES activation_request(request_identity)
+      )`);
+      database.run('PRAGMA user_version = 4');
     });
   }
 }
@@ -370,6 +417,7 @@ export class ActivationController {
       } = frozen;
       if (
         previous.bootstrap_identity === this.options.pin.identity &&
+        previous.pairing_version === 1 &&
         hashCanonical(oldIdentity) === hashCanonical(newIdentity)
       ) {
         // Proof: omitting this fence let an older held B source read supersede a newer unchanged A observation.
@@ -403,8 +451,8 @@ export class ActivationController {
       .query(
         `INSERT INTO activation_request (
           request_identity, repository_id, subject_key, request_bytes, bootstrap_identity,
-          stage, version, lease_epoch, lease_owner, lease_expires_at, current
-        ) VALUES (?, ?, ?, ?, ?, 'observed', 0, 0, NULL, NULL, 1)`,
+          stage, version, lease_epoch, lease_owner, lease_expires_at, pairing_version, current
+        ) VALUES (?, ?, ?, ?, ?, 'observed', 0, 0, NULL, NULL, 1, 1)`,
       )
       .run(next.identity, candidate.repositoryId, key, next.bytes, this.options.pin.identity);
     // Proof: omitting the high-water write let a restarted controller reuse a closed request PK.
@@ -568,6 +616,8 @@ export class ActivationController {
     return transaction(this.#database, () => {
       const row = readRow(this.#database, identity);
       if (row === undefined) throw new Error('activation request absent');
+      // Proof: removing this guard made a legacy-marked observed request acquire a lease.
+      if (row.pairing_version !== 1) throw new Error('legacy review pairing absent');
       // Proof: omitting current changed the superseded-claim refusal to a stage refusal.
       if (row.current !== 1) throw new Error('activation request superseded');
       // Proof: omitting stage granted a new lease to an already evaluating request.
@@ -594,6 +644,8 @@ export class ActivationController {
     return transaction(this.#database, () => {
       const row = readRow(this.#database, lease.requestIdentity);
       if (row === undefined) throw new Error('activation request absent');
+      // Proof: removing this guard froze new obligations under a legacy-marked lease.
+      if (row.pairing_version !== 1) throw new Error('legacy review pairing absent');
       // Proof: omitting current changed the superseded-evaluation refusal to a lease refusal.
       if (row.current !== 1) throw new Error('activation request superseded');
       // Proof: independently omitting epoch, owner, version, expiry and null-expiry checks
@@ -635,18 +687,35 @@ export class ActivationController {
       ) {
         throw new Error('evaluation obligations incomplete or duplicated');
       }
+      const reviewPhases = new Map<string, Set<'cold' | 'informed'>>();
+      for (const obligation of plan.obligations) {
+        if (obligation.kind !== 'audit') continue;
+        const phases = reviewPhases.get(obligation.reviewId) ?? new Set();
+        // Proof: omitting the pair/cardinality guard let a lone cold or duplicate phase freeze.
+        if (phases.has(obligation.phase)) throw new Error('selected review pair duplicated');
+        phases.add(obligation.phase);
+        reviewPhases.set(obligation.reviewId, phases);
+      }
+      if (
+        [...reviewPhases.values()].some(
+          (phases) => phases.size !== 2 || !phases.has('cold') || !phases.has('informed'),
+        )
+      ) {
+        throw new Error('selected review pair incomplete');
+      }
       for (const obligation of plan.obligations) {
         this.#database
           .query(
             `INSERT INTO activation_obligation (
-            request_identity, obligation_identity, kind, executor_id, protocol_identity,
+            request_identity, obligation_identity, kind, review_id, executor_id, protocol_identity,
             command_identity, phase, attempt, state, receipt_identity
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending', NULL)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'pending', NULL)`,
           )
           .run(
             request.requestIdentity,
             obligation.identity,
             obligation.kind,
+            obligation.kind === 'audit' ? obligation.reviewId : null,
             obligation.executorId,
             obligation.protocolIdentity,
             obligation.kind === 'check' ? obligation.commandIdentity : null,
@@ -661,6 +730,92 @@ export class ActivationController {
       const advanced = readRow(this.#database, lease.requestIdentity);
       if (advanced === undefined) throw new Error('advanced activation request absent');
       return storedRequest(advanced);
+    });
+  }
+
+  /** Reserves one authenticated invocation for a frozen review pair before external dispatch. */
+  registerReviewAttempt(
+    lease: RequestLease,
+    reviewId: string,
+    attempt: number,
+    invocationId: string,
+  ): ReviewAttemptRegistration {
+    const registration = parseOrThrow(
+      type({ reviewId: 'string>=1', attempt: 'number.integer>=0', invocationId: 'string>=1' }),
+      { reviewId, attempt, invocationId },
+    );
+    return transaction(this.#database, () => {
+      const row = readRow(this.#database, lease.requestIdentity);
+      if (row === undefined) throw new Error('activation request absent');
+      // Proof: removing this guard registered an invocation on unpaired history.
+      if (row.pairing_version !== 1) throw new Error('legacy review pairing absent');
+      // Proof: omission registered an invocation on a superseded row whose stale stage
+      // was deliberately held at evaluating in the mounted two-generation fixture.
+      if (row.current !== 1) throw new Error('activation request superseded');
+      // Proof: omission registered an invocation after the request left evaluating.
+      if (row.stage !== 'evaluating') throw new Error('activation request is not evaluating');
+      const now = nowFrom(this.options.clock);
+      // Proof: omitting the epoch comparison registered an invocation for a stale lease.
+      if (
+        row.lease_epoch !== lease.leaseEpoch ||
+        row.lease_owner !== lease.workerId ||
+        row.lease_expires_at === null ||
+        isExpiredLease(row.lease_expires_at, now)
+      ) {
+        throw new Error('activation request lease changed');
+      }
+      const request = storedRequest(row).request;
+      readBootstrapConfiguration(this.options.bootstrapPath, this.options.pin);
+      // Proof: omission registered an invocation under a second valid pinned authority.
+      if (request.authorityIdentity !== this.options.pin.identity) {
+        throw new Error('activation request authority changed');
+      }
+      const rawPhases: unknown[] = this.#database
+        .query(
+          "SELECT * FROM activation_obligation WHERE request_identity = ? AND review_id = ? AND kind = 'audit' ORDER BY obligation_identity",
+        )
+        .all(request.requestIdentity, registration.reviewId);
+      const phases = rawPhases.map((entry) => parseOrThrow(StoredObligation, entry));
+      // Proof: omitting the attempt comparison let an unreserved attempt-1 invocation register;
+      // the selected-pair test refused a missing/duplicate phase before any registration.
+      if (
+        phases.length !== 2 ||
+        !phases.some((phase) => phase.phase === 'cold') ||
+        !phases.some((phase) => phase.phase === 'informed') ||
+        phases.some((phase) => phase.attempt !== registration.attempt)
+      ) {
+        throw new Error('review attempt differs from frozen pair');
+      }
+      const existing: unknown = this.#database
+        .query(
+          'SELECT * FROM activation_review_attempt WHERE request_identity = ? AND review_id = ? AND attempt = ?',
+        )
+        .get(request.requestIdentity, registration.reviewId, registration.attempt);
+      if (existing !== null) {
+        const prior = parseOrThrow(StoredReviewAttempt, existing);
+        // Proof: changing the invocation for an already registered review attempt refused instead of reminting authority.
+        if (prior.invocation_id !== registration.invocationId) {
+          throw new Error('review attempt registration conflicts');
+        }
+        return { requestIdentity: request.requestIdentity, ...registration };
+      }
+      const borrowed: unknown = this.#database
+        .query('SELECT * FROM activation_review_attempt WHERE invocation_id = ?')
+        .get(registration.invocationId);
+      // Proof: omitting the named cross-review refusal surfaced SQLite UNIQUE instead of
+      // the modeled pre-dispatch conflict in the mounted two-review registration test.
+      if (borrowed !== null) throw new Error('review invocation already registered');
+      this.#database
+        .query(
+          'INSERT INTO activation_review_attempt (request_identity, review_id, attempt, invocation_id) VALUES (?, ?, ?, ?)',
+        )
+        .run(
+          request.requestIdentity,
+          registration.reviewId,
+          registration.attempt,
+          registration.invocationId,
+        );
+      return { requestIdentity: request.requestIdentity, ...registration };
     });
   }
 
@@ -682,6 +837,9 @@ export class ActivationController {
       const now = nowFrom(this.options.clock);
       const row = readRow(this.#database, lease.requestIdentity);
       if (row === undefined) throw new Error('activation request absent');
+      // Proof: omission changed both v2/v3 legacy receipt refusals into later malformed-plan
+      // validation, losing the explicit no-implicit-pairing boundary.
+      if (row.pairing_version !== 1) throw new Error('legacy review pairing absent');
       // Proof: omitting current changed held-verifier supersession into a later generation refusal.
       if (row.current !== 1) throw new Error('activation request superseded');
       const request = storedRequest(row).request;
@@ -745,6 +903,24 @@ export class ActivationController {
       if (receipt.attempt !== obligation.attempt) {
         throw new Error('authenticated receipt attempt differs from reserved attempt');
       }
+      if (receipt.kind === 'audit') {
+        // Proof: omission let another registered review's invocation complete this obligation.
+        if (receipt.reviewId !== obligation.review_id) {
+          throw new Error('authenticated receipt review differs from frozen pair');
+        }
+        const rawRegistration: unknown = this.#database
+          .query(
+            'SELECT * FROM activation_review_attempt WHERE request_identity = ? AND review_id = ? AND attempt = ?',
+          )
+          .get(request.requestIdentity, receipt.reviewId, receipt.attempt);
+        // Proof: omitting the registration join let an unregistered cold receipt complete evaluation.
+        if (rawRegistration === null) throw new Error('review invocation absent');
+        const registered = parseOrThrow(StoredReviewAttempt, rawRegistration);
+        // Proof: omission accepted a different invocation for the registered review attempt.
+        if (registered.invocation_id !== receipt.invocationId) {
+          throw new Error('authenticated receipt invocation differs from registration');
+        }
+      }
       const authenticationBytes = serializeCanonical(receipt);
       const existing: unknown = this.#database
         .query(
@@ -779,13 +955,14 @@ export class ActivationController {
       if (obligation.state !== 'pending' || obligation.receipt_identity !== null) {
         throw new Error('activation obligation already completed');
       }
-      // Proof: cold-order omission admitted informed audit evidence before its cold obligation.
+      // Proof: broadening the cold query to any review admitted informed evidence from a
+      // second review before that review's cold phase passed.
       if (receipt.kind === 'audit' && receipt.phase === 'informed') {
         const cold: unknown = this.#database
           .query(
-            "SELECT COUNT(*) AS completed FROM activation_obligation WHERE request_identity = ? AND kind = 'audit' AND phase = 'cold' AND state = 'passed'",
+            "SELECT COUNT(*) AS completed FROM activation_obligation WHERE request_identity = ? AND review_id = ? AND kind = 'audit' AND phase = 'cold' AND attempt = ? AND state = 'passed'",
           )
-          .get(request.requestIdentity);
+          .get(request.requestIdentity, receipt.reviewId, receipt.attempt);
         if (parseOrThrow(type({ completed: 'number.integer>=0' }), cold).completed === 0) {
           throw new Error('informed audit requires completed cold audit');
         }
@@ -849,6 +1026,7 @@ export class ActivationController {
         return parseOrThrow(EvaluationObligation, {
           ...common,
           kind: 'audit',
+          reviewId: entry.review_id,
           phase: entry.phase,
         });
       });

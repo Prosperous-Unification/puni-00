@@ -420,3 +420,63 @@ exited 0. Normal commit hooks remain required for the local commit.
 No runtime tests/mutations, provider authentication, host gate, CI or publication were run
 for this docs-only amendment. The proof rows above are requirements, not inherited runtime
 acceptance from the implementation branch.
+
+### 2.1 paired-plan and invocation-registration foundation (2026-10-07)
+
+This local slice adds v4 storage for an immutable review pair and its selected
+invocation registration. It does not implement the external verifier, dispatch,
+recovery, or admission; task 2.1 remains open. Fresh v4 requests freeze exactly
+one cold and one informed obligation per `reviewId`. Old v2/v3 rows migrate as
+readable `pairing_version=0` history and refuse receipt continuation. A new
+authoritative observation replans into a new audit generation rather than
+inventing a legacy pair. A failed v3 pairing migration retained the complete
+prior schema, user version and request rows.
+
+| Mounted boundary and injected fault                                                                            | Observed RED and restored GREEN                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Missing informed or duplicated cold phase: omit the corresponding `beginEvaluation` pair check                 | Evaluation froze an incomplete/ambiguous plan, 0/1 each (`/tmp/activation-21-pair-omission-red.log`, `/tmp/activation-21-duplicate-pair-omission-red.log`); restored selected-pair tests passed.                                                                                                                                                                                                            |
+| Registration conflicts and reserved attempt: omit the existing-invocation comparison or the attempt comparison | Conflicting invocation returned as if registered, 0/1 (`/tmp/activation-21-registration-conflict-omission-red.log`); unreserved attempt 1 registered, 0/1 (`/tmp/activation-21-registration-attempt-omission-red.log`); restored registration case passed 1/1, 5 assertions.                                                                                                                                |
+| Cross-review invocation reuse: omit named guard                                                                | SQLite UNIQUE still refused the write, but the modeled `review invocation already registered` refusal became an unmodeled constraint error, 0/1 (`/tmp/activation-21-cross-register-omission-red.log`). This proves error specificity, not that the guard alone prevents reuse.                                                                                                                             |
+| Registration current, stage, epoch, authority: omit one check at a time                                        | Each injected fault registered an invocation in the named stale state, 0/1 each (`/tmp/activation-21-register-{current,stage,lease,authority}-omission-red.log`); restored three-state tests passed 3/3 and valid-alternate-authority test 1/1. The current fixture keeps the old row's stage at evaluating after supersession to isolate that guard.                                                       |
+| Unregistered receipt, wrong review, wrong invocation: omit each `recordReceipt` join/comparison independently  | Each receipt was fulfilled instead of rejected, 0/1 (`/tmp/activation-21-registration-omission-red.log`, `/tmp/activation-21-review-binding-omission-red.log`, `/tmp/activation-21-invocation-binding-omission-red.log`); restored receipt cases passed. The wrong-review fixture registers both pairs, so the omitted comparison reaches acceptance rather than merely another missing-registration error. |
+| Informed receipt borrows another review's cold: broaden the cold query                                         | The second review's informed receipt was accepted before its cold phase, 0/1 (`/tmp/activation-21-cold-scope-omission-red.log`); restored test passed 1/1. An earlier broad text replacement failed on SQL argument count and was disqualified; it is not safety evidence.                                                                                                                                  |
+| Legacy receipt: omit the explicit `pairing_version` refusal                                                    | v2/v3 tests lost the named refusal and failed later malformed-plan validation, 0/2 (`/tmp/activation-21-legacy-receipt-omission-red.log`). This proves the explicit boundary/error, not that parser fallback would grant legacy authority. Restored tests passed 2/2, 8 assertions.                                                                                                                         |
+
+The additional legacy entry-point watch independently removed the claim,
+evaluation and registration pairing guards. Each mounted test then acquired a
+lease, froze obligations or registered an invocation on a persisted unpaired
+row, 0/1 each (`/tmp/activation-21-legacy-{claim,evaluation,register}-omission-red.log`);
+the same three tests passed with restored source. These fixtures mark only the
+persisted pairing version to isolate each controller entry point.
+
+The first unregistered-receipt baseline failed because it was accepted before
+the new owner (`/tmp/activation-21-unregistered-red.log`); the first cross-review
+cold fixture likewise failed at acceptance
+(`/tmp/activation-21-cross-review-cold-red.log`). Both were restored green.
+The focused controller suite before final formatting passed 78/78, 307 assertions
+(`/tmp/activation-21-foundation-current-all.log`). Final formatted-byte checks
+are recorded below. All receipt authentication here is injected fake evidence,
+not independent external provenance.
+
+Final-byte command and results for this bounded foundation:
+
+```sh
+bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/bootstrap.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/request.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/ingress.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/controller.db.test.ts
+```
+
+The command passed 95/95 tests, 390 assertions, exit 0
+(`/tmp/activation-21-foundation-four-final.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck`, and `:build` each printed
+`Successfully ran target` with exit 0 on corrected source/test bytes
+(`/tmp/activation-21-foundation-{lint,type,build}-unsandboxed.log`). An earlier
+sandboxed Nx exit 0 printed only worker-socket denial and no task-success
+summary, so it was unverified. The first authoritative lint failed on a test's
+numeric union inside a template literal; explicit version-2/version-3 pragma
+strings fixed that test-only diagnostic before the successful lint rerun.
+Pinned OpenSpec strict validation passed 1/1 and all validation passed
+143/143, both exit 0 (`/tmp/activation-21-foundation-openspec-{strict,all}.json`).
+Three-path Prettier check and `git diff --check` each exited 0 after the final
+test formatting (`/tmp/activation-21-foundation-format-check.log`). The
+four-file and three Nx targets above were rerun on those final source/test bytes.
+Normal commit hooks, independent review, live provider acceptance, CI and host
+gate remain separate.
