@@ -709,3 +709,89 @@ strict passed 1/1 and all passed 143/143, zero failures; final ledger-byte
 rerun logs are `/tmp/activation-early-cold-p2-docs-{strict,all}.json`.
 Changed-path Prettier and diff check passed. Normal commit hooks and
 independent exact-SHA review are pending for this follow-up.
+
+### 1.2/3.3 evaluating lease and review-dispatch reservation foundation (2026-10-07)
+
+This local slice adds an explicit evaluating-lease renewal/takeover; `claim`
+remains observed-only. One `BEGIN IMMEDIATE` transaction registers the review
+invocation and reserves a dispatch effect. The additive v5 row freezes the
+current request/plan, review pair, attempt/invocation, pinned authority,
+logical reviewer target, canonical payload/digest, creation time, deadline
+and retry budget. The logical target is derived from the pinned bootstrap as
+`{kind:'reviewer',providerId,executorId}`. It is not a URL, journal endpoint,
+external send or proof of authenticated provider mapping. Mutable reservation
+state, owner epoch and version are separate columns. A later recovery slice
+must resolve this target through an independently pinned adapter before any
+send; changed mapping cannot silently rebind a prior reservation.
+
+Mounted TDD first failed at missing `recoverEvaluationLease` (0/1,
+`/tmp/activation-dispatch-lease-baseline-red.log`) and missing
+`reserveReviewDispatch` (0/1,
+`/tmp/activation-dispatch-reserve-baseline-red.log`). The corresponding first
+GREENs were 1/1, 4 assertions
+(`/tmp/activation-dispatch-lease-first-green.log`) and 1/1, 5 assertions
+(`/tmp/activation-dispatch-reserve-first-green.log`). The new mounted cases
+also assert exact replay; conflicting deadline, retry budget, invocation,
+target or payload cannot replace the frozen effect; target survives reopen;
+changed bootstrap/provider refuses; a real dispatch INSERT failure restores
+both registration and reservation; v4 migration rolls back its newly created
+table when a later index conflicts, then upgrades to v5 once the fault is
+removed. Legacy v2/v3 fixtures explicitly remove the new table when modeling
+their old schema; their read-only history tests remain green.
+
+Each row below removed only the named production condition on the mounted
+controller. All REDs were exit 1 on the named assertion, then the same
+test was rerun exit 0, 1/1 after exact source restoration. Logs use
+`/tmp/activation-dispatch-r5-<fault>-{red,green}.log`.
+
+| Fault                    | Observed mounted RED                                                                                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lease-pairing`          | Unpaired evaluating history was renewed.                                                                                                                  |
+| `lease-current`          | Superseded row with stale evaluating stage was renewed.                                                                                                   |
+| `lease-stage`            | Observed request gained a recovery lease before obligations froze.                                                                                        |
+| `lease-owner`            | Another worker took a live evaluating lease.                                                                                                              |
+| `lease-null-expiry`      | Null-expiry lease was renewed.                                                                                                                            |
+| `lease-generation`       | Stale subject generation was renewed.                                                                                                                     |
+| `lease-bootstrap`        | Changed bootstrap file was ignored.                                                                                                                       |
+| `lease-authority`        | A second valid pin renewed the old-authority request.                                                                                                     |
+| `reserve-caller-target`  | Caller-supplied target survived strict input validation.                                                                                                  |
+| `reserve-deadline`       | Elapsed deadline was reserved.                                                                                                                            |
+| `reserve-target`         | Persisted foreign target was accepted on replay.                                                                                                          |
+| `reserve-payload`        | Persisted changed payload was accepted on replay.                                                                                                         |
+| `reserve-budget`         | Same effect key accepted a different frozen retry budget.                                                                                                 |
+| `reserve-authority`      | Changed stored authority row was reserved.                                                                                                                |
+| `reserve-pair-executor`  | Cold phase with foreign executor was reserved.                                                                                                            |
+| `reserve-generation`     | Stale subject generation was reserved.                                                                                                                    |
+| `reserve-plan`           | Missing frozen plan changed the named refusal to SQLite NOT NULL; partial registration still rolled back, so this is diagnostic specificity only.         |
+| `reserve-subject-absent` | Missing subject row changed the named refusal to ArkType null validation; no authority was granted.                                                       |
+| `reserve-split`          | Forced COMMIT after invocation registration left one registration when the subsequent real dispatch INSERT failed; restored transaction leaves zero rows. |
+| `migration-split`        | Forced COMMIT after v5 table creation left that table after the later real index conflict; restored migration preserves the complete v4 schema/version.   |
+
+The first retry-budget omission stayed GREEN because the fixture changed only
+the deadline, so that trial is disqualified; an independent changed-budget
+assertion produced the accepted RED above. All 20 accepted mutations were
+restored to historical source SHA-256
+`b281e8092a4ad8b7fb1b820116b155d05e60c3a35e8bf7b942e8851aeffbced5`
+before subsequent proof comments/formatting. The 1.2/3.3 tasks remain open:
+there is no dispatch send, provider adapter, response-loss reconciliation,
+external credential or authenticated receipt from a live reviewer.
+
+On the final formatted source/test bytes, the literal four-file Bun command
+in the earlier controller section passed 153/153, 594 assertions, exit 0
+(`/tmp/activation-dispatch-final-four3.log`). The first declared Nx lint
+attempt printed socket-denial warnings and no task-success summary despite
+exit 0, so it was not counted. Explicit no-daemon/no-plugin-isolation Nx lint
+then found `prefer-optional-chain` in the new absent-plan guard; direct ESLint
+confirmed that single diagnostic. After the behavior-preserving expression
+correction, the declared `twilight-burokrat:lint:source`, `:typecheck` and
+`:build` each printed `Successfully ran target`, exit 0 on final bytes
+(`/tmp/activation-dispatch-final-lint4.log`,
+`/tmp/activation-dispatch-final-type2.log`,
+`/tmp/activation-dispatch-final-build2.log`). Pinned
+`@fission-ai/openspec@1.12.0` validation passed strict 1/1 and all 143/143,
+zero failures (`/tmp/activation-dispatch-final-{strict,all}2.json`). The
+unqualified `bunx openspec` command was unavailable and was replaced by the
+repository's pinned command; no validation result is inferred from that
+unqualified exit. Final-byte changed-path Prettier and `git diff --check`
+passed (`/tmp/activation-dispatch-final-format2.log`); normal-hook result is
+recorded with the local commit checkpoint.

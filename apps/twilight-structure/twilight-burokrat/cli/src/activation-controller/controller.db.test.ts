@@ -1087,6 +1087,513 @@ test('claim refuses an evaluating request after its prior lease expires', () => 
   }
 });
 
+test('expired evaluating lease is recovered by a new epoch without resetting frozen obligations', () => {
+  const source = fixture();
+  let now = 1000;
+  const first = boundaryController(source, () => now);
+  const second = boundaryController(source, () => now);
+  try {
+    const request = first.observe(source.candidate);
+    const old = first.claim(request.requestIdentity, 'worker.first', 10);
+    first.beginEvaluation(old);
+    const frozen = evidenceRows(source.databasePath);
+    now = 1010;
+    const recovered = second.recoverEvaluationLease(request.requestIdentity, 'worker.second', 20);
+    expect(recovered.leaseEpoch).toBe(old.leaseEpoch + 1);
+    expect(second.readRequest(request.requestIdentity)?.stage).toBe('evaluating');
+    expect(evidenceRows(source.databasePath).obligations).toEqual(frozen.obligations);
+    expect(() => first.registerReviewAttempt(old, 'review.primary', 0, 'invocation.old')).toThrow(
+      'activation request lease changed',
+    );
+  } finally {
+    first.close();
+    second.close();
+  }
+});
+
+test('same evaluating worker renews with a new fence while another worker cannot take its live lease', () => {
+  const source = fixture();
+  let now = 1000;
+  const first = boundaryController(source, () => now);
+  const second = boundaryController(source, () => now);
+  try {
+    const request = first.observe(source.candidate);
+    const old = first.claim(request.requestIdentity, 'worker.first', 10);
+    first.beginEvaluation(old);
+    now = 1005;
+    const renewed = first.recoverEvaluationLease(request.requestIdentity, 'worker.first', 20);
+    expect(renewed.leaseEpoch).toBe(old.leaseEpoch + 1);
+    const before = evidenceRows(source.databasePath);
+    expect(() =>
+      second.recoverEvaluationLease(request.requestIdentity, 'worker.second', 20),
+    ).toThrow('activation request lease held');
+    expect(evidenceRows(source.databasePath)).toEqual(before);
+    expect(() => first.registerReviewAttempt(old, 'review.primary', 0, 'invocation.old')).toThrow(
+      'activation request lease changed',
+    );
+    first.registerReviewAttempt(renewed, 'review.primary', 0, 'invocation.current');
+  } finally {
+    first.close();
+    second.close();
+  }
+});
+
+test('evaluating lease recovery refuses old generation, wrong stage, missing expiry and changed authority', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    expect(() =>
+      controller.recoverEvaluationLease(request.requestIdentity, 'worker.new', 20),
+    ).toThrow('activation request is not evaluating');
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    database
+      .query('UPDATE activation_request SET lease_expires_at = NULL WHERE request_identity = ?')
+      .run(request.requestIdentity);
+    expect(() =>
+      controller.recoverEvaluationLease(request.requestIdentity, 'worker.new', 20),
+    ).toThrow('activation request lease expiry absent');
+    database
+      .query('UPDATE activation_request SET lease_expires_at = 1000 WHERE request_identity = ?')
+      .run(request.requestIdentity);
+    database
+      .query('UPDATE activation_subject SET high_water_generation = high_water_generation + 1')
+      .run();
+    expect(() =>
+      controller.recoverEvaluationLease(request.requestIdentity, 'worker.new', 20),
+    ).toThrow('activation request generation changed');
+    database
+      .query('UPDATE activation_subject SET high_water_generation = high_water_generation - 1')
+      .run();
+    const changedBootstrap = readFileSync(source.bootstrapPath, 'utf8').replace(
+      'review.provider',
+      'review.other',
+    );
+    writeFileSync(source.bootstrapPath, changedBootstrap);
+    expect(() =>
+      controller.recoverEvaluationLease(request.requestIdentity, 'worker.new', 20),
+    ).toThrow();
+    const changedAuthority = boundaryController(
+      {
+        ...source,
+        pin: {
+          ...source.pin,
+          identity: hashBytes(changedBootstrap),
+        },
+      },
+      () => 1000,
+    );
+    try {
+      expect(() =>
+        changedAuthority.recoverEvaluationLease(request.requestIdentity, 'worker.new', 20),
+      ).toThrow('activation request authority changed');
+    } finally {
+      changedAuthority.close();
+    }
+    expect(
+      database
+        .query('SELECT lease_epoch FROM activation_request WHERE request_identity = ?')
+        .get(request.requestIdentity),
+    ).toEqual({ lease_epoch: lease.leaseEpoch });
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('evaluating lease recovery refuses a superseded row even if its stage is stale evaluating', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    controller.observe({ ...source.candidate, headSha: '6'.repeat(40) });
+    database
+      .query("UPDATE activation_request SET stage = 'evaluating' WHERE request_identity = ?")
+      .run(request.requestIdentity);
+    const before = database.query('SELECT * FROM activation_request ORDER BY rowid').all();
+    expect(() =>
+      controller.recoverEvaluationLease(request.requestIdentity, 'worker.new', 20),
+    ).toThrow('activation request superseded');
+    expect(database.query('SELECT * FROM activation_request ORDER BY rowid').all()).toEqual(before);
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('evaluating lease recovery refuses unpaired history without changing its lease', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    database
+      .query('UPDATE activation_request SET pairing_version = 0 WHERE request_identity = ?')
+      .run(request.requestIdentity);
+    const before = database.query('SELECT * FROM activation_request').all();
+    expect(() =>
+      controller.recoverEvaluationLease(request.requestIdentity, 'worker.new', 20),
+    ).toThrow('legacy review pairing absent');
+    expect(database.query('SELECT * FROM activation_request').all()).toEqual(before);
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('installed evaluating owner atomically registers a review invocation and immutable dispatch reservation', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    const reservation = controller.reserveReviewDispatch(lease, {
+      reviewId: 'review.primary',
+      attempt: 0,
+      invocationId: 'invocation.primary',
+      deadlineAt: 1200,
+      maxDispatchAttempts: 3,
+    });
+    expect(reservation.requestIdentity).toBe(request.requestIdentity);
+    expect(reservation.target).toEqual({
+      kind: 'reviewer',
+      providerId: 'review.provider',
+      executorId: 'review.executor',
+    });
+    expect(reservation.payloadDigest).toBe(hashBytes(reservation.payloadBytes));
+    expect(database.query('SELECT * FROM activation_review_attempt').all()).toHaveLength(1);
+    expect(database.query('SELECT * FROM activation_review_dispatch').all()).toHaveLength(1);
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('review dispatch reservation replays exactly and rejects changed immutable bytes or caller target', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    const input = {
+      reviewId: 'review.primary',
+      attempt: 0,
+      invocationId: 'invocation.primary',
+      deadlineAt: 1200,
+      maxDispatchAttempts: 3,
+    };
+    const first = controller.reserveReviewDispatch(lease, input);
+    expect(controller.reserveReviewDispatch(lease, input)).toEqual(first);
+    expect(() => controller.reserveReviewDispatch(lease, { ...input, deadlineAt: 1300 })).toThrow(
+      'review dispatch reservation conflicts',
+    );
+    expect(() =>
+      controller.reserveReviewDispatch(lease, { ...input, maxDispatchAttempts: 4 }),
+    ).toThrow('review dispatch reservation conflicts');
+    expect(() =>
+      controller.reserveReviewDispatch(lease, {
+        ...input,
+        target: {
+          kind: 'reviewer',
+          providerId: 'caller',
+          executorId: 'caller',
+        },
+      } as typeof input),
+    ).toThrow();
+    expect(database.query('SELECT * FROM activation_review_dispatch').all()).toHaveLength(1);
+    expect(database.query('SELECT * FROM activation_review_attempt').all()).toHaveLength(1);
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('review dispatch refuses altered persisted target and payload bytes on exact replay', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    const input = {
+      reviewId: 'review.primary',
+      attempt: 0,
+      invocationId: 'invocation.primary',
+      deadlineAt: 1200,
+      maxDispatchAttempts: 3,
+    };
+    controller.reserveReviewDispatch(lease, input);
+    const original = database
+      .query('SELECT target_bytes, payload_bytes FROM activation_review_dispatch')
+      .get() as {
+      target_bytes: string;
+      payload_bytes: string;
+    };
+    database.query('UPDATE activation_review_dispatch SET target_bytes = ?').run(
+      serializeCanonical({
+        kind: 'reviewer',
+        providerId: 'foreign',
+        executorId: 'review.executor',
+      }),
+    );
+    expect(() => controller.reserveReviewDispatch(lease, input)).toThrow('reservation conflicts');
+    database
+      .query('UPDATE activation_review_dispatch SET target_bytes = ?, payload_bytes = ?')
+      .run(original.target_bytes, serializeCanonical({ forged: true }));
+    expect(() => controller.reserveReviewDispatch(lease, input)).toThrow('reservation conflicts');
+    expect(database.query('SELECT * FROM activation_review_dispatch').all()).toHaveLength(1);
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('review dispatch refuses elapsed deadline, changed frozen executor and authority row', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    const input = {
+      reviewId: 'review.primary',
+      attempt: 0,
+      invocationId: 'invocation.primary',
+      deadlineAt: 1200,
+      maxDispatchAttempts: 3,
+    };
+    expect(() => controller.reserveReviewDispatch(lease, { ...input, deadlineAt: 1000 })).toThrow(
+      'review dispatch deadline elapsed',
+    );
+    database
+      .query("UPDATE activation_obligation SET executor_id = 'foreign' WHERE phase = 'cold'")
+      .run();
+    expect(() => controller.reserveReviewDispatch(lease, input)).toThrow(
+      'review dispatch frozen pair differs from authority',
+    );
+    database
+      .query(
+        "UPDATE activation_obligation SET executor_id = 'review.executor' WHERE phase = 'cold'",
+      )
+      .run();
+    database
+      .query('UPDATE activation_request SET bootstrap_identity = ? WHERE request_identity = ?')
+      .run('9'.repeat(64), request.requestIdentity);
+    expect(() => controller.reserveReviewDispatch(lease, input)).toThrow(
+      'review dispatch authority changed',
+    );
+    expect(database.query('SELECT * FROM activation_review_attempt').all()).toHaveLength(0);
+    expect(database.query('SELECT * FROM activation_review_dispatch').all()).toHaveLength(0);
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('review dispatch refuses a stale durable subject generation before registration', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    database
+      .query('UPDATE activation_subject SET high_water_generation = high_water_generation + 1')
+      .run();
+    expect(() =>
+      controller.reserveReviewDispatch(lease, {
+        reviewId: 'review.primary',
+        attempt: 0,
+        invocationId: 'invocation.primary',
+        deadlineAt: 1200,
+        maxDispatchAttempts: 3,
+      }),
+    ).toThrow('review dispatch generation changed');
+    expect(database.query('SELECT * FROM activation_review_attempt').all()).toHaveLength(0);
+    expect(database.query('SELECT * FROM activation_review_dispatch').all()).toHaveLength(0);
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('review dispatch refuses missing frozen plan and absent subject generation without partial registration', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    const input = {
+      reviewId: 'review.primary',
+      attempt: 0,
+      invocationId: 'invocation.primary',
+      deadlineAt: 1200,
+      maxDispatchAttempts: 3,
+    };
+    const plan = database
+      .query('SELECT evaluation_plan_identity FROM activation_request')
+      .get() as {
+      evaluation_plan_identity: string;
+    };
+    database.query('UPDATE activation_request SET evaluation_plan_identity = NULL').run();
+    expect(() => controller.reserveReviewDispatch(lease, input)).toThrow(
+      'review dispatch evaluation plan absent',
+    );
+    database
+      .query('UPDATE activation_request SET evaluation_plan_identity = ?')
+      .run(plan.evaluation_plan_identity);
+    database.query('DELETE FROM activation_subject').run();
+    expect(() => controller.reserveReviewDispatch(lease, input)).toThrow(
+      'review dispatch generation changed',
+    );
+    expect(database.query('SELECT * FROM activation_review_attempt').all()).toHaveLength(0);
+    expect(database.query('SELECT * FROM activation_review_dispatch').all()).toHaveLength(0);
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('dispatch insertion failure rolls back its invocation registration', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    database.run(`CREATE TRIGGER refuse_dispatch BEFORE INSERT ON activation_review_dispatch
+      BEGIN SELECT RAISE(FAIL, 'injected dispatch insertion failure'); END`);
+    expect(() =>
+      controller.reserveReviewDispatch(lease, {
+        reviewId: 'review.primary',
+        attempt: 0,
+        invocationId: 'invocation.primary',
+        deadlineAt: 1200,
+        maxDispatchAttempts: 3,
+      }),
+    ).toThrow('injected dispatch insertion failure');
+    expect(database.query('SELECT * FROM activation_review_attempt').all()).toHaveLength(0);
+    expect(database.query('SELECT * FROM activation_review_dispatch').all()).toHaveLength(0);
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('dispatch target survives reopen and changed pinned bootstrap cannot rebind it', () => {
+  const source = fixture();
+  const first = boundaryController(source, () => 1000);
+  const request = first.observe(source.candidate);
+  const lease = first.claim(request.requestIdentity, 'worker.first', 100);
+  first.beginEvaluation(lease);
+  const input = {
+    reviewId: 'review.primary',
+    attempt: 0,
+    invocationId: 'invocation.primary',
+    deadlineAt: 1200,
+    maxDispatchAttempts: 3,
+  };
+  const reservation = first.reserveReviewDispatch(lease, input);
+  first.close();
+  const second = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    expect(second.reserveReviewDispatch(lease, input)).toEqual(reservation);
+    const originalBootstrap = readFileSync(source.bootstrapPath, 'utf8');
+    writeFileSync(
+      source.bootstrapPath,
+      originalBootstrap.replace('review.provider', 'review.other'),
+    );
+    expect(() => second.reserveReviewDispatch(lease, input)).toThrow();
+    const changedAuthority = boundaryController(
+      {
+        ...source,
+        pin: {
+          ...source.pin,
+          identity: hashBytes(readFileSync(source.bootstrapPath, 'utf8')),
+        },
+      },
+      () => 1000,
+    );
+    try {
+      expect(() => changedAuthority.reserveReviewDispatch(lease, input)).toThrow(
+        'activation request authority changed',
+      );
+    } finally {
+      changedAuthority.close();
+    }
+    expect(database.query('SELECT target_bytes FROM activation_review_dispatch').get()).toEqual({
+      target_bytes: serializeCanonical({
+        kind: 'reviewer',
+        providerId: 'review.provider',
+        executorId: 'review.executor',
+      }),
+    });
+    expect(database.query('SELECT * FROM activation_review_attempt').all()).toHaveLength(1);
+  } finally {
+    database.close();
+    second.close();
+  }
+});
+
+test('version-4 dispatch migration is additive and rolls back a late index conflict', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const request = controller.observe(source.candidate);
+  controller.close();
+  const database = new Database(source.databasePath);
+  try {
+    database.run('DROP TABLE activation_review_dispatch');
+    database.run('PRAGMA user_version = 4');
+    database.run(
+      'CREATE INDEX activation_dispatch_request ON activation_request(request_identity)',
+    );
+    const before = database
+      .query("SELECT name, sql FROM sqlite_schema WHERE type IN ('table', 'index') ORDER BY name")
+      .all();
+    expect(() => boundaryController(source, () => 1000)).toThrow(
+      'index activation_dispatch_request already exists',
+    );
+    expect(database.query('PRAGMA user_version').get()).toEqual({ user_version: 4 });
+    expect(
+      database
+        .query("SELECT name, sql FROM sqlite_schema WHERE type IN ('table', 'index') ORDER BY name")
+        .all(),
+    ).toEqual(before);
+    database.run('DROP INDEX activation_dispatch_request');
+  } finally {
+    database.close();
+  }
+  const upgraded = boundaryController(source, () => 1000);
+  const migrated = new Database(source.databasePath);
+  try {
+    expect(migrated.query('PRAGMA user_version').get()).toEqual({ user_version: 5 });
+    expect(upgraded.readRequest(request.requestIdentity)?.request.requestIdentity).toBe(
+      request.requestIdentity,
+    );
+  } finally {
+    migrated.close();
+    upgraded.close();
+  }
+});
+
 test('claim refuses another worker during an active lease', () => {
   const source = fixture();
   const controller = openActivationController({
@@ -2816,6 +3323,7 @@ test.each([2, 3] as const)(
     first.close();
     const database = new Database(source.databasePath);
     try {
+      database.run('DROP TABLE activation_review_dispatch');
       database.run('DROP TABLE activation_review_attempt');
       if (legacyVersion === 2) {
         database.run('DROP TABLE activation_attempt');

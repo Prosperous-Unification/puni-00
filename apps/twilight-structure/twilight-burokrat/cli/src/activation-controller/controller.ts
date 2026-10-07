@@ -116,6 +116,52 @@ const StoredReviewAttempt = type({
   invocation_id: 'string>=1',
 }).onUndeclaredKey('reject');
 
+const ReviewDispatchInput = type({
+  reviewId: 'string>=1',
+  attempt: 'number.integer>=0',
+  invocationId: 'string>=1',
+  deadlineAt: 'number.integer>=0',
+  maxDispatchAttempts: 'number.integer>=1',
+}).onUndeclaredKey('reject');
+export type ReviewDispatchInput = typeof ReviewDispatchInput.infer;
+
+const StoredReviewDispatch = type({
+  effect_key: /^[0-9a-f]{64}$/,
+  request_identity: /^[0-9a-f]{64}$/,
+  plan_identity: /^[0-9a-f]{64}$/,
+  review_id: 'string>=1',
+  attempt: 'number.integer>=0',
+  invocation_id: 'string>=1',
+  cold_obligation_identity: /^[0-9a-f]{64}$/,
+  informed_obligation_identity: /^[0-9a-f]{64}$/,
+  authority_identity: /^[0-9a-f]{64}$/,
+  target_bytes: 'string>=1',
+  payload_bytes: 'string>=1',
+  payload_digest: /^[0-9a-f]{64}$/,
+  created_at: 'number.integer>=0',
+  deadline_at: 'number.integer>=0',
+  max_dispatch_attempts: 'number.integer>=1',
+  state: "'reserved'",
+  owner_epoch: 'number.integer>=0',
+  owner_id: 'string>=1',
+  version: 'number.integer>=0',
+}).onUndeclaredKey('reject');
+
+export interface ReviewDispatchReservation {
+  readonly effectKey: string;
+  readonly requestIdentity: string;
+  readonly target: {
+    readonly kind: 'reviewer';
+    readonly providerId: string;
+    readonly executorId: string;
+  };
+  readonly payloadBytes: string;
+  readonly payloadDigest: string;
+  readonly createdAt: number;
+  readonly deadlineAt: number;
+  readonly maxDispatchAttempts: number;
+}
+
 export interface ReviewAttemptRegistration {
   readonly requestIdentity: string;
   readonly reviewId: string;
@@ -455,11 +501,42 @@ function transaction<T>(database: Database, body: () => T): T {
   }
 }
 
+function createReviewDispatchTable(database: Database): void {
+  // Proof: splitting v4 migration after this table left it behind when the later index conflicted.
+  database.run(`CREATE TABLE activation_review_dispatch (
+    effect_key TEXT PRIMARY KEY,
+    request_identity TEXT NOT NULL,
+    plan_identity TEXT NOT NULL,
+    review_id TEXT NOT NULL,
+    attempt INTEGER NOT NULL CHECK (attempt >= 0),
+    invocation_id TEXT NOT NULL,
+    cold_obligation_identity TEXT NOT NULL,
+    informed_obligation_identity TEXT NOT NULL,
+    authority_identity TEXT NOT NULL,
+    target_bytes TEXT NOT NULL,
+    payload_bytes TEXT NOT NULL,
+    payload_digest TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    deadline_at INTEGER NOT NULL,
+    max_dispatch_attempts INTEGER NOT NULL CHECK (max_dispatch_attempts >= 1),
+    state TEXT NOT NULL CHECK (state = 'reserved'),
+    owner_epoch INTEGER NOT NULL CHECK (owner_epoch >= 0),
+    owner_id TEXT NOT NULL,
+    version INTEGER NOT NULL CHECK (version >= 0),
+    UNIQUE (request_identity, review_id, attempt),
+    FOREIGN KEY (request_identity, review_id, attempt)
+      REFERENCES activation_review_attempt(request_identity, review_id, attempt)
+  )`);
+  database.run(
+    'CREATE INDEX activation_dispatch_request ON activation_review_dispatch(request_identity)',
+  );
+}
+
 function initialize(database: Database): void {
   database.run('PRAGMA busy_timeout = 5000');
   const metadata: unknown = database.query('PRAGMA user_version').get();
   const version = parseOrThrow(type({ user_version: 'number.integer>=0' }), metadata).user_version;
-  if (version !== 0 && version !== 2 && version !== 3 && version !== 4)
+  if (version !== 0 && version !== 2 && version !== 3 && version !== 4 && version !== 5)
     // Proof: accepting old version 1 silently reopened storage without durable subject high-water.
     throw new Error(`unsupported activation store schema ${String(version)}`);
   if (version === 0) {
@@ -537,7 +614,8 @@ function initialize(database: Database): void {
         PRIMARY KEY (request_identity, review_id, attempt),
         FOREIGN KEY (request_identity) REFERENCES activation_request(request_identity)
       )`);
-      database.run('PRAGMA user_version = 4');
+      createReviewDispatchTable(database);
+      database.run('PRAGMA user_version = 5');
     });
   }
   if (version === 2 || version === 3) {
@@ -573,7 +651,14 @@ function initialize(database: Database): void {
         PRIMARY KEY (request_identity, review_id, attempt),
         FOREIGN KEY (request_identity) REFERENCES activation_request(request_identity)
       )`);
-      database.run('PRAGMA user_version = 4');
+      createReviewDispatchTable(database);
+      database.run('PRAGMA user_version = 5');
+    });
+  }
+  if (version === 4) {
+    transaction(database, () => {
+      createReviewDispatchTable(database);
+      database.run('PRAGMA user_version = 5');
     });
   }
 }
@@ -865,6 +950,75 @@ export class ActivationController {
     });
   }
 
+  /** Renews or takes over only a current evaluating request; each acquisition fences old work. */
+  recoverEvaluationLease(
+    identity: string,
+    workerId: string,
+    leaseMilliseconds: number,
+  ): RequestLease {
+    if (!workerId || !Number.isSafeInteger(leaseMilliseconds) || leaseMilliseconds < 1) {
+      throw new Error('activation worker lease malformed');
+    }
+    const now = nowFrom(this.options.clock);
+    const expiresAt = now + leaseMilliseconds;
+    if (!Number.isSafeInteger(expiresAt))
+      throw new Error('activation worker lease expiry malformed');
+    return transaction(this.#database, () => {
+      const row = readRow(this.#database, identity);
+      if (row === undefined) throw new Error('activation request absent');
+      // Proof: omission renewed unpaired history instead of requiring a trusted replan.
+      if (row.pairing_version !== 1) throw new Error('legacy review pairing absent');
+      // Proof: omission recovered a superseded row whose stale stage remained evaluating.
+      if (row.current !== 1) throw new Error('activation request superseded');
+      // Proof: omission recovered an observed request before its obligations were frozen.
+      if (row.stage !== 'evaluating') throw new Error('activation request is not evaluating');
+      const request = storedRequest(row).request;
+      const subject: unknown = this.#database
+        .query(
+          'SELECT high_water_generation FROM activation_subject WHERE repository_id = ? AND subject_key = ?',
+        )
+        .get(request.repositoryId, subjectKey(request.subject));
+      // Proof: omission recovered a request after durable subject high-water advanced.
+      if (
+        subject === null ||
+        parseOrThrow(type({ high_water_generation: 'number.integer>=0' }), subject)
+          .high_water_generation !== request.auditGeneration
+      ) {
+        throw new Error('activation request generation changed');
+      }
+      // Proof: omission recovered after the pinned bootstrap file changed on disk.
+      readBootstrapConfiguration(this.options.bootstrapPath, this.options.pin);
+      // Proof: omission renewed a request under a second valid pinned bootstrap authority.
+      if (
+        row.bootstrap_identity !== this.options.pin.identity ||
+        request.authorityIdentity !== this.options.pin.identity
+      ) {
+        throw new Error('activation request authority changed');
+      }
+      // Proof: omission let another worker take an unexpired evaluating lease.
+      if (
+        row.lease_owner !== null &&
+        row.lease_owner !== workerId &&
+        row.lease_expires_at !== null &&
+        row.lease_expires_at > now
+      ) {
+        throw new Error('activation request lease held');
+      }
+      // Proof: omission let a worker renew a persisted lease with absent expiry.
+      if (row.lease_owner !== null && row.lease_expires_at === null) {
+        throw new Error('activation request lease expiry absent');
+      }
+      const leaseEpoch = row.lease_epoch + 1;
+      const version = row.version + 1;
+      this.#database
+        .query(
+          'UPDATE activation_request SET lease_owner = ?, lease_expires_at = ?, lease_epoch = ?, version = ? WHERE request_identity = ?',
+        )
+        .run(workerId, expiresAt, leaseEpoch, version, identity);
+      return { requestIdentity: identity, leaseEpoch, version, workerId };
+    });
+  }
+
   /** Freezes trusted check and audit obligations; later transitions require their own evidence APIs. */
   beginEvaluation(lease: RequestLease): StoredRequest {
     const now = nowFrom(this.options.clock);
@@ -972,80 +1126,249 @@ export class ActivationController {
       type({ reviewId: 'string>=1', attempt: 'number.integer>=0', invocationId: 'string>=1' }),
       { reviewId, attempt, invocationId },
     );
+    return transaction(this.#database, () => this.#registerReviewAttemptIn(lease, registration));
+  }
+
+  #registerReviewAttemptIn(
+    lease: RequestLease,
+    registration: {
+      readonly reviewId: string;
+      readonly attempt: number;
+      readonly invocationId: string;
+    },
+  ): ReviewAttemptRegistration {
+    const row = readRow(this.#database, lease.requestIdentity);
+    if (row === undefined) throw new Error('activation request absent');
+    // Proof: removing this guard registered an invocation on unpaired history.
+    if (row.pairing_version !== 1) throw new Error('legacy review pairing absent');
+    // Proof: omission registered an invocation on a superseded row whose stale stage
+    // was deliberately held at evaluating in the mounted two-generation fixture.
+    if (row.current !== 1) throw new Error('activation request superseded');
+    // Proof: omission registered an invocation after the request left evaluating.
+    if (row.stage !== 'evaluating') throw new Error('activation request is not evaluating');
+    const now = nowFrom(this.options.clock);
+    // Proof: independently omitting epoch, owner, null-expiry or elapsed-expiry checks
+    // registered an invocation for the corresponding stale/malformed lease.
+    if (
+      row.lease_epoch !== lease.leaseEpoch ||
+      row.lease_owner !== lease.workerId ||
+      row.lease_expires_at === null ||
+      isExpiredLease(row.lease_expires_at, now)
+    ) {
+      throw new Error('activation request lease changed');
+    }
+    const request = storedRequest(row).request;
+    // Proof: omitting the pinned-file reread registered an invocation after bootstrap vanished.
+    readBootstrapConfiguration(this.options.bootstrapPath, this.options.pin);
+    // Proof: omission registered an invocation under a second valid pinned authority.
+    if (request.authorityIdentity !== this.options.pin.identity) {
+      throw new Error('activation request authority changed');
+    }
+    const rawPhases: unknown[] = this.#database
+      .query(
+        "SELECT * FROM activation_obligation WHERE request_identity = ? AND review_id = ? AND kind = 'audit' ORDER BY obligation_identity",
+      )
+      .all(request.requestIdentity, registration.reviewId);
+    const phases = rawPhases.map((entry) => parseOrThrow(StoredObligation, entry));
+    // Proof: omitting the attempt comparison let an unreserved attempt-1 invocation register;
+    // the selected-pair test refused a missing/duplicate phase before any registration.
+    if (
+      phases.length !== 2 ||
+      !phases.some((phase) => phase.phase === 'cold') ||
+      !phases.some((phase) => phase.phase === 'informed') ||
+      phases.some((phase) => phase.attempt !== registration.attempt)
+    ) {
+      throw new Error('review attempt differs from frozen pair');
+    }
+    const existing: unknown = this.#database
+      .query(
+        'SELECT * FROM activation_review_attempt WHERE request_identity = ? AND review_id = ? AND attempt = ?',
+      )
+      .get(request.requestIdentity, registration.reviewId, registration.attempt);
+    if (existing !== null) {
+      const prior = parseOrThrow(StoredReviewAttempt, existing);
+      // Proof: changing the invocation for an already registered review attempt refused instead of reminting authority.
+      if (prior.invocation_id !== registration.invocationId) {
+        throw new Error('review attempt registration conflicts');
+      }
+      return { requestIdentity: request.requestIdentity, ...registration };
+    }
+    const borrowed: unknown = this.#database
+      .query('SELECT * FROM activation_review_attempt WHERE invocation_id = ?')
+      .get(registration.invocationId);
+    // Proof: omitting the named cross-review refusal surfaced SQLite UNIQUE instead of
+    // the modeled pre-dispatch conflict in the mounted two-review registration test.
+    if (borrowed !== null) throw new Error('review invocation already registered');
+    this.#database
+      .query(
+        'INSERT INTO activation_review_attempt (request_identity, review_id, attempt, invocation_id) VALUES (?, ?, ?, ?)',
+      )
+      .run(
+        request.requestIdentity,
+        registration.reviewId,
+        registration.attempt,
+        registration.invocationId,
+      );
+    return { requestIdentity: request.requestIdentity, ...registration };
+  }
+
+  /** Atomically registers one review invocation and reserves its immutable logical dispatch. */
+  reserveReviewDispatch(
+    lease: RequestLease,
+    input: ReviewDispatchInput,
+  ): ReviewDispatchReservation {
+    // Proof: omitting strict input parsing accepted a caller-supplied reviewer target override.
+    const reservation = parseOrThrow(ReviewDispatchInput, input);
+    // Proof: splitting this transaction after registration retained an invocation when the
+    // real dispatch INSERT failed, instead of restoring both rows together.
     return transaction(this.#database, () => {
-      const row = readRow(this.#database, lease.requestIdentity);
-      if (row === undefined) throw new Error('activation request absent');
-      // Proof: removing this guard registered an invocation on unpaired history.
-      if (row.pairing_version !== 1) throw new Error('legacy review pairing absent');
-      // Proof: omission registered an invocation on a superseded row whose stale stage
-      // was deliberately held at evaluating in the mounted two-generation fixture.
-      if (row.current !== 1) throw new Error('activation request superseded');
-      // Proof: omission registered an invocation after the request left evaluating.
-      if (row.stage !== 'evaluating') throw new Error('activation request is not evaluating');
-      const now = nowFrom(this.options.clock);
-      // Proof: independently omitting epoch, owner, null-expiry or elapsed-expiry checks
-      // registered an invocation for the corresponding stale/malformed lease.
-      if (
-        row.lease_epoch !== lease.leaseEpoch ||
-        row.lease_owner !== lease.workerId ||
-        row.lease_expires_at === null ||
-        isExpiredLease(row.lease_expires_at, now)
-      ) {
-        throw new Error('activation request lease changed');
-      }
+      const registered = this.#registerReviewAttemptIn(lease, reservation);
+      const row = readRow(this.#database, registered.requestIdentity);
+      // Proof: omitting the absent-plan check changed the modeled refusal to a later
+      // SQLite NOT NULL failure; the partial registration still rolled back.
+      if (row?.evaluation_plan_identity == null)
+        throw new Error('review dispatch evaluation plan absent');
       const request = storedRequest(row).request;
-      // Proof: omitting the pinned-file reread registered an invocation after bootstrap vanished.
-      readBootstrapConfiguration(this.options.bootstrapPath, this.options.pin);
-      // Proof: omission registered an invocation under a second valid pinned authority.
-      if (request.authorityIdentity !== this.options.pin.identity) {
-        throw new Error('activation request authority changed');
-      }
+      const subject: unknown = this.#database
+        .query(
+          'SELECT high_water_generation FROM activation_subject WHERE repository_id = ? AND subject_key = ?',
+        )
+        .get(request.repositoryId, subjectKey(request.subject));
+      // Proof: omitting the generation comparison reserved a stale dispatch. Omitting
+      // the absent-subject arm changed its modeled refusal to an ArkType null error.
+      if (
+        subject === null ||
+        parseOrThrow(type({ high_water_generation: 'number.integer>=0' }), subject)
+          .high_water_generation !== request.auditGeneration
+      )
+        throw new Error('review dispatch generation changed');
+      const bootstrap = readBootstrapConfiguration(this.options.bootstrapPath, this.options.pin);
+      // Proof: omission reserved a dispatch after the request's stored authority row changed.
+      if (
+        row.bootstrap_identity !== this.options.pin.identity ||
+        request.authorityIdentity !== this.options.pin.identity
+      )
+        throw new Error('review dispatch authority changed');
+      const now = nowFrom(this.options.clock);
+      // Proof: omission reserved an already elapsed deadline.
+      if (reservation.deadlineAt <= now) throw new Error('review dispatch deadline elapsed');
       const rawPhases: unknown[] = this.#database
         .query(
-          "SELECT * FROM activation_obligation WHERE request_identity = ? AND review_id = ? AND kind = 'audit' ORDER BY obligation_identity",
+          "SELECT * FROM activation_obligation WHERE request_identity = ? AND review_id = ? AND kind = 'audit'",
         )
-        .all(request.requestIdentity, registration.reviewId);
+        .all(request.requestIdentity, reservation.reviewId);
       const phases = rawPhases.map((entry) => parseOrThrow(StoredObligation, entry));
-      // Proof: omitting the attempt comparison let an unreserved attempt-1 invocation register;
-      // the selected-pair test refused a missing/duplicate phase before any registration.
+      const cold = phases.find((phase) => phase.phase === 'cold');
+      const informed = phases.find((phase) => phase.phase === 'informed');
+      // Proof: omission reserved a cold phase with a foreign executor despite the pinned target.
       if (
         phases.length !== 2 ||
-        !phases.some((phase) => phase.phase === 'cold') ||
-        !phases.some((phase) => phase.phase === 'informed') ||
-        phases.some((phase) => phase.attempt !== registration.attempt)
-      ) {
-        throw new Error('review attempt differs from frozen pair');
-      }
+        cold === undefined ||
+        informed === undefined ||
+        cold.attempt !== reservation.attempt ||
+        informed.attempt !== reservation.attempt ||
+        cold.executor_id !== bootstrap.reviewer.executorId ||
+        informed.executor_id !== bootstrap.reviewer.executorId
+      )
+        throw new Error('review dispatch frozen pair differs from authority');
+      const target = {
+        kind: 'reviewer' as const,
+        providerId: bootstrap.reviewer.providerId,
+        executorId: bootstrap.reviewer.executorId,
+      };
+      const targetBytes = serializeCanonical(target);
+      const payloadBytes = serializeCanonical({
+        request,
+        planIdentity: row.evaluation_plan_identity,
+        reviewId: reservation.reviewId,
+        attempt: reservation.attempt,
+        invocationId: reservation.invocationId,
+        coldObligationIdentity: cold.obligation_identity,
+        informedObligationIdentity: informed.obligation_identity,
+        authorityIdentity: this.options.pin.identity,
+        target,
+        protocolIdentity: bootstrap.reviewer.protocolIdentity,
+        promptIdentity: bootstrap.reviewer.promptIdentity,
+      });
+      const payloadDigest = hashBytes(payloadBytes);
+      const effectKey = hashCanonical({
+        kind: 'review-dispatch',
+        requestIdentity: request.requestIdentity,
+        reviewId: reservation.reviewId,
+        attempt: reservation.attempt,
+      });
       const existing: unknown = this.#database
-        .query(
-          'SELECT * FROM activation_review_attempt WHERE request_identity = ? AND review_id = ? AND attempt = ?',
-        )
-        .get(request.requestIdentity, registration.reviewId, registration.attempt);
+        .query('SELECT * FROM activation_review_dispatch WHERE effect_key = ?')
+        .get(effectKey);
       if (existing !== null) {
-        const prior = parseOrThrow(StoredReviewAttempt, existing);
-        // Proof: changing the invocation for an already registered review attempt refused instead of reminting authority.
-        if (prior.invocation_id !== registration.invocationId) {
-          throw new Error('review attempt registration conflicts');
-        }
-        return { requestIdentity: request.requestIdentity, ...registration };
+        const prior = parseOrThrow(StoredReviewDispatch, existing);
+        // Proof: independently omitting target, payload or retry-budget comparisons accepted
+        // conflicting bytes for the same deterministic effect key on mounted replay.
+        if (
+          prior.request_identity !== request.requestIdentity ||
+          prior.plan_identity !== row.evaluation_plan_identity ||
+          prior.review_id !== reservation.reviewId ||
+          prior.attempt !== reservation.attempt ||
+          prior.invocation_id !== reservation.invocationId ||
+          prior.cold_obligation_identity !== cold.obligation_identity ||
+          prior.informed_obligation_identity !== informed.obligation_identity ||
+          prior.authority_identity !== this.options.pin.identity ||
+          prior.target_bytes !== targetBytes ||
+          prior.payload_bytes !== payloadBytes ||
+          prior.payload_digest !== payloadDigest ||
+          prior.deadline_at !== reservation.deadlineAt ||
+          prior.max_dispatch_attempts !== reservation.maxDispatchAttempts
+        )
+          throw new Error('review dispatch reservation conflicts');
+        return {
+          effectKey,
+          requestIdentity: request.requestIdentity,
+          target,
+          payloadBytes: prior.payload_bytes,
+          payloadDigest: prior.payload_digest,
+          createdAt: prior.created_at,
+          deadlineAt: prior.deadline_at,
+          maxDispatchAttempts: prior.max_dispatch_attempts,
+        };
       }
-      const borrowed: unknown = this.#database
-        .query('SELECT * FROM activation_review_attempt WHERE invocation_id = ?')
-        .get(registration.invocationId);
-      // Proof: omitting the named cross-review refusal surfaced SQLite UNIQUE instead of
-      // the modeled pre-dispatch conflict in the mounted two-review registration test.
-      if (borrowed !== null) throw new Error('review invocation already registered');
       this.#database
         .query(
-          'INSERT INTO activation_review_attempt (request_identity, review_id, attempt, invocation_id) VALUES (?, ?, ?, ?)',
+          `INSERT INTO activation_review_dispatch (
+        effect_key, request_identity, plan_identity, review_id, attempt, invocation_id,
+        cold_obligation_identity, informed_obligation_identity, authority_identity,
+        target_bytes, payload_bytes, payload_digest, created_at, deadline_at,
+        max_dispatch_attempts, state, owner_epoch, owner_id, version
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, ?, 0)`,
         )
         .run(
+          effectKey,
           request.requestIdentity,
-          registration.reviewId,
-          registration.attempt,
-          registration.invocationId,
+          row.evaluation_plan_identity,
+          reservation.reviewId,
+          reservation.attempt,
+          reservation.invocationId,
+          cold.obligation_identity,
+          informed.obligation_identity,
+          this.options.pin.identity,
+          targetBytes,
+          payloadBytes,
+          payloadDigest,
+          now,
+          reservation.deadlineAt,
+          reservation.maxDispatchAttempts,
+          lease.leaseEpoch,
+          lease.workerId,
         );
-      return { requestIdentity: request.requestIdentity, ...registration };
+      return {
+        effectKey,
+        requestIdentity: request.requestIdentity,
+        target,
+        payloadBytes,
+        payloadDigest,
+        createdAt: now,
+        deadlineAt: reservation.deadlineAt,
+        maxDispatchAttempts: reservation.maxDispatchAttempts,
+      };
     });
   }
 
