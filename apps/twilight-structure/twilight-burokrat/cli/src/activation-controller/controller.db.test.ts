@@ -6,7 +6,15 @@ import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
 import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
-import { type ObservedCandidate, openActivationController } from './controller';
+import {
+  type ActivationController,
+  type ObservedCandidate,
+  openActivationController,
+  type RequestLease,
+  type ReviewExpectation,
+  type StoredRequest,
+  type VerifiedReview,
+} from './controller';
 import { type ActivationRequest } from './request';
 
 const scratch: string[] = [];
@@ -96,11 +104,193 @@ function fixture() {
   };
 }
 
+function fakeReview(expected: ReviewExpectation, bytes: string): VerifiedReview {
+  const invocationId = expected.invocationId;
+  const contentIdentity = '9'.repeat(64);
+  const startedAt = '2026-09-11T07:00:00.000Z';
+  const endedAt = '2026-09-11T07:00:01.000Z';
+  const executor = {
+    provider: 'openai',
+    model: 'gpt-5',
+    version: '2026-09-10',
+    effort: 'high',
+    toolchain: 'codex',
+  };
+  const priceIdentity = {
+    priceId: 'price.review.v1',
+    provider: 'openai',
+    model: 'gpt-5',
+    currency: 'USD',
+    source: 'provider-receipt' as const,
+  };
+  const protocol = {
+    protocolId: 'review.cold-informed.v1',
+    protocolBlob: expected.protocolIdentity,
+  };
+  const subject = {
+    subjectId: 'subject.activation',
+    kind: 'project' as const,
+    locator: { kind: 'path' as const, path: 'apps/twilight-structure/twilight-burokrat/cli' },
+    contentIdentity,
+  };
+  const coldJudgment = {
+    sequence: 1 as const,
+    judgments: {
+      purpose: 'yes' as const,
+      relationships: 'yes' as const,
+      impact: 'partial' as const,
+    },
+    observedReadIds: [contentIdentity],
+  };
+  const informedJudgment = {
+    sequence: 3 as const,
+    judgments: { purpose: 'yes' as const, relationships: 'yes' as const, impact: 'yes' as const },
+    observedReadIds: [contentIdentity],
+  };
+  const coldResponse = `cold ${invocationId}\n`;
+  const informedResponse = `informed ${invocationId}\n`;
+  const retention = { kind: 'journal-inline' as const };
+  const telemetry = (phase: 'cold' | 'informed', response: string) => ({
+    status: 'verified' as const,
+    receipt: {
+      schemaVersion: 1 as const,
+      receiptKind: 'invocation' as const,
+      receiptId: `receipt.${invocationId}.${phase}`,
+      invocationId,
+      startedAt,
+      endedAt,
+      status: 'completed' as const,
+      executor,
+      rawUsage: [{ category: `${phase}_tokens`, quantity: 11, unit: 'tokens' }],
+      priceIdentity,
+      chargedAmountMicros: 11,
+      inputArtifact: contentIdentity,
+      outputArtifact: hashBytes(response),
+    },
+    elapsedReceipts: [
+      {
+        schemaVersion: 1 as const,
+        receiptKind: 'elapsed' as const,
+        receiptId: `elapsed.${invocationId}.${phase}`,
+        trialId: 'trial.activation',
+        outcomeId: 'outcome.activation',
+        attemptId: `attempt.${invocationId}.${phase}`,
+        phase: 'review' as const,
+        startedAt,
+        endedAt,
+        elapsedMs: 1000,
+        status: 'completed' as const,
+      },
+    ],
+  });
+  const coldTelemetry = telemetry('cold', coldResponse);
+  const informedTelemetry = telemetry('informed', informedResponse);
+  const coldTools = [{ toolId: 'read-file', version: '1' }];
+  const informedTools = [{ toolId: 'run-check', version: '1' }];
+  const cold = {
+    schemaVersion: 1 as const,
+    messageKind: 'cold-completion' as const,
+    invocationId,
+    protocol,
+    subject,
+    cold: coldJudgment,
+    actualTools: coldTools,
+    rawResponse: { mediaType: 'text/plain' as const, payload: coldResponse, retention },
+    telemetry: coldTelemetry,
+  };
+  const informed = {
+    schemaVersion: 1 as const,
+    messageKind: 'informed-completion' as const,
+    invocationId,
+    protocol,
+    subject,
+    coldArtifact: hashCanonical(coldJudgment),
+    informed: informedJudgment,
+    actualTools: informedTools,
+    rawResponse: { mediaType: 'text/plain' as const, payload: informedResponse, retention },
+    telemetry: informedTelemetry,
+  };
+  const verification = {
+    binding: {
+      ...expected,
+      exactSubmissionDigest: hashBytes(bytes),
+      journalId: 'journal.activation',
+    },
+    evidence: {
+      schemaVersion: 1,
+      receipt: {
+        schemaVersion: 1,
+        receiptKind: 'review',
+        receiptId: `review-receipt.${invocationId}`,
+        invocationId,
+        executor,
+        suppliedContextIds: [protocol.protocolBlob, contentIdentity],
+        observedReadIds: [contentIdentity, contentIdentity],
+        rawResponseArtifact: hashBytes(informedResponse),
+        rawUsage: [...coldTelemetry.receipt.rawUsage, ...informedTelemetry.receipt.rawUsage],
+        priceIdentity,
+        trust: { scope: 'external-verifier', journalId: 'journal.activation' },
+      },
+      protocolEvidence: {
+        schemaVersion: 1,
+        protocol,
+        subject,
+        cold: coldJudgment,
+        expansion: {
+          sequence: 2,
+          coldJudgmentArtifact: hashCanonical(coldJudgment),
+          suppliedContextIds: [],
+        },
+        informed: informedJudgment,
+      },
+      phaseReceipts: { cold: coldTelemetry, informed: informedTelemetry },
+      phaseTools: { cold: coldTools, informed: informedTools },
+      actualTools: [...coldTools, ...informedTools],
+      rawResponse: { artifact: hashBytes(informedResponse), retention },
+    },
+    cold,
+    informed,
+    findings: [],
+    status: 'passed',
+  };
+  return {
+    ...verification,
+    binding: {
+      ...verification.binding,
+      sourceEvidenceDigest: hashCanonical({
+        evidence: verification.evidence,
+        cold: verification.cold,
+        informed: verification.informed,
+        findings: verification.findings,
+        status: verification.status,
+      }),
+    },
+  } as VerifiedReview;
+}
+
+function bindSource(verification: VerifiedReview): VerifiedReview {
+  return {
+    ...verification,
+    binding: {
+      ...verification.binding,
+      sourceEvidenceDigest: hashCanonical({
+        evidence: verification.evidence,
+        cold: verification.cold,
+        informed: verification.informed,
+        findings: verification.findings,
+        status: verification.status,
+      }),
+    },
+  };
+}
+
 async function evidenceHarness(options?: {
   readonly clock?: () => number;
   readonly authenticate?: (bytes: string, receipt: unknown) => Promise<unknown>;
   readonly skipCold?: boolean;
   readonly secondPair?: boolean;
+  readonly withoutReviewVerifier?: boolean;
+  readonly verifyReview?: (expected: ReviewExpectation, bytes: string) => Promise<VerifiedReview>;
 }) {
   const source = fixture();
   const authenticated = new Map<string, unknown>();
@@ -135,13 +325,86 @@ async function evidenceHarness(options?: {
     readyCandidates: () => Promise.resolve([]),
     currentCandidate: () =>
       Promise.resolve({ kind: 'ready' as const, candidate: source.candidate }),
-    authenticateReceipt: (bytes: string) => {
+    authenticateCheck: (bytes: string) => {
       const receipt = authenticated.get(bytes);
       if (receipt === undefined) throw new Error('fake verifier has no authenticated receipt');
       return initializing || options?.authenticate === undefined
         ? Promise.resolve(receipt)
         : options.authenticate(bytes, receipt);
     },
+    verifyReview: options?.withoutReviewVerifier
+      ? undefined
+      : async ({ exactSubmissionBytes, expected }) => {
+          if (options?.verifyReview !== undefined) {
+            return options.verifyReview(expected, exactSubmissionBytes);
+          }
+          const receipt = authenticated.get(exactSubmissionBytes);
+          if (receipt === undefined) throw new Error('fake review verifier has no receipt');
+          const authenticatedReceipt =
+            initializing || options?.authenticate === undefined
+              ? receipt
+              : await options.authenticate(exactSubmissionBytes, receipt);
+          const verified = fakeReview(expected, exactSubmissionBytes);
+          if (typeof authenticatedReceipt !== 'object' || authenticatedReceipt === null) {
+            throw new Error('fake review verifier receipt malformed');
+          }
+          const claims = authenticatedReceipt as Record<string, unknown>;
+          const modified = {
+            ...verified,
+            binding: {
+              ...verified.binding,
+              requestIdentity:
+                typeof claims['requestIdentity'] === 'string'
+                  ? claims['requestIdentity']
+                  : expected.requestIdentity,
+              obligationIdentity:
+                typeof claims['obligationIdentity'] === 'string'
+                  ? claims['obligationIdentity']
+                  : expected.obligationIdentity,
+              reviewId:
+                typeof claims['reviewId'] === 'string' ? claims['reviewId'] : expected.reviewId,
+              invocationId:
+                typeof claims['invocationId'] === 'string'
+                  ? claims['invocationId']
+                  : expected.invocationId,
+              executorId:
+                typeof claims['executorId'] === 'string'
+                  ? claims['executorId']
+                  : expected.executorId,
+              protocolIdentity:
+                typeof claims['protocolIdentity'] === 'string'
+                  ? claims['protocolIdentity']
+                  : expected.protocolIdentity,
+              phase:
+                claims['phase'] === 'cold' || claims['phase'] === 'informed'
+                  ? claims['phase']
+                  : expected.phase,
+              journalIssuerId:
+                typeof claims['issuerId'] === 'string'
+                  ? claims['issuerId']
+                  : expected.journalIssuerId,
+            },
+            status:
+              claims['status'] === 'passed' ||
+              claims['status'] === 'failed' ||
+              claims['status'] === 'skipped'
+                ? claims['status']
+                : verified.status,
+          };
+          return {
+            ...modified,
+            binding: {
+              ...modified.binding,
+              sourceEvidenceDigest: hashCanonical({
+                evidence: modified.evidence,
+                cold: modified.cold,
+                informed: modified.informed,
+                findings: modified.findings,
+                status: modified.status,
+              }),
+            },
+          };
+        },
   });
   const request = controller.observe(source.candidate);
   const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
@@ -190,7 +453,7 @@ async function evidenceHarness(options?: {
     if (options?.secondPair) {
       controller.registerReviewAttempt(lease, 'review.second', 0, 'invocation.second');
     }
-    await controller.recordReceipt(lease, cold);
+    await controller.recordReceipt(lease, 'd'.repeat(64), cold);
   }
   initializing = false;
   return { source, controller, request, lease, authenticated, receipt, cold };
@@ -224,6 +487,35 @@ async function rejectedWith(operation: Promise<unknown>, message: string): Promi
   const [settled] = await Promise.allSettled([operation]);
   expect(settled.status).toBe('rejected');
   if (settled.status === 'rejected') expect(String(settled.reason)).toContain(message);
+}
+
+function submitReceipt(
+  controller: ActivationController,
+  lease: RequestLease,
+  bytes: string,
+): Promise<StoredRequest> {
+  let kind: string | undefined;
+  let phase: string | undefined;
+  let reviewId: string | undefined;
+  try {
+    const payload: unknown = JSON.parse(bytes);
+    if (typeof payload === 'object' && payload !== null) {
+      if ('kind' in payload && typeof payload.kind === 'string') kind = payload.kind;
+      if ('phase' in payload && typeof payload.phase === 'string') phase = payload.phase;
+      if ('reviewId' in payload && typeof payload.reviewId === 'string')
+        reviewId = payload.reviewId;
+    }
+  } catch {
+    // Only a test locator: the production decoder still owns malformed-byte refusal.
+  }
+  const second = reviewId === 'review.second';
+  const obligationIdentity =
+    kind === 'cold' || (kind === 'audit' && phase === 'cold')
+      ? (second ? '1' : 'd').repeat(64)
+      : kind === 'audit'
+        ? (second ? '2' : 'f').repeat(64)
+        : 'a'.repeat(64);
+  return controller.recordReceipt(lease, obligationIdentity, bytes);
 }
 
 test('duplicate and lost events converge on one durable request per subject', async () => {
@@ -934,7 +1226,7 @@ test('audit receipt without a registered review invocation leaves evaluation unc
   try {
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('cold')),
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('cold')),
       'review invocation absent',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -943,9 +1235,390 @@ test('audit receipt without a registered review invocation leaves evaluation unc
   }
 });
 
+test('generic receipt authentication cannot substitute the trusted review verifier', async () => {
+  let genericCalls = 0;
+  const evidence = await evidenceHarness({
+    skipCold: true,
+    withoutReviewVerifier: true,
+    authenticate: (_bytes, receipt) => {
+      genericCalls += 1;
+      return Promise.resolve(receipt);
+    },
+  });
+  try {
+    evidence.controller.registerReviewAttempt(
+      evidence.lease,
+      'review.primary',
+      0,
+      'invocation.primary',
+    );
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
+      'trusted review verifier absent',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+    expect(genericCalls).toBe(0);
+  } finally {
+    evidence.controller.close();
+  }
+});
+
+test.each(['rejected', 'malformed'] as const)(
+  'trusted review %s response never falls back to check authentication',
+  async (fault) => {
+    let checkCalls = 0;
+    let reviewCalls = 0;
+    const evidence = await evidenceHarness({
+      authenticate: (_bytes, receipt) => {
+        checkCalls += 1;
+        return Promise.resolve(receipt);
+      },
+      verifyReview: (expected, bytes) => {
+        reviewCalls += 1;
+        if (bytes.includes('"kind":"audit"')) {
+          if (fault === 'rejected') return Promise.reject(new Error('trusted review unavailable'));
+          return Promise.resolve({
+            ...fakeReview(expected, bytes),
+            evidence: null,
+          } as unknown as VerifiedReview);
+        }
+        return Promise.resolve(fakeReview(expected, bytes));
+      },
+    });
+    try {
+      const beforeCalls = reviewCalls;
+      const before = evidenceRows(evidence.source.databasePath);
+      await rejectedWith(
+        submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
+        fault === 'rejected' ? 'trusted review unavailable' : 'Validation failed',
+      );
+      expect(reviewCalls).toBe(beforeCalls + 1);
+      expect(checkCalls).toBe(0);
+      expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+    } finally {
+      evidence.controller.close();
+    }
+  },
+);
+
 test.each([
-  ['reviewId', 'review.second', 'review differs from frozen pair'],
-  ['invocationId', 'invocation.other', 'invocation differs from registration'],
+  [
+    'submission digest',
+    (review: VerifiedReview) => ({
+      ...review,
+      binding: { ...review.binding, exactSubmissionDigest: '0'.repeat(64) },
+    }),
+    'submission digest differs',
+  ],
+  [
+    'phase relabel',
+    (review: VerifiedReview) => ({
+      ...review,
+      binding: { ...review.binding, phase: 'cold' as const },
+    }),
+    'review verification differs from frozen invocation',
+  ],
+  [
+    'foreign journal',
+    (review: VerifiedReview) => ({
+      ...review,
+      binding: { ...review.binding, journalIssuerId: 'foreign.journal' },
+    }),
+    'review verification differs from frozen invocation',
+  ],
+  [
+    'journal identity mismatch',
+    (review: VerifiedReview) =>
+      bindSource({
+        ...review,
+        evidence: {
+          ...review.evidence,
+          receipt: {
+            ...review.evidence.receipt,
+            trust: { ...review.evidence.receipt.trust, journalId: 'journal.other' },
+          },
+        },
+      }),
+    'review verification source evidence incomplete',
+  ],
+  [
+    'missing retained reads',
+    (review: VerifiedReview) =>
+      bindSource({
+        ...review,
+        evidence: {
+          ...review.evidence,
+          receipt: { ...review.evidence.receipt, observedReadIds: [] },
+        },
+      }),
+    'source record differs from phase observations',
+  ],
+  [
+    'wrong cold artifact',
+    (review: VerifiedReview) =>
+      bindSource({
+        ...review,
+        informed: { ...review.informed, coldArtifact: '0'.repeat(64) },
+      }),
+    'review verification source evidence incomplete',
+  ],
+  [
+    'missing raw response',
+    (review: VerifiedReview) => {
+      const emptyArtifact = hashBytes('');
+      if (review.informed.telemetry.status !== 'verified') {
+        throw new Error('fixture informed telemetry not verified');
+      }
+      const informedTelemetry = {
+        ...review.informed.telemetry,
+        receipt: { ...review.informed.telemetry.receipt, outputArtifact: emptyArtifact },
+      };
+      return bindSource({
+        ...review,
+        informed: {
+          ...review.informed,
+          rawResponse: { ...review.informed.rawResponse, payload: '' },
+          telemetry: informedTelemetry,
+        },
+        evidence: {
+          ...review.evidence,
+          receipt: { ...review.evidence.receipt, rawResponseArtifact: emptyArtifact },
+          phaseReceipts: { ...review.evidence.phaseReceipts, informed: informedTelemetry },
+          rawResponse: { ...review.evidence.rawResponse, artifact: emptyArtifact },
+        },
+      });
+    },
+    'review verification source evidence incomplete',
+  ],
+  [
+    'local journal provenance',
+    (review: VerifiedReview) =>
+      bindSource({
+        ...review,
+        evidence: {
+          ...review.evidence,
+          receipt: {
+            ...review.evidence.receipt,
+            trust: { ...review.evidence.receipt.trust, scope: 'local-cooperative' as const },
+          },
+        },
+      }),
+    'review verification source evidence incomplete',
+  ],
+  [
+    'passed unresolved finding',
+    (review: VerifiedReview) =>
+      bindSource({
+        ...review,
+        findings: [
+          { findingId: 'finding.blocking', severity: 'important', summary: 'Unresolved issue' },
+        ],
+      }),
+    'review verification source evidence incomplete',
+  ],
+] as const)(
+  'trusted review rejects %s before evidence insertion',
+  async (_fault, corrupt, message) => {
+    const evidence = await evidenceHarness({
+      verifyReview: (expected, bytes) =>
+        Promise.resolve(
+          bytes.includes('"kind":"audit"')
+            ? corrupt(fakeReview(expected, bytes))
+            : fakeReview(expected, bytes),
+        ),
+    });
+    try {
+      const before = evidenceRows(evidence.source.databasePath);
+      await rejectedWith(
+        submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
+        message,
+      );
+      expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+    } finally {
+      evidence.controller.close();
+    }
+  },
+);
+
+test('authenticated audit retains complete source and a failed finding as terminal evidence', async () => {
+  const evidence = await evidenceHarness({
+    verifyReview: (expected, bytes) => {
+      const complete = fakeReview(expected, bytes);
+      return Promise.resolve(
+        bytes.includes('"kind":"audit"')
+          ? bindSource({
+              ...complete,
+              status: 'failed',
+              findings: [
+                {
+                  findingId: 'finding.blocking',
+                  severity: 'important',
+                  summary: 'Unresolved issue',
+                },
+              ],
+            })
+          : complete,
+      );
+    },
+  });
+  try {
+    const audit = evidence.receipt('audit', 'failed');
+    expect((await submitReceipt(evidence.controller, evidence.lease, audit)).stage).toBe('failed');
+    const rows = evidenceRows(evidence.source.databasePath);
+    const retained = rows.attempts.find(
+      (row) =>
+        typeof row === 'object' &&
+        row !== null &&
+        'obligation_identity' in row &&
+        row.obligation_identity === 'f'.repeat(64),
+    );
+    if (
+      retained === undefined ||
+      retained === null ||
+      typeof retained !== 'object' ||
+      !('authentication_bytes' in retained)
+    ) {
+      throw new Error('failed review source was not retained');
+    }
+    const source = JSON.parse(String(retained.authentication_bytes)) as { review: VerifiedReview };
+    expect(source.review.evidence.receipt.trust.scope).toBe('external-verifier');
+    expect(source.review.cold.rawResponse.payload).toContain('cold');
+    expect(source.review.informed.rawResponse.payload).toContain('informed');
+    expect(source.review.findings).toHaveLength(1);
+    expect(source.review.binding.sourceEvidenceDigest).toBe(
+      hashCanonical({
+        evidence: source.review.evidence,
+        cold: source.review.cold,
+        informed: source.review.informed,
+        findings: source.review.findings,
+        status: source.review.status,
+      }),
+    );
+  } finally {
+    evidence.controller.close();
+  }
+});
+
+test('retained review source corruption is refused after controller restart', async () => {
+  const evidence = await evidenceHarness();
+  const database = new Database(evidence.source.databasePath);
+  try {
+    const raw: unknown = database
+      .query(
+        'SELECT authentication_bytes FROM activation_attempt WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .get(evidence.request.requestIdentity, 'd'.repeat(64));
+    if (raw === null || typeof raw !== 'object' || !('authentication_bytes' in raw)) {
+      throw new Error('retained cold source absent');
+    }
+    const envelope = JSON.parse(String(raw.authentication_bytes)) as {
+      receipt: unknown;
+      review: VerifiedReview;
+    };
+    database
+      .query(
+        'UPDATE activation_attempt SET authentication_bytes = ? WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .run(
+        serializeCanonical({
+          ...envelope,
+          review: {
+            ...envelope.review,
+            evidence: {
+              ...envelope.review.evidence,
+              receipt: {
+                ...envelope.review.evidence.receipt,
+                receiptId: 'review-receipt.changed-after-commit',
+              },
+            },
+          },
+        }),
+        evidence.request.requestIdentity,
+        'd'.repeat(64),
+      );
+    evidence.controller.close();
+    const reopened = openActivationController({
+      ...evidence.source,
+      clock: () => 1000,
+      readyCandidates: () => Promise.resolve([]),
+      currentCandidate: () =>
+        Promise.resolve({ kind: 'ready' as const, candidate: evidence.source.candidate }),
+      authenticateCheck: (bytes) => Promise.resolve(evidence.authenticated.get(bytes)),
+    });
+    try {
+      const before = evidenceRows(evidence.source.databasePath);
+      await rejectedWith(
+        submitReceipt(reopened, evidence.lease, evidence.receipt('check')),
+        'selected receipt evidence malformed',
+      );
+      expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+    } finally {
+      reopened.close();
+    }
+  } finally {
+    database.close();
+  }
+});
+
+test.each(['registration', 'authority'] as const)(
+  'held trusted review refuses post-await %s movement while an independent check can complete',
+  async (movement) => {
+    let release: ((verification: VerifiedReview) => void) | undefined;
+    const held = new Promise<VerifiedReview>((resolve) => {
+      release = resolve;
+    });
+    let submitted: { expected: ReviewExpectation; bytes: string } | undefined;
+    const evidence = await evidenceHarness({
+      verifyReview: (expected, bytes) => {
+        if (bytes.includes('"kind":"audit"')) {
+          submitted = { expected, bytes };
+          return held;
+        }
+        return Promise.resolve(fakeReview(expected, bytes));
+      },
+    });
+    const database = new Database(evidence.source.databasePath);
+    try {
+      const pending = submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit'));
+      if (submitted === undefined || release === undefined) {
+        throw new Error('trusted review verification was not held');
+      }
+      expect(
+        (await submitReceipt(evidence.controller, evidence.lease, evidence.receipt('check'))).stage,
+      ).toBe('evaluating');
+      if (movement === 'registration') {
+        database
+          .query(
+            'UPDATE activation_review_attempt SET invocation_id = ? WHERE request_identity = ? AND review_id = ?',
+          )
+          .run('invocation.replaced', evidence.request.requestIdentity, 'review.primary');
+      } else {
+        const previous = readFileSync(evidence.source.bootstrapPath, 'utf8');
+        writeFileSync(
+          evidence.source.bootstrapPath,
+          previous.replace('"authorityGeneration":3', '"authorityGeneration":4'),
+        );
+      }
+      const before = evidenceRows(evidence.source.databasePath);
+      release(fakeReview(submitted.expected, submitted.bytes));
+      await rejectedWith(
+        pending,
+        movement === 'registration'
+          ? 'invocation differs from registration'
+          : 'bootstrap configuration differs',
+      );
+      expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+    } finally {
+      database.close();
+      evidence.controller.close();
+    }
+  },
+);
+
+test.each([
+  ['reviewId', 'review.second', 'review verification differs from frozen invocation'],
+  ['invocationId', 'invocation.other', 'review verification differs from frozen invocation'],
 ] as const)(
   'audit receipt with wrong %s leaves registered evaluation unchanged',
   async (field, wrong, message) => {
@@ -962,7 +1635,7 @@ test.each([
         ...(field === 'reviewId' ? { invocationId: 'invocation.second' } : {}),
       });
       const before = evidenceRows(evidence.source.databasePath);
-      await rejectedWith(evidence.controller.recordReceipt(evidence.lease, informed), message);
+      await rejectedWith(submitReceipt(evidence.controller, evidence.lease, informed), message);
       expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
     } finally {
       evidence.controller.close();
@@ -975,7 +1648,8 @@ test('another review cannot borrow a completed cold phase for its informed recei
   try {
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(
+      submitReceipt(
+        evidence.controller,
         evidence.lease,
         evidence.receipt('audit', 'passed', 'review.second'),
       ),
@@ -1016,7 +1690,7 @@ test('informed phase cannot borrow an earlier cold from another review attempt',
       .run(evidence.request.requestIdentity, 'review.primary', 1, 'invocation.next');
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
       'requires completed cold audit',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1031,10 +1705,10 @@ test('authenticated check and audit receipts join only after all frozen obligati
   try {
     const check = evidence.receipt('check');
     const informed = evidence.receipt('audit');
-    expect((await evidence.controller.recordReceipt(evidence.lease, check)).stage).toBe(
+    expect((await submitReceipt(evidence.controller, evidence.lease, check)).stage).toBe(
       'evaluating',
     );
-    expect((await evidence.controller.recordReceipt(evidence.lease, informed)).stage).toBe(
+    expect((await submitReceipt(evidence.controller, evidence.lease, informed)).stage).toBe(
       'verified',
     );
     expect(
@@ -1054,17 +1728,17 @@ test('opposite and concurrent receipt completion orders select the same evidence
       const audit = evidence.receipt('audit');
       if (order === 'concurrent') {
         const settled = await Promise.all([
-          evidence.controller.recordReceipt(evidence.lease, check),
-          evidence.controller.recordReceipt(evidence.lease, audit),
+          submitReceipt(evidence.controller, evidence.lease, check),
+          submitReceipt(evidence.controller, evidence.lease, audit),
         ]);
         expect(settled.filter(({ stage }) => stage === 'verified')).toHaveLength(1);
       } else {
         const first = order === 'check-first' ? check : audit;
         const second = order === 'check-first' ? audit : check;
-        expect((await evidence.controller.recordReceipt(evidence.lease, first)).stage).toBe(
+        expect((await submitReceipt(evidence.controller, evidence.lease, first)).stage).toBe(
           'evaluating',
         );
-        expect((await evidence.controller.recordReceipt(evidence.lease, second)).stage).toBe(
+        expect((await submitReceipt(evidence.controller, evidence.lease, second)).stage).toBe(
           'verified',
         );
       }
@@ -1093,8 +1767,8 @@ test('authenticated receipt replay is idempotent and conflicting bytes cannot re
   const evidence = await evidenceHarness();
   try {
     const check = evidence.receipt('check');
-    const first = await evidence.controller.recordReceipt(evidence.lease, check);
-    expect((await evidence.controller.recordReceipt(evidence.lease, check)).version).toBe(
+    const first = await submitReceipt(evidence.controller, evidence.lease, check);
+    expect((await submitReceipt(evidence.controller, evidence.lease, check)).version).toBe(
       first.version,
     );
     const conflict = serializeCanonical({ receipt: 'conflicting same attempt' });
@@ -1102,13 +1776,13 @@ test('authenticated receipt replay is idempotent and conflicting bytes cannot re
     if (prior === undefined || typeof prior !== 'object') throw new Error('fake receipt absent');
     evidence.authenticated.set(conflict, { ...prior, receiptIdentity: hashBytes(conflict) });
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, conflict),
+      submitReceipt(evidence.controller, evidence.lease, conflict),
       'immutable evidence',
     );
     expect(evidence.controller.readRequest(evidence.request.requestIdentity)).toEqual(first);
     const audit = evidence.receipt('audit');
-    const verified = await evidence.controller.recordReceipt(evidence.lease, audit);
-    expect((await evidence.controller.recordReceipt(evidence.lease, check)).version).toBe(
+    const verified = await submitReceipt(evidence.controller, evidence.lease, audit);
+    expect((await submitReceipt(evidence.controller, evidence.lease, check)).version).toBe(
       verified.version,
     );
     expect(evidence.controller.readRequest(evidence.request.requestIdentity)?.stage).toBe(
@@ -1125,15 +1799,15 @@ test.each(['failed', 'skipped'] as const)(
     const evidence = await evidenceHarness();
     try {
       const failed = evidence.receipt('check', status);
-      const terminal = await evidence.controller.recordReceipt(evidence.lease, failed);
+      const terminal = await submitReceipt(evidence.controller, evidence.lease, failed);
       expect(terminal.stage).toBe('failed');
       const later = evidence.receipt('check', 'passed');
       await rejectedWith(
-        evidence.controller.recordReceipt(evidence.lease, later),
+        submitReceipt(evidence.controller, evidence.lease, later),
         'immutable evidence',
       );
       expect(evidence.controller.readRequest(evidence.request.requestIdentity)).toEqual(terminal);
-      expect((await evidence.controller.recordReceipt(evidence.lease, failed)).version).toBe(
+      expect((await submitReceipt(evidence.controller, evidence.lease, failed)).version).toBe(
         terminal.version,
       );
     } finally {
@@ -1162,7 +1836,7 @@ test.each([
         throw new Error('fake receipt absent');
       evidence.authenticated.set(check, { ...prior, [field]: wrong });
       const before = evidence.controller.readRequest(evidence.request.requestIdentity);
-      await rejectedWith(evidence.controller.recordReceipt(evidence.lease, check), message);
+      await rejectedWith(submitReceipt(evidence.controller, evidence.lease, check), message);
       expect(evidence.controller.readRequest(evidence.request.requestIdentity)).toEqual(before);
       expect(
         evidence.controller
@@ -1192,15 +1866,15 @@ test('authenticated kind and audit phase must match the frozen obligation', asyn
       reviewId: 'review.primary',
       invocationId: 'invocation.primary',
     });
-    await rejectedWith(evidence.controller.recordReceipt(evidence.lease, check), 'kind differs');
+    await rejectedWith(submitReceipt(evidence.controller, evidence.lease, check), 'kind differs');
     const audit = evidence.receipt('audit');
     const auditPrior = evidence.authenticated.get(audit);
     if (auditPrior === undefined || auditPrior === null || typeof auditPrior !== 'object')
       throw new Error('fake audit absent');
     evidence.authenticated.set(audit, { ...auditPrior, phase: 'cold' });
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, audit),
-      'frozen obligation',
+      submitReceipt(evidence.controller, evidence.lease, audit),
+      'review verification differs from frozen invocation',
     );
     expect(evidence.controller.readRequest(evidence.request.requestIdentity)?.stage).toBe(
       'evaluating',
@@ -1219,7 +1893,7 @@ test('a held verifier cannot commit evidence after its request is superseded', a
   try {
     const check = evidence.receipt('check');
     const authentication = evidence.authenticated.get(check);
-    const pending = evidence.controller.recordReceipt(evidence.lease, check);
+    const pending = submitReceipt(evidence.controller, evidence.lease, check);
     const successor = evidence.controller.observe({
       ...evidence.source.candidate,
       headSha: '6'.repeat(40),
@@ -1251,14 +1925,16 @@ test('an unrelated completion cannot invalidate a held authenticated receipt', a
     readyCandidates: () => Promise.resolve([]),
     currentCandidate: () =>
       Promise.resolve({ kind: 'ready' as const, candidate: evidence.source.candidate }),
-    authenticateReceipt: (bytes: string) => Promise.resolve(evidence.authenticated.get(bytes)),
+    authenticateCheck: (bytes: string) => Promise.resolve(evidence.authenticated.get(bytes)),
+    verifyReview: ({ exactSubmissionBytes, expected }) =>
+      Promise.resolve(fakeReview(expected, exactSubmissionBytes)),
   });
   try {
     const check = evidence.receipt('check');
     const audit = evidence.receipt('audit');
     const authentication = evidence.authenticated.get(check);
-    const pending = evidence.controller.recordReceipt(evidence.lease, check);
-    expect((await second.recordReceipt(evidence.lease, audit)).stage).toBe('evaluating');
+    const pending = submitReceipt(evidence.controller, evidence.lease, check);
+    expect((await submitReceipt(second, evidence.lease, audit)).stage).toBe('evaluating');
     if (release === undefined) throw new Error('check verification was not held');
     release(authentication);
     expect((await pending).stage).toBe('verified');
@@ -1283,7 +1959,7 @@ test('held verification is fenced by durable lease epoch and own attempt changes
     try {
       const check = evidence.receipt('check');
       const authentication = evidence.authenticated.get(check);
-      const pending = evidence.controller.recordReceipt(evidence.lease, check);
+      const pending = submitReceipt(evidence.controller, evidence.lease, check);
       if (fault === 'lease') {
         now = 1100;
         // The later recovery owner is not implemented yet; stage only its durable epoch transition.
@@ -1326,7 +2002,7 @@ test('receipt recording refuses absent verifier without changing durable evaluat
     controller.beginEvaluation(lease);
     const before = evidenceRows(source.databasePath);
     await rejectedWith(
-      controller.recordReceipt(lease, serializeCanonical({ receipt: 'check' })),
+      submitReceipt(controller, lease, serializeCanonical({ receipt: 'check' })),
       'verifier absent',
     );
     expect(evidenceRows(source.databasePath)).toEqual(before);
@@ -1340,7 +2016,7 @@ test('receipt recording refuses absent bytes before invoking authentication', as
   try {
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, ''),
+      submitReceipt(evidence.controller, evidence.lease, ''),
       'receipt bytes absent',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1359,7 +2035,7 @@ test('expired receipt lease and missing trusted pin refuse before evidence inser
       else rmSync(evidence.source.bootstrapPath);
       const before = evidenceRows(evidence.source.databasePath);
       await rejectedWith(
-        evidence.controller.recordReceipt(evidence.lease, check),
+        submitReceipt(evidence.controller, evidence.lease, check),
         fault === 'expiry' ? 'lease changed' : 'bootstrap configuration absent',
       );
       expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1383,7 +2059,7 @@ test('receipt owner and null-expiry fences refuse without evidence writes', asyn
           .run(evidence.request.requestIdentity);
       }
       const before = evidenceRows(evidence.source.databasePath);
-      await rejectedWith(evidence.controller.recordReceipt(lease, check), 'lease changed');
+      await rejectedWith(submitReceipt(evidence.controller, lease, check), 'lease changed');
       expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
     } finally {
       database.close();
@@ -1404,7 +2080,7 @@ test('receipt generation guard refuses inconsistent durable subject history', as
       .run(evidence.request.repositoryId);
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, check),
+      submitReceipt(evidence.controller, evidence.lease, check),
       'generation changed',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1426,7 +2102,7 @@ test('receipt join refuses a missing frozen obligation even when remaining evide
       .run(evidence.request.requestIdentity, 'd'.repeat(64));
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, check),
+      submitReceipt(evidence.controller, evidence.lease, check),
       'frozen evaluation plan',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1440,7 +2116,7 @@ test('receipt join refuses a selected obligation whose immutable attempt is miss
   const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
-    await evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check'));
+    await submitReceipt(evidence.controller, evidence.lease, evidence.receipt('check'));
     database
       .query(
         'DELETE FROM activation_attempt WHERE request_identity = ? AND obligation_identity = ?',
@@ -1448,7 +2124,7 @@ test('receipt join refuses a selected obligation whose immutable attempt is miss
       .run(evidence.request.requestIdentity, 'a'.repeat(64));
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
       'selected receipt evidence',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1463,7 +2139,7 @@ test('receipt join refuses a selected obligation whose retained authentication b
   const database = new Database(evidence.source.databasePath);
   try {
     const check = evidence.receipt('check');
-    await evidence.controller.recordReceipt(evidence.lease, check);
+    await submitReceipt(evidence.controller, evidence.lease, check);
     database
       .query(
         'UPDATE activation_attempt SET authentication_bytes = ? WHERE request_identity = ? AND obligation_identity = ?',
@@ -1486,7 +2162,7 @@ test('receipt join refuses a selected obligation whose retained authentication b
       );
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
       'selected receipt evidence differs',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1500,7 +2176,7 @@ test('receipt join refuses malformed retained authentication bytes', async () =>
   const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
-    await evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check'));
+    await submitReceipt(evidence.controller, evidence.lease, evidence.receipt('check'));
     database
       .query(
         'UPDATE activation_attempt SET authentication_bytes = ? WHERE request_identity = ? AND obligation_identity = ?',
@@ -1508,7 +2184,7 @@ test('receipt join refuses malformed retained authentication bytes', async () =>
       .run(serializeCanonical({ forged: true }), evidence.request.requestIdentity, 'a'.repeat(64));
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
       'selected receipt evidence malformed',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1525,22 +2201,33 @@ test.each([
   const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
-    const cold = evidence.authenticated.get(evidence.cold);
-    if (cold === undefined || cold === null || typeof cold !== 'object') {
-      throw new Error('fake retained cold authentication absent');
+    const raw: unknown = database
+      .query(
+        'SELECT authentication_bytes FROM activation_attempt WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .get(evidence.request.requestIdentity, 'd'.repeat(64));
+    if (raw === null || typeof raw !== 'object' || !('authentication_bytes' in raw)) {
+      throw new Error('retained cold authentication absent');
     }
+    const authentication = JSON.parse(String(raw.authentication_bytes)) as {
+      receipt: Record<string, unknown>;
+      review: unknown;
+    };
     database
       .query(
         'UPDATE activation_attempt SET authentication_bytes = ? WHERE request_identity = ? AND obligation_identity = ?',
       )
       .run(
-        serializeCanonical({ ...cold, [field]: wrong }),
+        serializeCanonical({
+          ...authentication,
+          receipt: { ...authentication.receipt, [field]: wrong },
+        }),
         evidence.request.requestIdentity,
         'd'.repeat(64),
       );
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
       'selected receipt evidence differs from frozen obligation',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1559,7 +2246,7 @@ test('receipt join refuses a selected cold whose review registration disappeared
       .run(evidence.request.requestIdentity, 'review.primary');
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check')),
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('check')),
       'selected review invocation absent',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1580,7 +2267,7 @@ test('receipt join refuses a check row carrying an audit phase', async () => {
       .run('cold', evidence.request.requestIdentity, 'a'.repeat(64));
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check')),
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('check')),
       'stored check obligation malformed',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1601,7 +2288,7 @@ test('receipt join refuses an audit row carrying a check command', async () => {
       .run('c'.repeat(64), evidence.request.requestIdentity, 'd'.repeat(64));
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
       'stored audit obligation malformed',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1623,7 +2310,7 @@ test('receipt owner refuses a nonpending obligation with no selected attempt', a
       .run(evidence.request.requestIdentity, 'a'.repeat(64));
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, check),
+      submitReceipt(evidence.controller, evidence.lease, check),
       'already completed',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1662,7 +2349,7 @@ test.each([2, 3] as const)(
       readyCandidates: () => Promise.resolve([]),
       currentCandidate: () =>
         Promise.resolve({ kind: 'ready' as const, candidate: source.candidate }),
-      authenticateReceipt: (bytes: string) => Promise.resolve(authenticated.get(bytes)),
+      authenticateCheck: (bytes: string) => Promise.resolve(authenticated.get(bytes)),
     });
     try {
       const check = serializeCanonical({ receipt: 'migrated-check' });
@@ -1679,7 +2366,7 @@ test.each([2, 3] as const)(
         status: 'passed',
       });
       const before = evidenceRows(source.databasePath);
-      await rejectedWith(second.recordReceipt(lease, check), 'legacy review pairing absent');
+      await rejectedWith(submitReceipt(second, lease, check), 'legacy review pairing absent');
       expect(evidenceRows(source.databasePath)).toEqual(before);
       expect(second.readRequest(request.requestIdentity)?.request.requestIdentity).toBe(
         request.requestIdentity,
@@ -1808,12 +2495,12 @@ test('receipt owner refuses a different valid bootstrap authority on the same du
     readyCandidates: () => Promise.resolve([]),
     currentCandidate: () =>
       Promise.resolve({ kind: 'ready' as const, candidate: evidence.source.candidate }),
-    authenticateReceipt: (bytes: string) => Promise.resolve(evidence.authenticated.get(bytes)),
+    authenticateCheck: (bytes: string) => Promise.resolve(evidence.authenticated.get(bytes)),
   });
   try {
     const check = evidence.receipt('check');
     const before = evidenceRows(evidence.source.databasePath);
-    await rejectedWith(second.recordReceipt(evidence.lease, check), 'authority changed');
+    await rejectedWith(submitReceipt(second, evidence.lease, check), 'authority changed');
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
   } finally {
     second.close();
@@ -1823,10 +2510,10 @@ test('receipt owner refuses a different valid bootstrap authority on the same du
 test('terminal failed evidence refuses another obligation before evidence insertion', async () => {
   const evidence = await evidenceHarness();
   try {
-    await evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check', 'failed'));
+    await submitReceipt(evidence.controller, evidence.lease, evidence.receipt('check', 'failed'));
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
       'not evaluating',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
@@ -1844,7 +2531,9 @@ test('informed audit evidence waits for the selected cold audit while checks rem
     readyCandidates: () => Promise.resolve([]),
     currentCandidate: () =>
       Promise.resolve({ kind: 'ready' as const, candidate: source.candidate }),
-    authenticateReceipt: (bytes: string) => Promise.resolve(authenticated.get(bytes)),
+    authenticateCheck: (bytes: string) => Promise.resolve(authenticated.get(bytes)),
+    verifyReview: ({ exactSubmissionBytes, expected }) =>
+      Promise.resolve(fakeReview(expected, exactSubmissionBytes)),
   });
   try {
     const request = controller.observe(source.candidate);
@@ -1887,13 +2576,13 @@ test('informed audit evidence waits for the selected cold audit while checks rem
     }
     const informed = register('audit', 'informed');
     const before = evidenceRows(source.databasePath);
-    await rejectedWith(controller.recordReceipt(lease, informed), 'requires completed cold audit');
+    await rejectedWith(submitReceipt(controller, lease, informed), 'requires completed cold audit');
     expect(evidenceRows(source.databasePath)).toEqual(before);
-    await controller.recordReceipt(lease, register('check'));
-    expect((await controller.recordReceipt(lease, register('audit', 'cold'))).stage).toBe(
+    await submitReceipt(controller, lease, register('check'));
+    expect((await submitReceipt(controller, lease, register('audit', 'cold'))).stage).toBe(
       'evaluating',
     );
-    expect((await controller.recordReceipt(lease, informed)).stage).toBe('verified');
+    expect((await submitReceipt(controller, lease, informed)).stage).toBe('verified');
   } finally {
     controller.close();
   }
@@ -1904,14 +2593,14 @@ test('second receipt commit failure restores its attempt but retains earlier aut
   const database = new Database(evidence.source.databasePath);
   try {
     const check = evidence.receipt('check');
-    await evidence.controller.recordReceipt(evidence.lease, check);
+    await submitReceipt(evidence.controller, evidence.lease, check);
     const before = evidence.controller.readRequest(evidence.request.requestIdentity);
     const beforeRows = evidenceRows(evidence.source.databasePath);
     database.run(`CREATE TRIGGER fail_verified_activation BEFORE UPDATE OF stage ON activation_request
       WHEN NEW.stage = 'verified' BEGIN SELECT RAISE(ABORT, 'injected verified write'); END`);
     const audit = evidence.receipt('audit');
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, audit),
+      submitReceipt(evidence.controller, evidence.lease, audit),
       'injected verified write',
     );
     expect(evidence.controller.readRequest(evidence.request.requestIdentity)).toEqual(before);
@@ -1921,7 +2610,9 @@ test('second receipt commit failure restores its attempt but retains earlier aut
       .all();
     expect(attempts).toHaveLength(2);
     database.run('DROP TRIGGER fail_verified_activation');
-    expect((await evidence.controller.recordReceipt(evidence.lease, audit)).stage).toBe('verified');
+    expect((await submitReceipt(evidence.controller, evidence.lease, audit)).stage).toBe(
+      'verified',
+    );
   } finally {
     database.close();
     evidence.controller.close();
@@ -1932,12 +2623,12 @@ test('ignored verified update refuses and rolls back the second receipt', async 
   const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
   try {
-    await evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check'));
+    await submitReceipt(evidence.controller, evidence.lease, evidence.receipt('check'));
     const before = evidenceRows(evidence.source.databasePath);
     database.run(`CREATE TRIGGER ignore_verified_activation BEFORE UPDATE OF stage ON activation_request
       WHEN NEW.stage = 'verified' BEGIN SELECT RAISE(IGNORE); END`);
     await rejectedWith(
-      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
       'activation request version changed',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);

@@ -534,3 +534,60 @@ strict passed 1/1 and all passed 143/143, zero failures
 (`/tmp/activation-21-correction-{strict,all}.json`); changed-path Prettier
 and diff check passed. Normal hooks and independent exact-SHA review are still
 required for this correction checkpoint.
+
+### 2.1 local trusted-review consumption boundary (2026-10-07)
+
+The public `recordReceipt(lease, obligationIdentity, submissionBytes)` now uses
+the locator only to read the persisted frozen obligation. A check uses
+`authenticateCheck`; an audit requires `verifyReview` and cannot fall back to
+check authentication. A private post-await transaction rechecks current
+request, authority, stage, lease, frozen obligation, selected review
+registration and retained passed evidence before committing. The review port
+returns one authenticated invocation/phase binding plus full `ReviewEvidence`,
+cold and informed outputs, findings and disposition. Its exact submission and
+source digests are checked, and the complete canonical source is retained in
+the immutable attempt authentication bytes; a later selection revalidates it.
+This is a local composition with a fake trusted port in tests, not installed
+external verifier or independent provenance acceptance.
+
+The first mounted RED was the prior generic audit route: with no review port,
+an audit fulfilled through `authenticateReceipt`, 0/1
+(`/tmp/activation-21-generic-audit-bypass-red.log`). Restored, the same public
+case refuses before the generic/check callback, 1/1, 4 assertions. All 57
+direct controller test submissions migrated to the single three-argument
+public API; no old public authenticated-audit method remains. The full
+controller DB suite on these bytes passed 111/111, 407 assertions, exit 0 with
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/controller.db.test.ts`
+(`/tmp/activation-21-full-aggregate.log`).
+
+| Watched production dependency                                              | Observed RED and restored behavior                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frozen expected binding / phase                                            | Omitting canonical expected-binding comparison let cold relabel an informed receipt; public test failed rejected-vs-fulfilled 0/1 (`/tmp/activation-21-final-r5-binding-red.log`); restored mounted rejection passed.                                                                                                                                                                                                                                    |
+| Exact submission digest                                                    | Omitting its comparison accepted unrelated submission bytes, 0/1 (`/tmp/activation-21-final-r5-submission-red.log`); restored rejection passed.                                                                                                                                                                                                                                                                                                          |
+| External journal identity, scope, cold artifact, and nonempty raw response | Each condition was independently removed while its installed malformed-source case was run; each became fulfilled rather than rejected, 0/1 (`/tmp/activation-21-final-r5-{journal,local_scope,cold_artifact,missing_raw}-red.log`); restored cases passed. A foreign pinned journal issuer independently refused at the expected-binding check.                                                                                                         |
+| Phase-to-review source aggregation and unresolved findings                 | Omitting the source aggregate admitted a review receipt with no retained reads, 0/1 (`/tmp/activation-21-final-r5-source-aggregate-red.log`); omitting the passed-finding condition admitted unresolved findings as passed, 0/1 (`/tmp/activation-21-final-r5-findings-red.log`); restored cases passed.                                                                                                                                                 |
+| Retained exact source after restart                                        | Changing a valid review receipt ID in the stored source was refused after restart. Omitting only the source-evidence digest let the corrupted source verify, 0/1 (`/tmp/activation-21-final-r5-source-digest-red.log`); restored case passed.                                                                                                                                                                                                            |
+| Post-await registration                                                    | Holding review verification, completing an unrelated check, then moving the selected registration refused the audit with complete post-check rows unchanged. Omitting the direct invocation comparison changed the named refusal to a later selected-evidence refusal, 0/1 (`/tmp/activation-21-final-r5-registration-red.log`); it did not grant authority. The separate held authority-change case refused after the pin changed, with rows unchanged. |
+
+Malformed and rejected trusted verifier responses each refused without
+calling the check authenticator or writing evidence (2/2, 10 assertions,
+`/tmp/activation-21-no-fallback.log`). An authenticated review with findings
+and `failed` disposition persisted exact cold/informed source and marked the
+request failed; a claimed `passed` review with those findings was refused.
+The present complete-invocation adapter requires both phase outputs, so an
+authenticated _early cold_ failed/skipped result without informed output is
+not yet represented. This subacceptance, live provider transport, durable
+dispatch/recovery and task 2.1 remain open.
+
+On lint-corrected source/test bytes, declared Nx
+`twilight-burokrat:lint:source`, `:typecheck`, and `:build` each exited 0 and
+printed `Successfully ran target` respectively
+(`/tmp/activation-21-adapter-{lint,type,build}-final.log`). The first lint run
+failed on import order and two test-only async callbacks without awaits;
+those exact diagnostics were fixed before the successful rerun. The literal
+four-file Bun command from the foundation section then passed 121/121, 476
+assertions, exit 0 (`/tmp/activation-21-adapter-four-commitable.log`). Pinned
+OpenSpec strict passed 1/1 and all passed 143/143, zero failures
+(`/tmp/activation-21-adapter-{strict,all}-commitable.json`); changed-path
+Prettier and diff check exited 0. No host gate, CI, provider credential,
+dispatch worker or remote publication was run for this local slice.

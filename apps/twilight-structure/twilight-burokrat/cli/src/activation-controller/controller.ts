@@ -2,6 +2,15 @@ import { parseOrThrow, type } from '@shared/validation';
 import { Database } from 'bun:sqlite';
 
 import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
+import { AuditFinding } from '../review/audit';
+import {
+  ColdHarnessOutput,
+  decodeColdHarnessOutput,
+  decodeInformedHarnessOutput,
+  decodeReviewEvidence,
+  InformedHarnessOutput,
+  ReviewEvidence,
+} from '../review/protocol';
 import { readBootstrapConfiguration, type TrustedBootstrapPin } from './bootstrap';
 import { type ObservedActivationCandidate, prepareObservedRequest } from './ingress';
 import {
@@ -161,7 +170,175 @@ export interface ActivationControllerOptions {
     { readonly kind: 'ready'; readonly candidate: ObservedCandidate } | { readonly kind: 'closed' }
   >;
   readonly selectObligations: (request: ActivationRequest) => EvaluationPlan;
-  readonly authenticateReceipt?: (receiptBytes: string) => Promise<unknown>;
+  /** Authenticates a check receipt only; audit obligations never use this port. */
+  readonly authenticateCheck?: (receiptBytes: string) => Promise<unknown>;
+  /** Authenticates one registered review invocation and its retained phase evidence. */
+  readonly verifyReview?: (submission: ReviewSubmission) => Promise<VerifiedReview>;
+}
+
+export interface ReviewExpectation {
+  readonly requestIdentity: string;
+  readonly reviewId: string;
+  readonly obligationIdentity: string;
+  readonly attempt: number;
+  readonly phase: 'cold' | 'informed';
+  readonly invocationId: string;
+  readonly executorId: string;
+  readonly protocolIdentity: string;
+  readonly promptIdentity: string;
+  readonly journalIssuerId: string;
+}
+
+export interface ReviewSubmission {
+  readonly exactSubmissionBytes: string;
+  readonly expected: ReviewExpectation;
+}
+
+export interface VerifiedReview {
+  readonly binding: ReviewExpectation & {
+    readonly exactSubmissionDigest: string;
+    readonly sourceEvidenceDigest: string;
+    readonly journalId: string;
+  };
+  readonly evidence: ReviewEvidence;
+  readonly cold: ColdHarnessOutput;
+  readonly informed: InformedHarnessOutput;
+  readonly findings: readonly (typeof AuditFinding.infer)[];
+  readonly status: 'passed' | 'failed' | 'skipped';
+}
+
+const ReviewVerificationRecord = type({
+  binding: type({
+    exactSubmissionDigest: /^[0-9a-f]{64}$/,
+    sourceEvidenceDigest: /^[0-9a-f]{64}$/,
+    requestIdentity: /^[0-9a-f]{64}$/,
+    reviewId: 'string>=1',
+    obligationIdentity: /^[0-9a-f]{64}$/,
+    attempt: 'number.integer>=0',
+    phase: "'cold'|'informed'",
+    invocationId: 'string>=1',
+    executorId: 'string>=1',
+    protocolIdentity: /^[0-9a-f]{64}$/,
+    promptIdentity: /^[0-9a-f]{64}$/,
+    journalIssuerId: 'string>=1',
+    journalId: 'string>=1',
+  }).onUndeclaredKey('reject'),
+  evidence: ReviewEvidence,
+  cold: ColdHarnessOutput,
+  informed: InformedHarnessOutput,
+  findings: AuditFinding.array(),
+  status: "'passed'|'failed'|'skipped'",
+}).onUndeclaredKey('reject');
+
+function authenticatedReview(submission: ReviewSubmission, verification: unknown): VerifiedReview {
+  const source = parseOrThrow(ReviewVerificationRecord, verification);
+  const { expected } = submission;
+  const binding = source.binding;
+  const claimedExpectation: ReviewExpectation = {
+    requestIdentity: binding.requestIdentity,
+    reviewId: binding.reviewId,
+    obligationIdentity: binding.obligationIdentity,
+    attempt: binding.attempt,
+    phase: binding.phase,
+    invocationId: binding.invocationId,
+    executorId: binding.executorId,
+    protocolIdentity: binding.protocolIdentity,
+    promptIdentity: binding.promptIdentity,
+    journalIssuerId: binding.journalIssuerId,
+  };
+  // Proof: omitting exact expected-binding equality let a cold phase label complete an
+  // informed obligation in the mounted public recordReceipt test.
+  if (hashCanonical(claimedExpectation) !== hashCanonical(expected)) {
+    throw new Error('review verification differs from frozen invocation');
+  }
+  // Proof: omitting exact-submission binding accepted an authenticated digest for other bytes.
+  if (binding.exactSubmissionDigest !== hashBytes(submission.exactSubmissionBytes)) {
+    throw new Error('review verification submission digest differs from exact bytes');
+  }
+  // Proof: omitting this check accepted changed retained source bytes after controller restart.
+  if (
+    binding.sourceEvidenceDigest !==
+    hashCanonical({
+      evidence: source.evidence,
+      cold: source.cold,
+      informed: source.informed,
+      findings: source.findings,
+      status: source.status,
+    })
+  ) {
+    throw new Error('review verification source digest differs from authenticated bytes');
+  }
+  const evidence = decodeReviewEvidence(source.evidence);
+  const cold = decodeColdHarnessOutput(source.cold);
+  const informed = decodeInformedHarnessOutput(source.informed);
+  const coldArtifact = hashCanonical(cold.cold);
+  const derivedSource = {
+    executor: informed.telemetry.status === 'verified' ? informed.telemetry.receipt.executor : null,
+    priceIdentity:
+      informed.telemetry.status === 'verified' ? informed.telemetry.receipt.priceIdentity : null,
+    suppliedContextIds: [
+      evidence.protocolEvidence.protocol.protocolBlob,
+      evidence.protocolEvidence.subject.contentIdentity,
+      ...evidence.protocolEvidence.expansion.suppliedContextIds,
+    ],
+    observedReadIds: [...cold.cold.observedReadIds, ...informed.informed.observedReadIds],
+    rawUsage:
+      cold.telemetry.status === 'verified' && informed.telemetry.status === 'verified'
+        ? [...cold.telemetry.receipt.rawUsage, ...informed.telemetry.receipt.rawUsage]
+        : null,
+    retention: informed.rawResponse.retention,
+  };
+  const reportedSource = {
+    executor: evidence.receipt.executor,
+    priceIdentity: evidence.receipt.priceIdentity,
+    suppliedContextIds: evidence.receipt.suppliedContextIds,
+    observedReadIds: evidence.receipt.observedReadIds,
+    rawUsage: evidence.receipt.rawUsage,
+    retention: evidence.rawResponse.retention,
+  };
+  // Proof: omitting the phase-to-record join accepted a review receipt that retained no reads.
+  if (hashCanonical(derivedSource) !== hashCanonical(reportedSource)) {
+    throw new Error('review verification source record differs from phase observations');
+  }
+  // Proof: independent mounted omissions of external scope, journal identity, cold artifact,
+  // and nonempty raw response each accepted a malformed review before this guard was restored.
+  if (
+    evidence.receipt.trust.scope !== 'external-verifier' ||
+    evidence.receipt.trust.journalId !== binding.journalId ||
+    evidence.receipt.invocationId !== expected.invocationId ||
+    cold.invocationId !== expected.invocationId ||
+    informed.invocationId !== expected.invocationId ||
+    cold.telemetry.status !== 'verified' ||
+    informed.telemetry.status !== 'verified' ||
+    cold.telemetry.receipt.invocationId !== expected.invocationId ||
+    informed.telemetry.receipt.invocationId !== expected.invocationId ||
+    hashCanonical(cold.protocol) !== hashCanonical(evidence.protocolEvidence.protocol) ||
+    hashCanonical(informed.protocol) !== hashCanonical(evidence.protocolEvidence.protocol) ||
+    cold.protocol.protocolBlob !== expected.protocolIdentity ||
+    hashCanonical(cold.subject) !== hashCanonical(evidence.protocolEvidence.subject) ||
+    hashCanonical(informed.subject) !== hashCanonical(evidence.protocolEvidence.subject) ||
+    hashCanonical(cold.cold) !== hashCanonical(evidence.protocolEvidence.cold) ||
+    hashCanonical(informed.informed) !== hashCanonical(evidence.protocolEvidence.informed) ||
+    informed.coldArtifact !== coldArtifact ||
+    evidence.protocolEvidence.expansion.coldJudgmentArtifact !== coldArtifact ||
+    hashCanonical(cold.telemetry) !== hashCanonical(evidence.phaseReceipts.cold) ||
+    hashCanonical(informed.telemetry) !== hashCanonical(evidence.phaseReceipts.informed) ||
+    hashCanonical(cold.actualTools) !== hashCanonical(evidence.phaseTools.cold) ||
+    hashCanonical(informed.actualTools) !== hashCanonical(evidence.phaseTools.informed) ||
+    hashCanonical([...cold.actualTools, ...informed.actualTools]) !==
+      hashCanonical(evidence.actualTools) ||
+    cold.rawResponse.payload.length === 0 ||
+    informed.rawResponse.payload.length === 0 ||
+    evidence.rawResponse.artifact !== hashBytes(informed.rawResponse.payload) ||
+    evidence.receipt.rawResponseArtifact !== evidence.rawResponse.artifact ||
+    cold.cold.observedReadIds.length === 0 ||
+    informed.informed.observedReadIds.length === 0 ||
+    // Proof: omitting this condition accepted a passing receipt with an unresolved finding.
+    (source.findings.length > 0 && source.status === 'passed')
+  ) {
+    throw new Error('review verification source evidence incomplete or inconsistent');
+  }
+  return { ...source, evidence, cold, informed };
 }
 
 const DeliveryRecord = type({
@@ -821,20 +998,112 @@ export class ActivationController {
     });
   }
 
-  /** Persists independently authenticated evidence; a local fake verifier cannot establish external provenance. */
-  async recordReceipt(lease: RequestLease, receiptBytes: string): Promise<StoredRequest> {
+  /** Authenticates the persisted obligation kind before committing exact receipt evidence. */
+  async recordReceipt(
+    lease: RequestLease,
+    obligationIdentity: string,
+    receiptBytes: string,
+  ): Promise<StoredRequest> {
     // Proof: omission sent absent bytes to the verifier and lost the boundary refusal.
     if (typeof receiptBytes !== 'string' || receiptBytes.length === 0) {
       throw new Error('activation receipt bytes absent');
     }
-    const authenticate = this.options.authenticateReceipt;
-    // Proof: omission changed the missing-verifier refusal into an unmodeled invocation error.
-    if (authenticate === undefined) throw new Error('activation receipt verifier absent');
-    const receipt = parseOrThrow(AuthenticatedReceipt, await authenticate(receiptBytes));
+    if (!/^[0-9a-f]{64}$/.test(obligationIdentity)) {
+      throw new Error('activation obligation locator malformed');
+    }
+    const before = readRow(this.#database, lease.requestIdentity);
+    if (before === undefined) throw new Error('activation request absent');
+    if (before.pairing_version !== 1) throw new Error('legacy review pairing absent');
+    const request = storedRequest(before).request;
+    if (
+      request.authorityIdentity !== this.options.pin.identity ||
+      before.bootstrap_identity !== this.options.pin.identity
+    ) {
+      throw new Error('activation request authority changed');
+    }
+    const rawObligation: unknown = this.#database
+      .query(
+        'SELECT * FROM activation_obligation WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .get(request.requestIdentity, obligationIdentity);
+    if (rawObligation === null) throw new Error('activation obligation absent');
+    const obligation = parseOrThrow(StoredObligation, rawObligation);
+    const configuration = readBootstrapConfiguration(this.options.bootstrapPath, this.options.pin);
+    let receipt: AuthenticatedReceipt;
+    let review: VerifiedReview | null = null;
+    if (obligation.kind === 'check') {
+      const authenticate = this.options.authenticateCheck;
+      if (authenticate === undefined) throw new Error('activation check verifier absent');
+      receipt = parseOrThrow(AuthenticatedReceipt, await authenticate(receiptBytes));
+      if (receipt.kind !== 'check') {
+        throw new Error('authenticated receipt kind differs from frozen obligation');
+      }
+    } else {
+      const verifyReview = this.options.verifyReview;
+      // Proof: the mounted generic-authenticator bypass RED accepted audit evidence with
+      // no trusted review port; mandatory dispatch refuses before any generic callback.
+      if (verifyReview === undefined) throw new Error('trusted review verifier absent');
+      if (obligation.review_id === null || obligation.phase === null) {
+        throw new Error('frozen review obligation malformed');
+      }
+      const rawRegistration: unknown = this.#database
+        .query(
+          'SELECT * FROM activation_review_attempt WHERE request_identity = ? AND review_id = ? AND attempt = ?',
+        )
+        .get(request.requestIdentity, obligation.review_id, obligation.attempt);
+      if (rawRegistration === null) throw new Error('review invocation absent');
+      const registration = parseOrThrow(StoredReviewAttempt, rawRegistration);
+      const expected: ReviewExpectation = {
+        requestIdentity: request.requestIdentity,
+        reviewId: obligation.review_id,
+        obligationIdentity,
+        attempt: obligation.attempt,
+        phase: obligation.phase,
+        invocationId: registration.invocation_id,
+        executorId: obligation.executor_id,
+        protocolIdentity: obligation.protocol_identity,
+        promptIdentity: configuration.reviewer.promptIdentity,
+        journalIssuerId: configuration.journal.issuerId,
+      };
+      review = authenticatedReview(
+        { exactSubmissionBytes: receiptBytes, expected },
+        await verifyReview({ exactSubmissionBytes: receiptBytes, expected }),
+      );
+      receipt = {
+        receiptIdentity: hashBytes(receiptBytes),
+        issuerId: review.binding.journalIssuerId,
+        requestIdentity: expected.requestIdentity,
+        obligationIdentity,
+        kind: 'audit',
+        reviewId: expected.reviewId,
+        invocationId: expected.invocationId,
+        attempt: expected.attempt,
+        executorId: expected.executorId,
+        protocolIdentity: expected.protocolIdentity,
+        phase: expected.phase,
+        status: review.status,
+      };
+    }
     // Proof: replacing exact-byte identity let a verifier relabel receipt bytes for another obligation.
     if (receipt.receiptIdentity !== hashBytes(receiptBytes)) {
       throw new Error('authenticated receipt digest differs from exact bytes');
     }
+    return this.#recordAuthenticatedReceipt(
+      lease,
+      obligationIdentity,
+      receiptBytes,
+      receipt,
+      review,
+    );
+  }
+
+  #recordAuthenticatedReceipt(
+    lease: RequestLease,
+    obligationIdentity: string,
+    receiptBytes: string,
+    receipt: AuthenticatedReceipt,
+    review: VerifiedReview | null,
+  ): StoredRequest {
     return transaction(this.#database, () => {
       const now = nowFrom(this.options.clock);
       const row = readRow(this.#database, lease.requestIdentity);
@@ -882,10 +1151,13 @@ export class ActivationController {
         .query(
           'SELECT * FROM activation_obligation WHERE request_identity = ? AND obligation_identity = ?',
         )
-        .get(request.requestIdentity, receipt.obligationIdentity);
+        .get(request.requestIdentity, obligationIdentity);
       // Proof: omission lost the named refusal for a foreign obligation identity.
       if (rawObligation === null) throw new Error('authenticated receipt obligation absent');
       const obligation = parseOrThrow(StoredObligation, rawObligation);
+      if (receipt.obligationIdentity !== obligationIdentity) {
+        throw new Error('authenticated receipt differs from obligation locator');
+      }
       // Proof: kind omission changed the explicit kind refusal into a later shape refusal.
       if (receipt.kind !== obligation.kind) {
         throw new Error('authenticated receipt kind differs from frozen obligation');
@@ -906,6 +1178,7 @@ export class ActivationController {
         throw new Error('authenticated receipt attempt differs from reserved attempt');
       }
       if (receipt.kind === 'audit') {
+        if (review === null) throw new Error('trusted review source evidence absent');
         // Proof: omission let another registered review's invocation complete this obligation.
         if (receipt.reviewId !== obligation.review_id) {
           throw new Error('authenticated receipt review differs from frozen pair');
@@ -923,7 +1196,9 @@ export class ActivationController {
           throw new Error('authenticated receipt invocation differs from registration');
         }
       }
-      const authenticationBytes = serializeCanonical(receipt);
+      const authenticationBytes = serializeCanonical(
+        receipt.kind === 'audit' ? { receipt, review } : receipt,
+      );
       const existing: unknown = this.#database
         .query(
           'SELECT * FROM activation_attempt WHERE request_identity = ? AND obligation_identity = ? AND attempt = ?',
@@ -1055,15 +1330,6 @@ export class ActivationController {
         // marked passed and let the later audit verify without this retained-evidence join.
         if (rawAttempt === null) throw new Error('selected receipt evidence absent');
         const saved = parseOrThrow(StoredAttempt, rawAttempt);
-        let authenticated: AuthenticatedReceipt;
-        try {
-          authenticated = parseOrThrow(
-            AuthenticatedReceipt,
-            JSON.parse(saved.authentication_bytes),
-          );
-        } catch (cause) {
-          throw new Error('selected receipt evidence malformed', { cause });
-        }
         let registeredInvocation: string | null = null;
         if (entry.kind === 'audit') {
           const registration: unknown = this.#database
@@ -1075,6 +1341,49 @@ export class ActivationController {
           // selected review invocation registration was deleted.
           if (registration === null) throw new Error('selected review invocation absent');
           registeredInvocation = parseOrThrow(StoredReviewAttempt, registration).invocation_id;
+        }
+        let authenticated: AuthenticatedReceipt;
+        try {
+          const retained: unknown = JSON.parse(saved.authentication_bytes);
+          if (entry.kind === 'audit') {
+            const envelope = parseOrThrow(
+              type({
+                receipt: AuthenticatedReceipt,
+                review: ReviewVerificationRecord,
+              }).onUndeclaredKey('reject'),
+              retained,
+            );
+            authenticated = envelope.receipt;
+            if (
+              authenticated.kind !== 'audit' ||
+              entry.review_id === null ||
+              entry.phase === null
+            ) {
+              throw new Error('selected review evidence malformed');
+            }
+            authenticatedReview(
+              {
+                exactSubmissionBytes: saved.receipt_bytes,
+                expected: {
+                  requestIdentity: request.requestIdentity,
+                  reviewId: entry.review_id,
+                  obligationIdentity: entry.obligation_identity,
+                  attempt: entry.attempt,
+                  phase: entry.phase,
+                  invocationId: registeredInvocation ?? '',
+                  executorId: entry.executor_id,
+                  protocolIdentity: entry.protocol_identity,
+                  promptIdentity: configuration.reviewer.promptIdentity,
+                  journalIssuerId: configuration.journal.issuerId,
+                },
+              },
+              envelope.review,
+            );
+          } else {
+            authenticated = parseOrThrow(AuthenticatedReceipt, retained);
+          }
+        } catch (cause) {
+          throw new Error('selected receipt evidence malformed', { cause });
         }
         // Proof: independently omitting the retained review or invocation comparison
         // let schema-valid foreign cold authentication verify; omitting the registration
@@ -1088,7 +1397,8 @@ export class ActivationController {
           saved.attempt !== entry.attempt ||
           saved.status !== 'passed' ||
           hashBytes(saved.receipt_bytes) !== saved.receipt_identity ||
-          serializeCanonical(authenticated) !== saved.authentication_bytes ||
+          (entry.kind === 'check' &&
+            serializeCanonical(authenticated) !== saved.authentication_bytes) ||
           authenticated.receiptIdentity !== saved.receipt_identity ||
           authenticated.issuerId !== configuration.journal.issuerId ||
           authenticated.requestIdentity !== request.requestIdentity ||
