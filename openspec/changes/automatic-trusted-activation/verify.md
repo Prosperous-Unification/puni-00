@@ -2112,3 +2112,61 @@ passed 143/143 (125 changes, 18 specs). Explicit four-path Prettier and `git dif
 passed. Read-only link/anchor inspection found five resolving local links and unchanged
 301-word intent. Runtime tests, omission trials, unit rendering/systemd acceptance, full Nx,
 host gate and CI were not run for this planning amendment.
+
+### Local task 1.2e protected observation state and process lock
+
+The local 1.2e implementation adds explicit new-store initialization, an additive v8→v9
+scheduler migration, an established-state open that refuses absent or malformed stores, and
+one stable host-local `flock` inode covering initialization, migration and attempted work.
+The scheduled path reserves its attempt transactionally before caller work. The version-nine
+controller reopens that database without resetting the scheduler row. The mounted
+two-process fixture holds a first process through async work, observes a second return
+`busy` without executing its callback, kills the first process, then reopens on the same
+lock inode with the next durable attempt sequence. A mounted cleanup fault preserves both
+the work failure and database-close failure.
+
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/observation-state.db.test.ts`
+passed **14/14**, 66 assertions on current pre-format implementation bytes. The first
+production-stub run was RED; a missing-module RED was disqualified. Each watched RED and
+restored GREEN transcript includes its exact `bun test ... -t '<name>'` command and exit at
+`/tmp/activation-observation-state-<fault>-{red,green}.log`.
+
+| Fault                 | RED/GREEN exits | Observed changed assertion or boundary                                                                                    |
+| --------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `lock_acquire`        | 1/0             | Second real process entered during held work.                                                                             |
+| `lock_inode_replaced` | 1/0             | Removing the stable inode let another process enter.                                                                      |
+| `lock_early_release`  | 1/0             | Closing before awaited work let the probe own and call work.                                                              |
+| `errno`               | 1/0             | Treating contention as unmodeled error made probe exit 1 instead of explicit busy/exit 0; diagnostic specificity only.    |
+| `state_absent`        | 1/0             | Normal scheduled invocation created a database despite refusal.                                                           |
+| `init_exclusion`      | 1/0             | Changed named already-exists refusal to `EEXIST`; no-replace link still prevented overwrite; diagnostic specificity only. |
+| `bootstrap_pin`       | 1/0             | Wrong pinned bytes initialized state.                                                                                     |
+| `path_mode`           | 1/0             | Mode-0755 protected path initialized.                                                                                     |
+| `schema_tables`       | 1/0             | Scheduled callback ran after activation delivery table removal.                                                           |
+| `binding`             | 1/0             | Wrong repository/policy binding consumed an attempt.                                                                      |
+| `attempt_budget`      | 1/0             | Third persisted attempt began past the limit.                                                                             |
+| `attempt_persist`     | 1/0             | Post-crash attempt reused sequence one.                                                                                   |
+| `migration_foreign`   | 1/0             | Foreign repository history migrated.                                                                                      |
+| `migration_split`     | 1/0             | Late failure left v9 schema instead of full v8 rollback.                                                                  |
+| `cleanup`             | 1/0             | Close fault replaced original observation fault instead of aggregating both.                                              |
+
+The first early-release mutation failed during fixture initialization with `EBADF` and was
+disqualified. The corrected real-process fixture seeds an established v9 store before
+mutating early close; its RED reaches the second-process ownership assertion. Source was
+restored after every fault; the historical pre-comment restore digest was
+`a91158311a4331bdbe110220add9211e2f3a8015a14629f1c39a50577971ae07`.
+The errno/cleanup restore digests are in their transcripts. Those historical digests do not
+claim to be the final formatted source hash.
+
+This is local storage and ownership evidence only. Task 1.2f finite tick, cancellation and
+settle-before-close; 1.2g retry timing; installed systemd, h2puni gate, CI, live GitHub,
+worker isolation and production bootstrap provisioning remain unverified here.
+
+Final local-byte validation for this bounded checkpoint: explicit seven-file activation
+controller suite **521/521**, 2,187 assertions; uncached Nx
+`twilight-burokrat:lint:source`, `typecheck` and `build` each printed
+`Successfully ran target` with exit 0. Changed-path Prettier check and
+`git diff --check` passed. The initial `bun test <directory>` trial accidentally
+collected generated `dist/out-tsc` JavaScript and failed module resolution; it was
+disqualified. The corrected explicit source-file invocation above is the accepted suite.
+Strict/all OpenSpec, normal commit hooks and host gate are recorded separately after
+their final run; no runtime scheduler or host gate claim follows from these local checks.

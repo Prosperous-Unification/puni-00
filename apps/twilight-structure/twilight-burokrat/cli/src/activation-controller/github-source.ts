@@ -18,6 +18,14 @@ const RepositoryBinding = type({
 }).onUndeclaredKey('reject');
 export type GitHubRepositoryBinding = typeof RepositoryBinding.infer;
 
+/** Validates the independently configured repository tuple without a provider read. */
+export function validateGitHubRepositoryBinding(rawBinding: unknown): GitHubRepositoryBinding {
+  const binding = parseOrThrow(RepositoryBinding, rawBinding);
+  // Proof: omitting the cap accepted a 60,001 ms trusted read deadline in the mounted fixture.
+  if (binding.readDeadlineMs > 60_000) throw new Error('GitHub PR read deadline exceeds limit');
+  return binding;
+}
+
 // Proof: independently broadening head.sha or base.sha to string moved malformed provider
 // bytes past this source boundary into the later request parser in the mounted tests.
 const Pull = type({
@@ -138,9 +146,7 @@ export function createGitHubPullRequestSource(
   rawBinding: GitHubRepositoryBinding,
   reader: GitHubPullRequestReader,
 ): Pick<ActivationControllerOptions, 'readyCandidates' | 'currentCandidate'> {
-  const binding = parseOrThrow(RepositoryBinding, rawBinding);
-  // Proof: omitting the cap accepted a 60,001 ms trusted read deadline in the mounted fixture.
-  if (binding.readDeadlineMs > 60_000) throw new Error('GitHub PR read deadline exceeds limit');
+  const binding = validateGitHubRepositoryBinding(rawBinding);
   return {
     readyCandidates: async () => {
       const candidates: ObservedCandidate[] = [];

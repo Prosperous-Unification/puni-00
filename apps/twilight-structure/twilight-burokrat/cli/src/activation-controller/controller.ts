@@ -1037,7 +1037,8 @@ function initialize(database: Database): void {
     version !== 5 &&
     version !== 6 &&
     version !== 7 &&
-    version !== 8
+    version !== 8 &&
+    version !== 9
   )
     // Proof: accepting old version 1 silently reopened storage without durable subject high-water.
     throw new Error(`unsupported activation store schema ${String(version)}`);
