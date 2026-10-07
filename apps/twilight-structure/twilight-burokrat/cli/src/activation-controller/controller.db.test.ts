@@ -1906,6 +1906,48 @@ function reservedDispatchFixture(
   };
 }
 
+function historicalRegistry(source: ReturnType<typeof dispatchFixture>) {
+  const path = `${source.bootstrapPath}.history`;
+  const bytes = serializeCanonical({
+    schemaVersion: 1,
+    authorities: [{ bootstrapPath: source.bootstrapPath, pin: source.pin }],
+  });
+  writeFileSync(path, bytes);
+  return { path, digest: hashBytes(bytes) };
+}
+
+async function initiatedOrphanFixture(stage: 'failed' | 'superseded') {
+  const fixture = reservedDispatchFixture();
+  const sent = await fixture.controller.recoverReviewDispatch(
+    fixture.lease,
+    fixture.reservation.effectKey,
+    {
+      query: () => Promise.resolve({ kind: 'absent' as const }),
+      send: () => Promise.resolve({ kind: 'uncertain' as const }),
+    },
+  );
+  expect(sent.dispatchAttempts).toBe(1);
+  const replacement =
+    stage === 'superseded'
+      ? fixture.controller.observe({ ...fixture.source.candidate, headSha: '9'.repeat(40) })
+      : undefined;
+  if (stage === 'failed') {
+    fixture.database
+      .query("UPDATE activation_request SET stage = 'failed' WHERE request_identity = ?")
+      .run(fixture.request.requestIdentity);
+  }
+  fixture.controller.close();
+  const registry = historicalRegistry(fixture.source);
+  const reopened = openActivationController({
+    ...fixture.source,
+    historicalAuthorityRegistry: registry,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'closed' as const }),
+  });
+  return { ...fixture, replacement, registry, reopened };
+}
+
 function dispatchState(database: Database) {
   return {
     requests: database.query('SELECT * FROM activation_request ORDER BY request_identity').all(),
@@ -2029,6 +2071,553 @@ test('reopened recovery reconciles an accepted send without a blind resend', asy
     fixture.close();
   }
 });
+
+test('reopened orphan query retains a superseded effect without reviving its request', async () => {
+  const fixture = await initiatedOrphanFixture('superseded');
+  try {
+    try {
+      const replacement = fixture.replacement;
+      if (replacement === undefined) throw new Error('superseded fixture replacement absent');
+      const before = fixture.reopened.readRequest(replacement.requestIdentity);
+      const beforeGraph = dispatchState(fixture.database);
+      const calls: string[] = [];
+      const port = {
+        query: () => {
+          calls.push('query');
+          return Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed });
+        },
+        send: () => {
+          calls.push('send');
+          return Promise.resolve({ kind: 'uncertain' as const });
+        },
+      };
+      const retained = await fixture.reopened.reconcileOrphanReviewDispatch(
+        fixture.reservation.effectKey,
+        port,
+      );
+      expect(calls).toEqual(['query']);
+      expect(retained.kind).toBe('retained');
+      expect(fixture.reopened.readRequest(fixture.request.requestIdentity)?.stage).toBe(
+        'superseded',
+      );
+      expect(fixture.reopened.readRequest(replacement.requestIdentity)).toEqual(before);
+      const afterGraph = dispatchState(fixture.database);
+      expect(afterGraph.requests).toEqual(beforeGraph.requests);
+      expect(afterGraph.obligations).toEqual(beforeGraph.obligations);
+      expect(afterGraph.registrations).toEqual(beforeGraph.registrations);
+      expect(afterGraph.reservations).toEqual(beforeGraph.reservations);
+      expect(afterGraph.progress).toEqual(beforeGraph.progress);
+      expect(
+        fixture.database.query('SELECT * FROM activation_review_dispatch_fact').all(),
+      ).toHaveLength(1);
+      expect(
+        fixture.database.query('SELECT state FROM activation_review_dispatch_progress').get(),
+      ).toEqual({ state: 'uncertain' });
+    } finally {
+      fixture.reopened.close();
+    }
+  } finally {
+    fixture.close();
+  }
+});
+
+test('reopened failed request retains only an authenticated remote fact', async () => {
+  const fixture = await initiatedOrphanFixture('failed');
+  try {
+    const before = dispatchState(fixture.database);
+    const retained = await fixture.reopened.reconcileOrphanReviewDispatch(
+      fixture.reservation.effectKey,
+      { query: () => Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed }) },
+    );
+    expect(retained.kind).toBe('retained');
+    const after = dispatchState(fixture.database);
+    expect(after.requests).toEqual(before.requests);
+    expect(after.obligations).toEqual(before.obligations);
+    expect(after.registrations).toEqual(before.registrations);
+    expect(after.reservations).toEqual(before.reservations);
+    expect(after.progress).toEqual(before.progress);
+    expect(after.facts).toHaveLength(1);
+    expect(fixture.reopened.readRequest(fixture.request.requestIdentity)?.stage).toBe('failed');
+  } finally {
+    fixture.reopened.close();
+    fixture.close();
+  }
+});
+
+test.each(['absent', 'unavailable'] as const)(
+  'orphan remote %s leaves all durable rows unchanged',
+  async (kind) => {
+    const fixture = await initiatedOrphanFixture('superseded');
+    try {
+      const before = dispatchState(fixture.database);
+      const observed = await fixture.reopened.reconcileOrphanReviewDispatch(
+        fixture.reservation.effectKey,
+        { query: () => Promise.resolve({ kind }) },
+      );
+      expect(observed.kind).toBe(kind);
+      expect(dispatchState(fixture.database)).toEqual(before);
+    } finally {
+      fixture.reopened.close();
+      fixture.close();
+    }
+  },
+);
+
+test('orphan query refuses a reserved effect that was never sent', async () => {
+  const fixture = reservedDispatchFixture();
+  const registry = historicalRegistry(fixture.source);
+  fixture.controller.observe({ ...fixture.source.candidate, headSha: '9'.repeat(40) });
+  const reopened = openActivationController({
+    ...fixture.source,
+    historicalAuthorityRegistry: registry,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'closed' as const }),
+  });
+  try {
+    let queries = 0;
+    const before = dispatchState(fixture.database);
+    await rejectedWith(
+      reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+        query: () => {
+          queries += 1;
+          return Promise.resolve({ kind: 'absent' as const });
+        },
+      }),
+      'review dispatch was never initiated',
+    );
+    expect(queries).toBe(0);
+    expect(dispatchState(fixture.database)).toEqual(before);
+  } finally {
+    reopened.close();
+    fixture.close();
+  }
+});
+
+test.each(['unconfigured', 'absent', 'unreadable', 'malformed', 'unpinned', 'unlisted'] as const)(
+  'orphan query refuses %s independently pinned historical authority before provider work',
+  async (damage) => {
+    const fixture = await initiatedOrphanFixture('superseded');
+    let controller = fixture.reopened;
+    try {
+      if (damage === 'unconfigured') {
+        controller = boundaryController(fixture.source, () => 1000);
+      } else if (damage === 'absent') {
+        rmSync(fixture.registry.path);
+      } else if (damage === 'unreadable') {
+        controller = openActivationController({
+          ...fixture.source,
+          historicalAuthorityRegistry: {
+            path: fixture.source.databasePath.replace('controller.sqlite', ''),
+            digest: fixture.registry.digest,
+          },
+          clock: () => 1000,
+          readyCandidates: () => Promise.resolve([]),
+          currentCandidate: () => Promise.resolve({ kind: 'closed' as const }),
+        });
+      } else if (damage === 'malformed') {
+        writeFileSync(fixture.registry.path, '{');
+      } else if (damage === 'unpinned') {
+        writeFileSync(
+          fixture.registry.path,
+          serializeCanonical({
+            schemaVersion: 1,
+            authorities: [
+              { bootstrapPath: fixture.source.bootstrapPath, pin: fixture.source.pin },
+              {
+                bootstrapPath: fixture.source.bootstrapPath,
+                pin: { ...fixture.source.pin, identity: 'f'.repeat(64) },
+              },
+            ],
+          }),
+        );
+      } else {
+        const bytes = serializeCanonical({ schemaVersion: 1, authorities: [] });
+        writeFileSync(fixture.registry.path, bytes);
+        controller = openActivationController({
+          ...fixture.source,
+          historicalAuthorityRegistry: { path: fixture.registry.path, digest: hashBytes(bytes) },
+          clock: () => 1000,
+          readyCandidates: () => Promise.resolve([]),
+          currentCandidate: () => Promise.resolve({ kind: 'closed' as const }),
+        });
+      }
+      let queries = 0;
+      const before = dispatchState(fixture.database);
+      await rejectedWith(
+        controller.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+          query: () => {
+            queries += 1;
+            return Promise.resolve({ kind: 'absent' as const });
+          },
+        }),
+        damage === 'unconfigured'
+          ? 'historical authority absent'
+          : damage === 'absent'
+            ? 'registry absent'
+            : damage === 'unreadable'
+              ? 'registry unreadable'
+              : damage === 'malformed' || damage === 'unpinned'
+                ? 'registry malformed'
+                : 'historical authority unavailable',
+      );
+      expect(queries).toBe(0);
+      expect(dispatchState(fixture.database)).toEqual(before);
+    } finally {
+      controller.close();
+      if (controller !== fixture.reopened) fixture.reopened.close();
+      fixture.close();
+    }
+  },
+);
+
+test('orphan query never substitutes a changed current bootstrap for its historical pin', async () => {
+  const fixture = await initiatedOrphanFixture('superseded');
+  try {
+    const original = readFileSync(fixture.source.bootstrapPath, 'utf8');
+    writeFileSync(
+      fixture.source.bootstrapPath,
+      original.replace('review.provider', 'review.changed'),
+    );
+    const before = dispatchState(fixture.database);
+    let queries = 0;
+    await rejectedWith(
+      fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+        query: () => {
+          queries += 1;
+          return Promise.resolve({ kind: 'absent' as const });
+        },
+      }),
+      'bootstrap configuration differs from independent pin',
+    );
+    expect(queries).toBe(0);
+    expect(dispatchState(fixture.database)).toEqual(before);
+  } finally {
+    fixture.reopened.close();
+    fixture.close();
+  }
+});
+
+test('orphan query uses retained original authority after current bootstrap rotates', async () => {
+  const fixture = await initiatedOrphanFixture('superseded');
+  const nextPath = `${fixture.source.bootstrapPath}.next`;
+  const nextBytes = readFileSync(fixture.source.bootstrapPath, 'utf8').replace(
+    'review.provider',
+    'review.next',
+  );
+  writeFileSync(nextPath, nextBytes);
+  const current = openActivationController({
+    ...fixture.source,
+    bootstrapPath: nextPath,
+    pin: { ...fixture.source.pin, identity: hashBytes(nextBytes) },
+    historicalAuthorityRegistry: fixture.registry,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'closed' as const }),
+  });
+  try {
+    const retained = await current.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+      query: (reservation) => {
+        expect(reservation.target.providerId).toBe('review.provider');
+        return Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed });
+      },
+    });
+    expect(retained.kind).toBe('retained');
+    expect(
+      fixture.database.query('SELECT * FROM activation_review_dispatch_fact').all(),
+    ).toHaveLength(1);
+  } finally {
+    current.close();
+    fixture.reopened.close();
+    fixture.close();
+  }
+});
+
+test('orphan query refuses nonterminal request even after a prior send attempt', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    await fixture.controller.recoverReviewDispatch(fixture.lease, fixture.reservation.effectKey, {
+      query: () => Promise.resolve({ kind: 'absent' as const }),
+      send: () => Promise.resolve({ kind: 'uncertain' as const }),
+    });
+    const registry = historicalRegistry(fixture.source);
+    const reopened = openActivationController({
+      ...fixture.source,
+      historicalAuthorityRegistry: registry,
+      clock: () => 1000,
+      readyCandidates: () => Promise.resolve([]),
+      currentCandidate: () => Promise.resolve({ kind: 'closed' as const }),
+    });
+    try {
+      let queries = 0;
+      const before = dispatchState(fixture.database);
+      await rejectedWith(
+        reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+          query: () => {
+            queries += 1;
+            return Promise.resolve({ kind: 'absent' as const });
+          },
+        }),
+        'review dispatch request is not terminal',
+      );
+      expect(queries).toBe(0);
+      expect(dispatchState(fixture.database)).toEqual(before);
+    } finally {
+      reopened.close();
+    }
+  } finally {
+    fixture.close();
+  }
+});
+
+test('orphan query rejects malformed provider output without changing rows', async () => {
+  const fixture = await initiatedOrphanFixture('superseded');
+  try {
+    const before = dispatchState(fixture.database);
+    await rejectedWith(
+      fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+        query: () => Promise.resolve({ kind: 'unknown' } as never),
+      }),
+      'Validation failed',
+    );
+    expect(dispatchState(fixture.database)).toEqual(before);
+  } finally {
+    fixture.reopened.close();
+    fixture.close();
+  }
+});
+
+test.each(['effect', 'request', 'target', 'payload', 'invocation'] as const)(
+  'orphan query rejects foreign %s remote fact without writes',
+  async (changed) => {
+    const fixture = await initiatedOrphanFixture('superseded');
+    try {
+      const observed =
+        changed === 'effect'
+          ? { ...fixture.observed, effectKey: 'f'.repeat(64) }
+          : changed === 'request'
+            ? { ...fixture.observed, requestIdentity: 'f'.repeat(64) }
+            : changed === 'target'
+              ? {
+                  ...fixture.observed,
+                  target: { ...fixture.observed.target, providerId: 'foreign' },
+                }
+              : changed === 'payload'
+                ? { ...fixture.observed, payloadDigest: 'f'.repeat(64) }
+                : { ...fixture.observed, invocationId: 'foreign' };
+      const before = dispatchState(fixture.database);
+      await rejectedWith(
+        fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+          query: () => Promise.resolve({ kind: 'accepted' as const, observed }),
+        }),
+        'review dispatch remote fact differs from reservation',
+      );
+      expect(dispatchState(fixture.database)).toEqual(before);
+    } finally {
+      fixture.reopened.close();
+      fixture.close();
+    }
+  },
+);
+
+test('orphan accepted fact replays and concurrent queries converge without acknowledgement', async () => {
+  const fixture = await initiatedOrphanFixture('superseded');
+  try {
+    let firstReady:
+      ((value: { kind: 'accepted'; observed: typeof fixture.observed }) => void) | undefined;
+    let secondReady:
+      ((value: { kind: 'accepted'; observed: typeof fixture.observed }) => void) | undefined;
+    const firstReply = new Promise<{ kind: 'accepted'; observed: typeof fixture.observed }>(
+      (resolve) => {
+        firstReady = resolve;
+      },
+    );
+    const secondReply = new Promise<{ kind: 'accepted'; observed: typeof fixture.observed }>(
+      (resolve) => {
+        secondReady = resolve;
+      },
+    );
+    const first = fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+      query: () => firstReply,
+    });
+    const second = fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+      query: () => secondReply,
+    });
+    firstReady?.({ kind: 'accepted', observed: fixture.observed });
+    secondReady?.({ kind: 'accepted', observed: fixture.observed });
+    const settled = await Promise.all([first, second]);
+    expect(settled.map((entry) => entry.kind)).toEqual(['retained', 'retained']);
+    expect(
+      fixture.database.query('SELECT * FROM activation_review_dispatch_fact').all(),
+    ).toHaveLength(1);
+    const after = dispatchState(fixture.database);
+    expect(
+      (
+        await fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+          query: () => Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed }),
+        })
+      ).kind,
+    ).toBe('retained');
+    expect(dispatchState(fixture.database)).toEqual(after);
+    await rejectedWith(
+      fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+        query: () =>
+          Promise.resolve({
+            kind: 'accepted' as const,
+            observed: { ...fixture.observed, remoteDispatchId: 'remote.conflicting' },
+          }),
+      }),
+      'review dispatch remote fact conflicts',
+    );
+    expect(dispatchState(fixture.database)).toEqual(after);
+    expect(after.progress).toMatchObject([{ state: 'uncertain', dispatch_attempts: 1 }]);
+  } finally {
+    fixture.reopened.close();
+    fixture.close();
+  }
+});
+
+test('orphan fact insert failure rolls back without changing terminal request or progress', async () => {
+  const fixture = await initiatedOrphanFixture('failed');
+  try {
+    fixture.database
+      .run(`CREATE TRIGGER reject_orphan_fact BEFORE INSERT ON activation_review_dispatch_fact
+      BEGIN SELECT RAISE(ABORT, 'modeled orphan fact failure'); END`);
+    const before = dispatchState(fixture.database);
+    await rejectedWith(
+      fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+        query: () => Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed }),
+      }),
+      'modeled orphan fact failure',
+    );
+    expect(dispatchState(fixture.database)).toEqual(before);
+  } finally {
+    fixture.reopened.close();
+    fixture.close();
+  }
+});
+
+test('held orphan query rechecks historical authority before retaining the remote fact', async () => {
+  const fixture = await initiatedOrphanFixture('superseded');
+  try {
+    let release:
+      ((answer: { kind: 'accepted'; observed: typeof fixture.observed }) => void) | undefined;
+    let queried: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      queried = resolve;
+    });
+    const answer = new Promise<{ kind: 'accepted'; observed: typeof fixture.observed }>(
+      (resolve) => {
+        release = resolve;
+      },
+    );
+    const pending = fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+      query: () => {
+        queried?.();
+        return answer;
+      },
+    });
+    await started;
+    writeFileSync(fixture.registry.path, serializeCanonical({ schemaVersion: 1, authorities: [] }));
+    const before = dispatchState(fixture.database);
+    release?.({ kind: 'accepted', observed: fixture.observed });
+    await rejectedWith(pending, 'review dispatch historical authority registry malformed');
+    expect(dispatchState(fixture.database)).toEqual(before);
+  } finally {
+    fixture.reopened.close();
+    fixture.close();
+  }
+});
+
+test('orphan query refuses a disappearing retained fact without reporting success', async () => {
+  const fixture = await initiatedOrphanFixture('failed');
+  try {
+    fixture.database
+      .run(`CREATE TRIGGER lose_orphan_fact AFTER INSERT ON activation_review_dispatch_fact
+      BEGIN DELETE FROM activation_review_dispatch_fact WHERE effect_key = NEW.effect_key; END`);
+    const before = dispatchState(fixture.database);
+    await rejectedWith(
+      fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+        query: () => Promise.resolve({ kind: 'accepted' as const, observed: fixture.observed }),
+      }),
+      'review dispatch remote fact absent',
+    );
+    expect(dispatchState(fixture.database)).toEqual(before);
+  } finally {
+    fixture.reopened.close();
+    fixture.close();
+  }
+});
+
+test.each([
+  ['authority', 'review dispatch original authority changed'],
+  ['plan', 'review dispatch original plan changed'],
+  ['registration', 'review dispatch original invocation changed'],
+  ['cold attempt', 'review dispatch original pair changed'],
+  ['informed attempt', 'review dispatch original pair changed'],
+  ['target', 'review dispatch original reservation changed'],
+  ['payload', 'review dispatch original reservation changed'],
+] as const)(
+  'orphan query refuses changed original %s before provider work',
+  async (damage, message) => {
+    const fixture = await initiatedOrphanFixture('superseded');
+    try {
+      if (damage === 'authority') {
+        fixture.database
+          .query('UPDATE activation_request SET bootstrap_identity = ? WHERE request_identity = ?')
+          .run('f'.repeat(64), fixture.request.requestIdentity);
+      } else if (damage === 'plan') {
+        fixture.database
+          .query(
+            'UPDATE activation_obligation SET command_identity = ? WHERE obligation_identity = ?',
+          )
+          .run('f'.repeat(64), 'a'.repeat(64));
+      } else if (damage === 'registration') {
+        fixture.database
+          .query('UPDATE activation_review_attempt SET invocation_id = ?')
+          .run('invocation.changed');
+      } else if (damage === 'cold attempt' || damage === 'informed attempt') {
+        fixture.database
+          .query(
+            'UPDATE activation_obligation SET attempt = attempt + 1 WHERE obligation_identity = ?',
+          )
+          .run(damage === 'cold attempt' ? 'd'.repeat(64) : 'f'.repeat(64));
+      } else if (damage === 'target') {
+        fixture.database.query('UPDATE activation_review_dispatch SET target_bytes = ?').run(
+          serializeCanonical({
+            kind: 'reviewer',
+            providerId: 'review.other',
+            executorId: 'review.executor',
+          }),
+        );
+      } else {
+        const changed = serializeCanonical({
+          ...JSON.parse(fixture.reservation.payloadBytes),
+          request: { ...fixture.request, headSha: '8'.repeat(40) },
+        });
+        fixture.database
+          .query('UPDATE activation_review_dispatch SET payload_bytes = ?, payload_digest = ?')
+          .run(changed, hashBytes(changed));
+      }
+      let queries = 0;
+      const before = dispatchState(fixture.database);
+      await rejectedWith(
+        fixture.reopened.reconcileOrphanReviewDispatch(fixture.reservation.effectKey, {
+          query: () => {
+            queries += 1;
+            return Promise.resolve({ kind: 'absent' as const });
+          },
+        }),
+        message,
+      );
+      expect(queries).toBe(0);
+      expect(dispatchState(fixture.database)).toEqual(before);
+    } finally {
+      fixture.reopened.close();
+      fixture.close();
+    }
+  },
+);
 
 test.each(['effect', 'request', 'target', 'payload', 'invocation'] as const)(
   'foreign remote fact %s cannot acknowledge the reserved dispatch',

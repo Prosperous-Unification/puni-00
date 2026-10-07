@@ -1002,3 +1002,70 @@ OpenSpec strict passed 1/1 and all passed 143/143 with zero failures
 Prettier and `git diff --check` passed. Normal-hook result is recorded with
 the local commit. CI, host gate, live provider, and trusted activation remain
 unrun.
+
+### Query-only orphan review-effect reconciliation (2026-10-07)
+
+This local 1.2/3.3 slice adds `reconcileOrphanReviewDispatch` for effects whose
+request is already failed or superseded. Its port has only `query`; it cannot
+renew a lease or send. The controller reads a canonical historical-authority
+registry whose file digest is independently pinned in controller options,
+selects exactly the reservation's original authority, and verifies that
+authority's original bootstrap bytes. Missing, unreadable, malformed,
+unpinned, or unlisted history refuses before the provider call. There is no
+fallback to the current bootstrap. The mounted authority-rotation case keeps
+the original pinned bootstrap in history while the current deployment pin
+changes; the query still receives the original reviewer target.
+
+The first mounted test failed at the absent public method, 0/1
+(`/tmp/activation-orphan-first-red.log`), and passed 1/1, 7 assertions after
+implementation (`/tmp/activation-orphan-first-green2.log`). The installed
+path first reserves and initiates an effect through the existing fake recovery
+owner, then fails or supersedes its request and reopens the controller. An
+accepted query retains exactly one remote fact. Full request (including lease
+fields), obligation, registration, reservation, and progress rows remain
+equal; the superseding request stays unchanged. Authenticated absence and
+unavailability leave all rows unchanged. An effect with zero prior sends and
+no fact refuses before query. Malformed output and foreign effect, request,
+target, payload, or invocation refuse; two concurrent identical queries and
+replay converge on one fact, while conflicting bytes refuse. A modeled INSERT
+failure and a trigger that removes the inserted fact both roll back/report
+failure. A held query rechecks historical authority after its await.
+
+Each accepted watched fault below removed only the named condition or injected
+the prohibited action into the controller path. Each RED failed its named
+mounted test and the exact source bytes were restored before the matching
+GREEN (`/tmp/activation-orphan-r5-<fault>-{red,green}.log`):
+
+| Fault                                                                                             | Observed RED                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `history_fallback`, `history_absent`, `history_unreadable`, `history_malformed`, `history_digest` | Fallback queried with current bootstrap; digest omission queried with unpinned registry bytes. The absent, unreadable and malformed omissions changed the precise trusted-state refusal without granting query authority. |
+| `terminal_stage`, `never_initiated`                                                               | A nonterminal request or never-sent reservation reached query.                                                                                                                                                            |
+| `original_authority`, `original_plan`, `original_registration`                                    | Changed original authority, frozen check command, or registered invocation reached query.                                                                                                                                 |
+| `cold_attempt`, `informed_attempt`                                                                | Independently changed persisted phase attempts reached query under the old reservation.                                                                                                                                   |
+| `original_target`, `original_payload`                                                             | Changed reviewer target or coherently changed payload/digest reached query.                                                                                                                                               |
+| `no_send`, `no_revival`                                                                           | An injected send appeared in the mounted call log, or the old superseded request changed back to evaluating.                                                                                                              |
+| `post_await_history`, `retained_absent`                                                           | A changed history after held query allowed fact retention, or disappearing fact was reported as retained.                                                                                                                 |
+
+Two trial omissions of the shared foreign-fact effect/request checks stayed
+GREEN: the later retained-fact revalidation rejected those bytes and the outer
+transaction rolled back. They are disqualified, not counted as accepted
+orphan proofs. Earlier current-evaluating recovery has separate accepted
+retention-boundary faults; the orphan foreign-fact tests independently verify
+the final no-write outcome. The accepted orphan total is 18 watched
+RED/restored GREEN pairs. The fake query port establishes only local
+controller behavior; no live provider, authenticated historical registry
+issuer, external dispatch capability, host gate, CI, or trusted activation is
+claimed. Tasks 1.2 and 3.3 remain open.
+
+The four-file Bun command above passed 227/227 tests, 930 assertions, exit 0
+on the final formatted source/test bytes
+(`/tmp/activation-orphan-final-four2.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck`, and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-orphan-final-{lint2,type,build}.log`). The first Nx lint
+run failed on an unnecessary condition and a void-expression callback; these
+were corrected and its failed output is excluded. Pinned OpenSpec strict
+passed 1/1 and all passed 143/143, zero failures on this ledger
+(`/tmp/activation-orphan-final-{strict3,all3}.json`). Changed-path Prettier
+and `git diff --check` passed. Normal-hook status belongs to the local
+commit. No host gate or CI was run.

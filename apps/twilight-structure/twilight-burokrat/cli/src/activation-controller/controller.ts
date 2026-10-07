@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { parseOrThrow, type } from '@shared/validation';
 import { Database } from 'bun:sqlite';
 
@@ -232,6 +234,30 @@ export interface ReviewDispatchPort {
   >;
 }
 
+export interface ReviewDispatchQueryPort {
+  /** Query only: an orphaned request has no authority to initiate another send. */
+  readonly query: ReviewDispatchPort['query'];
+}
+
+const HistoricalAuthorityRegistry = type({
+  schemaVersion: '1',
+  authorities: type({
+    bootstrapPath: 'string>=1',
+    pin: type({
+      identity: /^[0-9a-f]{64}$/,
+      journalIssuerId: 'string>=1',
+      publisherIssuerId: 'string>=1',
+    }).onUndeclaredKey('reject'),
+  })
+    .onUndeclaredKey('reject')
+    .array(),
+}).onUndeclaredKey('reject');
+
+export interface HistoricalAuthorityRegistryPin {
+  readonly path: string;
+  readonly digest: string;
+}
+
 export interface ReviewDispatchProgress {
   readonly effectKey: string;
   readonly state: 'reserved' | 'dispatching' | 'uncertain' | 'acknowledged' | 'exhausted';
@@ -366,6 +392,8 @@ export interface ActivationControllerOptions {
   readonly databasePath: string;
   readonly bootstrapPath: string;
   readonly pin: TrustedBootstrapPin;
+  /** Independently pinned, retained authority history for query-only orphan reconciliation. */
+  readonly historicalAuthorityRegistry?: HistoricalAuthorityRegistryPin;
   readonly clock: () => number;
   readonly readyCandidates: () => Promise<readonly ObservedCandidate[]>;
   readonly currentCandidate: (
@@ -1607,6 +1635,123 @@ export class ActivationController {
     return { stored, progress, reservation };
   }
 
+  #historicalBootstrapIn(authorityIdentity: string) {
+    const registryPin = this.options.historicalAuthorityRegistry;
+    // Proof: substituting current bootstrap when history was unconfigured let an orphan query proceed.
+    if (registryPin === undefined) throw new Error('review dispatch historical authority absent');
+    if (!/^[0-9a-f]{64}$/.test(registryPin.digest))
+      throw new Error('review dispatch historical authority pin malformed');
+    let bytes: string;
+    try {
+      bytes = readFileSync(registryPin.path, 'utf8');
+    } catch (cause) {
+      // Proof: omitting the absent classification changed the mounted refusal to unreadable.
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')
+        throw new Error('review dispatch historical authority registry absent', { cause });
+      // Proof: omitting unreadable classification leaked EISDIR instead of the trusted-state refusal.
+      throw new Error('review dispatch historical authority registry unreadable', { cause });
+    }
+    let registry: typeof HistoricalAuthorityRegistry.infer;
+    try {
+      registry = parseOrThrow(HistoricalAuthorityRegistry, JSON.parse(bytes));
+      // Proof: omitting the digest check treated a canonical but unpinned registry as authoritative.
+      if (serializeCanonical(registry) !== bytes || hashBytes(bytes) !== registryPin.digest)
+        throw new Error('historical authority registry pin differs');
+    } catch (cause) {
+      // Proof: omitting malformed classification leaked a parser error on invalid retained bytes.
+      throw new Error('review dispatch historical authority registry malformed', { cause });
+    }
+    const matches = registry.authorities.filter(
+      (entry) => entry.pin.identity === authorityIdentity,
+    );
+    if (matches.length !== 1) throw new Error('review dispatch historical authority unavailable');
+    const authority = matches[0];
+    return readBootstrapConfiguration(authority.bootstrapPath, authority.pin);
+  }
+
+  #orphanDispatchIn(effectKey: string): DispatchRows {
+    const rows = this.#dispatchRowsIn(effectKey);
+    const request = readRow(this.#database, rows.stored.request_identity);
+    // Proof: omitting the terminal-stage fence let an evaluating request use the query-only path.
+    if (request === undefined || (request.stage !== 'failed' && request.stage !== 'superseded'))
+      throw new Error('review dispatch request is not terminal');
+    const selected = storedRequest(request).request;
+    // Proof: omitting the original row-authority join queried after its bootstrap identity changed.
+    if (
+      selected.authorityIdentity !== rows.stored.authority_identity ||
+      request.bootstrap_identity !== rows.stored.authority_identity
+    )
+      throw new Error('review dispatch original authority changed');
+    const bootstrap = this.#historicalBootstrapIn(rows.stored.authority_identity);
+    const frozenRows: unknown[] = this.#database
+      .query('SELECT * FROM activation_obligation WHERE request_identity = ? ORDER BY rowid')
+      .all(selected.requestIdentity);
+    const obligations = frozenRows.map((entry) => parseOrThrow(StoredObligation, entry));
+    // Proof: omitting persisted-plan reconstruction queried after a check command changed.
+    if (
+      request.evaluation_plan_identity === null ||
+      request.evaluation_plan_identity !== rows.stored.plan_identity ||
+      hashCanonical(reconstructFrozenPlan(selected, obligations)) !== rows.stored.plan_identity
+    )
+      throw new Error('review dispatch original plan changed');
+    const rawRegistration: unknown = this.#database
+      .query(
+        'SELECT * FROM activation_review_attempt WHERE request_identity = ? AND review_id = ? AND attempt = ?',
+      )
+      .get(selected.requestIdentity, rows.stored.review_id, rows.stored.attempt);
+    // Proof: omitting the registration join queried under a changed invocation ID.
+    if (
+      rawRegistration === null ||
+      parseOrThrow(StoredReviewAttempt, rawRegistration).invocation_id !== rows.stored.invocation_id
+    )
+      throw new Error('review dispatch original invocation changed');
+    const phases = obligations.filter(
+      (entry) => entry.kind === 'audit' && entry.review_id === rows.stored.review_id,
+    );
+    const cold = phases.find((phase) => phase.phase === 'cold');
+    const informed = phases.find((phase) => phase.phase === 'informed');
+    // Proof: separate cold/informed attempt omissions each queried a post-reservation attempt.
+    if (
+      phases.length !== 2 ||
+      cold === undefined ||
+      informed === undefined ||
+      cold.attempt !== rows.stored.attempt ||
+      informed.attempt !== rows.stored.attempt ||
+      cold.executor_id !== bootstrap.reviewer.executorId ||
+      informed.executor_id !== bootstrap.reviewer.executorId ||
+      cold.protocol_identity !== bootstrap.reviewer.protocolIdentity ||
+      informed.protocol_identity !== bootstrap.reviewer.protocolIdentity
+    )
+      throw new Error('review dispatch original pair changed');
+    const expected = deriveDispatchIdentity(
+      selected,
+      rows.stored.plan_identity,
+      {
+        reviewId: rows.stored.review_id,
+        attempt: rows.stored.attempt,
+        invocationId: rows.stored.invocation_id,
+      },
+      cold,
+      informed,
+      bootstrap,
+      rows.stored.authority_identity,
+    );
+    // Proof: omitting target or canonical-payload equality independently queried changed bytes.
+    if (
+      rows.stored.effect_key !== expected.effectKey ||
+      rows.stored.target_bytes !== expected.targetBytes ||
+      rows.stored.payload_bytes !== expected.payloadBytes ||
+      rows.stored.cold_obligation_identity !== cold.obligation_identity ||
+      rows.stored.informed_obligation_identity !== informed.obligation_identity
+    )
+      throw new Error('review dispatch original reservation changed');
+    const retained = this.#retainedRemoteDispatchFactIn(rows.stored);
+    // Proof: omitting initiated-effect selection queried a reservation with zero sends and no fact.
+    if (rows.progress.dispatch_attempts === 0 && retained === null)
+      throw new Error('review dispatch was never initiated');
+    return rows;
+  }
+
   #currentDispatchIn(lease: RequestLease, effectKey: string): DispatchRows {
     const rows = this.#dispatchRowsIn(effectKey);
     // Proof: changing only the stored request identity reached send when this join was omitted.
@@ -1787,6 +1932,15 @@ export class ActivationController {
     stored: typeof StoredReviewDispatch.infer,
     observed: ReviewDispatchObservation,
   ): void {
+    transaction(this.#database, () => {
+      this.#retainRemoteDispatchFactIn(stored, observed);
+    });
+  }
+
+  #retainRemoteDispatchFactIn(
+    stored: typeof StoredReviewDispatch.infer,
+    observed: ReviewDispatchObservation,
+  ): void {
     const fact = parseOrThrow(DispatchObservation, observed);
     // Proof: independently omitting effect, request, target, payload or invocation
     // comparison retained the corresponding foreign fact before the later ack refused.
@@ -1799,36 +1953,31 @@ export class ActivationController {
     )
       throw new Error('review dispatch remote fact differs from reservation');
     const bytes = serializeCanonical(fact);
-    transaction(this.#database, () => {
-      const prior: unknown = this.#database
-        .query(
-          'SELECT observation_bytes, observation_digest FROM activation_review_dispatch_fact WHERE effect_key = ?',
-        )
-        .get(stored.effect_key);
-      if (prior !== null) {
-        const retained = parseOrThrow(
-          type({
-            observation_bytes: 'string>=1',
-            observation_digest: /^[0-9a-f]{64}$/,
-          }).onUndeclaredKey('reject'),
-          prior,
-        );
-        // Proof: removing this conflict check accepted changed remote-dispatch bytes and
-        // acknowledged using an earlier retained fact.
-        if (
-          retained.observation_bytes !== bytes ||
-          retained.observation_digest !== hashBytes(bytes)
-        )
-          throw new Error('review dispatch remote fact conflicts');
-        return;
-      }
-      this.#database
-        .query(
-          `INSERT INTO activation_review_dispatch_fact
+    const prior: unknown = this.#database
+      .query(
+        'SELECT observation_bytes, observation_digest FROM activation_review_dispatch_fact WHERE effect_key = ?',
+      )
+      .get(stored.effect_key);
+    if (prior !== null) {
+      const retained = parseOrThrow(
+        type({
+          observation_bytes: 'string>=1',
+          observation_digest: /^[0-9a-f]{64}$/,
+        }).onUndeclaredKey('reject'),
+        prior,
+      );
+      // Proof: removing this conflict check accepted changed remote-dispatch bytes and
+      // acknowledged using an earlier retained fact.
+      if (retained.observation_bytes !== bytes || retained.observation_digest !== hashBytes(bytes))
+        throw new Error('review dispatch remote fact conflicts');
+      return;
+    }
+    this.#database
+      .query(
+        `INSERT INTO activation_review_dispatch_fact
         (effect_key, observation_bytes, observation_digest) VALUES (?, ?, ?)`,
-        )
-        .run(stored.effect_key, bytes, hashBytes(bytes));
-    });
+      )
+      .run(stored.effect_key, bytes, hashBytes(bytes));
   }
 
   #acknowledgeCurrentDispatch(
@@ -1962,6 +2111,36 @@ export class ActivationController {
       return this.#markDispatchUncertain(lease, effectKey, permission.version);
     this.#retainRemoteDispatchFact(intent.stored, sent.observed);
     return this.#acknowledgeCurrentDispatch(lease, effectKey, permission.version);
+  }
+
+  /** Queries a previously initiated terminal request effect without restoring send authority. */
+  async reconcileOrphanReviewDispatch(
+    effectKey: string,
+    port: ReviewDispatchQueryPort,
+  ): Promise<
+    | { readonly kind: 'absent' | 'unavailable' }
+    | { readonly kind: 'retained'; readonly observed: ReviewDispatchObservation }
+  > {
+    if (!/^[0-9a-f]{64}$/.test(effectKey)) throw new Error('review dispatch effect key malformed');
+    const reservation = transaction(
+      this.#database,
+      () => this.#orphanDispatchIn(effectKey).reservation,
+    );
+    // Proof: injecting a send here made the mounted query-only call log query then send.
+    const queried = parseOrThrow(DispatchQuery, await port.query(reservation));
+    if (queried.kind !== 'accepted') return { kind: queried.kind };
+    return transaction(this.#database, () => {
+      // Proof: replacing this post-await validation with a raw row read retained a fact after
+      // the independently pinned history changed while the provider query was held.
+      const rows = this.#orphanDispatchIn(effectKey);
+      this.#retainRemoteDispatchFactIn(rows.stored, queried.observed);
+      const observed = this.#retainedRemoteDispatchFactIn(rows.stored);
+      // Proof: omitting this check reported success after a trigger deleted the inserted fact.
+      if (observed === null) throw new Error('review dispatch remote fact absent');
+      // Proof: injecting a terminal→evaluating write here revived the superseded request;
+      // the mounted full-row snapshot also covers its replacement, lease and obligations.
+      return { kind: 'retained', observed };
+    });
   }
 
   /** Authenticates the persisted obligation kind before committing exact receipt evidence. */
