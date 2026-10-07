@@ -3683,3 +3683,92 @@ this ledger (`/tmp/shared-people-6kb-followup-final-{strict,all}.json`).
 Changed-path Prettier and `git diff --check` passed
 (`/tmp/shared-people-6kb-followup-{format-check,diff-check}.log`). Normal
 commit hooks remain the final local check.
+
+### 6k.c replacement and eviction (local evidence, review pending)
+
+The reviewed 6k.b outcome owner already encloses the complete synchronous
+`storeOptimizedOutcomeIn` mutation, including admitted failed/corrupt
+replacement and `enforceLiveBudgetBound`, before its after-capture. This
+checkpoint adds installed tests and watched faults; it changes no production
+algorithm. The test fixture exercises real `buildServices`, current source
+UoW, SQLite cache, borrowed capture, event log and the actual Retry child.
+The 6k.c task remains open pending independent exact-SHA review and any
+remaining boundary obligations.
+
+Installed Retry replaces an older failed marker and a genuinely malformed
+`ok` payload read as corrupt; the final row is ready `ok`, B receives its
+addressed seq 0, and the failed case's borrowed before/after comparison
+shows A's displayed bookings changed. Excluding `corrupt` from raw replacement
+eligibility retained `{malformed` instead (RED), then restoration passed
+(`/tmp/shared-people-6kc-retry-corrupt-eligibility-{red,restored-green}.log`).
+The first Fast-substitution mutation stayed green against an event-only
+assertion because B's incoming basis also changed; it is disqualified
+(`/tmp/shared-people-6kc-retry-fast-substitution-red.log`). After adding A's
+display projection assertion, the same fault changed `bookingsChanged` from
+true to false for both Retry replacement and selected-budget eviction; each
+restored GREEN (`/tmp/shared-people-6kc-{retry,eviction}-fast-substitution-{red-try2,restored-green}.log`).
+Separately dropping the addressed A cause removed both mounted B rows
+(`/tmp/shared-people-6kc-cause-{omission-red,restored-green}.log`).
+
+The selected-budget witness captures budget 1000, then stores a third same-key
+budget 3000 with all three cache rows tied at `createdAt=3`. The correct
+retained pair is 2000/3000; evicting 1000 changes A's displayed bookings and
+records B seq 0. Omitting `enforceLiveBudgetBound` lost that B event
+(`/tmp/shared-people-6kc-eviction-{omission-red,restored-green}.log`).
+Time, other-contract, other-input and other-project rows at higher budgets
+are counted only in their own dimensions; same-budget mirrors survive the
+target deletion. Independently removing each project/objective/contractVersion/
+inputHash count predicate incorrectly evicted 2000, then each restored GREEN
+(`/tmp/shared-people-6kc-dimension-{project,objective,contract,input}-{red,restored-green}.log`).
+Independently removing each full-key delete predicate erased a foreign mirror,
+while removing the budget predicate erased all target budgets; each restored
+GREEN (`/tmp/shared-people-6kc-delete-{project,objective,contract,input,budget}-{red,restored-green}.log`).
+Changing the live bound from two to three or dropping descending-budget
+tie-break left A's selected display unchanged instead of evicted; both faults
+failed the mounted projection and restored GREEN
+(`/tmp/shared-people-6kc-eviction-{bound,tiebreak}-{red,restored-green}.log`).
+
+Unselected PRI eviction and selected Fast-equivalent eviction leave B silent
+while still storing A's original outcome event and retaining 2000/3000. A
+forced `outgoingChanged=true` invented B seq 0 and failed the no-event
+assertion, then restored GREEN
+(`/tmp/shared-people-6kc-silence-force-fanout-{red,restored-green}.log`).
+An injected second C recipient insert failure during selected eviction
+restored the full `lifecycleTables` snapshot, including cache, slots, outcome
+event and sequencer, with zero push; removing the trigger allowed B/C seq 0.
+Splitting COMMIT after raw outcome/eviction instead left the 3000 failed row
+and A outcome row committed, failing that complete snapshot; restoration
+passed (`/tmp/shared-people-6kc-eviction-split-commit-{red,restored-green}.log`).
+A separate restricted-project Retry by org super-admin Bob commits its
+recovery audit in admission before the real child, then a B insert failure
+rolls back only the later replacement/outcome/fan-out: the older failed
+marker and timestamp remain, A/B logs and sequencer stay empty, the terminal
+slot is released, and the modeled error is reported. Splitting the later
+outcome owner commit overwrote the marker despite that insert failure;
+restoration passed (`/tmp/shared-people-6kc-retry-split-commit-{red,restored-green}.log`).
+An earlier ordinary-actor fixture expected an audit it could not produce and
+is disqualified, not recovery proof.
+
+Final current-byte commands and results for this local checkpoint:
+
+```sh
+bun test apps/wbs/be-01/src/services.db.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts --timeout=30000
+bun test apps/wbs/be-01/src/module/optimization/module.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/service/optimization-events.db.test.ts apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-restart.db.test.ts apps/wbs/be-01/src/service/optimization-spawn-handshake.proc.db.test.ts libs/wbs/application/core/src/compose.test.ts --timeout=30000
+NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6kc-nx bunx nx run wbs-be-01:lint --skip-nx-cache
+NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6kc-nx bunx nx run wbs-be-01:typecheck --skip-nx-cache
+NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6kc-nx bunx nx run wbs-be-01:build --skip-nx-cache
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json
+```
+
+The two-file suite passed 131/131, 849 assertions
+(`/tmp/shared-people-6kc-final-two-file.log`); the nine-file suite passed
+139/139, 19,124 assertions outside the sandbox to permit its real child
+stdin pipe (`/tmp/shared-people-6kc-nine-file-unsandboxed.log`). All three
+declared Nx targets printed explicit success summaries
+(`/tmp/shared-people-6kc-nx-{lint,typecheck,build}.log`). Pinned OpenSpec
+passed strict 1/1 and all 149/149 (`/tmp/shared-people-6kc-{strict,all}.json`);
+changed-path Prettier and `git diff --check` exited 0
+(`/tmp/shared-people-6kc-{format-check,diff-check}.log`). The normal commit
+hooks and independent exact-SHA review remain pending; no host gate, CI,
+push, merge or trusted activation occurred for 6k.c.

@@ -994,6 +994,485 @@ describe('buildServices', () => {
     expect(pushUrls).toHaveLength(1);
   });
 
+  it('records selected-budget eviction after the complete installed outcome mutation', async () => {
+    const { db, path, services, pushUrls, source } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('eviction fixture must not launch')),
+    });
+    seedSharedLifecycle(path);
+    const selected = await seedReadyRetirement(db, services, 3);
+    expect(selected.selectedStart).not.toBe(selected.fastStart);
+    const oldest = db
+      .select()
+      .from(optimizedScheduleCache)
+      .where(sql`project_id = 'A' AND budget_ms = 1000`)
+      .get();
+    if (oldest === undefined) throw new Error('selected budget fixture row absent');
+    db.update(optimizedScheduleCache)
+      .set({ createdAt: 3 })
+      .where(sql`project_id = 'A' AND budget_ms = 1000`)
+      .run();
+    db.insert(optimizedScheduleCache)
+      .values({ ...oldest, budgetMs: 2000, createdAt: 3 })
+      .run();
+    const dimensions = [
+      { ...oldest, objective: 'time' as const, budgetMs: 4000, createdAt: 4 },
+      { ...oldest, contractVersion: 'other-contract', budgetMs: 5000, createdAt: 5 },
+      { ...oldest, inputHash: 'other-input', budgetMs: 6000, createdAt: 6 },
+      { ...oldest, projectId: 'B', budgetMs: 7000, createdAt: 7 },
+      { ...oldest, objective: 'time' as const, createdAt: 0 },
+      { ...oldest, contractVersion: 'other-contract', createdAt: 0 },
+      { ...oldest, inputHash: 'other-input', createdAt: 0 },
+      { ...oldest, projectId: 'B', createdAt: 0 },
+    ];
+    db.insert(optimizedScheduleCache).values(dimensions).run();
+    const bound = source.bindLivePlans({
+      schedulerOf: (readCaptured) =>
+        optimizerWiring(
+          readCaptured === undefined
+            ? undefined
+            : {
+                readCaptured,
+                readLive: () => {
+                  throw new Error('live admission inside eviction capture');
+                },
+              },
+        ).scheduler,
+      optimization: { contractVersion: selected.contractVersion, budgetMs: 1000, now: Date.now },
+    });
+    const captureOrganization = () =>
+      bound.uow.run(async (scope) => {
+        if (scope.fanoutCapture === undefined) throw new Error('eviction capture unavailable');
+        return { commit: false, value: await scope.fanoutCapture.capture('org-a') };
+      });
+    const before = await captureOrganization();
+    const slot = seedLifecycleSlot(db, selected.contractVersion, selected.generation);
+    db.run(sql`UPDATE solver_slot SET budget_ms = 3000 WHERE project_id = 'A'`);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    expect(
+      await installedOutcomeStore(optimizer).storeOutcome({
+        claim: { ...slot, budgetMs: 3000, ownerId: 'own-1' },
+        inputHash: selected.inputHash,
+        admittedCancelEpoch: 0,
+        outcome: { kind: 'failed', reason: 'timeout' },
+        now: 3,
+      }),
+    ).toBe('stored');
+    await optimizer.drain();
+    const after = await captureOrganization();
+    // Proof: substituting Fast, omitting the budget tie-break or widening the
+    // live bound made A's selected-display displacement read unchanged.
+    expect(
+      compareSharedPeopleFanout({
+        before: before.observation,
+        after: after.observation,
+        directCauses: ['A'],
+      }).projections.find(({ projectId }) => projectId === 'A')?.bookingsChanged,
+    ).toBe(true);
+    const budgets = db
+      .select({ budgetMs: optimizedScheduleCache.budgetMs })
+      .from(optimizedScheduleCache)
+      .where(
+        sql`project_id = 'A' AND objective = 'pri' AND contract_version = ${selected.contractVersion} AND input_hash = ${selected.inputHash}`,
+      )
+      .all()
+      .map(({ budgetMs }) => budgetMs)
+      .sort((left, right) => left - right);
+    // Proof: omitting eviction or its addressed cause lost this installed B
+    // row; each count-scope omission also deleted retained budget 2000.
+    // Proof: skipping enforceLiveBudgetBound left the selected 1000 row in
+    // place, so this installed B event was [] instead of the expected seq 0.
+    expect(
+      (await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).map(
+        ({ seq, message }) => [seq, message],
+      ),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    expect(budgets).toEqual([2000, 3000]);
+    // Proof: removing any full-key delete predicate erased its same-budget
+    // foreign sentinel; removing budgetMs deleted every matching budget.
+    for (const dimension of dimensions) {
+      expect(
+        db
+          .select()
+          .from(optimizedScheduleCache)
+          .where(
+            sql`
+        project_id = ${dimension.projectId}
+        AND objective = ${dimension.objective}
+        AND contract_version = ${dimension.contractVersion}
+        AND input_hash = ${dimension.inputHash}
+        AND budget_ms = ${dimension.budgetMs}
+      `,
+          )
+          .all(),
+      ).toHaveLength(1);
+    }
+    expect(pushUrls).toHaveLength(2);
+  });
+
+  it('replaces an older failed marker through installed Retry before selected fan-out', async () => {
+    const launches: ReservedSpawnRequest[] = [];
+    const { db, path, services, pushUrls, source } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: (request) => {
+        launches.push(request);
+        return completedSelectedChild(request);
+      },
+    });
+    seedSharedLifecycle(path);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    );
+    db.run(
+      sql.raw(
+        "INSERT INTO work_item (id, project_id, position, name) VALUES ('long', 'A', 20, 'long')",
+      ),
+    );
+    db.run(
+      sql.raw(
+        "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('long', 'A-step', 2, 2, 2)",
+      ),
+    );
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('Retry replacement input unavailable');
+    const input = captured.input;
+    const inputHash = scheduleInputHash(input);
+    const contractVersion = contractVersionOf('0.2.0');
+    const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
+    db.insert(optimizedScheduleCache)
+      .values({
+        projectId: 'A',
+        inputHash,
+        objective: 'pri',
+        contractVersion,
+        budgetMs: 1000,
+        generation,
+        status: 'failed',
+        resultJson: null,
+        failureReason: 'timeout',
+        createdAt: 1,
+      })
+      .run();
+    const bound = source.bindLivePlans({
+      schedulerOf: (readCaptured) =>
+        optimizerWiring(
+          readCaptured === undefined
+            ? undefined
+            : {
+                readCaptured,
+                readLive: () => {
+                  throw new Error('live admission inside Retry capture');
+                },
+              },
+        ).scheduler,
+      optimization: { contractVersion, budgetMs: 1000, now: Date.now },
+    });
+    const captureOrganization = () =>
+      bound.uow.run(async (scope) => {
+        if (scope.fanoutCapture === undefined) throw new Error('Retry capture unavailable');
+        return { commit: false, value: await scope.fanoutCapture.capture('org-a') };
+      });
+    const before = await captureOrganization();
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    expect(
+      await optimizer.retry({ projectId: 'A', objective: 'pri', inputHash, input }),
+    ).toMatchObject({
+      kind: 'accepted',
+      generation,
+    });
+    await optimizer.drain();
+    const after = await captureOrganization();
+    expect(
+      compareSharedPeopleFanout({
+        before: before.observation,
+        after: after.observation,
+        directCauses: ['A'],
+      }).projections.find(({ projectId }) => projectId === 'A')?.bookingsChanged,
+    ).toBe(true);
+    expect(launches).toHaveLength(1);
+    const replaced = db
+      .select()
+      .from(optimizedScheduleCache)
+      .where(sql`project_id = 'A' AND objective = 'pri' AND budget_ms = 1000`)
+      .all();
+    expect(replaced).toHaveLength(1);
+    expect(replaced[0]?.status).toBe('ok');
+    expect(replaced[0]?.createdAt).toBeGreaterThan(1);
+    expect(
+      (await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).map(
+        ({ seq, message }) => [seq, message],
+      ),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    expect(pushUrls).toHaveLength(2);
+  });
+
+  it('rolls back selected-budget eviction and outcome rows after the second recipient insert fails', async () => {
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('rollback fixture must not launch')),
+    });
+    seedSharedLifecycle(path, true, undefined, true);
+    const selected = await seedReadyRetirement(db, services, 3);
+    const oldest = db
+      .select()
+      .from(optimizedScheduleCache)
+      .where(sql`project_id = 'A' AND budget_ms = 1000`)
+      .get();
+    if (oldest === undefined) throw new Error('rollback selected budget absent');
+    db.insert(optimizedScheduleCache)
+      .values({ ...oldest, budgetMs: 2000, createdAt: 2 })
+      .run();
+    const slot = seedLifecycleSlot(db, selected.contractVersion, selected.generation);
+    db.run(sql`UPDATE solver_slot SET budget_ms = 3000 WHERE project_id = 'A'`);
+    const write: OptimizationOutcomeWrite = {
+      claim: { ...slot, budgetMs: 3000, ownerId: 'own-1' },
+      inputHash: selected.inputHash,
+      admittedCancelEpoch: 0,
+      outcome: { kind: 'failed', reason: 'timeout' },
+      now: 3,
+    };
+    const before = lifecycleTables(db);
+    db.run(
+      sql.raw(`CREATE TRIGGER reject_second_eviction_recipient
+      BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:C'
+      BEGIN SELECT RAISE(ABORT, 'injected second eviction recipient event'); END`),
+    );
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    expect(await rejectedMessage(installedOutcomeStore(optimizer).storeOutcome(write))).toContain(
+      'project:C',
+    );
+    // Proof: splitting COMMIT after raw outcome/eviction left the 3000 row,
+    // old selected-row deletion and outcome event despite C insert failure.
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(pushUrls).toEqual([]);
+    db.run(sql.raw('DROP TRIGGER reject_second_eviction_recipient'));
+    expect(await installedOutcomeStore(optimizer).storeOutcome(write)).toBe('stored');
+    await optimizer.drain();
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('project:C', -1)).map(({ seq }) => seq)).toEqual([0]);
+  });
+
+  it('keeps unselected and Fast-equivalent budget eviction silent for recipients', async () => {
+    for (const mode of ['unselected', 'fast-equivalent'] as const) {
+      const { db, path, services, pushUrls } = bootstrap({
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('silent eviction fixture must not launch')),
+      });
+      seedSharedLifecycle(path);
+      const selected = await seedReadyRetirement(db, services, mode === 'fast-equivalent' ? 0 : 3);
+      if (mode === 'unselected')
+        db.run(sql`UPDATE project SET schedule_objective = 'time' WHERE id = 'A'`);
+      else expect(selected.selectedStart).toBe(selected.fastStart);
+      const oldest = db
+        .select()
+        .from(optimizedScheduleCache)
+        .where(sql`project_id = 'A' AND budget_ms = 1000`)
+        .get();
+      if (oldest === undefined) throw new Error('silent eviction old row absent');
+      db.insert(optimizedScheduleCache)
+        .values({ ...oldest, budgetMs: 2000, createdAt: 2 })
+        .run();
+      const slot = seedLifecycleSlot(db, selected.contractVersion, selected.generation);
+      db.run(sql`UPDATE solver_slot SET budget_ms = 3000 WHERE project_id = 'A'`);
+      const optimizer = services.optimizer;
+      if (optimizer === undefined) throw new Error('optimizer was not installed');
+      expect(
+        await installedOutcomeStore(optimizer).storeOutcome({
+          claim: { ...slot, budgetMs: 3000, ownerId: 'own-1' },
+          inputHash: selected.inputHash,
+          admittedCancelEpoch: 0,
+          outcome: { kind: 'failed', reason: 'timeout' },
+          now: 3,
+        }),
+      ).toBe('stored');
+      await optimizer.drain();
+      // Proof: forced fan-out on a stored result would invent B for a
+      // nonselected or Fast-equivalent eviction despite unchanged display.
+      expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+      expect(pushUrls).toHaveLength(1);
+      expect(
+        db
+          .select({ budgetMs: optimizedScheduleCache.budgetMs })
+          .from(optimizedScheduleCache)
+          .where(sql`project_id = 'A' AND objective = 'pri'`)
+          .all()
+          .map(({ budgetMs }) => budgetMs)
+          .sort((left, right) => left - right),
+      ).toEqual([2000, 3000]);
+    }
+  });
+
+  it('replaces a genuinely corrupt older marker through installed Retry', async () => {
+    const { db, path, services } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: completedSelectedChild,
+    });
+    seedSharedLifecycle(path);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    );
+    db.run(
+      sql.raw(
+        "INSERT INTO work_item (id, project_id, position, name) VALUES ('long', 'A', 20, 'long')",
+      ),
+    );
+    db.run(
+      sql.raw(
+        "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('long', 'A-step', 2, 2, 2)",
+      ),
+    );
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('corrupt Retry input unavailable');
+    const input = captured.input;
+    const inputHash = scheduleInputHash(input);
+    const contractVersion = contractVersionOf('0.2.0');
+    const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
+    db.insert(optimizedScheduleCache)
+      .values({
+        projectId: 'A',
+        inputHash,
+        objective: 'pri',
+        contractVersion,
+        budgetMs: 1000,
+        generation,
+        status: 'ok',
+        resultJson: '{malformed',
+        failureReason: null,
+        createdAt: 1,
+      })
+      .run();
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    expect(
+      await optimizer.retry({ projectId: 'A', objective: 'pri', inputHash, input }),
+    ).toMatchObject({
+      kind: 'accepted',
+      generation,
+    });
+    await optimizer.drain();
+    const replaced = db
+      .select()
+      .from(optimizedScheduleCache)
+      .where(sql`project_id = 'A' AND objective = 'pri' AND budget_ms = 1000`)
+      .all();
+    expect(replaced).toHaveLength(1);
+    expect(replaced[0]?.status).toBe('ok');
+    // Proof: excluding corrupt from the eligible replacement guard left the
+    // malformed old payload at this key after the installed Retry child.
+    expect(replaced[0]?.resultJson).not.toBe('{malformed');
+    expect(replaced[0]?.createdAt).toBeGreaterThan(1);
+    expect(
+      (await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).map(
+        ({ seq, message }) => [seq, message],
+      ),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+  });
+
+  it('keeps accepted Retry admission but rolls back failed-marker replacement after event insertion fails', async () => {
+    const logs: string[] = [];
+    const { db, path, services, pushUrls } = bootstrap(
+      { solverVersion: '0.2.0', budgetMs: 1000, spawn: completedSelectedChild },
+      undefined,
+      undefined,
+      false,
+      undefined,
+      logs,
+    );
+    seedSharedLifecycle(path);
+    db.run(
+      sql`INSERT INTO users (id, username, password_hash, created_at) VALUES ('bob', 'bob', 'x', 1)`,
+    );
+    db.run(
+      sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'bob', 'super_admin', 1)`,
+    );
+    db.run(sql`UPDATE project SET restricted = 1 WHERE id = 'A'`);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    );
+    db.run(
+      sql.raw(
+        "INSERT INTO work_item (id, project_id, position, name) VALUES ('long', 'A', 20, 'long')",
+      ),
+    );
+    db.run(
+      sql.raw(
+        "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('long', 'A-step', 2, 2, 2)",
+      ),
+    );
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('Retry rollback input unavailable');
+    const input = captured.input;
+    const inputHash = scheduleInputHash(input);
+    const contractVersion = contractVersionOf('0.2.0');
+    const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
+    db.insert(optimizedScheduleCache)
+      .values({
+        projectId: 'A',
+        inputHash,
+        objective: 'pri',
+        contractVersion,
+        budgetMs: 1000,
+        generation,
+        status: 'failed',
+        resultJson: null,
+        failureReason: 'timeout',
+        createdAt: 1,
+      })
+      .run();
+    db.run(
+      sql.raw(`CREATE TRIGGER reject_retry_replacement_recipient
+      BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:B'
+      BEGIN SELECT RAISE(ABORT, 'injected Retry replacement recipient event'); END`),
+    );
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    expect(
+      await optimizer.retry({
+        projectId: 'A',
+        objective: 'pri',
+        inputHash,
+        input,
+        scoped: { organizationId: 'org-a', actorId: 'bob' },
+      }),
+    ).toMatchObject({ kind: 'accepted', generation });
+    await optimizer.drain();
+    const retained = db
+      .select()
+      .from(optimizedScheduleCache)
+      .where(sql`project_id = 'A' AND objective = 'pri' AND budget_ms = 1000`)
+      .all();
+    expect(retained).toHaveLength(1);
+    // Proof: splitting the outcome owner's commit before B event recording
+    // overwrote this failed marker although the later insert was rejected.
+    expect(retained[0]?.status).toBe('failed');
+    expect(retained[0]?.createdAt).toBe(1);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(await events.rangeSince('project:A', -1)).toEqual([]);
+    expect(await events.rangeSince('project:B', -1)).toEqual([]);
+    expect(db.all(sql.raw('SELECT * FROM event_sequencer'))).toEqual([]);
+    expect(
+      db
+        .select()
+        .from(solverSlot)
+        .where(sql`project_id = 'A'`)
+        .all(),
+    ).toEqual([]);
+    expect(pushUrls).toEqual([]);
+    expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toHaveLength(1);
+    expect(logs.some((line) => line.includes('injected Retry replacement recipient event'))).toBe(
+      true,
+    );
+  });
+
   it('records empty-booking availability loss from an admitted selected outcome at unchanged canonical input', async () => {
     const { db, path, services, pushUrls, source } = bootstrap({
       solverVersion: '0.2.0',
