@@ -622,3 +622,54 @@ passed 1/1 and all passed 143/143, zero failures
 (`/tmp/activation-21-paired-{strict,all}.json`); changed-path Prettier and
 diff check exited 0. Real external provenance and early cold terminal
 evidence remain open.
+
+### 2.1 local authenticated early-cold terminal evidence (2026-10-07)
+
+The existing complete-review source format remains unchanged. A distinct
+trusted-port cold-only variant carries a real decoded cold output, a nonempty
+terminal reason and `failed` or `skipped` status; its exact submission digest,
+source digest, pinned issuer, request/review/obligation/attempt, registered
+invocation, executor and protocol remain bound at the public `recordReceipt`
+owner. The canonical terminal source is retained with the immutable attempt;
+the informed obligation remains pending and the request becomes failed in the
+same transaction. No informed output or complete ReviewEvidence is invented.
+The initial mounted test was RED 0/2 at the full-review schema's missing
+informed/evidence rejection (`/tmp/activation-early-cold-baseline-red.log`),
+then GREEN 2/2 (`/tmp/activation-early-cold-first-green.log`). Restarted exact
+replay preserves all rows; conflicting bytes refuse without writes
+(`/tmp/activation-early-cold-replay.log`). A missing trusted review verifier
+refuses without calling the generic check authenticator; a held verifier
+refuses after either registration or pinned-bootstrap movement. These are
+local fake-port boundary proofs, not external provider provenance.
+
+| Watched production fault                                                     | RED on mounted test                                                                                                                                                                     | Restored GREEN                                                      |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Skip cold-only source-digest comparison                                      | Unbound source fulfilled instead of refusing, 0/1 (`/tmp/activation-early-cold-digest-red.log`).                                                                                        | 1/1 (`/tmp/activation-early-cold-digest-restored-green.log`).       |
+| Omit nonempty cold raw-response guard while retaining schema-valid telemetry | Empty raw source fulfilled, 0/1 (`/tmp/activation-early-cold-raw-red.log`).                                                                                                             | 1/1 (`/tmp/activation-early-cold-raw-restored-green.log`).          |
+| Widen terminal-only status to `passed`                                       | Relabeled cold terminal fulfilled, 0/1 (`/tmp/activation-early-cold-status-red.log`).                                                                                                   | 1/1 (`/tmp/activation-early-cold-status-restored-green.log`).       |
+| Omit early cold-phase guard                                                  | Informed terminal still refused by the later transaction guard, but lost the named early refusal, 0/1 (`/tmp/activation-early-cold-phase-red.log`). This fault did not grant authority. | 1/1 (`/tmp/activation-early-cold-phase-restored-green.log`).        |
+| Omit post-await registered invocation comparison                             | Held terminal accepted after registration replacement, 0/1 (`/tmp/activation-early-cold-registration-red.log`).                                                                         | 1/1 (`/tmp/activation-early-cold-registration-restored-green.log`). |
+| Split transaction immediately after terminal attempt insert                  | Injected later failed-stage write left a durable attempt and failed the full row snapshot, 0/1 (`/tmp/activation-early-cold-split-red.log`).                                            | 1/1 (`/tmp/activation-early-cold-split-restored-green.log`).        |
+
+Every source mutation above was restored to SHA-256
+`a7a82b4765fa24f54ec6b6c685b157c1ba0124df776fc14bcd1a80abe0b737e3`
+before the next watch. The mounted cold-only matrix passed 12/12, 42
+assertions with
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/controller.db.test.ts --test-name-pattern 'cold terminal|cold-only terminal|authenticated cold-only'`
+(`/tmp/activation-early-cold-final-focused.log`); the final-byte suite and static
+checks are recorded below. Task 2.1 stays open because no installed external
+verifier, durable dispatch/recovery, or host acceptance was exercised.
+
+After formatting and the lint-driven test fixture correction, the literal
+four-file Bun command from the previous 2.1 section passed 134/134, 522
+assertions, exit 0 (`/tmp/activation-early-cold-final-four2.log`). Declared
+Nx `twilight-burokrat:lint:source`, `:typecheck` and `:build` each exited 0
+with an explicit `Successfully ran target` summary
+(`/tmp/activation-early-cold-final-{lint2,type,build}.log`). The first lint
+attempt failed on test import order and a redundant `String()` conversion;
+direct ESLint diagnosed both, the test-only fixes were applied, and the
+declared target passed on corrected bytes. Pinned OpenSpec strict and all
+validation passed 1/1 and 143/143 respectively, zero failures
+(`/tmp/activation-early-cold-final-{strict4,all4}.json`). No host gate, CI,
+provider credentials, remote publication, dispatch worker or activation was
+run for this local checkpoint.

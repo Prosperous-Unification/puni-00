@@ -13,6 +13,8 @@ import {
   type RequestLease,
   type ReviewExpectation,
   type StoredRequest,
+  type VerifiedColdTerminal,
+  type VerifiedCompleteReview,
   type VerifiedReview,
 } from './controller';
 import { type ActivationRequest } from './request';
@@ -104,7 +106,7 @@ function fixture() {
   };
 }
 
-function fakeReview(expected: ReviewExpectation, bytes: string): VerifiedReview {
+function fakeReview(expected: ReviewExpectation, bytes: string): VerifiedCompleteReview {
   const invocationId = expected.invocationId;
   const contentIdentity = '9'.repeat(64);
   const startedAt = '2026-09-11T07:00:00.000Z';
@@ -265,10 +267,10 @@ function fakeReview(expected: ReviewExpectation, bytes: string): VerifiedReview 
         status: verification.status,
       }),
     },
-  } as VerifiedReview;
+  } as VerifiedCompleteReview;
 }
 
-function bindSource(verification: VerifiedReview): VerifiedReview {
+function bindSource(verification: VerifiedCompleteReview): VerifiedCompleteReview {
   return {
     ...verification,
     binding: {
@@ -279,6 +281,39 @@ function bindSource(verification: VerifiedReview): VerifiedReview {
         informed: verification.informed,
         findings: verification.findings,
         status: verification.status,
+      }),
+    },
+  };
+}
+
+function fakeColdTerminal(
+  expected: ReviewExpectation,
+  bytes: string,
+  status: 'failed' | 'skipped',
+): VerifiedColdTerminal {
+  const complete = fakeReview(expected, bytes);
+  const terminal = {
+    binding: complete.binding,
+    cold: complete.cold,
+    terminal: { status, reason: 'review ended before informed phase' },
+  };
+  return {
+    ...terminal,
+    binding: {
+      ...terminal.binding,
+      sourceEvidenceDigest: hashCanonical({ cold: terminal.cold, terminal: terminal.terminal }),
+    },
+  };
+}
+
+function bindColdTerminal(verification: VerifiedColdTerminal): VerifiedColdTerminal {
+  return {
+    ...verification,
+    binding: {
+      ...verification.binding,
+      sourceEvidenceDigest: hashCanonical({
+        cold: verification.cold,
+        terminal: verification.terminal,
       }),
     },
   };
@@ -517,6 +552,327 @@ function submitReceipt(
         : 'a'.repeat(64);
   return controller.recordReceipt(lease, obligationIdentity, bytes);
 }
+
+test.each(['failed', 'skipped'] as const)(
+  'authenticated cold-only %s remains terminal without informed evidence',
+  async (status) => {
+    const source = await evidenceHarness({
+      skipCold: true,
+      verifyReview: (expected, bytes) => Promise.resolve(fakeColdTerminal(expected, bytes, status)),
+    });
+    source.controller.registerReviewAttempt(
+      source.lease,
+      'review.primary',
+      0,
+      'invocation.primary',
+    );
+    const cold = source.receipt('cold', status);
+    const after = await source.controller.recordReceipt(source.lease, 'd'.repeat(64), cold);
+    const rows = evidenceRows(source.source.databasePath);
+    expect(after.stage).toBe('failed');
+    expect(rows.attempts).toHaveLength(1);
+    expect(
+      rows.obligations.find(
+        (row) => (row as { obligation_identity: string }).obligation_identity === 'f'.repeat(64),
+      ),
+    ).toMatchObject({ state: 'pending' });
+    expect((rows.attempts[0] as { authentication_bytes: string }).authentication_bytes).toContain(
+      'review ended before informed phase',
+    );
+    source.controller.close();
+  },
+);
+
+test('cold terminal evidence replays across restart and conflicting bytes cannot replace it', async () => {
+  const evidence = await evidenceHarness({
+    skipCold: true,
+    verifyReview: (expected, bytes) => Promise.resolve(fakeColdTerminal(expected, bytes, 'failed')),
+  });
+  evidence.controller.registerReviewAttempt(
+    evidence.lease,
+    'review.primary',
+    0,
+    'invocation.primary',
+  );
+  const firstBytes = evidence.receipt('cold', 'failed');
+  const first = await evidence.controller.recordReceipt(evidence.lease, 'd'.repeat(64), firstBytes);
+  const committed = evidenceRows(evidence.source.databasePath);
+  evidence.controller.close();
+
+  const reopened = openActivationController({
+    ...evidence.source,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () =>
+      Promise.resolve({ kind: 'ready' as const, candidate: evidence.source.candidate }),
+    verifyReview: ({ expected, exactSubmissionBytes }) =>
+      Promise.resolve(fakeColdTerminal(expected, exactSubmissionBytes, 'failed')),
+  });
+  try {
+    expect(await reopened.recordReceipt(evidence.lease, 'd'.repeat(64), firstBytes)).toEqual(first);
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(committed);
+    const conflictingBytes = serializeCanonical({ firstBytes, conflict: true });
+    await rejectedWith(
+      reopened.recordReceipt(evidence.lease, 'd'.repeat(64), conflictingBytes),
+      'attempt conflicts with immutable evidence',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(committed);
+  } finally {
+    reopened.close();
+  }
+});
+
+test.each([
+  [
+    'passed relabel',
+    (review: VerifiedColdTerminal) =>
+      bindColdTerminal({
+        ...review,
+        terminal: { ...review.terminal, status: 'passed' as 'failed' },
+      }),
+    'Validation failed',
+  ],
+  [
+    'foreign issuer',
+    (review: VerifiedColdTerminal) => ({
+      ...review,
+      binding: { ...review.binding, journalIssuerId: 'journal.foreign' },
+    }),
+    'differs from frozen invocation',
+  ],
+  [
+    'missing cold raw response',
+    (review: VerifiedColdTerminal) => {
+      if (review.cold.telemetry.status !== 'verified')
+        throw new Error('fixture cold telemetry not verified');
+      return bindColdTerminal({
+        ...review,
+        cold: {
+          ...review.cold,
+          rawResponse: { ...review.cold.rawResponse, payload: '' },
+          telemetry: {
+            ...review.cold.telemetry,
+            receipt: { ...review.cold.telemetry.receipt, outputArtifact: hashBytes('') },
+          },
+        },
+      });
+    },
+    'cold terminal review evidence incomplete',
+  ],
+  [
+    'unbound source digest',
+    (review: VerifiedColdTerminal) => ({
+      ...review,
+      binding: { ...review.binding, sourceEvidenceDigest: '0'.repeat(64) },
+    }),
+    'source digest differs',
+  ],
+] as const)(
+  'cold-only terminal refuses %s without inserting evidence',
+  async (_, corrupt, message) => {
+    const evidence = await evidenceHarness({
+      skipCold: true,
+      verifyReview: (expected, bytes) =>
+        Promise.resolve(corrupt(fakeColdTerminal(expected, bytes, 'failed'))),
+    });
+    try {
+      evidence.controller.registerReviewAttempt(
+        evidence.lease,
+        'review.primary',
+        0,
+        'invocation.primary',
+      );
+      const before = evidenceRows(evidence.source.databasePath);
+      await rejectedWith(
+        evidence.controller.recordReceipt(
+          evidence.lease,
+          'd'.repeat(64),
+          evidence.receipt('cold', 'failed'),
+        ),
+        message,
+      );
+      expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+    } finally {
+      evidence.controller.close();
+    }
+  },
+);
+
+test('cold terminal evidence cannot complete an informed obligation', async () => {
+  const evidence = await evidenceHarness({
+    verifyReview: (expected, bytes) =>
+      Promise.resolve(
+        expected.phase === 'cold'
+          ? fakeReview(expected, bytes)
+          : fakeColdTerminal(expected, bytes, 'failed'),
+      ),
+  });
+  try {
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      evidence.controller.recordReceipt(
+        evidence.lease,
+        'f'.repeat(64),
+        evidence.receipt('audit', 'failed'),
+      ),
+      'cold terminal review phase differs',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    evidence.controller.close();
+  }
+});
+
+test('cold terminal completion rechecks registration after held authentication', async () => {
+  let release: ((verification: VerifiedReview) => void) | undefined;
+  let authenticated: (() => void) | undefined;
+  let observed: ReviewExpectation | undefined;
+  const started = new Promise<void>((resolve) => {
+    authenticated = resolve;
+  });
+  const held = new Promise<VerifiedReview>((resolve) => {
+    release = resolve;
+  });
+  const evidence = await evidenceHarness({
+    skipCold: true,
+    verifyReview: (expected) => {
+      observed = expected;
+      authenticated?.();
+      return held;
+    },
+  });
+  const database = new Database(evidence.source.databasePath);
+  try {
+    evidence.controller.registerReviewAttempt(
+      evidence.lease,
+      'review.primary',
+      0,
+      'invocation.primary',
+    );
+    const bytes = evidence.receipt('cold', 'failed');
+    const completion = evidence.controller.recordReceipt(evidence.lease, 'd'.repeat(64), bytes);
+    await started;
+    database
+      .query(
+        'UPDATE activation_review_attempt SET invocation_id = ? WHERE request_identity = ? AND review_id = ?',
+      )
+      .run('invocation.replaced', evidence.request.requestIdentity, 'review.primary');
+    const before = evidenceRows(evidence.source.databasePath);
+    if (observed === undefined || release === undefined)
+      throw new Error('held verifier never started');
+    release(fakeColdTerminal(observed, bytes, 'failed'));
+    await rejectedWith(completion, 'invocation differs from registration');
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    evidence.controller.close();
+  }
+});
+
+test('cold terminal completion refuses authority lost while verification is held', async () => {
+  let release: ((verification: VerifiedReview) => void) | undefined;
+  let authenticated: (() => void) | undefined;
+  let observed: ReviewExpectation | undefined;
+  const started = new Promise<void>((resolve) => {
+    authenticated = resolve;
+  });
+  const held = new Promise<VerifiedReview>((resolve) => {
+    release = resolve;
+  });
+  const evidence = await evidenceHarness({
+    skipCold: true,
+    verifyReview: (expected) => {
+      observed = expected;
+      authenticated?.();
+      return held;
+    },
+  });
+  try {
+    evidence.controller.registerReviewAttempt(
+      evidence.lease,
+      'review.primary',
+      0,
+      'invocation.primary',
+    );
+    const bytes = evidence.receipt('cold', 'failed');
+    const completion = evidence.controller.recordReceipt(evidence.lease, 'd'.repeat(64), bytes);
+    await started;
+    const before = evidenceRows(evidence.source.databasePath);
+    rmSync(evidence.source.bootstrapPath);
+    if (observed === undefined || release === undefined)
+      throw new Error('held verifier never started');
+    release(fakeColdTerminal(observed, bytes, 'failed'));
+    await rejectedWith(completion, 'bootstrap');
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    evidence.controller.close();
+  }
+});
+
+test('cold terminal audit has no generic-authenticator fallback when trusted verifier is absent', async () => {
+  let genericCalls = 0;
+  const evidence = await evidenceHarness({
+    skipCold: true,
+    withoutReviewVerifier: true,
+    authenticate: (_bytes, receipt) => {
+      genericCalls += 1;
+      return Promise.resolve(receipt);
+    },
+  });
+  try {
+    evidence.controller.registerReviewAttempt(
+      evidence.lease,
+      'review.primary',
+      0,
+      'invocation.primary',
+    );
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      evidence.controller.recordReceipt(
+        evidence.lease,
+        'd'.repeat(64),
+        evidence.receipt('cold', 'failed'),
+      ),
+      'trusted review verifier absent',
+    );
+    expect(genericCalls).toBe(0);
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    evidence.controller.close();
+  }
+});
+
+test('cold terminal stage-write failure rolls back its attempt and selected obligation', async () => {
+  const evidence = await evidenceHarness({
+    skipCold: true,
+    verifyReview: (expected, bytes) => Promise.resolve(fakeColdTerminal(expected, bytes, 'failed')),
+  });
+  const database = new Database(evidence.source.databasePath);
+  try {
+    evidence.controller.registerReviewAttempt(
+      evidence.lease,
+      'review.primary',
+      0,
+      'invocation.primary',
+    );
+    const before = evidenceRows(evidence.source.databasePath);
+    database.run(`CREATE TRIGGER fail_cold_terminal BEFORE UPDATE OF stage ON activation_request
+      WHEN NEW.stage = 'failed' BEGIN SELECT RAISE(ABORT, 'injected terminal write'); END`);
+    const bytes = evidence.receipt('cold', 'failed');
+    await rejectedWith(
+      evidence.controller.recordReceipt(evidence.lease, 'd'.repeat(64), bytes),
+      'injected terminal write',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+    database.run('DROP TRIGGER fail_cold_terminal');
+    expect(
+      (await evidence.controller.recordReceipt(evidence.lease, 'd'.repeat(64), bytes)).stage,
+    ).toBe('failed');
+  } finally {
+    database.close();
+    evidence.controller.close();
+  }
+});
 
 test('duplicate and lost events converge on one durable request per subject', async () => {
   const subject = fixture();
@@ -1305,7 +1661,7 @@ test.each(['rejected', 'malformed'] as const)(
 test.each([
   [
     'submission digest',
-    (review: VerifiedReview) => ({
+    (review: VerifiedCompleteReview) => ({
       ...review,
       binding: { ...review.binding, exactSubmissionDigest: '0'.repeat(64) },
     }),
@@ -1313,7 +1669,7 @@ test.each([
   ],
   [
     'phase relabel',
-    (review: VerifiedReview) => ({
+    (review: VerifiedCompleteReview) => ({
       ...review,
       binding: { ...review.binding, phase: 'cold' as const },
     }),
@@ -1321,7 +1677,7 @@ test.each([
   ],
   [
     'foreign journal',
-    (review: VerifiedReview) => ({
+    (review: VerifiedCompleteReview) => ({
       ...review,
       binding: { ...review.binding, journalIssuerId: 'foreign.journal' },
     }),
@@ -1329,7 +1685,7 @@ test.each([
   ],
   [
     'journal identity mismatch',
-    (review: VerifiedReview) =>
+    (review: VerifiedCompleteReview) =>
       bindSource({
         ...review,
         evidence: {
@@ -1344,7 +1700,7 @@ test.each([
   ],
   [
     'missing retained reads',
-    (review: VerifiedReview) =>
+    (review: VerifiedCompleteReview) =>
       bindSource({
         ...review,
         evidence: {
@@ -1356,7 +1712,7 @@ test.each([
   ],
   [
     'wrong cold artifact',
-    (review: VerifiedReview) =>
+    (review: VerifiedCompleteReview) =>
       bindSource({
         ...review,
         informed: { ...review.informed, coldArtifact: '0'.repeat(64) },
@@ -1365,7 +1721,7 @@ test.each([
   ],
   [
     'missing raw response',
-    (review: VerifiedReview) => {
+    (review: VerifiedCompleteReview) => {
       const emptyArtifact = hashBytes('');
       if (review.informed.telemetry.status !== 'verified') {
         throw new Error('fixture informed telemetry not verified');
@@ -1393,7 +1749,7 @@ test.each([
   ],
   [
     'local journal provenance',
-    (review: VerifiedReview) =>
+    (review: VerifiedCompleteReview) =>
       bindSource({
         ...review,
         evidence: {
@@ -1408,7 +1764,7 @@ test.each([
   ],
   [
     'passed unresolved finding',
-    (review: VerifiedReview) =>
+    (review: VerifiedCompleteReview) =>
       bindSource({
         ...review,
         findings: [
@@ -1481,7 +1837,9 @@ test('authenticated audit retains complete source and a failed finding as termin
     ) {
       throw new Error('failed review source was not retained');
     }
-    const source = JSON.parse(String(retained.authentication_bytes)) as { review: VerifiedReview };
+    const source = JSON.parse(String(retained.authentication_bytes)) as {
+      review: VerifiedCompleteReview;
+    };
     expect(source.review.evidence.receipt.trust.scope).toBe('external-verifier');
     expect(source.review.cold.rawResponse.payload).toContain('cold');
     expect(source.review.informed.rawResponse.payload).toContain('informed');
@@ -1514,7 +1872,7 @@ test('retained review source corruption is refused after controller restart', as
     }
     const envelope = JSON.parse(String(raw.authentication_bytes)) as {
       receipt: unknown;
-      review: VerifiedReview;
+      review: VerifiedCompleteReview;
     };
     database
       .query(
@@ -1604,7 +1962,9 @@ test('informed review must reuse the exact committed cold judgment for its selec
       if (raw === null || typeof raw !== 'object' || !('authentication_bytes' in raw)) {
         throw new Error('committed cold source absent');
       }
-      const retained = JSON.parse(String(raw.authentication_bytes)) as { review: VerifiedReview };
+      const retained = JSON.parse(String(raw.authentication_bytes)) as {
+        review: VerifiedCompleteReview;
+      };
       originalArtifact = hashCanonical(retained.review.cold.cold);
     } finally {
       database.close();
@@ -1624,8 +1984,8 @@ test('informed review must reuse the exact committed cold judgment for its selec
 test.each(['registration', 'authority'] as const)(
   'held trusted review refuses post-await %s movement while an independent check can complete',
   async (movement) => {
-    let release: ((verification: VerifiedReview) => void) | undefined;
-    const held = new Promise<VerifiedReview>((resolve) => {
+    let release: ((verification: VerifiedCompleteReview) => void) | undefined;
+    const held = new Promise<VerifiedCompleteReview>((resolve) => {
       release = resolve;
     });
     let submitted: { expected: ReviewExpectation; bytes: string } | undefined;

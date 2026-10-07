@@ -194,12 +194,14 @@ export interface ReviewSubmission {
   readonly expected: ReviewExpectation;
 }
 
-export interface VerifiedReview {
-  readonly binding: ReviewExpectation & {
-    readonly exactSubmissionDigest: string;
-    readonly sourceEvidenceDigest: string;
-    readonly journalId: string;
-  };
+interface ReviewBinding extends ReviewExpectation {
+  readonly exactSubmissionDigest: string;
+  readonly sourceEvidenceDigest: string;
+  readonly journalId: string;
+}
+
+export interface VerifiedCompleteReview {
+  readonly binding: ReviewBinding;
   readonly evidence: ReviewEvidence;
   readonly cold: ColdHarnessOutput;
   readonly informed: InformedHarnessOutput;
@@ -207,28 +209,50 @@ export interface VerifiedReview {
   readonly status: 'passed' | 'failed' | 'skipped';
 }
 
-const ReviewVerificationRecord = type({
-  binding: type({
-    exactSubmissionDigest: /^[0-9a-f]{64}$/,
-    sourceEvidenceDigest: /^[0-9a-f]{64}$/,
-    requestIdentity: /^[0-9a-f]{64}$/,
-    reviewId: 'string>=1',
-    obligationIdentity: /^[0-9a-f]{64}$/,
-    attempt: 'number.integer>=0',
-    phase: "'cold'|'informed'",
-    invocationId: 'string>=1',
-    executorId: 'string>=1',
-    protocolIdentity: /^[0-9a-f]{64}$/,
-    promptIdentity: /^[0-9a-f]{64}$/,
-    journalIssuerId: 'string>=1',
-    journalId: 'string>=1',
-  }).onUndeclaredKey('reject'),
+export interface VerifiedColdTerminal {
+  readonly binding: ReviewBinding;
+  readonly cold: ColdHarnessOutput;
+  readonly terminal: { readonly status: 'failed' | 'skipped'; readonly reason: string };
+}
+
+export type VerifiedReview = VerifiedCompleteReview | VerifiedColdTerminal;
+
+const ReviewBindingRecord = type({
+  exactSubmissionDigest: /^[0-9a-f]{64}$/,
+  sourceEvidenceDigest: /^[0-9a-f]{64}$/,
+  requestIdentity: /^[0-9a-f]{64}$/,
+  reviewId: 'string>=1',
+  obligationIdentity: /^[0-9a-f]{64}$/,
+  attempt: 'number.integer>=0',
+  phase: "'cold'|'informed'",
+  invocationId: 'string>=1',
+  executorId: 'string>=1',
+  protocolIdentity: /^[0-9a-f]{64}$/,
+  promptIdentity: /^[0-9a-f]{64}$/,
+  journalIssuerId: 'string>=1',
+  journalId: 'string>=1',
+}).onUndeclaredKey('reject');
+
+const CompleteReviewVerificationRecord = type({
+  binding: ReviewBindingRecord,
   evidence: ReviewEvidence,
   cold: ColdHarnessOutput,
   informed: InformedHarnessOutput,
   findings: AuditFinding.array(),
   status: "'passed'|'failed'|'skipped'",
 }).onUndeclaredKey('reject');
+
+const ColdTerminalVerificationRecord = type({
+  binding: ReviewBindingRecord,
+  cold: ColdHarnessOutput,
+  // Proof: widening this terminal status to passed made the mounted passed-relabel
+  // receipt commit instead of refusing before any evidence write.
+  terminal: type({ status: "'failed'|'skipped'", reason: 'string>=1' }).onUndeclaredKey('reject'),
+}).onUndeclaredKey('reject');
+
+const ReviewVerificationRecord = CompleteReviewVerificationRecord.or(
+  ColdTerminalVerificationRecord,
+);
 
 function authenticatedReview(submission: ReviewSubmission, verification: unknown): VerifiedReview {
   const source = parseOrThrow(ReviewVerificationRecord, verification);
@@ -256,17 +280,38 @@ function authenticatedReview(submission: ReviewSubmission, verification: unknown
     throw new Error('review verification submission digest differs from exact bytes');
   }
   // Proof: omitting this check accepted changed retained source bytes after controller restart.
-  if (
-    binding.sourceEvidenceDigest !==
-    hashCanonical({
-      evidence: source.evidence,
-      cold: source.cold,
-      informed: source.informed,
-      findings: source.findings,
-      status: source.status,
-    })
-  ) {
+  // The cold-only branch independently accepted an unbound source digest when omitted.
+  const sourceDigest =
+    'terminal' in source
+      ? hashCanonical({ cold: source.cold, terminal: source.terminal })
+      : hashCanonical({
+          evidence: source.evidence,
+          cold: source.cold,
+          informed: source.informed,
+          findings: source.findings,
+          status: source.status,
+        });
+  if (binding.sourceEvidenceDigest !== sourceDigest) {
     throw new Error('review verification source digest differs from authenticated bytes');
+  }
+  if ('terminal' in source) {
+    // Proof: omitting the phase guard changed the mounted informed-terminal refusal to the
+    // later transaction refusal; neither path can complete informed work with cold-only source.
+    if (expected.phase !== 'cold')
+      throw new Error('cold terminal review phase differs from frozen obligation');
+    const cold = decodeColdHarnessOutput(source.cold);
+    if (
+      cold.invocationId !== expected.invocationId ||
+      cold.protocol.protocolBlob !== expected.protocolIdentity ||
+      cold.telemetry.status !== 'verified' ||
+      cold.telemetry.receipt.invocationId !== expected.invocationId ||
+      // Proof: omitting this check accepted a schema-valid cold source with empty raw response.
+      cold.rawResponse.payload.length === 0 ||
+      cold.cold.observedReadIds.length === 0
+    ) {
+      throw new Error('cold terminal review evidence incomplete or inconsistent');
+    }
+    return { ...source, cold };
   }
   const evidence = decodeReviewEvidence(source.evidence);
   const cold = decodeColdHarnessOutput(source.cold);
@@ -1081,7 +1126,7 @@ export class ActivationController {
         executorId: expected.executorId,
         protocolIdentity: expected.protocolIdentity,
         phase: expected.phase,
-        status: review.status,
+        status: 'terminal' in review ? review.terminal.status : review.status,
       };
     }
     // Proof: replacing exact-byte identity let a verifier relabel receipt bytes for another obligation.
@@ -1191,7 +1236,8 @@ export class ActivationController {
         // Proof: omitting the registration join let an unregistered cold receipt complete evaluation.
         if (rawRegistration === null) throw new Error('review invocation absent');
         const registered = parseOrThrow(StoredReviewAttempt, rawRegistration);
-        // Proof: omission accepted a different invocation for the registered review attempt.
+        // Proof: omission accepted a different invocation for the registered review attempt;
+        // the held cold-terminal verifier independently showed that replacement after await.
         if (registered.invocation_id !== receipt.invocationId) {
           throw new Error('authenticated receipt invocation differs from registration');
         }
@@ -1236,6 +1282,8 @@ export class ActivationController {
       // accepted informed evidence with only another pair's or another attempt's cold.
       if (receipt.kind === 'audit' && receipt.phase === 'informed') {
         if (review === null) throw new Error('trusted review source evidence absent');
+        if ('terminal' in review)
+          throw new Error('cold terminal evidence cannot complete informed audit');
         const rawCold: unknown[] = this.#database
           .query(
             "SELECT * FROM activation_obligation WHERE request_identity = ? AND review_id = ? AND kind = 'audit' AND phase = 'cold' AND attempt = ?",
@@ -1316,6 +1364,7 @@ export class ActivationController {
       }
       // Proof: splitting commit immediately after this insert left a second receipt attempt
       // after the verified-stage write failed, while the earlier check remained committed.
+      // The cold-terminal split independently left its failed attempt after a later stage fault.
       this.#database
         .query(
           `INSERT INTO activation_attempt (
