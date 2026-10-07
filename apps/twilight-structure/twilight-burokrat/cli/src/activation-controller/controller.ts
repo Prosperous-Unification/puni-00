@@ -830,6 +830,8 @@ export class ActivationController {
           protocolIdentity: entry.protocol_identity,
         };
         if (entry.kind === 'check') {
+          // Proof: a check row with an audit phase otherwise reconstructs as a valid
+          // check and can preserve the frozen-plan digest despite malformed storage.
           if (entry.command_identity === null || entry.phase !== null) {
             throw new Error('stored check obligation malformed');
           }
@@ -839,6 +841,8 @@ export class ActivationController {
             commandIdentity: entry.command_identity,
           });
         }
+        // Proof: an audit row with a command identity otherwise reconstructs as a
+        // valid audit and can preserve the frozen-plan digest despite malformed storage.
         if (entry.command_identity !== null || entry.phase === null) {
           throw new Error('stored audit obligation malformed');
         }
@@ -859,6 +863,53 @@ export class ActivationController {
         })
       ) {
         throw new Error('authenticated receipts differ from frozen evaluation plan');
+      }
+      for (const entry of selected) {
+        if (entry.state !== 'passed') continue;
+        const rawAttempt: unknown = this.#database
+          .query(
+            'SELECT * FROM activation_attempt WHERE request_identity = ? AND obligation_identity = ? AND attempt = ?',
+          )
+          .get(request.requestIdentity, entry.obligation_identity, entry.attempt);
+        // Proof: deleting the previously selected check attempt still left the check row
+        // marked passed and let the later audit verify without this retained-evidence join.
+        if (rawAttempt === null) throw new Error('selected receipt evidence absent');
+        const saved = parseOrThrow(StoredAttempt, rawAttempt);
+        let authenticated: AuthenticatedReceipt;
+        try {
+          authenticated = parseOrThrow(
+            AuthenticatedReceipt,
+            JSON.parse(saved.authentication_bytes),
+          );
+        } catch (cause) {
+          throw new Error('selected receipt evidence malformed', { cause });
+        }
+        // Proof: corrupting a prior attempt's authenticated bytes let its mutable
+        // obligation state authorize verified until this exact binding was checked.
+        if (
+          entry.receipt_identity === null ||
+          saved.receipt_identity !== entry.receipt_identity ||
+          saved.request_identity !== request.requestIdentity ||
+          saved.obligation_identity !== entry.obligation_identity ||
+          saved.attempt !== entry.attempt ||
+          saved.status !== 'passed' ||
+          hashBytes(saved.receipt_bytes) !== saved.receipt_identity ||
+          serializeCanonical(authenticated) !== saved.authentication_bytes ||
+          authenticated.receiptIdentity !== saved.receipt_identity ||
+          authenticated.issuerId !== configuration.journal.issuerId ||
+          authenticated.requestIdentity !== request.requestIdentity ||
+          authenticated.obligationIdentity !== entry.obligation_identity ||
+          authenticated.attempt !== entry.attempt ||
+          authenticated.kind !== entry.kind ||
+          authenticated.status !== 'passed' ||
+          authenticated.executorId !== entry.executor_id ||
+          authenticated.protocolIdentity !== entry.protocol_identity ||
+          (authenticated.kind === 'check'
+            ? authenticated.commandIdentity !== entry.command_identity
+            : authenticated.phase !== entry.phase)
+        ) {
+          throw new Error('selected receipt evidence differs from frozen obligation');
+        }
       }
       // Proof: forcing completeness after only the first receipt advanced before the audit existed.
       const complete = selected.every(

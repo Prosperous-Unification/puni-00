@@ -339,3 +339,32 @@ or WBS status is advanced by this local fake-verifier checkpoint.
 The pinned `@fission-ai/openspec@1.12.0` strict validation passed 1/1 and
 `validate --all --json` passed 143/143 (125 changes, 18 specs). Changed-path
 Prettier and `git diff --check` passed after formatting this ledger.
+
+### 2.4 selected-evidence review correction (2026-10-07)
+
+Independent exact-SHA review of `94b1d9a491f2abaea24a29c64fb5bee93021a19c`
+found that deleting the earlier check's immutable attempt still let a later audit
+verify. A separate review found the check/audit persisted-shape guards lacked
+watched omissions. The mounted regression first failed 0/2 because both absent
+attempt evidence and conflicting retained authentication bytes were accepted
+(`/tmp/activation-24-selected-attempt-baseline-red.log`). The owner now joins
+every selected passed obligation to its retained attempt, exact receipt bytes and
+authenticated frozen bindings before it can verify. After that correction the
+two cases passed 2/2; the exact four-file command above passed 77/77,
+341 assertions, exit 0 on final formatted bytes
+(`/tmp/activation-24-review-correction-four-final.log`).
+
+Three independent restored-source omissions reached the exact mounted refusal
+assertions: skipping the selected-attempt join accepted both missing and corrupt
+evidence (0/2, `/tmp/activation-24-selected-attempt-join-red.log`); skipping the
+check-row phase guard accepted a check with an audit phase (0/1,
+`/tmp/activation-24-check-shape-guard-red.log`); skipping the audit-row command
+guard accepted an audit with a check command (0/1,
+`/tmp/activation-24-audit-shape-guard-red.log`). Each returned to the same
+restored focused GREEN (5/5, 15 assertions,
+`/tmp/activation-24-join-correction-green.log`). These extra columns matter:
+reconstruction omits the irrelevant cross-kind field, so parsing the projected
+obligation alone would not reject the malformed stored row. The transaction
+rollback tests compare the complete stored request, obligations and attempts
+before and after each refusal. No external provenance or provider acceptance is
+claimed; task 2.4 remains open.

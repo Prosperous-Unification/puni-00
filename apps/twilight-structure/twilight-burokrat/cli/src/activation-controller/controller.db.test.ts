@@ -1012,6 +1012,92 @@ test('receipt join refuses a missing frozen obligation even when remaining evide
   }
 });
 
+test('receipt join refuses a selected obligation whose immutable attempt is missing', async () => {
+  const evidence = evidenceHarness();
+  const database = new Database(evidence.source.databasePath);
+  try {
+    await evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check'));
+    database
+      .query(
+        'DELETE FROM activation_attempt WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .run(evidence.request.requestIdentity, 'a'.repeat(64));
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      'selected receipt evidence',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    evidence.controller.close();
+  }
+});
+
+test('receipt join refuses a selected obligation whose retained authentication bytes conflict', async () => {
+  const evidence = evidenceHarness();
+  const database = new Database(evidence.source.databasePath);
+  try {
+    await evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check'));
+    database
+      .query(
+        'UPDATE activation_attempt SET authentication_bytes = ? WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .run(serializeCanonical({ forged: true }), evidence.request.requestIdentity, 'a'.repeat(64));
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      'selected receipt evidence',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    evidence.controller.close();
+  }
+});
+
+test('receipt join refuses a check row carrying an audit phase', async () => {
+  const evidence = evidenceHarness();
+  const database = new Database(evidence.source.databasePath);
+  try {
+    database
+      .query(
+        'UPDATE activation_obligation SET phase = ? WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .run('cold', evidence.request.requestIdentity, 'a'.repeat(64));
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check')),
+      'stored check obligation malformed',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    evidence.controller.close();
+  }
+});
+
+test('receipt join refuses an audit row carrying a check command', async () => {
+  const evidence = evidenceHarness();
+  const database = new Database(evidence.source.databasePath);
+  try {
+    database
+      .query(
+        'UPDATE activation_obligation SET command_identity = ? WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .run('c'.repeat(64), evidence.request.requestIdentity, 'd'.repeat(64));
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      'stored audit obligation malformed',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    evidence.controller.close();
+  }
+});
+
 test('receipt owner refuses a nonpending obligation with no selected attempt', async () => {
   const evidence = evidenceHarness();
   const database = new Database(evidence.source.databasePath);
