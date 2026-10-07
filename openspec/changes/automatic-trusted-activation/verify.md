@@ -232,3 +232,50 @@ Before implementation completion, run the canonical host gate and retain the pri
 outputs. Do not invoke raw full Nx gates on h2puni.
 
 No remote publication, permission/secret/variable change, release or activation was attempted.
+
+### Local source-order and worker-fence correction (2026-10-07)
+
+Independent review of the preceding checkpoint found that an accepted unchanged-ready
+observation and a repeated closed observation did not advance the subject observation
+version. A held older source answer could therefore overwrite the newer source answer.
+Both mounted two-owner tests failed on that exact request/closed assertion before the
+fix. Independent omission runs after the correction reproduced the same failures:
+`/tmp/activation-r5-unchanged-ready-fence-red.log` and
+`/tmp/activation-r5-repeated-closed-fence-red.log`, each 0/1 at the persisted
+request/closed assertion. Restored tests passed 2/2, 9 assertions. The version now advances
+for every accepted authoritative observation, while unchanged request identity and
+audit generation remain unchanged. This correction remains local and partial.
+
+The same review found missing watched proof for worker-claim/evaluation fences.
+Each row below removes only the named production condition, runs the named mounted
+controller test, restores the source hash, and reruns GREEN. Each refusal test also
+compares persisted request rows and obligations before/after the refused call.
+
+| Fence              | Accepted omission RED (each 0/1)                                                                       | Restored witness                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Claim current      | `/tmp/activation-r5-claim-current-red.log`: superseded refusal became stage refusal                    | `claim refuses a superseded request`                                          |
+| Claim stage        | `/tmp/activation-r5-claim-stage-red.log`: evaluating request gained another lease                      | `claim refuses an evaluating request`                                         |
+| Claim active lease | `/tmp/activation-r5-claim-lease-held-red.log`: second worker gained unexpired lease                    | `claim refuses another worker`                                                |
+| Evaluation current | `/tmp/activation-r5-begin-current-red.log`: superseded refusal became lease refusal                    | `evaluation refuses superseded current`                                       |
+| Evaluation stage   | `/tmp/activation-r5-begin-stage-red.log`: stage refusal became obligation primary-key error            | `evaluation refuses its already evaluating stage`                             |
+| Epoch              | `/tmp/activation-r5-begin-epoch-red.log`: predecessor epoch advanced with current owner/version        | `evaluation fences an old epoch`                                              |
+| Owner              | `/tmp/activation-r5-begin-owner-red.log`: wrong owner advanced with current epoch/version              | `evaluation fences a wrong owner`                                             |
+| Version            | `/tmp/activation-r5-begin-version-red.log`: wrong version advanced with current epoch/owner            | `evaluation fences a wrong version`                                           |
+| Expiry             | `/tmp/activation-r5-begin-expiry-red.log`: lease advanced at exact expiry                              | `evaluation fences a lease at its exact expiry`                               |
+| Null expiry        | `/tmp/activation-r5-begin-null-expiry-red.log`: missing persisted expiry advanced                      | `evaluation fences a missing persisted lease expiry`                          |
+| Authority          | `/tmp/activation-r5-begin-authority-red.log`: old request evaluated under another valid bootstrap pin  | `evaluation refuses a current lease under a different valid pinned authority` |
+| Bootstrap reread   | `/tmp/activation-r5-begin-bootstrap-reread-red.log`: disappeared pin file no longer refused evaluation | `evaluation rereads the pinned bootstrap`                                     |
+
+The first null-expiry omission trial stayed GREEN because JavaScript compared `null <= now`
+as true. It is disqualified. The expiry predicate was made explicit and the repeated
+single-condition omission then advanced the malformed lease as shown above. Claim/evaluation
+current and evaluation stage omissions changed the typed refusal without granting authority;
+they prove refusal specificity, not successful advancement. The exact four-file Bun
+command above on corrected bytes passed 43/43 tests and 194 assertions, exit 0
+(`/tmp/activation-1.2-correction-four-green.log`). Declared
+`twilight-burokrat:lint:source`, `:typecheck` and `:build` each printed Nx's
+explicit success summary and exited 0. Initial lint failed at a redundant null
+conditional after the expiry correction; direct ESLint identified the rule, and
+the final explicit expiry helper passed the declared target. Nx used its in-process
+plugin fallback after the sandbox denied its socket. Tasks 1.1/1.2 and all
+external-provider acceptance remain open.

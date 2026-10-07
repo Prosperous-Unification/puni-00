@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -185,6 +185,266 @@ test('stage, version, lease epoch, owner and expiry independently fence worker a
       }),
     ).toThrow('activation request lease changed');
     expect(controller.beginEvaluation(successor).stage).toBe('evaluating');
+  } finally {
+    controller.close();
+  }
+});
+
+test('claim refuses a superseded request without altering its persisted row', () => {
+  const source = fixture();
+  const controller = openActivationController({
+    ...source,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
+  });
+  try {
+    const first = controller.observe(source.candidate);
+    controller.observe({ ...source.candidate, headSha: '6'.repeat(40) });
+    const before = controller.listRequests();
+    expect(() => controller.claim(first.requestIdentity, 'worker.old', 10)).toThrow(
+      'activation request superseded',
+    );
+    expect(controller.listRequests()).toEqual(before);
+  } finally {
+    controller.close();
+  }
+});
+
+test('claim refuses an evaluating request after its prior lease expires', () => {
+  const source = fixture();
+  let now = 1000;
+  const controller = openActivationController({
+    ...source,
+    clock: () => now,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
+  });
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 10);
+    controller.beginEvaluation(lease);
+    now = 1010;
+    const before = controller.listRequests();
+    expect(() => controller.claim(request.requestIdentity, 'worker.second', 10)).toThrow(
+      'activation request stage changed',
+    );
+    expect(controller.listRequests()).toEqual(before);
+  } finally {
+    controller.close();
+  }
+});
+
+test('claim refuses another worker during an active lease', () => {
+  const source = fixture();
+  const controller = openActivationController({
+    ...source,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
+  });
+  try {
+    const request = controller.observe(source.candidate);
+    controller.claim(request.requestIdentity, 'worker.first', 10);
+    const before = controller.listRequests();
+    expect(() => controller.claim(request.requestIdentity, 'worker.second', 10)).toThrow(
+      'activation request lease held',
+    );
+    expect(controller.listRequests()).toEqual(before);
+  } finally {
+    controller.close();
+  }
+});
+
+test('evaluation refuses superseded current request before any obligation write', () => {
+  const source = fixture();
+  const controller = openActivationController({
+    ...source,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
+  });
+  try {
+    const first = controller.observe(source.candidate);
+    const lease = controller.claim(first.requestIdentity, 'worker.first', 10);
+    controller.observe({ ...source.candidate, headSha: '6'.repeat(40) });
+    const before = controller.listRequests();
+    expect(() => controller.beginEvaluation(lease)).toThrow('activation request superseded');
+    expect(controller.listRequests()).toEqual(before);
+    expect(controller.listObligations(first.requestIdentity)).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+test('evaluation refuses its already evaluating stage with a current lease version', () => {
+  const source = fixture();
+  const controller = openActivationController({
+    ...source,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
+  });
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 10);
+    const evaluated = controller.beginEvaluation(lease);
+    const before = controller.listRequests();
+    const obligations = controller.listObligations(request.requestIdentity);
+    expect(() => controller.beginEvaluation({ ...lease, version: evaluated.version })).toThrow(
+      'activation request stage changed',
+    );
+    expect(controller.listRequests()).toEqual(before);
+    expect(controller.listObligations(request.requestIdentity)).toEqual(obligations);
+  } finally {
+    controller.close();
+  }
+});
+
+function boundaryController(source: ReturnType<typeof fixture>, clock: () => number) {
+  return openActivationController({
+    ...source,
+    clock,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
+  });
+}
+
+test('evaluation fences an old epoch independently of current owner and version', () => {
+  const source = fixture();
+  let now = 1000;
+  const controller = boundaryController(source, () => now);
+  try {
+    const request = controller.observe(source.candidate);
+    const old = controller.claim(request.requestIdentity, 'worker.first', 10);
+    now = 1010;
+    const current = controller.claim(request.requestIdentity, 'worker.second', 10);
+    const before = controller.listRequests();
+    expect(() => controller.beginEvaluation({ ...current, leaseEpoch: old.leaseEpoch })).toThrow(
+      'activation request lease changed',
+    );
+    expect(controller.listRequests()).toEqual(before);
+    expect(controller.listObligations(request.requestIdentity)).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+test('evaluation fences a wrong owner independently of current epoch and version', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  try {
+    const request = controller.observe(source.candidate);
+    const current = controller.claim(request.requestIdentity, 'worker.first', 10);
+    const before = controller.listRequests();
+    expect(() => controller.beginEvaluation({ ...current, workerId: 'worker.other' })).toThrow(
+      'activation request lease changed',
+    );
+    expect(controller.listRequests()).toEqual(before);
+    expect(controller.listObligations(request.requestIdentity)).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+test('evaluation fences a wrong version independently of current epoch and owner', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  try {
+    const request = controller.observe(source.candidate);
+    const current = controller.claim(request.requestIdentity, 'worker.first', 10);
+    const before = controller.listRequests();
+    expect(() => controller.beginEvaluation({ ...current, version: current.version + 1 })).toThrow(
+      'activation request lease changed',
+    );
+    expect(controller.listRequests()).toEqual(before);
+    expect(controller.listObligations(request.requestIdentity)).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+test('evaluation fences a lease at its exact expiry', () => {
+  const source = fixture();
+  let now = 1000;
+  const controller = boundaryController(source, () => now);
+  try {
+    const request = controller.observe(source.candidate);
+    const current = controller.claim(request.requestIdentity, 'worker.first', 10);
+    now = 1010;
+    const before = controller.listRequests();
+    expect(() => controller.beginEvaluation(current)).toThrow('activation request lease changed');
+    expect(controller.listRequests()).toEqual(before);
+    expect(controller.listObligations(request.requestIdentity)).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+test('evaluation fences a missing persisted lease expiry', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  try {
+    const request = controller.observe(source.candidate);
+    const current = controller.claim(request.requestIdentity, 'worker.first', 10);
+    const database = new Database(source.databasePath);
+    try {
+      database
+        .query('UPDATE activation_request SET lease_expires_at = NULL WHERE request_identity = ?')
+        .run(request.requestIdentity);
+    } finally {
+      database.close();
+    }
+    const before = controller.listRequests();
+    expect(() => controller.beginEvaluation(current)).toThrow('activation request lease changed');
+    expect(controller.listRequests()).toEqual(before);
+    expect(controller.listObligations(request.requestIdentity)).toEqual([]);
+  } finally {
+    controller.close();
+  }
+});
+
+test('evaluation refuses a current lease under a different valid pinned authority', () => {
+  const source = fixture();
+  const first = boundaryController(source, () => 1000);
+  const request = first.observe(source.candidate);
+  const lease = first.claim(request.requestIdentity, 'worker.first', 10);
+  first.close();
+  const alternatePath = join(source.bootstrapPath, '..', 'alternate-bootstrap.json');
+  const alternateBytes = readFileSync(source.bootstrapPath, 'utf8').replace(
+    'review.provider',
+    'review.alternate',
+  );
+  writeFileSync(alternatePath, alternateBytes);
+  const alternate = boundaryController(
+    {
+      ...source,
+      bootstrapPath: alternatePath,
+      pin: { ...source.pin, identity: hashBytes(alternateBytes) },
+    },
+    () => 1000,
+  );
+  try {
+    const before = alternate.listRequests();
+    expect(() => alternate.beginEvaluation(lease)).toThrow('activation request authority changed');
+    expect(alternate.listRequests()).toEqual(before);
+    expect(alternate.listObligations(request.requestIdentity)).toEqual([]);
+  } finally {
+    alternate.close();
+  }
+});
+
+test('evaluation rereads the pinned bootstrap before freezing obligations', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 10);
+    rmSync(source.bootstrapPath);
+    const before = controller.listRequests();
+    expect(() => controller.beginEvaluation(lease)).toThrow();
+    expect(controller.listRequests()).toEqual(before);
+    expect(controller.listObligations(request.requestIdentity)).toEqual([]);
   } finally {
     controller.close();
   }
@@ -413,6 +673,113 @@ test('older source response refetches after another owner advances the subject',
     expect(accepted?.requestIdentity).toBe(advanced.requestIdentity);
     expect(reads).toBe(2);
     expect(first.listRequests()).toHaveLength(2);
+  } finally {
+    first.close();
+    second.close();
+  }
+});
+
+test('unchanged authoritative ready observation fences an older changed-head response', async () => {
+  const fixtureData = fixture();
+  const older = { ...fixtureData.candidate, headSha: '6'.repeat(40) };
+  let releaseOlder: ((answer: { kind: 'ready'; candidate: ObservedCandidate }) => void) | undefined;
+  let reads = 0;
+  const heldOlder = new Promise<{ kind: 'ready'; candidate: ObservedCandidate }>((resolve) => {
+    releaseOlder = resolve;
+  });
+  const options = {
+    ...fixtureData,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+  };
+  const first = openActivationController({
+    ...options,
+    currentCandidate: () => {
+      reads += 1;
+      return reads === 1
+        ? heldOlder
+        : Promise.resolve({ kind: 'ready' as const, candidate: fixtureData.candidate });
+    },
+  });
+  const second = openActivationController({
+    ...options,
+    currentCandidate: () =>
+      Promise.resolve({ kind: 'ready' as const, candidate: fixtureData.candidate }),
+  });
+  try {
+    const current = first.observe(fixtureData.candidate);
+    const pending = first.observeDelivery({
+      sourceId: 'github.installation.1',
+      deliveryId: 'delivery.older-head',
+      payloadDigest: 'a'.repeat(64),
+      repositoryId: fixtureData.candidate.repositoryId,
+      subject: fixtureData.candidate.subject,
+    });
+    expect(
+      (
+        await second.observeDelivery({
+          sourceId: 'github.installation.1',
+          deliveryId: 'delivery.confirm-current',
+          payloadDigest: 'b'.repeat(64),
+          repositoryId: fixtureData.candidate.repositoryId,
+          subject: fixtureData.candidate.subject,
+        })
+      )?.requestIdentity,
+    ).toBe(current.requestIdentity);
+    if (releaseOlder === undefined) throw new Error('older source read was not held');
+    releaseOlder({ kind: 'ready', candidate: older });
+    expect((await pending)?.requestIdentity).toBe(current.requestIdentity);
+    expect(reads).toBe(2);
+    expect(first.listRequests()).toHaveLength(1);
+  } finally {
+    first.close();
+    second.close();
+  }
+});
+
+test('repeated authoritative closed observation fences an older ready response', async () => {
+  const fixtureData = fixture();
+  let releaseReady: ((answer: { kind: 'ready'; candidate: ObservedCandidate }) => void) | undefined;
+  let reads = 0;
+  const heldReady = new Promise<{ kind: 'ready'; candidate: ObservedCandidate }>((resolve) => {
+    releaseReady = resolve;
+  });
+  const options = {
+    ...fixtureData,
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+  };
+  const first = openActivationController({
+    ...options,
+    currentCandidate: () => {
+      reads += 1;
+      return reads === 1 ? heldReady : Promise.resolve({ kind: 'closed' as const });
+    },
+  });
+  const second = openActivationController({
+    ...options,
+    currentCandidate: () => Promise.resolve({ kind: 'closed' as const }),
+  });
+  const delivery = {
+    sourceId: 'github.installation.1',
+    deliveryId: 'delivery.closed-replayed',
+    payloadDigest: 'a'.repeat(64),
+    repositoryId: fixtureData.candidate.repositoryId,
+    subject: fixtureData.candidate.subject,
+  };
+  try {
+    expect(await second.observeDelivery(delivery)).toBeUndefined();
+    const pending = first.observeDelivery({
+      ...delivery,
+      deliveryId: 'delivery.older-ready',
+      payloadDigest: 'b'.repeat(64),
+    });
+    expect(await second.observeDelivery(delivery)).toBeUndefined();
+    if (releaseReady === undefined) throw new Error('older ready read was not held');
+    releaseReady({ kind: 'ready', candidate: fixtureData.candidate });
+    expect(await pending).toBeUndefined();
+    expect(reads).toBe(2);
+    expect(first.listRequests()).toEqual([]);
   } finally {
     first.close();
     second.close();

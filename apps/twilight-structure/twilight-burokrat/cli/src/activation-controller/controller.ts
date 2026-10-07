@@ -149,6 +149,10 @@ function nowFrom(clock: () => number): number {
   return now;
 }
 
+function isExpiredLease(expiresAt: number | null, now: number): boolean {
+  return expiresAt !== null && expiresAt <= now;
+}
+
 function transaction<T>(database: Database, body: () => T): T {
   database.run('BEGIN IMMEDIATE');
   try {
@@ -291,6 +295,12 @@ export class ActivationController {
         previous.bootstrap_identity === this.options.pin.identity &&
         hashCanonical(oldIdentity) === hashCanonical(newIdentity)
       ) {
+        // Proof: omitting this fence let an older held B source read supersede a newer unchanged A observation.
+        this.#database
+          .query(
+            'UPDATE activation_subject SET observation_version = observation_version + 1 WHERE repository_id = ? AND subject_key = ?',
+          )
+          .run(candidate.repositoryId, key);
         return current;
       }
     }
@@ -387,21 +397,20 @@ export class ActivationController {
         if (authoritative.kind === 'ready' && frozen !== undefined) {
           request = this.#observeIn(authoritative.candidate, frozen.request);
         } else {
-          const closed = this.#database
+          this.#database
             .query(
               "UPDATE activation_request SET current = 0, stage = 'superseded', version = version + 1 WHERE repository_id = ? AND subject_key = ? AND current = 1",
             )
             .run(repositoryId, key);
           // Proof: without a first-close tombstone, held ready at version 0 committed after close.
-          if (closed.changes > 0 || recorded === null) {
-            this.#database
-              .query(
-                `INSERT INTO activation_subject (repository_id, subject_key, high_water_generation, observation_version)
-                  VALUES (?, ?, 0, 1) ON CONFLICT(repository_id, subject_key)
-                  DO UPDATE SET observation_version = activation_subject.observation_version + 1`,
-              )
-              .run(repositoryId, key);
-          }
+          // Proof: skipping a repeated closed observation let an older held ready response reopen the subject.
+          this.#database
+            .query(
+              `INSERT INTO activation_subject (repository_id, subject_key, high_water_generation, observation_version)
+                VALUES (?, ?, 0, 1) ON CONFLICT(repository_id, subject_key)
+                DO UPDATE SET observation_version = activation_subject.observation_version + 1`,
+            )
+            .run(repositoryId, key);
         }
         if (delivery !== undefined && recorded === null) {
           this.#database
@@ -482,8 +491,11 @@ export class ActivationController {
     return transaction(this.#database, () => {
       const row = readRow(this.#database, identity);
       if (row === undefined) throw new Error('activation request absent');
+      // Proof: omitting current changed the superseded-claim refusal to a stage refusal.
       if (row.current !== 1) throw new Error('activation request superseded');
+      // Proof: omitting stage granted a new lease to an already evaluating request.
       if (row.stage !== 'observed') throw new Error('activation request stage changed');
+      // Proof: omitting the active-lease check let a second worker replace an unexpired owner.
       if (row.lease_owner !== null && row.lease_expires_at !== null && row.lease_expires_at > now) {
         throw new Error('activation request lease held');
       }
@@ -505,21 +517,27 @@ export class ActivationController {
     return transaction(this.#database, () => {
       const row = readRow(this.#database, lease.requestIdentity);
       if (row === undefined) throw new Error('activation request absent');
+      // Proof: omitting current changed the superseded-evaluation refusal to a lease refusal.
       if (row.current !== 1) throw new Error('activation request superseded');
+      // Proof: independently omitting epoch, owner, version, expiry and null-expiry checks
+      // let the corresponding stale or malformed lease advance to evaluating.
       if (
         row.lease_epoch !== lease.leaseEpoch ||
         row.lease_owner !== lease.workerId ||
         row.version !== lease.version ||
         row.lease_expires_at === null ||
-        row.lease_expires_at <= now
+        isExpiredLease(row.lease_expires_at, now)
       ) {
         throw new Error('activation request lease changed');
       }
+      // Proof: omitting stage retried evaluation until its obligation PK failed instead of refusing.
       if (row.stage !== 'observed') {
         throw new Error('activation request stage changed');
       }
       const request = storedRequest(row).request;
+      // Proof: omitting this reread froze obligations after the pinned bootstrap disappeared.
       readBootstrapConfiguration(this.options.bootstrapPath, this.options.pin);
+      // Proof: omitting this authority join froze old-request obligations under a new valid pin.
       if (request.authorityIdentity !== this.options.pin.identity) {
         throw new Error('activation request authority changed');
       }
