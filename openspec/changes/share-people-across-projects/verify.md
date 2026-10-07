@@ -3515,3 +3515,95 @@ After this ledger append, the final documentation bytes passed pinned strict Ope
 all OpenSpec 149/149, changed-path Prettier and `git diff --check`; outputs are
 `/tmp/shared-people-6ka-final-{strict,all}.json` and
 `/tmp/shared-people-6ka-final-{format,diff}.log`.
+
+### 6k.b installed outcome owner (local candidate)
+
+The installed `buildServices` override now runs the existing synchronous
+`storeOptimizedOutcomeAndRecord` savepoint within the source's borrowed
+`BEGIN IMMEDIATE` owner. It captures the scoped organization's old display,
+stores the admitted outcome, captures the staged display, records only the
+addressed project cause, and returns the decision plus downstream envelopes
+after commit for 6k.a's tracked delivery. The direct repository continues to
+return empty downstream envelopes. This slice does not implement 6k.c–e.
+
+The first mounted selected-outcome test failed with `stored` but no B row
+(`/tmp/shared-people-6kb-first-red.log`, 0/1), then passed with the installed
+owner (`/tmp/shared-people-6kb-first-green.log`, 1/3). The current two-file
+command was exactly:
+
+```sh
+bun test apps/wbs/be-01/src/services.db.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts
+```
+
+It passed 123/123, 759 assertions, exit 0
+(`/tmp/shared-people-6kb-final-two-file.log`). Mounted cases establish selected
+B/C fan-out and no duplicate after repeated write; eligible H1 under current
+H2, nonselected PRI under TIME, stale token, isolated and legacy silence;
+malformed active ownership refusal; full cache/slot/event/sequencer rollback
+after a real second-recipient insert and a thrown borrowed after-capture;
+committed B seq0 and second-writer progress while B transport is held; and
+replay equality after HTTP 400. The held case compares the persisted A slot's
+attempt token to the original write claim, lets the recipient reaction settle,
+then proves `stop` remains pending solely for held B delivery.
+
+K4 uses real SQLite input, solver request/evaluation, admitted slot, borrowed
+captured schedules and installed outcome write. A retains the canonical
+input hash while its selected display changes from `available` to
+`calendar_range`; both booking lists are empty and B receives seq0.
+The test passed 1/7 (`/tmp/shared-people-6kb-k4-capture-green.log`).
+Forcing the production comparator's `availabilityChanged` to false made that
+same installed B-row assertion receive `[]`; restored code passed 1/7
+(`/tmp/shared-people-6kb-k4-availability-{omission-red,restored-green}.log`).
+The first K4 trial read an unavailable optimization input after storing and
+was a test-fixture error, not a product negative
+(`/tmp/shared-people-6kb-k4-trial.log`).
+
+Accepted independent R5 faults and same-assertion restorations:
+
+| Boundary                       | Injected fault and observed failure                                                                                                                                                            | RED / restored GREEN logs                                                                                                                    |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| K1 installer, recording, cause | Omit the installed override, transactional recording, or addressed cause separately; B's expected durable row is missing each time.                                                            | `/tmp/shared-people-6kb-{installer,record,cause}-omission-red.log` and matching `-restored-green.log`                                        |
+| K2 no invention                | Force outgoing fan-out on every stored insertion; the nonselected outcome gains an unexpected B event.                                                                                         | `/tmp/shared-people-6kb-force-event-on-insert-{red,restored-green}.log`                                                                      |
+| K4 availability                | Suppress the modeled availability difference; mounted B event disappears despite unchanged H and empty bookings.                                                                               | `/tmp/shared-people-6kb-k4-availability-{omission-red,restored-green}.log`                                                                   |
+| K5 borrowed capture            | Read the staged capture from a separate read-only connection; A stores, but B's required event is absent.                                                                                      | `/tmp/shared-people-6kb-detached-capture-{red,restored-green}.log`                                                                           |
+| K5 source turn                 | Bypass `sqliteUnitOfWork`'s gate; the installed write settles before the held writer releases.                                                                                                 | `/tmp/shared-people-6kb-serialization-{omission-red,restored-green}.log`                                                                     |
+| K6 one commit                  | Split `COMMIT`/`BEGIN` after raw outcome mutation; the second real event-insert failure leaves committed cache/outcome/event/seq residue, failing full `lifecycleTables` equality.             | `/tmp/shared-people-6kb-split-commit-{red,restored-green}.log`                                                                               |
+| K7 post-write capture          | Reuse old capture; selected B event vanishes. The independent thrown after-capture case restores the full snapshot and sends nothing.                                                          | `/tmp/shared-people-6kb-after-capture-{omission-red,restored-green}.log`, `/tmp/shared-people-6kb-postcapture-green.log`                     |
+| K8 no-op and capability        | Bypass stored-only guard; already-recorded capture count rises from three to four. Omit borrowed-capability refusal; malformed access becomes a TypeError instead of the named prewrite error. | `/tmp/shared-people-6kb-noop-guard-{omission-red,restored-green}.log`, `/tmp/shared-people-6kb-capability-{omission-red,restored-green}.log` |
+| K9 decision before transport   | Await real B delivery before returning `stored`; bounded acceptance times out while transport is held.                                                                                         | `/tmp/shared-people-6kb-installed-await-delivery-{red,restored-green}.log`                                                                   |
+| K10 tracked stop               | Omit outcome delivery registration after unrelated recipient reaction has finished; stop settles while B transport remains held.                                                               | `/tmp/shared-people-6kb-installed-tracking-omission-red-try3.log`, `/tmp/shared-people-6kb-installed-tracking-restored-green.log`            |
+| K13 downstream handoff         | Drop actual B envelope from outcome batch; bounded B-delivery registration times out while its durable row exists.                                                                             | `/tmp/shared-people-6kb-installed-envelope-drop-{red,restored-green}.log`                                                                    |
+
+The first two K10 omission trials stayed green because another coordinator
+recipient-reaction task independently held stop; they are disqualified
+(`/tmp/shared-people-6kb-installed-tracking-omission-red.log` and
+`-red-try2.log`). The accepted third trial waits for that task while retaining
+only B transport. The first malformed-owner setup hit the immutable owner
+trigger before exercising the owner; the corrected test deliberately removes
+that trigger to model trusted corruption, then verifies refusal
+(`/tmp/shared-people-6kb-modes-owner{,-green}.log`). Every temporary
+production fault above was restored; the source/capture/UoW/coordinator
+files used for K4/K5/K9/K10/K13 match their saved SHA-256 byte hashes.
+
+Direct BE TypeScript initially found an un-narrowed absent ownership union
+(`/tmp/shared-people-6kb-tsc-initial.log`); a precise `organizationId`
+discriminant fixed it and direct `tsc --build --force` passed
+(`/tmp/shared-people-6kb-tsc-fixed.log`). Direct ESLint initially found only
+two import-order errors, then passed after inspected import autofix
+(`/tmp/shared-people-6kb-be-eslint{,-fixed}.log`). The declared Nx BE lint,
+typecheck (including module), and build targets have explicit success
+summaries with `--skip-nx-cache`
+(`/tmp/shared-people-6kb-nx-{lint,typecheck,build}.log`). An earlier Nx lint
+exit 0 without a task summary is excluded (`/tmp/shared-people-6kb-be-lint.log`).
+The service-kind inventory first failed because Git did not yet track the
+new service file; after `git add -N` the exact test passed 17/17, 19 assertions
+(`/tmp/shared-people-6kb-service-kinds{,-restored}.log`).
+
+Pinned strict OpenSpec passed 1/1 and `--all` passed 149/149
+(`/tmp/shared-people-6kb-final-doc-{strict,all}.json`). The first final
+Prettier check found only this appended ledger unformatted
+(`/tmp/shared-people-6kb-format-check.log`); the formatted changed-path
+Prettier check and `git diff --check` both exited 0
+(`/tmp/shared-people-6kb-final-doc-{format,diff}.log`).
+6k.c–e, 6k parent, activation, host gate and CI remain open at this local
+checkpoint.

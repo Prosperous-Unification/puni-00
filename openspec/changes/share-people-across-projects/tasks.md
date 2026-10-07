@@ -385,7 +385,7 @@ does not fan out twice`. R5: fan out on any insertion, compare only input hash, 
       Watch independent await-before-handoff, rejection propagation, tracking/error-reporting,
       dropped-envelope and republish faults (K9/K10/K13). Direct empty-envelope tests establish
       only the consumer; keep the installed owner work open.
-- [ ] 6k.b. **Installed outcome owner.** Add the source-bound borrowed comparison around the
+- [x] 6k.b. **Installed outcome owner.** Add the source-bound borrowed comparison around the
       existing synchronous outcome/event savepoint. RED selected current outcome, eligible
       H1-under-H2, nonselected silence, equal-hash modeled availability, already-recorded and
       superseded silence, isolated/legacy behavior, second-event rollback and post-capture

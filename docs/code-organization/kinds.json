@@ -20,6 +20,12 @@
       "rationale": "buildServices installs createOptimizationLifecycle to begin or finish drains and release exact solver slots with fan-out recorded in the owning write unit"
     },
     {
+      "path": "apps/wbs/be-01/src/service/optimization-outcome.ts",
+      "kind": "feature",
+      "capability": "Optimized outcome fan-out",
+      "rationale": "buildServices installs createOptimizationOutcomeOwner to store a solver outcome and record displaced shared-person recipients in one source-owned write unit"
+    },
+    {
       "path": "apps/wbs/be-01/src/service/optimization-reconciliation.ts",
       "kind": "feature",
       "capability": "Optimization drain reconciliation",
