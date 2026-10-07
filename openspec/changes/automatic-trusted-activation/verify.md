@@ -1762,3 +1762,64 @@ zero failures. Changed-path Prettier and `git diff --check` passed. Host gate,
 CI, live cgroup quota, loaded AppArmor policy, FD/mount sentinel and selected
 worker execution remain unrun. No workflow was wired to this target while
 those host prerequisites are absent.
+
+### 1.2 bounded GitHub PR observation source (2026-10-07)
+
+The local `github-source.ts` adapter supplies PR discovery hints and an exact fresh
+`currentCandidate` read to the durable `reconcileReady`/`observeDelivery` owner.
+The first mounted test was RED before the adapter existed: `bun test
+src/activation-controller/github-source.db.test.ts` exited 1 with `Cannot find
+module './github-source'`. The restored mounted suite passed 14/14 with 57
+assertions. It uses real controller persistence and a fake authenticated reader
+port. No HTTP credential, webhook verifier, scheduler, publisher, merge
+authority, or live provider is installed by this slice.
+
+The repository binding is trusted controller configuration. Pagination uses
+bounded numeric page indices, never a provider URL or cursor, and list entries
+cannot authorize a request: every hinted or already active PR is fetched by
+number through `currentCandidate` before the source-version-fenced owner write.
+An omitted list entry does not imply closure. Only an explicit current closed,
+draft, or retargeted state makes this PR ineligible. Missing/malformed current
+reads and reader errors refuse without tombstoning. Fork heads are refused
+because v1 canonical request identity cannot represent their repository. The
+mounted fixtures cover event/timer convergence, an omitted active PR, head/base
+movement, retargeting, A → B → A generation advancement, and a list head that
+differs from the fresh current head.
+
+Each watch below replaced only the named production condition in
+`github-source.ts`, ran `bun test -t '<named test>'
+src/activation-controller/github-source.db.test.ts` from the CLI directory,
+then restored the original source and ran the same command. The exact command,
+exit, and assertion are retained in
+`/tmp/activation-github-source-<name>-{red,green}.log`; the watch harness is
+`/tmp/activation-github-source-watch.py`. All 11 REDs exited 1 and all 11
+restored GREENs exited 0. Source SHA-256 after restoration was
+`6d76afe7168c5596696b46dad2428fa4781b3930ba38240fd84628eaad7a2b94`.
+
+| Watch             | Removed condition; observed named RED                                                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `base_repo`       | Foreign base-repository PR became accepted; expected source refusal was absent.                                                                                                      |
+| `fork_head`       | Unsupported fork-head PR became accepted; expected source refusal was absent.                                                                                                        |
+| `cursor`          | A skipped page reached a later malformed response instead of the exact cursor refusal; this proves refusal specificity, not an authority grant.                                      |
+| `duplicate`       | Duplicate PR across pages was accepted without the expected refusal.                                                                                                                 |
+| `page_size`       | Oversized page reached a later PR-number mismatch instead of the page-size refusal; this proves refusal specificity, not an authority grant.                                         |
+| `page_bound`      | A continuing 100-page scan returned an incomplete list instead of refusing.                                                                                                          |
+| `foreign_locator` | The source read a foreign locator before the controller's later subject guard refused; the named source refusal was absent. This proves the credential-read boundary, not admission. |
+| `pr_number`       | A response for another PR number reached the controller's later subject guard; the named source refusal was absent. This proves source specificity, not admission.                   |
+| `open`            | A current closed PR was admitted as ready.                                                                                                                                           |
+| `draft`           | A current draft PR was admitted as ready.                                                                                                                                            |
+| `target`          | A PR currently targeting another branch was admitted as ready.                                                                                                                       |
+
+Task 1.2 remains open: the reader is a required independently authenticated
+port, without a production GitHub transport, webhook verification, timer
+installation, or provider permission proof. These local tests do not establish
+deployed recurrence or clear 030.6.
+
+Final-byte checks for this bounded checkpoint: five controller/source files
+passed 444/444 tests with 1,896 assertions (`/tmp/activation-github-source-five.log`);
+uncached Nx `twilight-burokrat:lint:source`, `typecheck`, and `build` each
+printed `Successfully ran target`, exit 0. Pinned OpenSpec strict validated
+1/1 and `--all` validated 143/143, zero failures
+(`/tmp/activation-github-source-{strict,all}.json`). Changed-path Prettier
+and `git diff --check` exited 0. The h2puni host gate, CI, live GitHub API
+transport, webhook signature validation, and deployed timer remain unrun.
