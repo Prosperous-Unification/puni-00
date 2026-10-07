@@ -31,6 +31,7 @@ export function observationExitCode(
   signal?: 'SIGINT' | 'SIGTERM',
 ): number {
   if (outcome.kind === 'complete') return 0;
+  if (outcome.kind === 'deferred') return 75;
   // Proof: mapping busy to zero failed the mounted CLI status assertion 75.
   if (outcome.kind === 'busy') return 75;
   if (signal === 'SIGINT') return 130;

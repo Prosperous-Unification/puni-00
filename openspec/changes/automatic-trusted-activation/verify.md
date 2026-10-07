@@ -2533,3 +2533,116 @@ still fails at the open `/` descriptor assertion. This follows the
 historical 579/579 correction run above; both are retained as separate
 checkpoints. The follow-up remains local and uninstalled: host gate, CI,
 external reviewer, publisher and service activation were not run.
+
+#### 1.2g local provider timing and durable recovery candidate
+
+The reader now carries a validated absolute retry minimum for numeric or
+canonical HTTP-date Retry-After and integer reset epoch. Malformed present
+timing refuses; two valid bounds use the later one. No raw response header,
+body or credential is retained. A first mounted test failed with expected
+1,015,000ms versus undefined before this parser existed
+(`/tmp/activation-f11-first-red.log`).
+
+An explicit additive v9→v10 transaction installs a bound recovery singleton
+and attempt journal. The v9 sequence/burst/start remain an unclassified
+watermark; no historical outcome is invented. A nonzero watermark gets a
+conservative configured recovery delay. Scheduled ticks require exact v10
+schema and never migrate on open. Reservation and terminal facts commit in
+separate short transactions around provider work under one process lock;
+there is no SQLite transaction across the GET await. A real child died after
+reservation with the lock held and left attempt 1 pending. Reopen sealed it
+interrupted, deferred without GET, and later began attempt 2. Provider
+failure, local failure, cancellation, interruption and complete success have
+distinct terminal facts. Burst exhaustion retains failed health and slower
+recovery probes; only complete recovery restores healthy status and resets
+the burst, while sequence and journal history remain. Clock rollback refuses,
+and valid provider minimums beyond the local horizon remain absolute.
+
+The literal focused command
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/{bootstrap.test.ts,request.test.ts,ingress.test.ts,controller.db.test.ts,github-reader.db.test.ts,github-source.db.test.ts,observation-state.db.test.ts,observation-tick.db.test.ts}`
+passed **614/614**, 2,677 assertions, exit 0 before formatting at
+`/tmp/activation-f11-preformat-eight.log`. On the final source bytes, the
+same eight-file command passed **614/614**, 2,686 assertions, exit 0.
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run
+twilight-burokrat:lint:source --outputStyle=static`, the corresponding
+`typecheck` and `build` targets each exited 0 with an Nx target-success
+summary. `bunx @fission-ai/openspec@1.12.0 validate
+automatic-trusted-activation --strict --json` passed 1/1, and the same
+version's `validate --all --json` passed 143/143. The final test assertion
+count includes typed rollback-fixture assertions added after the preformat
+run; neither command claims host installation or external acceptance.
+
+The watched mutation harnesses `/tmp/activation-f11-reader-watch.py`,
+`watch.py`, `watch-state.py`, `watch-journal.py`, `watch-policy.py`,
+`watch-atomic.py` and `watch-terminal.py` each ran the exact named
+`bun test <file> --test-name-pattern <name>` under one source omission,
+restored the source SHA-256, and reran the same test. All **33 accepted**
+faults below have RED exit 1 and restored GREEN exit 0 at
+`/tmp/activation-f11-<fault>-{red,green}.log`.
+
+| Faults                                                                                                                  | Observed RED                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `reader-clock`, `reader-numeric`, `reader-date`, `reader-retry_overflow`, `reader-reset_shape`, `reader-reset_overflow` | Named invalid-response refusal became ordinary rate-limit handling after the respective clock, grammar or overflow check was omitted.                                                                        |
+| `reader-provider_max`                                                                                                   | Chose the earlier 1,005,000ms bound instead of 1,015,000ms.                                                                                                                                                  |
+| `cooldown`, `provider_minimum`, `clock_rollback`                                                                        | Reopened tick read again during cooldown; provider minimum shortened to fallback; 3,100ms clock after 3,200ms success resolved.                                                                              |
+| `failed_health`, `success_health`                                                                                       | Exhaustion did not retain failed health; complete recovery did not restore healthy health.                                                                                                                   |
+| `cancel_terminal`, `tick_final_cancel`                                                                                  | Cancelled held reader or synchronous post-close cancellation wrote a false complete journal fact. The latter required a persisted-journal assertion because the outer outcome fence masked its return value. |
+| `journal_count`, `terminal_classification`, `terminal_history`                                                          | Deleted earlier attempt, changed provider classification or cleared last-failure pointer issued one forbidden GET.                                                                                           |
+| `v10_version`, `v10_schema`, `v10_binding`                                                                              | Wrong version marker, CHECK-free recovery table or mismatched configuration each reached the provider reader.                                                                                                |
+| `burst_mode`, `sequence_overflow`                                                                                       | Corrupt exhausted burst or unsafe sequence each issued one forbidden GET.                                                                                                                                    |
+| `migration_split`                                                                                                       | COMMIT before injected late fault retained version 10 rather than restoring version 9.                                                                                                                       |
+| `missing_initial`, `zero_initial`, `initial_order`, `max_order`, `recovery_order`, `fallback_order`, `horizon_ceiling`  | Each malformed trusted retry policy migrated v10 when only its missing/lower/order/ceiling predicate was omitted.                                                                                            |
+| `reservation_insert`, `reservation_split`                                                                               | Real child entered provider work without a pending journal row; journal insertion fault left sequence/burst 1 committed instead of rolling back to 0.                                                        |
+| `terminal_split`                                                                                                        | Singleton write fault left provider-failure and 1700ms minimum committed while recovery state remained pending.                                                                                              |
+
+The first post-close mutation was disqualified because the outer return fence
+masked it; the persisted journal assertion made the second trial decisive.
+A redundant v9 migration preflight was removed because the transaction's
+versioned source reader already enforces it. This checkpoint does not install
+a timer/service or use live credentials, workers, reviewer, publisher,
+admission, merge, WBS writes, host gate or CI.
+
+Astra's read-only public-path probe found three defects in this candidate:
+cancelled final-burst reservation retained idle burst mode, delayed scheduler
+close let a complete journal precede a cancelled tick outcome, and a missing
+`next_attempt_at` bypassed a retained provider minimum. Three mounted tests
+first failed 0/3 with exactly those observations. The correction moves the
+reservation connection close before provider work, records the terminal fact
+after controller settlement under the same process lock, puts an exhausted
+cancelled burst into recovery mode, and refuses a null cooldown alongside a
+retained provider minimum. No transaction spans a provider await. Independent
+source omissions in `/tmp/activation-f11-review-watch.py` each failed the
+named public-path assertion and restored GREEN: `cancel_exhausted`,
+`scheduler_close_order`, `missing_provider_next`, with RED exit 1/GREEN exit 0
+and exact restored source hashes in
+`/tmp/activation-f11-review-<fault>-{red,green}.log`. A previous full-suite
+run reached 616 passes and one fixture assertion that expected the reservation
+connection to stay open during a held reader; the fixture now asserts the
+reviewed close order and separately retains the lock-held unsettled-child
+proof.
+
+The terminal journal COMMIT is the irreversible completion point. A monotonic
+check immediately before it rolls back proposed complete and seals cancelled
+if finalization itself crossed the tick deadline. A terminal close that
+crosses only the tick deadline returns the already committed complete outcome;
+a close error instead reports cleanup failure while retaining that fact. A
+real child whose terminal close exceeded the cleanup budget exited 124 while
+the process lock remained owned. The two additional independent omissions,
+`terminal_precommit` and `terminal_postcommit`, each failed its named
+durable-state/outcome assertion (RED exit 1, restored GREEN exit 0) at
+`/tmp/activation-f11-<fault>-{red,green}.log`. All five correction faults
+were rerun before final Prettier formatting; each GREEN log gives the exact
+historical restored source SHA-256. Formatting then changed only
+`observation-state.ts` source bytes (from `c96f62...` to `cd7478...`);
+`observation-tick.ts` remains `305e3d...`. The corrected, formatted-byte
+eight-file suite passed **621/621**, 2,719 assertions,
+exit 0 on the formatted source. Nx `twilight-burokrat:lint:source`,
+`typecheck` and `build` each exited 0 with a target-success summary;
+the corrected final-source lint receipt is
+`/tmp/activation-f11-final-corrected-lint.log` (exit 0, cache 0/1), superseding
+the earlier failed `/tmp/activation-f11-final-lint3.log` from the pre-fix
+test-fixture bytes;
+`@fission-ai/openspec@1.12.0 validate automatic-trusted-activation --strict
+--json` passed 1/1 and `validate --all --json` passed 143/143. Changed-path
+Prettier check and `git diff --check` exited 0. Host gate, CI and installed
+service remain unrun.

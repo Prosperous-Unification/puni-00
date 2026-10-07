@@ -18,11 +18,13 @@ const serialized = JSON.parse(readFileSync(configurationPath, 'utf8')) as Omit<
 const state: ObservationStateConfig = { ...serialized, clock: () => 1000 };
 const originalClose: unknown = Object.getOwnPropertyDescriptor(Database.prototype, 'close')?.value;
 if (typeof originalClose !== 'function') throw new Error('database close fixture absent');
+let entered = false;
 Database.prototype.close = function () {
-  writeFileSync(closedPath, 'closed');
+  if (entered) writeFileSync(closedPath, 'closed');
   Reflect.apply(originalClose, this, []);
 };
 ActivationController.prototype.reconcileReady = function () {
+  entered = true;
   writeFileSync(enteredPath, 'entered');
   return new Promise<never>(() => {
     /* Simulate local continuation ignoring cancellation. */

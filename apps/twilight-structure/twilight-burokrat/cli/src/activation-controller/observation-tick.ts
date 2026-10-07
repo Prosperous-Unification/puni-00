@@ -2,7 +2,7 @@ import { join } from 'node:path';
 
 import { openActivationController } from './controller';
 import { createGitHubPullRequestSource, type GitHubPullRequestReader } from './github-source';
-import { type ObservationStateConfig, withObservationAttempt } from './observation-state';
+import { type ObservationStateConfig, withRecoveryObservation } from './observation-state';
 
 export interface ObservationTickConfig {
   readonly state: ObservationStateConfig;
@@ -13,6 +13,7 @@ export interface ObservationTickConfig {
 
 export type ObservationTickOutcome =
   | { readonly kind: 'busy' }
+  | { readonly kind: 'deferred' }
   | { readonly kind: 'complete'; readonly requestCount: number }
   | { readonly kind: 'cancelled' };
 
@@ -58,7 +59,7 @@ export async function runObservationTick(
   config.signal.addEventListener('abort', onAbort, { once: true });
   const deadlineTimer = setTimeout(onAbort, config.state.policy.wholeTickMs);
   try {
-    const owned = await withObservationAttempt(
+    const owned = await withRecoveryObservation(
       config.state,
       async () => {
         if (aborter.signal.aborted) return { kind: 'cancelled' as const };
@@ -112,7 +113,12 @@ export async function runObservationTick(
         }
         if (outcome.kind === 'failure')
           throw new Error('observation tick failed', { cause: outcome.cause });
-        return outcome;
+        // Proof: omitting this post-close cancellation changed the mounted
+        // synchronous-close journal fact from cancelled to complete, although
+        // the outer outcome fence still returned cancelled.
+        return outcome.kind === 'complete' && isCancelled()
+          ? { kind: 'cancelled' as const }
+          : outcome;
       },
       () => {
         // Proof: omitting this monotonic lock-held fence returned complete after
@@ -120,11 +126,13 @@ export async function runObservationTick(
         // cannot fire while synchronous close blocks the event loop.
         if (performance.now() >= cleanupDeadline) process.exit(124);
       },
+      isCancelled,
     );
     if (owned.kind === 'busy') return { kind: 'busy' };
-    // Proof: omitting this final outcome fence returned complete after a
-    // synchronous close crossed the observation deadline within cleanup grace.
-    return isCancelled() && owned.value.kind === 'complete' ? { kind: 'cancelled' } : owned.value;
+    if (owned.kind === 'deferred') return { kind: 'deferred' };
+    // Proof: relabelling after terminal COMMIT made the mounted slow terminal
+    // close return cancelled despite its retained complete journal fact.
+    return owned.terminalOutcome === 'cancelled' ? { kind: 'cancelled' } : owned.value;
   } finally {
     settled = true;
     clearTimeout(deadlineTimer);

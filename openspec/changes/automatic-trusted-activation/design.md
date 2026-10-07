@@ -225,6 +225,38 @@ cancelled/failed attempt after the observation fence; it must not advance candid
 
 #### Durable attempts, cooldown and GitHub timing
 
+The local retry policy explicitly binds `initialDelayMs`, `maxDelayMs`,
+`fallbackDelayMs`, `recoveryProbeMs` and `horizonMs` alongside the attempt,
+subject and tick budgets. All are finite positive bounded integers;
+`initialDelayMs <= maxDelayMs <= recoveryProbeMs <= horizonMs`, while
+`fallbackDelayMs <= horizonMs`. The fallback applies only when an eligible
+transient response supplies no valid provider timing. A later valid provider
+minimum remains authoritative even beyond `horizonMs`; the next tick visibly
+defers rather than clipping it. These bytes join the protected configuration
+identity and have no default for established state.
+
+Version 10 adds a separately bound recovery singleton plus immutable attempt
+reservations and one terminal fact per sequence. Keep the v9 scheduler's
+sequence as the high-water authority and its burst counter as the current
+burst, but remove the old sequence-equals-burst constraint in v10 because
+successful bursts reset and recovery probes advance only sequence. The
+v9-to-v10 migration preserves legacy sequence/burst/start values as an
+unclassified watermark without inventing historical attempt outcomes. An
+active v10 reservation left by a crash is sealed `interrupted` on reopen;
+it consumes its budget and cannot erase an already recorded provider minimum.
+The lock owner holds every reservation and terminal write, with short SQLite
+transactions around no network await.
+The terminal journal COMMIT is the irreversible observation-completion point:
+recheck caller cancellation and monotonic tick expiry immediately before it,
+rolling back a proposed complete fact and recording cancellation if the bound
+was crossed. Close the reservation connection before provider work and settle
+the controller before this terminal write. A signal or terminal-connection
+cleanup delay **after** the complete COMMIT cannot relabel the durable attempt
+as cancelled. A post-commit close failure reports a separate nonzero cleanup
+failure while retaining the complete fact; cleanup beyond the absolute grace
+budget terminates under the held process lock. Neither outcome grants candidate
+evaluation or external activation authority.
+
 Reserve a scheduler attempt durably before the first provider read. Bind its identifier and
 configuration identity, start time and finite budget. Reopening after a crash retains the
 consumed attempt and accounts for unfinished work; it cannot reset counters or pretend the

@@ -20,6 +20,7 @@ import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/conten
 import { openActivationController } from './controller';
 import {
   initializeObservationState,
+  migrateObservationRecoveryState,
   migrateObservationState,
   withObservationAttempt,
 } from './observation-state';
@@ -39,6 +40,193 @@ const scratch: string[] = [];
 afterEach(() => {
   for (const path of scratch.splice(0)) rmSync(path, { recursive: true, force: true });
 });
+
+test('v9 recovery migration is additive and rolls back schema, binding and journal on late failure', async () => {
+  const source = fixture();
+  await initializeObservationState(source.config);
+  const recovery = {
+    ...source.config,
+    policy: {
+      ...source.config.policy,
+      initialDelayMs: 100,
+      maxDelayMs: 400,
+      fallbackDelayMs: 200,
+      recoveryProbeMs: 1000,
+      horizonMs: 5000,
+    },
+  };
+  const before = new Database(source.databasePath, { create: false, strict: true });
+  const original = before.query('SELECT * FROM activation_observation_schedule').get();
+  before.close();
+  let failure: unknown;
+  try {
+    await migrateObservationRecoveryState(recovery, () => {
+      throw new Error('late recovery migration sentinel');
+    });
+  } catch (cause) {
+    failure = cause;
+  }
+  const rolledBack = new Database(source.databasePath, { create: false, strict: true });
+  try {
+    expect(rolledBack.query('PRAGMA user_version').get()).toEqual({ user_version: 9 });
+    expect(rolledBack.query('SELECT * FROM activation_observation_schedule').get()).toEqual(
+      original,
+    );
+    expect(
+      rolledBack
+        .query(
+          "SELECT name FROM sqlite_schema WHERE name LIKE 'activation_observation_%' ORDER BY name",
+        )
+        .all(),
+    ).toEqual([{ name: 'activation_observation_schedule' }]);
+  } finally {
+    rolledBack.close();
+  }
+  expect(String(failure)).toContain('late recovery migration sentinel');
+  expect(await migrateObservationRecoveryState(recovery)).toBe('migrated');
+});
+
+test('v9 nonzero scheduler migrates as an unclassified watermark without invented attempts', async () => {
+  const source = fixture();
+  await initializeObservationState(source.config);
+  await withObservationAttempt(source.config, () => Promise.resolve(undefined));
+  const recovery = {
+    ...source.config,
+    policy: {
+      ...source.config.policy,
+      initialDelayMs: 100,
+      maxDelayMs: 400,
+      fallbackDelayMs: 200,
+      recoveryProbeMs: 1000,
+      horizonMs: 5000,
+    },
+  };
+  expect(await migrateObservationRecoveryState(recovery)).toBe('migrated');
+  const database = new Database(source.databasePath, { create: false, strict: true });
+  try {
+    expect(
+      database
+        .query(
+          'SELECT attempt_sequence, burst_attempts, last_started_at FROM activation_observation_schedule',
+        )
+        .get(),
+    ).toEqual({
+      attempt_sequence: 1,
+      burst_attempts: 1,
+      last_started_at: 1000,
+    });
+    expect(
+      database
+        .query(
+          'SELECT legacy_watermark, health, mode, next_attempt_at FROM activation_observation_recovery',
+        )
+        .get(),
+    ).toEqual({
+      legacy_watermark: 1,
+      health: 'unknown',
+      mode: 'burst',
+      next_attempt_at: 2000,
+    });
+    expect(
+      database.query('SELECT COUNT(*) AS count FROM activation_observation_attempt').get(),
+    ).toEqual({ count: 0 });
+  } finally {
+    database.close();
+  }
+});
+
+test('recovery migration rejects version-eight and changed legacy binding without writes', async () => {
+  for (const sourceVersion of ['eight', 'wrong-binding'] as const) {
+    const source = fixture();
+    if (sourceVersion === 'eight') createVersionEight(source);
+    else await initializeObservationState(source.config);
+    const recovery = {
+      ...source.config,
+      binding:
+        sourceVersion === 'wrong-binding'
+          ? { ...source.config.binding, name: 'different-repository' }
+          : source.config.binding,
+      policy: {
+        ...source.config.policy,
+        initialDelayMs: 100,
+        maxDelayMs: 400,
+        fallbackDelayMs: 200,
+        recoveryProbeMs: 1000,
+        horizonMs: 5000,
+      },
+    };
+    const database = new Database(source.databasePath, { create: false, strict: true });
+    const before = database.query('PRAGMA user_version').get();
+    database.close();
+    await expectRefusal(
+      () => migrateObservationRecoveryState(recovery),
+      sourceVersion === 'eight'
+        ? 'observation state schema unsupported'
+        : 'scheduler binding changed',
+    );
+    const after = new Database(source.databasePath, { create: false, strict: true });
+    try {
+      expect(after.query('PRAGMA user_version').get()).toEqual(before);
+      expect(
+        after
+          .query("SELECT name FROM sqlite_schema WHERE name='activation_observation_recovery'")
+          .get(),
+      ).toBeNull();
+    } finally {
+      after.close();
+    }
+  }
+});
+
+for (const policyFault of [
+  'missing-initial',
+  'zero-initial',
+  'initial-order',
+  'max-order',
+  'recovery-order',
+  'fallback-order',
+  'horizon-ceiling',
+] as const)
+  test(`recovery policy ${policyFault} refuses before migration writes`, async () => {
+    const source = fixture();
+    await initializeObservationState(source.config);
+    const policy: Record<string, number> = {
+      ...source.config.policy,
+      initialDelayMs: 100,
+      maxDelayMs: 400,
+      fallbackDelayMs: 200,
+      recoveryProbeMs: 1000,
+      horizonMs: 5000,
+    };
+    if (policyFault === 'missing-initial') delete policy['initialDelayMs'];
+    if (policyFault === 'zero-initial') policy['initialDelayMs'] = 0;
+    if (policyFault === 'initial-order') policy['initialDelayMs'] = 500;
+    if (policyFault === 'max-order') policy['maxDelayMs'] = 1100;
+    if (policyFault === 'recovery-order') policy['recoveryProbeMs'] = 6000;
+    if (policyFault === 'fallback-order') policy['fallbackDelayMs'] = 6000;
+    if (policyFault === 'horizon-ceiling') policy['horizonMs'] = 86_400_001;
+    let failure: unknown;
+    try {
+      await migrateObservationRecoveryState({
+        ...source.config,
+        policy: policy as unknown as typeof source.config.policy,
+      });
+    } catch (cause) {
+      failure = cause;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    const database = new Database(source.databasePath, { create: false, strict: true });
+    try {
+      expect(database.query('PRAGMA user_version').get()).toEqual({ user_version: 9 });
+      expect(
+        database
+          .query("SELECT name FROM sqlite_schema WHERE name='activation_observation_recovery'")
+          .get(),
+      ).toBeNull();
+    } finally {
+      database.close();
+    }
+  });
 
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), 'activation-observation-state-'));

@@ -18,6 +18,7 @@ import { Database } from 'bun:sqlite';
 import { hashCanonical } from '../evidence/content-manifest';
 import { readBootstrapConfiguration, type TrustedBootstrapPin } from './bootstrap';
 import { openActivationController } from './controller';
+import { GitHubReadFailure } from './github-reader';
 import { type GitHubRepositoryBinding, validateGitHubRepositoryBinding } from './github-source';
 
 const { symbols } = dlopen('libc.so.6', {
@@ -36,6 +37,18 @@ const SchedulePolicy = type({
   // policy initialize in the mounted policy fixture.
   maxSubjects: 'number.integer>=1',
 }).onUndeclaredKey('reject');
+const RecoveryPolicy = type({
+  maxAttempts: 'number.integer>=1',
+  wholeTickMs: 'number.integer>=1',
+  maxSubjects: 'number.integer>=1',
+  // Proof: defaulting a missing delay or admitting zero let the corresponding
+  // mounted migration fixture succeed instead of refusing trusted policy.
+  initialDelayMs: 'number.integer>=1',
+  maxDelayMs: 'number.integer>=1',
+  fallbackDelayMs: 'number.integer>=1',
+  recoveryProbeMs: 'number.integer>=1',
+  horizonMs: 'number.integer>=1',
+}).onUndeclaredKey('reject');
 const ScheduleRow = type({
   singleton: '1',
   repository_id: 'number.integer>=1',
@@ -43,6 +56,30 @@ const ScheduleRow = type({
   attempt_sequence: 'number.integer>=0',
   burst_attempts: 'number.integer>=0',
   last_started_at: 'number.integer>=0|null',
+}).onUndeclaredKey('reject');
+const RecoveryRow = type({
+  singleton: '1',
+  repository_id: 'number.integer>=1',
+  configuration_identity: /^[0-9a-f]{64}$/,
+  legacy_watermark: 'number.integer>=0',
+  active_sequence: 'number.integer>=1|null',
+  health: "'unknown'|'healthy'|'failed'",
+  mode: "'burst'|'recovery'",
+  provider_not_before: 'number.integer>=0|null',
+  next_attempt_at: 'number.integer>=0|null',
+  last_clock_at: 'number.integer>=0|null',
+  last_failure_sequence: 'number.integer>=1|null',
+  last_success_sequence: 'number.integer>=1|null',
+}).onUndeclaredKey('reject');
+const AttemptRow = type({
+  sequence: 'number.integer>=1',
+  configuration_identity: /^[0-9a-f]{64}$/,
+  started_at: 'number.integer>=0',
+  kind: "'burst'|'recovery'",
+  outcome: "'complete'|'cancelled'|'provider-failure'|'local-failure'|'interrupted'|null",
+  classification: 'string|null',
+  finished_at: 'number.integer>=0|null',
+  provider_not_before: 'number.integer>=0|null',
 }).onUndeclaredKey('reject');
 
 export interface ObservationStateConfig {
@@ -54,6 +91,11 @@ export interface ObservationStateConfig {
     readonly maxAttempts: number;
     readonly wholeTickMs: number;
     readonly maxSubjects: number;
+    readonly initialDelayMs?: number;
+    readonly maxDelayMs?: number;
+    readonly fallbackDelayMs?: number;
+    readonly recoveryProbeMs?: number;
+    readonly horizonMs?: number;
   };
   readonly clock: () => number;
 }
@@ -68,6 +110,11 @@ interface PreparedState {
   readonly repositoryId: number;
   readonly configurationIdentity: string;
   readonly maxAttempts: number;
+}
+
+interface PreparedRecoveryState extends PreparedState {
+  readonly legacyConfigurationIdentity: string;
+  readonly policy: typeof RecoveryPolicy.infer;
 }
 
 function isAbsent(cause: unknown): boolean {
@@ -137,7 +184,11 @@ function prepare(config: ObservationStateConfig): PreparedState {
   // Proof: omitting the pinned read initialized state under wrong bootstrap bytes.
   readBootstrapConfiguration(config.bootstrapPath, config.pin);
   const binding = validateGitHubRepositoryBinding(config.binding);
-  const policy = parseOrThrow(SchedulePolicy, config.policy);
+  const policy = parseOrThrow(SchedulePolicy, {
+    maxAttempts: config.policy.maxAttempts,
+    wholeTickMs: config.policy.wholeTickMs,
+    maxSubjects: config.policy.maxSubjects,
+  });
   // Proof: independently omitting either ceiling admitted its out-of-bound
   // configured value in the mounted policy test.
   // Proof: omitting this subject ceiling let 10,001 subjects initialize,
@@ -151,6 +202,29 @@ function prepare(config: ObservationStateConfig): PreparedState {
     repositoryId: binding.repositoryId,
     configurationIdentity: hashCanonical({ binding, pin: config.pin, policy }),
     maxAttempts: policy.maxAttempts,
+  };
+}
+
+function prepareRecovery(config: ObservationStateConfig): PreparedRecoveryState {
+  const legacy = prepare(config);
+  // Proof: injecting a fallback for absent initialDelayMs migrated the
+  // missing-policy fixture, whereas the required parser refuses it.
+  const policy = parseOrThrow(RecoveryPolicy, config.policy);
+  // Proof: independently removing each initial/max/recovery/fallback ordering
+  // or the horizon ceiling let its named invalid-policy fixture migrate v10.
+  if (
+    policy.initialDelayMs > policy.maxDelayMs ||
+    policy.maxDelayMs > policy.recoveryProbeMs ||
+    policy.recoveryProbeMs > policy.horizonMs ||
+    policy.fallbackDelayMs > policy.horizonMs ||
+    policy.horizonMs > 86_400_000
+  )
+    throw new Error('observation retry policy malformed');
+  return {
+    ...legacy,
+    legacyConfigurationIdentity: legacy.configurationIdentity,
+    configurationIdentity: hashCanonical({ binding: config.binding, pin: config.pin, policy }),
+    policy,
   };
 }
 
@@ -257,6 +331,93 @@ const ScheduleDefinition = `CREATE TABLE activation_observation_schedule (
     burst_attempts INTEGER NOT NULL CHECK (burst_attempts >= 0),
     last_started_at INTEGER
   )`;
+
+const RecoveryDefinition = `CREATE TABLE activation_observation_recovery (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    repository_id INTEGER NOT NULL,
+    configuration_identity TEXT NOT NULL,
+    legacy_watermark INTEGER NOT NULL CHECK (legacy_watermark >= 0),
+    active_sequence INTEGER,
+    health TEXT NOT NULL CHECK (health IN ('unknown', 'healthy', 'failed')),
+    mode TEXT NOT NULL CHECK (mode IN ('burst', 'recovery')),
+    provider_not_before INTEGER,
+    next_attempt_at INTEGER,
+    last_clock_at INTEGER,
+    last_failure_sequence INTEGER,
+    last_success_sequence INTEGER
+  )`;
+const AttemptDefinition = `CREATE TABLE activation_observation_attempt (
+    sequence INTEGER PRIMARY KEY CHECK (sequence >= 1),
+    configuration_identity TEXT NOT NULL,
+    started_at INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('burst', 'recovery')),
+    outcome TEXT CHECK (outcome IN ('complete', 'cancelled', 'provider-failure', 'local-failure', 'interrupted')),
+    classification TEXT,
+    finished_at INTEGER,
+    provider_not_before INTEGER
+  )`;
+
+/** Explicit additive v9-to-v10 recovery upgrade; no scheduled invocation performs migration. */
+export async function migrateObservationRecoveryState(
+  config: ObservationStateConfig,
+  afterRecoveryWrite?: () => void,
+): Promise<'migrated' | 'busy'> {
+  const locked = await withLock(config.stateDirectory, async () => {
+    const recovery = prepareRecovery(config);
+    inspectProtected(recovery.databasePath, false);
+    const database = new Database(recovery.databasePath, { create: false, strict: true });
+    return settleWithCleanup(
+      () => {
+        database.run('BEGIN IMMEDIATE');
+        try {
+          const legacy = readSchedule(database, {
+            ...recovery,
+            configurationIdentity: recovery.legacyConfigurationIdentity,
+          });
+          database.run(RecoveryDefinition);
+          database.run(AttemptDefinition);
+          database
+            .query(
+              `INSERT INTO activation_observation_recovery
+               (singleton, repository_id, configuration_identity, legacy_watermark,
+                active_sequence, health, mode, provider_not_before, next_attempt_at,
+                last_clock_at, last_failure_sequence, last_success_sequence)
+               VALUES (1, ?, ?, ?, NULL, 'unknown', ?, NULL, ?, ?, NULL, NULL)`,
+            )
+            .run(
+              recovery.repositoryId,
+              recovery.configurationIdentity,
+              legacy.attempt_sequence,
+              legacy.burst_attempts >= recovery.maxAttempts ? 'recovery' : 'burst',
+              legacy.last_started_at === null
+                ? null
+                : requireFuture(legacy.last_started_at, recovery.policy.recoveryProbeMs),
+              legacy.last_started_at,
+            );
+          database
+            .query(
+              `UPDATE activation_observation_schedule SET configuration_identity = ? WHERE singleton = 1`,
+            )
+            .run(recovery.configurationIdentity);
+          database.run('PRAGMA user_version = 10');
+          // Proof: moving COMMIT before the injected late fault left v10 schema
+          // and the new policy binding installed instead of restoring v9.
+          afterRecoveryWrite?.();
+          database.run('COMMIT');
+        } catch (cause) {
+          rethrowWithCleanup(cause, () => {
+            database.run('ROLLBACK');
+          });
+        }
+        return 'migrated' as const;
+      },
+      () => {
+        database.close();
+      },
+    );
+  });
+  return locked.kind === 'busy' ? 'busy' : locked.value;
+}
 
 function createSchedule(database: Database, state: PreparedState): void {
   database.run(ScheduleDefinition);
@@ -776,4 +937,463 @@ export async function withObservationAttempt<T>(
     },
     beforeLockRelease,
   );
+}
+
+function readRecovery(
+  database: Database,
+  state: PreparedRecoveryState,
+): {
+  readonly schedule: typeof ScheduleRow.infer;
+  readonly recovery: typeof RecoveryRow.infer;
+} {
+  // Proof: removing this version fence admitted a v9 marker with v10 tables
+  // and ran the mounted provider reader.
+  if (readVersion(database) !== 10) throw new Error('observation recovery schema unsupported');
+  assertActivationSchema(database);
+  for (const [name, definition] of [
+    ['activation_observation_schedule', ScheduleDefinition],
+    ['activation_observation_recovery', RecoveryDefinition],
+    ['activation_observation_attempt', AttemptDefinition],
+  ] as const) {
+    const raw: unknown = database
+      .query("SELECT sql FROM sqlite_schema WHERE type='table' AND name=?")
+      .get(name);
+    // Proof: skipping the exact definition comparison admitted a CHECK-free
+    // recovery table and ran the mounted provider reader.
+    if (raw === null || parseOrThrow(type({ sql: 'string' }), raw).sql !== definition)
+      throw new Error(`observation recovery table malformed: ${name}`);
+  }
+  const schedule = parseOrThrow(
+    ScheduleRow,
+    database.query('SELECT * FROM activation_observation_schedule').get(),
+  );
+  const recovery = parseOrThrow(
+    RecoveryRow,
+    database.query('SELECT * FROM activation_observation_recovery').get(),
+  );
+  // Proof: removing this binding join let a mismatched recovery configuration
+  // issue a provider GET from the protected store.
+  if (
+    schedule.repository_id !== state.repositoryId ||
+    recovery.repository_id !== state.repositoryId ||
+    schedule.configuration_identity !== state.configurationIdentity ||
+    recovery.configuration_identity !== state.configurationIdentity
+  )
+    throw new Error('observation recovery binding changed');
+  if (
+    !Number.isSafeInteger(schedule.attempt_sequence) ||
+    !Number.isSafeInteger(schedule.burst_attempts) ||
+    !Number.isSafeInteger(recovery.legacy_watermark) ||
+    schedule.attempt_sequence < recovery.legacy_watermark ||
+    schedule.burst_attempts > schedule.attempt_sequence ||
+    schedule.burst_attempts > state.maxAttempts ||
+    (schedule.attempt_sequence === 0) !== (schedule.last_started_at === null) ||
+    (schedule.last_started_at !== null && !Number.isSafeInteger(schedule.last_started_at)) ||
+    (recovery.active_sequence !== null && recovery.active_sequence !== schedule.attempt_sequence) ||
+    (recovery.last_clock_at !== null && !Number.isSafeInteger(recovery.last_clock_at)) ||
+    (recovery.next_attempt_at !== null && !Number.isSafeInteger(recovery.next_attempt_at)) ||
+    (recovery.provider_not_before !== null &&
+      !Number.isSafeInteger(recovery.provider_not_before)) ||
+    (recovery.next_attempt_at !== null &&
+      recovery.provider_not_before !== null &&
+      recovery.next_attempt_at < recovery.provider_not_before) ||
+    // Proof: omitting this null-cooldown consistency check let the mounted
+    // retained 1700ms provider minimum issue an early second GET.
+    (recovery.provider_not_before !== null && recovery.next_attempt_at === null) ||
+    (recovery.health === 'failed' && recovery.next_attempt_at === null) ||
+    (recovery.health === 'failed' && recovery.mode !== 'recovery') ||
+    // Proof: omitting this exhausted-burst mode invariant let a corrupted
+    // active-burst state issue a third provider GET.
+    (recovery.mode === 'burst' &&
+      schedule.burst_attempts >= state.maxAttempts &&
+      recovery.active_sequence === null) ||
+    (recovery.last_failure_sequence !== null &&
+      (!Number.isSafeInteger(recovery.last_failure_sequence) ||
+        recovery.last_failure_sequence > schedule.attempt_sequence)) ||
+    (recovery.last_success_sequence !== null &&
+      (!Number.isSafeInteger(recovery.last_success_sequence) ||
+        recovery.last_success_sequence > schedule.attempt_sequence))
+  )
+    throw new Error('observation recovery record malformed');
+  const retained: unknown[] = database
+    .query('SELECT * FROM activation_observation_attempt ORDER BY sequence')
+    .all();
+  // Proof: omitting the contiguous-journal join let a deleted earlier
+  // reservation disappear from accepted history after a later terminal fact.
+  if (retained.length !== schedule.attempt_sequence - recovery.legacy_watermark)
+    throw new Error('observation recovery attempt missing');
+  let lastFailureSequence: number | null = null;
+  let lastSuccessSequence: number | null = null;
+  for (const [offset, raw] of retained.entries()) {
+    const attempt = parseOrThrow(AttemptRow, raw);
+    if (
+      attempt.sequence !== recovery.legacy_watermark + offset + 1 ||
+      attempt.configuration_identity !== state.configurationIdentity ||
+      !Number.isSafeInteger(attempt.started_at) ||
+      (attempt.outcome === null) !== (attempt.finished_at === null) ||
+      (attempt.finished_at !== null &&
+        (!Number.isSafeInteger(attempt.finished_at) || attempt.finished_at < attempt.started_at)) ||
+      (attempt.provider_not_before !== null &&
+        !Number.isSafeInteger(attempt.provider_not_before)) ||
+      (attempt.outcome === 'complete' && attempt.classification !== null) ||
+      (attempt.outcome === 'cancelled' && attempt.classification !== null) ||
+      (attempt.outcome === 'interrupted' && attempt.classification !== 'process-exit') ||
+      // Proof: omitting provider classification validation let a changed
+      // terminal fact authorize the next provider GET.
+      (attempt.outcome === 'provider-failure' &&
+        attempt.classification !== 'unavailable' &&
+        attempt.classification !== 'rate-limited') ||
+      (attempt.outcome === 'local-failure' &&
+        attempt.classification !== 'local' &&
+        attempt.classification !== 'invalid-response' &&
+        attempt.classification !== 'inaccessible') ||
+      (attempt.outcome === null && offset !== retained.length - 1) ||
+      (offset === retained.length - 1 &&
+        (recovery.active_sequence === null) !== (attempt.outcome !== null))
+    )
+      throw new Error('observation recovery attempt inconsistent');
+    if (
+      attempt.outcome === 'provider-failure' ||
+      attempt.outcome === 'local-failure' ||
+      attempt.outcome === 'interrupted'
+    )
+      lastFailureSequence = attempt.sequence;
+    if (attempt.outcome === 'complete') lastSuccessSequence = attempt.sequence;
+  }
+  // Proof: omitting the derived terminal-history join let a cleared
+  // last-failure pointer authorize another provider GET.
+  if (
+    lastFailureSequence !== recovery.last_failure_sequence ||
+    lastSuccessSequence !== recovery.last_success_sequence
+  )
+    throw new Error('observation recovery terminal history changed');
+  return { schedule, recovery };
+}
+
+function requireClock(config: ObservationStateConfig, prior: number | null): number {
+  const now = config.clock();
+  if (!Number.isSafeInteger(now) || now < 0) throw new Error('observation clock malformed');
+  // Proof: removing this rollback refusal let a persisted future cooldown be
+  // evaluated against an older clock in the mounted restart fixture.
+  if (prior !== null && now < prior) throw new Error('observation clock rolled back');
+  return now;
+}
+
+function requireFuture(now: number, delay: number): number {
+  const future = now + delay;
+  if (!Number.isSafeInteger(future)) throw new Error('observation retry time overflow');
+  return future;
+}
+
+function findProviderFailure(cause: unknown): GitHubReadFailure | undefined {
+  let current = cause;
+  for (let depth = 0; depth < 5; depth += 1) {
+    if (current instanceof GitHubReadFailure) return current;
+    if (!(current instanceof Error)) return undefined;
+    current = current.cause;
+  }
+  return undefined;
+}
+
+function delayForBurst(policy: typeof RecoveryPolicy.infer, burst: number): number {
+  return Math.min(policy.maxDelayMs, policy.initialDelayMs * 2 ** Math.min(burst - 1, 30));
+}
+
+function finalizeRecovery(
+  database: Database,
+  state: PreparedRecoveryState,
+  config: ObservationStateConfig,
+  attempt: { readonly sequence: number; readonly kind: 'burst' | 'recovery' },
+  outcome: 'complete' | 'cancelled' | 'provider-failure' | 'local-failure',
+  failure?: GitHubReadFailure,
+  shouldCancel?: () => boolean,
+): 'complete' | 'cancelled' | 'provider-failure' | 'local-failure' {
+  database.run('BEGIN IMMEDIATE');
+  try {
+    const { schedule, recovery } = readRecovery(database, state);
+    if (recovery.active_sequence !== attempt.sequence)
+      throw new Error('observation recovery active attempt changed');
+    const now = requireClock(config, recovery.last_clock_at);
+    let health: typeof recovery.health = recovery.health;
+    let mode: typeof recovery.mode = recovery.mode;
+    let providerNotBefore = recovery.provider_not_before;
+    let nextAttemptAt = recovery.next_attempt_at;
+    let classification: string | null = null;
+    if (outcome === 'complete') {
+      // Proof: replacing the healthy transition with prior health left a
+      // complete recovery probe recorded while failed health remained.
+      health = 'healthy';
+      mode = 'burst';
+      providerNotBefore = null;
+      nextAttemptAt = null;
+      database
+        .query('UPDATE activation_observation_schedule SET burst_attempts = 0 WHERE singleton = 1')
+        .run();
+    } else if (outcome === 'provider-failure') {
+      classification = failure?.kind ?? 'unavailable';
+      const localDelay =
+        attempt.kind === 'recovery'
+          ? state.policy.recoveryProbeMs
+          : delayForBurst(state.policy, schedule.burst_attempts);
+      // Proof: ignoring the validated provider minimum shortened a 100,000ms
+      // retry to the local fallback in the mounted long-delay tick.
+      const fallback =
+        failure?.retryAfterEpochMs ?? requireFuture(now, state.policy.fallbackDelayMs);
+      providerNotBefore = Math.max(providerNotBefore ?? 0, fallback);
+      nextAttemptAt = Math.max(requireFuture(now, localDelay), providerNotBefore);
+      if (attempt.kind === 'recovery' || schedule.burst_attempts >= state.maxAttempts) {
+        // Proof: preserving unknown health after the second failure made the
+        // mounted exhausted-burst snapshot fail its durable failed-state assertion.
+        health = 'failed';
+        mode = 'recovery';
+        nextAttemptAt = Math.max(nextAttemptAt, requireFuture(now, state.policy.recoveryProbeMs));
+      }
+    } else if (outcome === 'local-failure') {
+      classification = failure?.kind ?? 'local';
+      nextAttemptAt = Math.max(
+        nextAttemptAt ?? 0,
+        requireFuture(now, state.policy.horizonMs),
+        providerNotBefore ?? 0,
+      );
+      health = 'failed';
+      mode = 'recovery';
+    } else {
+      nextAttemptAt = Math.max(
+        nextAttemptAt ?? 0,
+        requireFuture(
+          now,
+          attempt.kind === 'recovery' ? state.policy.recoveryProbeMs : state.policy.initialDelayMs,
+        ),
+        providerNotBefore ?? 0,
+      );
+      if (attempt.kind === 'burst' && schedule.burst_attempts >= state.maxAttempts) {
+        // Proof: omitting the recovery-mode assignment after cancelled final
+        // burst left the mounted persisted mode=burst instead of recovery.
+        mode = 'recovery';
+        nextAttemptAt = Math.max(nextAttemptAt, requireFuture(now, state.policy.recoveryProbeMs));
+      }
+    }
+    const updated = database
+      .query(
+        `UPDATE activation_observation_attempt SET
+         outcome=?, classification=?, finished_at=?, provider_not_before=?
+         WHERE sequence=? AND configuration_identity=? AND outcome IS NULL`,
+      )
+      .run(
+        outcome,
+        classification,
+        now,
+        providerNotBefore,
+        attempt.sequence,
+        state.configurationIdentity,
+      );
+    if (updated.changes !== 1) throw new Error('observation recovery attempt changed');
+    // Proof: splitting the transaction here retained provider-failure outcome
+    // and 1700ms minimum after the injected singleton write failed; intact
+    // rollback leaves both journal and cooldown pending together.
+    database
+      .query(
+        `UPDATE activation_observation_recovery SET active_sequence=NULL, health=?, mode=?,
+         provider_not_before=?, next_attempt_at=?, last_clock_at=?,
+         last_failure_sequence=?, last_success_sequence=? WHERE singleton=1`,
+      )
+      .run(
+        health,
+        mode,
+        providerNotBefore,
+        nextAttemptAt,
+        now,
+        outcome === 'provider-failure' || outcome === 'local-failure'
+          ? attempt.sequence
+          : recovery.last_failure_sequence,
+        outcome === 'complete' ? attempt.sequence : recovery.last_success_sequence,
+      );
+    // Proof: omitting this monotonic pre-COMMIT check let synchronous terminal
+    // validation cross the deadline and persist complete instead of cancelled.
+    if (outcome === 'complete' && shouldCancel?.()) {
+      database.run('ROLLBACK');
+      return finalizeRecovery(database, state, config, attempt, 'cancelled');
+    }
+    database.run('COMMIT');
+    return outcome;
+  } catch (cause) {
+    rethrowWithCleanup(cause, () => {
+      database.run('ROLLBACK');
+    });
+  }
+}
+
+/** Owns one durable v10 reservation and terminal fact around one bounded observation. */
+export async function withRecoveryObservation<
+  T extends { readonly kind: 'complete' | 'cancelled' },
+>(
+  config: ObservationStateConfig,
+  work: (attempt: ObservationAttempt) => Promise<T>,
+  beforeLockRelease?: () => void,
+  shouldCancel?: () => boolean,
+): Promise<
+  | { readonly kind: 'busy' }
+  | { readonly kind: 'deferred' }
+  | { readonly kind: 'owned'; readonly value: T; readonly terminalOutcome: T['kind'] }
+> {
+  const locked = await withLock(
+    config.stateDirectory,
+    async () => {
+      const state = prepareRecovery(config);
+      inspectProtected(state.databasePath, false);
+      const database = new Database(state.databasePath, { create: false, strict: true });
+      let databaseClosed = false;
+      return settleWithCleanup(
+        async () => {
+          const now = requireClock(config, readRecovery(database, state).recovery.last_clock_at);
+          database.run('BEGIN IMMEDIATE');
+          let reservation:
+            | { readonly kind: 'deferred' }
+            | {
+                readonly kind: 'reserved';
+                readonly sequence: number;
+                readonly attemptKind: 'burst' | 'recovery';
+              };
+          try {
+            let { schedule, recovery } = readRecovery(database, state);
+            if (recovery.active_sequence !== null) {
+              const interrupted = database
+                .query(
+                  `UPDATE activation_observation_attempt SET outcome='interrupted',
+                   classification='process-exit', finished_at=?
+                   WHERE sequence=? AND outcome IS NULL`,
+                )
+                .run(now, recovery.active_sequence);
+              if (interrupted.changes !== 1)
+                throw new Error('observation recovery interrupted attempt missing');
+              const exhausted = schedule.burst_attempts >= state.maxAttempts;
+              const delayed = requireFuture(
+                now,
+                exhausted ? state.policy.recoveryProbeMs : state.policy.initialDelayMs,
+              );
+              database
+                .query(
+                  `UPDATE activation_observation_recovery SET active_sequence=NULL,
+                   health=?, mode=?, next_attempt_at=?, last_clock_at=?, last_failure_sequence=? WHERE singleton=1`,
+                )
+                .run(
+                  exhausted ? 'failed' : recovery.health,
+                  exhausted ? 'recovery' : recovery.mode,
+                  Math.max(
+                    delayed,
+                    recovery.provider_not_before ?? 0,
+                    recovery.next_attempt_at ?? 0,
+                  ),
+                  now,
+                  recovery.active_sequence,
+                );
+              ({ schedule, recovery } = readRecovery(database, state));
+            }
+            // Proof: omitting the persisted cooldown guard let the reopened
+            // tick issue another provider GET instead of returning deferred.
+            if (recovery.next_attempt_at !== null && now < recovery.next_attempt_at) {
+              reservation = { kind: 'deferred' };
+            } else {
+              const attemptKind = recovery.mode;
+              const sequence = schedule.attempt_sequence + 1;
+              // Proof: omitting the high-water check let an unsafe sequence
+              // reach the provider reader in the mounted overflow fixture.
+              if (!Number.isSafeInteger(sequence))
+                throw new Error('observation attempt sequence overflow');
+              database
+                .query(
+                  `UPDATE activation_observation_schedule SET attempt_sequence=?,
+                   burst_attempts=burst_attempts+?, last_started_at=? WHERE singleton=1`,
+                )
+                .run(sequence, attemptKind === 'burst' ? 1 : 0, now);
+              // Proof: omitting the journal insertion let a real child enter
+              // provider work, die, and leave no pending attempt to seal.
+              database
+                .query(
+                  `INSERT INTO activation_observation_attempt
+                   (sequence, configuration_identity, started_at, kind,
+                    outcome, classification, finished_at, provider_not_before)
+                   VALUES (?, ?, ?, ?, NULL, NULL, NULL, NULL)`,
+                )
+                .run(sequence, state.configurationIdentity, now, attemptKind);
+              database
+                .query(
+                  `UPDATE activation_observation_recovery SET active_sequence=?,
+                   last_clock_at=? WHERE singleton=1`,
+                )
+                .run(sequence, now);
+              reservation = { kind: 'reserved', sequence, attemptKind };
+            }
+            // Proof: splitting the transaction after the counter update left
+            // sequence 1 committed when injected journal insertion failed;
+            // the intact transaction retains sequence 0 and no provider read.
+            database.run('COMMIT');
+          } catch (cause) {
+            rethrowWithCleanup(cause, () => {
+              database.run('ROLLBACK');
+            });
+          }
+          // Proof: omitting this early close let the mounted delayed scheduler
+          // teardown cross the deadline after a complete journal fact was written.
+          database.close();
+          databaseClosed = true;
+          if (reservation.kind === 'deferred') return { kind: 'deferred' } as const;
+          const attempt = { sequence: reservation.sequence, kind: reservation.attemptKind };
+          const finish = async (
+            outcome: 'complete' | 'cancelled' | 'provider-failure' | 'local-failure',
+            provider?: GitHubReadFailure,
+          ): Promise<'complete' | 'cancelled' | 'provider-failure' | 'local-failure'> => {
+            const terminal = new Database(state.databasePath, { create: false, strict: true });
+            return settleWithCleanup(
+              () => {
+                return finalizeRecovery(
+                  terminal,
+                  state,
+                  config,
+                  attempt,
+                  outcome,
+                  provider,
+                  shouldCancel,
+                );
+              },
+              () => {
+                terminal.close();
+              },
+            );
+          };
+          let value: T;
+          try {
+            value = await work({ sequence: attempt.sequence });
+          } catch (cause) {
+            const provider = findProviderFailure(cause);
+            const outcome =
+              provider?.kind === 'unavailable' || provider?.kind === 'rate-limited'
+                ? 'provider-failure'
+                : 'local-failure';
+            try {
+              await finish(outcome, provider);
+            } catch (completionFailure) {
+              throw new AggregateError(
+                [cause, completionFailure],
+                'observation and finalization failed',
+                { cause: completionFailure },
+              );
+            }
+            throw cause;
+          }
+          // Proof: rewriting a cancelled observation as complete left a
+          // false successful journal fact in the held-reader cancellation test.
+          const terminalOutcome = await finish(value.kind);
+          if (terminalOutcome !== 'complete' && terminalOutcome !== 'cancelled')
+            throw new Error('observation terminal outcome malformed');
+          return { kind: 'owned', value, terminalOutcome } as const;
+        },
+        () => {
+          if (!databaseClosed) database.close();
+        },
+      );
+    },
+    beforeLockRelease,
+  );
+  return locked.kind === 'busy' ? locked : locked.value;
 }

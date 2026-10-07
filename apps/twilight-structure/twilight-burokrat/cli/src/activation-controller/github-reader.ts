@@ -7,6 +7,8 @@ const maxBodyBytes = 8 * 1024 * 1024;
 
 export interface GitHubRestReaderOptions {
   readonly fetcher?: GitHubFetch;
+  /** Trusted wall clock for validating provider absolute retry time. */
+  readonly clock?: () => number;
   /** Supplied only by the independently trusted runtime; omitted for public reads. */
   readonly token?: string;
 }
@@ -23,9 +25,54 @@ export class GitHubReadFailure extends Error {
     readonly kind: GitHubReadFailureKind,
     message: string,
     readonly status?: number,
+    readonly retryAfterEpochMs?: number,
   ) {
     super(message);
   }
+}
+
+function retryMinimum(headers: Headers, now: number): number | undefined {
+  // Proof: omitting this clock guard changed the NaN fixture's named refusal
+  // to an ordinary rate-limit failure before scheduler timing was available.
+  if (!Number.isSafeInteger(now) || now < 0)
+    throw new GitHubReadFailure('invalid-response', 'GitHub PR retry clock malformed');
+  const values: number[] = [];
+  const retry = headers.get('retry-after');
+  if (retry !== null) {
+    let epoch: number;
+    // Proof: omitting the numeric grammar accepted fractional Retry-After as
+    // a rate-limit failure rather than refusing malformed provider timing.
+    if (/^\d+$/.test(retry)) {
+      epoch = now + Number(retry) * 1000;
+    } else {
+      const parsed = Date.parse(retry);
+      // Only the canonical HTTP-date form is accepted; JavaScript's permissive
+      // date parser is not a provider trust boundary by itself.
+      // Proof: omitting canonical HTTP-date validation accepted `-1` through
+      // JavaScript's permissive date parser instead of refusing it.
+      if (!Number.isSafeInteger(parsed) || new Date(parsed).toUTCString() !== retry)
+        throw new GitHubReadFailure('invalid-response', 'GitHub PR retry timing malformed');
+      epoch = parsed;
+    }
+    // Proof: omitting the safe-epoch check accepted oversized numeric delay.
+    if (!Number.isSafeInteger(epoch) || epoch < 0)
+      throw new GitHubReadFailure('invalid-response', 'GitHub PR retry timing overflow');
+    values.push(Math.max(now, epoch));
+  }
+  const reset = headers.get('x-ratelimit-reset');
+  if (reset !== null) {
+    // Proof: omitting reset grammar accepted fractional reset seconds.
+    if (!/^\d+$/.test(reset))
+      throw new GitHubReadFailure('invalid-response', 'GitHub PR rate reset malformed');
+    const epoch = Number(reset) * 1000;
+    // Proof: omitting reset overflow accepted an unsafe epoch.
+    if (!Number.isSafeInteger(epoch) || epoch < 0)
+      throw new GitHubReadFailure('invalid-response', 'GitHub PR rate reset overflow');
+    values.push(Math.max(now, epoch));
+  }
+  // Proof: choosing the earlier value shortened the mounted reset-later
+  // minimum from 1,015,000ms to 1,005,000ms.
+  return values.length === 0 ? undefined : Math.max(...values);
 }
 
 function pullsPath(owner: string, name: string): string {
@@ -199,6 +246,7 @@ async function boundedJson(response: Response, signal: AbortSignal): Promise<unk
 /** Creates a GET-only reader for a fixed GitHub API origin. No request URL comes from a PR. */
 export function createGitHubRestReader(options: GitHubRestReaderOptions): GitHubPullRequestReader {
   const fetcher: GitHubFetch = options.fetcher ?? ((url, init) => fetch(url, init));
+  const clock = options.clock ?? Date.now;
   // Proof: omitting the empty-token guard constructed a credentialed reader from an
   // absent trusted value in the mounted no-provider-call test.
   if (options.token !== undefined && (options.token.length === 0 || /[\r\n]/.test(options.token))) {
@@ -251,12 +299,14 @@ export function createGitHubRestReader(options: GitHubRestReaderOptions): GitHub
             response.headers.has('retry-after')));
       // Proof: omitting cancellation left the HTTP refusal stream active (0 calls).
       await cancelBody(response.body);
+      const retryAfterEpochMs = retryMinimum(response.headers, clock());
       throw new GitHubReadFailure(
         rateLimited ? 'rate-limited' : response.status >= 500 ? 'unavailable' : 'inaccessible',
         rateLimited
           ? 'GitHub PR read rate limited'
           : `GitHub PR GET refused (${String(response.status)})`,
         response.status,
+        retryAfterEpochMs,
       );
     }
     try {

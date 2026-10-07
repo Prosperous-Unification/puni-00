@@ -121,6 +121,18 @@ evaluation, worker, review, publication, admission, merge or WBS effects.
 - **THEN** the tick does not report complete and terminates before releasing its
   process lock, even when a timer callback could not run during closure
 
+#### Scenario: Terminal completion and later cleanup are distinguished
+
+- **WHEN** the monotonic deadline or cancellation arrives before the terminal
+  journal COMMIT
+- **THEN** the tick cannot record complete or restore healthy status
+- **AND WHEN** terminal COMMIT succeeds before that boundary but terminal
+  connection closure later crosses the tick deadline or fails
+- **THEN** the durable complete fact remains complete, and any close failure
+  reports a separate nonzero cleanup disposition rather than cancellation
+- **AND** cleanup beyond its absolute grace budget terminates while the
+  process lock remains owned
+
 #### Scenario: Bounded subject union exceeds trusted policy
 
 - **WHEN** ready discovery and durable active subjects exceed the configured positive

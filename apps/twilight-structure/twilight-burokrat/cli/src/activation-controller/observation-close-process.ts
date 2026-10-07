@@ -12,7 +12,7 @@ const returnedPath = process.argv.at(4);
 const phase = process.argv.at(5);
 if (configurationPath === undefined || enteredPath === undefined || returnedPath === undefined)
   throw new Error('synchronous-close fixture arguments absent');
-if (phase !== 'controller' && phase !== 'scheduler')
+if (phase !== 'controller' && phase !== 'scheduler' && phase !== 'terminal')
   throw new Error('synchronous-close fixture phase malformed');
 const serialized = JSON.parse(readFileSync(configurationPath, 'utf8')) as Omit<
   ObservationStateConfig,
@@ -35,7 +35,7 @@ if (phase === 'controller') {
   let closes = 0;
   Database.prototype.close = function () {
     closes += 1;
-    if (closes === 2) stall();
+    if ((phase === 'scheduler' && closes === 1) || (phase === 'terminal' && closes === 3)) stall();
     originalClose.call(this);
   };
 }

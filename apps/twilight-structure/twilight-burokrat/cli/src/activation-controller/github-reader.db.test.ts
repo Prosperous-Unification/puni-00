@@ -326,6 +326,132 @@ test('HTTP 429 is a retryable rate refusal', async () => {
   }
 });
 
+test('rate refusal retains the later validated provider minimum without raw headers', async () => {
+  const reader = createGitHubRestReader({
+    clock: () => 1_000_000,
+    fetcher: () =>
+      Promise.resolve(
+        new Response('{}', {
+          status: 429,
+          headers: { 'retry-after': '15', 'x-ratelimit-reset': '1010' },
+        }),
+      ),
+  });
+  let refusal: unknown;
+  try {
+    await reader.listOpenPullRequests(
+      'Prosperous-Unification',
+      'puni-00',
+      1,
+      new AbortController().signal,
+    );
+  } catch (cause) {
+    refusal = cause;
+  }
+  expect(refusal).toBeInstanceOf(GitHubReadFailure);
+  if (!(refusal instanceof GitHubReadFailure)) throw new Error('rate refusal absent');
+  expect(refusal.kind).toBe('rate-limited');
+  expect(refusal.retryAfterEpochMs).toBe(1_015_000);
+  expect(JSON.stringify(refusal)).not.toContain('retry-after');
+});
+
+test('canonical HTTP-date Retry-After yields an absolute validated minimum', async () => {
+  const now = Date.parse('Wed, 21 Oct 2015 07:27:00 GMT');
+  const reader = createGitHubRestReader({
+    clock: () => now,
+    fetcher: () =>
+      Promise.resolve(
+        new Response('{}', {
+          status: 429,
+          headers: { 'retry-after': 'Wed, 21 Oct 2015 07:28:00 GMT' },
+        }),
+      ),
+  });
+  let refusal: unknown;
+  try {
+    await reader.listOpenPullRequests(
+      'Prosperous-Unification',
+      'puni-00',
+      1,
+      new AbortController().signal,
+    );
+  } catch (cause) {
+    refusal = cause;
+  }
+  expect(refusal).toBeInstanceOf(GitHubReadFailure);
+  if (!(refusal instanceof GitHubReadFailure)) throw new Error('rate refusal absent');
+  expect(refusal.retryAfterEpochMs).toBe(now + 60_000);
+});
+
+test('rate reset later than Retry-After remains the minimum', async () => {
+  const reader = createGitHubRestReader({
+    clock: () => 1_000_000,
+    fetcher: () =>
+      Promise.resolve(
+        new Response('{}', {
+          status: 429,
+          headers: { 'retry-after': '5', 'x-ratelimit-reset': '1015' },
+        }),
+      ),
+  });
+  let refusal: unknown;
+  try {
+    await reader.listOpenPullRequests(
+      'Prosperous-Unification',
+      'puni-00',
+      1,
+      new AbortController().signal,
+    );
+  } catch (cause) {
+    refusal = cause;
+  }
+  expect(refusal).toBeInstanceOf(GitHubReadFailure);
+  if (!(refusal instanceof GitHubReadFailure)) throw new Error('rate refusal absent');
+  expect(refusal.retryAfterEpochMs).toBe(1_015_000);
+});
+
+test('invalid trusted retry clock refuses before interpreting a rate response', async () => {
+  const reader = createGitHubRestReader({
+    clock: () => Number.NaN,
+    fetcher: () => Promise.resolve(new Response('{}', { status: 429 })),
+  });
+  await expectRefusal(
+    () =>
+      reader.listOpenPullRequests(
+        'Prosperous-Unification',
+        'puni-00',
+        1,
+        new AbortController().signal,
+      ),
+    'retry clock malformed',
+  );
+});
+
+for (const [headers, message] of [
+  [{ 'retry-after': '1.5' }, 'retry timing malformed'],
+  [{ 'retry-after': '-1' }, 'retry timing malformed'],
+  [{ 'retry-after': '9007199254741' }, 'retry timing overflow'],
+  [{ 'x-ratelimit-reset': '1.5' }, 'rate reset malformed'],
+  [{ 'x-ratelimit-reset': '9007199254741' }, 'rate reset overflow'],
+] as const) {
+  test(`supplied invalid provider timing ${JSON.stringify(headers)} refuses`, async () => {
+    const reader = createGitHubRestReader({
+      clock: () => 1_000_000,
+      fetcher: () => Promise.resolve(new Response('{}', { status: 429, headers })),
+    });
+    await expectRefusal(
+      () =>
+        reader.listOpenPullRequests(
+          'Prosperous-Unification',
+          'puni-00',
+          1,
+          new AbortController().signal,
+        ),
+      message,
+    );
+  });
+}
+
 for (const status of [302, 304, 401, 422, 500]) {
   test(`HTTP ${String(status)} cannot become a successful PR inventory`, async () => {
     const source = fixture();
