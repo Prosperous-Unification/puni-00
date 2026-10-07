@@ -36,8 +36,10 @@ from CONTEXT.md; an Activation controller coordinates their lifecycle.
 ### Ownership and deployment
 
 Host the controller in an independently protected execution environment, preferably a dedicated
-control repository running pinned GitHub Actions workflows. Actions can host the orchestration;
-the current candidate repository alone does not provide the necessary authority. A timer
+control repository with a pinned controller release and a durable service/store. Protected
+Actions jobs can invoke that service and supply ephemeral workers; their disposable workspace
+cannot be the only copy of controller state, journal or recovery reservations. The current
+candidate repository alone does not provide the necessary authority. A timer
 reconciles open ready PRs and protected-branch revisions; authenticated events shorten latency.
 Do not depend on exactly-once webhook delivery or on a candidate-triggered workflow having a
 privileged token. The controller deployment and its release pin are external bootstrap inputs.
@@ -69,6 +71,109 @@ journal endpoint/verifier, retention contract and measured telemetry requirement
 review means a separately authorized execution and evidence path; using another model alone
 does not establish authority. Candidate instructions are reviewed content, not permission to
 alter the review protocol. Missing observations refuse certification.
+
+### Bounded ordinary-PR observation increment
+
+At implementation baseline `1520d3b58c34149d0c35b4ac021cc3c2a4f368b9`, the durable
+controller already exposes `readyCandidates`, `currentCandidate` and `reconcileReady`.
+This increment mounts a read-only GitHub provider into those ports. Its outcome is automatic
+candidate discovery and durable supersession on a reconciliation tick, not an activation,
+a deployed scheduler, authenticated check/review evidence or WBS completion.
+
+The adapter receives trusted repository identity, supported target/fork policy and immutable
+policy/mapping/toolkit identities from bootstrap. Candidate-controlled files, API URLs or
+labels cannot choose authority. A narrow transport boundary returns untrusted provider
+responses; the adapter validates the fields it consumes before constructing internal types.
+Network/authentication/rate-limit failures remain explicit failures, never empty lists or
+closure. Provider schema additions may be ignored only outside the consumed contract;
+missing or malformed required fields cannot be defaulted.
+
+| Port                                      | Meaning and refusal boundary                                                                                                                                                     |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `readyCandidates()`                       | Bounded, fully validated discovery of eligible ordinary PR subjects in the configured repository; discovery is a hint, not an atomic provider snapshot                           |
+| `currentCandidate(repositoryId, subject)` | Direct authoritative read for the exact ordinary PR, yielding a validated current tuple or confirmed current ineligibility; unsupported subject kinds and ambiguous reads refuse |
+| `reconcileReady()`                        | Union discovered subjects with durable active subjects, refetch each through the current port, then commit under the existing subject observation-version fence                  |
+
+The existing current-port `closed` variant means no currently eligible candidate for the
+subject. For this adapter it may represent a confirmed closed/merged PR or an open draft;
+it is not a fabricated GitHub merge outcome. Reopening or becoming ready allocates a new
+generation using retained high-water history. Unsupported subject kinds, an absent/masked
+PR response, revoked access and unavailable state must throw rather than produce `closed`.
+
+Bind the configured immutable base repository ID, requested PR number, open/non-draft state,
+qualified target ref and exact head/base SHAs. Validate source repository identity according
+to the explicit fork policy: a legitimate fork's head repository differs from its base and
+must not be confused with a foreign base repository. Never infer an allowed source from an
+arbitrary clone/download URL. Trusted snapshot acquisition remains a later adapter.
+
+Pagination has finite page/entry/time bounds, validated origin and monotonic continuation.
+Refuse repeated/conflicting pages, malformed links and incomplete traversal; never send a
+credential to an arbitrary continuation URL. Complete validation before returning discovery
+so a truncated page set cannot masquerade as an empty successful inventory. A successful
+listing still does not prove closure: directly read every durable active subject. A later
+provider failure may leave earlier subjects reconciled; do not claim a whole-poll transaction
+or roll back already valid observations. Retry through another bounded reconciliation tick.
+
+Provider reads occur outside SQLite transactions. Revalidate subject-version ownership after
+the await and refetch on conflict using the existing finite retry bound. Returning A after
+A → B → A must create a fresh generation and never restore an obsolete lease. Provider state
+can change after any read: this increment does not authorize effects, and later dispatch,
+admission and merge adapters must revalidate their exact current tuple again.
+
+Tests mount the real adapter and durable controller with a synthetic read-only transport.
+They prove the timer-call boundary, loss/duplication recovery and refusal semantics, not
+GitHub authentication, a running timer or real external-review provenance. Webhook signature
+verification, merge-group/protected-revision discovery, credential provisioning, worker
+execution, publication, admission, merge and deployment remain outside this increment.
+
+### Unattended implementation sequence and provisioning boundary
+
+Continue in ordered, independently reviewable slices after ordinary-PR observation:
+
+1. Install the protected controller runtime with durable database, bounded timer reconciliation
+   and later authenticated webhook ingestion. Reserve effects before dispatch; retain immutable
+   acknowledgements, query after ambiguous delivery and fence stale owners. Do not claim
+   exactly-once remote effects or rely on an ephemeral Actions workspace for recovery.
+2. Install real isolated check execution and the independent cold/informed audit provider.
+   Reuse the frozen obligation/attempt/invocation contracts and authenticated journal verifier.
+   Checks and review join only after every selected required receipt passes; fake acceptance,
+   a successful process exit and locally authored review bytes are not authenticated evidence.
+3. Prepare and self-certify the exact activation through the production launcher, publish its
+   immutable archive and authenticated descriptor, then automatically request/observe the
+   existing required trusted workflow for the exact subject/head/base. A variable update alone
+   does not rerun a workflow; the adapter must prove the supported trigger and exact run joins.
+   Preserve the base-owned read-only validator and organization requirement.
+4. Use a serialized compatibility transition for the three existing activation variables,
+   verifying all values and refusing partial writes. Candidate-addressed descriptors replace
+   the global pointer before parallel PR publication is enabled. A controller status cannot
+   substitute for required-workflow admission.
+5. Merge under existing protection with fresh subject/head/base checks, then certify the actual
+   merged SHA as its own protected-revision request. Serialize the branch until certification;
+   install that same authenticated archive on h2puni atomically and require its exact acknowledgement.
+   Preserve the separate sole-parent integration-binding guard.
+
+Repository work can implement all ports, contracts, local recovery proofs, provisioning
+artifacts and runbooks without enabling credentials. Live acceptance needs these one-time
+administrative capabilities; they are not recurring PR tasks:
+
+| Capability                     | One-time prerequisite and installed proof                                                                                                                             |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Protected controller           | Independently controlled release pin/runtime, durable database and backup/restore; timer restart/recovery acceptance                                                  |
+| GitHub observation and effects | Installed dedicated identities with verified minimum read/publisher/merge permissions; keep administration and bootstrap configuration separate from normal dispatch  |
+| Audit and evidence             | External executor/issuer, authenticated retained journal, pinned verifier and immutable archive storage; real exact-invocation negative and positive acceptance       |
+| Ephemeral CI worker            | Dedicated non-sudo worker identity, delegated cgroup-v2 subtree with cpu/memory/pids limit write/readback, exact loaded AppArmor policy and pinned executable/runtime |
+| h2puni                         | Separately administered worker/service account, corresponding cgroup/profile setup, protected archive trust pins and atomic installation/retention service            |
+| Trusted workflow cutover       | Authorized protected bootstrap transition and proof of required-workflow failure/pass at exact candidate identities, without bypass                                   |
+
+Worker provisioning must precede candidate execution. Required uncached `test:worker` must
+prove the exact runtime profile: namespaces, private mounts, network refusal, fixed environment,
+FD/credential/socket exclusion, resource enforcement, deadlines and descendant cleanup.
+The readiness classifier and inert staging at the baseline do not provide those proofs.
+A constrained local environment reports unavailable capability and fails the required target;
+it cannot turn unrun isolation into a passing skip. CI success does not certify h2puni.
+Provisioning code must come from protected pinned source, never candidate scripts executed
+with root or publication authority. Neither repository edits nor this plan install any of
+these capabilities. Until installed end-to-end evidence exists, 030.6 remains blocked.
 
 ### Request and durable state
 

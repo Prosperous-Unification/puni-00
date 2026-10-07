@@ -38,6 +38,47 @@ variable editing, workflow rerun or merge action.
 - **THEN** periodic reconciliation recovers eligible work and duplicate delivery does not create
   competing authoritative publications
 
+### Requirement: Authoritative ordinary-PR polling
+
+Ordinary-PR polling SHALL validate bounded provider discovery and directly reconcile both
+newly discovered and durable active subjects. The current provider response SHALL bind the
+configured repository, requested PR subject, eligibility, target ref and exact head/base
+identities before the controller commits under its subject observation-version fence.
+Unknown, malformed, inaccessible or incompletely enumerated provider state SHALL fail closed
+without manufacturing a closed subject, new authority or successful activation.
+
+#### Scenario: Timer discovers eligible work without an event
+
+- **WHEN** a reconciliation tick discovers an eligible open non-draft PR with no recorded event
+- **THEN** the mounted provider and durable owner create its exact current request, and repeated
+  ticks reuse that request while its identity and eligibility remain unchanged
+
+#### Scenario: Listing loses an active PR
+
+- **WHEN** a durable active PR is absent from the latest ready listing
+- **THEN** the controller directly reads that subject and supersedes it only after validated
+  current ineligibility, preserving high-water generation for a later return
+
+#### Scenario: Provider read is ambiguous
+
+- **WHEN** discovery/current reads encounter inaccessible or malformed state, unconfirmed
+  absence, foreign identity, invalid continuation, conflicting pages or a pagination bound
+- **THEN** the affected observation refuses without converting failure into empty inventory,
+  closure or approval, and a later bounded tick may reconcile independently confirmed subjects
+
+#### Scenario: Current PR changes after discovery
+
+- **WHEN** listing names A but the current read names B, or another owner advances the subject
+  while the current read is held
+- **THEN** the owner uses authoritative B or refetches after the observation fence changes,
+  with no database transaction held across the provider wait and no revival of A's old lease
+
+#### Scenario: Ready PR becomes draft then returns
+
+- **WHEN** an active ready PR becomes an authenticated open draft and later returns ready
+- **THEN** current eligibility is retired without asserting a merge, and its return receives
+  a fresh generation rather than inheriting the retired request's work authority
+
 ### Requirement: Exact candidate and trust identity
 
 Every activation request SHALL bind its typed subject, qualified target ref, candidate head

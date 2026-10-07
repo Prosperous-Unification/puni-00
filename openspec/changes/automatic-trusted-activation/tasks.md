@@ -42,6 +42,33 @@ Keep pure transition rules in Twilight Burokrat and external effects behind moun
       transaction across the provider await. Define guarded transition and obligation/effect
       storage contracts here; unimplemented later-stage proof paths must refuse advancement.
 
+### First installed-provider increment within 1.2
+
+These ordered ordinary-PR slices refine 1.2; completing them does not complete 1.2 or 030.6.
+Use the typed ports and boundaries in [design](design.md#bounded-ordinary-pr-observation-increment).
+
+- [ ] 1.2a Mount a read-only provider boundary into `readyCandidates` and `currentCandidate`.
+      First prove `ordinary PR provider refuses foreign and malformed responses` and
+      `pagination ambiguity never becomes empty discovery`; then implement consumed-field
+      validation, exact configured repository/PR/target/head/base joins, explicit source/fork
+      policy and bounded same-origin pagination. Remove each independent guard under F10-P1/P2;
+      assert no request or closure from the rejected observation. Unsupported subject kinds,
+      authentication/rate-limit failure and ambiguous absence refuse, without default authority.
+- [ ] 1.2b Mount discovery and current reads into the durable controller's reconciliation tick.
+      First prove `timer discovers an ordinary PR without delivery`,
+      `current read replaces stale discovery`, `lost close supersedes durable active PR`,
+      `draft and ready preserve generation history` and `ambiguous current read preserves state`.
+      F10-P3/P4 separately bypass active-subject reconciliation, authoritative refetch and
+      confirmed-ineligibility handling. Assert persisted request identity, current flags,
+      high-water history and absence of publication/merge capability, not only adapter output.
+- [ ] 1.2c Prove held provider reads with two durable owners and crash/reopen:
+      `held current response cannot revive an obsolete generation` and
+      `provider retry is bounded without a transaction across awaits`. F10-P5/F11-P1 remove
+      subject-version/refetch and retry bounds separately. Retain fault output and restored
+      GREEN; classify API/authentication/scheduler deployment as unverified by synthetic tests.
+      Keep webhook verification, merge groups, protected revisions and live timer installation
+      for later 1.2 slices; do not add write credentials, workers, publication or merge here.
+
 ## 2. Independent execution and evidence
 
 - [ ] 2.1 Mount the external cold/informed reviewer and authenticated journal verifier through the
