@@ -66,8 +66,8 @@ async function readBeforeDeadline<T>(
   // the whole-list budget; the mounted test required zero later provider reads.
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    // Proof: invoking the reader before arming this timer let synchronous provider work
-    // return after the deadline in the mounted late-list/get tests.
+    // Proof: moving the provider call before this timer failed the mounted
+    // source-arms-deadline test's armedAtRead assertion.
     const timeout = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
         aborter.abort();
