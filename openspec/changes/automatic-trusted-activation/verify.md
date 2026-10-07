@@ -2242,3 +2242,65 @@ Uncached Nx `twilight-burokrat:lint:source`, `typecheck`, and `build` each print
 `Successfully ran target` with exit 0. Strict OpenSpec passed 1/1 and all passed
 143/143. Changed-path Prettier and `git diff --check` passed. Normal commit hooks and
 exact local SHA follow in the commit record; CI and the h2puni gate have not run.
+
+### 1.2e structural and ownership review correction
+
+Astra's exact `001e12c` read-only probes found that name-only index/CHECK
+validation accepted a same-named nonunique index on the wrong table, `CHECK(1)`,
+and a scheduler with two rows. A foreign-owned 0755 or sticky 1777 ancestor
+could replace a protected child; scheduled rollback could mask its primary
+error. The corrected boundary checks required PK, FK and nullability metadata,
+essential CHECK predicates, exact index table/SQL and exact singleton scheduler
+DDL before callback. The owner check now requires each ancestor to belong to
+the service or trusted root owner. The real two-process lock test now seeds v9
+through the production migration, rather than a stale handwritten table.
+
+The old `ancestor_symlink`, `lock_owner` and `foreign_subject` watches above
+are **disqualified**: the first stopped at a direct symlink before the nested
+case, the second shifted a call-count UID mock into a later path check, and the
+third caused a SQL bind-arity error. The replacements separately exercise a
+nested symlink, an fstat-only wrong lock UID in a child process, and a subject
+branch disabled with `AND 0` while preserving its bind parameter. Each
+replacement source omission reached its named assertion; restored source
+passed the same test.
+
+`python3 /tmp/activation-12e-watch.py` ran each exact isolated source
+substitution and restored source in a `finally` block. The named logs
+`/tmp/activation-12e-<fault>-{red,green}.log` include the literal Bun command,
+exit code and assertion. All rows below are RED exit 1 / restored GREEN exit 0.
+The pre-comment source restoration SHA-256 was
+`d3ccb121c163cf283aa291ab4c60627a740e04e757af078543308e7efa9381f6`.
+
+| Fault                 | Production-path observation with only that guard removed        |
+| --------------------- | --------------------------------------------------------------- |
+| `nested_symlink`      | Nested symlink no longer gave the named symlink refusal.        |
+| `ancestor_owner`      | Foreign-owned 0755/1777 parent initialized instead of refusing. |
+| `lock_owner`          | fstat-only wrong lock owner initialized instead of refusing.    |
+| `foreign_subject`     | Subject-only foreign tombstone migrated without a bind error.   |
+| `weak_check`          | A matching table with `CHECK(1)` ran scheduled work.            |
+| `primary_key`         | A named progress table without its primary key ran work.        |
+| `not_null`            | A nullable owner column ran work.                               |
+| `foreign_key`         | A progress table without its reservation FK ran work.           |
+| `index_binding`       | A same-named nonunique index on the wrong table ran work.       |
+| `schedule_definition` | A two-row unconstrained scheduler ran work.                     |
+| `unsafe_start`        | An unsafe persisted start timestamp ran work.                   |
+
+`python3 /tmp/activation-12e-rollback-watch.py` independently replaced only
+the scheduled owner's rollback aggregation with raw rollback. The named
+scheduled-rollback test failed when the primary budget fault disappeared behind
+the injected rollback fault (exit 1), then passed restored (exit 0). Logs are
+`/tmp/activation-12e-scheduled-rollback-{red,green}.log`; source restoration
+SHA-256 was `83e655b1ee9922dbecc5f3561f45e1d72b1c5b7676c03d55b480f843124e5069`.
+These are historical mutation/restoration hashes, not claims about the final
+formatted source bytes. No installed scheduler, host gate or CI is verified.
+
+Final correction bytes: the explicit seven-file Bun suite passed **542/542**,
+2,335 assertions (`/tmp/activation-12e-final-seven-formatted.log`). Uncached Nx
+`twilight-burokrat:lint:source`, `typecheck` and `build` each completed with
+`Successfully ran target` and exit 0 in
+`/tmp/activation-12e-nx-{lint-final,typecheck,build}.log`. The first lint run
+found unsafe fixture helper typing; those diagnostics were fixed and the final
+lint passed. Pinned OpenSpec strict passed 1/1 and all passed 143/143 at
+`/tmp/activation-12e-openspec-{strict,all}.json`. Changed-path Prettier and
+`git diff --check` passed. These local checks do not replace CI or the required
+h2puni gate, which remain unrun on this unpublished branch.

@@ -71,6 +71,9 @@ function inspectProtected(path: string, directory: boolean): void {
   // Proof: removing lexical normalization admitted an absolute `directory/.` alias.
   if (!isAbsolute(path) || resolve(path) !== path)
     throw new Error('observation protected path must be canonical absolute');
+  const serviceUid = process.getuid?.();
+  if (serviceUid === undefined) throw new Error('observation requires a POSIX owner identity');
+  const rootUid = lstatSync(sep).uid;
   let ancestor: string = sep;
   for (const component of path.split(sep).filter(Boolean)) {
     ancestor = join(ancestor, component);
@@ -87,6 +90,10 @@ function inspectProtected(path: string, directory: boolean): void {
     if (entry.isSymbolicLink()) throw new Error(`observation protected path symlink: ${ancestor}`);
     if (ancestor !== path && !entry.isDirectory())
       throw new Error(`observation protected ancestor malformed: ${ancestor}`);
+    // Proof: omitting owner validation admitted a foreign-owned 0755 or
+    // sticky 1777 ancestor whose owner could replace the protected child.
+    if (entry.uid !== rootUid && entry.uid !== serviceUid)
+      throw new Error(`observation protected ancestor owner changed: ${ancestor}`);
     // Proof: omitting replaceability refusal admitted a 0777 non-sticky parent.
     if (ancestor !== path && (entry.mode & 0o022) !== 0 && (entry.mode & 0o1000) === 0)
       throw new Error(`observation protected ancestor replaceable: ${ancestor}`);
@@ -227,15 +234,17 @@ async function withLock<T>(
   );
 }
 
-function createSchedule(database: Database, state: PreparedState): void {
-  database.run(`CREATE TABLE activation_observation_schedule (
+const ScheduleDefinition = `CREATE TABLE activation_observation_schedule (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
     repository_id INTEGER NOT NULL,
     configuration_identity TEXT NOT NULL,
     attempt_sequence INTEGER NOT NULL CHECK (attempt_sequence >= 0),
     burst_attempts INTEGER NOT NULL CHECK (burst_attempts >= 0),
     last_started_at INTEGER
-  )`);
+  )`;
+
+function createSchedule(database: Database, state: PreparedState): void {
+  database.run(ScheduleDefinition);
   database
     .query(
       `INSERT INTO activation_observation_schedule
@@ -280,6 +289,57 @@ function assertActivationSchema(database: Database): void {
       'effect_key state dispatch_attempts owner_epoch owner_id version',
     activation_check_dispatch_fact: 'effect_key observation_bytes observation_digest',
   } as const;
+  const requiredPrimary: Record<string, string> = {
+    activation_request: 'request_identity',
+    activation_delivery: 'source_id delivery_id',
+    activation_subject: 'repository_id subject_key',
+    activation_obligation: 'request_identity obligation_identity',
+    activation_attempt: 'request_identity obligation_identity attempt',
+    activation_review_attempt: 'request_identity review_id attempt',
+    activation_review_dispatch: 'effect_key',
+    activation_review_dispatch_progress: 'effect_key',
+    activation_review_dispatch_fact: 'effect_key',
+    activation_check_attempt: 'request_identity obligation_identity attempt',
+    activation_check_dispatch: 'effect_key',
+    activation_check_dispatch_progress: 'effect_key',
+    activation_check_dispatch_fact: 'effect_key',
+  };
+  const nullable: Record<string, string> = {
+    activation_request:
+      'lease_owner lease_expires_at evaluation_plan_identity evidence_set_identity',
+    activation_obligation: 'review_id command_identity phase receipt_identity',
+  };
+  const requiredChecks: Record<string, string> = {
+    activation_request: 'CHECK (pairing_version IN (0, 1));CHECK (current IN (0, 1))',
+    activation_subject: 'CHECK (high_water_generation >= 0);CHECK (observation_version >= 1)',
+    activation_obligation: 'CHECK (attempt >= 0)',
+    activation_attempt: 'CHECK (attempt >= 0)',
+    activation_review_attempt: 'CHECK (attempt >= 0)',
+    activation_review_dispatch:
+      "CHECK (attempt >= 0);CHECK (max_dispatch_attempts >= 1);CHECK (state = 'reserved');CHECK (owner_epoch >= 0);CHECK (version >= 0)",
+    activation_review_dispatch_progress:
+      "CHECK (state IN ('reserved', 'dispatching', 'uncertain', 'acknowledged', 'exhausted'));CHECK (dispatch_attempts >= 0);CHECK (owner_epoch >= 0);CHECK (version >= 0)",
+    activation_check_attempt: 'CHECK (attempt >= 0)',
+    activation_check_dispatch: 'CHECK (attempt >= 0);CHECK (max_dispatch_attempts >= 1)',
+    activation_check_dispatch_progress:
+      "CHECK (state IN ('reserved', 'dispatching', 'uncertain', 'acknowledged', 'exhausted'));CHECK (dispatch_attempts >= 0);CHECK (owner_epoch >= 0);CHECK (version >= 0)",
+  };
+  const requiredForeign: Record<string, string> = {
+    activation_obligation: 'request_identity:activation_request:request_identity',
+    activation_attempt:
+      'obligation_identity:activation_obligation:obligation_identity request_identity:activation_obligation:request_identity',
+    activation_review_attempt: 'request_identity:activation_request:request_identity',
+    activation_review_dispatch:
+      'attempt:activation_review_attempt:attempt request_identity:activation_review_attempt:request_identity review_id:activation_review_attempt:review_id',
+    activation_review_dispatch_progress: 'effect_key:activation_review_dispatch:effect_key',
+    activation_review_dispatch_fact: 'effect_key:activation_review_dispatch:effect_key',
+    activation_check_attempt:
+      'obligation_identity:activation_obligation:obligation_identity request_identity:activation_obligation:request_identity',
+    activation_check_dispatch:
+      'attempt:activation_check_attempt:attempt obligation_identity:activation_check_attempt:obligation_identity request_identity:activation_check_attempt:request_identity',
+    activation_check_dispatch_progress: 'effect_key:activation_check_dispatch:effect_key',
+    activation_check_dispatch_fact: 'effect_key:activation_check_dispatch:effect_key',
+  };
   for (const [name, columns] of Object.entries(requiredColumns)) {
     const found: unknown = database
       .query("SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = ?")
@@ -289,7 +349,10 @@ function assertActivationSchema(database: Database): void {
     if (found === null) throw new Error(`observation state partial: ${name}`);
     const definition = parseOrThrow(type({ sql: 'string' }), found).sql;
     const actualColumns: unknown = database.query(`PRAGMA table_info(${name})`).all();
-    const columnNames = parseOrThrow(type({ name: 'string' }).array(), actualColumns);
+    const columnNames = parseOrThrow(
+      type({ name: 'string', notnull: 'number.integer>=0', pk: 'number.integer>=0' }).array(),
+      actualColumns,
+    );
     // Proof: omitting column inventory admitted a delivery table without payload_digest.
     if (
       columnNames
@@ -298,30 +361,63 @@ function assertActivationSchema(database: Database): void {
         .join(' ') !== columns.split(' ').sort().join(' ')
     )
       throw new Error(`observation state partial columns: ${name}`);
-    // Proof: omitting this DDL constraint check admitted an unconstrained
-    // check-dispatch progress table with all expected column names.
+    // Proof: independent CHECK(1), missing-PK and nullable-owner substitutions
+    // each ran the scheduled callback when only its corresponding comparison
+    // was removed; the restored test refused before work.
     if (
-      [
-        'activation_request',
-        'activation_subject',
-        'activation_obligation',
-        'activation_attempt',
-        'activation_review_dispatch',
-        'activation_review_dispatch_progress',
-        'activation_check_attempt',
-        'activation_check_dispatch',
-        'activation_check_dispatch_progress',
-      ].includes(name) &&
-      !definition.includes('CHECK')
+      (requiredChecks[name] ?? '')
+        .split(';')
+        .filter(Boolean)
+        .some((fragment) => !definition.includes(fragment)) ||
+      columnNames
+        .filter((column) => column.pk > 0)
+        .sort((left, right) => left.pk - right.pk)
+        .map((column) => column.name)
+        .join(' ') !== requiredPrimary[name] ||
+      columnNames.some(
+        (column) =>
+          column.pk === 0 &&
+          column.notnull !== 1 &&
+          !(nullable[name] ?? '').split(' ').includes(column.name),
+      )
     )
       throw new Error(`observation state partial constraints: ${name}`);
+    const foreignRows: unknown = database.query(`PRAGMA foreign_key_list(${name})`).all();
+    const foreign = parseOrThrow(
+      type({ table: 'string', from: 'string', to: 'string' }).array(),
+      foreignRows,
+    );
+    // Proof: removing this exact FK join let a structurally named progress
+    // table without its reservation parent run the scheduled callback.
+    if (
+      foreign
+        .map((row) => `${row.from}:${row.table}:${row.to}`)
+        .sort()
+        .join(' ') !== (requiredForeign[name] ?? '').split(' ').filter(Boolean).sort().join(' ')
+    )
+      throw new Error(`observation state partial foreign keys: ${name}`);
   }
-  for (const name of ['activation_current_subject', 'activation_dispatch_request']) {
+  const requiredIndexes = {
+    activation_current_subject: {
+      table: 'activation_request',
+      sql: 'CREATE UNIQUE INDEX activation_current_subject ON activation_request(repository_id, subject_key) WHERE current = 1',
+    },
+    activation_dispatch_request: {
+      table: 'activation_review_dispatch',
+      sql: 'CREATE INDEX activation_dispatch_request ON activation_review_dispatch(request_identity)',
+    },
+  } as const;
+  for (const [name, expected] of Object.entries(requiredIndexes)) {
     const index: unknown = database
-      .query("SELECT 1 FROM sqlite_schema WHERE type = 'index' AND name = ?")
+      .query("SELECT tbl_name, sql FROM sqlite_schema WHERE type = 'index' AND name = ?")
       .get(name);
     // Proof: omitting index inventory admitted a store missing activation_dispatch_request.
     if (index === null) throw new Error(`observation state partial index: ${name}`);
+    const actual = parseOrThrow(type({ tbl_name: 'string', sql: 'string' }), index);
+    // Proof: omitting this SQL/table join let a same-named nonunique index on
+    // activation_delivery admit the scheduled callback.
+    if (actual.tbl_name !== expected.table || actual.sql.replace(/\s+/g, ' ') !== expected.sql)
+      throw new Error(`observation state partial index: ${name}`);
   }
 }
 
@@ -329,6 +425,20 @@ function readSchedule(database: Database, state: PreparedState): typeof Schedule
   // Proof: omitting this version check let a version-ten store spend an attempt.
   if (readVersion(database) !== 9) throw new Error('observation state schema unsupported');
   assertActivationSchema(database);
+  const definition: unknown = database
+    .query(
+      "SELECT sql FROM sqlite_schema WHERE type='table' AND name='activation_observation_schedule'",
+    )
+    .get();
+  // Proof: omitting the exact scheduler definition accepted an unconstrained
+  // table with two rows and ran the scheduled callback.
+  if (
+    definition === null ||
+    parseOrThrow(type({ sql: 'string' }), definition).sql !== ScheduleDefinition
+  )
+    throw new Error('observation scheduler schema malformed');
+  // The exact schema has singleton INTEGER PRIMARY KEY CHECK(singleton = 1):
+  // a successful row read below therefore establishes exactly one record.
   const raw: unknown = database.query('SELECT * FROM activation_observation_schedule').get();
   if (raw === null) throw new Error('observation scheduler record absent');
   const row = parseOrThrow(ScheduleRow, raw);
@@ -339,6 +449,8 @@ function readSchedule(database: Database, state: PreparedState): typeof Schedule
     !Number.isSafeInteger(row.burst_attempts) ||
     row.attempt_sequence !== row.burst_attempts ||
     (row.attempt_sequence === 0) !== (row.last_started_at === null) ||
+    // Proof: omitting this safe-timestamp predicate ran work for persisted
+    // last_started_at=9007199254740992 after other row fields stayed valid.
     (row.last_started_at !== null && !Number.isSafeInteger(row.last_started_at))
   )
     throw new Error('observation scheduler record malformed');
@@ -521,8 +633,11 @@ export async function withObservationAttempt<T>(
             .run(sequence, now);
           database.run('COMMIT');
         } catch (cause) {
-          database.run('ROLLBACK');
-          throw cause;
+          // Proof: replacing this scheduled rollback aggregation with raw
+          // ROLLBACK lost the primary budget fault when rollback also threw.
+          rethrowWithCleanup(cause, () => {
+            database.run('ROLLBACK');
+          });
         }
         return work({ sequence });
       },

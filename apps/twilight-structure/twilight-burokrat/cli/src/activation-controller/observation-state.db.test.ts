@@ -109,25 +109,6 @@ function createVersionEight(source: ReturnType<typeof fixture>): void {
   chmodSync(source.databasePath, 0o600);
 }
 
-function seedVersionNineForLockTest(source: ReturnType<typeof fixture>): void {
-  createVersionEight(source);
-  const database = new Database(source.databasePath, { create: false, strict: true });
-  database.run(`CREATE TABLE activation_observation_schedule (
-    singleton INTEGER PRIMARY KEY CHECK (singleton = 1), repository_id INTEGER NOT NULL,
-    configuration_identity TEXT NOT NULL, attempt_sequence INTEGER NOT NULL,
-    burst_attempts INTEGER NOT NULL, last_started_at INTEGER)`);
-  database.query(`INSERT INTO activation_observation_schedule VALUES (1, ?, ?, 0, 0, NULL)`).run(
-    source.config.binding.repositoryId,
-    hashCanonical({
-      binding: source.config.binding,
-      pin: source.config.pin,
-      policy: source.config.policy,
-    }),
-  );
-  database.run('PRAGMA user_version = 9');
-  database.close();
-}
-
 test('scheduled work and database cleanup failures retain both causes', async () => {
   const source = fixture();
   expect(await initializeObservationState(source.config)).toBe('initialized');
@@ -281,6 +262,38 @@ test('migration rollback failure retains the primary and rollback faults', async
   const reopened = new Database(source.databasePath, { create: false, strict: true });
   expect(reopened.query('PRAGMA user_version').get()).toEqual({ user_version: 8 });
   reopened.close();
+});
+
+test('scheduled rollback failure retains the budget and rollback faults', async () => {
+  const source = fixture();
+  expect(await initializeObservationState(source.config)).toBe('initialized');
+  const database = new Database(source.databasePath, { create: false, strict: true });
+  database.run(`UPDATE activation_observation_schedule
+    SET attempt_sequence=2, burst_attempts=2, last_started_at=1000`);
+  database.close();
+  const runDescriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'run');
+  if (runDescriptor === undefined) throw new Error('fixture run descriptor missing');
+  const originalRun = runDescriptor.value as (sql: string) => unknown;
+  const rollbackFault = new Error('mounted scheduled rollback fault');
+  Object.defineProperty(Database.prototype, 'run', {
+    ...runDescriptor,
+    value: function (this: Database, sql: string) {
+      if (sql === 'ROLLBACK') throw rollbackFault;
+      return Reflect.apply(originalRun, this, [sql]);
+    },
+  });
+  let caught: unknown;
+  try {
+    await withObservationAttempt(source.config, () => Promise.resolve());
+  } catch (error) {
+    caught = error;
+  } finally {
+    Object.defineProperty(Database.prototype, 'run', runDescriptor);
+  }
+  expect(caught).toBeInstanceOf(AggregateError);
+  const failures = (caught as AggregateError).errors as unknown[];
+  expect(String(failures[0])).toContain('attempt budget exhausted');
+  expect(failures[1]).toBe(rollbackFault);
 });
 
 test('activation controller reopens the additive scheduler schema without resetting it', async () => {
@@ -543,8 +556,51 @@ test('noncanonical or symlinked protected ancestry refuses before initialization
   );
 });
 
+test('nested symlink alone refuses before initialization', async () => {
+  const source = fixture();
+  const parent = join(source.directory, 'actual');
+  mkdirSync(parent, { mode: 0o700 });
+  mkdirSync(join(parent, 'protected'), { mode: 0o700 });
+  const alias = join(source.directory, 'alias');
+  symlinkSync(parent, alias);
+  await expectRefusal(
+    () =>
+      initializeObservationState({ ...source.config, stateDirectory: join(alias, 'protected') }),
+    'protected path symlink',
+  );
+  expect(existsSync(join(parent, 'protected', 'activation.sqlite'))).toBe(false);
+});
+
+test('foreign-owned ordinary and sticky ancestors refuse before initialization', async () => {
+  for (const mode of [0o755, 0o1777]) {
+    const source = fixture();
+    const parent = mkdtempSync(join(tmpdir(), 'activation-foreign-ancestor-'));
+    scratch.push(parent);
+    chmodSync(parent, mode);
+    const protectedDirectory = join(parent, 'protected');
+    mkdirSync(protectedDirectory, { mode: 0o700 });
+    const configurationPath = join(source.directory, 'ancestor-config.json');
+    writeFileSync(
+      configurationPath,
+      JSON.stringify({ ...source.config, stateDirectory: protectedDirectory }),
+      { mode: 0o600 },
+    );
+    const processPath = join(import.meta.dir, 'observation-state-ancestor-process.ts');
+    const child = Bun.spawn(['bun', processPath, configurationPath, parent], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const output = await new Response(child.stdout).text();
+    expect(await child.exited).toBe(0);
+    expect(JSON.parse(output)).toEqual({
+      error: `Error: observation protected ancestor owner changed: ${parent}`,
+    });
+    expect(existsSync(join(protectedDirectory, 'activation.sqlite'))).toBe(false);
+  }
+});
+
 test('partial v9 tables and inconsistent scheduler counters refuse before work', async () => {
-  for (const corrupt of ['drop-fact', 'drop-attempt', 'counter', 'null-time']) {
+  for (const corrupt of ['drop-fact', 'drop-attempt', 'counter', 'null-time', 'unsafe-time']) {
     const source = fixture();
     expect(await initializeObservationState(source.config)).toBe('initialized');
     const database = new Database(source.databasePath, { create: false, strict: true });
@@ -556,6 +612,9 @@ test('partial v9 tables and inconsistent scheduler counters refuse before work',
     if (corrupt === 'null-time')
       database.run(`UPDATE activation_observation_schedule
         SET attempt_sequence=1, burst_attempts=1, last_started_at=NULL`);
+    if (corrupt === 'unsafe-time')
+      database.run(`UPDATE activation_observation_schedule
+        SET attempt_sequence=1, burst_attempts=1, last_started_at=9007199254740992`);
     database.close();
     let called = 0;
     await expectRefusal(
@@ -564,7 +623,7 @@ test('partial v9 tables and inconsistent scheduler counters refuse before work',
           called += 1;
           return Promise.resolve();
         }),
-      corrupt === 'counter' || corrupt === 'null-time'
+      corrupt === 'counter' || corrupt === 'null-time' || corrupt === 'unsafe-time'
         ? 'scheduler record malformed'
         : 'observation state partial',
     );
@@ -573,7 +632,17 @@ test('partial v9 tables and inconsistent scheduler counters refuse before work',
 });
 
 test('missing column or essential index and unsupported version refuse before work', async () => {
-  for (const corrupt of ['column', 'index', 'version', 'constraint']) {
+  for (const corrupt of [
+    'column',
+    'index',
+    'version',
+    'constraint',
+    'weak-check',
+    'wrong-index',
+    'missing-pk',
+    'missing-fk',
+    'nullable-column',
+  ]) {
     const source = fixture();
     expect(await initializeObservationState(source.config)).toBe('initialized');
     const database = new Database(source.databasePath, { create: false, strict: true });
@@ -587,6 +656,31 @@ test('missing column or essential index and unsupported version refuse before wo
         effect_key TEXT PRIMARY KEY, state TEXT NOT NULL, dispatch_attempts INTEGER NOT NULL,
         owner_epoch INTEGER NOT NULL, owner_id TEXT NOT NULL, version INTEGER NOT NULL)`);
     }
+    if (corrupt === 'weak-check') {
+      database.run('DROP TABLE activation_review_dispatch_progress');
+      database.run(`CREATE TABLE activation_review_dispatch_progress (
+        effect_key TEXT PRIMARY KEY, state TEXT NOT NULL CHECK(1),
+        dispatch_attempts INTEGER NOT NULL CHECK(dispatch_attempts >= 0),
+        owner_epoch INTEGER NOT NULL CHECK(owner_epoch >= 0),
+        owner_id TEXT NOT NULL, version INTEGER NOT NULL CHECK(version >= 0),
+        FOREIGN KEY(effect_key) REFERENCES activation_review_dispatch(effect_key))`);
+    }
+    if (corrupt === 'wrong-index') {
+      database.run('DROP INDEX activation_current_subject');
+      database.run('CREATE INDEX activation_current_subject ON activation_delivery(source_id)');
+    }
+    if (['missing-pk', 'missing-fk', 'nullable-column'].includes(corrupt)) {
+      database.run('DROP TABLE activation_review_dispatch_progress');
+      database.run(`CREATE TABLE activation_review_dispatch_progress (
+        effect_key TEXT ${corrupt === 'missing-pk' ? 'NOT NULL' : 'PRIMARY KEY'},
+        state TEXT NOT NULL CHECK (state IN ('reserved', 'dispatching', 'uncertain', 'acknowledged', 'exhausted')),
+        dispatch_attempts INTEGER NOT NULL CHECK (dispatch_attempts >= 0),
+        owner_epoch INTEGER NOT NULL CHECK (owner_epoch >= 0),
+        owner_id TEXT ${corrupt === 'nullable-column' ? '' : 'NOT NULL'},
+        version INTEGER NOT NULL CHECK (version >= 0)
+        ${corrupt === 'missing-fk' ? '' : ', FOREIGN KEY(effect_key) REFERENCES activation_review_dispatch(effect_key)'}
+      )`);
+    }
     database.close();
     let called = 0;
     await expectRefusal(
@@ -599,6 +693,38 @@ test('missing column or essential index and unsupported version refuse before wo
     );
     expect(called).toBe(0);
   }
+});
+
+test('scheduler refuses unconstrained duplicate-row schema before work', async () => {
+  const source = fixture();
+  expect(await initializeObservationState(source.config)).toBe('initialized');
+  const database = new Database(source.databasePath, { create: false, strict: true });
+  database.run('DROP TABLE activation_observation_schedule');
+  database.run(`CREATE TABLE activation_observation_schedule (
+    singleton INTEGER, repository_id INTEGER NOT NULL, configuration_identity TEXT NOT NULL,
+    attempt_sequence INTEGER NOT NULL, burst_attempts INTEGER NOT NULL, last_started_at INTEGER)`);
+  const identity = hashCanonical({
+    binding: source.config.binding,
+    pin: source.config.pin,
+    policy: source.config.policy,
+  });
+  database
+    .query('INSERT INTO activation_observation_schedule VALUES (?, ?, ?, 0, 0, NULL)')
+    .run(1, 8241, identity);
+  database
+    .query('INSERT INTO activation_observation_schedule VALUES (?, ?, ?, 0, 0, NULL)')
+    .run(2, 8241, identity);
+  database.close();
+  let called = 0;
+  await expectRefusal(
+    () =>
+      withObservationAttempt(source.config, () => {
+        called += 1;
+        return Promise.resolve();
+      }),
+    'scheduler schema malformed',
+  );
+  expect(called).toBe(0);
 });
 
 test('policy ceilings and invalid clock refuse without spending an attempt', async () => {
@@ -702,7 +828,7 @@ test('protected-path owner check refuses wrong owner before initialization', asy
   let checks = 0;
   process.getuid = () => {
     checks += 1;
-    return checks <= 2 ? actualUid : actualUid + 1;
+    return checks === 2 ? actualUid + 1 : actualUid;
   };
   try {
     await expectRefusal(
@@ -717,19 +843,21 @@ test('protected-path owner check refuses wrong owner before initialization', asy
 
 test('lock owner check refuses an independently mismatched lock inode', async () => {
   const source = fixture();
-  const originalGetuid = process.getuid;
-  if (originalGetuid === undefined) throw new Error('fixture requires a POSIX UID');
-  const actualUid = originalGetuid();
-  let checks = 0;
-  process.getuid = () => {
-    checks += 1;
-    return checks === 2 ? actualUid + 1 : actualUid;
-  };
-  try {
-    await expectRefusal(() => initializeObservationState(source.config), 'lock inode malformed');
-  } finally {
-    process.getuid = originalGetuid;
-  }
+  const configurationPath = join(source.directory, 'lock-config.json');
+  writeFileSync(configurationPath, JSON.stringify(source.config), { mode: 0o600 });
+  const child = Bun.spawn(
+    [
+      'bun',
+      join(import.meta.dir, 'observation-state-ancestor-process.ts'),
+      configurationPath,
+      join(source.directory, 'observation.lock'),
+      'lock',
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  const output = await new Response(child.stdout).text();
+  expect(await child.exited).toBe(0);
+  expect(JSON.parse(output)).toEqual({ error: 'Error: observation lock inode malformed' });
   expect(existsSync(source.databasePath)).toBe(false);
 });
 
@@ -737,14 +865,14 @@ test('two real processes cannot read concurrently and crash releases the same lo
   const source = fixture();
   // Seed only the setup state so a watched early-release mutation cannot fail
   // first in initialization; the exercised owner is the real runtime path.
-  seedVersionNineForLockTest(source);
+  createVersionEight(source);
+  expect(await migrateObservationState(source.config)).toBe('migrated');
   const configurationPath = join(source.directory, 'process-config.json');
   writeFileSync(configurationPath, JSON.stringify(source.config), { mode: 0o600 });
   const markerPath = join(source.directory, 'entered');
   const probeMarker = join(source.directory, 'probe-entered');
   const releasePath = join(source.directory, 'release');
   const lockPath = join(source.directory, 'observation.lock');
-  writeFileSync(lockPath, '', { flag: 'wx', mode: 0o600 });
   const firstInode = statSync(lockPath).ino;
   const processPath = join(import.meta.dir, 'observation-state-process.ts');
   const held = Bun.spawn(['bun', processPath, configurationPath, 'hold', markerPath, releasePath], {
@@ -754,6 +882,11 @@ test('two real processes cannot read concurrently and crash releases the same lo
   try {
     const deadline = performance.now() + 5000;
     while (!existsSync(markerPath)) {
+      if (held.exitCode !== null) {
+        throw new Error(
+          `first observation process exited: ${await new Response(held.stderr).text()}`,
+        );
+      }
       if (performance.now() >= deadline) throw new Error('first observation process did not enter');
       await Bun.sleep(10);
     }
