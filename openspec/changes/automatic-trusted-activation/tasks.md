@@ -1,5 +1,5 @@
-All slices are unimplemented. Test names below are planned acceptance names, not observed
-passes. Execute each slice RED → GREEN → watched safety-check omission → restored GREEN;
+No slice is complete. Test names below are acceptance targets; partial local evidence is
+recorded in verify.md. Execute each slice RED → GREEN → watched safety-check omission → restored GREEN;
 record the exact source fault and assertion in verify.md and adjacent production Proof comments.
 Keep pure transition rules in Twilight Burokrat and external effects behind mounted adapters.
 

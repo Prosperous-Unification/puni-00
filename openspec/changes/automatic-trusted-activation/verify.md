@@ -92,7 +92,8 @@ WBS 030.6 remains unresolved until task 5.3's real unattended proof and task 5.4
 
 ## R5 failure-proof matrix
 
-Every row below is PLANNED / NOT RUN. Test names are acceptance targets, not existing passes.
+Every row below describes full-family acceptance. NOT RUN means that family has not completed;
+partial local trials, where present, are recorded after the matrix.
 Implementation must split grouped faults into independently watched trials, name the concrete
 production file/line, retain RED assertion and restored GREEN, and add adjacent Proof comments.
 A mutation failing setup, syntax, typechecking or another unrelated guard is disqualified;
@@ -148,7 +149,82 @@ must remain visibly failed and must not authorize bypass.
 
 ## Full gate and completion limits
 
-Not run for this local documentation packet: runtime tests, lint/typecheck/build,
+### Local partial implementation checkpoint (2026-10-07)
+
+This checkpoint is repo-side only and does not satisfy any complete task box or the
+full-family F1–F16 matrix. The new controller is not wired to an authenticated external
+provider, journal, publisher, required workflow, merge or host. Local options and SQLite
+fixtures are deliberately not represented as independent provenance. Tasks 1.1, 1.2 and
+2.4 remain open: receipt joins, effect outbox/remote acknowledgements, provider authority,
+activation and later stages are absent. There was no push, variable write or activation.
+
+The mounted local command after formatting was:
+
+```sh
+bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/bootstrap.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/request.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/ingress.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/controller.db.test.ts
+```
+
+The final four-file run passed 29/29 tests and 152 assertions, exit 0. Direct
+`bunx tsc --noEmit --project apps/twilight-structure/twilight-burokrat/cli/tsconfig.json`
+exited 0. Scoped ESLint exited 0, but its `@nx/enforce-module-boundaries` rule
+reported no cached ProjectGraph and skipped; the declared Nx source-lint target is
+still required. Changed-path Prettier `--write` exited 0 before those test/type outputs.
+
+Accepted local RED/restored GREEN faults, each against the named controller or request
+test and with an adjacent source `Proof:` comment:
+
+| Boundary                      | Injected fault and observed RED                                                                                                                                                                                                                            | Restored GREEN   |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| Canonical authority           | Removed `requireCurrentRequest` authority-identity comparison; `request binds repository head base and trust` accepted the wrong pin, 0/1 (`/tmp/activation-authority-guard-red.log`).                                                                     | Four-file 29/29. |
+| Subject generation read       | Allocated from active row only; close/reopen hit duplicate request PK, 0/1 (`/tmp/activation-high-water-red.log`).                                                                                                                                         | Four-file 29/29. |
+| Subject generation write      | Omitted durable high-water upsert; restart/close/reopen hit duplicate request PK, 0/1 (`/tmp/activation-high-water-write-red.log`).                                                                                                                        | Four-file 29/29. |
+| Source observation version    | Bypassed post-await version comparison; delayed A overwrote newer B and exact identity assertion failed, 0/1 (`/tmp/activation-stale-observation-red.log`).                                                                                                | Four-file 29/29. |
+| Timer source authority        | Used timer-listed stale A directly; expected current head `666…` but persisted `111…`, 0/1 (`/tmp/activation-stale-poll-red.log`).                                                                                                                         | Four-file 29/29. |
+| First close tombstone         | Suppressed the no-active closed upsert; an older held ready response then created A after close, 0/1 (`/tmp/activation-closed-tombstone-red.log`).                                                                                                         | Four-file 29/29. |
+| Lost close polling            | Omitted durable active subjects from the timer union; a lost close left `current=true`, 0/1 (`/tmp/activation-lost-close-poll-red.log`).                                                                                                                   | Four-file 29/29. |
+| Evaluation plan join          | Removed request/policy binding together, then separately removed each comparison; foreign obligations advanced the request instead of refusing, each 0/1 (`/tmp/activation-evaluation-plan-binding-red.log`, `...-request-red.log`, `...-policy-red.log`). | Four-file 29/29. |
+| Required obligations          | Independently omitted check and audit kind checks; incomplete plans advanced, each 0/1 (`/tmp/activation-evaluation-check-red.log`, `...-audit-red.log`).                                                                                                  | Four-file 29/29. |
+| Duplicate obligation boundary | Omitted duplicate guard; exact modeled refusal became raw SQLite UNIQUE error, 0/1 (`/tmp/activation-evaluation-duplicate-red-try2.log`).                                                                                                                  | Four-file 29/29. |
+| Atomic freeze                 | Split COMMIT after first check INSERT; second audit INSERT failure left a durable check row, violating empty-row assertion, 0/1 (`/tmp/activation-evaluation-split-commit-red.log`).                                                                       | Four-file 29/29. |
+
+Additional exact 1.1/controller boundary omissions were watched independently on the
+production reader/current-request methods: malformed pin
+`/tmp/activation-bootstrap-malformed-pin-red.log` (named pin refusal became digest
+mismatch); protected subject/ref `/tmp/activation-protected-target-red.log`;
+stored-request digest `/tmp/activation-request-digest-red.log`; canonical bytes
+`/tmp/activation-request-canonical-red.log`; current target and subject
+`/tmp/activation-current-target-red.log` and `/tmp/activation-current-subject-red.log`.
+Each exited 1 at its intended mounted assertion; restored source passed the final
+four-file suite. The previous bootstrap absent/unreadable/schema/canonical/digest and
+journal/publisher issuer faults are retained in
+`/tmp/automatic-activation-1.1-bootstrap-*-red.log`; each source guard has an adjacent
+Proof comment. Version-1 store admission, delivery payload conflict and delivery subject
+join omissions were watched in `/tmp/activation-old-schema-red.log`,
+`/tmp/activation-delivery-digest-red.log` and `/tmp/activation-delivery-subject-red.log`;
+each exited 1 at the named controller test assertion and was restored.
+
+The earlier duplicate-guard trial (`/tmp/activation-evaluation-duplicate-red.log`)
+stayed GREEN because the SQLite primary key still refused a duplicate. It is
+disqualified; the accepted try2 asserts the typed boundary error. A malformed
+first fixture path that produced ENOTDIR instead of the intended absent case is
+also disqualified. The local high-water row deletion, later audit-generation,
+subject A→B→A and second-insert rollback fixtures each passed after correction.
+
+Declared Nx `twilight-burokrat:lint:source` and `:typecheck` printed success summaries,
+exit 0. The first declared build failed R19 because this worktree lacked its local
+`node_modules/typescript`. A frozen Bun install initially failed EROFS in its default
+temporary directory; with task-specific writable `/tmp` temp/cache it passed
+`Checked 1602 installs across 1447 packages (no changes)`. The subsequent
+declared `twilight-burokrat:build` printed its success summary, exit 0. All three
+declared targets were rerun on corrected source/test bytes with explicit success.
+Pinned OpenSpec strict passed 1/1 and all passed 143/143 (125 changes, 18 specs),
+and changed-path Prettier check passed. The Nx commands fell back to in-process
+plugins after a sandbox socket warning; their explicit task summaries, not a bare
+exit, are the evidence. Final diff, hooks, host gate and CI remain unrecorded at
+this checkpoint. This does not authorize publication or task closure.
+
+For the earlier docs-only design amendments, runtime tests and lint/typecheck/build were
+not run; the partial implementation checks above are separate. Still not run:
 `bin/h2puni-gate.sh <sha>`, full Nx format, live provider/check/merge/host acceptance,
 secrets/migration CI checks. No full-gate pass or implementation completion is claimed.
 Before implementation completion, run the canonical host gate and retain the printed

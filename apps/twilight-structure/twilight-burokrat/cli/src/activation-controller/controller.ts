@@ -1,0 +1,578 @@
+import { parseOrThrow, type } from '@shared/validation';
+import { Database } from 'bun:sqlite';
+
+import { hashCanonical } from '../evidence/content-manifest';
+import { readBootstrapConfiguration, type TrustedBootstrapPin } from './bootstrap';
+import { type ObservedActivationCandidate, prepareObservedRequest } from './ingress';
+import {
+  type ActivationRequest,
+  ActivationSubject,
+  createActivationRequest,
+  decodeActivationRequest,
+} from './request';
+
+export type ObservedCandidate = ObservedActivationCandidate;
+
+const RequestStage = type(
+  "'observed'|'evaluating'|'verified'|'published'|'admitted'|'merge-requested'|'merged'|'merged-certified'|'host-ready'|'failed'|'superseded'",
+);
+export type RequestStage = typeof RequestStage.infer;
+
+const EvaluationObligation = type({
+  identity: /^[0-9a-f]{64}$/,
+  kind: "'check'",
+  executorId: 'string>=1',
+  protocolIdentity: /^[0-9a-f]{64}$/,
+  commandIdentity: /^[0-9a-f]{64}$/,
+})
+  .onUndeclaredKey('reject')
+  .or(
+    type({
+      identity: /^[0-9a-f]{64}$/,
+      kind: "'audit'",
+      executorId: 'string>=1',
+      protocolIdentity: /^[0-9a-f]{64}$/,
+      phase: "'cold'|'informed'",
+    }).onUndeclaredKey('reject'),
+  );
+export type EvaluationObligation = typeof EvaluationObligation.infer;
+
+const EvaluationPlan = type({
+  requestIdentity: /^[0-9a-f]{64}$/,
+  policyIdentity: /^[0-9a-f]{64}$/,
+  obligations: EvaluationObligation.array(),
+}).onUndeclaredKey('reject');
+export type EvaluationPlan = typeof EvaluationPlan.infer;
+
+const StoredObligation = type({
+  request_identity: /^[0-9a-f]{64}$/,
+  obligation_identity: /^[0-9a-f]{64}$/,
+  kind: "'check'|'audit'",
+  executor_id: 'string>=1',
+  protocol_identity: /^[0-9a-f]{64}$/,
+  command_identity: type(/^[0-9a-f]{64}$/).or('null'),
+  phase: "'cold'|'informed'|null",
+  attempt: 'number.integer>=0',
+  state: "'pending'",
+  receipt_identity: 'null',
+}).onUndeclaredKey('reject');
+
+const StoredRow = type({
+  request_identity: /^[0-9a-f]{64}$/,
+  repository_id: 'number.integer>=1',
+  subject_key: 'string>=1',
+  request_bytes: 'string>=1',
+  bootstrap_identity: /^[0-9a-f]{64}$/,
+  stage: RequestStage,
+  version: 'number.integer>=0',
+  lease_epoch: 'number.integer>=0',
+  lease_owner: 'string|null',
+  lease_expires_at: 'number.integer|null',
+  evaluation_plan_identity: type(/^[0-9a-f]{64}$/).or('null'),
+  current: '0|1',
+}).onUndeclaredKey('reject');
+type StoredRow = typeof StoredRow.infer;
+
+export interface StoredRequest {
+  readonly request: ActivationRequest;
+  readonly stage: RequestStage;
+  readonly version: number;
+  readonly leaseEpoch: number;
+  readonly current: boolean;
+}
+
+export interface RequestLease {
+  readonly requestIdentity: string;
+  readonly leaseEpoch: number;
+  readonly version: number;
+  readonly workerId: string;
+}
+
+export interface ActivationControllerOptions {
+  readonly databasePath: string;
+  readonly bootstrapPath: string;
+  readonly pin: TrustedBootstrapPin;
+  readonly clock: () => number;
+  readonly readyCandidates: () => Promise<readonly ObservedCandidate[]>;
+  readonly currentCandidate: (
+    repositoryId: number,
+    subject: ActivationSubject,
+  ) => Promise<
+    { readonly kind: 'ready'; readonly candidate: ObservedCandidate } | { readonly kind: 'closed' }
+  >;
+  readonly selectObligations: (request: ActivationRequest) => EvaluationPlan;
+}
+
+const DeliveryRecord = type({
+  sourceId: /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/,
+  deliveryId: /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/,
+  payloadDigest: /^[0-9a-f]{64}$/,
+  repositoryId: 'number.integer>=1',
+  subject: ActivationSubject,
+}).onUndeclaredKey('reject');
+export type ObservedDelivery = typeof DeliveryRecord.infer;
+
+function subjectKey(subject: ActivationSubject): string {
+  if (subject.kind === 'pull-request') return `pr:${String(subject.number)}`;
+  if (subject.kind === 'merge-group') return `group:${subject.groupRef}`;
+  return `protected:${subject.ref}`;
+}
+
+function readRow(database: Database, identity: string): StoredRow | undefined {
+  const row: unknown = database
+    .query('SELECT * FROM activation_request WHERE request_identity = ?')
+    .get(identity);
+  return row === null ? undefined : parseOrThrow(StoredRow, row);
+}
+
+function storedRequest(row: StoredRow): StoredRequest {
+  const request = decodeActivationRequest(row.request_bytes);
+  if (
+    request.requestIdentity !== row.request_identity ||
+    request.repositoryId !== row.repository_id
+  ) {
+    throw new Error('durable activation request identity differs from stored columns');
+  }
+  return {
+    request,
+    stage: row.stage,
+    version: row.version,
+    leaseEpoch: row.lease_epoch,
+    current: row.current === 1,
+  };
+}
+
+function nowFrom(clock: () => number): number {
+  const now = clock();
+  if (!Number.isSafeInteger(now) || now < 0)
+    throw new Error('activation controller clock malformed');
+  return now;
+}
+
+function transaction<T>(database: Database, body: () => T): T {
+  database.run('BEGIN IMMEDIATE');
+  try {
+    const answer = body();
+    database.run('COMMIT');
+    return answer;
+  } catch (cause) {
+    database.run('ROLLBACK');
+    throw cause;
+  }
+}
+
+function initialize(database: Database): void {
+  database.run('PRAGMA busy_timeout = 5000');
+  const metadata: unknown = database.query('PRAGMA user_version').get();
+  const version = parseOrThrow(type({ user_version: 'number.integer>=0' }), metadata).user_version;
+  if (version !== 0 && version !== 2)
+    // Proof: accepting old version 1 silently reopened storage without durable subject high-water.
+    throw new Error(`unsupported activation store schema ${String(version)}`);
+  if (version === 0) {
+    const existing: unknown = database
+      .query("SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'activation_request'")
+      .get();
+    if (existing !== null)
+      throw new Error('unversioned activation request store cannot be defaulted');
+    transaction(database, () => {
+      database.run(`CREATE TABLE activation_request (
+        request_identity TEXT PRIMARY KEY,
+        repository_id INTEGER NOT NULL,
+        subject_key TEXT NOT NULL,
+        request_bytes TEXT NOT NULL,
+        bootstrap_identity TEXT NOT NULL,
+        stage TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        lease_epoch INTEGER NOT NULL,
+        lease_owner TEXT,
+        lease_expires_at INTEGER,
+        evaluation_plan_identity TEXT,
+        current INTEGER NOT NULL CHECK (current IN (0, 1))
+      )`);
+      database.run(
+        'CREATE UNIQUE INDEX activation_current_subject ON activation_request(repository_id, subject_key) WHERE current = 1',
+      );
+      database.run(`CREATE TABLE activation_delivery (
+        source_id TEXT NOT NULL,
+        delivery_id TEXT NOT NULL,
+        payload_digest TEXT NOT NULL,
+        PRIMARY KEY (source_id, delivery_id)
+      )`);
+      database.run(`CREATE TABLE activation_subject (
+        repository_id INTEGER NOT NULL,
+        subject_key TEXT NOT NULL,
+        high_water_generation INTEGER NOT NULL CHECK (high_water_generation >= 0),
+        observation_version INTEGER NOT NULL CHECK (observation_version >= 1),
+        PRIMARY KEY (repository_id, subject_key)
+      )`);
+      database.run(`CREATE TABLE activation_obligation (
+        request_identity TEXT NOT NULL,
+        obligation_identity TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        executor_id TEXT NOT NULL,
+        protocol_identity TEXT NOT NULL,
+        command_identity TEXT,
+        phase TEXT,
+        attempt INTEGER NOT NULL CHECK (attempt >= 0),
+        state TEXT NOT NULL,
+        receipt_identity TEXT,
+        PRIMARY KEY (request_identity, obligation_identity),
+        FOREIGN KEY (request_identity) REFERENCES activation_request(request_identity)
+      )`);
+      database.run('PRAGMA user_version = 2');
+    });
+  }
+}
+
+/**
+ * Owns local durable request stages. The independently controlled deployment, authenticated
+ * provider and publisher remain required before this controller can issue trusted admission.
+ */
+export class ActivationController {
+  readonly #database: Database;
+
+  constructor(private readonly options: ActivationControllerOptions) {
+    this.#database = new Database(options.databasePath, { create: true, strict: true });
+    initialize(this.#database);
+  }
+
+  close(): void {
+    this.#database.close();
+  }
+
+  #subjectVersion(repositoryId: number, key: string): number {
+    const observed: unknown = this.#database
+      .query(
+        'SELECT observation_version FROM activation_subject WHERE repository_id = ? AND subject_key = ?',
+      )
+      .get(repositoryId, key);
+    return observed === null
+      ? 0
+      : parseOrThrow(type({ observation_version: 'number.integer>=1' }), observed)
+          .observation_version;
+  }
+
+  observe(candidate: ObservedCandidate): ActivationRequest {
+    const frozen = prepareObservedRequest(this.options.bootstrapPath, this.options.pin, candidate);
+    nowFrom(this.options.clock);
+    return transaction(this.#database, () => this.#observeIn(candidate, frozen.request));
+  }
+
+  #observeIn(candidate: ObservedCandidate, frozen: ActivationRequest): ActivationRequest {
+    const key = subjectKey(candidate.subject);
+    const active: unknown = this.#database
+      .query(
+        'SELECT * FROM activation_request WHERE repository_id = ? AND subject_key = ? AND current = 1',
+      )
+      .get(candidate.repositoryId, key);
+    const previous = active === null ? undefined : parseOrThrow(StoredRow, active);
+    const subjectGeneration: unknown = this.#database
+      .query(
+        'SELECT high_water_generation FROM activation_subject WHERE repository_id = ? AND subject_key = ?',
+      )
+      .get(candidate.repositoryId, key);
+    const highWater =
+      subjectGeneration === null
+        ? 0
+        : parseOrThrow(type({ high_water_generation: 'number.integer>=0' }), subjectGeneration)
+            .high_water_generation;
+    if (previous !== undefined) {
+      const current = storedRequest(previous).request;
+      // Proof: omitting this check let a missing trusted high-water row silently reuse a current request.
+      if (highWater < current.auditGeneration)
+        throw new Error('activation subject generation absent');
+      const { auditGeneration: _generation, requestIdentity: _oldDigest, ...oldIdentity } = current;
+      const {
+        auditGeneration: _baseGeneration,
+        requestIdentity: _newDigest,
+        ...newIdentity
+      } = frozen;
+      if (
+        previous.bootstrap_identity === this.options.pin.identity &&
+        hashCanonical(oldIdentity) === hashCanonical(newIdentity)
+      ) {
+        return current;
+      }
+    }
+    const configuration = readBootstrapConfiguration(this.options.bootstrapPath, this.options.pin);
+    // Proof: removing the durable high-water read made close/reopen reuse the first request PK.
+    const generation = Math.max(configuration.authorityGeneration, highWater + 1);
+    if (previous !== undefined && generation <= storedRequest(previous).request.auditGeneration) {
+      throw new Error('activation subject generation regressed');
+    }
+    const next = createActivationRequest({
+      ...candidate,
+      authorityIdentity: this.options.pin.identity,
+      auditGeneration: generation,
+    });
+    if (previous !== undefined) {
+      this.#database
+        .query(
+          "UPDATE activation_request SET current = 0, stage = 'superseded', version = version + 1 WHERE request_identity = ? AND current = 1",
+        )
+        .run(previous.request_identity);
+    }
+    this.#database
+      .query(
+        `INSERT INTO activation_request (
+          request_identity, repository_id, subject_key, request_bytes, bootstrap_identity,
+          stage, version, lease_epoch, lease_owner, lease_expires_at, current
+        ) VALUES (?, ?, ?, ?, ?, 'observed', 0, 0, NULL, NULL, 1)`,
+      )
+      .run(next.identity, candidate.repositoryId, key, next.bytes, this.options.pin.identity);
+    // Proof: omitting the high-water write let a restarted controller reuse a closed request PK.
+    this.#database
+      .query(
+        `INSERT INTO activation_subject (repository_id, subject_key, high_water_generation, observation_version)
+          VALUES (?, ?, ?, 1) ON CONFLICT(repository_id, subject_key)
+          DO UPDATE SET high_water_generation = excluded.high_water_generation,
+                        observation_version = activation_subject.observation_version + 1`,
+      )
+      .run(candidate.repositoryId, key, generation);
+    return next.request;
+  }
+
+  /** Re-observes source truth; an event payload alone never chooses the candidate request. */
+  async observeDelivery(input: ObservedDelivery): Promise<ActivationRequest | undefined> {
+    const delivery = parseOrThrow(DeliveryRecord, input);
+    return this.#observeAuthoritative(delivery.repositoryId, delivery.subject, delivery);
+  }
+
+  async #observeAuthoritative(
+    repositoryId: number,
+    subject: ActivationSubject,
+    delivery?: ObservedDelivery,
+  ): Promise<ActivationRequest | undefined> {
+    const key = subjectKey(subject);
+    for (let observationAttempt = 0; observationAttempt < 3; observationAttempt += 1) {
+      const observedVersion = this.#subjectVersion(repositoryId, key);
+      const authoritative = await this.options.currentCandidate(repositoryId, subject);
+      if (
+        authoritative.kind === 'ready' &&
+        (authoritative.candidate.repositoryId !== repositoryId ||
+          subjectKey(authoritative.candidate.subject) !== key)
+      ) {
+        // Proof: omitting this source-subject join let a delayed group delivery select another PR.
+        throw new Error('authoritative candidate differs from delivery subject');
+      }
+      const frozen =
+        authoritative.kind === 'ready'
+          ? prepareObservedRequest(
+              this.options.bootstrapPath,
+              this.options.pin,
+              authoritative.candidate,
+            )
+          : undefined;
+      const accepted = transaction(this.#database, () => {
+        // Proof: removing the subject-version comparison let a delayed A response supersede newer B.
+        if (this.#subjectVersion(repositoryId, key) !== observedVersion) {
+          return { kind: 'stale' as const };
+        }
+        const recorded: unknown =
+          delivery === undefined
+            ? null
+            : this.#database
+                .query(
+                  'SELECT payload_digest FROM activation_delivery WHERE source_id = ? AND delivery_id = ?',
+                )
+                .get(delivery.sourceId, delivery.deliveryId);
+        if (delivery !== undefined && recorded !== null) {
+          const prior = parseOrThrow(type({ payload_digest: /^[0-9a-f]{64}$/ }), recorded);
+          if (prior.payload_digest !== delivery.payloadDigest) {
+            // Proof: omission accepted the same authenticated delivery ID with changed bytes.
+            throw new Error('delivery ID reused with different payload');
+          }
+        }
+        let request: ActivationRequest | undefined;
+        if (authoritative.kind === 'ready' && frozen !== undefined) {
+          request = this.#observeIn(authoritative.candidate, frozen.request);
+        } else {
+          const closed = this.#database
+            .query(
+              "UPDATE activation_request SET current = 0, stage = 'superseded', version = version + 1 WHERE repository_id = ? AND subject_key = ? AND current = 1",
+            )
+            .run(repositoryId, key);
+          // Proof: without a first-close tombstone, held ready at version 0 committed after close.
+          if (closed.changes > 0 || recorded === null) {
+            this.#database
+              .query(
+                `INSERT INTO activation_subject (repository_id, subject_key, high_water_generation, observation_version)
+                  VALUES (?, ?, 0, 1) ON CONFLICT(repository_id, subject_key)
+                  DO UPDATE SET observation_version = activation_subject.observation_version + 1`,
+              )
+              .run(repositoryId, key);
+          }
+        }
+        if (delivery !== undefined && recorded === null) {
+          this.#database
+            .query(
+              'INSERT INTO activation_delivery (source_id, delivery_id, payload_digest) VALUES (?, ?, ?)',
+            )
+            .run(delivery.sourceId, delivery.deliveryId, delivery.payloadDigest);
+        }
+        return { kind: 'accepted' as const, request };
+      });
+      if (accepted.kind === 'accepted') {
+        return accepted.request;
+      }
+    }
+    throw new Error('authoritative subject observation did not converge');
+  }
+
+  async reconcileReady(): Promise<readonly ActivationRequest[]> {
+    const candidates = await this.options.readyCandidates();
+    const subjects = new Map<
+      string,
+      { readonly repositoryId: number; readonly subject: ActivationSubject }
+    >();
+    for (const candidate of candidates) {
+      const repositoryId = parseOrThrow(type('number.integer>=1'), candidate.repositoryId);
+      const subject = parseOrThrow(ActivationSubject, candidate.subject);
+      subjects.set(`${String(repositoryId)}:${subjectKey(subject)}`, { repositoryId, subject });
+    }
+    // Proof: polling only ready candidates left a durable active request current after a lost close event.
+    const activeRows: unknown[] = this.#database
+      .query('SELECT * FROM activation_request WHERE current = 1')
+      .all();
+    for (const activeRow of activeRows) {
+      const active = storedRequest(parseOrThrow(StoredRow, activeRow)).request;
+      subjects.set(`${String(active.repositoryId)}:${subjectKey(active.subject)}`, {
+        repositoryId: active.repositoryId,
+        subject: active.subject,
+      });
+    }
+    const requests: ActivationRequest[] = [];
+    for (const { repositoryId, subject } of subjects.values()) {
+      // Proof: using the timer-listed candidate directly persisted stale A after source advanced to B.
+      const request = await this.#observeAuthoritative(repositoryId, subject);
+      if (request !== undefined) requests.push(request);
+    }
+    return requests;
+  }
+
+  readRequest(identity: string): StoredRequest | undefined {
+    const row = readRow(this.#database, identity);
+    return row === undefined ? undefined : storedRequest(row);
+  }
+
+  listRequests(): readonly StoredRequest[] {
+    const rows: unknown[] = this.#database
+      .query('SELECT * FROM activation_request ORDER BY rowid')
+      .all();
+    return rows.map((row) => storedRequest(parseOrThrow(StoredRow, row)));
+  }
+
+  listObligations(
+    identity: string,
+  ): readonly { readonly identity: string; readonly kind: 'check' | 'audit' }[] {
+    const rows: unknown[] = this.#database
+      .query('SELECT * FROM activation_obligation WHERE request_identity = ? ORDER BY rowid')
+      .all(identity);
+    return rows.map((row) => {
+      const obligation = parseOrThrow(StoredObligation, row);
+      return { identity: obligation.obligation_identity, kind: obligation.kind };
+    });
+  }
+
+  claim(identity: string, workerId: string, leaseMilliseconds: number): RequestLease {
+    if (!workerId || !Number.isSafeInteger(leaseMilliseconds) || leaseMilliseconds < 1) {
+      throw new Error('activation worker lease malformed');
+    }
+    const now = nowFrom(this.options.clock);
+    return transaction(this.#database, () => {
+      const row = readRow(this.#database, identity);
+      if (row === undefined) throw new Error('activation request absent');
+      if (row.current !== 1) throw new Error('activation request superseded');
+      if (row.stage !== 'observed') throw new Error('activation request stage changed');
+      if (row.lease_owner !== null && row.lease_expires_at !== null && row.lease_expires_at > now) {
+        throw new Error('activation request lease held');
+      }
+      const leaseEpoch = row.lease_epoch + 1;
+      const version = row.version + 1;
+      this.#database
+        .query(
+          'UPDATE activation_request SET lease_owner = ?, lease_expires_at = ?, lease_epoch = ?, version = ? WHERE request_identity = ?',
+        )
+        .run(workerId, now + leaseMilliseconds, leaseEpoch, version, identity);
+      return { requestIdentity: identity, leaseEpoch, version, workerId };
+    });
+  }
+
+  /** Freezes trusted check and audit obligations; later transitions require their own evidence APIs. */
+  beginEvaluation(lease: RequestLease): StoredRequest {
+    const now = nowFrom(this.options.clock);
+    // Proof: splitting the transaction after the check INSERT left that row when the audit INSERT failed.
+    return transaction(this.#database, () => {
+      const row = readRow(this.#database, lease.requestIdentity);
+      if (row === undefined) throw new Error('activation request absent');
+      if (row.current !== 1) throw new Error('activation request superseded');
+      if (
+        row.lease_epoch !== lease.leaseEpoch ||
+        row.lease_owner !== lease.workerId ||
+        row.version !== lease.version ||
+        row.lease_expires_at === null ||
+        row.lease_expires_at <= now
+      ) {
+        throw new Error('activation request lease changed');
+      }
+      if (row.stage !== 'observed') {
+        throw new Error('activation request stage changed');
+      }
+      const request = storedRequest(row).request;
+      readBootstrapConfiguration(this.options.bootstrapPath, this.options.pin);
+      if (request.authorityIdentity !== this.options.pin.identity) {
+        throw new Error('activation request authority changed');
+      }
+      const plan = parseOrThrow(EvaluationPlan, this.options.selectObligations(request));
+      // Proof: omitting the plan/request binding let another request's obligations enter evaluation.
+      if (
+        plan.requestIdentity !== request.requestIdentity ||
+        plan.policyIdentity !== request.policyIdentity
+      ) {
+        throw new Error('evaluation obligations differ from request policy');
+      }
+      const identities = new Set(plan.obligations.map((obligation) => obligation.identity));
+      // Proof: removing either kind or duplicate guard let an incomplete/ambiguous plan advance.
+      if (
+        identities.size !== plan.obligations.length ||
+        !plan.obligations.some((obligation) => obligation.kind === 'check') ||
+        !plan.obligations.some((obligation) => obligation.kind === 'audit')
+      ) {
+        throw new Error('evaluation obligations incomplete or duplicated');
+      }
+      for (const obligation of plan.obligations) {
+        this.#database
+          .query(
+            `INSERT INTO activation_obligation (
+            request_identity, obligation_identity, kind, executor_id, protocol_identity,
+            command_identity, phase, attempt, state, receipt_identity
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending', NULL)`,
+          )
+          .run(
+            request.requestIdentity,
+            obligation.identity,
+            obligation.kind,
+            obligation.executorId,
+            obligation.protocolIdentity,
+            obligation.kind === 'check' ? obligation.commandIdentity : null,
+            obligation.kind === 'audit' ? obligation.phase : null,
+          );
+      }
+      this.#database
+        .query(
+          "UPDATE activation_request SET stage = 'evaluating', evaluation_plan_identity = ?, version = version + 1 WHERE request_identity = ?",
+        )
+        .run(hashCanonical(plan), lease.requestIdentity);
+      const advanced = readRow(this.#database, lease.requestIdentity);
+      if (advanced === undefined) throw new Error('advanced activation request absent');
+      return storedRequest(advanced);
+    });
+  }
+}
+
+/** Opens the persisted controller state without relying on candidate checkout storage. */
+export function openActivationController(
+  options: ActivationControllerOptions,
+): ActivationController {
+  return new ActivationController(options);
+}
