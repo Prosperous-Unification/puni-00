@@ -119,6 +119,74 @@ evidence and incomplete or censored phases SHALL prevent admission.
   is absent, unreadable, malformed or mismatched
 - **THEN** the request fails without synthesizing the missing observation
 
+### Requirement: Paired review obligations and invocation identity
+
+The frozen evaluation plan SHALL bind a stable `reviewId` to exactly one cold and one
+informed obligation with distinct obligation identities. Each review attempt SHALL have
+an immutable registration joining canonical request identity, review identity and shared
+attempt to one `invocationId`. Receipt submission SHALL NOT create or replace that binding.
+Authentication SHALL bind exact phase-specific bytes and retained protocol evidence to the
+registered invocation and trusted issuer/executor/protocol/prompt expectation.
+An informed completion SHALL join its paired, retained cold completion from the same request,
+review, attempt and invocation, including the exact cold judgment artifact.
+Missing legacy pairing or registration SHALL refuse affected execution/admission without
+guessing authority or rewriting historical evidence.
+
+#### Scenario: One complete invocation satisfies its selected pair
+
+- **WHEN** distinct authenticated cold and informed phase records match one frozen review
+  pair and its registered invocation, with required observations and exact cold-artifact linkage
+- **THEN** each record satisfies only its own obligation and the whole required evidence
+  set can complete independently of check completion order
+
+#### Scenario: Phase labels or another cold review substitute for paired evidence
+
+- **WHEN** a caller relabels one phase record, duplicates a phase in the frozen plan, omits
+  its partner or supplies a passed cold completion from another review in the same request
+- **THEN** the controller refuses the substitution without recording the submitted completion
+  or changing the request's selected evidence
+
+#### Scenario: Same review has a permitted new execution attempt
+
+- **WHEN** an explicitly classified transient retry reserves a new attempt and invocation
+- **THEN** the selected review and frozen plan remain unchanged, prior attempt evidence is
+  retained, and informed evidence cannot borrow the prior attempt's cold execution
+- **AND** terminal failed/skipped required work cannot become retryable by changing invocation
+
+#### Scenario: Invocation or retained cold artifact conflicts
+
+- **WHEN** authentication names an unregistered/replacement invocation or the informed output
+  and expansion do not bind the registered invocation's exact retained cold judgment
+- **THEN** completion refuses and prior registration, receipts and selected evidence remain intact
+
+#### Scenario: Trusted expectation changes during authentication
+
+- **WHEN** external authentication is held while authority, the active request, its pair or
+  its registered attempt/invocation changes
+- **THEN** the completion cannot commit under its earlier expectation
+- **AND** an unrelated obligation completion alone does not invalidate a valid completion
+
+#### Scenario: Legacy review obligations have no authenticated pairing
+
+- **WHEN** persisted audit obligations lack explicit pairing or invocation registration
+- **THEN** affected execution/admission refuses while retaining historical evidence; row order,
+  equal executor/protocol or a sole cold row cannot supply a default pair or invocation
+
+#### Scenario: Versioned storage preserves unpaired v2/v3 history
+
+- **WHEN** the pairing schema is introduced over v2/v3 evaluating or verified audit requests
+- **THEN** their rows, plan identities and available receipt/attempt evidence remain readable
+  as unpaired history, and migration does not authorize further execution or admission
+- **AND** trusted supersession/replanning creates a new audit generation before paired work
+  resumes; a failed schema transition restores the old version and rows
+
+#### Scenario: Phase completion fails after evidence insertion
+
+- **WHEN** recording a valid informed completion fails at the later selected-evidence or
+  request transition write
+- **THEN** all new phase/attempt/selection writes roll back together while the prior registered
+  invocation and cold evidence remain intact
+
 ### Requirement: Isolated checks and protected publication
 
 Candidate execution SHALL have no access to audit signing, journal mutation, activation

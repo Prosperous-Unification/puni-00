@@ -137,6 +137,84 @@ join atomically. Independent completions must not invalidate one another merely 
 the other incremented the request version. Compare the current transactional request version
 and the completion's own attempt, not an obsolete global version captured at dispatch.
 
+### Paired review obligations and authenticated invocations
+
+`reviewId` identifies one selected review within the canonical request. It is the stable
+review selection already used by the integration evidence contract, not an execution ID.
+Freeze it on exactly one cold and one informed audit obligation in the evaluation plan.
+Their obligation identities remain distinct; the plan digest includes each `reviewId` and
+phase. Reject duplicate phases, missing partners and ambiguous membership. A request may
+contain several review pairs: another pair's completed cold phase cannot satisfy this pair.
+Check obligations remain independent of review pairing.
+
+`invocationId` identifies an actual review execution, using the existing review protocol's
+name. Keep it in immutable attempt/registration evidence rather than the frozen plan.
+The durable registration binds `(requestIdentity, reviewId, attempt)` to one invocation;
+both phase obligations share this review attempt. Reserve that binding under current
+authority before dispatch, then require the verifier's authenticated invocation to match it.
+A receipt cannot allocate or replace the registration. Duplicate acknowledgement preserves
+the same binding; conflicting invocation identity refuses. This is a local registration
+contract, not a claim that provider execution occurred or that dispatch is exactly once.
+
+An explicitly permitted transient retry reserves a new shared review attempt and invocation
+while retaining the same selected `reviewId` and immutable prior evidence. Its informed phase
+must use its own attempt's cold execution; it cannot borrow a cold result from an earlier
+attempt. A terminal failed/skipped required review remains terminal under the existing retry
+policy. Do not place invocation IDs in the immutable plan or advance the request audit
+generation merely because transport or an execution attempt is retried.
+
+The external verifier port consumes exact phase-specific submission bytes and a trusted
+expectation snapshot. The snapshot binds request, review, obligation, attempt, phase,
+registered invocation, issuer, executor and pinned protocol/prompt. Derive it from durable
+selection/registration and independently pinned bootstrap. A caller-provided locator may
+select a row; its labels cannot supply expected authority. Authenticate the exact submission
+digest together with its invocation/journal bindings and existing `ReviewEvidence`,
+`ColdHarnessOutput` and `InformedHarnessOutput`, or exact immutable references to those records.
+Loose unauthenticated attachments do not complete an authenticated binding.
+
+Reuse the existing protocol decoders and evidence checks for required reads, retained raw
+responses, measured telemetry and finding disposition. Match both outputs and whole-review
+evidence to the same registered invocation, subject and protocol. Require the informed
+output's `coldArtifact` and the evidence expansion's `coldJudgmentArtifact` to equal the
+hash of that invocation's exact cold judgment. The informed completion also joins the
+already retained cold receipt for this request, review and attempt. A caller's phase label,
+an unrelated passed cold row or a schema-valid journal record is insufficient.
+
+One complete invocation can legitimately satisfy both of its phase obligations through two
+distinct authenticated phase records. Project only the authenticated phase into the controller
+receipt; reusing/relabeling one phase record for the other obligation refuses. Retain the
+source evidence or authenticated immutable references, not only a flattened `passed` status.
+`IntegrationEvidenceVerifier` supplies a binding pattern, not a replacement for phase
+completeness. `FileInvocationJournal` and `validateReviewProvenance` remain explicitly
+local-cooperative and cannot be relabeled as independently authenticated external provenance.
+
+Read the expectation snapshot before the external verifier await without holding a SQLite
+transaction. Inside the subsequent transaction, recheck current request/generation, authority,
+lease, immutable plan/pair and this attempt/registration, then atomically retain phase evidence
+and perform the selected-evidence join. An unrelated completion's request-version increment
+does not invalidate the snapshot. A changed pair, attempt, invocation or authority does.
+
+Introduce pairing and registration storage through an explicit versioned transition. Missing
+legacy `reviewId` or registration is not permission to infer a pair from row order, phase,
+executor, protocol or a singleton cold row. Preserve historical evidence; refuse affected
+execution/admission until explicit trusted supersession/replanning establishes a new request
+audit generation and freezes the new contract. No silent defaults or mutation of an old
+frozen plan are allowed. In particular, v2/v3 stores may contain evaluating or verified audit
+requests with no pair identity. A versioned schema migration must retain their original rows,
+plan identities, phase evidence and attempts as historical unpaired state; historical reads
+remain possible, but migration alone cannot make them eligible for execution or admission.
+Do not add fabricated `reviewId`/`invocationId` defaults or overwrite their frozen-plan hashes.
+New paired requests can coexist with that history. Schema migration failure rolls back its
+structural changes and preserves the old schema version and rows. The earlier v2-to-v3 attempt
+storage migration does not establish pairing and is not evidence of this new acceptance.
+
+Implement the pair/registration contract and its refusal tests before the read-only verifier
+adapter. The adapter can be exercised with a fake trusted port before isolated-worker dispatch
+in task 2.2, but this establishes no installed external provenance. Real dispatch additionally
+requires durable effect reservation and lease/attempt recovery from tasks 1.2/3.3. Concrete
+provider transport, authentication and credentials remain one-time bootstrap choices; this
+internal port does not choose a wire format, signing scheme or authority.
+
 Maintain the active request pointer per logical subject. Superseding PR A never supersedes
 PR B, a merge group or a protected-revision request sharing A's commits. Reconcile current
 authoritative state before applying delayed events, including close/reopen and retargeting.
