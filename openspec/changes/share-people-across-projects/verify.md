@@ -3879,3 +3879,73 @@ caller-based rationale, restored the full file to 17/17, 19 assertions
 (`/tmp/shared-people-6kd-kinds-green.log`). The adjacent test `Proof:` records
 the watched omission. This is a policy/test/evidence correction only; the
 observation implementation and its 340/340 runtime regression are unchanged.
+
+### 6k.e own-display operation inventory (local candidate, review pending)
+
+This slice adds test assertions only. The installed observation, reservation,
+Retry, FIFO, release, retirement and reconciliation owners remain the reviewed
+6j/6k implementations. An optimization status may change while displayed
+bookings and modeled availability remain equal; that alone warrants no
+shared-person event. The new mounted controls compare borrowed A/B captures
+and inspect B's event range, sequencer and pushes. They do not treat an
+outcome's own `schedule_optimized` row as a downstream event.
+
+| Operation                                        | Installed/store witness and observed boundary                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Initial observation → reserve                    | `services.db.test.ts` `keeps installed initial observation and reservation status-only while both children are held`: PRI/TIME pending with two held coordinator launches, A/B display projections equal, B range/sequencer/push empty. Existing 6k.d selected H1 eviction and equal-hash cases are the changing/no-op controls.                                                                                                                                                                                        |
+| Capacity enqueue                                 | `keeps capacity enqueue status-only for the installed shared display`: four future counted seats, one actual PRI queue row and no launch, A/B projections equal, B range/sequencer/push empty. Store `optimization-queue.db.test.ts` retains coalescing and blocked-head order.                                                                                                                                                                                                                                         |
+| Accepted Retry                                   | `keeps accepted Retry status-only for the shared display while its child is held`: real failed A marker becomes accepted, A/B display equal, B range/sequencer/push empty. `captures all Retry victim organizations across the adjusted failure-marker cutoff` separately proves B/D victim causes, future E untouched and no invented requester event; accepted/queued recovery cases prove one audit and late-event rollback preserves independent admission.                                                         |
+| Refused Retry                                    | `refuses unauthorized and ineligible Retry before source capture` retains authority → hash → retryability → liveness order, zero capture/token/audit/launch and full-state equality; direct repository `checks Retry eligibility before creating a token` supplies the token-mint counter.                                                                                                                                                                                                                              |
+| Valid FIFO and invalid head                      | `keeps valid installed FIFO dequeue status-only while its child is held`: queue consumed, one seat reserved, A/B display equal, B range/sequencer/push empty. `consumes an invalid FIFO head without changing the installed shared display`: generation 99 consumed without slot, same display/event silence. Existing later-entry cutoff, capacity-blocked and closed-empty cases retain whole-loop and committed-victim effects; store `optimization-queue.db.test.ts` retains ordering and stale/closed consumption. |
+| Bind, heartbeat and ordinary exact-token release | Store `optimization-admission.db.test.ts` `binds exactly one launcher PID` and `heartbeats exactly its running attempt` pin token/process bookkeeping; mounted terminal-child test pins release caller binding. New mounted `keeps ordinary exact-slot release silent for the installed shared display` rejects stale token, releases exact open slot, retains A, compares A/B displays and finds no B range/sequencer/push. It does not claim a child outcome is status-only.                                          |
+| Begin-drain, waiting finish, selected retirement | Strengthened `retains the old shared bridge while an admitted child still holds the drain` compares A/B displays and B range/sequencer while begin returns one and finish waits. Existing populated deletion, selected-contract and equal-hash retirement cases prove B's addressed event; unranked, nonselected, legacy and isolated cases retain silence. Store `optimization-drain.db.test.ts` pins markers, counted seats, cutoffs and tokens.                                                                      |
+| Reconciliation                                   | Installed startup/periodic cases record populated final-drain events. `observes selected retirement before project deletion in separate startup sweeps` pins generation before project; `retains an earlier committed sweep when a later recipient event insert rolls back` pins per-target atomicity. Future-deadline, stale-recheck, held delivery, coalescing and stop cases retain their boundaries. Two distinct committed display transitions may yield two addressed events; status alone does not.              |
+
+K12's watched installed fault inserted a synthetic B `elsewhere_changed` row
+inside `createOptimizationObservationOwner` after the ordinary comparison
+returned no recipients. The actual initial-admission test failed at B's empty
+durable range, receiving seq 0 (`/tmp/shared-people-6ke-k12-forced-event-red.log`,
+0/1, 9 assertions). Restoring the source SHA-256
+`fe05845d1a072f553911a1bf582afb05197deba74ea1cad7cdd033e9e101e5bb`
+restored the same test (`/tmp/shared-people-6ke-k12-restored-green.log`,
+1/1, 12 assertions). An initial helper calibrated for another slice logged
+invalid child responses after the held phase; that fixture was discarded. An
+attempted post-release comparison of the entire observation was discarded:
+a modeled failed child legitimately changes A's optimization status and writes
+A's own event. The separate ordinary-release test isolates release before an
+outcome.
+
+K1/K2/K4–K8's installed owner/rollback witnesses remain in 6k.b's publication,
+H1, availability, second-insert and postcapture rows above (reviewed local
+`13f446cb`). K3's replacement/eviction, cache-dimension and split-commit
+matrix is in 6k.c (reviewed local `d5edbfd`). K9/K10/K13's actual-child
+reaction, tracked stop, original sequence and rejection/reporting faults are
+in the 6k.b child-path correction. K11's observation/serialization fault
+matrix is in 6k.d (reviewed local `b4ba7e9`). K12's new forced status-event
+RED/GREEN is above. These local reviews do not establish remote integration,
+host gate, CI, trusted activation or 6l replay closure. The 6k.e and parent
+6k task boxes remain unchecked pending final validation and independent review.
+
+The seven focused mounted status/display controls passed 7/7, 64 assertions
+(`/tmp/shared-people-6ke-status-controls-green.log`). The final formatted-byte
+fourteen-file command was:
+
+```sh
+bun test apps/wbs/be-01/src/services.db.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts apps/wbs/be-01/src/module/optimization/module.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/service/optimization-events.db.test.ts apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-restart.db.test.ts libs/wbs/application/core/src/compose.test.ts libs/wbs/adapters/store-sqlite/src/optimization-generation.db.test.ts libs/wbs/adapters/store-sqlite/src/optimized-cache.db.test.ts libs/wbs/adapters/store-sqlite/src/optimization-admission.db.test.ts libs/wbs/adapters/store-sqlite/src/optimization-queue.db.test.ts libs/wbs/adapters/store-sqlite/src/optimization-drain.db.test.ts --timeout=30000
+```
+
+It passed 411/411, 20,553 assertions, exit 0
+(`/tmp/shared-people-6ke-fourteen-file-final.log`). The mounted services file
+alone passed 129/129, 905 assertions before the last ordinary-release
+addition; the fourteen-file command includes that final case. The real child
+process test was not rerun because this slice changes only mounted DB tests and
+the verification ledger; its reviewed 6k.d unsandboxed result remains
+historical evidence, not a claim for this candidate. Declared
+`wbs-be-01:lint`, `wbs-be-01:typecheck` with its module dependency, and
+`wbs-be-01:build` with its protocol dependency each printed explicit Nx
+success (`/tmp/shared-people-6ke-nx-{lint,typecheck,build}-final.log`); Nx
+also warned that its sandbox socket was unavailable, but executed the listed
+tasks. Pinned OpenSpec passed strict 1/1 and all 149/149
+(`/tmp/shared-people-6ke-openspec-{strict,all}.json`). Changed-path Prettier
+passed and `git diff --check` exited 0. No host gate, CI, push, merge or
+trusted activation ran for this local test/evidence candidate.

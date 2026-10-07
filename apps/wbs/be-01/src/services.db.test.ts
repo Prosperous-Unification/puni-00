@@ -177,6 +177,27 @@ function bootstrap(
   return { db, path, services, pushUrls, source };
 }
 
+function captureSharedDisplay(source: SqliteSource, organizationId: string) {
+  const bound = source.bindLivePlans({
+    schedulerOf: (readCaptured) =>
+      optimizerWiring(
+        readCaptured === undefined
+          ? undefined
+          : {
+              readCaptured,
+              readLive: () => {
+                throw new Error('live read inside shared display capture');
+              },
+            },
+      ).scheduler,
+    optimization: { contractVersion: contractVersionOf('0.2.0'), budgetMs: 1000, now: Date.now },
+  });
+  return bound.uow.run(async (scope) => {
+    if (scope.fanoutCapture === undefined) throw new Error('shared display capture unavailable');
+    return { commit: false, value: await scope.fanoutCapture.capture(organizationId) };
+  });
+}
+
 async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
   projectId: string;
   ownerId: string;
@@ -2453,6 +2474,329 @@ describe('buildServices', () => {
     });
   }
 
+  it('keeps installed initial observation and reservation status-only while both children are held', async () => {
+    const releaseChildren = signal();
+    const launched: ReservedSpawnRequest[] = [];
+    const { db, path, services, pushUrls, source } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: async (request) => {
+        launched.push(request);
+        await releaseChildren.promise;
+        const empty = () =>
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.close();
+            },
+          });
+        return {
+          pid: 10_000 + launched.length,
+          stdout: empty(),
+          stderr: empty(),
+          exited: Promise.resolve(1),
+          verdict: () => undefined,
+          kill: () => undefined,
+        };
+      },
+    });
+    seedSharedLifecycle(path);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    );
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('status-only input unavailable');
+    const before = await captureSharedDisplay(source, 'org-a');
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    try {
+      const observed = await optimizer.readPlan({
+        projectId: 'A',
+        objective: 'pri',
+        input: captured.input,
+        enabled: true,
+      });
+      expect(observed.generation).toBe(1);
+      expect(observed.variants.pri.state).toBe('pending');
+      expect(observed.variants.time.state).toBe('pending');
+      const after = await captureSharedDisplay(source, 'org-a');
+      const comparison = compareSharedPeopleFanout({
+        before: before.observation,
+        after: after.observation,
+        directCauses: ['A'],
+      });
+      expect(comparison.projections.map(({ projectId }) => projectId)).toEqual(['A', 'B']);
+      for (const projection of comparison.projections)
+        expect(projection.after).toEqual(projection.before);
+      expect(
+        comparison.projections.every(
+          ({ bookingsChanged, availabilityChanged }) => !bookingsChanged && !availabilityChanged,
+        ),
+      ).toBe(true);
+      // Proof: forcing an event for this real status-only admission changed
+      // B's empty range and sequencer to seq 0 while its display stayed Fast.
+      expect(comparison.recipients).toEqual([]);
+      expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+      expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
+      expect(pushUrls).toEqual([]);
+      expect(launched.map(({ objective }) => objective).sort()).toEqual(['pri', 'time']);
+    } finally {
+      releaseChildren.resolve();
+      await optimizer.drain();
+    }
+  });
+
+  it('keeps capacity enqueue status-only for the installed shared display', async () => {
+    const { db, path, services, pushUrls, source } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('capacity enqueue must not launch')),
+    });
+    seedSharedLifecycle(path);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    );
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('capacity input unavailable');
+    const before = await captureSharedDisplay(source, 'org-a');
+    for (let seat = 1; seat <= 4; seat++)
+      db.insert(solverSlot)
+        .values({
+          projectId: 'A',
+          contractVersion: contractVersionOf('0.2.0'),
+          generation: seat,
+          objective: 'time',
+          budgetMs: 1000,
+          ownerId: `capacity-${String(seat)}`,
+          attemptToken: `capacity-token-${String(seat)}`,
+          lifecycle: 'running',
+          pid: 4500 + seat,
+          startedAt: 1,
+          heartbeatAt: 1,
+          cancelRequestedAt: null,
+          admittedDeadlineAt: Date.now() + 100_000,
+        })
+        .run();
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const observed = await optimizer.readPlan({
+      projectId: 'A',
+      objective: 'pri',
+      input: captured.input,
+      enabled: true,
+    });
+    expect(observed.variants.pri.state).toBe('pending');
+    expect(observed.variants.time.state).toBe('pending');
+    expect(
+      db
+        .select()
+        .from(solverQueue)
+        .all()
+        .map(({ projectId, objective }) => [projectId, objective]),
+    ).toEqual([['A', 'pri']]);
+    const after = await captureSharedDisplay(source, 'org-a');
+    const comparison = compareSharedPeopleFanout({
+      before: before.observation,
+      after: after.observation,
+      directCauses: ['A'],
+    });
+    for (const projection of comparison.projections)
+      expect(projection.after).toEqual(projection.before);
+    expect(comparison.recipients).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
+    expect(pushUrls).toEqual([]);
+    await optimizer.drain();
+  });
+
+  it('keeps accepted Retry status-only for the shared display while its child is held', async () => {
+    const releaseChild = signal();
+    const { db, path, services, pushUrls, source } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: async () => {
+        await releaseChild.promise;
+        const empty = () =>
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.close();
+            },
+          });
+        return {
+          pid: 4600,
+          stdout: empty(),
+          stderr: empty(),
+          exited: Promise.resolve(1),
+          verdict: () => undefined,
+          kill: () => undefined,
+        };
+      },
+    });
+    seedSharedLifecycle(path);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    );
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('Retry status input unavailable');
+    const inputHash = scheduleInputHash(captured.input);
+    const contractVersion = contractVersionOf('0.2.0');
+    const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
+    db.insert(optimizedScheduleCache)
+      .values({
+        projectId: 'A',
+        inputHash,
+        objective: 'pri',
+        contractVersion,
+        budgetMs: 1000,
+        generation,
+        status: 'failed',
+        resultJson: null,
+        failureReason: 'timeout',
+        createdAt: 1,
+      })
+      .run();
+    const before = await captureSharedDisplay(source, 'org-a');
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    try {
+      expect(
+        await optimizer.retry({
+          projectId: 'A',
+          objective: 'pri',
+          inputHash,
+          input: captured.input,
+        }),
+      ).toMatchObject({ kind: 'accepted', generation });
+      const after = await captureSharedDisplay(source, 'org-a');
+      const comparison = compareSharedPeopleFanout({
+        before: before.observation,
+        after: after.observation,
+        directCauses: ['A'],
+      });
+      for (const projection of comparison.projections)
+        expect(projection.after).toEqual(projection.before);
+      expect(comparison.recipients).toEqual([]);
+      expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+      expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
+      expect(pushUrls).toEqual([]);
+    } finally {
+      releaseChild.resolve();
+      await optimizer.drain();
+    }
+  });
+
+  it('keeps valid installed FIFO dequeue status-only while its child is held', async () => {
+    const releaseChild = signal();
+    const { db, path, services, pushUrls, source } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: async () => {
+        await releaseChild.promise;
+        const empty = () =>
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.close();
+            },
+          });
+        return {
+          pid: 4700,
+          stdout: empty(),
+          stderr: empty(),
+          exited: Promise.resolve(1),
+          verdict: () => undefined,
+          kill: () => undefined,
+        };
+      },
+    });
+    seedSharedLifecycle(path);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    );
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('FIFO status input unavailable');
+    const contractVersion = contractVersionOf('0.2.0');
+    const inputHash = scheduleInputHash(captured.input);
+    const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
+    db.insert(solverQueue)
+      .values({
+        projectId: 'A',
+        contractVersion,
+        generation,
+        objective: 'pri',
+        budgetMs: 1000,
+        admittedCancelEpoch: 0,
+        enqueuedAt: Date.now(),
+      })
+      .run();
+    const before = await captureSharedDisplay(source, 'org-a');
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    try {
+      await beginInstalledQueuePump(optimizer);
+      expect(db.select().from(solverQueue).all()).toEqual([]);
+      expect(db.select().from(solverSlot).all()).toHaveLength(1);
+      const after = await captureSharedDisplay(source, 'org-a');
+      const comparison = compareSharedPeopleFanout({
+        before: before.observation,
+        after: after.observation,
+        directCauses: ['A'],
+      });
+      for (const projection of comparison.projections)
+        expect(projection.after).toEqual(projection.before);
+      expect(comparison.recipients).toEqual([]);
+      expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+      expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
+      expect(pushUrls).toEqual([]);
+    } finally {
+      releaseChild.resolve();
+      await optimizer.drain();
+    }
+  });
+
+  it('consumes an invalid FIFO head without changing the installed shared display', async () => {
+    const { db, path, services, pushUrls, source } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('invalid FIFO head must not launch')),
+    });
+    seedSharedLifecycle(path);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    );
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('invalid FIFO input unavailable');
+    const contractVersion = contractVersionOf('0.2.0');
+    allocateGeneration(db, 'A', contractVersion, scheduleInputHash(captured.input), 1);
+    db.insert(solverQueue)
+      .values({
+        projectId: 'A',
+        contractVersion,
+        generation: 99,
+        objective: 'pri',
+        budgetMs: 1000,
+        admittedCancelEpoch: 0,
+        enqueuedAt: 1,
+      })
+      .run();
+    const before = await captureSharedDisplay(source, 'org-a');
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    await beginInstalledQueuePump(optimizer);
+    expect(db.select().from(solverQueue).all()).toEqual([]);
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+    const after = await captureSharedDisplay(source, 'org-a');
+    const comparison = compareSharedPeopleFanout({
+      before: before.observation,
+      after: after.observation,
+      directCauses: ['A'],
+    });
+    for (const projection of comparison.projections)
+      expect(projection.after).toEqual(projection.before);
+    expect(comparison.recipients).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
+    expect(pushUrls).toEqual([]);
+  });
+
   it('records a victim shared-person event when initial admission reclaims its last expired slot', async () => {
     let launches = 0;
     const { db, path, services } = bootstrap({
@@ -3968,6 +4312,32 @@ describe('buildServices', () => {
       (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
     ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
     expect(pushUrls).toHaveLength(1);
+  });
+
+  it('keeps ordinary exact-slot release silent for the installed shared display', async () => {
+    const { db, path, services, pushUrls, source } = bootstrap();
+    seedSharedLifecycle(path);
+    const slot = seedLifecycleSlot(db);
+    const before = await captureSharedDisplay(source, 'org-a');
+    expect(
+      await services.optimizationLifecycle.releaseSlot({ ...slot, attemptToken: 'stale-A' }),
+    ).toMatchObject({ released: false });
+    expect(await services.optimizationLifecycle.releaseSlot(slot)).toMatchObject({
+      released: true,
+    });
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    const after = await captureSharedDisplay(source, 'org-a');
+    const comparison = compareSharedPeopleFanout({
+      before: before.observation,
+      after: after.observation,
+      directCauses: ['A'],
+    });
+    for (const projection of comparison.projections)
+      expect(projection.after).toEqual(projection.before);
+    expect(comparison.recipients).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
+    expect(pushUrls).toEqual([]);
   });
 
   it('routes a terminal optimizer child through the composed release owner', async () => {
@@ -6296,7 +6666,7 @@ describe('buildServices', () => {
   });
 
   it('retains the old shared bridge while an admitted child still holds the drain', async () => {
-    const { db, path, services, pushUrls } = bootstrap();
+    const { db, path, services, pushUrls, source } = bootstrap();
     seedSharedLifecycle(path);
     const seed = openDatabase(path);
     try {
@@ -6312,9 +6682,19 @@ describe('buildServices', () => {
     } finally {
       seed.close();
     }
+    const before = await captureSharedDisplay(source, 'org-a');
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
     expect(await services.optimizationLifecycle.finishDrain('A')).toBe('waiting');
+    const after = await captureSharedDisplay(source, 'org-a');
+    const comparison = compareSharedPeopleFanout({
+      before: before.observation,
+      after: after.observation,
+      directCauses: ['A'],
+    });
+    for (const projection of comparison.projections)
+      expect(projection.after).toEqual(projection.before);
+    expect(comparison.recipients).toEqual([]);
     expect(
       db.all<{ id: string }>(sql`SELECT id FROM project WHERE id = 'A'`).map(({ id }) => id),
     ).toEqual(['A']);
@@ -6329,6 +6709,7 @@ describe('buildServices', () => {
       ),
     ).toHaveLength(1);
     expect(await events.rangeSince('project:B', -1)).toEqual([]);
+    expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
     expect(pushUrls).toEqual([]);
   });
 
