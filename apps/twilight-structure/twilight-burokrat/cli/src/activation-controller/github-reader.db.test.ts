@@ -710,6 +710,27 @@ test('aborting a pending body read cancels the response stream', async () => {
   expect(cancelled).toBe(1);
 });
 
+test('fetch response arriving after abort cancels its unopened body', async () => {
+  const aborter = new AbortController();
+  let cancelled = 0;
+  const body = new ReadableStream<Uint8Array>({
+    cancel() {
+      cancelled += 1;
+    },
+  });
+  const reader = createGitHubRestReader({
+    fetcher: () => {
+      aborter.abort();
+      return Promise.resolve(new Response(body, { status: 200 }));
+    },
+  });
+  await expectRefusal(
+    () => reader.listOpenPullRequests('Prosperous-Unification', 'puni-00', 1, aborter.signal),
+    'AbortError',
+  );
+  expect(cancelled).toBe(1);
+});
+
 test('body cleanup failure cannot disclose a trusted credential', async () => {
   const token = 'harmless_cleanup_secret';
   const body = new ReadableStream<Uint8Array>({

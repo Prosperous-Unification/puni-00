@@ -234,7 +234,12 @@ export function createGitHubRestReader(options: GitHubRestReaderOptions): GitHub
       // diagnostic that could reveal the optional trusted credential.
       throw new GitHubReadFailure('unavailable', 'GitHub PR GET unavailable');
     }
-    signal.throwIfAborted();
+    if (signal.aborted) {
+      // Proof: omitting this cancellation left a late fetch response body open
+      // after the mounted abort (cancel count zero instead of one).
+      await cancelBody(response.body);
+      signal.throwIfAborted();
+    }
     // Proof: omitting the non-200 check changed the mounted HTTP 302 named refusal to
     // a later shape refusal; no durable state changed in that fault.
     if (response.status !== 200) {

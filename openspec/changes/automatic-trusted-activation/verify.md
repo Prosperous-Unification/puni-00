@@ -2036,14 +2036,14 @@ The first abort mutation removed the `Promise.race` consumer while leaving its
 rejecting promise active; Bun reported an unhandled AbortError rather than the
 intended cancellation assertion. That trial was disqualified. The final listener
 omission above is the bounded liveness witness. The restored source SHA-256
-on the final runtime bytes was
+at this correction checkpoint was
 `c154408177a8cf26de3e968b2cdacc41c86849213c742f700791da4291e4d728`
 (`/tmp/activation-github-reader-fix-watch-final.log`).
 The correction proves only local fake-HTTP behavior. Whole-tick retry metadata
 and cancellation, a deployed scheduler, live GitHub connectivity, host gate and
 CI remain unverified and outside this slice.
 
-The final mounted six-file suite passed **506/506**, 2,118 assertions
+The mounted six-file suite at this checkpoint passed **506/506**, 2,118 assertions
 (`/tmp/activation-github-reader-fix-final3-six.log`). Uncached Nx
 `twilight-burokrat:lint:source`, `typecheck` and `build` each printed
 `Successfully ran target` with exit 0
@@ -2052,3 +2052,26 @@ Nx attempt without `NX_DAEMON=false NX_ISOLATE_PLUGINS=false` exited 0 after
 socket refusal without printing a target summary; it was disqualified, not
 counted as a passing check. Pinned OpenSpec strict and all passed on the
 correction; final docs-only formatting and validation follow this ledger edit.
+
+### Late fetch-response abort correction
+
+Astra's exact `6bd648b` review reproduced one remaining body lifecycle gap:
+fetch returned an open response after its signal had been aborted, and the
+reader threw before canceling that body (cancel count zero). The mounted
+`fetch response arriving after abort cancels its unopened body` fixture first
+failed with `Expected: 1; Received: 0`. The reader now cancels the returned
+body before propagating the abort. Removing only that cancellation made the
+same fixture RED exit 1 at the cancel-count assertion; restored source was
+GREEN exit 0. Exact commands, output and exits are retained at
+`/tmp/activation-github-reader-late-abort-{red,green}.log`; the restored
+source SHA-256 before subsequent formatting was
+`08db6c6229ef6e3b8524d78218fb7a3eef4b9d14d5913d6248444952a05fc83f`.
+This adds no live transport, scheduler, retry policy or external provenance.
+
+Final six-file mounted tests passed **507/507**, 2,121 assertions
+(`/tmp/activation-github-reader-late-abort-final-six.log`). Uncached Nx
+`twilight-burokrat:lint:source`, `typecheck` and `build` each printed
+`Successfully ran target` with exit 0. Pinned OpenSpec strict passed 1/1 and
+all passed 143/143; changed-path Prettier and `git diff --check` passed. These
+are local checks; host gate, CI, live GitHub reads and a deployed scheduler
+remain unrun.
