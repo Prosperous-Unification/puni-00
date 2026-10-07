@@ -14,6 +14,11 @@ import {
   ReviewEvidence,
 } from '../review/protocol';
 import { readBootstrapConfiguration, type TrustedBootstrapPin } from './bootstrap';
+import {
+  type CheckInvocationManifest,
+  CheckManifestRefusal,
+  decodeCheckInvocationManifest,
+} from './check-manifest';
 import { type ObservedActivationCandidate, prepareObservedRequest } from './ingress';
 import {
   type ActivationRequest,
@@ -405,8 +410,21 @@ export interface ActivationControllerOptions {
   readonly selectObligations: (request: ActivationRequest) => EvaluationPlan;
   /** Authenticates a check receipt only; audit obligations never use this port. */
   readonly authenticateCheck?: (receiptBytes: string) => Promise<unknown>;
+  /** Independently controlled immutable resolver, keyed only by the frozen command identity. */
+  readonly resolveCheckManifest?: (commandIdentity: string) => Promise<unknown>;
   /** Authenticates one registered review invocation and its retained phase evidence. */
   readonly verifyReview?: (submission: ReviewSubmission) => Promise<VerifiedReview>;
+}
+
+export interface PreparedSelectedCheck {
+  readonly requestIdentity: string;
+  readonly obligationIdentity: string;
+  readonly attempt: number;
+  readonly commandIdentity: string;
+  readonly planIdentity: string;
+  readonly executorId: string;
+  readonly protocolIdentity: string;
+  readonly manifest: CheckInvocationManifest;
 }
 
 export interface ReviewExpectation {
@@ -1340,6 +1358,120 @@ export class ActivationController {
       if (advanced === undefined) throw new Error('advanced activation request absent');
       return storedRequest(advanced);
     });
+  }
+
+  #selectedCheckIn(lease: RequestLease, obligationIdentity: string) {
+    const row = readRow(this.#database, lease.requestIdentity);
+    // Proof: independently omitting current or evaluating stage returned a
+    // selected-check descriptor for a superseded or terminal request.
+    if (row?.current !== 1 || row.stage !== 'evaluating') {
+      throw new Error('selected check request is not current evaluating');
+    }
+    // Proof: omitting pairing refused no longer and prepared a legacy review plan.
+    if (row.pairing_version !== 1) throw new Error('legacy review pairing absent');
+    const now = nowFrom(this.options.clock);
+    // Proof: separate epoch, owner, null-expiry and elapsed-expiry omissions
+    // each returned a descriptor after the held resolver changed that lease field.
+    if (
+      row.lease_epoch !== lease.leaseEpoch ||
+      row.lease_owner !== lease.workerId ||
+      row.lease_expires_at === null ||
+      isExpiredLease(row.lease_expires_at, now)
+    ) {
+      throw new Error('selected check lease changed');
+    }
+    const request = storedRequest(row).request;
+    // Proof: omitting the pinned-bootstrap reread returned a descriptor after
+    // the trusted bootstrap file disappeared during manifest resolution.
+    readBootstrapConfiguration(this.options.bootstrapPath, this.options.pin);
+    // Proof: omitting authority equality prepared under a changed stored pin.
+    if (
+      row.bootstrap_identity !== this.options.pin.identity ||
+      request.authorityIdentity !== this.options.pin.identity
+    ) {
+      throw new Error('selected check authority changed');
+    }
+    const subject: unknown = this.#database
+      .query(
+        'SELECT high_water_generation FROM activation_subject WHERE repository_id = ? AND subject_key = ?',
+      )
+      .get(request.repositoryId, subjectKey(request.subject));
+    // Proof: separate changed and missing high-water rows each returned a
+    // descriptor for the wrong subject generation when this fence was omitted.
+    if (
+      subject === null ||
+      parseOrThrow(type({ high_water_generation: 'number.integer>=0' }), subject)
+        .high_water_generation !== request.auditGeneration
+    ) {
+      throw new Error('selected check generation changed');
+    }
+    const rawObligations: unknown[] = this.#database
+      .query('SELECT * FROM activation_obligation WHERE request_identity = ? ORDER BY rowid')
+      .all(request.requestIdentity);
+    const obligations = rawObligations.map((entry) => parseOrThrow(StoredObligation, entry));
+    // Proof: omitting reconstruction returned a descriptor after an unrelated
+    // frozen audit row changed while the selected check row stayed intact.
+    if (
+      row.evaluation_plan_identity === null ||
+      row.evaluation_plan_identity !== hashCanonical(reconstructFrozenPlan(request, obligations))
+    ) {
+      throw new Error('selected check frozen plan changed');
+    }
+    const matches = obligations.filter((entry) => entry.obligation_identity === obligationIdentity);
+    if (matches.length !== 1) {
+      throw new Error('selected check obligation unavailable');
+    }
+    const selected = matches[0];
+    // Proof: omitting this selected check guard returned a descriptor for a
+    // no-longer-pending obligation after the resolver wait.
+    if (
+      selected.kind !== 'check' ||
+      selected.command_identity === null ||
+      selected.state !== 'pending'
+    ) {
+      throw new Error('selected check obligation unavailable');
+    }
+    return {
+      requestIdentity: request.requestIdentity,
+      obligationIdentity: selected.obligation_identity,
+      attempt: selected.attempt,
+      commandIdentity: selected.command_identity,
+      planIdentity: row.evaluation_plan_identity,
+      executorId: selected.executor_id,
+      protocolIdentity: selected.protocol_identity,
+    };
+  }
+
+  /** Resolves a frozen check manifest without granting permission to launch a worker. */
+  async prepareSelectedCheck(
+    lease: RequestLease,
+    obligationIdentity: string,
+  ): Promise<PreparedSelectedCheck> {
+    const selected = transaction(this.#database, () =>
+      this.#selectedCheckIn(lease, obligationIdentity),
+    );
+    const resolver = this.options.resolveCheckManifest;
+    if (resolver === undefined) throw new Error('check invocation manifest resolver absent');
+    let bytes: unknown;
+    try {
+      bytes = await resolver(selected.commandIdentity);
+    } catch (cause) {
+      if (cause instanceof CheckManifestRefusal) throw cause;
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') {
+        throw new Error('check invocation manifest absent', { cause });
+      }
+      throw new Error('check invocation manifest unreadable', { cause });
+    }
+    const manifest = decodeCheckInvocationManifest(bytes, selected.commandIdentity);
+    const current = transaction(this.#database, () =>
+      this.#selectedCheckIn(lease, obligationIdentity),
+    );
+    // Proof: omitting exact attempt equality after resolution returned the
+    // old attempt's prepared descriptor when only the selected attempt advanced.
+    if (hashCanonical(current) !== hashCanonical(selected)) {
+      throw new Error('selected check changed during manifest resolution');
+    }
+    return { ...current, manifest };
   }
 
   /** Reserves one authenticated invocation for a frozen review pair before external dispatch. */

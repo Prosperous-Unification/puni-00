@@ -1110,3 +1110,49 @@ strict passed 1/1 and all passed 143/143, zero failures
 and `git diff --check` passed. Normal-hook result belongs to the local
 correction commit. Tasks 1.2/3.3 and live provider acceptance remain open;
 no push, host gate, CI or activation is claimed.
+
+### Selected-check manifest preparation, bounded 2.2 foundation (2026-10-07)
+
+`prepareSelectedCheck` is a read-only controller boundary. It selects the persisted
+pending check under the current request, frozen plan, pinned bootstrap and evaluating
+lease; resolves a versioned content-addressed invocation manifest by the frozen
+`commandIdentity`; then repeats the selection after the resolver await. The returned
+descriptor has no launch capability. The separately controlled registry reader rejects
+missing/unreadable state and symlinked entries; its writer accepts identical bytes
+at an occupied identity and rejects conflicting bytes. No candidate project file is
+used as a fallback. The first mounted positive test failed with the method absent
+and passed after implementation. Registry refusal tests also first failed when the
+named resolver errors were collapsed, then passed after preserving their distinction.
+
+Twenty-three accepted watched production-path omission faults reached named mounted
+assertions, were restored, and passed the matching tests. RED logs are
+`/tmp/activation-22-<fault>-red.log`:
+
+| Guard/dependency                          | Faults and observed RED                                                                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Manifest schema and exact immutable bytes | `schema`, `argv`, `env`, `timeout`, `path`, `canonical`, `digest`: each omitted condition let the mounted preparation return the malformed or substituted descriptor.                                                                                                                                                                                                |
+| Trusted registry                          | `symlink`: removing `O_NOFOLLOW` accepted a link outside the registry; `registry-conflict`: omitting occupied-byte comparison returned success for changed stored bytes.                                                                                                                                                                                             |
+| Current selected state                    | `current`, `stage`, `pairing`, `lease-epoch`, `lease-owner`, `lease-null`, `lease-expired`, `authority`, `generation`, `generation-absent`, `plan`, `obligation`, `attempt`, `bootstrap-reread`: each removed fence let held resolution return an obsolete descriptor. The plan case changed another frozen obligation while the selected check row remained intact. |
+
+The real symlink fixture passed 1/1, 8 assertions on restored source; its
+`O_NOFOLLOW` omission failed 0/1 at the no-rejection assertion. The occupied-file
+conflict fixture passed 1/1, 6 assertions; its exact-byte comparison omission failed
+0/1 by returning the identity. No omission trial in this group was counted while
+remaining GREEN. The manifest source was restored to SHA-256 `90a97dae62f082a69ce47f2379d812283eb784d073801af727d546c8a56f8a6c`
+after the registry faults; the final formatted manifest/controller SHA-256 values are
+`35ae196c3370f042a3397d6963c8c77dee901cecce1f34c4fb278b483314dc7f` and
+`664927dbd7e087a4a69f329d343b4ce2844bfc81545ff8ead7fd45eeeba6dda3`.
+The selected-check group passed 12/12, 79 assertions before the
+symlink case was appended. On the formatted final source/test bytes, the literal
+four-file Bun command covering `bootstrap.test.ts`, `request.test.ts`,
+`ingress.test.ts` and `controller.db.test.ts` passed 240/240 tests, 1,046
+assertions, exit 0 (`/tmp/activation-22-final-four2.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck` and `:build` each printed
+`Successfully ran target`, exit 0 (`/tmp/activation-22-final-{lint3,type2,build2}.log`).
+The first sandboxed lint invocation exited 0 with socket warnings but no target
+success summary, so it is excluded; the explicit no-daemon/no-plugin-isolation rerun
+established the target result. Pinned OpenSpec strict passed 1/1 and all passed
+143/143, zero failures on the final ledger (`/tmp/activation-22-final-{strict4,all4}.json`). Changed-path
+Prettier formatted source/test/ledger and `git diff --check` exited 0. Normal-hook
+result belongs to the local commit. Task 2.2 remains open: no check reservation, worker, bwrap execution,
+measured receipt, external verifier, host gate, CI or activation is claimed.

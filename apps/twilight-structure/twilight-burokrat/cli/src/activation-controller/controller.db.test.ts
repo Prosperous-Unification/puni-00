@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -6,6 +6,7 @@ import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
 import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
+import { readCheckInvocationManifest, storeCheckInvocationManifest } from './check-manifest';
 import {
   type ActivationController,
   type ObservedCandidate,
@@ -6120,5 +6121,519 @@ test('delayed delivery cannot choose another subject or revive an old merge-grou
     expect(controller.readRequest(currentRequest?.requestIdentity ?? '')?.current).toBe(true);
   } finally {
     controller.close();
+  }
+});
+
+test('selected check preparation resolves only its frozen command manifest', async () => {
+  const fixtureData = fixture();
+  const manifestBytes = serializeCanonical({
+    schemaVersion: 1,
+    kind: 'check-invocation',
+    argv: ['bun', 'test', 'src/check.test.ts'],
+    cwd: '.',
+    env: {},
+    skipChannel: 'bun-test',
+    skipProbe: null,
+    toolchainIdentity: '6'.repeat(64),
+    sandboxProfileIdentity: '7'.repeat(64),
+    timeoutMilliseconds: 30_000,
+    maxOutputBytes: 16_384,
+  });
+  const manifestIdentity = hashBytes(manifestBytes);
+  const observed: string[] = [];
+  const controller = openActivationController({
+    ...fixtureData,
+    selectObligations: (request) => ({
+      ...fixtureData.selectObligations(request),
+      obligations: fixtureData
+        .selectObligations(request)
+        .obligations.map((obligation) =>
+          obligation.kind === 'check'
+            ? { ...obligation, commandIdentity: manifestIdentity }
+            : obligation,
+        ),
+    }),
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: fixtureData.candidate }),
+    resolveCheckManifest: (identity) => {
+      observed.push(identity);
+      return Promise.resolve(manifestBytes);
+    },
+  });
+  try {
+    const request = controller.observe(fixtureData.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.check', 100);
+    controller.beginEvaluation(lease);
+    const prepared = await controller.prepareSelectedCheck(lease, 'a'.repeat(64));
+    expect(observed).toEqual([manifestIdentity]);
+    expect(prepared).toMatchObject({
+      requestIdentity: request.requestIdentity,
+      obligationIdentity: 'a'.repeat(64),
+      attempt: 0,
+      commandIdentity: manifestIdentity,
+      manifest: { argv: ['bun', 'test', 'src/check.test.ts'], skipChannel: 'bun-test' },
+    });
+    expect(controller.listObligations(request.requestIdentity)).toHaveLength(3);
+  } finally {
+    controller.close();
+  }
+});
+
+function selectedCheckFixture(
+  resolveCheckManifest?: (identity: string) => Promise<unknown>,
+  selectedManifest?: Record<string, unknown>,
+  frozenIdentity?: string,
+) {
+  const source = fixture();
+  const manifest = selectedManifest ?? {
+    schemaVersion: 1,
+    kind: 'check-invocation',
+    argv: ['bun', 'test', 'src/check.test.ts'],
+    cwd: '.',
+    env: {},
+    skipChannel: 'bun-test',
+    skipProbe: null,
+    toolchainIdentity: '6'.repeat(64),
+    sandboxProfileIdentity: '7'.repeat(64),
+    timeoutMilliseconds: 30_000,
+    maxOutputBytes: 16_384,
+  };
+  const bytes = serializeCanonical(manifest);
+  const identity = frozenIdentity ?? hashBytes(bytes);
+  const controller = openActivationController({
+    ...source,
+    selectObligations: (request) => ({
+      ...source.selectObligations(request),
+      obligations: source
+        .selectObligations(request)
+        .obligations.map((obligation) =>
+          obligation.kind === 'check' ? { ...obligation, commandIdentity: identity } : obligation,
+        ),
+    }),
+    clock: () => 1000,
+    readyCandidates: () => Promise.resolve([]),
+    currentCandidate: () => Promise.resolve({ kind: 'ready', candidate: source.candidate }),
+    resolveCheckManifest,
+  });
+  const request = controller.observe(source.candidate);
+  const lease = controller.claim(request.requestIdentity, 'worker.check', 100);
+  controller.beginEvaluation(lease);
+  return { source, manifest, bytes, identity, controller, request, lease };
+}
+
+async function rejectsWith(operation: Promise<unknown>, phrase: string): Promise<void> {
+  let rejection: unknown;
+  try {
+    await operation;
+  } catch (cause) {
+    rejection = cause;
+  }
+  expect(rejection).toBeInstanceOf(Error);
+  if (rejection instanceof Error) expect(rejection.message).toContain(phrase);
+}
+
+test('selected check preparation refuses absent, unreadable and malformed trusted manifests', async () => {
+  const cases: {
+    name: string;
+    resolve?: (identity: string) => Promise<unknown>;
+    message: string;
+  }[] = [
+    { name: 'resolver absent', message: 'check invocation manifest resolver absent' },
+    {
+      name: 'manifest absent',
+      resolve: () => Promise.reject(Object.assign(new Error('absent'), { code: 'ENOENT' })),
+      message: 'check invocation manifest absent',
+    },
+    {
+      name: 'manifest unreadable',
+      resolve: () => Promise.reject(Object.assign(new Error('unreadable'), { code: 'EACCES' })),
+      message: 'check invocation manifest unreadable',
+    },
+    {
+      name: 'manifest malformed',
+      resolve: () => Promise.resolve('{broken'),
+      message: 'check invocation manifest malformed',
+    },
+  ];
+  for (const scenario of cases) {
+    const selected = selectedCheckFixture(scenario.resolve);
+    try {
+      const before = selected.controller.listRequests();
+      await rejectsWith(
+        selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
+        scenario.message,
+      );
+      expect(selected.controller.listRequests(), scenario.name).toEqual(before);
+    } finally {
+      selected.controller.close();
+    }
+  }
+});
+
+test('selected check preparation refuses substituted or noncanonical manifest bytes', async () => {
+  let response = '';
+  const selected = selectedCheckFixture(() => Promise.resolve(response));
+  try {
+    const before = selected.controller.listRequests();
+    response = serializeCanonical({ ...selected.manifest, argv: ['bun', 'test', 'other.test.ts'] });
+    await rejectsWith(
+      selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
+      'check invocation manifest differs from frozen command',
+    );
+    response = JSON.stringify(selected.manifest);
+    await rejectsWith(
+      selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
+      'check invocation manifest malformed',
+    );
+    expect(selected.controller.listRequests()).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check preparation rejects noncanonical bytes even when their digest is frozen', async () => {
+  const baseline = selectedCheckFixture();
+  baseline.controller.close();
+  const bytes = JSON.stringify(baseline.manifest);
+  const selected = selectedCheckFixture(
+    () => Promise.resolve(bytes),
+    baseline.manifest,
+    hashBytes(bytes),
+  );
+  try {
+    await rejectsWith(
+      selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
+      'check invocation manifest malformed',
+    );
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check preparation rechecks its frozen attempt after a held resolver', async () => {
+  let release: ((bytes: string) => void) | undefined;
+  const held = new Promise<string>((resolve) => {
+    release = resolve;
+  });
+  let resolving: (() => void) | undefined;
+  const entered = new Promise<void>((resolve) => {
+    resolving = resolve;
+  });
+  const selected = selectedCheckFixture(() => {
+    resolving?.();
+    return held;
+  });
+  try {
+    const pending = selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64));
+    await entered;
+    const database = new Database(selected.source.databasePath);
+    try {
+      database
+        .query(
+          'UPDATE activation_obligation SET attempt = 1 WHERE request_identity = ? AND kind = ?',
+        )
+        .run(selected.request.requestIdentity, 'check');
+    } finally {
+      database.close();
+    }
+    release?.(selected.bytes);
+    await rejectsWith(pending, 'selected check changed during manifest resolution');
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check preparation rejects unsafe paths, environment and legacy manifests', async () => {
+  const baseline = selectedCheckFixture();
+  baseline.controller.close();
+  const cases = [
+    { ...baseline.manifest, schemaVersion: 0 },
+    { ...baseline.manifest, cwd: '../journal' },
+    { ...baseline.manifest, argv: [] },
+    { ...baseline.manifest, env: { PUBLISHER_TOKEN: 'sentinel' } },
+    { ...baseline.manifest, skipProbe: { argv: ['bun', 'test'], cwd: '/journal', env: {} } },
+    { ...baseline.manifest, timeoutMilliseconds: 0 },
+  ];
+  for (const manifest of cases) {
+    const bytes = serializeCanonical(manifest);
+    const selected = selectedCheckFixture(() => Promise.resolve(bytes), manifest);
+    try {
+      await rejectsWith(
+        selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
+        'check invocation manifest malformed',
+      );
+    } finally {
+      selected.controller.close();
+    }
+  }
+});
+
+test('selected check preparation refuses a stale lease before resolving any manifest', async () => {
+  let resolves = 0;
+  const selected = selectedCheckFixture(() => {
+    resolves += 1;
+    return Promise.resolve('not reached');
+  });
+  try {
+    await rejectsWith(
+      selected.controller.prepareSelectedCheck(
+        { ...selected.lease, leaseEpoch: selected.lease.leaseEpoch + 1 },
+        'a'.repeat(64),
+      ),
+      'selected check lease changed',
+    );
+    expect(resolves).toBe(0);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check preparation refuses a superseded request after a held resolver', async () => {
+  let release: ((bytes: string) => void) | undefined;
+  const held = new Promise<string>((resolve) => {
+    release = resolve;
+  });
+  let resolving: (() => void) | undefined;
+  const entered = new Promise<void>((resolve) => {
+    resolving = resolve;
+  });
+  const selected = selectedCheckFixture(() => {
+    resolving?.();
+    return held;
+  });
+  try {
+    const pending = selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64));
+    await entered;
+    selected.controller.observe({ ...selected.source.candidate, headSha: '9'.repeat(40) });
+    release?.(selected.bytes);
+    await rejectsWith(pending, 'selected check request is not current evaluating');
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check preparation reads an immutable content-addressed registry entry', async () => {
+  let registry = '';
+  const selected = selectedCheckFixture((identity) =>
+    Promise.resolve(readCheckInvocationManifest(registry, identity)),
+  );
+  registry = join(selected.source.databasePath, '..', 'check-registry');
+  mkdirSync(registry);
+  try {
+    expect(storeCheckInvocationManifest(registry, selected.manifest)).toBe(selected.identity);
+    const prepared = await selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64));
+    expect(prepared.manifest.argv).toEqual(['bun', 'test', 'src/check.test.ts']);
+    expect(storeCheckInvocationManifest(registry, selected.manifest)).toBe(selected.identity);
+    writeFileSync(join(registry, `${selected.identity}.json`), '{broken');
+    await rejectsWith(
+      selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
+      'check invocation manifest malformed',
+    );
+    expect(() => storeCheckInvocationManifest(registry, selected.manifest)).toThrow(
+      'check invocation manifest conflicts',
+    );
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check registry distinguishes absent, unreadable and symlinked entries', async () => {
+  let registry = '';
+  const selected = selectedCheckFixture((identity) =>
+    Promise.resolve(readCheckInvocationManifest(registry, identity)),
+  );
+  registry = join(selected.source.databasePath, '..', 'check-registry');
+  try {
+    await rejectsWith(
+      selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
+      'check invocation registry absent',
+    );
+    mkdirSync(registry);
+    storeCheckInvocationManifest(registry, selected.manifest);
+    rmSync(join(registry, `${selected.identity}.json`));
+    await rejectsWith(
+      selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
+      'check invocation manifest absent',
+    );
+    mkdirSync(join(registry, `${selected.identity}.json`));
+    await rejectsWith(
+      selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
+      'check invocation manifest unreadable',
+    );
+    rmSync(join(registry, `${selected.identity}.json`), { recursive: true });
+    const outside = join(selected.source.databasePath, '..', 'outside-manifest.json');
+    writeFileSync(outside, selected.bytes);
+    symlinkSync(outside, join(registry, `${selected.identity}.json`));
+    await rejectsWith(
+      selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64)),
+      'check invocation manifest unreadable',
+    );
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check preparation rechecks lease, authority, generation, plan and obligation after resolution', async () => {
+  const cases = [
+    {
+      name: 'current',
+      statement: 'UPDATE activation_request SET current = 0 WHERE request_identity = ?',
+      message: 'selected check request is not current evaluating',
+    },
+    {
+      name: 'stage',
+      statement: "UPDATE activation_request SET stage = 'failed' WHERE request_identity = ?",
+      message: 'selected check request is not current evaluating',
+    },
+    {
+      name: 'legacy pairing',
+      statement: 'UPDATE activation_request SET pairing_version = 0 WHERE request_identity = ?',
+      message: 'legacy review pairing absent',
+    },
+    {
+      name: 'lease',
+      statement:
+        'UPDATE activation_request SET lease_epoch = lease_epoch + 1 WHERE request_identity = ?',
+      message: 'selected check lease changed',
+    },
+    {
+      name: 'lease owner',
+      statement:
+        "UPDATE activation_request SET lease_owner = 'worker.other' WHERE request_identity = ?",
+      message: 'selected check lease changed',
+    },
+    {
+      name: 'lease null expiry',
+      statement: 'UPDATE activation_request SET lease_expires_at = NULL WHERE request_identity = ?',
+      message: 'selected check lease changed',
+    },
+    {
+      name: 'lease expired',
+      statement: 'UPDATE activation_request SET lease_expires_at = 1000 WHERE request_identity = ?',
+      message: 'selected check lease changed',
+    },
+    {
+      name: 'authority',
+      statement:
+        "UPDATE activation_request SET bootstrap_identity = 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff' WHERE request_identity = ?",
+      message: 'selected check authority changed',
+    },
+    {
+      name: 'generation',
+      statement:
+        'UPDATE activation_subject SET high_water_generation = high_water_generation + 1 WHERE repository_id = 8241',
+      message: 'selected check generation changed',
+    },
+    {
+      name: 'generation absent',
+      statement: 'DELETE FROM activation_subject WHERE repository_id = 8241',
+      message: 'selected check generation changed',
+    },
+    {
+      name: 'plan',
+      statement:
+        "UPDATE activation_obligation SET executor_id = 'review.other' WHERE request_identity = ? AND phase = 'cold'",
+      message: 'selected check frozen plan changed',
+    },
+    {
+      name: 'obligation',
+      statement:
+        "UPDATE activation_obligation SET state = 'passed' WHERE request_identity = ? AND kind = 'check'",
+      message: 'selected check obligation unavailable',
+    },
+  ];
+  for (const scenario of cases) {
+    let release: ((bytes: string) => void) | undefined;
+    const held = new Promise<string>((resolve) => {
+      release = resolve;
+    });
+    let resolving: (() => void) | undefined;
+    const entered = new Promise<void>((resolve) => {
+      resolving = resolve;
+    });
+    const selected = selectedCheckFixture(() => {
+      resolving?.();
+      return held;
+    });
+    try {
+      const pending = selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64));
+      await entered;
+      const database = new Database(selected.source.databasePath);
+      try {
+        database.query(scenario.statement).run(selected.request.requestIdentity);
+        const expected = database
+          .query('SELECT * FROM activation_request WHERE request_identity = ?')
+          .get(selected.request.requestIdentity);
+        const obligations = database
+          .query('SELECT * FROM activation_obligation WHERE request_identity = ? ORDER BY rowid')
+          .all(selected.request.requestIdentity);
+        release?.(selected.bytes);
+        await rejectsWith(pending, scenario.message);
+        expect(
+          database
+            .query('SELECT * FROM activation_request WHERE request_identity = ?')
+            .get(selected.request.requestIdentity),
+          scenario.name,
+        ).toEqual(expected);
+        expect(
+          database
+            .query('SELECT * FROM activation_obligation WHERE request_identity = ? ORDER BY rowid')
+            .all(selected.request.requestIdentity),
+          scenario.name,
+        ).toEqual(obligations);
+      } finally {
+        database.close();
+      }
+    } finally {
+      selected.controller.close();
+    }
+  }
+});
+
+test('selected check preparation rechecks the pinned bootstrap after a held resolver', async () => {
+  const cases = [
+    { name: 'absent', replace: false, message: 'bootstrap configuration absent' },
+    {
+      name: 'changed',
+      replace: true,
+      message: 'bootstrap configuration differs from independent pin',
+    },
+  ];
+  for (const scenario of cases) {
+    let release: ((bytes: string) => void) | undefined;
+    const held = new Promise<string>((resolve) => {
+      release = resolve;
+    });
+    let resolving: (() => void) | undefined;
+    const entered = new Promise<void>((resolve) => {
+      resolving = resolve;
+    });
+    const selected = selectedCheckFixture(() => {
+      resolving?.();
+      return held;
+    });
+    try {
+      const pending = selected.controller.prepareSelectedCheck(selected.lease, 'a'.repeat(64));
+      await entered;
+      const before = selected.controller.listRequests();
+      if (scenario.replace) {
+        const bootstrap = JSON.parse(readFileSync(selected.source.bootstrapPath, 'utf8')) as Record<
+          string,
+          unknown
+        >;
+        writeFileSync(
+          selected.source.bootstrapPath,
+          serializeCanonical({ ...bootstrap, authorityGeneration: 4 }),
+        );
+      } else {
+        rmSync(selected.source.bootstrapPath);
+      }
+      release?.(selected.bytes);
+      await rejectsWith(pending, scenario.message);
+      expect(selected.controller.listRequests(), scenario.name).toEqual(before);
+    } finally {
+      selected.controller.close();
+    }
   }
 });
