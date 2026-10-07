@@ -591,3 +591,34 @@ OpenSpec strict passed 1/1 and all passed 143/143, zero failures
 (`/tmp/activation-21-adapter-{strict,all}-commitable.json`); changed-path
 Prettier and diff check exited 0. No host gate, CI, provider credential,
 dispatch worker or remote publication was run for this local slice.
+
+### 2.1 selected cold/informed cross-record correction (2026-10-07)
+
+Independent review of `5a92756a053a18022c577b4efef24450596f064f`
+found that an informed verifier could replace the already selected cold
+judgment with another internally consistent cold judgment and artifact.
+The first mounted test failed rejected-vs-fulfilled, 0/1
+(`/tmp/activation-21-paired-cold-baseline-red.log`), matching the independent
+reproduction `/tmp/activation-5a9275-astra-paired-cold.log`. The informed
+receipt transaction now loads the exact passed cold obligation and immutable
+attempt for the same request/review/attempt/registered invocation, validates
+that retained source against the pinned expectation, and compares the
+incoming complete cold output and artifact to those committed bytes. The
+schema-valid alternate cold is refused with the full pre-attempt row snapshot
+unchanged, 1/1, 4 assertions (`/tmp/activation-21-paired-cold-green.log`).
+Independently removing only the persisted cold/source comparison made that
+same case fulfill, 0/1 (`/tmp/activation-21-paired-cold-join-omission-red.log`);
+the source SHA-256 restored to
+`b6047946a7406f886803ce7618a03ee37b5933b1bd36f9477bf5a49ee87df088`.
+Existing retained-cold foreign-review/invocation corruption cases now refuse
+earlier at this new committed-source join; their unchanged-state assertions
+remain in place. The literal four-file Bun command above passed 122/122, 480
+assertions, exit 0 on correction bytes
+(`/tmp/activation-21-paired-four-green.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck` and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-21-paired-{lint,type,build}.log`). Pinned OpenSpec strict
+passed 1/1 and all passed 143/143, zero failures
+(`/tmp/activation-21-paired-{strict,all}.json`); changed-path Prettier and
+diff check exited 0. Real external provenance and early cold terminal
+evidence remain open.

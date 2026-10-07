@@ -1235,13 +1235,83 @@ export class ActivationController {
       // Proof: broadening this query to any review or omitting its attempt predicate
       // accepted informed evidence with only another pair's or another attempt's cold.
       if (receipt.kind === 'audit' && receipt.phase === 'informed') {
-        const cold: unknown = this.#database
+        if (review === null) throw new Error('trusted review source evidence absent');
+        const rawCold: unknown[] = this.#database
           .query(
-            "SELECT COUNT(*) AS completed FROM activation_obligation WHERE request_identity = ? AND review_id = ? AND kind = 'audit' AND phase = 'cold' AND attempt = ? AND state = 'passed'",
+            "SELECT * FROM activation_obligation WHERE request_identity = ? AND review_id = ? AND kind = 'audit' AND phase = 'cold' AND attempt = ?",
           )
-          .get(request.requestIdentity, receipt.reviewId, receipt.attempt);
-        if (parseOrThrow(type({ completed: 'number.integer>=0' }), cold).completed === 0) {
+          .all(request.requestIdentity, receipt.reviewId, receipt.attempt);
+        if (rawCold.length !== 1) {
           throw new Error('informed audit requires completed cold audit');
+        }
+        const cold = parseOrThrow(StoredObligation, rawCold[0]);
+        if (cold.state !== 'passed' || cold.receipt_identity === null) {
+          throw new Error('informed audit requires completed cold audit');
+        }
+        const rawColdAttempt: unknown = this.#database
+          .query(
+            'SELECT * FROM activation_attempt WHERE request_identity = ? AND obligation_identity = ? AND attempt = ?',
+          )
+          .get(request.requestIdentity, cold.obligation_identity, cold.attempt);
+        if (rawColdAttempt === null) throw new Error('committed cold source absent');
+        const coldAttempt = parseOrThrow(StoredAttempt, rawColdAttempt);
+        let coldAuthentication: {
+          readonly receipt: AuthenticatedReceipt;
+          readonly review: VerifiedReview;
+        };
+        try {
+          const retained: unknown = JSON.parse(coldAttempt.authentication_bytes);
+          coldAuthentication = parseOrThrow(
+            type({
+              receipt: AuthenticatedReceipt,
+              review: ReviewVerificationRecord,
+            }).onUndeclaredKey('reject'),
+            retained,
+          );
+        } catch (cause) {
+          throw new Error('committed cold source malformed', { cause });
+        }
+        if (
+          coldAttempt.receipt_identity !== cold.receipt_identity ||
+          coldAttempt.status !== 'passed' ||
+          hashBytes(coldAttempt.receipt_bytes) !== coldAttempt.receipt_identity ||
+          coldAuthentication.receipt.kind !== 'audit' ||
+          coldAuthentication.receipt.phase !== 'cold' ||
+          coldAuthentication.receipt.status !== 'passed' ||
+          coldAuthentication.receipt.receiptIdentity !== coldAttempt.receipt_identity ||
+          coldAuthentication.receipt.requestIdentity !== request.requestIdentity ||
+          coldAuthentication.receipt.obligationIdentity !== cold.obligation_identity ||
+          coldAuthentication.receipt.reviewId !== receipt.reviewId ||
+          coldAuthentication.receipt.attempt !== receipt.attempt ||
+          coldAuthentication.receipt.invocationId !== receipt.invocationId
+        ) {
+          throw new Error('committed cold source differs from selected review');
+        }
+        const committedCold = authenticatedReview(
+          {
+            exactSubmissionBytes: coldAttempt.receipt_bytes,
+            expected: {
+              requestIdentity: request.requestIdentity,
+              reviewId: receipt.reviewId,
+              obligationIdentity: cold.obligation_identity,
+              attempt: receipt.attempt,
+              phase: 'cold',
+              invocationId: receipt.invocationId,
+              executorId: cold.executor_id,
+              protocolIdentity: cold.protocol_identity,
+              promptIdentity: configuration.reviewer.promptIdentity,
+              journalIssuerId: configuration.journal.issuerId,
+            },
+          },
+          coldAuthentication.review,
+        );
+        // Proof: omitting this persisted-source comparison let an internally consistent
+        // alternate cold judgment complete the informed phase and verify the request.
+        if (
+          hashCanonical(review.cold) !== hashCanonical(committedCold.cold) ||
+          review.informed.coldArtifact !== hashCanonical(committedCold.cold.cold)
+        ) {
+          throw new Error('informed audit differs from committed cold');
         }
       }
       // Proof: splitting commit immediately after this insert left a second receipt attempt

@@ -1561,6 +1561,66 @@ test('retained review source corruption is refused after controller restart', as
   }
 });
 
+test('informed review must reuse the exact committed cold judgment for its selected pair', async () => {
+  let substitutedArtifact: string | undefined;
+  const evidence = await evidenceHarness({
+    verifyReview: (expected, bytes) => {
+      const complete = fakeReview(expected, bytes);
+      if (!bytes.includes('"kind":"audit"')) return Promise.resolve(complete);
+      const changedCold = {
+        ...complete.cold.cold,
+        judgments: { ...complete.cold.cold.judgments, impact: 'no' as const },
+      };
+      substitutedArtifact = hashCanonical(changedCold);
+      return Promise.resolve(
+        bindSource({
+          ...complete,
+          cold: { ...complete.cold, cold: changedCold },
+          informed: { ...complete.informed, coldArtifact: substitutedArtifact },
+          evidence: {
+            ...complete.evidence,
+            protocolEvidence: {
+              ...complete.evidence.protocolEvidence,
+              cold: changedCold,
+              expansion: {
+                ...complete.evidence.protocolEvidence.expansion,
+                coldJudgmentArtifact: substitutedArtifact,
+              },
+            },
+          },
+        }),
+      );
+    },
+  });
+  try {
+    const database = new Database(evidence.source.databasePath);
+    let originalArtifact: string;
+    try {
+      const raw: unknown = database
+        .query(
+          'SELECT authentication_bytes FROM activation_attempt WHERE request_identity = ? AND obligation_identity = ?',
+        )
+        .get(evidence.request.requestIdentity, 'd'.repeat(64));
+      if (raw === null || typeof raw !== 'object' || !('authentication_bytes' in raw)) {
+        throw new Error('committed cold source absent');
+      }
+      const retained = JSON.parse(String(raw.authentication_bytes)) as { review: VerifiedReview };
+      originalArtifact = hashCanonical(retained.review.cold.cold);
+    } finally {
+      database.close();
+    }
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
+      'informed audit differs from committed cold',
+    );
+    expect(substitutedArtifact).not.toBe(originalArtifact);
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    evidence.controller.close();
+  }
+});
+
 test.each(['registration', 'authority'] as const)(
   'held trusted review refuses post-await %s movement while an independent check can complete',
   async (movement) => {
@@ -2228,7 +2288,7 @@ test.each([
     const before = evidenceRows(evidence.source.databasePath);
     await rejectedWith(
       submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
-      'selected receipt evidence differs from frozen obligation',
+      'committed cold source differs from selected review',
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
   } finally {
