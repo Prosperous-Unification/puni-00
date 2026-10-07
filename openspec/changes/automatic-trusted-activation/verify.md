@@ -480,3 +480,57 @@ test formatting (`/tmp/activation-21-foundation-format-check.log`). The
 four-file and three Nx targets above were rerun on those final source/test bytes.
 Normal commit hooks, independent review, live provider acceptance, CI and host
 gate remain separate.
+
+### 2.1 foundation review correction (2026-10-07)
+
+Independent exact-SHA review of `b1b8eacdedefd28d3ced5576313cddba9bdbc60d`
+found two real gaps. A schema-valid retained cold authentication could change its
+`reviewId` and `invocationId` and still let the later receipt verify. The new
+mounted case first failed because the call fulfilled
+(`/tmp/activation-21-retained-pair-baseline-red.log`). The selected-evidence
+join now resolves each passed audit to the retained review registration and
+compares both authenticated fields to the frozen row/registered invocation.
+Independent omissions of retained review, retained invocation and registration
+join each made the corresponding public `recordReceipt` refusal fail 0/1
+(`/tmp/activation-21-retained-{review,invocation,registration}-omission-red.log`);
+the three restored cases passed 3/3, 9 assertions
+(`/tmp/activation-21-retained-pair-green.log`). The missing-registration test
+submits a check after removing the previously completed cold's registration, so
+it reaches the selected-evidence join and the attempted check write rolls back.
+
+A late v4 failure after v2-to-v3 migration previously left an intermediate v3
+schema (`/tmp/activation-21-late-migration-baseline-red.log`). The upgrade from
+the observed starting v2 or v3 version now runs in one SQLite transaction. For
+both versions, a controlled final-table conflict after earlier schema writes
+left the complete original schema, `user_version` and request rows equal to the
+pre-attempt snapshot, 2/2, 6 assertions
+(`/tmp/activation-21-late-migration-green.log`). Independent watched faults
+split the transaction after v2 attempt-table creation or after v3's first
+pairing column; each failed the full schema equality with committed residue,
+0/1 (`/tmp/activation-21-migration-split-{v2,v3}-red.log`). The earlier v3
+fixture that failed at its first `ALTER` was insufficient and is superseded by
+these late-failure witnesses.
+
+Further independent R5 watches at the public controller boundary covered
+registration owner, exact expiry, null expiry and pinned bootstrap reread.
+Each omission registered an invocation when it should have refused, 0/1
+(`/tmp/activation-21-register-{owner,expiry,null-expiry,bootstrap}-omission-red.log`);
+restored cases passed 4/4, 8 assertions. Removing only the cold-attempt
+predicate admitted informed evidence using a passed cold from another attempt,
+0/1 (`/tmp/activation-21-cold-attempt-omission-red.log`), restored 1/1.
+Removing the same-tuple legacy pairing check reused the unpaired request
+identity instead of allocating a new audit generation, 0/1
+(`/tmp/activation-21-legacy-replan-omission-red.log`), restored 1/1.
+
+These are local fake-verifier and controlled historical/corruption fixtures.
+They do not establish external journal provenance, dispatch recovery, or task
+2.1 completion. The literal four-file Bun command in the foundation section
+passed 105/105 tests, 418 assertions, exit 0 on corrected formatted bytes
+(`/tmp/activation-21-correction-four-final.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck` and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-21-correction-{lint,type,build}.log`). Pinned OpenSpec
+strict passed 1/1 and all passed 143/143, zero failures
+(`/tmp/activation-21-correction-{strict,all}.json`); changed-path Prettier
+and diff check passed. Normal hooks and independent exact-SHA review are still
+required for this correction checkpoint.

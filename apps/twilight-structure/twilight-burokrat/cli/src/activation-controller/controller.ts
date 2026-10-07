@@ -312,11 +312,13 @@ function initialize(database: Database): void {
       database.run('PRAGMA user_version = 4');
     });
   }
-  if (version === 2) {
-    // Proof: omitting this versioned migration made a persisted evaluating request lose its attempt table.
+  if (version === 2 || version === 3) {
+    // Proof: a late v4 table conflict after the v2 attempt-table writes must leave the
+    // original version and complete schema intact, not a committed intermediate v3.
     transaction(database, () => {
-      database.run('ALTER TABLE activation_request ADD COLUMN evidence_set_identity TEXT');
-      database.run(`CREATE TABLE activation_attempt (
+      if (version === 2) {
+        database.run('ALTER TABLE activation_request ADD COLUMN evidence_set_identity TEXT');
+        database.run(`CREATE TABLE activation_attempt (
         request_identity TEXT NOT NULL,
         obligation_identity TEXT NOT NULL,
         attempt INTEGER NOT NULL CHECK (attempt >= 0),
@@ -328,13 +330,9 @@ function initialize(database: Database): void {
         UNIQUE (receipt_identity),
         FOREIGN KEY (request_identity, obligation_identity)
           REFERENCES activation_obligation(request_identity, obligation_identity)
-      )`);
-      database.run('PRAGMA user_version = 3');
-    });
-  }
-  if (version === 2 || version === 3) {
-    // Proof: legacy unpaired obligations remain readable but cannot inherit a guessed review pair.
-    transaction(database, () => {
+        )`);
+      }
+      // Proof: legacy unpaired obligations remain readable but cannot inherit a guessed review pair.
       database.run(
         'ALTER TABLE activation_request ADD COLUMN pairing_version INTEGER NOT NULL DEFAULT 0 CHECK (pairing_version IN (0, 1))',
       );
@@ -415,6 +413,8 @@ export class ActivationController {
         requestIdentity: _newDigest,
         ...newIdentity
       } = frozen;
+      // Proof: omitting the pairing version reused the exact old request identity for
+      // authoritative same-tuple legacy history instead of allocating a new generation.
       if (
         previous.bootstrap_identity === this.options.pin.identity &&
         previous.pairing_version === 1 &&
@@ -755,7 +755,8 @@ export class ActivationController {
       // Proof: omission registered an invocation after the request left evaluating.
       if (row.stage !== 'evaluating') throw new Error('activation request is not evaluating');
       const now = nowFrom(this.options.clock);
-      // Proof: omitting the epoch comparison registered an invocation for a stale lease.
+      // Proof: independently omitting epoch, owner, null-expiry or elapsed-expiry checks
+      // registered an invocation for the corresponding stale/malformed lease.
       if (
         row.lease_epoch !== lease.leaseEpoch ||
         row.lease_owner !== lease.workerId ||
@@ -765,6 +766,7 @@ export class ActivationController {
         throw new Error('activation request lease changed');
       }
       const request = storedRequest(row).request;
+      // Proof: omitting the pinned-file reread registered an invocation after bootstrap vanished.
       readBootstrapConfiguration(this.options.bootstrapPath, this.options.pin);
       // Proof: omission registered an invocation under a second valid pinned authority.
       if (request.authorityIdentity !== this.options.pin.identity) {
@@ -955,8 +957,8 @@ export class ActivationController {
       if (obligation.state !== 'pending' || obligation.receipt_identity !== null) {
         throw new Error('activation obligation already completed');
       }
-      // Proof: broadening the cold query to any review admitted informed evidence from a
-      // second review before that review's cold phase passed.
+      // Proof: broadening this query to any review or omitting its attempt predicate
+      // accepted informed evidence with only another pair's or another attempt's cold.
       if (receipt.kind === 'audit' && receipt.phase === 'informed') {
         const cold: unknown = this.#database
           .query(
@@ -1062,8 +1064,22 @@ export class ActivationController {
         } catch (cause) {
           throw new Error('selected receipt evidence malformed', { cause });
         }
-        // Proof: a schema-valid retained receipt with the wrong executor verified
-        // when only this executor binding was removed; the mounted test failed 0/1.
+        let registeredInvocation: string | null = null;
+        if (entry.kind === 'audit') {
+          const registration: unknown = this.#database
+            .query(
+              'SELECT * FROM activation_review_attempt WHERE request_identity = ? AND review_id = ? AND attempt = ?',
+            )
+            .get(request.requestIdentity, entry.review_id, entry.attempt);
+          // Proof: removing this retained join let a prior cold phase verify after its
+          // selected review invocation registration was deleted.
+          if (registration === null) throw new Error('selected review invocation absent');
+          registeredInvocation = parseOrThrow(StoredReviewAttempt, registration).invocation_id;
+        }
+        // Proof: independently omitting the retained review or invocation comparison
+        // let schema-valid foreign cold authentication verify; omitting the registration
+        // join and trusting its claimed invocation let a deleted registration verify.
+        // Earlier, a schema-valid wrong executor verified when that binding was removed.
         if (
           entry.receipt_identity === null ||
           saved.receipt_identity !== entry.receipt_identity ||
@@ -1084,7 +1100,9 @@ export class ActivationController {
           authenticated.protocolIdentity !== entry.protocol_identity ||
           (authenticated.kind === 'check'
             ? authenticated.commandIdentity !== entry.command_identity
-            : authenticated.phase !== entry.phase)
+            : authenticated.phase !== entry.phase ||
+              authenticated.reviewId !== entry.review_id ||
+              authenticated.invocationId !== registeredInvocation)
         ) {
           throw new Error('selected receipt evidence differs from frozen obligation');
         }

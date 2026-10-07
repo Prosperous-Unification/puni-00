@@ -858,6 +858,55 @@ test('review attempt registration refuses a different valid pinned authority', (
   }
 });
 
+test.each(['owner', 'expiry', 'null-expiry'] as const)(
+  'review attempt registration refuses a changed %s without writes',
+  (fault) => {
+    const source = fixture();
+    const controller = boundaryController(source, () => 1000);
+    const database = new Database(source.databasePath);
+    try {
+      const request = controller.observe(source.candidate);
+      const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+      controller.beginEvaluation(lease);
+      if (fault === 'owner') {
+        database
+          .query('UPDATE activation_request SET lease_owner = ? WHERE request_identity = ?')
+          .run('worker.second', request.requestIdentity);
+      } else {
+        database
+          .query('UPDATE activation_request SET lease_expires_at = ? WHERE request_identity = ?')
+          .run(fault === 'expiry' ? 1000 : null, request.requestIdentity);
+      }
+      const before = evidenceRows(source.databasePath);
+      expect(() =>
+        controller.registerReviewAttempt(lease, 'review.primary', 0, 'invocation.primary'),
+      ).toThrow('activation request lease changed');
+      expect(evidenceRows(source.databasePath)).toEqual(before);
+    } finally {
+      database.close();
+      controller.close();
+    }
+  },
+);
+
+test('review attempt registration rereads the pinned bootstrap before writing', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    const before = evidenceRows(source.databasePath);
+    rmSync(source.bootstrapPath);
+    expect(() =>
+      controller.registerReviewAttempt(lease, 'review.primary', 0, 'invocation.primary'),
+    ).toThrow('bootstrap configuration absent');
+    expect(evidenceRows(source.databasePath)).toEqual(before);
+  } finally {
+    controller.close();
+  }
+});
+
 test('legacy unpaired review cannot register a new invocation', () => {
   const source = fixture();
   const controller = boundaryController(source, () => 1000);
@@ -934,6 +983,45 @@ test('another review cannot borrow a completed cold phase for its informed recei
     );
     expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
   } finally {
+    evidence.controller.close();
+  }
+});
+
+test('informed phase cannot borrow an earlier cold from another review attempt', async () => {
+  const evidence = await evidenceHarness();
+  const database = new Database(evidence.source.databasePath);
+  try {
+    const cold = evidence.authenticated.get(evidence.cold);
+    if (cold === undefined || cold === null || typeof cold !== 'object') {
+      throw new Error('fake retained cold authentication absent');
+    }
+    database
+      .query(
+        'UPDATE activation_obligation SET attempt = 1 WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .run(evidence.request.requestIdentity, 'd'.repeat(64));
+    database
+      .query(
+        'UPDATE activation_attempt SET attempt = 1, authentication_bytes = ? WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .run(
+        serializeCanonical({ ...cold, attempt: 1, invocationId: 'invocation.next' }),
+        evidence.request.requestIdentity,
+        'd'.repeat(64),
+      );
+    database
+      .query(
+        'INSERT INTO activation_review_attempt (request_identity, review_id, attempt, invocation_id) VALUES (?, ?, ?, ?)',
+      )
+      .run(evidence.request.requestIdentity, 'review.primary', 1, 'invocation.next');
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      'requires completed cold audit',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
     evidence.controller.close();
   }
 });
@@ -1430,6 +1518,57 @@ test('receipt join refuses malformed retained authentication bytes', async () =>
   }
 });
 
+test.each([
+  ['reviewId', 'review.foreign'],
+  ['invocationId', 'invocation.foreign'],
+] as const)('receipt join refuses retained cold evidence with foreign %s', async (field, wrong) => {
+  const evidence = await evidenceHarness();
+  const database = new Database(evidence.source.databasePath);
+  try {
+    const cold = evidence.authenticated.get(evidence.cold);
+    if (cold === undefined || cold === null || typeof cold !== 'object') {
+      throw new Error('fake retained cold authentication absent');
+    }
+    database
+      .query(
+        'UPDATE activation_attempt SET authentication_bytes = ? WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .run(
+        serializeCanonical({ ...cold, [field]: wrong }),
+        evidence.request.requestIdentity,
+        'd'.repeat(64),
+      );
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('audit')),
+      'selected receipt evidence differs from frozen obligation',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    evidence.controller.close();
+  }
+});
+
+test('receipt join refuses a selected cold whose review registration disappeared', async () => {
+  const evidence = await evidenceHarness();
+  const database = new Database(evidence.source.databasePath);
+  try {
+    database
+      .query('DELETE FROM activation_review_attempt WHERE request_identity = ? AND review_id = ?')
+      .run(evidence.request.requestIdentity, 'review.primary');
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      evidence.controller.recordReceipt(evidence.lease, evidence.receipt('check')),
+      'selected review invocation absent',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    evidence.controller.close();
+  }
+});
+
 test('receipt join refuses a check row carrying an audit phase', async () => {
   const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);
@@ -1551,36 +1690,45 @@ test.each([2, 3] as const)(
   },
 );
 
-test('failed pairing migration leaves the legacy version and rows unchanged', () => {
-  const source = fixture();
-  const first = boundaryController(source, () => 1000);
-  const request = first.observe(source.candidate);
-  first.close();
-  const database = new Database(source.databasePath);
-  try {
-    database.run('DROP TABLE activation_review_attempt');
-    database.run('ALTER TABLE activation_obligation DROP COLUMN review_id');
-    database.run('PRAGMA user_version = 3');
-    const before = {
-      version: database.query('PRAGMA user_version').get(),
-      schema: database
-        .query("SELECT name, sql FROM sqlite_schema WHERE type = 'table' ORDER BY name")
-        .all(),
-      requests: database.query('SELECT * FROM activation_request').all(),
-    };
-    expect(() => boundaryController(source, () => 1000)).toThrow('duplicate column name');
-    expect({
-      version: database.query('PRAGMA user_version').get(),
-      schema: database
-        .query("SELECT name, sql FROM sqlite_schema WHERE type = 'table' ORDER BY name")
-        .all(),
-      requests: database.query('SELECT * FROM activation_request').all(),
-    }).toEqual(before);
-    expect(request.requestIdentity).toBeDefined();
-  } finally {
-    database.close();
-  }
-});
+test.each([2, 3] as const)(
+  'late version-%i pairing migration failure leaves the entire legacy schema and rows unchanged',
+  (legacyVersion) => {
+    const source = fixture();
+    const first = boundaryController(source, () => 1000);
+    const request = first.observe(source.candidate);
+    first.close();
+    const database = new Database(source.databasePath);
+    try {
+      database.run('ALTER TABLE activation_request DROP COLUMN pairing_version');
+      database.run('ALTER TABLE activation_obligation DROP COLUMN review_id');
+      if (legacyVersion === 2) {
+        database.run('DROP TABLE activation_attempt');
+        database.run('ALTER TABLE activation_request DROP COLUMN evidence_set_identity');
+      }
+      database.run(legacyVersion === 2 ? 'PRAGMA user_version = 2' : 'PRAGMA user_version = 3');
+      const before = {
+        version: database.query('PRAGMA user_version').get(),
+        schema: database
+          .query("SELECT name, sql FROM sqlite_schema WHERE type = 'table' ORDER BY name")
+          .all(),
+        requests: database.query('SELECT * FROM activation_request').all(),
+      };
+      expect(() => boundaryController(source, () => 1000)).toThrow(
+        'activation_review_attempt already exists',
+      );
+      expect({
+        version: database.query('PRAGMA user_version').get(),
+        schema: database
+          .query("SELECT name, sql FROM sqlite_schema WHERE type = 'table' ORDER BY name")
+          .all(),
+        requests: database.query('SELECT * FROM activation_request').all(),
+      }).toEqual(before);
+      expect(request.requestIdentity).toBeDefined();
+    } finally {
+      database.close();
+    }
+  },
+);
 
 test.each(['claim', 'evaluation'] as const)(
   'legacy unpaired request refuses %s before acquiring new authority',
@@ -1613,6 +1761,31 @@ test.each(['claim', 'evaluation'] as const)(
     }
   },
 );
+
+test('authoritative same-tuple observation replans legacy review history to a new generation', () => {
+  const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const prior = controller.observe(source.candidate);
+    database
+      .query('UPDATE activation_request SET pairing_version = 0 WHERE request_identity = ?')
+      .run(prior.requestIdentity);
+    const next = controller.observe(source.candidate);
+    expect(next.requestIdentity).not.toBe(prior.requestIdentity);
+    expect(next.auditGeneration).toBe(prior.auditGeneration + 1);
+    expect(controller.readRequest(prior.requestIdentity)?.current).toBe(false);
+    expect(controller.readRequest(next.requestIdentity)?.current).toBe(true);
+    expect(
+      database
+        .query('SELECT pairing_version FROM activation_request WHERE request_identity = ?')
+        .get(prior.requestIdentity),
+    ).toEqual({ pairing_version: 0 });
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
 
 test('receipt owner refuses a different valid bootstrap authority on the same durable request', async () => {
   const evidence = await evidenceHarness();
