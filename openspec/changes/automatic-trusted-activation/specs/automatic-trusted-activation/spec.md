@@ -88,6 +88,62 @@ without manufacturing a closed subject, new authority or successful activation.
 - **AND** redirects, non-200 statuses, rate limits, malformed bodies and ambiguous reads
   refuse rather than becoming empty discovery, closed PR state or activation authority
 
+### Requirement: Finite single-flight observation service
+
+The observation entrypoint SHALL perform at most one bounded ordinary-PR reconciliation
+attempt under a host-local process lock and independently pinned configuration. It SHALL
+require explicitly initialized durable state, retain attempts/cooldowns across restart and
+expose busy, deferred, cancelled and complete reconciliation distinctly. It SHALL NOT execute
+evaluation, worker, review, publication, admission, merge or WBS effects.
+
+#### Scenario: Another process owns observation
+
+- **WHEN** a second tick or initialization process targets the same state store
+- **THEN** it reports busy without provider reads or mutation while the first holds the lock
+  through tick settlement, state completion and database closure
+
+#### Scenario: Shutdown arrives during an authoritative read
+
+- **WHEN** shutdown or the whole-tick deadline occurs while a provider response is held
+- **THEN** unfinished observation commits are fenced, the response cannot revive work, and
+  the controller continuation settles before database closure and lock release
+
+#### Scenario: Cleanup cannot settle within its budget
+
+- **WHEN** cancelled local work cannot settle before the cleanup deadline
+- **THEN** the supervised process fails and terminates with ownership retained until exit,
+  without releasing the lock while an old continuation can still mutate durable state
+
+#### Scenario: Restart occurs after a failed or interrupted attempt
+
+- **WHEN** a process exits after reserving an attempt or persisting a provider cooldown
+- **THEN** reopening preserves the consumed attempt and cooldown, with no provider call before
+  the allowed time and no synthetic successful reconciliation
+
+#### Scenario: Provider timing exceeds local retry policy
+
+- **WHEN** a valid provider minimum is longer than the local delay or scheduling horizon
+- **THEN** scheduling respects that minimum or remains visibly deferred/exhausted; malformed
+  supplied timing refuses instead of silently falling back or shortening the delay
+
+#### Scenario: Retry burst is exhausted
+
+- **WHEN** the finite transient attempt budget is consumed
+- **THEN** the tick fails and retains failed health; later bounded recovery probes respect
+  their persisted interval and only a complete successful tick restores healthy status
+
+#### Scenario: Established state is absent or invalid
+
+- **WHEN** scheduled execution sees missing, unreadable, partial, corrupt or wrongly bound state
+- **THEN** it refuses before provider calls and cannot initialize, repair or reset that state;
+  explicit initialization cannot overwrite existing state or manufacture bootstrap authority
+
+#### Scenario: Observation succeeds without other capabilities
+
+- **WHEN** an initialized tick reconciles an eligible ordinary PR through the mounted reader
+- **THEN** exact observation state is retained with zero evaluation, worker, review, publication,
+  admission, merge and WBS effects; service templates alone do not establish live deployment
+
 ### Requirement: Exact candidate and trust identity
 
 Every activation request SHALL bind its typed subject, qualified target ref, candidate head

@@ -79,6 +79,42 @@ Use the typed ports and boundaries in [design](design.md#bounded-ordinary-pr-obs
       the same mounted tests. Keep live credentials, one-tick service and webhook deployment
       open; this adapter has no write or merge capability.
 
+### Observation tick and uninstalled service after 1.2d
+
+Implement in this order under the [tick contract](design.md#observation-only-tick-and-uninstalled-service-increment).
+Every task remains open until its mounted negatives are observed; this increment does not
+close task 1.2, external bootstrap or 030.6.
+
+- [ ] 1.2e First prove `scheduler initialization never repairs established state` and
+      `a second observation process reads nothing while its owner is active`. Add protected
+      state/config validation, explicit initialization, additive scheduler storage and one
+      process-lock owner covering every production entry path. Mount two real local processes,
+      crash/reopen and migration/rollback. F10-T1/T2 independently remove lock acquisition,
+      early-release prevention, state existence/schema/binding guards and attempt persistence.
+- [ ] 1.2f First prove `cancelled current response cannot commit after shutdown`,
+      `whole tick deadline survives synchronous work` and `database closes only after tick settles`.
+      Implement `observation-tick.ts` composition with finite workload/tick/cleanup budgets,
+      source-to-controller cancellation and transactional observation fence. Retain previous
+      valid subject commits while refusing incomplete success. F10-T3/T4 separately omit
+      cancellation, expiry, next-read and settle-before-close checks, including an abort-ignoring
+      reader. Add `observation-cli.ts` signal/exit mapping; prove zero forbidden-effect calls,
+      with F10-T5 observing an independently introduced forbidden dispatch.
+- [ ] 1.2g First prove `provider cooldown survives restart and clock rollback`,
+      `crashed reserved attempt consumes budget` and `exhausted burst stays failed until recovery`.
+      Extend the REST failure contract with validated retry timing, then mount durable cooldown
+      and bounded recovery probes through the tick. F11-T1/T2 independently omit numeric/date/
+      overflow validation, provider minimum, durable attempt reservation, deadline/attempt limits
+      and failure-health retention. Keep cancellation distinct from provider failure and ensure
+      busy/deferred invocations make no GET or success write.
+- [ ] 1.2h Add uninstalled oneshot/timer templates and their provisioning runbook under
+      `infra/ci/burokrat/observation/`; link from the activation runbook. First prove
+      `observation service template requires protected execution and bounded shutdown` and
+      `timer artifact cannot grant execution authority`. F1-T1 removes required account/path,
+      state confinement, timeout, group-termination or restart constraints independently.
+      Verify rendered template syntax where tools are available; label structural proof separately
+      from unrun systemd runtime acceptance. No installation/enablement, host edits, secrets,
+      provider authority, check execution, activation or WBS update belongs to this task.
+
 ## 2. Independent execution and evidence
 
 - [ ] 2.1 Mount the external cold/informed reviewer and authenticated journal verifier through the

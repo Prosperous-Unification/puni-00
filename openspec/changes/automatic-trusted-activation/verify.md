@@ -2075,3 +2075,40 @@ Final six-file mounted tests passed **507/507**, 2,121 assertions
 all passed 143/143; changed-path Prettier and `git diff --check` passed. These
 are local checks; host gate, CI, live GitHub reads and a deployed scheduler
 remain unrun.
+
+### Observation tick design amendment after `e13eee341`
+
+Baseline: `e13eee341ed29ac43d6846a009bf5cab616017c1`; docs-only isolated plan branch.
+This amendment adds a finite observation composition and uninstalled service/timer acceptance
+contract after GET transport task 1.2d. No runtime changes, service artifacts, deployments or
+new safety proofs have been executed by the planning amendment.
+
+| Fault family | Independent fault to inject                                                                                                                  | Mounted witness / expected failing observation                                                                               | Status  |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------- |
+| F10-T1       | Skip process lock; release ownership before tick settlement/DB close; replace live lock inode separately                                     | Two real local processes overlap provider reads or a held old owner can write after a new owner starts                       | NOT RUN |
+| F10-T2       | Auto-create absent established DB; accept corrupt/partial/wrong-bound state; omit initialization exclusion or attempt reservation separately | No-read refusal, non-overwrite, crash/reopen budget or additive rollback preservation assertion fails                        | NOT RUN |
+| F10-T3       | Omit pre-read cancellation, transactional cancellation fence or monotonic commit-expiry guard separately                                     | Held response writes after cancellation, another GET begins, or synchronous over-budget work commits                         | NOT RUN |
+| F10-T4       | Close DB/release lock before controller continuation settles; discard original cleanup failure; report partial tick as complete separately   | Lifecycle ordering, aggregate-error or incomplete-completion assertion fails; arbitrary runner timeout is not accepted proof | NOT RUN |
+| F11-T1       | Default malformed supplied retry timing; ignore later provider minimum; shorten out-of-horizon minimum; erase persisted cooldown separately  | Mounted invalid-header or restart/clock/provider-bound assertion fails before forbidden GET                                  | NOT RUN |
+| F11-T2       | Reset interrupted attempts; remove finite burst/probe interval; clear failed health without full reconciliation separately                   | Crash/reopen consumes too few attempts, probe starts early or incomplete tick falsely restores health                        | NOT RUN |
+| F1-T1        | Remove a required service account/path/confinement/timeout/group-termination/restart setting separately                                      | Production artifact validator rejects the mutated rendered unit; this is structural proof, not installed systemd confinement | NOT RUN |
+| F10-T5       | Wire a forbidden evaluation/worker/review/publication/admission/merge/WBS effect into observation composition                                | Mounted success/refusal/cancellation fixture observes a forbidden call and fails                                             | NOT RUN |
+
+R5 records must include each exact command and source omission, intended failing assertion,
+RED/restored GREEN exits, output retention and restored source digest; unrelated compilation,
+cleanup-only or timeout failures do not prove the intended guard. Existing source/reader tests
+remain credited to their exact historical checkpoint; composition claims require this new path.
+Fresh temporary stores and synthetic bootstrap/provider fixtures prove local behavior only.
+
+Not verified here: a running scheduler, process confinement by installed systemd, independent
+bootstrap authority, live credential/provider access, h2puni configuration, worker sandbox,
+review, publication, admission, merge or WBS closure. Actual unit deployment and protected
+account/path/pin provisioning remain authorized one-time administration. 030.6 stays blocked.
+
+Fresh docs-only checks on 2026-10-07: strict OpenSpec
+`bunx @fission-ai/openspec@1.12.0 validate automatic-trusted-activation --strict --json`
+passed 1/1 with zero issues; `bunx @fission-ai/openspec@1.12.0 validate --all --json`
+passed 143/143 (125 changes, 18 specs). Explicit four-path Prettier and `git diff --check`
+passed. Read-only link/anchor inspection found five resolving local links and unchanged
+301-word intent. Runtime tests, omission trials, unit rendering/systemd acceptance, full Nx,
+host gate and CI were not run for this planning amendment.
