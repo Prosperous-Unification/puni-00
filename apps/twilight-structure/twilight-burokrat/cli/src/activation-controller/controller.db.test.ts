@@ -106,6 +106,24 @@ function fixture() {
   };
 }
 
+function dispatchFixture() {
+  const source = fixture();
+  return {
+    ...source,
+    selectObligations: (request: ActivationRequest) => {
+      const plan = source.selectObligations(request);
+      return {
+        ...plan,
+        obligations: plan.obligations.map((obligation) =>
+          obligation.kind === 'audit'
+            ? { ...obligation, protocolIdentity: 'a'.repeat(64) }
+            : obligation,
+        ),
+      };
+    },
+  };
+}
+
 function fakeReview(expected: ReviewExpectation, bytes: string): VerifiedCompleteReview {
   const invocationId = expected.invocationId;
   const contentIdentity = '9'.repeat(64);
@@ -1249,7 +1267,7 @@ test('evaluating lease recovery refuses unpaired history without changing its le
 });
 
 test('installed evaluating owner atomically registers a review invocation and immutable dispatch reservation', () => {
-  const source = fixture();
+  const source = dispatchFixture();
   const controller = boundaryController(source, () => 1000);
   const database = new Database(source.databasePath);
   try {
@@ -1278,8 +1296,131 @@ test('installed evaluating owner atomically registers a review invocation and im
   }
 });
 
-test('review dispatch reservation replays exactly and rejects changed immutable bytes or caller target', () => {
+test('dispatch refuses a frozen review protocol that differs from pinned reviewer authority', () => {
   const source = fixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    const before = {
+      request: database.query('SELECT * FROM activation_request').all(),
+      obligations: database.query('SELECT * FROM activation_obligation ORDER BY rowid').all(),
+      registration: database.query('SELECT * FROM activation_review_attempt').all(),
+      dispatch: database.query('SELECT * FROM activation_review_dispatch').all(),
+    };
+    expect(() =>
+      controller.reserveReviewDispatch(lease, {
+        reviewId: 'review.primary',
+        attempt: 0,
+        invocationId: 'invocation.primary',
+        deadlineAt: 1200,
+        maxDispatchAttempts: 3,
+      }),
+    ).toThrow('review dispatch protocol differs from pinned reviewer');
+    expect({
+      request: database.query('SELECT * FROM activation_request').all(),
+      obligations: database.query('SELECT * FROM activation_obligation ORDER BY rowid').all(),
+      registration: database.query('SELECT * FROM activation_review_attempt').all(),
+      dispatch: database.query('SELECT * FROM activation_review_dispatch').all(),
+    }).toEqual(before);
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('dispatch refuses a frozen review executor that differs from pinned reviewer authority', () => {
+  const source = dispatchFixture();
+  const validPlan = source.selectObligations;
+  const altered = {
+    ...source,
+    selectObligations: (request: ActivationRequest) => {
+      const plan = validPlan(request);
+      return {
+        ...plan,
+        obligations: plan.obligations.map((obligation) =>
+          obligation.kind === 'audit' && obligation.phase === 'cold'
+            ? { ...obligation, executorId: 'foreign.executor' }
+            : obligation,
+        ),
+      };
+    },
+  };
+  const controller = boundaryController(altered, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    const before = {
+      request: database.query('SELECT * FROM activation_request').all(),
+      obligations: database.query('SELECT * FROM activation_obligation ORDER BY rowid').all(),
+      registration: database.query('SELECT * FROM activation_review_attempt').all(),
+      dispatch: database.query('SELECT * FROM activation_review_dispatch').all(),
+    };
+    expect(() =>
+      controller.reserveReviewDispatch(lease, {
+        reviewId: 'review.primary',
+        attempt: 0,
+        invocationId: 'invocation.primary',
+        deadlineAt: 1200,
+        maxDispatchAttempts: 3,
+      }),
+    ).toThrow('review dispatch frozen pair differs from authority');
+    expect({
+      request: database.query('SELECT * FROM activation_request').all(),
+      obligations: database.query('SELECT * FROM activation_obligation ORDER BY rowid').all(),
+      registration: database.query('SELECT * FROM activation_review_attempt').all(),
+      dispatch: database.query('SELECT * FROM activation_review_dispatch').all(),
+    }).toEqual(before);
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('dispatch refuses a changed persisted obligation outside the frozen plan', () => {
+  const source = dispatchFixture();
+  const controller = boundaryController(source, () => 1000);
+  const database = new Database(source.databasePath);
+  try {
+    const request = controller.observe(source.candidate);
+    const lease = controller.claim(request.requestIdentity, 'worker.first', 100);
+    controller.beginEvaluation(lease);
+    database
+      .query("UPDATE activation_obligation SET obligation_identity = ? WHERE phase = 'cold'")
+      .run('7'.repeat(64));
+    const before = {
+      request: database.query('SELECT * FROM activation_request').all(),
+      obligations: database.query('SELECT * FROM activation_obligation ORDER BY rowid').all(),
+      registration: database.query('SELECT * FROM activation_review_attempt').all(),
+      dispatch: database.query('SELECT * FROM activation_review_dispatch').all(),
+    };
+    expect(() =>
+      controller.reserveReviewDispatch(lease, {
+        reviewId: 'review.primary',
+        attempt: 0,
+        invocationId: 'invocation.primary',
+        deadlineAt: 1200,
+        maxDispatchAttempts: 3,
+      }),
+    ).toThrow('review dispatch differs from frozen evaluation plan');
+    expect({
+      request: database.query('SELECT * FROM activation_request').all(),
+      obligations: database.query('SELECT * FROM activation_obligation ORDER BY rowid').all(),
+      registration: database.query('SELECT * FROM activation_review_attempt').all(),
+      dispatch: database.query('SELECT * FROM activation_review_dispatch').all(),
+    }).toEqual(before);
+  } finally {
+    database.close();
+    controller.close();
+  }
+});
+
+test('review dispatch reservation replays exactly and rejects changed immutable bytes or caller target', () => {
+  const source = dispatchFixture();
   const controller = boundaryController(source, () => 1000);
   const database = new Database(source.databasePath);
   try {
@@ -1320,7 +1461,7 @@ test('review dispatch reservation replays exactly and rejects changed immutable 
 });
 
 test('review dispatch refuses altered persisted target and payload bytes on exact replay', () => {
-  const source = fixture();
+  const source = dispatchFixture();
   const controller = boundaryController(source, () => 1000);
   const database = new Database(source.databasePath);
   try {
@@ -1360,8 +1501,8 @@ test('review dispatch refuses altered persisted target and payload bytes on exac
   }
 });
 
-test('review dispatch refuses elapsed deadline, changed frozen executor and authority row', () => {
-  const source = fixture();
+test('review dispatch refuses elapsed deadline, changed persisted plan and authority row', () => {
+  const source = dispatchFixture();
   const controller = boundaryController(source, () => 1000);
   const database = new Database(source.databasePath);
   try {
@@ -1382,7 +1523,7 @@ test('review dispatch refuses elapsed deadline, changed frozen executor and auth
       .query("UPDATE activation_obligation SET executor_id = 'foreign' WHERE phase = 'cold'")
       .run();
     expect(() => controller.reserveReviewDispatch(lease, input)).toThrow(
-      'review dispatch frozen pair differs from authority',
+      'review dispatch differs from frozen evaluation plan',
     );
     database
       .query(
@@ -1404,7 +1545,7 @@ test('review dispatch refuses elapsed deadline, changed frozen executor and auth
 });
 
 test('review dispatch refuses a stale durable subject generation before registration', () => {
-  const source = fixture();
+  const source = dispatchFixture();
   const controller = boundaryController(source, () => 1000);
   const database = new Database(source.databasePath);
   try {
@@ -1432,7 +1573,7 @@ test('review dispatch refuses a stale durable subject generation before registra
 });
 
 test('review dispatch refuses missing frozen plan and absent subject generation without partial registration', () => {
-  const source = fixture();
+  const source = dispatchFixture();
   const controller = boundaryController(source, () => 1000);
   const database = new Database(source.databasePath);
   try {
@@ -1471,7 +1612,7 @@ test('review dispatch refuses missing frozen plan and absent subject generation 
 });
 
 test('dispatch insertion failure rolls back its invocation registration', () => {
-  const source = fixture();
+  const source = dispatchFixture();
   const controller = boundaryController(source, () => 1000);
   const database = new Database(source.databasePath);
   try {
@@ -1498,7 +1639,7 @@ test('dispatch insertion failure rolls back its invocation registration', () => 
 });
 
 test('dispatch target survives reopen and changed pinned bootstrap cannot rebind it', () => {
-  const source = fixture();
+  const source = dispatchFixture();
   const first = boundaryController(source, () => 1000);
   const request = first.observe(source.candidate);
   const lease = first.claim(request.requestIdentity, 'worker.first', 100);

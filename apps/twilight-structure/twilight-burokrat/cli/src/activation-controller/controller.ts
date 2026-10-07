@@ -99,6 +99,47 @@ const StoredObligation = type({
   receipt_identity: type(/^[0-9a-f]{64}$/).or('null'),
 }).onUndeclaredKey('reject');
 
+function reconstructFrozenPlan(
+  request: ActivationRequest,
+  rows: readonly (typeof StoredObligation.infer)[],
+): EvaluationPlan {
+  const obligations = rows.map((entry) => {
+    const common = {
+      identity: entry.obligation_identity,
+      executorId: entry.executor_id,
+      protocolIdentity: entry.protocol_identity,
+    };
+    if (entry.kind === 'check') {
+      // Proof: a check row with an audit phase otherwise reconstructs as a valid
+      // check and can preserve the frozen-plan digest despite malformed storage.
+      if (entry.command_identity === null || entry.phase !== null) {
+        throw new Error('stored check obligation malformed');
+      }
+      return parseOrThrow(EvaluationObligation, {
+        ...common,
+        kind: 'check',
+        commandIdentity: entry.command_identity,
+      });
+    }
+    // Proof: an audit row with a command identity otherwise reconstructs as a
+    // valid audit and can preserve the frozen-plan digest despite malformed storage.
+    if (entry.command_identity !== null || entry.phase === null) {
+      throw new Error('stored audit obligation malformed');
+    }
+    return parseOrThrow(EvaluationObligation, {
+      ...common,
+      kind: 'audit',
+      reviewId: entry.review_id,
+      phase: entry.phase,
+    });
+  });
+  return parseOrThrow(EvaluationPlan, {
+    requestIdentity: request.requestIdentity,
+    policyIdentity: request.policyIdentity,
+    obligations,
+  });
+}
+
 const StoredAttempt = type({
   request_identity: /^[0-9a-f]{64}$/,
   obligation_identity: /^[0-9a-f]{64}$/,
@@ -1229,6 +1270,17 @@ export class ActivationController {
       if (row?.evaluation_plan_identity == null)
         throw new Error('review dispatch evaluation plan absent');
       const request = storedRequest(row).request;
+      const frozenRows: unknown[] = this.#database
+        .query('SELECT * FROM activation_obligation WHERE request_identity = ? ORDER BY rowid')
+        .all(request.requestIdentity);
+      const frozenObligations = frozenRows.map((entry) => parseOrThrow(StoredObligation, entry));
+      // Proof: omitting this persisted-plan join reserved an invocation after a cold
+      // obligation identity changed while the original plan digest remained stored.
+      if (
+        row.evaluation_plan_identity !==
+        hashCanonical(reconstructFrozenPlan(request, frozenObligations))
+      )
+        throw new Error('review dispatch differs from frozen evaluation plan');
       const subject: unknown = this.#database
         .query(
           'SELECT high_water_generation FROM activation_subject WHERE repository_id = ? AND subject_key = ?',
@@ -1252,12 +1304,9 @@ export class ActivationController {
       const now = nowFrom(this.options.clock);
       // Proof: omission reserved an already elapsed deadline.
       if (reservation.deadlineAt <= now) throw new Error('review dispatch deadline elapsed');
-      const rawPhases: unknown[] = this.#database
-        .query(
-          "SELECT * FROM activation_obligation WHERE request_identity = ? AND review_id = ? AND kind = 'audit'",
-        )
-        .all(request.requestIdentity, reservation.reviewId);
-      const phases = rawPhases.map((entry) => parseOrThrow(StoredObligation, entry));
+      const phases = frozenObligations.filter(
+        (entry) => entry.kind === 'audit' && entry.review_id === reservation.reviewId,
+      );
       const cold = phases.find((phase) => phase.phase === 'cold');
       const informed = phases.find((phase) => phase.phase === 'informed');
       // Proof: omission reserved a cold phase with a foreign executor despite the pinned target.
@@ -1271,6 +1320,13 @@ export class ActivationController {
         informed.executor_id !== bootstrap.reviewer.executorId
       )
         throw new Error('review dispatch frozen pair differs from authority');
+      // Proof: omission reserved a valid frozen pair whose protocol could never
+      // authenticate against the pinned reviewer protocol in the mounted owner.
+      if (
+        cold.protocol_identity !== bootstrap.reviewer.protocolIdentity ||
+        informed.protocol_identity !== bootstrap.reviewer.protocolIdentity
+      )
+        throw new Error('review dispatch protocol differs from pinned reviewer');
       const target = {
         kind: 'reviewer' as const,
         providerId: bootstrap.reviewer.providerId,
@@ -1725,46 +1781,10 @@ export class ActivationController {
         .query('SELECT * FROM activation_obligation WHERE request_identity = ? ORDER BY rowid')
         .all(request.requestIdentity);
       const selected = selectedRows.map((entry) => parseOrThrow(StoredObligation, entry));
-      const frozenObligations = selected.map((entry) => {
-        const common = {
-          identity: entry.obligation_identity,
-          executorId: entry.executor_id,
-          protocolIdentity: entry.protocol_identity,
-        };
-        if (entry.kind === 'check') {
-          // Proof: a check row with an audit phase otherwise reconstructs as a valid
-          // check and can preserve the frozen-plan digest despite malformed storage.
-          if (entry.command_identity === null || entry.phase !== null) {
-            throw new Error('stored check obligation malformed');
-          }
-          return parseOrThrow(EvaluationObligation, {
-            ...common,
-            kind: 'check',
-            commandIdentity: entry.command_identity,
-          });
-        }
-        // Proof: an audit row with a command identity otherwise reconstructs as a
-        // valid audit and can preserve the frozen-plan digest despite malformed storage.
-        if (entry.command_identity !== null || entry.phase === null) {
-          throw new Error('stored audit obligation malformed');
-        }
-        return parseOrThrow(EvaluationObligation, {
-          ...common,
-          kind: 'audit',
-          reviewId: entry.review_id,
-          phase: entry.phase,
-        });
-      });
+      const frozenPlan = reconstructFrozenPlan(request, selected);
       // Proof: omitting the frozen-plan join let one surviving passed obligation verify
       // after the other required row had disappeared from the durable plan.
-      if (
-        row.evaluation_plan_identity !==
-        hashCanonical({
-          requestIdentity: request.requestIdentity,
-          policyIdentity: request.policyIdentity,
-          obligations: frozenObligations,
-        })
-      ) {
+      if (row.evaluation_plan_identity !== hashCanonical(frozenPlan)) {
         throw new Error('authenticated receipts differ from frozen evaluation plan');
       }
       for (const entry of selected) {

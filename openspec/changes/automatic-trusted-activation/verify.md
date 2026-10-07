@@ -795,3 +795,50 @@ repository's pinned command; no validation result is inferred from that
 unqualified exit. Final-byte changed-path Prettier and `git diff --check`
 passed (`/tmp/activation-dispatch-final-format2.log`); normal-hook result is
 recorded with the local commit checkpoint.
+
+### Reservation binding correction after exact `020d97a7` review (2026-10-07)
+
+Independent exact-SHA review passed the prior 153/153, 594-assertion suite
+(`/tmp/activation-020d97-astra-four.log`) but reproduced two functional
+omissions (`/tmp/activation-020d97-astra-reservation-bindings.log`). The
+first positive fixture had persisted audit phase protocol `e×64` while the
+pinned reviewer protocol was `a×64`; reservation wrote an `a×64` payload that
+could never authenticate those frozen obligations. The second changed a
+persisted cold obligation identity to `7×64` after plan freeze; a non-null
+plan hash alone let reservation proceed. The mounted pre-fix cases both failed
+at intended no-reservation assertions, 0/2
+(`/tmp/activation-dispatch-p2-baseline-red.log`).
+
+The corrected owner reconstructs the complete persisted obligation set in
+the same strict shape and row order used by receipt verification, then checks
+its canonical hash against the committed plan identity. It also joins each
+frozen phase protocol and executor to the pinned reviewer before reservation.
+The selector is not rerun. The valid dispatch fixture now freezes the pinned
+protocol for both phases; the hash-consistent foreign-protocol fixture remains
+a distinct refusal. Both refusal tests compare complete request, obligation,
+registration and dispatch rows before/after. The first corrected mounted run
+passed 3/3, 9 assertions (`/tmp/activation-dispatch-p2-first-green.log`).
+
+| Independent removed join   | Mounted RED                                                                                                         | Restored GREEN                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Persisted full-plan digest | Changed cold identity still reserved, 0/1 (`/tmp/activation-dispatch-p2-frozen-plan-red.log`).                      | 1/1 (`/tmp/activation-dispatch-p2-frozen-plan-green.log`).     |
+| Pinned review protocol     | Hash-consistent foreign-protocol pair still reserved, 0/1 (`/tmp/activation-dispatch-p2-pinned-protocol-red.log`).  | 1/1 (`/tmp/activation-dispatch-p2-pinned-protocol-green.log`). |
+| Pinned review executor     | Hash-consistent foreign-executor phase still reserved, 0/1 (`/tmp/activation-dispatch-p2-pinned-executor-red.log`). | 1/1 (`/tmp/activation-dispatch-p2-pinned-executor-green.log`). |
+
+All three source mutations were restored to historical SHA-256
+`f351af4200546258a047dec73f363ce50c37d652b445cc9831e5ffa4f638ae55`
+before later formatting and ledger edits. The former changed-executor fixture
+from the first checkpoint now reaches the earlier full-plan guard, so it is
+attributed to that guard; the new hash-consistent executor fixture isolates
+the pinned-executor predicate. No external reviewer, send, retry or response
+reconciliation is claimed. The 1.2/3.3 tasks stay open.
+
+On the corrected formatted bytes, the exact four-file Bun command passed
+156/156, 600 assertions, exit 0 (`/tmp/activation-dispatch-p2-final-four.log`).
+Declared Nx `twilight-burokrat:lint:source`, `:typecheck` and `:build` each
+printed `Successfully ran target`, exit 0
+(`/tmp/activation-dispatch-p2-final-{lint,type,build}.log`). Pinned OpenSpec
+strict passed 1/1 and all passed 143/143, zero failures
+(`/tmp/activation-dispatch-p2-final-{strict,all}.json`); changed-path
+Prettier and `git diff --check` passed. CI, canonical host gate, live provider,
+send/reconciliation and trusted activation were not run for this local slice.
