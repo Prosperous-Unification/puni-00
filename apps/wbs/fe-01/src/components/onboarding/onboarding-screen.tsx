@@ -1,0 +1,300 @@
+import {
+  type ClientReply,
+  createOnboardingOrganization,
+  readOnboarding,
+  submitOnboardingJoinRequest,
+} from '@wbs/contracts';
+import { useCallback, useEffect, useState } from 'react';
+
+import { browserClient, failureMessage, unreachable } from '@/lib/http';
+
+import { clearLinkOutcome, readLinkOutcome } from './auth0-link';
+import { EmailVerification } from './email-verification';
+import { InvitationAcceptance } from './invitation-acceptance';
+
+const onboarding = browserClient([
+  readOnboarding,
+  createOnboardingOrganization,
+  submitOnboardingJoinRequest,
+]);
+type Discovery = Extract<ClientReply<typeof readOnboarding>, { kind: 'success' }>['body'];
+type View =
+  | { kind: 'loading' }
+  | { kind: 'inactive' }
+  | { kind: 'failure'; message: string }
+  | { kind: 'fault'; error: Error }
+  | { kind: 'ready'; state: Discovery };
+
+/** Signed-in routing is inert until the activation marker admits onboarding. */
+export function OnboardingScreen({
+  children,
+  onSignOut,
+}: {
+  children: React.ReactNode;
+  onSignOut: () => void;
+}): React.JSX.Element {
+  const [view, setView] = useState<View>({ kind: 'loading' });
+  // Read in an initializer and cleared in an effect, as `AuthForm` does with
+  // its SSO error, so StrictMode's second run neither mutates nor erases it.
+  const [linkOutcome] = useState(readLinkOutcome);
+  useEffect(() => {
+    // Proof: 2026-09-29, skipping this made the three `renders … and strips the
+    // parameter` cases keep `?auth_link=` in the address.
+    clearLinkOutcome();
+  }, []);
+  const [name, setName] = useState('');
+  const [sending, setSending] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const refresh = useCallback(async () => {
+    const reply = await onboarding.getApiOnboarding({});
+    switch (reply.kind) {
+      case 'success':
+        setView({ kind: 'ready', state: reply.body });
+        return;
+      case 'failure':
+        setView({ kind: 'failure', message: failureMessage(reply.failure) });
+        return;
+      case 'refusal':
+        switch (reply.body.error) {
+          case 'onboarding_inactive':
+            setView({ kind: 'inactive' });
+            return;
+          case 'unauthenticated':
+            setView({ kind: 'failure', message: 'Your session ended. Sign in again.' });
+            return;
+          case 'insufficient_scope':
+            setView({ kind: 'failure', message: WRITE_ACCESS_REQUIRED });
+            return;
+          case 'invalid_query':
+          case 'invalid_body':
+          case 'invalid_json':
+            setView({
+              kind: 'failure',
+              message: 'Could not check onboarding. Reload and try again.',
+            });
+            return;
+          default:
+            return unreachable(reply.body);
+        }
+      default:
+        return unreachable(reply);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh().catch((cause: unknown) => {
+      setView({ kind: 'fault', error: new Error('Unexpected onboarding failure', { cause }) });
+    });
+  }, [refresh]);
+
+  async function createOrganization(event: React.SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSending(true);
+    setMessage('');
+    try {
+      const reply = await onboarding.postApiOnboardingOrganizations({ body: { name } });
+      switch (reply.kind) {
+        case 'success':
+          await refresh();
+          return;
+        case 'failure':
+          setMessage(failureMessage(reply.failure));
+          return;
+        case 'refusal':
+          // Proof: 2026-09-28, dropping this message failed `renders a
+          // creation refusal while keeping the form usable` in Vitest.
+          setMessage(createRefusal(reply.body.error));
+          return;
+        default:
+          return unreachable(reply);
+      }
+    } catch (cause) {
+      setView({ kind: 'fault', error: new Error('Unexpected onboarding failure', { cause }) });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function requestJoin(organizationId: string) {
+    setSending(true);
+    setMessage('');
+    try {
+      const reply = await onboarding.postApiOnboardingJoinRequests({ body: { organizationId } });
+      switch (reply.kind) {
+        case 'success':
+          await refresh();
+          return;
+        case 'failure':
+          setMessage(failureMessage(reply.failure));
+          return;
+        case 'refusal':
+          setMessage(joinRefusal(reply.body.error));
+          return;
+        default:
+          return unreachable(reply);
+      }
+    } catch (cause) {
+      setView({ kind: 'fault', error: new Error('Unexpected onboarding failure', { cause }) });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const notice = linkOutcome === '' ? null : <p role="status">{linkOutcome}</p>;
+  if (view.kind === 'loading')
+    return (
+      <>
+        {notice}
+        <main className="p-8">Loading onboarding…</main>
+      </>
+    );
+  if (view.kind === 'fault') throw view.error;
+  if (view.kind === 'inactive')
+    return (
+      <>
+        {notice}
+        {children}
+      </>
+    );
+  if (view.kind === 'failure')
+    return (
+      <>
+        {notice}
+        <main className="p-8" role="alert">
+          {view.message}
+        </main>
+      </>
+    );
+  const state = view.state;
+  return (
+    <main className="bg-background text-foreground mx-auto max-w-xl p-8 font-sans">
+      {notice}
+      <h1 className="mb-4 text-2xl font-semibold">Join your organization</h1>
+      <button type="button" onClick={onSignOut}>
+        Sign out
+      </button>
+      {state.state === 'verification_required' && <EmailVerification onVerified={refresh} />}
+      {state.state === 'selection_required' && (
+        <section>
+          <p>Your memberships are ready for organization selection.</p>
+          <ul>
+            {state.memberships.map((membership) => (
+              <li key={membership.organizationId}>{membership.name}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {state.state === 'create_organization' && (
+        <form onSubmit={(event) => void createOrganization(event)}>
+          <label htmlFor="organization-name">Organization name</label>
+          <input
+            id="organization-name"
+            className="border p-2"
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+            }}
+            required
+            maxLength={120}
+          />
+          <button type="submit" disabled={sending}>
+            Create organization
+          </button>
+        </form>
+      )}
+      {state.state === 'join_organization' && (
+        <section>
+          <p>Your domain belongs to {state.organization.name}.</p>
+          {state.pending ? (
+            <p>Your request to join is pending.</p>
+          ) : (
+            <button
+              type="button"
+              disabled={sending}
+              onClick={() => {
+                void requestJoin(state.organization.id);
+              }}
+            >
+              Request to join
+            </button>
+          )}
+        </section>
+      )}
+      {message !== '' && <p role="alert">{message}</p>}
+      {state.state !== 'verification_required' && <InvitationAcceptance onAccepted={refresh} />}
+    </main>
+  );
+}
+
+/**
+ * A read-only or delegated sign-in cannot onboard: onboarding acts only for a
+ * session that may write.
+ *
+ * Proof: 2026-09-28, answering the generic retry copy for `insufficient_scope`
+ * made `renders a write-scope refusal on creation` fail in Vitest.
+ */
+const WRITE_ACCESS_REQUIRED = 'This sign-in cannot set up an organization. Sign in to WBS again.';
+
+/** Every modeled create refusal receives visible copy. */
+function createRefusal(
+  error: Extract<
+    ClientReply<typeof createOnboardingOrganization>,
+    { kind: 'refusal' }
+  >['body']['error'],
+): string {
+  switch (error) {
+    case 'onboarding_inactive':
+      return 'Onboarding is not active yet.';
+    case 'email_verification_required':
+      return 'Verify your email address to continue.';
+    case 'already_member':
+      return 'You already belong to an organization.';
+    case 'domain_matched':
+      return 'Your domain belongs to an organization. Request to join it.';
+    case 'invalid_body':
+      return 'Enter a valid organization name.';
+    case 'invalid_json':
+    case 'invalid_query':
+    case 'invalid_origin':
+      return 'Could not create the organization. Reload and try again.';
+    case 'unauthenticated':
+      return 'Your session ended. Sign in again.';
+    case 'insufficient_scope':
+      return WRITE_ACCESS_REQUIRED;
+    default:
+      return unreachable(error);
+  }
+}
+
+/** Every modeled submission refusal receives visible copy. */
+function joinRefusal(
+  error: Extract<
+    ClientReply<typeof submitOnboardingJoinRequest>,
+    { kind: 'refusal' }
+  >['body']['error'],
+): string {
+  switch (error) {
+    case 'onboarding_inactive':
+      return 'Onboarding is not active yet.';
+    case 'email_verification_required':
+      return 'Verify your email address to continue.';
+    case 'already_member':
+      return 'You already belong to an organization.';
+    case 'join_request_pending':
+      return 'Your request to join is pending.';
+    case 'not_found':
+      return 'This organization no longer matches your email domain.';
+    case 'invalid_body':
+    case 'invalid_json':
+    case 'invalid_query':
+    case 'invalid_origin':
+      return 'Could not send the request. Reload and try again.';
+    case 'unauthenticated':
+      return 'Your session ended. Sign in again.';
+    case 'insufficient_scope':
+      return WRITE_ACCESS_REQUIRED;
+    default:
+      return unreachable(error);
+  }
+}

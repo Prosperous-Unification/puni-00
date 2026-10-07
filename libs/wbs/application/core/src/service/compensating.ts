@@ -1,4 +1,4 @@
-import type { MeasureMetric } from '@wbs/domain';
+import type { AllowancePercent, MeasureMetric } from '@wbs/domain';
 import type { StepState } from '@wbs/domain';
 
 import type { ActualKey, StoredActual } from '../ports/actual-store';
@@ -8,6 +8,7 @@ import type { StoredEstimate } from '../ports/estimate-store';
 import type { MeasureKey, StoredMeasure } from '../ports/measure-store';
 import type { ProgressKey, StoredProgress } from '../ports/progress-store';
 import type { EstimateKey } from '../ports/subtree-store';
+import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { FrozenNumber, Reparented, WorkItem, WorkItemPatch } from '../ports/work-item-store';
 import type { Days } from './roll-up';
 
@@ -68,6 +69,9 @@ export type CompensatingCommand =
   | { do: 'assign'; workItemId: string; stepId: string; personId: string | null }
   | { do: 'add_dependency'; successorId: string; predecessorId: string }
   | { do: 'remove_dependency'; successorId: string; predecessorId: string }
+  | { do: 'add_typed_dependency'; dependency: StoredTypedDependency }
+  | { do: 'remove_typed_dependency'; dependency: StoredTypedDependency }
+  | { do: 'update_typed_dependency'; from: StoredTypedDependency; to: StoredTypedDependency }
   | { do: 'move'; workItemId: string; parentId: string | null; afterId: string | null }
   /**
    * One press of `Arrange by schedule`: every work item of every sibling group
@@ -87,6 +91,15 @@ export type CompensatingCommand =
    */
   | { do: 'set_positions'; placements: Reparented[]; moved: string[] }
   | { do: 'set_frozen'; updates: FrozenNumber[] }
+  /**
+   * A project step's allowance, set to `allowancePercent`.
+   *
+   * Its precondition is the step's **allowance revision**, held in
+   * {@link Preconditions} under {@link stepRevisionKey}: an undo after
+   * somebody else's edit — even one that put the value back — or after the
+   * step's removal is refused as stale rather than overwriting newer work.
+   */
+  | { do: 'set_step_allowance'; stepId: string; allowancePercent: AllowancePercent }
   | DeleteSubtree
   | RestoreSubtree
   | Batch;
@@ -179,7 +192,8 @@ export interface RestoreSubtree {
    * New journals carry the whole team set; old journals omit it and restore
    * the singleton projected in `serviceTeamId`.
    */
-  rows: (WorkItem & { teamIds?: readonly string[] })[];
+  /** Rows as {@link SubtreeCopy} inserts them, their team and type links included. */
+  rows: (WorkItem & { teamIds?: readonly string[]; typeIds?: readonly string[] })[];
   /** Where the root sat among its siblings, which is how the restore finds its slot again. */
   rootPosition: number;
   /** Rows to put back under the restored branch, at the positions they had before. */
@@ -261,8 +275,26 @@ export interface JournalPayload {
   forward: CompensatingCommand;
 }
 
-/** `{workItemId: revision}`, for one moment in one entity's life. */
+/**
+ * `{workItemId: revision}`, for one moment in one entity's life — and, under
+ * {@link stepRevisionKey}, a step's allowance revision.
+ */
 export type Revisions = Record<string, number>;
+
+const STEP_REVISION_PREFIX = 'step:';
+
+/**
+ * The {@link Revisions} key a step's allowance revision is held under.
+ * Work item ids are UUIDs, so the prefix cannot collide with one.
+ */
+export function stepRevisionKey(stepId: string): string {
+  return `${STEP_REVISION_PREFIX}${stepId}`;
+}
+
+/** The step a {@link Revisions} key names, or `null` for a work item's key. */
+export function stepOfRevisionKey(key: string): string | null {
+  return key.startsWith(STEP_REVISION_PREFIX) ? key.slice(STEP_REVISION_PREFIX.length) : null;
+}
 
 /**
  * What an entry checks before it applies, and what lets the entry below it
@@ -304,8 +336,12 @@ const COMMANDS = [
   'assign',
   'add_dependency',
   'remove_dependency',
+  'add_typed_dependency',
+  'remove_typed_dependency',
+  'update_typed_dependency',
   'move',
   'set_frozen',
+  'set_step_allowance',
   'set_positions',
   'delete_subtree',
   'restore_subtree',
@@ -399,10 +435,24 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'add_dependency':
     case 'remove_dependency':
       return [command.successorId, command.predecessorId];
+    case 'add_typed_dependency':
+    case 'remove_typed_dependency':
+      return [command.dependency.predecessor.workItemId, command.dependency.successor.workItemId];
+    case 'update_typed_dependency':
+      return [
+        ...new Set([
+          command.from.predecessor.workItemId,
+          command.from.successor.workItemId,
+          command.to.predecessor.workItemId,
+          command.to.successor.workItemId,
+        ]),
+      ];
     case 'move':
       return [command.workItemId];
     case 'set_frozen':
       return command.updates.map((each) => each.id);
+    case 'set_step_allowance':
+      return [stepRevisionKey(command.stepId)];
     case 'set_positions':
       // The rows whose place changed, never every placement: the respaced ones
       // kept their place, took no revision, and must not have a peer's undo
@@ -431,6 +481,147 @@ export function touchedBy(command: CompensatingCommand): string[] {
       // Every entity any step wrote to, once: a step left out here is a row an
       // undo would overwrite without checking its revision.
       return [...new Set(command.steps.flatMap(touchedBy))];
+  }
+}
+
+/**
+ * Every identity one compensating command names, nested batches included:
+ * the rows it writes or places against, the projects its restored rows and
+ * dependencies claim, the steps its per-step rows sit on, and the directory
+ * entries its labels, links and assignments name.
+ *
+ * Not {@link touchedBy}, which is the revision-tracked set and leaves out
+ * restored satellites, placement siblings and every directory id: an
+ * authorization check needs the whole write set.
+ */
+export interface CompensatingReferences {
+  workItems: string[];
+  projects: string[];
+  steps: string[];
+  people: string[];
+  teams: string[];
+  services: string[];
+  tags: string[];
+  types: string[];
+  systems: string[];
+}
+
+/** {@link CompensatingReferences} of one command. */
+export function referencesOf(command: CompensatingCommand): CompensatingReferences {
+  const found: CompensatingReferences = {
+    workItems: [],
+    projects: [],
+    steps: [],
+    people: [],
+    teams: [],
+    services: [],
+    tags: [],
+    types: [],
+    systems: [],
+  };
+  collectReferences(command, found);
+  return found;
+}
+
+function collectReferences(command: CompensatingCommand, found: CompensatingReferences): void {
+  const rows = (...ids: (string | null)[]): void => {
+    for (const id of ids) if (id !== null) found.workItems.push(id);
+  };
+  const onStep = (each: { workItemId: string; stepId: string }): void => {
+    rows(each.workItemId);
+    found.steps.push(each.stepId);
+  };
+  const placed = (each: Reparented): void => {
+    rows(each.id, each.parentId);
+  };
+  switch (command.do) {
+    case 'patch': {
+      rows(command.workItemId);
+      const { patch } = command;
+      if (patch.serviceTeamId !== undefined && patch.serviceTeamId !== null) {
+        found.teams.push(patch.serviceTeamId);
+      }
+      found.teams.push(...(patch.teamIds ?? []));
+      found.services.push(...(patch.serviceIds ?? []));
+      found.tags.push(...(patch.tagIds ?? []));
+      found.types.push(...(patch.typeIds ?? []));
+      found.systems.push(...(patch.externalRefs ?? []).map((each) => each.systemId));
+      return;
+    }
+    case 'set_estimate':
+    case 'clear_estimate':
+    case 'set_actual':
+    case 'clear_actual':
+    case 'set_measure':
+    case 'clear_measure':
+    case 'set_progress':
+    case 'clear_progress':
+      onStep(command);
+      return;
+    case 'assign':
+      onStep(command);
+      if (command.personId !== null) found.people.push(command.personId);
+      return;
+    case 'add_dependency':
+    case 'remove_dependency':
+      rows(command.successorId, command.predecessorId);
+      return;
+    case 'move':
+      rows(command.workItemId, command.parentId, command.afterId);
+      return;
+    case 'set_positions':
+      command.placements.forEach(placed);
+      rows(...command.moved);
+      return;
+    case 'set_frozen':
+      rows(...command.updates.map((each) => each.id));
+      return;
+    case 'delete_subtree':
+      rows(command.rootId, ...command.expectedSubtree, ...command.remove);
+      command.reparented.forEach(placed);
+      [
+        ...command.setEstimates,
+        ...command.setActuals,
+        ...command.setProgress,
+        ...command.setMeasures,
+      ].forEach(onStep);
+      return;
+    case 'restore_subtree':
+      for (const row of command.rows) {
+        rows(row.id, row.parentId);
+        found.projects.push(row.projectId);
+        if (row.serviceTeamId !== null) found.teams.push(row.serviceTeamId);
+        if (row.serviceId !== null) found.services.push(row.serviceId);
+        found.teams.push(...(row.teamIds ?? []));
+        // Proof: dropping this line made `… a restored row carrying a foreign
+        // type, cleared again in the same replay` in
+        // `command-organization.controller.db.test.ts` answer 200 instead of
+        // 404; watched 2026-09-27.
+        found.types.push(...(row.typeIds ?? []));
+      }
+      command.reparented.forEach(placed);
+      [
+        ...command.estimates,
+        ...command.actuals,
+        ...command.progress,
+        ...command.measures,
+        ...command.removedEstimates,
+        ...command.removedActuals,
+        ...command.removedProgress,
+        ...command.removedMeasures,
+      ].forEach(onStep);
+      for (const assignment of command.assignments) {
+        onStep(assignment);
+        found.people.push(assignment.personId);
+      }
+      for (const edge of [...command.internalDependencies, ...command.externalDependencies]) {
+        rows(edge.predecessorId, edge.successorId);
+        found.projects.push(edge.projectId);
+      }
+      return;
+    case 'batch':
+      for (const step of command.steps) collectReferences(step, found);
+      return;
   }
 }
 
@@ -473,6 +664,11 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
     case 'add_dependency':
     case 'remove_dependency':
       return { workItemId: command.successorId, stepId: null };
+    case 'add_typed_dependency':
+    case 'remove_typed_dependency':
+      return { workItemId: command.dependency.successor.workItemId, stepId: null };
+    case 'update_typed_dependency':
+      return { workItemId: command.to.successor.workItemId, stepId: null };
     case 'delete_subtree':
       return { workItemId: command.rootId, stepId: null };
     case 'restore_subtree':
@@ -480,6 +676,10 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
       // is refused by `applyRestore` before it can be journalled, and would be a
       // restore of nothing.
       return { workItemId: command.rows.at(0)?.id ?? null, stepId: null };
+    case 'set_step_allowance':
+      // A project setting aimed at one step: an item's history does not claim
+      // it, and a step's history does.
+      return { workItemId: null, stepId: command.stepId };
     case 'set_frozen':
       // The whole plan, even when one row's number moved: freezing is a project
       // act and the label says so. Naming `updates[0]` would make a plan-wide

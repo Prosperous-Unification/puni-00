@@ -1,6 +1,6 @@
 # Work item
 
-<!-- module-index {"schemaVersion":1,"moduleId":"module.application.work-item","memberships":[{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"step-addresses.test.ts"},{"kind":"path","path":"step-addresses.ts"},{"kind":"path","path":"tsconfig.json"},{"kind":"path","path":"work-item.resource.test.ts"},{"kind":"path","path":"work-item.resource.ts"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading compose.ts, index.ts and the compatibility shim."},{"section":"invariants","reason":"The one-stamp-per-act and stale-undo rules are documented on WorkItemService; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/work-item.service.ts"}],"knowledgeLimit":"Only the composition root, the core barrel and the compatibility shim are declared; the project and work-item routes, Plan commands, Plan import, Saved plans, the core test harness and the be-01 shim, controller and database tests reach this module through the shim or the barrel and are not tracked here."}} -->
+<!-- module-index {"schemaVersion":1,"moduleId":"module.application.work-item","memberships":[{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"step-addresses.test.ts"},{"kind":"path","path":"step-allowance.test.ts"},{"kind":"path","path":"step-addresses.ts"},{"kind":"path","path":"tsconfig.json"},{"kind":"path","path":"work-item.resource.test.ts"},{"kind":"path","path":"work-item.resource.ts"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every production reader a module-specifier scan found on 2026-09-29, when the compatibility shims were retired."},{"section":"invariants","reason":"The one-stamp-per-act and stale-undo rules are documented on WorkItemService; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/be-01/src/app.ts"},{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/http/project.routes.ts"},{"kind":"path","path":"libs/wbs/application/core/src/http/work-item.routes.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"},{"kind":"path","path":"libs/wbs/application/core/src/module/plan-import/plan-import.feature.ts"},{"kind":"path","path":"libs/wbs/application/core/src/module/saved-plans/saved-plan-schedule.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/dependency-graph.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/person-load.feature.ts"}],"knowledgeLimit":"The composition root, the core barrel, the project and work-item routes, Plan commands, Plan import, Saved plans, the dependency-graph guard, Person load and be-01's app are declared; the core test harness and fixtures, the organization harness and the be-01 controller and database tests are not tracked here."}} -->
 
 A sealed resource module installed per admitted scope: `servicesOver` in
 `libs/wbs/application/core/src/compose.ts` installs it once for the public graph and once for every
@@ -24,9 +24,13 @@ The applicable check is the `wbs-core:test` target declared in
 ## Consumers
 
 `libs/wbs/application/core/src/compose.ts` installs the module per supplied scope;
-`libs/wbs/application/core/src/service/work-item.service.ts` keeps the former path for delivery,
-Plan commands, Plan import, Saved plans, the test harness, `@wbs/core`'s barrel and be-01's
-deep-import shim.
+`libs/wbs/application/core/src/index.ts` re-exports `work-item.resource.ts` from the `@wbs/core`
+barrel; the project and work-item routes, Plan commands, Plan import, Saved plans,
+`libs/wbs/application/core/src/service/dependency-graph.ts`,
+`libs/wbs/application/core/src/service/person-load.feature.ts` and `apps/wbs/be-01/src/app.ts`
+import it directly. `apps/wbs/be-01/tools/capture-capacity-oracle.ts` is a frozen capture script,
+kept byte-for-byte as it ran; it still names the retired `service/work-item.service` path and is
+neither linted, typechecked nor run.
 
 ## Wiki registration
 

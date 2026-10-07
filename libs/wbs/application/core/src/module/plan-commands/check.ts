@@ -27,6 +27,11 @@ export function installPlanCommands(requirements: PlanCommandsRequirements): Pla
       announcements: DiBag.createProvider(() => requirements.announcements, {
         factoryReturnKind: 'sync-value',
       }),
+      // Proof: returning undefined made an installed scoped shared command
+      // reject before its capture could commit; watched in module.test.ts.
+      committedFanout: DiBag.createProvider(() => requirements.committedFanout, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
     .buildContainer();
   // Proof (2026-09-24): returning a structurally assignable `exposed` object with `bag` left the

@@ -13,6 +13,7 @@ import type {
   WorkItemStore,
   WriteStamp,
 } from '../../index';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { AvailableWorkItemService as WorkItemService } from '../../testing/available-work-item-service';
 import { type RecordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
@@ -53,7 +54,13 @@ beforeEach(async () => {
   // Kept whole: three cases below build a second service from these options with
   // one store swapped for a broken one, which is how they drive a failure the
   // real stores cannot produce.
-  serviceOptions = { clock: testClock, ...harness.stores, broadcast, scheduler: harness.scheduler };
+  serviceOptions = {
+    admission: CREATOR_ADMISSION,
+    clock: testClock,
+    ...harness.stores,
+    broadcast,
+    scheduler: harness.scheduler,
+  };
   service = harness.service;
   const project: Project = projectRow({
     id: crypto.randomUUID(),
@@ -62,7 +69,16 @@ beforeEach(async () => {
   stepId = crypto.randomUUID();
   await projects.create(
     project,
-    [{ id: stepId, projectId: project.id, name: 'Dev', position: 10, code: 'dev' }],
+    [
+      {
+        id: stepId,
+        projectId: project.id,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+      },
+    ],
     WROTE,
   );
   projectId = project.id;
@@ -129,6 +145,8 @@ async function fill(parentId: string, count: number): Promise<void> {
         deadline: null,
         factStart: null,
         factEnd: null,
+        readiness: null,
+        hold: null,
         serviceTeamId: null,
         serviceId: null,
         maxParallel: 1,
@@ -509,8 +527,22 @@ describe('the plan waits for the people in it', () => {
     await projects.create(
       project,
       [
-        { id: dev, projectId: project.id, name: 'Dev', position: 10, code: 'dev' },
-        { id: qa, projectId: project.id, name: 'QA', position: 20, code: 'qa' },
+        {
+          id: dev,
+          projectId: project.id,
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+        {
+          id: qa,
+          projectId: project.id,
+          name: 'QA',
+          position: 20,
+          code: 'qa',
+          allowancePercent: 0,
+        },
       ],
       WROTE,
     );
@@ -538,6 +570,28 @@ describe('the plan waits for the people in it', () => {
     expect(tree?.waitingForPerson).toBe(1);
   });
 
+  it('frees a held assignee for the rest of their queue (add-work-item-statuses)', async () => {
+    const first = await add('Strip');
+    const second = await add('Sand');
+    await service.setEstimate(first, OWNER, stepId, flat(3));
+    await service.setEstimate(second, OWNER, stepId, flat(2));
+    await directory.assign(first, stepId, 'ada', WROTE);
+    await directory.assign(second, stepId, 'ada', WROTE);
+    expect((await service.setStatus(first, OWNER, 'on_hold')).ok).toBe(true);
+
+    const tree = await service.tree(projectId);
+
+    // Proof: the hold reduction bypassed in `canonicalScheduleParts` made this
+    // fail with the held row still scheduled (`toBeNull`), Ada's queue intact;
+    // watched 2026-09-29.
+    expect(tree?.workItems.find((w) => w.id === first)?.schedule).toBeNull();
+    expect(tree?.workItems.find((w) => w.id === second)?.schedule).toMatchObject({
+      earliestStart: 0,
+      earliestFinish: 2,
+    });
+    expect(tree?.waitingForPerson).toBe(0);
+  });
+
   it('starts the work somebody said matters most, end to end', async () => {
     // The whole path: a PATCH writes the priority, `tree` reads the rows, the
     // engine priorities its queue by them and the dates come back the other way
@@ -550,7 +604,7 @@ describe('the plan waits for the people in it', () => {
     await directory.assign(second, stepId, 'ada', WROTE);
 
     const before = await service.tree(projectId);
-    expect(before?.workItems.find((w) => w.id === first)?.schedule.earliestStart).toBe(0);
+    expect(before?.workItems.find((w) => w.id === first)?.schedule?.earliestStart).toBe(0);
 
     await service.patch(second, OWNER, { priority: 1 });
     const after = await service.tree(projectId);
@@ -591,7 +645,7 @@ describe('the plan waits for the people in it', () => {
     // is what makes the second half of this say anything at all.
     await service.patch(other, OWNER, { priority: 2 });
     const after = await service.tree(projectId);
-    expect(after?.workItems.find((w) => w.id === other)?.schedule.earliestStart).toBe(0);
+    expect(after?.workItems.find((w) => w.id === other)?.schedule?.earliestStart).toBe(0);
 
     // And now the step outranks it — 1 against 2 — through its leaf, which is
     // the only thing in the queue.
@@ -602,7 +656,7 @@ describe('the plan waits for the people in it', () => {
       earliestStart: 0,
       earliestFinish: 3,
     });
-    expect(ranked?.workItems.find((w) => w.id === other)?.schedule.earliestStart).toBe(3);
+    expect(ranked?.workItems.find((w) => w.id === other)?.schedule?.earliestStart).toBe(3);
   });
 
   it('leaves them where they were when the two are different people', async () => {
@@ -615,7 +669,7 @@ describe('the plan waits for the people in it', () => {
 
     const tree = await service.tree(projectId);
 
-    expect(tree?.workItems.find((w) => w.id === second)?.schedule.earliestStart).toBe(0);
+    expect(tree?.workItems.find((w) => w.id === second)?.schedule?.earliestStart).toBe(0);
     expect(tree?.waitingForPerson).toBe(0);
   });
 
@@ -1351,8 +1405,8 @@ describe('the project’s dependency reach', () => {
         depReach: reach,
       }),
       [
-        { id: dev, projectId: id, name: 'Dev', position: 10, code: 'dev' },
-        { id: qa, projectId: id, name: 'QA', position: 20, code: 'qa' },
+        { id: dev, projectId: id, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 },
+        { id: qa, projectId: id, name: 'QA', position: 20, code: 'qa', allowancePercent: 0 },
       ],
       WROTE,
     );
@@ -1378,6 +1432,7 @@ describe('the project’s dependency reach', () => {
     const tree = await service.tree(projectId);
     const row = tree?.workItems.find((each) => each.id === workItemId);
     if (row === undefined) throw new Error(`${workItemId} is not in the payload`);
+    if (row.schedule === null) throw new Error(`${workItemId} is unscheduled`);
     return row.schedule.earliestStart;
   }
 
@@ -1446,8 +1501,8 @@ describe('the project’s estimate method', () => {
     // disagree with the dates printed next to it.
     const { row } = await estimated('pessimistic');
 
-    expect(row?.schedule.earliestFinish).toBe(10);
-    expect(row?.schedule.duration).toBe(10);
+    expect(row?.schedule?.earliestFinish).toBe(10);
+    expect(row?.schedule?.duration).toBe(10);
   });
 
   it('leaves a step nobody estimated absent rather than zero', async () => {
@@ -1489,8 +1544,8 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
         createdAt: 1,
       },
       [
-        { id: devId, projectId: id, name: 'Dev', position: 10, code: 'dev' },
-        { id: qaId, projectId: id, name: 'QA', position: 20, code: 'qa' },
+        { id: devId, projectId: id, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 },
+        { id: qaId, projectId: id, name: 'QA', position: 20, code: 'qa', allowancePercent: 0 },
       ],
       WROTE,
     );
@@ -1659,8 +1714,8 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
     const row = await rowOf(id, outcome.value.id);
 
     expect(row.finalTotal).toBe(2);
-    expect(row.schedule.duration).toBe(2);
-    expect(row.schedule.earliestFinish).toBe(2);
+    expect(row.schedule?.duration).toBe(2);
+    expect(row.schedule?.earliestFinish).toBe(2);
     // The Thursday and the Friday: one day for Dev, one for QA, where the
     // fractional arithmetic would have put both inside the Thursday.
     expect(row.dates).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-07' });
@@ -1955,8 +2010,8 @@ describe('the slices the schedule placed, on the wire', () => {
         ownerId: OWNER,
       }),
       [
-        { id: devId, projectId: id, name: 'Dev', position: 10, code: 'dev' },
-        { id: qaId, projectId: id, name: 'QA', position: 20, code: 'qa' },
+        { id: devId, projectId: id, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 },
+        { id: qaId, projectId: id, name: 'QA', position: 20, code: 'qa', allowancePercent: 0 },
       ],
       WROTE,
     );
@@ -2105,6 +2160,7 @@ describe('the slices the schedule placed, on the wire', () => {
       'startDate',
       'steps',
       'teamCapacities',
+      'typedDependencies',
       'waitingForCapacity',
       'waitingForPerson',
       'workItems',
@@ -2168,7 +2224,7 @@ describe('what a not-before reason does not do', () => {
     const before = await service.tree(projectId);
     // The floor is the thing being held still, so it has to be holding
     // something first: `010` starts on its date rather than on day zero.
-    expect(before?.workItems.find((row) => row.name === 'Strip')?.schedule.earliestStart).toBe(
+    expect(before?.workItems.find((row) => row.name === 'Strip')?.schedule?.earliestStart).toBe(
       workdaysBetween('2026-08-06', '2026-09-01'),
     );
 
@@ -2297,7 +2353,16 @@ describe('assignment projections isolate memory projects', () => {
     const other = projectRow({ id: 'other-assignment-project', ownerId: OWNER });
     await projects.create(
       other,
-      [{ id: 'other-step', projectId: other.id, name: 'Other', position: 10, code: 'other' }],
+      [
+        {
+          id: 'other-step',
+          projectId: other.id,
+          name: 'Other',
+          position: 10,
+          code: 'other',
+          allowancePercent: 0,
+        },
+      ],
       WROTE,
     );
     const second = await service.create(other.id, OWNER, {

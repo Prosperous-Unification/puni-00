@@ -115,8 +115,11 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    * `estimates` above is **effort** and this is **span**, and for a parent they
    * are different numbers: two independent children of 3 and 4 days are 7 days
    * of work inside a 4-day branch. Both are true and neither substitutes.
+   *
+   * Null for a row the hold reduction took out of the plan: an on-hold leaf, or
+   * a parent all of whose leaves are on hold (ADR 0032).
    */
-  schedule: Scheduled;
+  schedule: Scheduled | null;
   /**
    * When this happens on a calendar, or null while the project has no start
    * date.

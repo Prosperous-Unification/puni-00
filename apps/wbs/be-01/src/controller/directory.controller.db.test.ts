@@ -2,6 +2,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CREATOR_ADMISSION } from '@wbs/core';
+import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { StepService } from '@wbs/core/module/step/step.resource';
+import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { AuthService } from '@wbs/core/service/auth.service';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -20,22 +27,32 @@ import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { AuthService } from '../service/auth.service';
-import { DirectoryService } from '../service/directory.service';
 import { fastScheduler } from '../service/optimizer-wiring';
-import { ProjectService } from '../service/project.service';
-import { StepService } from '../service/step.service';
-import { WorkItemService } from '../service/work-item.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingJoinRequests,
+  refusingTestEmailDelivery,
+} from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { refusingOnboarding } from '../testing/onboarding-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingDomains,
+  refusingMemberships,
+} from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
+import { refusingSpaces } from '../testing/space-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 /**
@@ -83,14 +100,21 @@ beforeEach(async () => {
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
     calendarMarkers: testCalendarMarkerService(),
-    projects: new ProjectService({ clock: testClock, projects, broadcast: recordingBroadcaster() }),
+    projects: new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(db, projects),
+      clock: testClock,
+      projects,
+      broadcast: recordingBroadcaster(),
+    }),
     steps: new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projects),
       clock: testClock,
       projects,
       steps: stepStore,
       broadcast: recordingBroadcaster(),
     }),
     workItems: new WorkItemService({
+      admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems,
@@ -100,6 +124,7 @@ beforeEach(async () => {
       measures: new StepMeasureRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       dependencies: new DependencyRepository(db, OPEN),
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
       directory: store,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
@@ -109,6 +134,16 @@ beforeEach(async () => {
     }),
   };
   app = buildApp({
+    organizations: legacyOrganizationAccess,
+    memberships: refusingMemberships,
+    domains: refusingDomains,
+    emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
+    spaces: refusingSpaces,
+    projectRanks: refusingProjectRanks,
+    emailDelivery: refusingTestEmailDelivery,
+    onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
     clock: testClock,
     appOrigin: 'http://localhost',

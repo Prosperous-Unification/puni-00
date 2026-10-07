@@ -189,6 +189,11 @@ first-login linking. Real dev credentials live only in
 Okta values are retained only in `oidc-dev.env.okta.bak` until the trial expires
 on 2026-09-22; delete that backup after the expiry.
 
+Prod's swap reads its provider settings from `/home/puni1/wbs/oidc.env` (mode
+600), with the same five-key allowlist. No prod tenant or client is configured
+yet. The keys, the `prod:` group prefix and the deploy-time checks are in
+`docs/runbook-prod-deploy.md#first-product-deploy`.
+
 As of 2026-08-24, discovery and the real Auth0 Universal Login page are verified.
 Credentialed callback acceptance (`/api/auth/me`, WebSocket, MCP, and the emitted
 editor scope) remains pending TASK-110's password-login path.
@@ -215,8 +220,13 @@ MCP_PUBLIC_URL=https://dev.wbs.bulletpoints.club/mcp
 
 Add this byte-exact Auth0 callback without replacing the browser callback:
 `https://dev.wbs.bulletpoints.club/mcp/oauth/callback`. Dynamic registration
-accepts only the Claude connector callback on `claude.ai`/`claude.com` or an
-HTTP(S) loopback callback for tools such as MCP Inspector. Unproven clients
+accepts only the reviewed hosted callbacks in `HOSTED_REDIRECTS`
+(`apps/wbs/mcp-01/src/oauth.ts`: Claude, VS Code web and Perplexity) as exact
+strings, or a literal `localhost`/`127.0.0.1`/`[::1]`
+HTTP(S) loopback callback at any valid port for tools such as MCP Inspector.
+Authorization responses carry the RFC 9207 `iss`. ChatGPT (stable or callback-ID
+URI), Cursor and Copilot Studio callbacks each need their own reviewed entry
+there, added once a connection is seen displaying that exact URI. Unproven clients
 expire after 10 minutes of DCR inactivity. Starting authorization can extend an
 unproven client only to an absolute 20-minute lifetime, and a new flow is
 refused with 429 when that ceiling cannot cover the browser and code-exchange

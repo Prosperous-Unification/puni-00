@@ -122,6 +122,13 @@ describe('step node details', () => {
           { id: 'sn1.w1.step-qa', workItemId: row.id, stepId: QA.id, reference: null },
         ],
       });
+    } else {
+      const readTree = api.tree.bind(api);
+      api.tree = async (projectId) => {
+        const olderRead = { ...(await readTree(projectId)) };
+        delete olderRead.stepNodes;
+        return olderRead;
+      };
     }
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     const estimate = await screen.findByLabelText('Dev estimate for 010');
@@ -4030,31 +4037,41 @@ describe('the status cell and the two fact cells', () => {
     fireEvent.click(within(completionPrompt(number)).getByRole('button', { name: 'Set to Done' }));
   };
 
-  itDom('reads Unknown at rest and offers Unknown and Done, in that order', async () => {
-    await planWithStatusColumns();
+  itDom(
+    'reads Unknown at rest and offers every status it would change, in the menu order',
+    async () => {
+      await planWithStatusColumns();
 
-    expect(statusCell('010').value).toBe('○');
-    expect(statusCell('010')).toHaveAttribute('data-status-value', 'unknown');
-    // No browser `title`: it drew a grey tooltip beside the fact card, two boxes
-    // for one word (Dany, 2026-09-13).
-    expect(statusCell('010')).not.toHaveAttribute('title');
-    // The fact card names the status first — the glyph alone does not say the
-    // word (Dany, 2026-09-13: "hint pop-up must show the full name of the
-    // status or even write status: unknown").
-    expect(statusCell('010')).toHaveAttribute(
-      'data-fact',
-      expect.stringMatching(/^Status: Unknown\. /),
-    );
-    // The word the card draws bold, and no tone for unknown.
-    expect(statusCell('010')).toHaveAttribute('data-fact-lead', 'Unknown');
-    expect(statusCell('010')).not.toHaveAttribute('data-fact-tone');
-    expect(statusCell('010')).toHaveAttribute('data-cell', expect.stringMatching(/::status$/));
-    // The heading is the glyph with the word as its name: the Columns control
-    // and a screen reader still say `Status` over a 28px column.
-    expect(screen.getByRole('img', { name: 'Status' }).textContent).toBe('○');
-    fireEvent.keyDown(statusCell('010'), { key: 'Enter' });
-    expect(offeredStatuses('010')).toEqual(['Unknown', 'Done']);
-  });
+      expect(statusCell('010').value).toBe('○');
+      expect(statusCell('010')).toHaveAttribute('data-status-value', 'unknown');
+      // No browser `title`: it drew a grey tooltip beside the fact card, two boxes
+      // for one word (Dany, 2026-09-13).
+      expect(statusCell('010')).not.toHaveAttribute('title');
+      // The fact card names the status first — the glyph alone does not say the
+      // word (Dany, 2026-09-13: "hint pop-up must show the full name of the
+      // status or even write status: unknown").
+      expect(statusCell('010')).toHaveAttribute(
+        'data-fact',
+        expect.stringMatching(/^Status: Unknown\. /),
+      );
+      // The word the card draws bold, and no tone for unknown.
+      expect(statusCell('010')).toHaveAttribute('data-fact-lead', 'Unknown');
+      expect(statusCell('010')).not.toHaveAttribute('data-fact-tone');
+      expect(statusCell('010')).toHaveAttribute('data-cell', expect.stringMatching(/::status$/));
+      // The heading is the glyph with the word as its name: the Columns control
+      // and a screen reader still say `Status` over a 28px column.
+      expect(screen.getByRole('img', { name: 'Status' }).textContent).toBe('○');
+      fireEvent.keyDown(statusCell('010'), { key: 'Enter' });
+      expect(offeredStatuses('010')).toEqual([
+        'Draft',
+        'Ready',
+        'In progress',
+        'On hold',
+        'Blocked',
+        'Done',
+      ]);
+    },
+  );
 
   itDom('is a button with no caret: neither a click nor the grid selects the glyph', async () => {
     // Dany, 2026-09-13: "interacting with status column puts a cursor in it as
@@ -4334,23 +4351,27 @@ describe('the status cell and the two fact cells', () => {
     },
   );
 
-  itDom('shows In progress when the fold says so, and still offers only the two', async () => {
-    const api = await planWithStatusColumns();
-    const row = api.rows.at(0);
-    if (row === undefined) throw new Error('the plan has no row');
-    row.status = 'in_progress';
-    click('Add work item');
-    await waitFor(() => {
-      expect(statusCell('010').value).toBe('◐');
-      expect(statusCell('010')).toHaveAttribute(
-        'data-fact',
-        expect.stringMatching(/^Status: In progress\. /),
-      );
-    });
+  itDom(
+    'shows In progress when the fold says so, and offers no readiness once a step has spoken',
+    async () => {
+      const api = await planWithStatusColumns();
+      const row = api.rows.at(0);
+      if (row === undefined) throw new Error('the plan has no row');
+      row.status = 'in_progress';
+      row.progress = { 'step-dev': 'in_progress' };
+      click('Add work item');
+      await waitFor(() => {
+        expect(statusCell('010').value).toBe('◐');
+        expect(statusCell('010')).toHaveAttribute(
+          'data-fact',
+          expect.stringMatching(/^Status: In progress\. /),
+        );
+      });
 
-    fireEvent.click(statusCell('010'));
-    expect(offeredStatuses('010')).toEqual(['Unknown', 'Done']);
-  });
+      fireEvent.click(statusCell('010'));
+      expect(offeredStatuses('010')).toEqual(['On hold', 'Blocked', 'Done', 'Unknown']);
+    },
+  );
 
   itDom('a fact start is typed through the date editor and read back as a short date', async () => {
     const api = await planWithStatusColumns();

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 
+import { prepareImport } from '../module/plan-import/prepare-import';
 import { planDocumentFixture } from '../testing/plan-document-fixture';
-import { prepareImport } from './prepare-import';
 
 const supportsAll = { supports: () => true };
 type PlanFixture = ReturnType<typeof planDocumentFixture>;
@@ -528,6 +528,23 @@ test('enabled unavailable optimizer refuses while a disabled preference is retai
   if (prepared.ok) expect(prepared.value.settings.scheduleEngine).toBe('optimized');
 });
 
+/** Proof: see the allowance guard in `prepareImport`. */
+test('refuses a step allowance over 1000%, and carries a valid one to the prepared step', () => {
+  const prepared = prepareImport(planDocumentFixture(), supportsAll);
+  if (!prepared.ok) throw new Error('fixture refused');
+  expect(prepared.value.stepByFileId.get('step-2')?.allowancePercent).toBe(30);
+
+  for (const allowancePercent of [1000.01, -1, 0.001]) {
+    const refused = planDocumentFixture();
+    at(refused.steps, 1).allowancePercent = allowancePercent;
+    expect(prepareImport(refused, supportsAll)).toMatchObject({
+      ok: false,
+      code: 'invalid_body',
+      path: 'steps[1].allowancePercent',
+    });
+  }
+});
+
 /** The fixture with a second type and a second root row, both rows carrying both types. */
 function twoConflictedRows(): PlanFixture {
   const body = planDocumentFixture();
@@ -559,4 +576,45 @@ test('counts a repeated type id as one type', () => {
   const body = planDocumentFixture();
   at(body.workItems).typeIds = ['type-1', 'type-1'];
   expect(prepareImport(body, supportsAll).ok).toBe(true);
+});
+
+test('carries a version-3 file’s step codes to the prepared steps', () => {
+  const prepared = prepareImport(planDocumentFixture(), supportsAll);
+  if (!prepared.ok) throw new Error('fixture refused');
+  expect(prepared.value.steps.map(({ fileId, code }) => [fileId, code])).toEqual([
+    ['step-1', 'impl'],
+    ['step-2', 'qa'],
+  ]);
+});
+
+test('suggests codes in step order for an earlier-version file, exactly as for new steps', () => {
+  const earlier = planDocumentFixture();
+  earlier.steps = [
+    { id: 'step-2', name: 'Review!', position: 20, allowancePercent: 0, code: null },
+    { id: 'step-1', name: ' Review ', position: 10, allowancePercent: 0, code: null },
+    { id: 'step-3', name: 'S1 check', position: 30, allowancePercent: 0, code: null },
+  ];
+  const prepared = prepareImport(earlier, supportsAll);
+  if (!prepared.ok) throw new Error(`earlier file refused`);
+  expect(
+    Object.fromEntries(prepared.value.steps.map(({ fileId, code }) => [fileId, code])),
+  ).toEqual({
+    'step-1': 'review',
+    'step-2': 'review-2',
+    'step-3': 'step-s1-check',
+  });
+});
+
+/** Proof: see the step-code guards in `prepareImport`. */
+test('refuses a version-3 step code that is malformed, reserved or a duplicate', () => {
+  for (const code of ['QA', '', '2qa', 'a'.repeat(33), 's1-qa', 's12', 'impl']) {
+    const refused = planDocumentFixture();
+    at(refused.steps, 1).code = code;
+    expect(prepareImport(refused, supportsAll)).toEqual({
+      ok: false,
+      code: 'invalid_body',
+      path: 'steps[1].code',
+      detail: code,
+    });
+  }
 });

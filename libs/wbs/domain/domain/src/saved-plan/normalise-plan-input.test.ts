@@ -136,3 +136,109 @@ describe('normalising a stored plan input forward — 7.4', () => {
     expect(clean['tampered']).toBeUndefined();
   });
 });
+
+describe('the version-1 to version-2 upgrade — step allowances', () => {
+  /** A version-1 body: today's, with the allowance its steps did not carry yet. */
+  function versionOneBody(): Record<string, unknown> {
+    const body = JSON.parse(bytes) as { steps: Record<string, unknown>[] } & Record<
+      string,
+      unknown
+    >;
+    return {
+      ...body,
+      schemaVersion: 1,
+      steps: body.steps.map(({ allowancePercent: _dropped, ...rest }) => rest),
+    };
+  }
+
+  /** Proof: see `withZeroStepAllowances`. */
+  it('reads a version-1 body’s steps at 0% allowance', () => {
+    const upgraded = normalisePlanInputForward(versionOneBody(), 1);
+
+    expect(upgraded.steps.length).toBeGreaterThan(0);
+    for (const step of upgraded.steps) expect(step.allowancePercent).toBe(0);
+  });
+
+  it('refuses a version-1 body whose steps are not a list', () => {
+    expect(() => normalisePlanInputForward({ schemaVersion: 1, steps: 'none' }, 1)).toThrow(
+      'a version-1 plan input body holds no steps list',
+    );
+  });
+
+  it('writes version 2 with each step’s allowance', () => {
+    expect(CANONICAL_PLAN_INPUT_SCHEMA_VERSION).toBe(4);
+    const body = JSON.parse(bytes) as { steps: { allowancePercent: unknown }[] };
+    for (const step of body.steps) expect(typeof step.allowancePercent).toBe('number');
+  });
+});
+
+describe('the version-2 to version-3 upgrade — typed dependencies', () => {
+  it('rejects malformed version-2 steps instead of inventing captured identities', () => {
+    expect(() => normalisePlanInputForward({ schemaVersion: 2, steps: 'missing' }, 2)).toThrow(
+      'a version-2 plan input body holds no steps list',
+    );
+    expect(() => normalisePlanInputForward({ schemaVersion: 2, steps: [null] }, 2)).toThrow(
+      'a version-2 plan input body holds a step that is not an object',
+    );
+  });
+  it('compares an upgraded version-2 body with the equivalent version-3 body without changing stored bytes', () => {
+    const current = canonicalisePlanInput({
+      ...planFixtureRows,
+      steps: planFixtureRows.steps.map((step) => ({ ...step, code: null })),
+      typedDependencies: [],
+      // A version-2 body predates readiness and holds, which read as unsaid.
+      workItems: planFixtureRows.workItems.map((row) => ({ ...row, readiness: null, hold: null })),
+    });
+    const { typedDependencies: _absent, ...versionThree } = current;
+    const versionTwo = {
+      ...versionThree,
+      schemaVersion: 2,
+      steps: versionThree.steps.map(({ code: _code, ...step }) => step),
+      workItems: versionThree.workItems.map(
+        ({ readiness: _readiness, hold: _hold, ...row }) => row,
+      ),
+    };
+    const storedBytes = JSON.stringify(versionTwo);
+    const parsed = JSON.parse(storedBytes) as Record<string, unknown>;
+
+    expect(normalisePlanInputForward(parsed, 2)).toEqual(current);
+    expect(JSON.stringify(parsed)).toBe(storedBytes);
+    expect(versionTwo.schemaVersion).toBe(2);
+  });
+  it('reads a version-2 body with no typed relationships', () => {
+    const { typedDependencies: _absent, ...older } = JSON.parse(bytes) as Record<string, unknown>;
+    const upgraded = normalisePlanInputForward({ ...older, schemaVersion: 2 }, 2);
+    expect(upgraded.typedDependencies).toEqual([]);
+  });
+});
+
+describe('the version-3 to version-4 upgrade — readiness and holds', () => {
+  it('reads a version-3 body with nothing said about readiness or holds, and compares clean', () => {
+    const current = canonicalisePlanInput({
+      ...planFixtureRows,
+      workItems: planFixtureRows.workItems.map((row) => ({ ...row, readiness: null, hold: null })),
+    });
+    const versionThree = {
+      ...current,
+      schemaVersion: 3,
+      workItems: current.workItems.map(({ readiness: _readiness, hold: _hold, ...row }) => row),
+    };
+    const storedBytes = JSON.stringify(versionThree);
+    const parsed = JSON.parse(storedBytes) as Record<string, unknown>;
+
+    // Proof: the upgrade returning the body unchanged made this fail on
+    // `schemaVersion` and on every work item's missing `readiness` and `hold`;
+    // watched 2026-09-29.
+    expect(normalisePlanInputForward(parsed, 3)).toEqual(current);
+    expect(JSON.stringify(parsed)).toBe(storedBytes);
+  });
+
+  it('refuses a version-3 body whose work items are not a list of objects', () => {
+    expect(() => normalisePlanInputForward({ schemaVersion: 3, workItems: 'none' }, 3)).toThrow(
+      'a version-3 plan input body holds no work items list',
+    );
+    expect(() => normalisePlanInputForward({ schemaVersion: 3, workItems: [7] }, 3)).toThrow(
+      'a version-3 plan input body holds a work item that is not an object',
+    );
+  });
+});

@@ -2,19 +2,23 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { arch, cpus, platform, release, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { PlanCommandRunner } from '@wbs/core';
 import {
   type Broadcaster,
   clockOf,
   type Decision,
   type PlanCommand,
-  PlanCommandRunner,
-  type PlanCommandRunnerOptions,
   type PlanTransactionalStores,
   type Scope,
   servicesOver,
   type UnitOfWork,
   type WriteStamp,
 } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
+import {
+  createPlanCommandRunner,
+  type PlanCommandsSource,
+} from '@wbs/core/module/plan-commands/composition';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
@@ -203,7 +207,16 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
   );
   await source.stores.projects.create(
     projectRow({ id: PROJECT, ownerId: OWNER, name }),
-    [{ id: STEP, projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+    [
+      {
+        id: STEP,
+        projectId: PROJECT,
+        name: 'Step',
+        position: 10,
+        code: 'step',
+        allowancePercent: 0,
+      },
+    ],
     STAMP,
   );
   const firstPerson = await source.stores.directory.addPerson(
@@ -247,13 +260,18 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
 
   const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
   const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-    servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+    servicesOver(stores, {
+      admission: CREATOR_ADMISSION,
+      clock,
+      broadcast,
+      scheduler: fastScheduler,
+    });
   return {
     source,
     counts,
     runner(mode) {
       const admitted = countedUnitOfWork(source.uow, counts);
-      const options: PlanCommandRunnerOptions = {
+      const options: PlanCommandsSource = {
         uow: admitted.uow,
         announcements: silentBroadcaster,
         publicServices: compose(source.stores, silentBroadcaster),
@@ -262,7 +280,7 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
         batchServices: (scope, broadcast) =>
           compose(mode === 'cached' ? scope.stores : admitted.current(), broadcast),
       };
-      return new PlanCommandRunner(options);
+      return createPlanCommandRunner(options);
     },
     close: async () => {
       await source.close();
@@ -370,6 +388,35 @@ function sampleRange(samples: readonly number[]): readonly [number, number] {
 }
 
 type PerformanceWorkloadName = 'homogeneous' | 'mixed';
+type SampleClock = 'elapsed ms' | 'process cpu ms';
+
+/**
+ * Frozen-clean certification times elapsed milliseconds, as design.md's
+ * acceptance on a frozen host asks. Every other run shares its host with
+ * parallel Nx tasks, so it times this process's CPU (user + system) instead:
+ * the runner and `bun:sqlite` are synchronous here, so CPU time holds the work
+ * being compared, while elapsed time also holds however long the kernel ran
+ * some other process instead.
+ */
+function clockFor(certifyClean: boolean): SampleClock {
+  return certifyClean ? 'elapsed ms' : 'process cpu ms';
+}
+
+/** Runs `sample` and returns what it resolved to with its cost on `clock`. */
+async function timeSample<Outcome>(
+  clock: SampleClock,
+  sample: () => Promise<Outcome>,
+): Promise<{ readonly outcome: Outcome; readonly spent: number }> {
+  if (clock === 'elapsed ms') {
+    const started = performance.now();
+    const outcome = await sample();
+    return { outcome, spent: performance.now() - started };
+  }
+  const started = process.cpuUsage();
+  const outcome = await sample();
+  const used = process.cpuUsage(started);
+  return { outcome, spent: (used.user + used.system) / 1000 };
+}
 type PerformanceReportStatus = 'pending' | 'running' | 'complete' | 'failed';
 
 interface ModePerformanceReport {
@@ -402,6 +449,7 @@ interface PerformanceEvidence {
     commands: number;
     pairs: number;
     order: 'alternating by pair index';
+    clock: SampleClock;
     fixtures: readonly PerformanceWorkloadName[];
   };
   host?: {
@@ -493,6 +541,7 @@ async function runPerformanceCertification(
       commands: ROWS,
       pairs,
       order: 'alternating by pair index',
+      clock: clockFor(options.certifyClean),
       fixtures: workloadNames,
     },
     reports: {
@@ -661,6 +710,18 @@ it('can run the real SQLite command runner over uncached admitted stores', async
   }
 }, 120_000);
 
+/**
+ * The ten-percent bound is a real performance budget, so it stays; the clock
+ * it is measured with is calibrated per environment by {@link clockFor}.
+ *
+ * Elapsed time failed this under parallel Nx load with no change in the code
+ * (132 s on #221, 59.5 s on #243): beside 24 busy loops one mode's elapsed
+ * samples spread from 2.3 to 28 s, and a burst on one mode moves its median.
+ * CPU samples of the same runs spread about 4x instead of 12x.
+ *
+ * Each timed sample also asserts the full-read counts its mode implies, which
+ * no amount of load can move.
+ */
 it('keeps cached medians within ten percent on homogeneous and mixed paired workloads', async () => {
   const certificationValue = process.env['WBS_PERFORMANCE_CERTIFY'];
   if (
@@ -674,9 +735,11 @@ it('keeps cached medians within ten percent on homogeneous and mixed paired work
     homogeneous: homogeneousCommands(),
     mixed: mixedCommands(),
   };
+  const certifyClean = certificationValue === '1';
+  const clock = clockFor(certifyClean);
 
   await runPerformanceCertification({
-    certifyClean: certificationValue === '1',
+    certifyClean,
     observeRepository: (observation) =>
       observation === 'head'
         ? repositoryObservation(['rev-parse', 'HEAD'])
@@ -699,11 +762,22 @@ it('keeps cached medians within ten percent on homogeneous and mixed paired work
           for (const mode of order) {
             expect(await authoredState(fixture)).toBe(baseline);
             resetCounts(fixture.counts);
-            const started = performance.now();
-            const outcome = await fixture.runner(mode).run(PROJECT, OWNER, commands[workload]);
-            const elapsed = performance.now() - started;
+            const { outcome, spent } = await timeSample(clock, () =>
+              fixture.runner(mode).run(PROJECT, OWNER, commands[workload]),
+            );
             expect(outcome).toMatchObject({ ok: true });
-            report[mode].samples.push(elapsed);
+            // The deterministic half of the comparison: every timed sample did
+            // the work its mode names, so the ratio compares the retained plan
+            // with full reloads rather than two runs of the same path.
+            // Proof: giving the cached runner the raw admitted stores made the
+            // first timed cached sample report 402 (homogeneous) and 242 (mixed)
+            // work-item full reads; watched 2026-09-29.
+            if (mode === 'cached') {
+              expectBoundedFullReads(fixture.counts);
+            } else {
+              expect(fixture.counts.full.workItems).toBeGreaterThan(1);
+            }
+            report[mode].samples.push(spent);
             expect(await fixture.runner(mode).undo(PROJECT, OWNER)).toMatchObject({ ok: true });
             expect(await authoredState(fixture)).toBe(baseline);
           }
@@ -747,6 +821,7 @@ it('reports both completed workloads before aggregating independent ratio failur
       commands: ROWS,
       pairs: 20,
       order: 'alternating by pair index',
+      clock: 'process cpu ms',
       fixtures: ['homogeneous', 'mixed'],
     },
     host: { bun: Bun.version },
@@ -840,6 +915,9 @@ it('labels and refuses explicit frozen-clean certification from a dirty checkout
     phase: 'final',
     status: 'failed',
     repository: { certification: 'frozen-clean', unchanged: true },
+    // Proof: making clockFor answer process cpu ms for certification failed this with
+    // "process cpu ms" received (0 pass, 1 fail); watched 2026-09-29.
+    workload: { clock: 'elapsed ms' },
   });
 });
 

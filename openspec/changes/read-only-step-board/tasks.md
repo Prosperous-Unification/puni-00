@@ -1,0 +1,20 @@
+## 1. One coherent read-only projection
+
+- [x] 1.1 Red then green: add `components/board/step-board.test.ts` and the pure projection. Prove two leaves × two steps gives four cards including held/unestimated leaves with no slices; parents yield none; missing progress is Unknown; mixed progress gives exact counts. Prove same-column ordering with all progress absent: delivered leaves `z-leaf` (number `020`), `a-leaf` (number `010`) and steps `qa` (QA), `dev` (Development) yield Unknown IDs `sn1.z-leaf.qa`, `sn1.z-leaf.dev`, `sn1.a-leaf.qa`, `sn1.a-leaf.dev` in that exact order. Reverse the delivered steps and prove each leaf's card order reverses while identities remain stable. Preserve delivered `workItems` then `PlanRead.steps` array order directly; the backend already orders steps by `(position, id)`. Rename/renumber preserves IDs and delete/recreate changes them. Test malformed progress, duplicate identities and progress for absent steps as faults; do not widen the accepted union. Register this pure test in `apps/wbs/fe-01/vitest.node-suites.ts` if required by the existing tier contract.
+- [ ] 1.2 Red then green: add mounted `components/board/step-board-view.test.tsx`. Drive the real projection through `ProjectRuntime.plan`; prove first-read loading/failure, empty tree, no steps, later stale failure, Retry and disconnected state. Deliver newer separate steps before the tree and assert no hybrid cards. Inject invalid progress through the delivered store and observe the Error Boundary. R5: temporarily replace tree steps with the separate delivered steps, and separately default invalid progress to Unknown; watch these mounted cases fail, restore and add adjacent `Proof:`.
+
+## 2. Project-page integration
+
+- [ ] 2.1 Red then green: extend `components/wbs/project-page.test.tsx` and `app-router.test.tsx`; add Plan/Board buttons inside the existing selected-runtime arm, default Plan, no stored preference. Keep Plan mounted but hidden/inert during Board, preserving drafts without submitting them. Prove one project owner/feed, zero command calls across keyboard/pointer/drag/view changes, acknowledged commands remain visible, and old-project completions cannot draw after switching. R5: inject an unintended setProgress call into board interaction and remove the current-runtime guard separately; watch zero-write and late-answer cases fail, restore with adjacent proofs.
+- [ ] 2.2 Add `apps/wbs/fe-01/e2e/step-board.spec.ts` using the existing authenticated disposable-project fixture. Prove ordered columns, accessible view selection, mixed step progress/row status, live external updates and no mutation requests from Board at desktop and 390px widths. No hidden/clipped card text; no hover dependency. Record the 500-leaf × 5-step fixture rendering measurement and its browser/environment; do not claim a SLA from one run.
+
+## 3. Review and acceptance
+
+- [ ] 3.1 Run focused node and mounted suites through the existing Vitest configs, the new browser test, affected FE lint/typecheck/build, and existing project-page/router regressions. Run scoped Prettier and OpenSpec validation. Review source paths/callers and all R5 faults with Astra. Record actual commands/results and fault/assertion pairs in verify.md only after implementation.
+- [ ] 3.2 Commit the reviewed implementation and run `bin/h2puni-gate.sh <exact-sha>` under the canonical lock; record the printed SHA and exit status, then require exact-head CI. Push/merge through the coordinator's current authorization workflow. Keep unchecked tasks and product scope exclusions explicit; this is not a richer step-status or Backlog cutover completion.
+
+Run focused pure tests from `apps/wbs/fe-01` with
+`TZ=UTC bunx vitest run --config vitest.node.config.ts src/components/board/step-board.test.ts`;
+run mounted board/project-page/router files with the existing jsdom config.
+Use the repository browser harness, not a second task runner. Each slice adds
+only its own code and necessary registration; no generic service extraction.

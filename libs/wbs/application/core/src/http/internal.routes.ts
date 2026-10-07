@@ -1,7 +1,16 @@
-import { forwardInternal, type InternalResumeResponse, resumeInternal } from '@wbs/contracts';
+import {
+  forwardInternal,
+  gatewayProjectAccess,
+  type InternalResumeResponse,
+  resumeInternal,
+} from '@wbs/contracts';
 
-import { replay } from '../use-cases/replay';
+import type { ProjectService } from '../module/project/project.resource';
+import { replay } from '../module/realtime/realtime.feature';
+import type { OrganizationAccess } from '../ports/organization-access';
+import { EMPTY } from './endpoint';
 import { bind, type RequestMetadata } from './endpoint';
+import { organizationRefusal } from './organization-refusal';
 
 export interface InternalCallContext {
   clientId: string | null;
@@ -54,6 +63,25 @@ export function internalRoutes(deps: InternalDeps) {
       if ('status' in outcome)
         throw new Error('internal endpoint admitted a noninternal principal');
       return { ok: true, status: 200, body: outcome };
+    }),
+  ] as const;
+}
+
+/** Checks current membership and an organization-scoped project for one gateway request. */
+export function gatewayAccessRoutes(projects: ProjectService, organizations: OrganizationAccess) {
+  return [
+    bind(gatewayProjectAccess, async ({ principal, params }) => {
+      // Proof: selecting the organization from x-wbs-organization made the
+      // mounted foreign-project test answer 204 instead of 404 (2026-09-28).
+      const resolved = await organizations.resolve(principal);
+      // Proof: bypassing this membership resolution admitted a removed member in
+      // the mounted gateway access test (2026-09-28).
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      // Proof: replacing readWithin with an unscoped lookup answered 204 for a
+      // foreign project in the mounted gateway access test (2026-09-28).
+      const found = await projects.readWithin(params.projectId, resolved.access);
+      if (found === null) return { ok: false, status: 404, body: { error: 'not_found' } } as const;
+      return { ok: true, status: 204, body: EMPTY } as const;
     }),
   ] as const;
 }

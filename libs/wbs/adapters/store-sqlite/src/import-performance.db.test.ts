@@ -2,15 +2,17 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { PlanDocumentRequest } from '@wbs/contracts';
+import type { PlanDocumentImport } from '@wbs/contracts';
 import {
   clockOf,
-  ImportService,
+  LEGACY_ACCESS,
   prepareImport,
   servicesOver,
   type TransactionalStores,
   type UnitOfWork,
 } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
+import { createImportService } from '@wbs/core/module/plan-import/composition';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
@@ -26,7 +28,7 @@ const ACTOR = 'import-owner';
 const ROWS = 500;
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
-function measuredDocument(): PlanDocumentRequest {
+function measuredDocument(): PlanDocumentImport {
   const document = planDocumentFixture();
   const template = document.workItems.at(0);
   if (template === undefined) throw new Error('plan document fixture has no work item');
@@ -114,16 +116,21 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     };
     const clock = clockOf({ now: () => stamp.at, newId: () => crypto.randomUUID() });
     const announcements = recordingBroadcaster();
-    const imports = new ImportService({
+    const imports = createImportService({
       clock,
       scheduler: fastScheduler,
       uow: measuredUow,
       announcements,
       batchServices: (scope, broadcast) =>
-        servicesOver(scope.stores, { clock, broadcast, scheduler: fastScheduler }),
+        servicesOver(scope.stores, {
+          admission: CREATOR_ADMISSION,
+          clock,
+          broadcast,
+          scheduler: fastScheduler,
+        }),
     });
 
-    const outcome = await imports.import(document, ACTOR);
+    const outcome = await imports.import(document, ACTOR, LEGACY_ACCESS);
     if (queuedWrite === undefined) throw new Error('ordinary write was not queued during import');
     const queuedTag = await queuedWrite;
     expect(outcome.ok).toBe(true);

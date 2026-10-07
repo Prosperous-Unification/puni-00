@@ -3,6 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { AnnouncementCollector } from '@wbs/core';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { UnknownSavedPlanBodyVersionError } from '@wbs/core/module/saved-plans/saved-plan-integrity';
+import { type AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
+import { defaultSavedPlanName } from '@wbs/core/service/saved-plan-default-name';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn, test } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -11,25 +16,38 @@ import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import type { SavedPlanWrite } from '../repository/saved-plan';
+import { StepRepository } from '../repository/step';
 import { UserRepository } from '../repository/user';
+import { WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { type AuthenticatedUser, AuthService } from '../service/auth.service';
-import { ProjectService } from '../service/project.service';
-import { defaultSavedPlanName } from '../service/saved-plan-default-name';
-import { UnknownSavedPlanBodyVersionError } from '../service/saved-plan-integrity';
 import { testApp } from '../testing/app-fixture';
 import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingJoinRequests,
+  refusingTestEmailDelivery,
+} from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { refusingOnboarding } from '../testing/onboarding-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingDomains,
+  refusingMemberships,
+} from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { projectRow, testProjectService } from '../testing/project-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { savedPlanServiceOn, testSavedPlanService } from '../testing/saved-plan-fixture';
+import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
@@ -91,11 +109,29 @@ describe('the saved-plan routes', () => {
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
     broadcast = recordingBroadcaster();
-    writes = testWrites(broadcast);
     const connection = openConnection(path);
     const projects = new ProjectRepository(connection.db, OPEN);
+    const projectService = new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(connection.db, projects),
+      clock: testClock,
+      projects,
+      broadcast,
+    });
+    // The same project service the routes use: a project PATCH runs through
+    // the batch graph, and a double there has never seen these projects.
+    writes = testWrites(broadcast, { projects: projectService });
 
     app = buildApp({
+      organizations: legacyOrganizationAccess,
+      memberships: refusingMemberships,
+      domains: refusingDomains,
+      emailVerification: refusingEmailVerification,
+      invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
+      spaces: refusingSpaces,
+      projectRanks: refusingProjectRanks,
+      emailDelivery: refusingTestEmailDelivery,
+      onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       appOrigin: 'http://localhost',
@@ -110,7 +146,7 @@ describe('the saved-plan routes', () => {
       // production hands every service one announcer. A private recorder here
       // would compile and would quietly put this app's project events somewhere
       // nothing in the file can read.
-      projects: new ProjectService({ clock: testClock, projects, broadcast }),
+      projects: projectService,
       savedPlans: savedPlanServiceOn(path),
       steps: testStepService(),
       workItems: testWorkItemService(),
@@ -173,6 +209,123 @@ describe('the saved-plan routes', () => {
 
   const savedIdOf = async (res: Response): Promise<string> =>
     ((await res.json()) as { savedPlan: { id: string } }).savedPlan.id;
+
+  it('reads captured node endpoints after live step and relationship edits', async () => {
+    const writing = openConnection(path);
+    try {
+      const projects = new ProjectRepository(writing.db, OPEN);
+      const steps = await projects.stepsOf(projectId);
+      const firstStep = steps.at(0);
+      const laterStep = steps.at(1);
+      if (firstStep === undefined || laterStep === undefined)
+        throw new Error('project has fewer than two steps');
+      const ownerId = (await projects.findById(projectId))?.ownerId;
+      if (ownerId === undefined) throw new Error('project is missing');
+      const stamp = { at: 1, by: ownerId };
+      const workItems = new WorkItemRepository(writing.db, OPEN);
+      for (const [index, id] of ['A', 'B'].entries()) {
+        await workItems.insert(
+          {
+            id,
+            projectId,
+            parentId: null,
+            position: index * 10,
+            name: id,
+            notes: '',
+            frozenNumber: null,
+            priority: null,
+            startNoEarlierThan: null,
+            startNoEarlierThanReason: null,
+            serviceTeamId: null,
+            serviceId: null,
+            maxParallel: 1,
+            deadline: null,
+            factStart: null,
+            factEnd: null,
+            readiness: null,
+            hold: null,
+            revision: 0,
+          },
+          [],
+          stamp,
+        );
+      }
+      const typed = new TypedDependencyRepository(writing.db, OPEN);
+      writing.db.run(`UPDATE step SET code = 'captured-code' WHERE id = '${laterStep.id}'`);
+      const relationship = {
+        id: 'captured-ff',
+        projectId,
+        predecessor: { scope: 'node' as const, workItemId: 'A', stepId: firstStep.id },
+        successor: { scope: 'node' as const, workItemId: 'B', stepId: laterStep.id },
+        type: 'FF' as const,
+      };
+      await typed.add(relationship, stamp);
+      const saveResponse = await save('ada');
+      expect(saveResponse.status).toBe(201);
+      const savedId = await savedIdOf(saveResponse);
+      await new StepRepository(writing.db, OPEN).rename(projectId, laterStep.id, 'Renamed', stamp);
+      await typed.update({ ...relationship, type: 'FS' }, stamp);
+      const afterEdit = await as(tokens['ada'], `/api/saved-plans/${savedId}`);
+      expect(afterEdit.status).toBe(200);
+      const editedRead = (await afterEdit.json()) as { savedPlan: { input: { bytes: string } } };
+      const editedInput: unknown = JSON.parse(editedRead.savedPlan.input.bytes);
+      expect(editedInput).toMatchObject({
+        typedDependencies: [
+          {
+            id: relationship.id,
+            predecessor: relationship.predecessor,
+            successor: relationship.successor,
+            type: 'FF',
+          },
+        ],
+      });
+      await typed.remove(relationship.id, stamp);
+      writing.db.run(
+        `UPDATE step SET code = 'live-code', position = 5 WHERE id = '${laterStep.id}'`,
+      );
+      writing.db.run(`UPDATE step SET position = 30 WHERE id = '${firstStep.id}'`);
+      expect((await projects.stepsOf(projectId)).map(({ id }) => id)).toEqual([
+        laterStep.id,
+        firstStep.id,
+      ]);
+      writing.db.run(`DELETE FROM step WHERE id = '${laterStep.id}'`);
+      const readResponse = await as(tokens['ada'], `/api/saved-plans/${savedId}`);
+      expect(readResponse.status).toBe(200);
+      const saved = (await readResponse.json()) as { savedPlan: { input: { bytes: string } } };
+      const body = JSON.parse(saved.savedPlan.input.bytes) as {
+        typedDependencies: unknown[];
+        steps: { id: string; code: string | null; name: string; position: number }[];
+      };
+      // Proof: substituting live typed rows for stored body rows in SavedPlanResource.readPlan,
+      // then separately omitting the capture read, made this mounted read receive []
+      // instead of the saved endpoints (2026-09-27).
+      expect(body.typedDependencies).toEqual([
+        {
+          id: relationship.id,
+          predecessor: relationship.predecessor,
+          successor: relationship.successor,
+          type: 'FF',
+        },
+      ]);
+      const capturedStep = body.steps.find((candidate) => candidate.id === laterStep.id);
+      expect(capturedStep?.name).toBe(laterStep.name);
+      expect(capturedStep?.position).toBe(laterStep.position);
+      expect(capturedStep?.code).toBe('captured-code');
+      expect(
+        [...body.steps].sort((left, right) => left.position - right.position).map(({ id }) => id),
+      ).toEqual([firstStep.id, laterStep.id]);
+      for (const endpoint of [relationship.predecessor, relationship.successor]) {
+        expect(body.steps.find((candidate) => candidate.id === endpoint.stepId)?.id).toBe(
+          endpoint.stepId,
+        );
+        expect(body.steps.find((candidate) => candidate.id === endpoint.stepId)?.code).toBe(
+          endpoint.stepId === laterStep.id ? 'captured-code' : firstStep.code,
+        );
+      }
+    } finally {
+      writing.close();
+    }
+  });
 
   /**
    * The identity assertion, and the one a body-supplied creator would fail.
@@ -498,7 +651,7 @@ describe('the saved-plan routes', () => {
       version: 9999,
       // Named rather than matched loosely: the answer has to say what this
       // build *does* know, or an operator cannot tell how far behind it is.
-      supported: [1],
+      supported: [1, 2, 3, 4],
     });
 
     const read = await as(tokens['ada'], `/api/saved-plans/${id}`);
@@ -850,7 +1003,7 @@ function fixture() {
   const plans = testSavedPlanService();
   const projects = testProjectService();
   const announcements = recordingBroadcaster();
-  const projectRead = spyOn(projects, 'read').mockResolvedValue({
+  const projectRead = spyOn(projects, 'readWithin').mockResolvedValue({
     project: projectRow({ id: 'p' }),
     steps: [],
   });
@@ -867,7 +1020,7 @@ function fixture() {
     restorations.push(() => {
       spy.mockRestore();
     });
-  const endpoints = savedPlanRoutes(plans, projects, announcements);
+  const endpoints = savedPlanRoutes(plans, projects, announcements, legacyOrganizationAccess);
   const auth = testAuthService();
   const authenticate = spyOn(auth, 'authenticate').mockImplementation((token) =>
     Promise.resolve(
@@ -877,7 +1030,12 @@ function fixture() {
   restorations.push(() => {
     authenticate.mockRestore();
   });
-  const app = testApp({ auth, savedPlans: plans, projects, writes: testWrites(announcements) });
+  const app = testApp({
+    auth,
+    savedPlans: plans,
+    projects,
+    writes: testWrites(announcements, { projects }),
+  });
   const call = (
     path: string,
     method = 'GET',
@@ -978,6 +1136,7 @@ test('mounted compare preserves last query values, opaque differences, and corru
     'p',
     { kind: 'current' },
     { kind: 'saved', savedPlanId: 's' },
+    { kind: 'legacy' },
   );
   const refusal = {
     reason: 'body_hash_mismatch' as const,

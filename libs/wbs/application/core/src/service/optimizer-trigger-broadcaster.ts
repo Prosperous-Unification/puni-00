@@ -4,13 +4,28 @@ export type OptimizationInputChanged = (projectId: string) => void;
 
 function changesScheduleInput(event: ProjectEvent): boolean {
   return (
+    // Proof: removing this predicate made held committed delivery notify no
+    // recipient even though its recorded event reached transport.
+    event.type === 'elsewhere_changed' ||
     event.type === 'tree_replaced' ||
     event.type === 'step_added' ||
     event.type === 'step_removed' ||
+    // Proof: with this line removed, `starts the optimizer debounce after a
+    // step allowance edit` saw no trigger (2026-09-27).
+    event.type === 'step_updated' ||
     event.type === 'directory_changed' ||
     event.type === 'capacity_changed' ||
     event.type === 'project_settings_changed'
   );
+}
+
+/** One optimizer reaction policy for ordinary publication and already committed fan-out. */
+export function reactToProjectEvent(
+  projectId: string,
+  event: ProjectEvent,
+  inputChanged: OptimizationInputChanged,
+): void {
+  if (changesScheduleInput(event)) inputChanged(projectId);
 }
 
 /**
@@ -26,7 +41,7 @@ export class OptimizerTriggerBroadcaster implements Broadcaster {
 
   async publish(projectId: string, event: ProjectEvent): Promise<void> {
     await this.inner.publish(projectId, event);
-    if (changesScheduleInput(event)) this.inputChanged(projectId);
+    reactToProjectEvent(projectId, event, this.inputChanged);
   }
 
   latestSeq(projectId: string): Promise<number> {

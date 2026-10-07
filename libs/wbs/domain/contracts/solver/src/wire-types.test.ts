@@ -8,6 +8,7 @@ import {
   SOLVER_OBJECTIVE_TERM_KEYS,
   SOLVER_OBJECTIVE_TERMS,
   SOLVER_OBJECTIVES,
+  SOLVER_RELATIONSHIP_TYPES,
   SOLVER_REQUEST_KEYS,
   SOLVER_RESPONSE_KEYS,
   SOLVER_RESPONSE_STATUSES,
@@ -20,7 +21,7 @@ import {
 /**
  * The drift guard for `wire-types.ts`.
  *
- * `solver-wire.v1.json` is the contract and Python reads the same file, so the
+ * `solver-wire.v3.json` is the contract and Python reads the same file, so the
  * TypeScript binding is not allowed to be an independent second opinion. Each
  * case below reads the schema **at run time** — not through an `import`, which
  * TypeScript would resolve at build time and which would put the file inside
@@ -33,7 +34,7 @@ import {
  * tolerating a duplicate.
  */
 
-const SCHEMA_PATH = new URL('../solver-wire.v1.json', import.meta.url);
+const SCHEMA_PATH = new URL('../solver-wire.v3.json', import.meta.url);
 
 type Branch = Record<string, unknown>;
 
@@ -47,7 +48,7 @@ const schema = JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')) as WireSchema;
 
 const def = (name: string): Branch => {
   const branch = schema.$defs[name];
-  if (branch === undefined) throw new Error(`solver-wire.v1.json has no $defs/${name}`);
+  if (branch === undefined) throw new Error(`solver-wire.v3.json has no $defs/${name}`);
   return branch;
 };
 
@@ -56,14 +57,14 @@ const properties = (name: string): Branch => def(name)['properties'] as Branch;
 const enumOf = (name: string, property: string): readonly string[] => {
   const prop = properties(name)[property] as { enum?: readonly string[] } | undefined;
   if (prop?.enum === undefined) {
-    throw new Error(`solver-wire.v1.json $defs/${name}.properties.${property} has no enum`);
+    throw new Error(`solver-wire.v3.json $defs/${name}.properties.${property} has no enum`);
   }
   return prop.enum;
 };
 
 const sorted = (values: readonly string[]): string[] => [...values].sort();
 
-describe('wire-types is pinned to solver-wire.v1.json', () => {
+describe('wire-types is pinned to solver-wire.v3.json', () => {
   it('SOLVER_WIRE_VERSION is the schema const', () => {
     expect(def('wireVersion')['const']).toBe(SOLVER_WIRE_VERSION);
   });
@@ -135,7 +136,7 @@ describe('wire-types is pinned to solver-wire.v1.json', () => {
   });
 });
 
-describe('the request side is pinned to solver-wire.v1.json', () => {
+describe('the request side is pinned to solver-wire.v3.json', () => {
   it('SOLVER_OBJECTIVES is the objective enum', () => {
     const wire = enumOf('request', 'objective');
     expect(wire.length).toBe(SOLVER_OBJECTIVES.length);
@@ -149,7 +150,6 @@ describe('the request side is pinned to solver-wire.v1.json', () => {
   for (const [branch, keys] of [
     ['request', SOLVER_REQUEST_KEYS],
     ['slice', SOLVER_SLICE_KEYS],
-    ['edge', SOLVER_EDGE_KEYS],
   ] as const) {
     it(`${branch} is closed, fully required, and matches its key constant`, () => {
       expect(def(branch)['additionalProperties']).toBe(false);
@@ -159,6 +159,19 @@ describe('the request side is pinned to solver-wire.v1.json', () => {
       expect(sorted(def(branch)['required'] as string[])).toEqual(sorted(keys));
     });
   }
+
+  it('edge type and conditional FF weight match the binding', () => {
+    const edge = def('edge');
+    expect(edge['additionalProperties']).toBe(false);
+    expect(sorted(edge['required'] as string[])).toEqual(sorted(SOLVER_EDGE_KEYS));
+    expect(sorted(Object.keys(properties('edge')))).toEqual(
+      [...SOLVER_EDGE_KEYS, 'startWeightUnits'].sort(),
+    );
+    expect(sorted(enumOf('edge', 'type'))).toEqual(sorted(SOLVER_RELATIONSHIP_TYPES));
+    const conditional = (edge['allOf'] as readonly Branch[])[0];
+    expect((conditional['then'] as Branch)['required']).toEqual(['startWeightUnits']);
+    expect((conditional['else'] as Branch)['not']).toEqual({ required: ['startWeightUnits'] });
+  });
 
   it('SOLVER_HORIZON_UNITS_MAX is the schema bound checked before spawn', () => {
     const horizon = properties('request')['horizonUnits'] as { maximum: number };

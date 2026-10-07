@@ -1,7 +1,7 @@
 # mcp-01
 
 Streamable HTTP MCP server over be-01. Tools are derived from
-the shared HTTP descriptors in `@wbs/contracts`; auth, internal, and operational routes are excluded.
+the shared HTTP descriptors in `@wbs/contracts`; auth, internal, operational, and browser organization-selection routes are excluded.
 Every tool call forwards the caller's Bearer token to be-01, so the same
 issuer, identity, scope, journal, and owner rules govern MCP and browser calls.
 
@@ -12,13 +12,17 @@ an ordered list of typed commands (create, patch, move, estimate, dependency,
 capacity, directory entries…) applied all or none, recorded as **one undo**, and
 answering the id each `ref` became. A later command names what an earlier one
 created by its ref. The directory has no project, so its edits alone have
-`postApiDirectoryCommands`. 35 tools in all: the reads, the two batches,
+`postApiDirectoryCommands`. 69 tools in all: the reads, the two person-load reads, the project rank read and move, the two batches,
 undo, redo, the project and step routes, the export, the import, the six saved-plan
 routes — the five that create, list, read, rename and delete a snapshot, plus
 `getApiProjectsByIdSaved-plansCompare`, which answers what changed between two
-of them — and the four calendar-marker routes that list, add, edit and delete a
-dated annotation on a project's axis. The marker writes are not batched with the
-rest: a marker is not a plan edit, so no `commands` command creates one. One call
+of them — the four calendar-marker routes that list, add, edit and delete a
+dated annotation on a project's axis, the three membership routes that list, promote or demote, and
+remove members of the active organization (which, like the onboarding routes below, refuse every delegated caller and so answer an MCP client with 403), three invitation administration routes, three join-request administration routes, the organization domain-claim routes,
+and six onboarding routes, which refuse every delegated caller and so answer an
+MCP client with 403, and the ten space routes that list, create, read, rename and delete a
+space, add, remove and move its projects, and read its projects' roll-ups and the work in progress across it. The marker and space writes are not batched with
+the rest: neither is a plan edit, so no `commands` command creates one. One call
 also retries a failed or corrupt optimized variant; Retry is a project lifecycle
 action with no plan-command equivalent. Step edits may address a node with
 `stepNodeId` from a work-item read instead of the `workItemId`/`workItemRef`
@@ -56,6 +60,8 @@ and `stepId` pair. One call drafts a plan:
 
 A refused command refuses the whole batch with `{ "error", "at", "kind" }` and
 nothing is applied; fix that command and resend.
+
+Connecting an AI client and importing a project through it: [docs/import-with-ai.md](../../../docs/import-with-ai.md).
 
 ## Endpoint and probes
 

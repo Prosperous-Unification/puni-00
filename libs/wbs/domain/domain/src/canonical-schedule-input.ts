@@ -22,8 +22,16 @@
 
 import type { DependencyReach } from './dependency-reach';
 import type { PlannedRow } from './derive-numbers';
-import { type DependencyEdge, indexTree, type PoolSizes, type Slice } from './schedule';
+import {
+  checkElsewhere,
+  type DependencyEdge,
+  type Elsewhere,
+  indexTree,
+  type PoolSizes,
+  type Slice,
+} from './schedule';
 import { groupSlicesByLeaf } from './slice-groups';
+import type { DependencyEndpoint, TypedDependency } from './typed-dependency';
 
 /**
  * The exact argument tuple of `schedule(rows, edges, slices, notBefore,
@@ -53,6 +61,20 @@ export interface ScheduleInput {
   readonly poolSizes: PoolSizes;
   readonly reach: DependencyReach;
   readonly deadlines: ReadonlyMap<string, number>;
+  /** `schedule()`'s eighth argument: the typed dependencies, resolved beside the legacy edges. */
+  readonly typed: readonly TypedDependency[];
+  /**
+   * Every person's bookings in the projects that outrank this one
+   * (`share-people-across-projects` slice 4, ADR 0034) — `schedule()`'s tenth
+   * argument, after the pinned starts no canonical input carries.
+   *
+   * **Optional, unlike the eight above, and absent means empty.** Absent and
+   * empty are one plan and hash as one: the entry is left out of the string
+   * when no person holds a booking, so every plan nothing outranks keeps the
+   * hash it had before bookings existed — the precedent `typed` set. The chain
+   * read (slice 6) is its only writer and always states it.
+   */
+  readonly elsewhere?: Elsewhere;
 }
 
 /**
@@ -69,6 +91,13 @@ const byBytes = (left: string, right: string): number => (left < right ? -1 : le
 /** `[key, value]` pairs from a map, sorted by key. Used for (d), (e) and (g). */
 const sortedPairs = <V>(map: ReadonlyMap<string, V>): [string, V][] =>
   [...map.entries()].sort(([left], [right]) => byBytes(left, right));
+
+/** One endpoint with its fields in a fixed order, the step named only where the scope has one. */
+function canonicalEndpoint(endpoint: DependencyEndpoint): Record<string, string> {
+  return endpoint.scope === 'whole'
+    ? { scope: endpoint.scope, workItemId: endpoint.workItemId }
+    : { scope: endpoint.scope, workItemId: endpoint.workItemId, stepId: endpoint.stepId };
+}
 
 /**
  * The canonical JSON string for one `schedule()` call.
@@ -218,6 +247,37 @@ export function canonicalScheduleInput(input: ScheduleInput): string {
     })),
   }));
 
+  // Typed dependencies by id, each with both endpoints, scope and step
+  // included, and the type: two relationships between one pair of work items
+  // are two constraints. Present only when there is one, so every plan without
+  // a typed dependency keeps the hash it had before they existed; the empty
+  // list and its absence are the same plan.
+  // Proof: this entry left out made `hashes a typed dependency’s endpoints,
+  // scope and identity` fail on `Expected: 4, Received: 1`; watched 2026-09-27.
+  const typed = [...input.typed]
+    .sort((left, right) => byBytes(left.id, right.id))
+    .map((dependency) => ({
+      id: dependency.id,
+      predecessor: canonicalEndpoint(dependency.predecessor),
+      successor: canonicalEndpoint(dependency.successor),
+      // Proof: deleting this member made the FS→FF cache-input test fail:
+      // 0 pass, 1 fail; both canonical strings became identical (2026-09-28).
+      type: dependency.type,
+    }));
+
+  // Bookings elsewhere by person, each with its holder, persons in byte
+  // order: a booking that moved is a placement that may move, and the holder
+  // is named on the slice it binds. Present only when a
+  // person holds one, so a plan nothing outranks keeps its hash.
+  // Proof: this entry left out made `hashes a booking elsewhere, its
+  // interval and its holder` (`canonical-schedule-input.test.ts`) hash every
+  // plan alike; watched 2026-09-29.
+  // The engine's own refusal first: a map `schedule()` refuses gets no key.
+  // Proof: this call removed made `refuses a person listed with no booking,
+  // as the engine does` and the unordered-bookings case hash what the engine
+  // refuses; watched 2026-09-29.
+  const elsewhere = canonicalElsewhereRows(input.elsewhere);
+
   return JSON.stringify({
     rows,
     edges,
@@ -226,5 +286,29 @@ export function canonicalScheduleInput(input: ScheduleInput): string {
     poolSizes: sortedPairs(input.poolSizes),
     reach: input.reach,
     deadlines: sortedPairs(input.deadlines),
+    ...(typed.length === 0 ? {} : { typed }),
+    ...(elsewhere.length === 0 ? {} : { elsewhere }),
   });
+}
+
+/** Canonical incoming-calendar bytes, independent of labels, rank and mode. */
+export function canonicalElsewhere(held?: Elsewhere): string {
+  return JSON.stringify(canonicalElsewhereRows(held));
+}
+
+function canonicalElsewhereRows(held: Elsewhere | undefined) {
+  const bookingsByPerson = held ?? new Map<string, never[]>();
+  checkElsewhere(bookingsByPerson);
+  return [...bookingsByPerson]
+    .sort(([left], [right]) => byBytes(left, right))
+    .map(([personId, bookings]) => ({
+      personId,
+      // Already in order: `checkElsewhere` refuses a list that is not.
+      bookings: bookings.map((booking) => ({
+        start: booking.start,
+        end: booking.end,
+        projectId: booking.projectId,
+        workItemId: booking.workItemId,
+      })),
+    }));
 }

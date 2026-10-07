@@ -1,18 +1,32 @@
-import { readFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
 
 import { renderTemplate, tierComposeTmpl } from '@tools/compose';
+import { scratchSync } from '@tools/test-scratch';
+import { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
 
 import {
   assertDigestPinnedRef,
   assertOidcEnvAllowed,
   assertTierEnvAllowed,
+  assertTierEnvComplete,
+  capacityModesCommand,
   composeUpArgs,
   containerName,
   deriveTierSecrets,
   envKeysOf,
   envLayout,
   grantAliasCommands,
+  holdKindsCommand,
   isDigest,
   manifestInspectArgs,
   migrateCommand,
@@ -20,11 +34,17 @@ import {
   migrateStatusCommand,
   NETWORK,
   psColorsFrom,
+  readinessKindsCommand,
+  relationshipTypesCommand,
   revokeAliasCommands,
   ROOT,
   SHARED_ENV_PATH,
   SOLVER_SUPERVISOR_CONTAINER_DIRECTORY,
   SOLVER_SUPERVISOR_HOST_DIRECTORY,
+  storedCapacityModesCommand,
+  storedHoldsCommand,
+  storedReadinessesCommand,
+  storedRelationshipTypesCommand,
   tierComposeContext,
   tierComposeFile,
   tierEnvFiles,
@@ -33,6 +53,296 @@ import {
 } from './docker';
 
 const DIGEST = 'sha256:' + 'a'.repeat(64);
+
+describe('relationship type commands', () => {
+  it('executes the present reader CLI', async () => {
+    const directory = scratchSync('wbs-reader-present-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      writeFileSync(
+        join(directory, 'src/relationship-types-cli.ts'),
+        'console.log(JSON.stringify(["FS", "FF"]));\n',
+      );
+      const command = relationshipTypesCommand('be-01-green');
+      const probe = Bun.spawn(command.slice(2), { cwd: directory, stdout: 'pipe' });
+      expect(await probe.exited).toBe(0);
+      expect(JSON.parse(await new Response(probe.stdout).text())).toEqual(['FS', 'FF']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('treats an absent reader CLI as exactly FS', async () => {
+    const directory = scratchSync('wbs-reader-types-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      const command = relationshipTypesCommand('be-01-green');
+      expect(command.slice(0, 4)).toEqual(['exec', 'be-01-green', 'sh', '-c']);
+      const probe = Bun.spawn(command.slice(2), { cwd: directory, stdout: 'pipe' });
+      expect(await probe.exited).toBe(0);
+      expect(JSON.parse(await new Response(probe.stdout).text())).toEqual(['FS']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not treat a missing source directory as an older release', async () => {
+    const directory = scratchSync('wbs-reader-unavailable-');
+    try {
+      const command = relationshipTypesCommand('be-01-green');
+      const probe = Bun.spawn(command.slice(2), { cwd: directory });
+      expect(await probe.exited).toBe(74);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a nonregular reader CLI path', async () => {
+    const directory = scratchSync('wbs-reader-nonregular-');
+    try {
+      mkdirSync(join(directory, 'src/relationship-types-cli.ts'), { recursive: true });
+      const probe = Bun.spawn(relationshipTypesCommand('be-01-green').slice(2), {
+        cwd: directory,
+      });
+      expect(await probe.exited).toBe(73);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects an unreadable source directory', async () => {
+    const directory = scratchSync('wbs-reader-unreadable-');
+    const source = join(directory, 'src');
+    try {
+      mkdirSync(source);
+      chmodSync(source, 0o000);
+      const probe = Bun.spawn(relationshipTypesCommand('be-01-green').slice(2), {
+        cwd: directory,
+      });
+      expect(await probe.exited).toBe(74);
+    } finally {
+      chmodSync(source, 0o700);
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('reads stored types from SQLite and treats an absent table as empty', async () => {
+    const directory = scratchSync('wbs-stored-types-');
+    try {
+      const path = join(directory, 'wbs.db');
+      const db = new Database(path);
+      const command = storedRelationshipTypesCommand('be-01-green');
+      expect(command.slice(0, 4)).toEqual(['exec', 'be-01-green', 'bun', '-e']);
+      const readTypes = async () => {
+        const probe = Bun.spawn(command.slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const output = await new Response(probe.stdout).text();
+        expect(await probe.exited).toBe(0);
+        const parsed: unknown = JSON.parse(output);
+        return parsed;
+      };
+      expect(await readTypes()).toEqual([]);
+      db.run('CREATE TABLE typed_dependency (type text NOT NULL)');
+      db.run("INSERT INTO typed_dependency (type) VALUES ('FF'), ('FF'), ('FS')");
+      expect(await readTypes()).toEqual([
+        { type: 'FF', count: 2 },
+        { type: 'FS', count: 1 },
+      ]);
+      db.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a missing database file', async () => {
+    const directory = scratchSync('wbs-stored-missing-');
+    try {
+      const probe = Bun.spawn(storedRelationshipTypesCommand('be-01-green').slice(2), {
+        env: { ...process.env, DB_PATH: join(directory, 'missing.db') },
+        stderr: 'pipe',
+      });
+      expect(await probe.exited).not.toBe(0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects an unset DB_PATH', async () => {
+    const { DB_PATH: _dbPath, ...environment } = process.env;
+    const probe = Bun.spawn(storedRelationshipTypesCommand('be-01-green').slice(2), {
+      env: environment,
+      stderr: 'pipe',
+    });
+    expect(await probe.exited).not.toBe(0);
+  });
+});
+
+describe('readiness kind commands', () => {
+  it('executes the present readiness CLI and reads an absent one as none', async () => {
+    const directory = scratchSync('wbs-readiness-kinds-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      const absent = Bun.spawn(readinessKindsCommand('be-01-green').slice(2), {
+        cwd: directory,
+        stdout: 'pipe',
+      });
+      expect(await absent.exited).toBe(0);
+      expect(JSON.parse(await new Response(absent.stdout).text())).toEqual([]);
+      writeFileSync(
+        join(directory, 'src/readiness-kinds-cli.ts'),
+        'console.log(JSON.stringify(["draft", "ready"]));\n',
+      );
+      const present = Bun.spawn(readinessKindsCommand('be-01-green').slice(2), {
+        cwd: directory,
+        stdout: 'pipe',
+      });
+      expect(await present.exited).toBe(0);
+      expect(JSON.parse(await new Response(present.stdout).text())).toEqual(['draft', 'ready']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('reads stored readinesses, empty before the column exists', async () => {
+    const directory = scratchSync('wbs-stored-readiness-');
+    try {
+      const path = join(directory, 'wbs.db');
+      const db = new Database(path);
+      const read = async () => {
+        const probe = Bun.spawn(storedReadinessesCommand('be-01-green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const output = await new Response(probe.stdout).text();
+        expect(await probe.exited).toBe(0);
+        const parsed: unknown = JSON.parse(output);
+        return parsed;
+      };
+      db.run('CREATE TABLE work_item (id text PRIMARY KEY)');
+      expect(await read()).toEqual([]);
+      db.run('ALTER TABLE work_item ADD readiness text');
+      db.run("INSERT INTO work_item (id, readiness) VALUES ('a', 'ready'), ('b', NULL)");
+      expect(await read()).toEqual([{ kind: 'ready', count: 1 }]);
+      db.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('hold kind commands', () => {
+  it('executes the present hold kinds CLI', async () => {
+    const directory = scratchSync('wbs-holds-present-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      writeFileSync(
+        join(directory, 'src/hold-kinds-cli.ts'),
+        'console.log(JSON.stringify(["on_hold", "blocked"]));\n',
+      );
+      const command = holdKindsCommand('be-01-green');
+      expect(command.slice(0, 4)).toEqual(['exec', 'be-01-green', 'sh', '-c']);
+      const probe = Bun.spawn(command.slice(2), { cwd: directory, stdout: 'pipe' });
+      expect(await probe.exited).toBe(0);
+      expect(JSON.parse(await new Response(probe.stdout).text())).toEqual(['on_hold', 'blocked']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('treats an absent hold kinds CLI as reading no holds', async () => {
+    const directory = scratchSync('wbs-holds-absent-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      const probe = Bun.spawn(holdKindsCommand('be-01-green').slice(2), {
+        cwd: directory,
+        stdout: 'pipe',
+      });
+      expect(await probe.exited).toBe(0);
+      expect(JSON.parse(await new Response(probe.stdout).text())).toEqual([]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not treat a missing source directory as an older release', async () => {
+    const directory = scratchSync('wbs-holds-unavailable-');
+    try {
+      const probe = Bun.spawn(holdKindsCommand('be-01-green').slice(2), { cwd: directory });
+      expect(await probe.exited).toBe(74);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a nonregular hold kinds CLI path', async () => {
+    const directory = scratchSync('wbs-holds-nonregular-');
+    try {
+      mkdirSync(join(directory, 'src/hold-kinds-cli.ts'), { recursive: true });
+      const probe = Bun.spawn(holdKindsCommand('be-01-green').slice(2), { cwd: directory });
+      expect(await probe.exited).toBe(73);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('reads stored holds from SQLite, empty before the table or the column exists', async () => {
+    const directory = scratchSync('wbs-stored-holds-');
+    try {
+      const path = join(directory, 'wbs.db');
+      const db = new Database(path);
+      const command = storedHoldsCommand('be-01-green');
+      expect(command.slice(0, 4)).toEqual(['exec', 'be-01-green', 'bun', '-e']);
+      const readHolds = async () => {
+        const probe = Bun.spawn(command.slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const output = await new Response(probe.stdout).text();
+        expect(await probe.exited).toBe(0);
+        const parsed: unknown = JSON.parse(output);
+        return parsed;
+      };
+      expect(await readHolds()).toEqual([]);
+      db.run('CREATE TABLE work_item (id text PRIMARY KEY)');
+      expect(await readHolds()).toEqual([]);
+      db.run('ALTER TABLE work_item ADD hold text');
+      db.run(
+        "INSERT INTO work_item (id, hold) VALUES ('a', 'on_hold'), ('b', 'on_hold'), ('c', 'blocked'), ('d', NULL)",
+      );
+      expect(await readHolds()).toEqual([
+        { kind: 'blocked', count: 1 },
+        { kind: 'on_hold', count: 2 },
+      ]);
+      db.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a missing database file and an unset DB_PATH', async () => {
+    const directory = scratchSync('wbs-stored-holds-missing-');
+    try {
+      const missing = Bun.spawn(storedHoldsCommand('be-01-green').slice(2), {
+        env: { ...process.env, DB_PATH: join(directory, 'missing.db') },
+        stderr: 'pipe',
+      });
+      expect(await missing.exited).not.toBe(0);
+      const { DB_PATH: _dbPath, ...environment } = process.env;
+      const unset = Bun.spawn(storedHoldsCommand('be-01-green').slice(2), {
+        env: environment,
+        stderr: 'pipe',
+      });
+      expect(await unset.exited).not.toBe(0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
 
 /**
  * The prod layout is not "whatever envLayout returns for prod" — it is the set
@@ -49,7 +359,7 @@ describe('envLayout', () => {
       network: 'wbs-net',
       containerPrefix: '',
       sharedEnvPath: '/home/puni1/wbs/.env',
-      oidcEnvPath: null,
+      oidcEnvPath: '/home/puni1/wbs/oidc.env',
       stateDir: '/home/puni1/wbs/state',
       siteCaddyPath: '/home/puni1/wbs/caddy/site.caddy',
       siteAddress: 'wbs.bulletpoints.club',
@@ -247,7 +557,7 @@ describe('tierComposeContext', () => {
       `registry.infra.bulletpoints.club/wbs-gw-01@${DIGEST}`,
     );
     expect(ctx['ENV_FILES']).toBe(
-      `    env_file:\n      - ${ROOT}/gw-01.env\n      - ${ROOT}/gw-01.secrets.env\n`,
+      `    env_file:\n      - ${ROOT}/gw-01.env\n      - ${ROOT}/oidc.env\n      - ${ROOT}/gw-01.secrets.env\n`,
     );
     expect(ctx['VOLUMES']).toBe('');
   });
@@ -259,7 +569,7 @@ describe('tierComposeContext', () => {
       `registry.infra.bulletpoints.club/wbs-be-01@${DIGEST}`,
     );
     expect(ctx['ENV_FILES']).toBe(
-      `    env_file:\n      - ${ROOT}/be-01.env\n      - ${ROOT}/be-01.secrets.env\n`,
+      `    env_file:\n      - ${ROOT}/be-01.env\n      - ${ROOT}/oidc.env\n      - ${ROOT}/be-01.secrets.env\n`,
     );
     expect(ctx['VOLUMES']).toBe(
       `    volumes:\n` +
@@ -281,9 +591,22 @@ describe('tierEnvFiles', () => {
     expect(tierEnvFiles('fe')).toEqual([`${ROOT}/fe-01.env`]);
   });
 
-  it('be-01 and gw-01 get their app-config file then their secrets file, in that order', () => {
-    expect(tierEnvFiles('be')).toEqual([`${ROOT}/be-01.env`, `${ROOT}/be-01.secrets.env`]);
-    expect(tierEnvFiles('gw')).toEqual([`${ROOT}/gw-01.env`, `${ROOT}/gw-01.secrets.env`]);
+  it('be-01 and gw-01 get their app-config file, the OIDC carrier, then their secrets file', () => {
+    expect(tierEnvFiles('be')).toEqual([
+      `${ROOT}/be-01.env`,
+      `${ROOT}/oidc.env`,
+      `${ROOT}/be-01.secrets.env`,
+    ]);
+    expect(tierEnvFiles('gw')).toEqual([
+      `${ROOT}/gw-01.env`,
+      `${ROOT}/oidc.env`,
+      `${ROOT}/gw-01.secrets.env`,
+    ]);
+  });
+
+  it('gives a layout without a carrier only the app-config and secrets files', () => {
+    const bare = { ...envLayout('prod'), oidcEnvPath: null };
+    expect(tierEnvFiles('be', bare)).toEqual([`${ROOT}/be-01.env`, `${ROOT}/be-01.secrets.env`]);
   });
 
   it('gives dev be and gw the OIDC config before their derived secrets, but never gives it to fe', () => {
@@ -511,6 +834,165 @@ describe('assertOidcEnvAllowed', () => {
     }
     expect(message).toContain('REGISTRY_PASS');
     expect(message).not.toContain('hunter2');
+  });
+});
+
+/**
+ * The preflight's key lists against the releases themselves: a set it admits
+ * must boot be-01 and gw-01 under the image's NODE_ENV=production, and every
+ * key it demands must be one the release refuses to boot without.
+ */
+describe('assertTierEnvComplete against the release configuration', () => {
+  const APP = {
+    be: { PORT: '3100', LOG_LEVEL: 'error', GW_URL: 'http://gw', DB_PATH: '/data/wbs.db' },
+    gw: { PORT: '3200', LOG_LEVEL: 'error', BE_URL: 'http://be-01.internal:3100' },
+  } as const;
+  const SHARED = {
+    INTERNAL_AUTH_SECRET: 's'.repeat(32),
+    JWT_SIGNING_KEY_CURRENT: 'k'.repeat(32),
+  };
+  const OIDC = {
+    AUTH_ISSUER_DISCOVERY_URL: 'https://issuer.example.test/',
+    AUTH_CLIENT_ID: 'client',
+    AUTH_CLIENT_SECRET: 'secret',
+    AUTH_REDIRECT_URI: 'https://wbs.example.test/api/auth/okta/callback',
+    AUTH_AUDIENCE: 'https://api.example.test',
+  };
+  const envText = (values: Record<string, string>): string =>
+    Object.entries(values)
+      .map(([key, value]) => `${key}=${value}\n`)
+      .join('');
+
+  /** Boots the tier's own config the way its image does; returns the exit code and stderr. */
+  function bootRelease(tier: 'be' | 'gw', env: Record<string, string>) {
+    const script =
+      tier === 'be'
+        ? `import { loadConfig } from './apps/wbs/be-01/src/config.ts';
+           import { oidcRouteOptionsFromEnv } from './apps/wbs/be-01/src/controller/oidc-options.ts';
+           const env = JSON.parse(process.env['RELEASE_ENV']);
+           const cfg = loadConfig(env);
+           if (cfg.AUTH_MODE === 'oidc') oidcRouteOptionsFromEnv(env);`
+        : `import { loadConfig } from './apps/wbs/gw-01/src/config.ts';
+           loadConfig(JSON.parse(process.env['RELEASE_ENV']));`;
+    const probe = Bun.spawnSync([process.execPath, '--no-env-file', '--eval', script], {
+      cwd: new URL('../../../../', import.meta.url).pathname,
+      env: { RELEASE_ENV: JSON.stringify(env) },
+    });
+    return { exitCode: probe.exitCode, stderr: new TextDecoder().decode(probe.stderr) };
+  }
+
+  function preflightMessage(tier: 'be' | 'gw', env: Record<string, string>): string {
+    const app = Object.fromEntries(
+      Object.entries(env).filter(
+        ([key]) => key in APP[tier] || key === 'AUTH_MODE' || key.startsWith('SOLVER_'),
+      ),
+    );
+    const shared = Object.fromEntries(
+      Object.entries(env).filter(([key]) => key in SHARED || key === 'JWT_SIGNING_KEY_PREVIOUS'),
+    );
+    const oidc = Object.fromEntries(Object.entries(env).filter(([key]) => key in OIDC));
+    try {
+      assertTierEnvComplete(tier, {
+        appEnvText: envText(app),
+        sharedEnvText: envText(shared),
+        oidcEnvText: envText(oidc),
+      });
+    } catch (e: unknown) {
+      return e instanceof Error ? e.message : String(e);
+    }
+    return '';
+  }
+
+  const complete = (tier: 'be' | 'gw'): Record<string, string> => ({
+    ...APP[tier],
+    AUTH_MODE: 'oidc',
+    ...SHARED,
+    ...OIDC,
+    NODE_ENV: 'production',
+    // The rendered Compose environment supplies this for be (tierComposeContext).
+    APP_ORIGIN: 'https://wbs.example.test',
+    // Well-formed optional keys, so the admitted set exercises their rules too.
+    ...(tier === 'be'
+      ? { SOLVER_BUDGET_MS: '120000', SOLVER_SEARCH_WORKERS: '2', SOLVER_MEMORY_LIMIT_MB: '512' }
+      : { JWT_SIGNING_KEY_PREVIOUS: 'p'.repeat(32) }),
+  });
+
+  for (const tier of ['be', 'gw'] as const) {
+    it(`admits an env set that boots ${tier} under NODE_ENV=production`, () => {
+      expect(preflightMessage(tier, complete(tier))).toBe('');
+      expect(bootRelease(tier, complete(tier)).exitCode).toBe(0);
+    });
+
+    it(`demands only keys the ${tier} release refuses to boot without`, () => {
+      const demanded = [
+        ...Object.keys(APP[tier]),
+        'AUTH_MODE',
+        ...Object.keys(SHARED),
+        ...Object.keys(OIDC),
+      ];
+      for (const key of demanded) {
+        const env = complete(tier);
+        const { [key]: _removed, ...rest } = env;
+        expect(preflightMessage(tier, rest)).toContain(key);
+        expect({ key, exitCode: bootRelease(tier, rest).exitCode }).not.toEqual({
+          key,
+          exitCode: 0,
+        });
+      }
+    });
+
+    it(`refuses only value shapes the ${tier} release also refuses`, () => {
+      const cases: [string, string][] = [
+        ['PORT', '32o0'],
+        ['PORT', '0100'],
+        ['LOG_LEVEL', 'verbose'],
+        ['INTERNAL_AUTH_SECRET', 's'.repeat(31)],
+        ['JWT_SIGNING_KEY_CURRENT', 'k'.repeat(20)],
+        // gw reads only the callback's origin, but the carrier it shares with
+        // be must hold be's mounted callback route, so only be is asked here.
+        ...(tier === 'be'
+          ? ([
+              ['AUTH_REDIRECT_URI', 'https://wbs.example.test/other'],
+              ['SOLVER_BUDGET_MS', '007'],
+              ['SOLVER_BUDGET_MS', ''],
+              ['SOLVER_SEARCH_WORKERS', '0'],
+              ['SOLVER_MEMORY_LIMIT_MB', 'lots'],
+            ] as [string, string][])
+          : // Only gw derives JWT_SIGNING_KEY_PREVIOUS (SECRET_KEYS).
+            ([
+              ['JWT_SIGNING_KEY_PREVIOUS', ''],
+              ['JWT_SIGNING_KEY_PREVIOUS', 'p'.repeat(20)],
+            ] as [string, string][])),
+      ];
+      for (const [key, value] of cases) {
+        const env = { ...complete(tier), [key]: value };
+        expect({ key, value, message: preflightMessage(tier, env) }).toEqual({
+          key,
+          value,
+          message: expect.stringContaining(`${key} (`) as string,
+        });
+        expect({ key, value, exitCode: bootRelease(tier, env).exitCode }).not.toEqual({
+          key,
+          value,
+          exitCode: 0,
+        });
+      }
+    });
+
+    it(`refuses AUTH_MODE=local, which the ${tier} release refuses under NODE_ENV=production`, () => {
+      const env = { ...complete(tier), AUTH_MODE: 'local' };
+      expect(preflightMessage(tier, env)).toContain('AUTH_MODE=local, which the');
+      expect(preflightMessage(tier, env)).toContain('NODE_ENV=production');
+      expect(bootRelease(tier, env).stderr).toContain('AUTH_MODE=local is forbidden in production');
+    });
+  }
+
+  it('reads NODE_ENV=production from both images, which is why local mode is refused', () => {
+    const root = new URL('../../../../', import.meta.url).pathname;
+    for (const app of ['be-01', 'gw-01']) {
+      const dockerfile = readFileSync(join(root, `apps/wbs/${app}/Dockerfile`), 'utf8');
+      expect(dockerfile).toMatch(/^ENV NODE_ENV=production$/m);
+    }
   });
 });
 
@@ -769,4 +1251,116 @@ it('retains an explicitly configured HTTP scheme and port for a local Caddy addr
   expect(Object.values(compose.services)[0].environment['APP_ORIGIN']).toBe(
     'http://localhost:8080',
   );
+});
+
+describe('capacity modes commands', () => {
+  it('advertises only isolated on this intermediate release and on a readable older release', async () => {
+    const root = new URL('../../../../', import.meta.url).pathname;
+    const current = Bun.spawn(capacityModesCommand('green').slice(2), {
+      cwd: join(root, 'apps/wbs/be-01'),
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(await current.exited).toBe(0);
+    expect(JSON.parse(await new Response(current.stdout).text())).toEqual(['isolated']);
+    const directory = scratchSync('wbs-capacity-old-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      const older = Bun.spawn(capacityModesCommand('green').slice(2), {
+        cwd: directory,
+        stdout: 'pipe',
+      });
+      expect(await older.exited).toBe(0);
+      expect(JSON.parse(await new Response(older.stdout).text())).toEqual(['isolated']);
+      rmSync(join(directory, 'src'), { recursive: true });
+      const missing = Bun.spawn(capacityModesCommand('green').slice(2), {
+        cwd: directory,
+        stderr: 'pipe',
+      });
+      expect(await missing.exited).toBe(74);
+      mkdirSync(join(directory, 'src/capacity-modes-cli.ts'), { recursive: true });
+      const nonregular = Bun.spawn(capacityModesCommand('green').slice(2), {
+        cwd: directory,
+        stderr: 'pipe',
+      });
+      expect(await nonregular.exited).toBe(73);
+      rmSync(join(directory, 'src/capacity-modes-cli.ts'), { recursive: true });
+      symlinkSync('missing.ts', join(directory, 'src/capacity-modes-cli.ts'));
+      const dangling = Bun.spawn(capacityModesCommand('green').slice(2), {
+        cwd: directory,
+        stderr: 'pipe',
+      });
+      expect(await dangling.exited).toBe(73);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('reads actual mode counts and only treats an absent old-schema column as isolated', async () => {
+    const directory = scratchSync('wbs-capacity-stored-');
+    const path = join(directory, 'test.db');
+    const db = new Database(path, { create: true });
+    async function probe() {
+      const child = Bun.spawn(storedCapacityModesCommand('green').slice(2), {
+        env: { ...process.env, DB_PATH: path },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      const [exit, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      return { exit, stdout, stderr };
+    }
+    try {
+      const missingTable = await probe();
+      expect(missingTable.exit).not.toBe(0);
+      expect(missingTable.stderr).toContain('organization table is missing');
+      db.run('CREATE TABLE organization(id text PRIMARY KEY)');
+      db.run("INSERT INTO organization(id) VALUES('a'),('b'),('c')");
+      expect(JSON.parse((await probe()).stdout)).toEqual([{ mode: 'isolated', count: 3 }]);
+      db.run('ALTER TABLE organization ADD COLUMN shared_people integer DEFAULT 0');
+      db.run("UPDATE organization SET shared_people=1 WHERE id='b'");
+      expect(JSON.parse((await probe()).stdout)).toEqual([
+        { mode: 'isolated', count: 2 },
+        { mode: 'shared', count: 1 },
+      ]);
+      for (const value of ['2', '0.5', 'NULL', "'invalid'"]) {
+        db.run(`UPDATE organization SET shared_people=${value} WHERE id='a'`);
+        const invalid = await probe();
+        expect(invalid.exit).not.toBe(0);
+        expect(invalid.stderr).toContain('invalid stored shared_people');
+      }
+    } finally {
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses missing, unreadable or malformed databases and missing DB_PATH', async () => {
+    const directory = scratchSync('wbs-capacity-missing-');
+    const malformed = join(directory, 'invalid.db');
+    writeFileSync(malformed, 'not SQLite');
+    try {
+      for (const path of [join(directory, 'absent.db'), directory, malformed]) {
+        const child = Bun.spawn(storedCapacityModesCommand('green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stderr: 'pipe',
+        });
+        expect(await child.exited).not.toBe(0);
+      }
+      expect(existsSync(join(directory, 'absent.db'))).toBe(false);
+      const environment = { ...process.env };
+      delete environment['DB_PATH'];
+      const child = Bun.spawn(storedCapacityModesCommand('green').slice(2), {
+        env: environment,
+        stderr: 'pipe',
+      });
+      expect(await child.exited).not.toBe(0);
+      expect(await new Response(child.stderr).text()).toContain('DB_PATH must be set');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 });

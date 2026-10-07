@@ -22,6 +22,30 @@ describe('canonicalisePlanInput', () => {
     expect(canonicalisePlanInput(rows).schemaVersion).toBe(CANONICAL_PLAN_INPUT_SCHEMA_VERSION);
   });
 
+  it('captures typed endpoints by value in relationship id order', () => {
+    expect(canonicalisePlanInput(rows).typedDependencies).toEqual([
+      {
+        id: 'typed-1',
+        predecessor: { scope: 'node', workItemId: 'w2', stepId: 's1' },
+        successor: { scope: 'whole', workItemId: 'w1' },
+        type: 'FS',
+      },
+      {
+        id: 'typed-2',
+        predecessor: { scope: 'whole', workItemId: 'w2' },
+        successor: { scope: 'node', workItemId: 'w2', stepId: 's2' },
+        type: 'FS',
+      },
+    ]);
+  });
+
+  it('captures coded and uncoded step identities', () => {
+    expect(canonicalisePlanInput(rows).steps).toEqual([
+      { id: 's1', code: 'build', name: 'Build', position: 10, allowancePercent: 0 },
+      { id: 's2', code: null, name: 'Test', position: 20, allowancePercent: 0 },
+    ]);
+  });
+
   it('keeps no key the closed field list does not name', () => {
     // A read row carrying an audit column, a write counter and a refresh cursor
     // — the three classes the JSDoc rules out. None may reach the bytes.
@@ -156,8 +180,10 @@ describe('canonicalisePlanInput round trip', () => {
           serviceId: null,
           startNoEarlierThan: null,
           startNoEarlierThanReason: null,
+          readiness: null,
+          hold: null,
         })),
-        steps: [{ id: 's1', name: 'Build', position: 10 }],
+        steps: [{ id: 's1', code: 'build', name: 'Build', position: 10, allowancePercent: 0 }],
         stepValues: ids.map((id) => ({
           workItemId: id,
           stepId: 's1',
@@ -170,6 +196,7 @@ describe('canonicalisePlanInput round trip', () => {
         })),
         measures: [],
         dependencies: [],
+        typedDependencies: [],
         assignments: [],
         people: [],
         teams: teamIds.map(named),

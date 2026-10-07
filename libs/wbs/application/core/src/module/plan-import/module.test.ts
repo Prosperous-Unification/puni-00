@@ -4,6 +4,8 @@ import { DiBag } from 'di-bag';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scope } from '../../ports/unit-of-work';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
@@ -11,6 +13,7 @@ import { planDocumentFixture } from '../../testing/plan-document-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { installPlanImport } from './check';
 import { PLAN_IMPORT_LABEL } from './contract';
+import { ImportedPlanResource } from './imported-plan.resource';
 import { planImportModule } from './module';
 
 const STAMP_AT = 1_757_851_200_000;
@@ -25,7 +28,12 @@ const requirements = () => {
     uow: source.uow,
     announcements: recordingBroadcaster(),
     batchServices: (scope: Scope, broadcast: Broadcaster) =>
-      servicesOver(scope.stores, { clock, broadcast, scheduler: fastScheduler }),
+      servicesOver(scope.stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      }),
   };
 };
 
@@ -52,12 +60,14 @@ const completeHost = () =>
       batchServices: DiBag.createProvider(
         () => (scope: Scope, broadcast: Broadcaster) =>
           servicesOver(scope.stores, {
+            admission: CREATOR_ADMISSION,
             clock: clockOf({ now: () => STAMP_AT, newId: () => 'id' }),
             broadcast,
             scheduler: fastScheduler,
           }),
         { factoryReturnKind: 'sync-value' },
       ),
+      committedFanout: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     })
     .buildContainer();
 
@@ -69,7 +79,7 @@ describe('the Plan import module', () => {
     if (row === undefined) throw new Error('fixture lost its own first work item');
     row.deadline = '2026-09-13';
 
-    expect(await imports.import(document, 'importer')).toMatchObject({
+    expect(await imports.import(document, 'importer', LEGACY_ACCESS)).toMatchObject({
       ok: false,
       code: 'deadline_before_project_start',
       path: 'workItems[0].deadline',
@@ -85,7 +95,7 @@ describe('the Plan import module', () => {
     if (row === undefined) throw new Error('fixture lost its own first work item');
     row.typeIds = ['type-1', 'type-2'];
 
-    expect(await imports.import(document, 'importer')).toEqual({
+    expect(await imports.import(document, 'importer', LEGACY_ACCESS)).toEqual({
       ok: false,
       code: 'work_item_takes_one_type',
       path: 'workItems[0].typeIds',
@@ -98,12 +108,31 @@ describe('the Plan import module', () => {
     const announcements = recordingBroadcaster();
     const { imports } = installPlanImport({ ...requirements(), announcements });
 
-    const outcome = await imports.import(planDocumentFixture(), 'importer');
+    const outcome = await imports.import(planDocumentFixture(), 'importer', LEGACY_ACCESS);
 
     expect(outcome).toMatchObject({ ok: true, rows: 1 });
     expect(
       announcements.published.some((entry) => entry.event.type === 'project_settings_changed'),
     ).toBe(true);
+  });
+
+  it('refuses a scoped source without borrowed import authority before any write', async () => {
+    const source = openMemorySource();
+    const announcements = recordingBroadcaster();
+    const { imports } = installPlanImport({ ...requirements(), uow: source.uow, announcements });
+    const access: ResourceAccess = {
+      kind: 'scoped',
+      scope: { organizationId: 'org-a', userId: 'importer', role: 'member' },
+    };
+
+    const refused: unknown = await imports
+      .import(planDocumentFixture(), 'importer', access)
+      .catch((failure: unknown) => failure);
+    expect(refused).toBeInstanceOf(Error);
+    if (!(refused instanceof Error)) throw new Error('missing scoped authority did not throw');
+    expect(refused.message).toBe('scoped import lacks borrowed authority or fan-out delivery');
+    expect(await source.stores.projects.list()).toEqual([]);
+    expect(announcements.published).toEqual([]);
   });
 
   /**
@@ -168,5 +197,16 @@ describe('the Plan import module', () => {
     expect(() => host.resolve('imports')).toThrow(
       `Cannot resolve "${PLAN_IMPORT_LABEL}/importOptions": dependency "batchServices" is not registered. Resolution path: imports -> ${PLAN_IMPORT_LABEL}/importOptions -> batchServices.`,
     );
+  });
+});
+
+describe('ImportedPlanResource', () => {
+  // Proof (2026-09-30): declaring the field `private readonly scope` made this
+  // and the AdmittedScope twin fail (8 pass, 2 fail).
+  it('keeps the raw scope out of reach at run time', () => {
+    const scope = { stores: {} } as Scope;
+    const writes = new ImportedPlanResource(scope);
+    expect(Reflect.ownKeys(writes)).toEqual([]);
+    expect(Reflect.get(writes, 'scope')).toBeUndefined();
   });
 });

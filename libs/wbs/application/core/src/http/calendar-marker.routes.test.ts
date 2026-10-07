@@ -3,9 +3,10 @@ import { inMemoryCalendarMarkers } from '@wbs/store-memory/calendar-marker-fixtu
 import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
-import { CalendarMarkerService } from '../service/calendar-marker.service';
+import { CalendarMarkerService } from '../module/calendar-marker/calendar-marker.resource';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { calendarMarkerRoutes } from './calendar-marker.routes';
 import { EMPTY } from './endpoint';
 
@@ -32,7 +33,12 @@ async function fixture() {
     markers: store,
     broadcast,
   });
-  return { projects, store, broadcast, endpoints: calendarMarkerRoutes(service) };
+  return {
+    projects,
+    store,
+    broadcast,
+    endpoints: calendarMarkerRoutes(service, legacyOrganizationAccess),
+  };
 }
 
 test('direct marker bindings preserve IDs, resolve automatic color and publish only marker refresh', async () => {

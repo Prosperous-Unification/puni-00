@@ -1,6 +1,7 @@
-import { canEditProject, type PriorityBand } from '@wbs/domain';
+import type { PriorityBand } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
+import type { EditAdmission } from '../../ports/edit-admission';
 import type { PriorityBandStore } from '../../ports/priority-band-store';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
@@ -9,6 +10,11 @@ export interface PriorityBandServiceOptions {
   projects: ProjectStore;
   bands: PriorityBandStore;
   broadcast: Broadcaster;
+  /**
+   * Who may write a project through this service: `CREATOR_ADMISSION`
+   * outside a batch that established wider authority. See {@link EditAdmission}.
+   */
+  admission: EditAdmission;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock: Clock;
 }
@@ -24,7 +30,7 @@ export type PriorityBandOutcome =
  *
  * `CapacityService`'s shape, and the two things it shares with it are the two
  * that matter: the fact is a **project's**, so the write is gated by
- * {@link canEditProject} rather than being open to every authenticated account the way
+ * {@link PriorityBandServiceOptions.admission} rather than being open to every authenticated account the way
  * the global directory is; and the announcement goes to the project named and to
  * no other.
  *
@@ -67,7 +73,7 @@ export class PriorityBandService {
   ): Promise<PriorityBandOutcome> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
     // One stamp for a replacement the store makes as one transaction: every rung
     // it writes is the same act, so no two rungs of one ladder can disagree
     // about when they were named.

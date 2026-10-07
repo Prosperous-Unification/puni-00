@@ -1,5 +1,5 @@
 {
-  "contractVersion": 11,
+  "contractVersion": 15,
   "cases": {
     "drift-above-a-whole-workday": {
       "units": 48,

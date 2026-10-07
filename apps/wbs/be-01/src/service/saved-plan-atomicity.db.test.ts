@@ -2,6 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
+import { planInputRowsOf } from '@wbs/core/service/saved-plan-input';
 import { canonicalisePlanInput, serialiseCanonicalPlanInput } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -21,8 +23,6 @@ import { WorkItemRepository } from '../repository/work-item';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { projectRow } from '../testing/project-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import { SavedPlanService } from './saved-plan.service';
-import { planInputRowsOf } from './saved-plan-input';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -141,6 +141,8 @@ describe('SavedPlanService.save is atomic', () => {
     deadline: null,
     factStart: null,
     factEnd: null,
+    readiness: null,
+    hold: null,
     revision: 0,
   });
 
@@ -162,7 +164,16 @@ describe('SavedPlanService.save is atomic', () => {
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);

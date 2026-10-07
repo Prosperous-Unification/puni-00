@@ -2,6 +2,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { captureAndSchedulePlan } from '@wbs/core/service/saved-plan-schedule';
+import {
+  buildScheduleBody,
+  SCHEDULE_BODY_SCHEMA_VERSION,
+  serialiseScheduleBody,
+} from '@wbs/core/service/saved-plan-schedule-body';
 import {
   addWorkdays,
   firstWorkdayOf,
@@ -25,12 +31,6 @@ import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { projectRow } from '../testing/project-fixture';
-import { captureAndSchedulePlan } from './saved-plan-schedule';
-import {
-  buildScheduleBody,
-  SCHEDULE_BODY_SCHEMA_VERSION,
-  serialiseScheduleBody,
-} from './saved-plan-schedule-body';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -73,7 +73,16 @@ describe('the stored schedule body', () => {
         estimateMethod: 'realistic',
         startDate,
       }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);
@@ -110,6 +119,8 @@ describe('the stored schedule body', () => {
           deadline: null,
           factStart: null,
           factEnd: null,
+          readiness: null,
+          hold: null,
           revision: 0,
         },
         [],

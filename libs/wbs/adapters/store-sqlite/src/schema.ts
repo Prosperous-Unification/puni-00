@@ -1,10 +1,14 @@
 import {
+  allowanceHundredthsOf,
+  type AllowancePercent,
   DOMAIN_CLAIM_STATUSES,
+  HOLDS,
   INVITABLE_ROLES,
   JOIN_REQUEST_STATUSES,
   MEASURE_METRICS,
   ORGANIZATION_ROLES,
   PERSON_KINDS,
+  READINESSES,
   SOLVER_FAILURE_REASONS,
   SOLVER_OBJECTIVES,
 } from '@wbs/domain';
@@ -12,6 +16,7 @@ import { sql } from 'drizzle-orm';
 import {
   type AnySQLiteColumn,
   check,
+  customType,
   foreignKey,
   index,
   integer,
@@ -74,6 +79,25 @@ export const examples = sqliteTable('examples', {
 
 export type ExampleRow = typeof examples.$inferSelect;
 
+/** A password account's address proof; only its digest is stored. */
+export const emailChallenge = sqliteTable(
+  'email_challenge',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    email: text('email').notNull(),
+    tokenDigest: text('token_digest').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    deliveryState: text('delivery_state', { enum: ['pending', 'delivered', 'failed'] }).notNull(),
+    consumedAt: integer('consumed_at'),
+    revokedAt: integer('revoked_at'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (challenge) => [uniqueIndex('email_challenge_token_digest').on(challenge.tokenDigest)],
+);
+
 /**
  * `passwordHash` holds an argon2id digest from `Bun.password`, never a
  * password. `username` is unique at the database level rather than only in the
@@ -87,6 +111,7 @@ export const users = sqliteTable(
     username: text('username').notNull(),
     passwordHash: text('password_hash'),
     email: text('email'),
+    emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
     idpIssuer: text('idp_issuer'),
     idpSub: text('idp_sub'),
     createdAt: integer('created_at').notNull(),
@@ -514,6 +539,20 @@ export const workItem = sqliteTable(
      */
     factEnd: text('fact_end'),
     /**
+     * What the planner has said about whether this leaf is ready to start, or
+     * null where nobody has said. `READINESSES` in `@wbs/domain`; the column's
+     * CHECK in `20260928200000_add_work_item_status_facts` refuses anything
+     * else. Null on every parent: a parent's status is folded, never stated.
+     */
+    readiness: text('readiness', { enum: READINESSES }),
+    /**
+     * The planner's hold on this leaf, or null for none. `HOLDS` in
+     * `@wbs/domain`, CHECKed like {@link readiness}. `on_hold` takes the leaf
+     * out of the schedule input and `blocked` does not (ADR 0032); rollback
+     * past the migration refuses while any row holds one.
+     */
+    hold: text('hold', { enum: HOLDS }),
+    /**
      * How important this work is, or null for "nobody has said" — an integer of
      * 1 or more, smaller being more important.
      *
@@ -615,7 +654,8 @@ export const workItem = sqliteTable(
      * waits. Clamped down by the team's own size, so an item cannot claim more
      * people than the team has, and overridden to 1 by a named assignee — one
      * human cannot work beside themselves. See `widthFor` in
-     * `libs/wbs/application/core/src/service/work-item.service.ts` for where the three rules meet.
+     * `libs/wbs/application/core/src/module/work-item/work-item.resource.ts` for where the three
+     * rules meet.
      *
      * `NOT NULL DEFAULT 1` rather than `priority`'s nullable shape, because
      * unlike a priority `1` and *unset* are the same fact: one at a time. Two
@@ -679,6 +719,25 @@ export const workItem = sqliteTable(
 export type WorkItemRow = typeof workItem.$inferSelect;
 
 /**
+ * An allowance percentage stored as whole hundredths of a percent.
+ *
+ * The one conversion between the planner's `12.34` and SQLite's `1234`, so no
+ * reader or writer spells it. Writing a percentage that is not a whole number
+ * of hundredths throws: every value reaching a store was validated by
+ * `allowancePercentOf` at its boundary, and rounding one here would store a
+ * policy nobody typed.
+ */
+const allowanceHundredths = customType<{ data: AllowancePercent; driverData: number }>({
+  dataType: () => 'integer',
+  toDriver: (percent) => {
+    const hundredths = allowanceHundredthsOf(percent);
+    if (hundredths === null) throw new Error(`not a storable step allowance: ${String(percent)}`);
+    return hundredths;
+  },
+  fromDriver: (hundredths) => hundredths / 100,
+});
+
+/**
  * A kind of work a project estimates separately. Every project starts with `Dev`
  * and `QA`, which is a seed rather than the set it may hold: they can be
  * renamed, removed, and joined by others through `StepRepository`.
@@ -733,6 +792,24 @@ export const step = sqliteTable(
      * renaming or reordering a step keeps it.
      */
     code: text('code'),
+    /**
+     * This step's estimate allowance, stored as hundredths of a percent
+     * (0–100000, `+0%` to `+1000%`) and read as the percentage — see
+     * {@link allowanceHundredths} and `chargedDays` in `@wbs/domain`.
+     *
+     * Integer, so the two decimal places a planner types are stored exactly.
+     * `DEFAULT 0` is what makes the column additive: an outgoing release's
+     * `INSERT` does not name it, and zero is the charge every step had before
+     * the column existed. The range `CHECK` lives in the migration
+     * (`20260927170000_add_step_allowance`), beside the column it guards.
+     */
+    allowancePercent: allowanceHundredths('allowance_bps').notNull().default(0),
+    /**
+     * How many times this step's allowance has been written — the precondition
+     * an allowance undo is conditioned on, because the value alone can come
+     * back to what it was. Not part of `Step`: nothing but the journal reads it.
+     */
+    allowanceRevision: integer('allowance_revision').notNull().default(0),
     ...auditColumns(),
   },
   (t) => [
@@ -1896,6 +1973,63 @@ export const dependency = sqliteTable(
 
 export type DependencyRow = typeof dependency.$inferSelect;
 
+/** Typed endpoint links coexist with legacy project-reach dependencies. */
+export const typedDependency = sqliteTable(
+  'typed_dependency',
+  {
+    id: text('id').primaryKey().notNull(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id),
+    predecessorWorkItemId: text('predecessor_work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    predecessorScope: text('predecessor_scope').notNull(),
+    predecessorStepId: text('predecessor_step_id').references(() => step.id),
+    successorWorkItemId: text('successor_work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    successorScope: text('successor_scope').notNull(),
+    successorStepId: text('successor_step_id').references(() => step.id),
+    type: text('type').notNull(),
+    ...auditColumns(),
+  },
+  (t) => [
+    check(
+      'typed_dependency_predecessor_scope',
+      sql`${t.predecessorScope} IN ('whole','node','descendant-step')`,
+    ),
+    check(
+      'typed_dependency_successor_scope',
+      sql`${t.successorScope} IN ('whole','node','descendant-step')`,
+    ),
+    check('typed_dependency_type', sql`${t.type} IN ('FS','SS','FF')`),
+    check(
+      'typed_dependency_predecessor_step',
+      sql`(${t.predecessorScope} = 'whole') = (${t.predecessorStepId} IS NULL)`,
+    ),
+    check(
+      'typed_dependency_successor_step',
+      sql`(${t.successorScope} = 'whole') = (${t.successorStepId} IS NULL)`,
+    ),
+    uniqueIndex('typed_dependency_endpoints').on(
+      t.predecessorWorkItemId,
+      t.predecessorScope,
+      sql`ifnull(${t.predecessorStepId},'')`,
+      t.successorWorkItemId,
+      t.successorScope,
+      sql`ifnull(${t.successorStepId},'')`,
+      t.type,
+    ),
+    index('typed_dependency_project').on(t.projectId),
+    index('typed_dependency_by_successor').on(t.successorWorkItemId),
+    index('typed_dependency_by_predecessor_step').on(t.predecessorStepId),
+    index('typed_dependency_by_successor_step').on(t.successorStepId),
+  ],
+);
+
+export type TypedDependencyRow = typeof typedDependency.$inferSelect;
+
 /**
  * One command somebody ran, and everything needed to reverse it — the undo
  * stack, held on the server so it survives a reload.
@@ -2571,6 +2705,7 @@ export const organization = sqliteTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     legacy: integer('legacy', { mode: 'boolean' }).notNull().default(false),
+    sharedPeople: integer('shared_people').notNull().default(0),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
   },
@@ -2579,6 +2714,7 @@ export const organization = sqliteTable(
       .on(t.legacy)
       .where(sql`${t.legacy} = 1`),
     check('organization_legacy', sql`${t.legacy} IN (0, 1)`),
+    check('organization_shared_people', sql`${t.sharedPeople} IN (0, 1)`),
   ],
 );
 
@@ -2835,7 +2971,68 @@ export const projectOrganization = sqliteTable(
       .notNull()
       .references(() => organization.id),
   },
-  (t) => [index('project_organization_organization').on(t.organizationId)],
+  (t) => [
+    index('project_organization_organization').on(t.organizationId),
+    // The parent of `project_solution`'s composite reference; see
+    // `20260928010000_add_project_solution`.
+    uniqueIndex('project_organization_resource_organization').on(t.resourceId, t.organizationId),
+  ],
+);
+
+/**
+ * A solution reference written after activation, unique within its
+ * organization rather than across the deployment; see
+ * `20260928010000_add_project_solution`. The composite reference holds
+ * `organization_id` equal to the project's owner. A project holds this row or
+ * the legacy `project.solution_slug` pair, never both.
+ */
+export const projectSolution = sqliteTable(
+  'project_solution',
+  {
+    projectId: text('project_id')
+      .primaryKey()
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').notNull(),
+    slug: text('slug').notNull(),
+    url: text('url').notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.projectId, t.organizationId],
+      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
+    }).onDelete('cascade'),
+    uniqueIndex('project_solution_organization_slug').on(t.organizationId, t.slug),
+    check('project_solution_slug', sql`length(${t.slug}) > 0`),
+    check('project_solution_url', sql`length(${t.url}) > 0`),
+  ],
+);
+
+/** Shared single-use delegation ledger, keyed across every be-01 process. */
+export const delegationUse = sqliteTable(
+  'delegation_use',
+  {
+    issuer: text('issuer').notNull(),
+    jti: text('jti').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.issuer, t.jti] }),
+    index('delegation_use_expires_at').on(t.expiresAt),
+  ],
+);
+
+/** Monotonic revocations of exact verified browser access credentials. */
+export const browserCredentialRevocations = sqliteTable(
+  'browser_credential_revocations',
+  {
+    kind: text('kind').notNull(),
+    userId: text('user_id').notNull(),
+    credentialDigest: text('credential_digest').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    revokedAt: integer('revoked_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.userId, t.credentialDigest] })],
 );
 
 export const savedPlanOrganization = sqliteTable(
@@ -2849,4 +3046,117 @@ export const savedPlanOrganization = sqliteTable(
       .references(() => organization.id),
   },
   (t) => [index('saved_plan_organization_organization').on(t.organizationId)],
+);
+
+/**
+ * One audited act per row, written in the act's own transaction; see
+ * `20260927220000_add_organization_audit`. `subject_id` references nothing
+ * so the record outlives its subject.
+ */
+export const organizationAudit = sqliteTable(
+  'organization_audit',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    actorId: text('actor_id').notNull(),
+    action: text('action').notNull(),
+    subjectKind: text('subject_kind').notNull(),
+    subjectId: text('subject_id').notNull(),
+    detail: text('detail').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    check('organization_audit_action', sql`${t.action} IN ('restricted_project_recovery')`),
+    check('organization_audit_subject_kind', sql`${t.subjectKind} IN ('project')`),
+    index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
+  ],
+);
+
+/**
+ * An organization's named, ordered lens over its projects; see
+ * `20260929100000_add_spaces` and ADR 0033. `(id, organization_id)` is unique
+ * so membership can reference the pair.
+ */
+export const space = sqliteTable(
+  'space',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+    revision: integer('revision').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+  },
+  (t) => [
+    uniqueIndex('space_organization_name').on(t.organizationId, t.name),
+    uniqueIndex('space_id_organization').on(t.id, t.organizationId),
+    check('space_name', sql`length(${t.name}) > 0`),
+  ],
+);
+
+/**
+ * One project's place in one space. Both composite references carry
+ * `organization_id`, so a pair across organizations has no parent; see
+ * `20260929100000_add_spaces`. Positions tie legally (ADR 0016).
+ */
+export const spaceProject = sqliteTable(
+  'space_project',
+  {
+    spaceId: text('space_id').notNull(),
+    projectId: text('project_id').notNull(),
+    organizationId: text('organization_id').notNull(),
+    position: integer('position').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.spaceId, t.projectId] }),
+    foreignKey({
+      columns: [t.spaceId, t.organizationId],
+      foreignColumns: [space.id, space.organizationId],
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.projectId, t.organizationId],
+      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
+    }).onDelete('cascade'),
+    index('space_project_order').on(t.spaceId, t.position),
+    index('space_project_project').on(t.projectId, t.organizationId),
+  ],
+);
+
+/**
+ * One ranked project's place in its organization's project rank. The
+ * composite reference carries `organization_id`, so a rank across
+ * organizations has no parent; see `20260929180000_add_project_rank`.
+ * Positions tie legally (ADR 0016); ties order by project id.
+ */
+export const projectRank = sqliteTable(
+  'project_rank',
+  {
+    projectId: text('project_id').primaryKey(),
+    organizationId: text('organization_id').notNull(),
+    position: integer('position').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.projectId, t.organizationId],
+      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
+    }).onDelete('cascade'),
+    index('project_rank_order').on(t.organizationId, t.position, t.projectId),
+  ],
 );

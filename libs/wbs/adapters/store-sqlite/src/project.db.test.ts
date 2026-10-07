@@ -75,6 +75,7 @@ function steps(projectId: string, ...names: string[]): Step[] {
       name,
       code,
       position: (place + 1) * STEP_POSITION_STEP,
+      allowancePercent: 0,
     };
   });
 }
@@ -119,8 +120,21 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20261005110000_add_shared_people',
+      '20261001010000_add_browser_credential_revocations',
+      '20260929180000_add_project_rank',
+      '20260929100000_add_spaces',
+      '20260928200000_add_work_item_status_facts',
+      '20260928040000_add_email_challenge',
+      '20260928030000_add_delegation_use',
+      '20260928020000_add_email_verification',
+      '20260928010000_add_project_solution',
+      '20260927220000_add_organization_audit',
+      '20260927213000_add_typed_dependency',
+      '20260927200000_freeze_organization_ownership',
       '20260927190000_add_organization_bridge',
       '20260927180000_add_organization_activation',
+      '20260927170000_add_step_allowance',
       '20260927150000_add_step_code',
       '20260927130000_add_organization_ownership',
       '20260927120000_add_organization_records',
@@ -837,5 +851,109 @@ describe('what a project read publishes', () => {
       refusedOnRead = error instanceof Error ? error.message : String(error);
     }
     expect(refusedOnRead).toBe(`${message}: ${stored}`);
+  });
+});
+
+describe('organization-scoped writes', () => {
+  it('records an open and a write only while the organization owns the project', async () => {
+    const raw = openDatabase(join(dir, 'test.db'));
+    try {
+      raw.run(
+        "INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1), ('org-b', 'B', 1)",
+      );
+      raw.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+      const owned = project('Owned', 1);
+      const foreign = project('Foreign', 2);
+      await repo.createInOrganization(owned, steps(owned.id, 'Dev'), wrote(), 'org-a');
+      await repo.createInOrganization(foreign, steps(foreign.id, 'Dev'), wrote(), 'org-b');
+      raw.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', ?, 'member', 1)",
+        [ownerId],
+      );
+      const editor = { actorId: ownerId, auditId: 'audit-1' };
+
+      expect(
+        await repo.editInOrganization(foreign.id, { name: 'Taken' }, wrote(), 'org-a', editor),
+      ).toBe(null);
+      expect(await repo.editInOrganization(foreign.id, {}, wrote(), 'org-a', editor)).toBe(null);
+      expect(await repo.recordOpenInOrganization(foreign.id, wrote(), 'org-a')).toBe(false);
+      expect((await repo.findById(foreign.id))?.name).toBe('Foreign');
+      expect(raw.query('SELECT COUNT(*) AS n FROM project_access').get()).toEqual({ n: 0 });
+
+      expect(
+        await repo.editInOrganization(owned.id, { name: 'Renamed' }, wrote(), 'org-a', editor),
+      ).toMatchObject({ name: 'Renamed' });
+      expect(await repo.recordOpenInOrganization(owned.id, wrote(), 'org-a')).toBe(true);
+      expect(raw.query('SELECT project_id FROM project_access').all()).toEqual([
+        { project_id: owned.id },
+      ]);
+    } finally {
+      raw.close();
+    }
+  });
+});
+
+describe('findCrossReferences', () => {
+  it('searches every arm through an index and scans no table', async () => {
+    const path = join(dir, 'test.db');
+    const queries: { sql: string; params: unknown[] }[] = [];
+    const logged = new ProjectRepository(
+      openDrizzle(path, { logQuery: (sql, params) => queries.push({ sql, params }) }),
+      OPEN,
+    );
+    await logged.findCrossReferences('p', 'o');
+    const query = queries.at(-1);
+    if (query === undefined) throw new Error('findCrossReferences issued no statement');
+    const raw = openDatabase(path);
+    try {
+      // Parameters arrive as drizzle logged them: the project and organization ids.
+      const plan = raw
+        .query<{ detail: string }, string[]>(`EXPLAIN QUERY PLAN ${query.sql}`)
+        .all(...(query.params as string[]));
+      expect(plan.length).toBeGreaterThan(0);
+      // Every alias the arms give `work_item` or `dependency`. A scan of the
+      // small `project` table, through its covering index, is allowed: the
+      // parent arm probes `work_item_siblings` once per other project.
+      // Proof, observed 2026-09-29: with the `incoming_parent` arm restored to
+      // its join on `parent.id = w.parent_id`, this listed `SCAN w`; with the
+      // `incoming_dependency` arm restored, `SCAN d`. Each scan ran the whole
+      // `work_item` or `dependency` table on every scoped project read.
+      const scans = plan
+        .map(({ detail }) => detail)
+        .filter((detail) => /^SCAN (w|d|l|pre|suc|parent|work_item|dependency)\b/.test(detail));
+      expect(scans).toEqual([]);
+    } finally {
+      raw.close();
+    }
+  });
+
+  it('reports a work item whose parent lies in another project', async () => {
+    const raw = openDatabase(join(dir, 'test.db'));
+    try {
+      raw.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+      raw.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+      const mine = project('Mine', 1);
+      const theirs = project('Theirs', 2);
+      await repo.createInOrganization(mine, steps(mine.id, 'Dev'), wrote(), 'org-a');
+      await repo.createInOrganization(theirs, steps(theirs.id, 'Dev'), wrote(), 'org-a');
+      raw.run(
+        "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-t', ?, NULL, 0, 'Root')",
+        [theirs.id],
+      );
+      raw.run(
+        "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-m', ?, 'w-t', 0, 'Child')",
+        [mine.id],
+      );
+
+      expect(await repo.findCrossReferences(mine.id, 'org-a')).toEqual([
+        { kind: 'work_item_parent', id: 'w-m' },
+      ]);
+    } finally {
+      raw.close();
+    }
   });
 });

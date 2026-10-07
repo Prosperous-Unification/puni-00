@@ -1,5 +1,7 @@
 import type {
   Assignment,
+  DirectoryCatalog,
+  DirectoryCatalogRows,
   DirectoryStore,
   DirectoryUsageRows,
   ExternalSystem,
@@ -68,6 +70,8 @@ export interface MemoryDirectoryTables {
   readonly memberships: Map<string, Set<string>>;
   readonly owned: Map<string, Set<string>>;
   readonly assignments: Map<string, Assignment>;
+  /** Which organization owns each catalog entry, by entry id, as the side tables hold it. */
+  readonly organizationOf: Map<string, string>;
 }
 
 export function memoryDirectoryTables(): MemoryDirectoryTables {
@@ -87,6 +91,7 @@ export function memoryDirectoryTables(): MemoryDirectoryTables {
     memberships: new Map(),
     owned: new Map(),
     assignments: new Map(),
+    organizationOf: new Map(),
   };
 }
 
@@ -104,6 +109,7 @@ export function inMemoryDirectory(
     memberships,
     owned,
     assignments,
+    organizationOf,
   } = tables;
   /** The ownership map, by team — `memberships`' shape, one dimension over. */
   const key = (workItemId: string, stepId: string) => `${workItemId}::${stepId}`;
@@ -112,7 +118,52 @@ export function inMemoryDirectory(
    * assert who wrote and when without a database to read audit columns from.
    */
 
-  return {
+  const store: DirectoryStore = {
+    // Organization-local writes exist only over SQLite, where the ownership
+    // side tables and their freeze live; the in-memory directory models the
+    // mapping for reads alone.
+    mapInOrganization() {
+      return Promise.reject(new Error('the in-memory directory has no organization-local writes'));
+    },
+    renameInOrganization() {
+      return Promise.reject(new Error('the in-memory directory has no organization-local writes'));
+    },
+    foreignReferencesTo() {
+      return Promise.reject(new Error('the in-memory directory has no project ownership'));
+    },
+    projectsOutside() {
+      return Promise.reject(new Error('the in-memory directory has no project ownership'));
+    },
+    async listInOrganization(catalog, organizationId) {
+      const inOrganization = (id: string) => organizationOf.get(id) === organizationId;
+      const refuseForeign = (ids: readonly string[]) => {
+        if (!ids.every(inOrganization)) {
+          throw new Error(`a directory link of organization "${organizationId}" is foreign`);
+        }
+      };
+      const readers: {
+        [K in DirectoryCatalog]: () => Promise<DirectoryCatalogRows[K]>;
+      } = {
+        people: async () => {
+          const people = (await store.listPeople()).filter((each) => inOrganization(each.id));
+          for (const each of people) refuseForeign(each.teamIds);
+          return people;
+        },
+        teams: async () => {
+          const held = (await store.listTeams()).filter((each) => inOrganization(each.id));
+          for (const each of held) refuseForeign(each.serviceIds);
+          return held;
+        },
+        services: async () =>
+          (await store.listServices()).filter((each) => inOrganization(each.id)),
+        tags: async () => (await store.listTags()).filter((each) => inOrganization(each.id)),
+        workItemTypes: async () =>
+          (await store.listWorkItemTypes()).filter((each) => inOrganization(each.id)),
+        externalSystems: async () =>
+          (await store.listExternalSystems()).filter((each) => inOrganization(each.id)),
+      };
+      return readers[catalog]();
+    },
     listTeams: () =>
       Promise.resolve(
         [...teams.values()]
@@ -419,4 +470,5 @@ export function inMemoryDirectory(
       return Promise.resolve({ ok: true });
     },
   };
+  return store;
 }

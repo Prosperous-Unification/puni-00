@@ -1,5 +1,7 @@
 export { STEP_POSITION_STEP } from '@wbs/domain';
 
+import type { AllowancePercent } from '@wbs/domain';
+
 import type { Assignment } from './directory-store';
 import type { WriteStamp } from './write-stamp';
 
@@ -20,6 +22,12 @@ export interface Step {
    * their step node IDs. Immutable once set; a rename keeps it.
    */
   code: string | null;
+  /**
+   * This step's estimate allowance, applied to every estimate for the step
+   * before rounding — see `chargedDays` in `@wbs/domain`. Zero unless a planner
+   * set one; there is no per-work-item override.
+   */
+  allowancePercent: AllowancePercent;
 }
 
 /**
@@ -40,6 +48,14 @@ export type NewStep = Omit<Step, 'position' | 'code'> & { code?: string };
 type StepWriteRefusal = 'taken' | 'code_taken' | 'not_found';
 
 export type StepWritten = { ok: true; step: Step } | { ok: false; reason: StepWriteRefusal };
+
+/**
+ * An allowance write's outcome: the step as written, the allowance it held just
+ * before, and the step's allowance revision after the write — or `not_found`.
+ */
+export type StepAllowanceWritten =
+  | { ok: true; step: Step; previousPercent: AllowancePercent; revision: number }
+  | { ok: false; reason: 'not_found' };
 
 /**
  * What points at one step, read for the refusal that names it.
@@ -140,8 +156,12 @@ export interface StepStore {
    * carries the place it took.
    */
   add(step: NewStep, stamp: WriteStamp): Promise<StepWritten>;
-  /** The same rules as {@link StepStore.add}, and `not_found` for a step that has gone. */
-  rename(stepId: string, name: string, stamp: WriteStamp): Promise<StepWritten>;
+  /**
+   * The same rules as {@link StepStore.add}, and `not_found` for a step that
+   * has gone or is not `projectId`'s: the project is part of the write's own
+   * predicate, so a check made before the write cannot be outrun.
+   */
+  rename(projectId: string, stepId: string, name: string, stamp: WriteStamp): Promise<StepWritten>;
   /**
    * What points at the step right now — a **fast path** for the refusal, never
    * the authority for it. Between this answer and any delete, anybody may write.

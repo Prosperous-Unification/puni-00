@@ -24,3 +24,55 @@ The repository-root command bunx @fission-ai/openspec@1.12.0 validate --all --js
 - **Pending:** Format, lint, typecheck, build, migration lint/rollback and host gate. No application behavior has been verified at spec time.
 
 - **Pending R5 proof:** Return pre-edit working-plan allowance to a later batch command; the mounted batch visibility test must fail. Restore and record observed output.
+
+## Implementation results — 2026-09-27 (lane 010-4-5-allowances)
+
+All commands were run in the lane worktree with `env -u CLAUDECODE`. Only focused suites were run, because the host is shared.
+
+- `bun test` per project: wbs-domain 666/0 and wbs-contracts 397/0. wbs-core 651 passed, with 1 unhandled Playwright collection error from running `bun test` inside the library. wbs-store-sqlite 770 passed and 2 failed, both under host load: `saved-plan-busy` passed on rerun, and `source-conformance` Task 6.3 timed out at 5 s (known). wbs-store-memory 113/0, conformance 35/0, be-01 1118/0 after merging main, mcp-01 25/0 in `openapi-tools.test.ts`.
+- solver-py: 214 OK in `.venv-solver`.
+- fe-01 Vitest, file-scoped: 16 files, 763/0; then 7 files, 119/0 after the second review.
+- Typecheck and lint:fast are green for wbs-domain, wbs-contracts, wbs-core, wbs-store-sqlite, wbs-store-memory, wbs-be-01, wbs-mcp-01 and wbs-fe-01. `prettier --check` passes on the touched files. Migration lint exits 0.
+- `openspec validate --all --json`: 132/0.
+- Not run: the full Nx gate, build, browser e2e/pixels and the h2puni host gate. Integration gating runs those.
+
+### R5 proofs observed (fault → failing test)
+
+- Decimal check removed → `refuses more than two decimal places` (Received 12.35).
+- Round before uplift → `applies the allowance before rounding` (Expected 2, Received 3).
+- Parent re-uplifted → `gives a parent the sum of its charged leaves, without a second allowance` (Expected 6, Received 8).
+- Slice seam charged at 0 → `schedules charged effort, and the edit changes the canonical input` (Expected 3, Received 2).
+- Journal `record` skipped → `undoes an allowance edit in one step` (the undo answered `nothing_to_undo`).
+- Step-revision staleness comparison removed → `refuses an allowance undo after somebody else changed it` and `… and changed it back`.
+- SQLite revision increment removed → `moves the step’s allowance revision on every write, even back to a value it held`.
+- Memory-source revision commit removed → `undoes an allowance edit committed in an earlier unit of work`.
+- Route add and patch refusals bypassed → the two step route tests got replies other than 422 `invalid_allowance`.
+- Command normalizer bypassed → mounted `refuses an allowance over 1000%…` answered 500, not 400.
+- Version-1 allowance refusal and version-2 missing-field refusal bypassed → each named classification test failed.
+- Import range guard bypassed → `refuses a step allowance over 1000%…` prepared the document.
+- Saved-plan capture read as 0 → `keeps the allowance it was saved with…` (Expected 30, Received 0).
+- 1→2 upgrade made the identity → `reads a version-1 body’s steps at 0% allowance` (Received undefined).
+- `step_updated` dropped from the optimizer trigger → the trigger tests failed.
+- `down.sql` guard INSERT removed → `refuses to roll back while a step carries a nonzero allowance` (the rollback succeeded).
+- `sameSteps` ignoring the allowance → `a changed allowance is a different step list`.
+- fe-01: panel validation disabled → 30.001 was sent. Fake-API validation disabled → the refusal changed.
+
+### Follow-up: typed calendar refusal and atomic rename (lane allowance-bugs, 2026-09-28)
+
+- A step PATCH whose allowance overflowed the calendar threw `setStepAllowance refused with an unmodelled reason: calendar_range` (500). It is now 422 `calendar_range`. The batch already answered 422; MCP proxies the HTTP reply.
+- A PATCH with a name and an allowance renamed through the public step service and then ran the batch, so a refused allowance kept the rename. The rename is now the batch's prelude (`PlanCommandRunner.runAfterWithin`), inside the same unit of work.
+- New suite `apps/wbs/be-01/src/controller/step-allowance-edit.controller.db.test.ts` runs over real SQLite and the composed services.
+- Commands, all under `env -u CLAUDECODE` in the lane worktree:
+  - `bunx nx run-many -t typecheck lint:fast -p wbs-contracts wbs-core wbs-be-01 wbs-fe-01 wbs-mcp-01 --skip-nx-cache`: green (after clearing stale `.nx/eslintcache-wbs-*`).
+  - `bunx nx run-many -t test -p wbs-contracts wbs-core wbs-be-01 wbs-mcp-01 --skip-nx-cache`: 399/0, 322/0, 691/0 and 1248/0.
+  - fe-01 Vitest, `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts src/components/wbs/steps-panel.test.tsx`: 106/0.
+  - `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 138/0.
+  - MCP: not run end to end. The review drove the generated PATCH and batch tools against a mocked 422 `calendar_range`, and both kept the status and body.
+  - Not run: the full Nx gate, build, pixels and the host gate. Integration gating runs those.
+- Proofs, each fault watched failing (fault → failing test):
+  - Route's `calendar_range` case removed → `is a typed 422 over HTTP and in a batch, and changes nothing` (500 instead of 422).
+  - `setStepAllowance` dropped from the calendar preflight kinds → the same test (200, and +1000% stored).
+  - Rename made before the batch, as before → `takes back the rename sent in the same edit` (name `Review`).
+  - Runner continuing past a refused prelude → `writes no allowance when the rename is refused` (200 with 30%).
+  - fe-01 sentence removed → `says why an allowance past the calendar was refused`.
+  - `runCommandBatchAfter` write-scope branch removed → `refuses a read-only actor before the prelude or the runner can write` (ok:true).

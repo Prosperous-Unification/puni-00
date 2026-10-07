@@ -49,13 +49,83 @@ export type PlanInputUpgrade = (body: Record<string, unknown>) => Record<string,
 /**
  * The upgrade table, keyed by the version each step reads.
  *
- * **Empty today, and that is a statement rather than an omission:** version 1 is
- * the only version that has ever existed, so there is no *n* to *n+1* step to
- * write. When `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` moves to 2, a step keyed `1`
- * lands with it — and until it does, a version-1 body against a version-2 reader
- * fails `no-upgrade-path` loudly instead of arriving half-converted.
+ * `1` → `2` is the explicit legacy conversion for step allowances: a body
+ * saved before allowances existed charged every step at 0%, so each captured
+ * step is read with `allowancePercent: 0`. It refuses a version-1 body whose
+ * steps are not a list of objects rather than guessing a shape.
  */
-export const PLAN_INPUT_UPGRADES: ReadonlyMap<number, PlanInputUpgrade> = new Map();
+export const PLAN_INPUT_UPGRADES: ReadonlyMap<number, PlanInputUpgrade> = new Map([
+  [1, withZeroStepAllowances],
+  [2, withNoTypedDependencies],
+  [3, withNoStatusFacts],
+]);
+
+/**
+ * Version 3 to 4: readiness and holds did not exist, so every captured work
+ * item said nothing about either (`add-work-item-statuses`).
+ *
+ * Proof: returning the body unchanged made `reads a version-3 body with
+ * nothing said about readiness or holds, and compares clean` fail on
+ * `schemaVersion` and every work item's missing fields; watched 2026-09-29.
+ */
+function withNoStatusFacts(body: Record<string, unknown>): Record<string, unknown> {
+  const workItems = body['workItems'];
+  if (!Array.isArray(workItems)) {
+    throw new Error('a version-3 plan input body holds no work items list');
+  }
+  return {
+    ...body,
+    schemaVersion: 4,
+    workItems: workItems.map((row: unknown) => {
+      if (typeof row !== 'object' || row === null) {
+        throw new Error('a version-3 plan input body holds a work item that is not an object');
+      }
+      return { ...row, readiness: null, hold: null };
+    }),
+  };
+}
+
+/** Version 2 to 3: typed links and step codes did not exist in the saved body. */
+function withNoTypedDependencies(body: Record<string, unknown>): Record<string, unknown> {
+  const steps = body['steps'];
+  // Proof: omitting this guard made the malformed-v2 test receive `steps.map is not a function` (2026-09-28).
+  if (!Array.isArray(steps)) throw new Error('a version-2 plan input body holds no steps list');
+  // Proof: leaving schemaVersion at 2 made cross-version equality fail on schemaVersion;
+  // omitting code: null made it fail on both captured steps (2026-09-28).
+  return {
+    ...body,
+    schemaVersion: 3,
+    typedDependencies: [],
+    steps: steps.map((step: unknown) => {
+      // Proof: omitting this guard made the malformed-v2 test accept a null step as `{ code: null }` (2026-09-28).
+      if (typeof step !== 'object' || step === null) {
+        throw new Error('a version-2 plan input body holds a step that is not an object');
+      }
+      return { ...step, code: null };
+    }),
+  };
+}
+
+/**
+ * Version 1 to 2: every captured step gains the 0% allowance it was charged at.
+ *
+ * Proof: with the upgrade returning the body unchanged, `reads a version-1
+ * body's steps at 0% allowance` failed on `Expected: 0, Received: undefined`
+ * (2026-09-27).
+ */
+function withZeroStepAllowances(body: Record<string, unknown>): Record<string, unknown> {
+  const steps = body['steps'];
+  if (!Array.isArray(steps)) throw new Error('a version-1 plan input body holds no steps list');
+  return {
+    ...body,
+    steps: steps.map((step: unknown) => {
+      if (typeof step !== 'object' || step === null) {
+        throw new Error('a version-1 plan input body holds a step that is not an object');
+      }
+      return { ...step, allowancePercent: 0 };
+    }),
+  };
+}
 
 /**
  * Bring a stored plan-input body forward to the version this build reads.

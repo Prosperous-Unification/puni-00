@@ -106,3 +106,13 @@ export type JoinRequestStatus = (typeof JOIN_REQUEST_STATUSES)[number];
 export const DOMAIN_CLAIM_STATUSES = ['pending', 'verified', 'suspended'] as const;
 
 export type DomainClaimStatus = (typeof DOMAIN_CLAIM_STATUSES)[number];
+
+/** Stored organization encoding can describe either capacity mode before runtime activation. */
+export type CapacityMode = 'isolated' | 'shared';
+
+/**
+ * Release capability, not SQLite's encoding vocabulary. This intermediate release has no shared
+ * runtime/cache/UI activation and must refuse shared restore and blue/green swaps over shared rows.
+ * Proof: advertising shared fails the physical incoming-release isolated-only capability test.
+ */
+export const SUPPORTED_CAPACITY_MODES: readonly CapacityMode[] = ['isolated'];

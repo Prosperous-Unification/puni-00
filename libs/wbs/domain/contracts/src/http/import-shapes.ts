@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
+import { organizationRefusal } from './organization-refusal';
 import { planDocumentRequest } from './plan-document-shapes';
 import { responseSchema } from './schema-shape';
 
@@ -25,7 +26,7 @@ export const importSummary = responseSchema(
 const malformedImport = responseSchema(
   type({
     error:
-      "'invalid_body' | 'unsupported_version' | 'unknown_ref' | 'cycle' | 'ancestor' | 'deadline_before_project_start' | 'work_item_takes_one_type'",
+      "'invalid_body' | 'invalid_typed_dependency' | 'unsupported_version' | 'unknown_ref' | 'cycle' | 'ancestor' | 'deadline_before_project_start' | 'work_item_takes_one_type'",
     path: 'string',
     detail: 'string | null',
   }),
@@ -52,6 +53,9 @@ export const importProject = defineEndpointShape({
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
+    organizationRefusal,
+    // A viewer, after organization activation: reading is not importing.
+    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
     {
       kind: 'import-refusal',
       status: 409,
@@ -64,5 +68,13 @@ export const importProject = defineEndpointShape({
       ),
     },
   ],
-  document: { summary: 'Import an archival plan as a new project.' },
+  document: {
+    summary: 'Import an archival plan as a new project.',
+    description:
+      'Reads plan document versions 1 to 6. Versions 1 to 5 import every work item with ' +
+      'readiness and hold null. From version 6 every work item must carry both `readiness` ' +
+      '(`draft`, `ready` or null) and `hold` (`on_hold`, `blocked` or null); a missing field, ' +
+      'a value outside either vocabulary, or either one on a parent is refused `invalid_body` ' +
+      'at that field. A hold on done work is accepted.',
+  },
 });

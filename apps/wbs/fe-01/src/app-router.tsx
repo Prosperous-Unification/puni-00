@@ -9,7 +9,12 @@ import {
 import { lazy, type ReactNode, Suspense, useMemo, useState } from 'react';
 
 import { PageNav } from '@/components/chrome/page-nav';
+import { OrganizationPage } from '@/components/organization/organization-page';
+import { loadWindowFrom, localToday } from '@/components/people/load-window';
+import { PersonLoadSummary, usePeopleLoad } from '@/components/people/people-load-summary';
 import type { Roster } from '@/components/presence/presence-panel';
+import { SpacePage } from '@/components/spaces/space-page';
+import { SpacesPage } from '@/components/spaces/spaces-page';
 import { ProjectPage } from '@/components/wbs/project-page';
 import type { SessionRuntime } from '@/runtime/session-runtime';
 
@@ -93,6 +98,8 @@ const directoryRoute = createRoute({
   path: '/directory',
   component: function DirectoryRoute() {
     const { session, account, nav } = directoryRoute.useRouteContext();
+    const [window] = useState(() => loadWindowFrom(localToday(new Date())));
+    const load = usePeopleLoad(window, session.directory);
     return (
       // Nothing rather than a spinner: the chunk is fetched from the same
       // origin that just served the document, and a flash of "loading…"
@@ -100,13 +107,86 @@ const directoryRoute = createRoute({
       // page reads on arrival anyway, so its own empty states are what a reader
       // sees first.
       <Suspense fallback={null}>
-        <DirectoryPage directory={session.directory} nav={nav} account={account} />
+        <DirectoryPage
+          directory={session.directory}
+          nav={nav}
+          account={account}
+          loadOf={(person) => (
+            <PersonLoadSummary view={load} personId={person.id} personName={person.name} />
+          )}
+        />
       </Suspense>
     );
   },
 });
 
-const routeTree = rootRoute.addChildren([projectRoute, directoryRoute]);
+/**
+ * Organization administration, at `/organization`. Reached by address only:
+ * the page answers only after activation and a bound active organization, so
+ * {@link PageNav} gains its link with the organization switcher (task 2.4).
+ */
+const organizationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/organization',
+  component: function OrganizationRoute() {
+    const { account, nav } = organizationRoute.useRouteContext();
+    return <OrganizationPage nav={nav} account={account} />;
+  },
+});
+
+/** The organization's spaces, at `/spaces` (`add-spaces`). */
+const spacesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/spaces',
+  component: function SpacesRoute() {
+    const { account, nav } = spacesRoute.useRouteContext();
+    return <SpacesPage nav={nav} account={account} />;
+  },
+});
+
+/** One space, at `/spaces/$spaceId`; `all` is the virtual All projects. */
+const spaceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/spaces/$spaceId',
+  component: function SpaceRoute() {
+    const { account, nav } = spaceRoute.useRouteContext();
+    const { spaceId } = spaceRoute.useParams();
+    return <SpacePage key={spaceId} spaceId={spaceId} nav={nav} account={account} />;
+  },
+});
+
+const PersonLoadPage = lazy(async () => ({
+  default: (await import('@/components/people/person-load-page')).PersonLoadPage,
+}));
+
+/**
+ * One person's bookings across projects, at `/people/:personId/load`, over the
+ * eight weeks from the Monday of the viewer's current week. Its own chunk for
+ * {@link DirectoryPage}'s reason: a page most sessions never open.
+ */
+const personLoadRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/people/$personId/load',
+  component: function PersonLoadRoute() {
+    const { account, nav } = personLoadRoute.useRouteContext();
+    const { personId } = personLoadRoute.useParams();
+    const [window] = useState(() => loadWindowFrom(localToday(new Date())));
+    return (
+      <Suspense fallback={null}>
+        <PersonLoadPage personId={personId} window={window} nav={nav} account={account} />
+      </Suspense>
+    );
+  },
+});
+
+const routeTree = rootRoute.addChildren([
+  projectRoute,
+  directoryRoute,
+  organizationRoute,
+  spacesRoute,
+  spaceRoute,
+  personLoadRoute,
+]);
 
 /**
  * The router for the signed-in region, built in code rather than generated.

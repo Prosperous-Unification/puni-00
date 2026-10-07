@@ -4,7 +4,16 @@ import { join } from 'node:path';
 
 import type { Broadcaster } from '@wbs/core';
 import { EventLogService } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { GatewayBroadcaster } from '@wbs/core/module/realtime/gateway-broadcaster';
+import { ReplayBuffer } from '@wbs/core/module/realtime/replay-buffer';
+import { ReplayOrchestrator } from '@wbs/core/module/realtime/replay-orchestrator';
+import { StepService } from '@wbs/core/module/step/step.resource';
+import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { systemTimers } from '@wbs/runtime-portable';
+import { PushClient } from '@wbs/runtime-portable';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
@@ -33,17 +42,11 @@ import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { directoryWith, personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
-import { GatewayBroadcaster } from './gateway-broadcaster';
 import { fastScheduler } from './optimizer-wiring';
-import { ProjectService } from './project.service';
-import { PushClient } from './push-client';
-import { ReplayBuffer } from './replay-buffer';
-import { ReplayOrchestrator } from './replay-orchestrator';
-import { StepService } from './step.service';
-import { WorkItemService } from './work-item.service';
 
 /**
  * The step service, against real SQLite.
@@ -110,6 +113,7 @@ beforeEach(async () => {
   directory = new DirectoryRepository(db, OPEN);
   broadcast = recordingBroadcaster();
   steps = new StepService({
+    dependencyGraph: sqliteDependencyGraph(db, projectStore),
     clock: testClock,
     projects: projectStore,
     steps: stepStore,
@@ -129,6 +133,7 @@ beforeEach(async () => {
   );
 
   const created = await new ProjectService({
+    dependencyGraph: sqliteDependencyGraph(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
@@ -148,7 +153,7 @@ afterEach(() => {
 
 describe('StepService.add', () => {
   it('adds a step and announces it', async () => {
-    const outcome = await steps.add(projectId, ownerId, 'Design');
+    const outcome = await steps.add(projectId, ownerId, 'Design', 0);
 
     if (!outcome.ok) throw new Error(`add refused: ${outcome.reason}`);
     expect(outcome.value.name).toBe('Design');
@@ -161,10 +166,10 @@ describe('StepService.add', () => {
   });
 
   it('trims the name, and refuses one that is only spaces', async () => {
-    const trimmed = await steps.add(projectId, ownerId, '  Design  ');
+    const trimmed = await steps.add(projectId, ownerId, '  Design  ', 0);
     if (!trimmed.ok) throw new Error(`add refused: ${trimmed.reason}`);
     expect(trimmed.value.name).toBe('Design');
-    expect(await steps.add(projectId, ownerId, '   ')).toEqual({
+    expect(await steps.add(projectId, ownerId, '   ', 0)).toEqual({
       ok: false,
       reason: 'name_required',
     });
@@ -173,23 +178,23 @@ describe('StepService.add', () => {
   });
 
   it('refuses a name the project already holds', async () => {
-    expect(await steps.add(projectId, ownerId, 'QA')).toEqual({ ok: false, reason: 'taken' });
+    expect(await steps.add(projectId, ownerId, 'QA', 0)).toEqual({ ok: false, reason: 'taken' });
     expect(broadcast.published).toEqual([]);
   });
 
   it('refuses a project that is not there, and one the caller may not write to', async () => {
-    expect(await steps.add(crypto.randomUUID(), ownerId, 'Design')).toEqual({
+    expect(await steps.add(crypto.randomUUID(), ownerId, 'Design', 0)).toEqual({
       ok: false,
       reason: 'not_found',
     });
 
     await projectStore.update(projectId, { restricted: true }, wrote());
-    expect(await steps.add(projectId, strangerId, 'Design')).toEqual({
+    expect(await steps.add(projectId, strangerId, 'Design', 0)).toEqual({
       ok: false,
       reason: 'forbidden',
     });
     // The owner of the restricted project still may.
-    expect((await steps.add(projectId, ownerId, 'Design')).ok).toBe(true);
+    expect((await steps.add(projectId, ownerId, 'Design', 0)).ok).toBe(true);
   });
 });
 
@@ -199,14 +204,21 @@ describe('StepService.rename', () => {
 
     expect(outcome).toEqual({
       ok: true,
-      value: { id: qaId, projectId, name: 'Review', position: 20, code: 'qa' },
+      value: { id: qaId, projectId, name: 'Review', position: 20, code: 'qa', allowancePercent: 0 },
     });
     expect(broadcast.published).toEqual([
       {
         projectId,
         event: {
           type: 'step_renamed',
-          step: { id: qaId, projectId, name: 'Review', position: 20, code: 'qa' },
+          step: {
+            id: qaId,
+            projectId,
+            name: 'Review',
+            position: 20,
+            code: 'qa',
+            allowancePercent: 0,
+          },
         },
       },
     ]);
@@ -221,6 +233,7 @@ describe('StepService.rename', () => {
 
   it('refuses a step that belongs to another project', async () => {
     const other = await new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast: recordingBroadcaster(),
@@ -251,7 +264,7 @@ function storeWith(overrides: Partial<StepStore>): StepStore {
     listByProject: (projectOf) => stepStore.listByProject(projectOf),
     findById: (stepOf) => stepStore.findById(stepOf),
     add: (toAdd, stamp) => stepStore.add(toAdd, stamp),
-    rename: (stepOf, name, stamp) => stepStore.rename(stepOf, name, stamp),
+    rename: (projectOf, stepOf, name, stamp) => stepStore.rename(projectOf, stepOf, name, stamp),
     usageOf: (projectOf, stepOf) => stepStore.usageOf(projectOf, stepOf),
     remove: (projectOf, stepOf, cascade, stamp) =>
       stepStore.remove(projectOf, stepOf, cascade, stamp),
@@ -414,6 +427,7 @@ describe('StepService.remove', () => {
     // still refuse: it was never consent to take anything, and what it would
     // take is a trio nobody has been shown.
     const service = new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: storeWith({
@@ -442,6 +456,7 @@ describe('StepService.remove', () => {
     // move for a write nobody made.
     let winnerRevision: number | undefined;
     const service = new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: storeWith({
@@ -507,6 +522,7 @@ describe('a step removed between the check and the write', () => {
       },
     });
     return new WorkItemService({
+      admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems: new WorkItemRepository(db, OPEN),
@@ -519,6 +535,7 @@ describe('a step removed between the check and the write', () => {
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
       dependencies: new DependencyRepository(db, OPEN),
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
       subtrees: new SubtreeRepository(db, OPEN),
       journal: new CommandJournalRepository(db, OPEN),
       broadcast: recordingBroadcaster(),
@@ -551,6 +568,7 @@ describe('a step removed between the check and the write', () => {
     // reads the person inside its own transaction — but the thing being
     // asserted is unchanged: `writeNamingStep` must not claim the step.
     const workItems = new WorkItemService({
+      admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems: new WorkItemRepository(db, OPEN),
@@ -563,6 +581,7 @@ describe('a step removed between the check and the write', () => {
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
       dependencies: new DependencyRepository(db, OPEN),
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
       subtrees: new SubtreeRepository(db, OPEN),
       journal: new CommandJournalRepository(db, OPEN),
       broadcast: recordingBroadcaster(),
@@ -597,13 +616,14 @@ describe('step events', () => {
     // only moment that can tell the two orders apart.
     const watching = watchingBroadcaster();
     const service = new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: stepStore,
       broadcast: watching,
     });
 
-    await service.add(projectId, ownerId, 'Design');
+    await service.add(projectId, ownerId, 'Design', 0);
     await service.remove(projectId, qaId, ownerId, true);
 
     expect(watching.stepsAtPublish[0]).toContain('Design');
@@ -618,6 +638,7 @@ describe('step events', () => {
       now: Date.now,
     });
     const durable = new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: stepStore,
@@ -642,7 +663,7 @@ describe('step events', () => {
     });
     const subscription = `project:${projectId}`;
 
-    await durable.add(projectId, ownerId, 'Design');
+    await durable.add(projectId, ownerId, 'Design', 0);
     const seenUpTo = await eventLog.latestSeq(subscription);
     await durable.remove(projectId, qaId, ownerId, true);
 

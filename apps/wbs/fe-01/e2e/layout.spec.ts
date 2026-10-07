@@ -2244,9 +2244,14 @@ test.describe('the table, measured by a browser', () => {
     await page.keyboard.press('ArrowDown');
 
     await expect(page.getByRole('menu')).toBeVisible();
-    // Status first, Add child, Move under…, Duplicate, Delete last — the order
-    // `status-from-the-menu` settled with `add-child-and-quiet-expansion`'s
-    // two items after the status; the walk wraps at either end.
+    // The statuses first, Add child, Move under…, Duplicate, Delete last — the
+    // order `status-from-the-menu` settled with `add-child-and-quiet-expansion`'s
+    // two items after the status, the six a silent row is offered since
+    // `add-work-item-statuses`; the walk wraps at either end.
+    for (const status of ['Draft', 'Ready', 'In progress', 'On hold', 'Blocked']) {
+      expect(await focusedText()).toBe(`Set status to ${status}`);
+      await page.keyboard.press('ArrowDown');
+    }
     expect(await focusedText()).toBe('Set status to Done');
     await page.keyboard.press('ArrowDown');
     expect(await focusedText()).toBe('Add child');
@@ -2297,11 +2302,9 @@ test.describe('the table, measured by a browser', () => {
     // copy's Name, which the table asks for once be-01 has taken the copy.
     await actions.focus();
     await page.keyboard.press('Enter');
-    // Down past the status entry, Add child and Move under… to Duplicate,
-    // then take it.
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
+    // Down past the six status entries, Add child and Move under… to
+    // Duplicate, then take it.
+    for (let step = 0; step < 8; step += 1) await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
     await expect(page.getByLabel('Name of 020')).toHaveValue(
       'Survey the existing warehouse racking and photograph every aisle end (copy)',

@@ -2,9 +2,11 @@ import type { DependencyReach } from './dependency-reach';
 import type { PlannedRow } from './derive-numbers';
 import { leafDeadlinesOf, leafFloorsOf } from './leaf-constraints';
 import { WORK_ITEM_PROJECTION_START, workdaysLateBy } from './on-time';
-import { resolveStepNodeGraph } from './slice-edges';
+import { validateRealBoundaries } from './real-boundaries';
+import { resolveStepNodeGraph, type StepNodeGraphEdge } from './slice-edges';
 import { groupSlicesByLeaf } from './slice-groups';
 import { treeOrder } from './tree-order';
+import type { TypedDependency } from './typed-dependency';
 import { lastWorkdayOf, snapWorkdays, withinDrift } from './workday';
 
 /** A finish-to-start edge, as written: either end may be a parent. */
@@ -164,12 +166,49 @@ export interface Scheduled {
  * day 4 with a slot opening on day 6 says capacity, and both landing on day 6
  * says person.
  */
+/**
+ * One booking a person holds in a project that outranks the one being
+ * scheduled, on that project's own workday offsets (`[start, end)`, fractions
+ * kept) — CONTEXT "Elsewhere", ADR 0034.
+ */
+export interface ElsewhereBooking {
+  readonly start: number;
+  readonly end: number;
+  readonly projectId: string;
+  readonly workItemId: string;
+}
+
+/** The project and work item a person is booked on elsewhere. */
+export interface ElsewhereHolder {
+  readonly projectId: string;
+  readonly workItemId: string;
+}
+
+/**
+ * Every person's bookings elsewhere, by person id: each list sorted by start
+ * and disjoint (a booking may touch the next, never overlap it). A person
+ * absent from the map is booked nowhere else.
+ */
+export type Elsewhere = ReadonlyMap<string, readonly ElsewhereBooking[]>;
+
 export type ScheduleFloor =
   | 'projectStart'
   | 'predecessor'
   | 'stepOrder'
   | 'notBefore'
   | 'person'
+  /**
+   * The assignee is booked by a project that outranks this one (CONTEXT
+   * "Elsewhere", ADR 0034), and that booking is what set the start.
+   *
+   * Listed after `person` and before `capacity`, so a tie keeps the plan's own
+   * reasons first and a pool that binds on the same instant as a foreign
+   * booking is not named for it. Only ever produced when `schedule()` is given
+   * a non-empty `elsewhere`; the slice then names the holder in
+   * {@link ScheduledSlice.elsewhereHolder}. It points at no slice of this plan,
+   * so {@link resourcePredecessorOf} answers {@link NOBODY} for it.
+   */
+  | 'elsewhere'
   | 'capacity'
   /**
    * The optimizer put it here, and nothing about the plan did — task 4.10.
@@ -198,6 +237,16 @@ export interface ScheduledSlice extends Scheduled {
   /** The person this work is queued behind, as the caller resolved it. */
   personId: string | null;
   boundBy: ScheduleFloor;
+  /**
+   * The booking elsewhere this slice waited for: the project and work item
+   * holding its person when it could have started.
+   *
+   * **Present exactly when `boundBy` is `'elsewhere'`, and absent otherwise**,
+   * rather than `null` on every slice: a plan scheduled without `elsewhere`
+   * must serialize byte for byte as it did before the floor existed, which is
+   * what `fast-golden-corpus.test.ts` holds this engine to.
+   */
+  elsewhereHolder?: ElsewhereHolder;
   /**
    * The slice this one waited behind, or null — the **display referent**, not
    * the graph.
@@ -328,6 +377,15 @@ export interface Schedule {
    */
   waitingForCapacity: number;
   /**
+   * How many work items hold a slice a booking **elsewhere** is the reason for
+   * — the header's "N tasks wait elsewhere".
+   *
+   * **Present exactly when the call was given a non-empty `elsewhere`**, for
+   * {@link ScheduledSlice.elsewhereHolder}'s reason: a plan nothing outranks
+   * must serialize as it did before the floor existed.
+   */
+  waitingElsewhere?: number;
+  /**
    * How many aggregated pool events the levelling pass's window searches
    * visited, together.
    *
@@ -434,6 +492,24 @@ export function expandToLeaves(
     }
   }
   return expanded;
+}
+
+/**
+ * The leaves beneath a work item of this tree, a leaf answering itself.
+ *
+ * Throws for a work item the tree does not hold: a typed endpoint naming one
+ * is stored state from another plan, and resolving it to no leaves would drop
+ * the relationship silently.
+ */
+export function leavesUnderOf(index: TreeIndex): (workItemId: string) => readonly string[] {
+  return (workItemId) => {
+    const found = index.leavesUnder.get(workItemId);
+    // Proof: `return []` here made `refuses rather than dropping the
+    // relationship` fail on `Received function did not throw`; watched
+    // 2026-09-27.
+    if (found === undefined) throw new Error(`no work item ${workItemId} in this plan`);
+    return found;
+  };
 }
 
 /** Whether the leaf graph can be ordered at all — the same question the sort asks. */
@@ -634,6 +710,15 @@ interface SliceGraph {
   items: number;
 }
 
+/** A real start inequality, `start[after] >= start[before] + weight`. */
+interface WeightedEdge {
+  before: number;
+  after: number;
+  type: StepNodeGraphEdge['type'];
+  weight: number;
+  provenance: StepNodeGraphEdge['provenance'] | 'resource';
+}
+
 /**
  * No node — what a slice with nobody in front of it carries where a resource
  * predecessor would go.
@@ -643,6 +728,9 @@ interface SliceGraph {
  * placement already knows the answer to. -1 is not an index any array has.
  */
 const NOBODY = -1;
+
+/** No bookings elsewhere: the critical-path pass, and every plan nothing outranks. */
+const NOWHERE: Elsewhere = new Map();
 
 /** Where one slice was put, and what put it there. */
 interface Placed {
@@ -665,6 +753,8 @@ interface Placed {
   capacityPredecessors: number[];
   /** Which pool ran out — see {@link ScheduledSlice.capacityTeamId}. */
   capacityTeamId: string | null;
+  /** Who held the person elsewhere; non-null exactly when `boundBy` is `'elsewhere'`. */
+  elsewhereHolder: ElsewhereHolder | null;
 }
 
 /**
@@ -1603,6 +1693,11 @@ function placeSlices(
   withResources: boolean,
   sizes: PoolSizes,
   /**
+   * The people's bookings elsewhere, placed around only when `withResources`.
+   * A person absent from it takes the path this pass always took, unchanged.
+   */
+  elsewhere: Elsewhere,
+  /**
    * Task 4.9's `annotate`: one start per node, or `undefined` for Fast's own.
    *
    * **A mode of this pass, never a second implementation and never a
@@ -1632,6 +1727,7 @@ function placeSlices(
   order: number[];
   placed: Placed[];
   resourceSuccessors: number[][];
+  resourceEdges: WeightedEdge[];
   eventsVisited: number;
 } {
   const { nodes } = graph;
@@ -1694,7 +1790,35 @@ function placeSlices(
       node.notBefore,
       busy === undefined ? 0 : busy.finish,
     );
-    let window = profile.jointWindowFor(poolIds, width, duration, planFloor);
+    // Proof: this lookup made to answer `undefined` always, so the interval
+    // search is bypassed, made `waits for a booking elsewhere before it
+    // starts` (`schedule-elsewhere.test.ts`) place the slice across the
+    // foreign interval at 0 with `boundBy: 'projectStart'`; watched 2026-09-29.
+    const booked = personId === null ? undefined : elsewhere.get(personId);
+    let away: { start: number; holder: ElsewhereBooking } | null = null;
+    let window: JointWindow;
+    // The pool's own evidence: the search that moved the start, when one did.
+    let pushed: JointWindow | null = null;
+    if (booked === undefined) {
+      window = profile.jointWindowFor(poolIds, width, duration, planFloor);
+    } else {
+      // The search is asked for `[start, start + duration)`, and the slice then
+      // reserves up to {@link tileFinish}'s finish, which can exceed that by
+      // floating-point drift (under {@link withinDrift}) when a work item's
+      // slices tile. A booking starting exactly there is therefore touched,
+      // never entered, beyond drift — the tolerance the weighted replay and
+      // `schedule-elsewhere.test.ts`'s overlap property both apply. The
+      // weighted path re-searches with the tiled length; this pass keeps
+      // Fast's placement unchanged instead, and states the tolerance here.
+      ({ window, pushed, away } = windowAroundElsewhere(
+        booked,
+        profile,
+        poolIds,
+        width,
+        duration,
+        planFloor,
+      ));
+    }
     // Latest wins, and a tie keeps the reason listed first — which is why the
     // person is second to last and capacity is last; see {@link ScheduleFloor}.
     // A slice can carry both, because a team's slot is spent whether or not
@@ -1725,7 +1849,8 @@ function placeSlices(
       { at: fromStepOrder, kind: 'stepOrder' },
       { at: node.notBefore, kind: 'notBefore' },
       ...(busy === undefined ? [] : [{ at: busy.finish, kind: 'person' as const }]),
-      { at: window.start, kind: 'capacity' as const },
+      ...(away === null ? [] : [{ at: away.start, kind: 'elsewhere' as const }]),
+      { at: (pushed ?? window).start, kind: 'capacity' as const },
     ];
     // The tie rule and its proof live on {@link resolveFloor}, which the
     // optimized materialiser calls too — see 4.9.
@@ -1739,17 +1864,28 @@ function placeSlices(
     // `boundBy: 'capacity'`, violating the render invariant — and reported
     // `optimizer` for a slice merely pinned at its predecessor floor.
     const { start, boundBy } = pinFloor(node.key, resolved, pinnedStarts?.[taken], (from) => {
-      window = profile.jointWindowFor(poolIds, width, duration, from);
+      // Proof: asking pools alone accepted a later FS pin inside a booking
+      // (1 pass / 1 fail for the FS/SS negatives in elsewhere-wire.test.ts).
+      window =
+        booked === undefined
+          ? profile.jointWindowFor(poolIds, width, duration, from)
+          : windowAroundElsewhere(booked, profile, poolIds, width, duration, from).window;
       return window;
     });
 
     const { held, finish } = tileFinish(anchorOf[node.item], start, at, offsets);
     anchorOf[node.item] = held;
+    // Proof: the final window handed over for a capacity floor too made
+    // `names the pool when a pool pushes past the booking, with its blocking
+    // set` (`schedule-elsewhere.test.ts`) throw `waited for capacity with
+    // nothing holding the pool`; handing `pushed` for every floor made `names
+    // the booking when it pushes past the pool` throw `names t with no pool
+    // binding it`; watched 2026-09-29.
     const { capacityPredecessors, capacityTeamId, referent } = annotateCapacity(
       node.key,
       boundBy,
       start,
-      window,
+      boundBy === 'capacity' && pushed !== null ? pushed : window,
       (blocker) => placed[blocker].finish,
       (blocker) => placedAt[blocker],
     );
@@ -1760,6 +1896,7 @@ function placeSlices(
       resourcePredecessor: resourcePredecessorOf(boundBy, busy, referent),
       capacityPredecessors,
       capacityTeamId,
+      elsewhereHolder: boundBy === 'elsewhere' ? holderOf(node.key, away) : null,
     };
     placedAt[taken] = order.length;
     order.push(taken);
@@ -1808,7 +1945,796 @@ function placeSlices(
   // `tree` turns into the banner saying why the plan has no dates; watched
   // 2026-08-09.
   if (order.length !== nodes.length) throw new ScheduleCycleError();
-  return { order, placed, resourceSuccessors, eventsVisited: profile.eventsVisited() };
+  return {
+    order,
+    placed,
+    resourceSuccessors,
+    resourceEdges: [],
+    eventsVisited: profile.eventsVisited(),
+  };
+}
+
+/** Earliest nonoverlapping person interval at or after a weighted floor. */
+function findPersonWindow(
+  intervals: readonly { node: number; start: number; finish: number }[],
+  floor: number,
+  duration: number,
+): { start: number; blocking: number[] } {
+  // Proof: replacing this gap scan's initial start with the last interval's
+  // finish made `places a longer FF successor earlier, in a person gap` fail:
+  // B moved from day 0 to day 11; watched 2026-09-28.
+  let start = floor;
+  const blocking: number[] = [];
+  if (duration === 0) return { start, blocking };
+  for (const interval of intervals) {
+    if (interval.finish <= start) continue;
+    if (interval.start >= start + duration) break;
+    blocking.push(interval.node);
+    start = interval.finish;
+  }
+  return { start, blocking };
+}
+
+/**
+ * The earliest start at or after `floor` where `duration` fits between one
+ * person's bookings elsewhere, and the booking that ended last before it — or
+ * `null` when no booking moved it. Half-open, as every reservation here is: a
+ * booking ending at an instant leaves that instant free.
+ *
+ * Proof: both comparisons made inclusive made `fits in a gap between bookings,
+ * and a touching booking holds nothing` (`schedule-elsewhere.test.ts`) push a
+ * slice off a booking it only touched; watched 2026-09-29.
+ */
+function elsewhereWindow(
+  bookings: readonly ElsewhereBooking[],
+  floor: number,
+  duration: number,
+): { start: number; holder: ElsewhereBooking | null } {
+  let start = floor;
+  let holder: ElsewhereBooking | null = null;
+  if (duration === 0) return { start, holder };
+  for (const booking of bookings) {
+    if (booking.end <= start) continue;
+    if (booking.start >= start + duration) break;
+    start = booking.end;
+    holder = booking;
+  }
+  return { start, holder };
+}
+
+/** Latest start no later than `ceiling` that still fits before a person's bookings. */
+function latestStartAroundElsewhere(
+  bookings: readonly ElsewhereBooking[],
+  ceiling: number,
+  duration: number,
+): number {
+  let start = ceiling;
+  if (duration === 0) return start;
+  for (let at = bookings.length - 1; at >= 0; at -= 1) {
+    const booking = bookings[at];
+    if (booking.end <= start) break;
+    if (booking.start >= start + duration) continue;
+    start = booking.start - duration;
+  }
+  return start;
+}
+
+/**
+ * {@link placeSlices}' window for a person booked elsewhere: move between the
+ * bookings and the pools until both accept one instant.
+ *
+ * Each side keeps its own evidence — the last search that moved the start —
+ * as {@link findResourceWindow} does, because the one that moved last is the
+ * reason. `pushed` is the pool's: the window whose blocking set explains a
+ * `capacity` floor. `window` is the final search, asked from its own answer,
+ * so its blocking set is empty — what {@link annotateCapacity} must be handed
+ * for any other floor, since a team named on a slice no pool held up throws.
+ *
+ * Terminates: every round starts strictly later than the last, and both the
+ * bookings and the pool's events are finite.
+ */
+function windowAroundElsewhere(
+  bookings: readonly ElsewhereBooking[],
+  profile: ReturnType<typeof capacityProfile>,
+  poolIds: readonly string[],
+  width: number,
+  duration: number,
+  floor: number,
+): {
+  window: JointWindow;
+  pushed: JointWindow | null;
+  away: { start: number; holder: ElsewhereBooking } | null;
+} {
+  let from = floor;
+  let away: { start: number; holder: ElsewhereBooking } | null = null;
+  let pushed: JointWindow | null = null;
+  for (;;) {
+    const found = elsewhereWindow(bookings, from, duration);
+    if (found.holder !== null) away = { start: found.start, holder: found.holder };
+    const window = profile.jointWindowFor(poolIds, width, duration, found.start);
+    if (window.start === found.start) return { window, pushed, away };
+    pushed = window;
+    from = window.start;
+  }
+}
+
+/** The holder a slice bound by `elsewhere` names, or a throw when none bound it. */
+function holderOf(key: string, away: { holder: ElsewhereBooking } | null): ElsewhereHolder {
+  if (away === null) throw new Error(`${key} waited elsewhere with no booking holding it`);
+  return { projectId: away.holder.projectId, workItemId: away.holder.workItemId };
+}
+
+/**
+ * Refuses an `elsewhere` the engine cannot place around: a person listed with
+ * no booking, or a booking that is not finite, holds no time, or overlaps or
+ * precedes the one listed before it. The chain read builds these from other
+ * projects' schedules, so a malformed one is a broken caller and never a plan
+ * to place around.
+ *
+ * **A listed person holds at least one booking**, and that is what makes
+ * "non-empty" one fact everywhere: `elsewhere.size > 0` in `schedule()`, in
+ * {@link canonicalScheduleInput}, which calls this, and in the solver request
+ * builder. A person with `[]` would otherwise hash as the booking-free plan
+ * while the engine answered `waitingElsewhere: 0` and refused pinned starts.
+ *
+ * Proof: the call to this removed made `refuses a malformed map`
+ * (`schedule-elsewhere.test.ts`) schedule all five maps; the empty-list refusal
+ * alone removed made it schedule `{ ana: [] }`, and `refuses a person listed
+ * with no booking` (`canonical-schedule-input.test.ts`) hash it; watched
+ * 2026-09-29.
+ */
+export function checkElsewhere(elsewhere: Elsewhere): void {
+  for (const [personId, bookings] of elsewhere) {
+    if (bookings.length === 0) {
+      throw new Error(`elsewhere for ${personId}: a person is listed with no booking`);
+    }
+    let previousEnd = -Infinity;
+    for (const booking of bookings) {
+      if (!Number.isFinite(booking.start) || !Number.isFinite(booking.end)) {
+        throw new Error(`elsewhere for ${personId}: a booking is not finite`);
+      }
+      if (booking.end <= booking.start) {
+        throw new Error(`elsewhere for ${personId}: a booking holds no time`);
+      }
+      if (booking.start < previousEnd) {
+        throw new Error(`elsewhere for ${personId}: bookings overlap or are out of order`);
+      }
+      previousEnd = booking.end;
+    }
+  }
+}
+
+/** Revisit person and pool windows until both accept the same interval. */
+function findResourceWindow(
+  intervals: readonly { node: number; start: number; finish: number }[],
+  profile: ReturnType<typeof capacityProfile>,
+  poolIds: readonly string[],
+  width: number,
+  floor: number,
+  duration: number,
+): { start: number; person: ReturnType<typeof findPersonWindow>; pool: JointWindow } {
+  let start = floor;
+  let person = findPersonWindow(intervals, start, duration);
+  let pool = profile.jointWindowFor(poolIds, width, duration, start);
+  let personEvidence = person;
+  let poolEvidence = pool;
+  for (;;) {
+    if (person.start > start) personEvidence = person;
+    if (pool.start > start) poolEvidence = pool;
+    const next = Math.max(person.start, pool.start);
+    // Proof: returning after one pass made `explains a person delay after a
+    // pool delay` label C at day 5 `optimizer` with no person predecessor;
+    // watched 2026-09-28 (13 pass / 1 fail).
+    if (next === start) return { start, person: personEvidence, pool: poolEvidence };
+    start = next;
+    person = findPersonWindow(intervals, start, duration);
+    pool = profile.jointWindowFor(poolIds, width, duration, start);
+  }
+}
+
+/**
+ * Where a pinned slice's person and pools let it start: the pin itself, or a
+ * release within {@link withinDrift} after it, whose own double is returned
+ * for the caller to move the pin onto (see {@link pinFloor} for why the
+ * release's double and not the pin's).
+ *
+ * Throws {@link ScheduleInvalidOptimizedStartError} naming the person
+ * reservation or the pool when the pin sits inside one by more than drift —
+ * at least one solver unit, since pins are whole units.
+ */
+function holdPinnedResources(
+  key: string,
+  intervals: readonly { node: number; start: number; finish: number }[],
+  profile: ReturnType<typeof capacityProfile>,
+  poolIds: readonly string[],
+  width: number,
+  start: number,
+  duration: number,
+): number {
+  const held = findResourceWindow(intervals, profile, poolIds, width, start, duration).start;
+  // Proof: comparing these three with `===`/`!==` instead of drift made
+  // `accepts every person-abutting answer on the solver axis` and `…every
+  // pool-abutting answer…` each report 1438 of 9216 refusals through
+  // materialiseOptimized (44 pass / 2 fail). Returning `held` without the
+  // refusals below moved a pin a whole unit and accepted it: `rejects a pinned
+  // person overlap even when an earlier gap is free`, `rejects a pinned pool
+  // overlap in resource-order replay` and both `still refuses a person-/pool-
+  // sharing answer one solver unit early` did not throw (42 pass / 4 fail).
+  // Watched 2026-09-28.
+  if (withinDrift(held, start)) return held;
+  // Only a refusal pays for naming its cause, so the common path costs one
+  // joint search.
+  if (!withinDrift(findPersonWindow(intervals, start, duration).start, start)) {
+    throw new ScheduleInvalidOptimizedStartError(key, 'overlaps a resource reservation');
+  }
+  const blocked = poolIds.find(
+    (poolId) => !withinDrift(profile.jointWindowFor([poolId], width, duration, start).start, start),
+  );
+  throw new ScheduleInvalidOptimizedStartError(
+    key,
+    blocked === undefined ? 'overlaps its joint pools' : `overlaps pool ${blocked}`,
+  );
+}
+
+/** Rebuild actual chronological resource edges, independent of Kahn placement order. */
+function rebuildResourceOrder(
+  graph: SliceGraph,
+  placed: readonly Placed[],
+  sizes: PoolSizes,
+): WeightedEdge[] {
+  const edges: WeightedEdge[] = [];
+  const seen = new Set<string>();
+  const add = (before: number, after: number): void => {
+    if (before === after) return;
+    const key = `${String(before)}:${String(after)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    edges.push({
+      before,
+      after,
+      type: 'FS',
+      weight: durationOf(graph.nodes[before].slice),
+      provenance: 'resource',
+    });
+  };
+  const byPerson = new Map<string, number[]>();
+  const byPool = new Map<string, number[]>();
+  graph.nodes.forEach((node, at) => {
+    if (placed[at].finish <= placed[at].start) return;
+    if (node.slice.personId !== null) {
+      const assigned = byPerson.get(node.slice.personId) ?? [];
+      assigned.push(at);
+      byPerson.set(node.slice.personId, assigned);
+    }
+    for (const poolId of node.slice.poolIds) {
+      const reserved = byPool.get(poolId) ?? [];
+      reserved.push(at);
+      byPool.set(poolId, reserved);
+    }
+  });
+  const chronological = (left: number, right: number): number =>
+    placed[left].start - placed[right].start || left - right;
+  for (const assigned of byPerson.values()) {
+    // Proof: leaving these in node/plan order instead of sorting by actual
+    // start made `computes float through a feasible augmented cycle` report
+    // latest starts 9/0/10 rather than 10/0/9; watched 2026-09-28.
+    assigned.sort(chronological);
+    // Proof: omitting these actual-order person edges made `computes float
+    // through a feasible augmented cycle` report C latest start 10 instead
+    // of 9, and the longer cycle report 20 instead of 9; watched 2026-09-28.
+    for (let at = 1; at < assigned.length; at += 1) add(assigned[at - 1], assigned[at]);
+  }
+  for (const [poolId, reserved] of byPool) {
+    const size = sizes.get(poolId);
+    if (size === undefined) throw new Error(`no size for pool ${poolId}`);
+    const slots = Array.from(
+      { length: size },
+      (): { owner: number; finish: number } | null => null,
+    );
+    reserved.sort(chronological);
+    for (const at of reserved) {
+      let taken = 0;
+      for (let slot = 0; slot < size && taken < graph.nodes[at].slice.width; slot += 1) {
+        const previous = slots[slot];
+        if (previous !== null && previous.finish > placed[at].start) continue;
+        if (previous !== null) add(previous.owner, at);
+        slots[slot] = { owner: at, finish: placed[at].finish };
+        taken += 1;
+      }
+      if (taken !== graph.nodes[at].slice.width) {
+        // An invariant now, not the refusal: {@link holdPinnedResources}
+        // refuses a pinned pool overlap during the replay, before this runs.
+        // Disabling this branch left wbs-domain and wbs-contracts green
+        // (791 / 430 pass), 2026-09-28; the watched refusal is that one's.
+        // R5-29 in docs/findings/checks-that-cannot-fail.md.
+        throw new ScheduleInvalidOptimizedStartError(
+          graph.nodes[at].key,
+          `overlaps pool ${poolId}`,
+        );
+      }
+    }
+  }
+  return edges;
+}
+
+/**
+ * Place weighted DAG nodes; pins materialize in plan order, then resources replay in actual time.
+ * A pin must meet its explicit floor and the dependency's materialized boundary;
+ * nominal weighted sums can round above a valid fractional FF pin. A pin short
+ * of a materialized boundary by less than {@link withinDrift} is moved onto it
+ * (start for FS/SS, finish for FF), because the pin divides back from
+ * `k / SOLVER_QUANTUM` while the boundary accumulated `start + days`; a real
+ * violation is short by at least one solver unit and still throws
+ * {@link ScheduleInvalidOptimizedStartError}.
+ *
+ * The resource replay applies the same rule to a person's or pool's release:
+ * a pin within drift of it is moved onto the release's own double, as
+ * {@link pinFloor} does, rather than left one ulp inside a live reservation.
+ * A move shifts that slice's finish and so every boundary downstream of it, so
+ * placement reruns from the moved starts until no replay moves anything; the
+ * starts only rise, by drift each time, and `round` bounds the reruns. The
+ * returned `eventsVisited` is the final round's; discarded rounds' are dropped.
+ */
+function placeWeightedSlices(
+  graph: SliceGraph,
+  edges: readonly WeightedEdge[],
+  goesFirst: (left: number, right: number) => boolean,
+  withResources: boolean,
+  sizes: PoolSizes,
+  /** See {@link placeSlices}; seeded into each person's interval list as fixed intervals. */
+  elsewhere: Elsewhere,
+  pinned?: readonly number[],
+  round = 0,
+): {
+  order: number[];
+  placed: Placed[];
+  resourceSuccessors: number[][];
+  resourceEdges: WeightedEdge[];
+  eventsVisited: number;
+} {
+  const { nodes } = graph;
+  const incoming = nodes.map((): WeightedEdge[] => []);
+  for (const edge of edges) incoming[edge.after].push(edge);
+  const waitingOn = nodes.map((node) => node.predecessors.length);
+  const eligible = eligibleSet(goesFirst);
+  nodes.forEach((_, at) => {
+    if (waitingOn[at] === 0) eligible.push(at);
+  });
+  const placed: Placed[] = [];
+  const order: number[] = [];
+  const anchors = new Array<SpanAnchor | undefined>(graph.items);
+  const profile = capacityProfile(sizes);
+  // Bookings elsewhere enter each person's interval list as fixed intervals
+  // under node indices below NOBODY, so the window search steps over them like
+  // any other reservation and a blocking list can say which kind held it.
+  // Proof: the seeding skipped made `waits for a booking elsewhere across a
+  // typed dependency` (`schedule-elsewhere.test.ts`) place the slice across
+  // the foreign interval; watched 2026-09-29.
+  const away: ElsewhereBooking[] = [];
+  const awayIntervals = new Map<string, { node: number; start: number; finish: number }[]>();
+  if (withResources) {
+    for (const [personId, bookings] of elsewhere) {
+      awayIntervals.set(
+        personId,
+        bookings.map((booking) => ({
+          node: NOBODY - away.push(booking),
+          start: booking.start,
+          finish: booking.end,
+        })),
+      );
+    }
+  }
+  const awayOf = (node: number | undefined): ElsewhereBooking | undefined =>
+    node === undefined || node >= NOBODY ? undefined : away[NOBODY - node - 1];
+  const seededPeople = () =>
+    new Map([...awayIntervals].map(([personId, intervals]) => [personId, [...intervals]]));
+  const people = seededPeople();
+  for (let taken = eligible.take(); taken !== undefined; taken = eligible.take()) {
+    const node = nodes[taken];
+    const duration = durationOf(node.slice);
+    const explicitFloor = Math.max(0, node.notBefore);
+    let floor = explicitFloor;
+    for (const edge of incoming[taken])
+      floor = Math.max(floor, placed[edge.before].start + edge.weight);
+    let start = pinned === undefined ? floor : pinned[taken];
+    // Proof: removing the finite check let an Infinity pin return a plan and
+    // made a NaN pin throw `weighted boundary did not converge` instead of the
+    // named refusal (1 pass / 2 fail); removing the explicit-floor check accepted B at 1
+    // despite its floor at 2 (0 pass / 1 fail). Restoring the nominal weighted
+    // comparison refused a valid FF replay at 1.6666666666666665 (0 pass / 1
+    // fail); both materialized finishes were 2.6666666666666665. Watched
+    // 2026-09-28 through schedule().
+    if (pinned !== undefined && (!Number.isFinite(start) || start < explicitFloor)) {
+      throw new ScheduleInvalidOptimizedStartError(
+        node.key,
+        'violates a weighted floor or has a non-finite start',
+      );
+    }
+    let tiled: ReturnType<typeof tileFinish> | undefined;
+    for (let attempt = 0; attempt < 16; attempt += 1) {
+      if (pinned === undefined && withResources) {
+        const personId = duration > 0 ? node.slice.personId : null;
+        const intervals = personId === null ? [] : (people.get(personId) ?? []);
+        start = findResourceWindow(
+          intervals,
+          profile,
+          node.slice.poolIds,
+          node.slice.width,
+          start,
+          duration,
+        ).start;
+      }
+      const candidate = tileFinish(anchors[node.item], start, node.at, node.offsets);
+      let required = start;
+      // Proof: deleting this materialized-window search made `reconciles a
+      // tiled fractional interval before reserving a pool` throw `C waited
+      // for capacity with nothing holding the pool` during replay; watched
+      // 2026-09-28 (13 pass / 1 fail).
+      if (pinned === undefined && withResources && candidate.finish > start) {
+        const intervals =
+          node.slice.personId === null ? [] : (people.get(node.slice.personId) ?? []);
+        required = findResourceWindow(
+          intervals,
+          profile,
+          node.slice.poolIds,
+          node.slice.width,
+          start,
+          candidate.finish - start,
+        ).start;
+      }
+      for (const edge of incoming[taken]) {
+        const before = placed[edge.before];
+        const boundary = edge.type === 'SS' ? before.start : before.finish;
+        // Proof: forcing this comparison false made `reconciles an FF
+        // successor against the materialized predecessor finish` fail:
+        // B finished at 32024810461.572468 before A at
+        // 32024810461.57247; watched 2026-09-28.
+        const observed = edge.type === 'FF' ? candidate.finish : start;
+        if (observed >= boundary) continue;
+        // A pin within DRIFT below its boundary is the solver's tight answer
+        // read on another rounding, as in {@link pinFloor}; it snaps onto the
+        // boundary through the Fast adjustment below. Proof: throwing on every
+        // `observed < boundary` again made `accepts every tight FS and FF pin
+        // on the solver axis` report 1867 refusals (868 FS, 999 FF, 0 on the
+        // all-FS control) and `accepts 7/48 + 0.25 against a pin at 19/48
+        // across FS` throw; watched 2026-09-28 (21 pass / 2 fail).
+        if (pinned !== undefined && !withinDrift(observed, boundary)) {
+          throw new ScheduleInvalidOptimizedStartError(
+            node.key,
+            `violates ${edge.type} materialized boundary at placement`,
+          );
+        }
+        required = Math.max(required, edge.type === 'FF' ? boundary - duration : boundary);
+        if (required <= start) required = start + Number.EPSILON * Math.max(1, Math.abs(start));
+      }
+      if (required === start) {
+        tiled = candidate;
+        break;
+      }
+      start = required;
+    }
+    if (tiled === undefined) throw new Error(`weighted boundary did not converge for ${node.key}`);
+    anchors[node.item] = tiled.held;
+    placed[taken] = {
+      start,
+      finish: tiled.finish,
+      boundBy: 'projectStart',
+      resourcePredecessor: NOBODY,
+      capacityPredecessors: [],
+      capacityTeamId: null,
+      elsewhereHolder: null,
+    };
+    order.push(taken);
+    if (pinned === undefined && withResources && duration > 0) {
+      if (node.slice.personId !== null) {
+        const intervals = people.get(node.slice.personId) ?? [];
+        intervals.push({ node: taken, start, finish: tiled.finish });
+        intervals.sort((left, right) => left.start - right.start);
+        people.set(node.slice.personId, intervals);
+      }
+      profile.reserve(node.slice.poolIds, taken, node.slice.width, start, tiled.finish);
+    }
+    for (const next of node.successors) {
+      waitingOn[next] -= 1;
+      if (waitingOn[next] === 0) eligible.push(next);
+    }
+  }
+  if (order.length !== nodes.length) throw new ScheduleCycleError();
+
+  if (withResources) {
+    // Traverse actual intervals rather than Kahn order: a long FF successor
+    // may begin before the predecessor that made it eligible.
+    // Actual starts decide resource order; plan order only materializes pins.
+    const replayProfile = capacityProfile(sizes);
+    const replayPeople = seededPeople();
+    const chronology = [...order].sort(
+      (left, right) => placed[left].start - placed[right].start || left - right,
+    );
+    const chronologicalAt = new Array<number>(nodes.length);
+    chronology.forEach((node, at) => {
+      chronologicalAt[node] = at;
+    });
+    const reserveReplayed = (at: number, from: number, until: number): void => {
+      const { slice } = nodes[at];
+      if (durationOf(slice) === 0) return;
+      if (slice.personId !== null) {
+        const assigned = replayPeople.get(slice.personId) ?? [];
+        assigned.push({ node: at, start: from, finish: until });
+        // Chronological pushes keep a list sorted by start; a seeded one needs
+        // the sort, because its bookings elsewhere were all there first.
+        if (awayIntervals.has(slice.personId))
+          assigned.sort((left, right) => left.start - right.start);
+        replayPeople.set(slice.personId, assigned);
+      }
+      replayProfile.reserve(slice.poolIds, at, slice.width, from, until);
+    };
+    const moved = new Map<number, number>();
+    for (const taken of chronology) {
+      const node = nodes[taken];
+      const duration = durationOf(node.slice);
+      const start = placed[taken].start;
+      const personId = duration > 0 ? node.slice.personId : null;
+      const intervals = personId === null ? [] : (replayPeople.get(personId) ?? []);
+      const actualDuration = placed[taken].finish - start;
+      // Kept for the Fast replay only, where no reachable input fires it: Fast
+      // placed every slice in a person window over the same intervals. See
+      // R5-30 in docs/findings/checks-that-cannot-fail.md.
+      if (
+        pinned === undefined &&
+        findPersonWindow(intervals, start, actualDuration).start !== start
+      )
+        throw new ScheduleInvalidOptimizedStartError(node.key, 'overlaps a resource reservation');
+      const held =
+        pinned === undefined
+          ? start
+          : holdPinnedResources(
+              node.key,
+              intervals,
+              replayProfile,
+              node.slice.poolIds,
+              node.slice.width,
+              start,
+              actualDuration,
+            );
+      if (held !== start) moved.set(taken, held);
+      if (moved.size > 0) {
+        // This round is discarded; it only reserves, so later slices meet the
+        // moved intervals and move in the same rerun. The finish is the one the
+        // rerun will tile from `held`: `placed.finish + (held - start)` lands
+        // an ulp short of it, and a same-person chain then moved one link per
+        // rerun instead of all at once.
+        reserveReplayed(taken, held, tileFinish(undefined, held, node.at, node.offsets).finish);
+        continue;
+      }
+      let planFloor = node.notBefore;
+      let planKind: ScheduleFloor = node.notBefore > 0 ? 'notBefore' : 'projectStart';
+      for (const edge of incoming[taken]) {
+        const before = placed[edge.before];
+        // The reported floor follows actual boundaries after numerical
+        // reconciliation. An exactly tiled FF finish is predecessor-bound,
+        // even when its raw start weight differs by one or two ulps.
+        // Proof: reverting to `before.start + edge.weight` made `reconciles an
+        // FF successor against the materialized predecessor finish` report
+        // `optimizer` instead of `predecessor`; watched 2026-09-28.
+        const bound =
+          edge.type === 'SS'
+            ? before.start
+            : edge.type === 'FS'
+              ? before.finish
+              : placed[taken].finish === before.finish
+                ? start
+                : before.finish - duration;
+        if (bound > planFloor) {
+          planFloor = bound;
+          planKind = edge.provenance === 'workflow' ? 'stepOrder' : 'predecessor';
+        }
+      }
+      planFloor = Math.max(0, planFloor);
+      const { person, pool } = findResourceWindow(
+        intervals,
+        replayProfile,
+        node.slice.poolIds,
+        node.slice.width,
+        planFloor,
+        actualDuration,
+      );
+      const candidates: FloorCandidate[] = [{ at: planFloor, kind: planKind }];
+      // The last interval that pushed says which kind held it: a slice of
+      // this plan (`person`) or a booking elsewhere.
+      // Proof: every push named `person` made `waits for a booking elsewhere
+      // across a typed dependency` (`schedule-elsewhere.test.ts`) read
+      // `boundBy: 'person'`; watched 2026-09-29.
+      const holder = awayOf(person.blocking.at(-1));
+      if (person.start > planFloor) {
+        candidates.push({ at: person.start, kind: holder === undefined ? 'person' : 'elsewhere' });
+      }
+      if (pool.start > Math.max(planFloor, person.start))
+        candidates.push({ at: pool.start, kind: 'capacity' });
+      const resolved = resolveFloor(candidates);
+      const boundBy =
+        start > resolved.start && !withinDrift(start, resolved.start)
+          ? 'optimizer'
+          : resolved.boundBy;
+      placed[taken].boundBy = boundBy;
+      if (boundBy === 'person')
+        placed[taken].resourcePredecessor = person.blocking.at(-1) ?? NOBODY;
+      if (boundBy === 'elsewhere')
+        placed[taken].elsewhereHolder = holderOf(
+          node.key,
+          holder === undefined ? null : { holder },
+        );
+      if (boundBy === 'capacity') {
+        const annotation = annotateCapacity(
+          node.key,
+          boundBy,
+          start,
+          pool,
+          (at) => placed[at].finish,
+          (at) => chronologicalAt[at],
+        );
+        placed[taken].capacityPredecessors = annotation.capacityPredecessors;
+        placed[taken].capacityTeamId = annotation.capacityTeamId;
+        placed[taken].resourcePredecessor = annotation.referent;
+      }
+      reserveReplayed(taken, start, placed[taken].finish);
+    }
+    if (pinned !== undefined && moved.size > 0) {
+      const [first] = moved.keys();
+      // Bounded convergence. A rerun that moves nothing returns, and a moved
+      // start only rises. The bound is the slice count: even one moved link
+      // per rerun, the propagation seen before the discarded round reserved
+      // the rerun's own finish, settles an n-slice chain within n reruns.
+      // Proof: a bound of 0 made `settles a 17-slice same-person chain in one
+      // rerun` throw `resource releases did not converge within drift` for S5;
+      // a bound of 1 passed it (one rerun suffices). With the old
+      // `placed.finish + (held - start)` reservation, a bound of 3 threw for
+      // S10. Watched 2026-09-29.
+      if (round >= nodes.length) {
+        throw new ScheduleInvalidOptimizedStartError(
+          nodes[first].key,
+          'resource releases did not converge within drift',
+        );
+      }
+      const repinned = placed.map((slice, at) => moved.get(at) ?? slice.start);
+      return placeWeightedSlices(
+        graph,
+        edges,
+        goesFirst,
+        withResources,
+        sizes,
+        elsewhere,
+        repinned,
+        round + 1,
+      );
+    }
+    const resourceEdges = rebuildResourceOrder(graph, placed, sizes);
+    const resourceSuccessors = nodes.map((): number[] => []);
+    for (const edge of resourceEdges) resourceSuccessors[edge.before].push(edge.after);
+    return {
+      order,
+      placed,
+      resourceSuccessors,
+      resourceEdges,
+      eventsVisited: replayProfile.eventsVisited(),
+    };
+  }
+  return {
+    order,
+    placed,
+    resourceSuccessors: nodes.map((): number[] => []),
+    resourceEdges: [],
+    eventsVisited: 0,
+  };
+}
+
+/** Relax a cyclic weighted graph to its latest starts, refusing positive cycles. */
+export function relaxWeightedStarts(
+  starts: number[],
+  edges: readonly { before: number; after: number; weight: number }[],
+): void {
+  // Upper-bound relaxation handles non-positive augmented cycles that Kahn
+  // cannot order. A positive-weight cycle changes on the final pass.
+  // Proof: limiting this to one pass made `relaxes latest dates beyond a
+  // reverse placement pass` fail: A/C latest starts became 20/19, expected
+  // 10/9; watched 2026-09-28.
+  for (let pass = 0; pass < starts.length; pass += 1) {
+    let changed = false;
+    for (const edge of edges) {
+      const bound = starts[edge.after] - edge.weight;
+      if (bound < starts[edge.before] && !withinDrift(bound, starts[edge.before])) {
+        starts[edge.before] = bound;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+    // Proof: deleting this refusal made `refuses a positive cycle in the
+    // production backward relaxation` return undefined for the two-node
+    // positive cycle; watched 2026-09-28 (13 pass / 1 fail).
+    if (pass === starts.length - 1) throw new Error('positive-weight resource constraint cycle');
+  }
+}
+
+/** Latest starts under weighted plan and selected resource constraints, including feasible cycles. */
+function weightedLateTimes(
+  graph: SliceGraph,
+  edges: readonly WeightedEdge[],
+  finish: number,
+  placed: readonly Placed[],
+  elsewhere: Elsewhere = NOWHERE,
+): Late[] {
+  const starts = graph.nodes.map((node) => finish - durationOf(node.slice));
+  const capStart = (at: number): number => {
+    const { slice } = graph.nodes[at];
+    const bookings = slice.personId === null ? undefined : elsewhere.get(slice.personId);
+    return bookings === undefined
+      ? starts[at]
+      : latestStartAroundElsewhere(bookings, starts[at], durationOf(slice));
+  };
+  const outgoing = graph.nodes.map((): WeightedEdge[] => []);
+  const incoming = graph.nodes.map(() => 0);
+  for (const edge of edges) {
+    outgoing[edge.before].push(edge);
+    incoming[edge.after] += 1;
+  }
+  const ready = incoming.flatMap((count, at) => (count === 0 ? [at] : []));
+  const topology: number[] = [];
+  let at = 0;
+  while (at < ready.length) {
+    const before = ready[at];
+    topology.push(before);
+    for (const edge of outgoing[before]) {
+      incoming[edge.after] -= 1;
+      if (incoming[edge.after] === 0) ready.push(edge.after);
+    }
+    at += 1;
+  }
+  if (topology.length === graph.nodes.length) {
+    for (let at = topology.length - 1; at >= 0; at -= 1) {
+      const before = topology[at];
+      for (const edge of outgoing[before]) {
+        starts[before] = Math.min(starts[before], starts[edge.after] - edge.weight);
+      }
+      // Proof: omitting this cap made `caps latest starts in the weighted pass
+      // and passes the cap to a predecessor` report A's latestStart as 9 and
+      // its predecessor's as 8 across Ana's [2,10) booking; watched 2026-10-05.
+      starts[before] = capStart(before);
+    }
+  } else {
+    // A weighted resource cycle can relax one start into a booking after an
+    // earlier pass capped it. Each cap crosses at least one booking for that
+    // slice, so the number of relevant intervals bounds convergence.
+    const capLimit = graph.nodes.reduce((count, node) => {
+      const personId = node.slice.personId;
+      return count + (personId === null ? 0 : (elsewhere.get(personId)?.length ?? 0));
+    }, 0);
+    for (let pass = 0; pass <= capLimit; pass += 1) {
+      relaxWeightedStarts(starts, edges);
+      let capped = false;
+      for (let taken = 0; taken < starts.length; taken += 1) {
+        const next = capStart(taken);
+        if (next < starts[taken]) {
+          starts[taken] = next;
+          capped = true;
+        }
+      }
+      // Proof: stopping after the first cap made `propagates booking caps
+      // around a feasible weighted resource cycle` return [10,14,10], not
+      // [10,9,9]; watched 2026-10-05.
+      if (!capped) break;
+      // Proof: with the interval budget broken to zero, the same production
+      // test threw here; removing this refusal returned [10,14,10] instead
+      // of [10,9,9]; both faults watched 2026-10-05.
+      if (pass === capLimit) throw new Error('backward booking bounds did not converge');
+    }
+  }
+  return graph.nodes.map((node, at) => {
+    const latestStart = withinDrift(starts[at], placed[at].start) ? placed[at].start : starts[at];
+    return {
+      latestStart,
+      latestFinish:
+        latestStart === placed[at].start ? placed[at].finish : latestStart + durationOf(node.slice),
+    };
+  });
 }
 
 /**
@@ -1910,6 +2836,7 @@ function lateTimes(
   projectFinish: number,
   placed: readonly Placed[],
   hasQueues: boolean,
+  elsewhere: Elsewhere = NOWHERE,
 ): Late[] {
   const { nodes } = graph;
   const late: Late[] = [];
@@ -1925,6 +2852,17 @@ function lateTimes(
       if (settled < finish) finish = settled;
     }
 
+    const personId = node.slice.personId;
+    const bookings = personId === null ? undefined : elsewhere.get(personId);
+    if (bookings !== undefined) {
+      const duration = offsets[at + 1] - offsets[at];
+      const latestStart = latestStartAroundElsewhere(bookings, finish - duration, duration);
+      // Proof: removing this booking cap made `does not give a slice false
+      // float across its next booking` report latest [9,10), float 9 for Ana's
+      // [0,1) slice with a fixed booking [1,10); watched 2026-10-05.
+      finish = latestStart + duration;
+    }
+
     // The tight-path rule. Proof: with this branch removed, `reports a queue
     // that ends the project as critical, exactly` failed on `a`'s late start —
     // `Expected: 0 Received: -2.220446049250313e-16` — and, with that
@@ -1938,7 +2876,7 @@ function lateTimes(
     // differential — report the snapped answer either way. What the rule buys
     // is the number the engine hands out verbatim, not the colour.
     const early = placed[taken];
-    if (hasQueues && finish === early.finish) {
+    if ((hasQueues || bookings !== undefined) && finish === early.finish) {
       anchorOf[node.item] = { finish, at };
       late[taken] = { latestFinish: finish, latestStart: early.start };
       continue;
@@ -2073,8 +3011,11 @@ function slackOf(latestStart: number, earliestStart: number): number {
  * `unestimated-steps-take-no-schedule-time`). A `v2` plan gave it the assumed
  * two workdays, so its successors, people and pools moved with a length nobody
  * estimated.
+ *
+ * **`v4` adds weighted SS/FF placement, replay and float.** FS-only graphs
+ * still dispatch to the v3 passes and retain their measured digest.
  */
-export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v3';
+export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v4';
 
 /**
  * The schedule for a project: computed in slices, and levelled so that one
@@ -2244,6 +3185,22 @@ export function schedule(
    */
   deadlines: ReadonlyMap<string, number> = new Map(),
   /**
+   * The typed dependencies — `openspec/changes/add-step-finish-start-dependencies`
+   * — each an FS relationship between a whole work item, one step node, or one
+   * step in every leaf under a parent. The eighth field of {@link ScheduleInput},
+   * in its order.
+   *
+   * Resolved at the one graph seam, {@link resolveStepNodeGraph}, beside the
+   * workflow chain and the legacy joins, so every resolved pair becomes an FS
+   * edge into whichever node it names — a later step of the successor included —
+   * and the solver request builder derives the same edges.
+   *
+   * Empty by default for {@link deadlines}' reason: no typed dependency and an
+   * absent list mean the same plan, and every plan that predates typed
+   * dependencies is scheduled byte for byte as before.
+   */
+  typed: readonly TypedDependency[] = [],
+  /**
    * Task 4.9's `materialiseOptimized`: a start per slice key, or Fast's own.
    *
    * **This argument is the whole of the optimized materialiser.** Everything
@@ -2262,7 +3219,30 @@ export function schedule(
    * tell which slice came from which.
    */
   pinnedStarts?: ReadonlyMap<string, number>,
+  /**
+   * Every person's bookings in the projects that outrank this one, on this
+   * project's workday offsets — the ninth field of {@link ScheduleInput}, and
+   * the tenth argument here, after `pinnedStarts`, so every existing caller's
+   * positions stand;
+   * `share-people-across-projects` slice 4, ADR 0034.
+   *
+   * No slice of a person is placed across one of their bookings, and a slice
+   * whose start a booking set reads `boundBy: 'elsewhere'` with the holder.
+   * Resources only: the critical-path pass the leveller ranks by is the plan
+   * with nobody in it, and nobody is booked there.
+   *
+   * **Empty by default, and empty places byte for byte as before**: the lookup
+   * that finds a person's bookings misses, and the pass takes the path it
+   * always took. `schedule-elsewhere.test.ts` holds the whole golden corpus to
+   * that, argument supplied and not.
+   *
+   * @throws for a malformed map (see {@link checkElsewhere}), or an invalid
+   * pinned start (see {@link ScheduleInvalidOptimizedStartError}).
+   */
+  elsewhere: Elsewhere = new Map(),
 ): Schedule {
+  checkElsewhere(elsewhere);
+
   const index = indexTree(rows);
   const { leafIds } = index;
   const sliced = groupByWorkItem(leafIds, slices);
@@ -2375,18 +3355,37 @@ export function schedule(
   // Pushed onto the two nodes rather than rebuilt into a map: the adjacency is
   // written once per edge, and the order the edges arrive in is the order these
   // arrays are walked in later.
-  for (const { predecessor, successor } of resolveStepNodeGraph(
+  // Proof: the typed list replaced by `[]` at this call made four of the five
+  // `schedule-typed-dependency.test.ts` cases fail — `holds a later successor
+  // step` on `Expected: 3, Received: 1` among them; watched 2026-09-27.
+  const resolvedEdges = resolveStepNodeGraph(
     leafIds,
     (id) => slicesOf(id).slices,
     leafEdges,
     reach,
-  ).edges) {
+    { dependencies: typed, leavesUnder: leavesUnderOf(index) },
+  ).edges;
+  const weightedEdges: WeightedEdge[] = [];
+  for (const { predecessor, successor, type, provenance } of resolvedEdges) {
     const before = firstNodeOf(predecessor.leafId) + predecessor.at;
     const after = firstNodeOf(successor.leafId) + successor.at;
     nodes[before].successors.push(after);
     nodes[after].predecessors.push(before);
+    const beforeDuration = durationOf(nodes[before].slice);
+    const afterDuration = durationOf(nodes[after].slice);
+    weightedEdges.push({
+      before,
+      after,
+      type,
+      provenance,
+      // Proof: clamping FF to zero made `keeps a negative FF weight in latest
+      // dates and critical path` fail with B at day 4 instead of day 0;
+      // watched 2026-09-28.
+      weight: type === 'FS' ? beforeDuration : type === 'SS' ? 0 : beforeDuration - afterDuration,
+    });
   }
   const graph: SliceGraph = { nodes, items };
+  const isWeighted = resolvedEdges.some((edge) => edge.type !== 'FS');
 
   // The same plan with nobody's calendar in it — the critical path, computed by
   // the pass above with the people taken out rather than by a second copy of
@@ -2394,17 +3393,33 @@ export function schedule(
   // exactly what this engine answers when nobody is assigned. The order it is
   // computed in is the order the nodes were built in, which is all a plan with
   // no queues in it needs.
-  const unleveled = placeSlices(graph, (left, right) => left < right, false, poolSizes);
-  const criticalPath = lateTimes(
-    graph,
-    unleveled.order,
-    nodes.map((node) => node.successors),
-    Math.max(0, ...unleveled.placed.map((each) => each.finish)),
-    unleveled.placed,
-    // The critical path is a ranking, not an answer, and it is the plan with
-    // nobody in it by construction — there are no queues here to be tight about.
-    false,
-  );
+  const unleveled = isWeighted
+    ? placeWeightedSlices(
+        graph,
+        weightedEdges,
+        (left, right) => left < right,
+        false,
+        poolSizes,
+        NOWHERE,
+      )
+    : placeSlices(graph, (left, right) => left < right, false, poolSizes, NOWHERE);
+  const criticalPath = isWeighted
+    ? weightedLateTimes(
+        graph,
+        weightedEdges,
+        Math.max(0, ...unleveled.placed.map((each) => each.finish)),
+        unleveled.placed,
+      )
+    : lateTimes(
+        graph,
+        unleveled.order,
+        nodes.map((node) => node.successors),
+        Math.max(0, ...unleveled.placed.map((each) => each.finish)),
+        unleveled.placed,
+        // The critical path is a ranking, not an answer, and it is the plan with
+        // nobody in it by construction — there are no queues here to be tight about.
+        false,
+      );
 
   const places = treeOrder(rows);
   const leafPriorities = priorityByLeaf(rows, index);
@@ -2546,7 +3561,17 @@ export function schedule(
             ? left < right
             : pinnedByNode[left] < pinnedByNode[right];
 
-  const leveled = placeSlices(graph, levelOrder, true, poolSizes, pinnedByNode);
+  const leveled = isWeighted
+    ? placeWeightedSlices(
+        graph,
+        weightedEdges,
+        levelOrder,
+        true,
+        poolSizes,
+        elsewhere,
+        pinnedByNode,
+      )
+    : placeSlices(graph, levelOrder, true, poolSizes, elsewhere, pinnedByNode);
   const projectFinish = Math.max(0, ...leveled.placed.map((each) => each.finish));
   // The augmented graph: the plan's edges and the ones the placement chose. A
   // slice held off by a person cannot slip without moving what that person does
@@ -2561,18 +3586,28 @@ export function schedule(
   const augmented = nodes.map((node, at) =>
     queues[at].length === 0 ? node.successors : [...node.successors, ...queues[at]],
   );
-  const late = lateTimes(
-    graph,
-    leveled.order,
-    augmented,
-    projectFinish,
-    leveled.placed,
-    queues.some((next) => next.length > 0),
-  );
+  const late = isWeighted
+    ? weightedLateTimes(
+        graph,
+        [...weightedEdges, ...leveled.resourceEdges],
+        projectFinish,
+        leveled.placed,
+        elsewhere,
+      )
+    : lateTimes(
+        graph,
+        leveled.order,
+        augmented,
+        projectFinish,
+        leveled.placed,
+        queues.some((next) => next.length > 0),
+        elsewhere,
+      );
 
   const scheduledSlices = new Map<string, ScheduledSlice>();
   const waiting = new Set<string>();
   const waitingOnSlots = new Set<string>();
+  const waitingAway = new Set<string>();
   const projectionFinishes = Array.from({ length: items }, () => 0);
   nodes.forEach((node, at) => {
     projectionFinishes[node.item] = Math.max(
@@ -2616,6 +3651,7 @@ export function schedule(
     // and "waiting for a slot" are different sentences, and `boundBy` names
     // exactly one of them for any slice.
     if (placed.boundBy === 'capacity') waitingOnSlots.add(slice.workItemId);
+    if (placed.boundBy === 'elsewhere') waitingAway.add(slice.workItemId);
     scheduledSlices.set(node.key, {
       workItemId: slice.workItemId,
       stepId: slice.stepId,
@@ -2642,6 +3678,7 @@ export function schedule(
         placed.resourcePredecessor === NOBODY ? null : nodes[placed.resourcePredecessor].key,
       capacityPredecessorIds: placed.capacityPredecessors.map((blocker) => nodes[blocker].key),
       capacityTeamId: placed.capacityTeamId,
+      ...(placed.elsewhereHolder === null ? {} : { elsewhereHolder: placed.elsewhereHolder }),
       lateBy: missed === 0 ? null : missed,
     });
   });
@@ -2651,13 +3688,22 @@ export function schedule(
     if (found === undefined) throw new Error(`no schedule for slice ${key}`);
     return found;
   };
-  return {
+  const plan: Schedule = {
     slices: scheduledSlices,
     workItems: projectOntoWorkItems(rows, index, slicesOf, scheduleOf),
     waitingForPerson: waiting.size,
     waitingForCapacity: waitingOnSlots.size,
+    // Proof: present on every plan made `keeps every golden corpus case byte
+    // for byte, the map supplied empty` (`schedule-elsewhere.test.ts`) fail on
+    // the extra key; watched 2026-09-29.
+    ...(elsewhere.size === 0 ? {} : { waitingElsewhere: waitingAway.size }),
     eventsVisited: leveled.eventsVisited,
   };
+  validateRealBoundaries(
+    { rows, edges, slices, notBefore, poolSizes, reach, deadlines, typed },
+    plan,
+  );
+  return plan;
 }
 
 /**

@@ -56,7 +56,7 @@ test('mounts the production import path and returns the typed 201 summary', asyn
     created: summary.created,
     solutionRef: summary.solutionRef,
   });
-  expect(imports).toHaveBeenCalledWith(document, 'actor');
+  expect(imports).toHaveBeenCalledWith(document, 'actor', { kind: 'legacy' });
 });
 
 test('returns mounted document paths and admitted conflicts through declared refusals', async () => {
@@ -85,6 +85,26 @@ test('returns mounted document paths and admitted conflicts through declared ref
     path: 'settings.scheduleEngine',
     detail: 'optimized',
   });
+});
+
+test('refuses a malformed version-4 typed dependency at the mounted import boundary', async () => {
+  const document = planDocumentFixture();
+  document.document.version = 4;
+  Reflect.set(document, 'typedDependencies', [
+    {
+      id: 'bad',
+      predecessor: { scope: 'elsewhere', workItem: 'row-1' },
+      successor: { scope: 'whole', workItem: 'row-1' },
+      type: 'FS',
+    },
+  ]);
+  const boundary = mounted();
+  const response = await boundary.app.handle(request(JSON.stringify(document)));
+  expect(response.status).toBe(400);
+  const payload: unknown = await response.json();
+  expect(payload).toMatchObject({ error: 'invalid_typed_dependency' });
+  expect(Reflect.get(payload as object, 'path')).toBe('typedDependencies[0].predecessor.scope');
+  expect(boundary.imports).not.toHaveBeenCalled();
 });
 
 test('checks cookie origin and write scope before parsing the import document', async () => {

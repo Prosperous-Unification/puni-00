@@ -1,20 +1,27 @@
 import {
   addWorkdays,
+  allowanceOf,
+  type AllowancePercent,
   CalendarRangeError,
+  chargedDays,
   deadlineOffsetOf,
   deadlineOffsetsOf,
+  type DependencyEndpoint,
   type DependencyReach,
   deriveNumbers,
   effectiveTeamsOf,
   type EstimateMethod,
   type EstimateRounding,
   type EstimateRule,
-  finalDays,
+  findTypedEndpointDefect,
   firstWorkdayOf,
   formatStepNodeId,
+  formatTypedDependencyKey,
+  type Hold,
   type IsoDate,
   isoDateOfInstant,
   isWithin,
+  isWritableRelationshipType,
   lastWorkdayOf,
   type MeasureMetric,
   nextWorkday,
@@ -24,19 +31,19 @@ import {
   placeAfter,
   POSITION_STEP,
   type PriorityBand,
+  type Readiness,
   type SettableStatus,
   type Sibling,
+  type StepAllowances,
+  type StepPolicy,
   type StepState,
   UNKNOWN,
+  withoutHeldSubtrees,
   workdaysBetween,
+  type WorkItemStatus,
 } from '@wbs/domain';
-import {
-  canEditProject,
-  MEASURE_METRICS,
-  SOLVER_OBJECTIVES,
-  type SolverObjectiveName,
-} from '@wbs/domain';
-import { byTreeOrder, treeOrder } from '@wbs/domain';
+import { MEASURE_METRICS, SOLVER_OBJECTIVES, type SolverObjectiveName } from '@wbs/domain';
+import { byTreeOrder, type StepNodeCycle, treeOrder, type TypedDependency } from '@wbs/domain';
 import {
   haveSameSliceOrder,
   type Schedule,
@@ -51,6 +58,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
 import type { CapacityStore, TeamCapacity } from '../../ports/capacity-store';
+import type { LivePlanStore } from '../../ports/chain-snapshot-store';
 import type { Clock } from '../../ports/clock';
 import type {
   CommandJournalStore,
@@ -58,9 +66,15 @@ import type {
   UndoState,
 } from '../../ports/command-journal-store';
 import type { DependencyStore, StoredDependency } from '../../ports/dependency-store';
-import type { Assignment, DirectoryStore } from '../../ports/directory-store';
+import type { Assignment, DirectoryCatalog, DirectoryStore } from '../../ports/directory-store';
+import type { EditAdmission } from '../../ports/edit-admission';
 import type { EstimateStore, StoredEstimate } from '../../ports/estimate-store';
 import type { MeasureStore, StoredMeasure } from '../../ports/measure-store';
+import {
+  findProjectWithin,
+  LEGACY_ACCESS,
+  type ResourceAccess,
+} from '../../ports/organization-access';
 import type { PriorityBandStore } from '../../ports/priority-band-store';
 import type { StepProgressStore, StoredProgress } from '../../ports/progress-store';
 import type { Broadcaster } from '../../ports/project-event';
@@ -70,9 +84,19 @@ import type {
   OptimizationVariantState,
   OptimizedScheduleRead,
   Scheduler,
+  ScheduleRead,
 } from '../../ports/scheduler';
+import type {
+  AccessRefused,
+  LivePlanRead,
+  PlanDocumentReads,
+} from '../../ports/shared-people-values';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
+import type {
+  StoredTypedDependency,
+  TypedDependencyStore,
+} from '../../ports/typed-dependency-store';
 import type {
   LabelledWorkItem,
   Reparented,
@@ -84,15 +108,20 @@ import type { WriteStamp } from '../../ports/write-stamp';
 import { assumedAssignee } from '../../service/assumed-assignee';
 import {
   type CompensatingCommand,
+  type CompensatingReferences,
   quoteName,
   readCommand,
   readPayload,
   readPreconditions,
+  referencesOf,
   type Revisions,
+  stepOfRevisionKey,
+  stepRevisionKey,
   subjectOf,
   touchedBy,
 } from '../../service/compensating';
 import { canDepend, canReparent } from '../../service/dependency';
+import { DependencyGraphGuard } from '../../service/dependency-graph';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import {
   type Days,
@@ -104,6 +133,17 @@ import {
   rollUpWorkItemStatuses,
   workedStepsOf,
 } from '../../service/roll-up';
+import { workItemStatusesOf } from '../../service/work-item-statuses';
+
+/**
+ * A row's folded status. Every row of the tree is folded, so a miss is a row
+ * the fold was never handed — an invariant break, never "nobody has said".
+ */
+function statusOfRow(statuses: ReadonlyMap<string, WorkItemStatus>, id: string): WorkItemStatus {
+  const status = statuses.get(id);
+  if (status === undefined) throw new Error(`no status folded for ${id}`);
+  return status;
+}
 
 /**
  * What a work item shows before any schedule could be computed for it.
@@ -241,10 +281,15 @@ export function slicesOf(
   rows: readonly WorkItem[],
   estimates: readonly StoredEstimate[],
   hasChildren: ReadonlySet<string>,
-  stepIds: readonly string[],
+  /**
+   * The project's steps in step order, each with its allowance. Every estimate
+   * must name one of them: {@link allowanceOf} throws for a step outside this
+   * list rather than charging it at no allowance.
+   */
+  steps: readonly StepPolicy[],
   /**
    * The project's whole estimate arithmetic — method, weights and rounding.
-   * The number a slice runs for is `finalDays`' own, so the bar the chart
+   * The number a slice runs for is `chargedDays`' own, so the bar the chart
    * draws and the figure the table prints are one number rather than two
    * roundings of one estimate.
    */
@@ -275,17 +320,25 @@ export function slicesOf(
   teamSizes: ReadonlyMap<string, number>,
 ): Slice[] {
   const inProject = new Set(rows.map((row) => row.id));
-  const held = new Set(stepIds);
+  const allowances: StepAllowances = new Map(steps.map((step) => [step.id, step.allowancePercent]));
   const days = new Map<string, number>();
-  const unlisted = new Set<string>();
   for (const estimate of estimates) {
     if (hasChildren.has(estimate.workItemId)) continue;
     if (!inProject.has(estimate.workItemId)) continue;
-    days.set(sliceKey(estimate.workItemId, estimate.stepId), finalDays(estimate, rule));
-    if (!held.has(estimate.stepId)) unlisted.add(estimate.stepId);
+    // The shared slice seam: Fast, the solver request and a saved plan's
+    // schedule all read charged effort from here, so the allowance is applied
+    // once, before rounding, for every scheduler.
+    //
+    // Proof: with the allowance replaced by 0 here, `schedules charged effort,
+    // and the edit changes the canonical input` failed on `Expected: 3,
+    // Received: 2` (2026-09-27).
+    days.set(
+      sliceKey(estimate.workItemId, estimate.stepId),
+      chargedDays(estimate, rule, allowanceOf(allowances, estimate.stepId)),
+    );
   }
 
-  const order = [...stepIds, ...[...unlisted].sort()];
+  const order = steps.map((step) => step.id);
   const slices: Slice[] = [];
   for (const row of rows) {
     if (hasChildren.has(row.id)) continue;
@@ -411,6 +464,8 @@ function selectedSchedule(
   if (ready === null) {
     throw new Error('optimized plan reader reported ready without a schedule');
   }
+  // Proof: forcing Fast here made the mounted borrowed arrange/freeze command
+  // order lower-work before lower-other despite the ready selected schedule.
   return { schedule: ready, displayed: project.scheduleObjective, awaitingSolve: false };
 }
 
@@ -418,7 +473,8 @@ function canonicalScheduleParts(
   project: Project,
   rows: readonly LabelledWorkItem[],
   estimates: readonly StoredEstimate[],
-  edges: readonly StoredDependency[],
+  edges: readonly Pick<StoredDependency, 'predecessorId' | 'successorId'>[],
+  typed: readonly TypedDependency[],
   assignments: readonly Assignment[],
   steps: readonly Step[],
   poolSizes: ReadonlyMap<string, number>,
@@ -440,7 +496,7 @@ function canonicalScheduleParts(
     rows,
     estimates,
     hasChildren,
-    steps.map((step) => step.id),
+    steps,
     rule,
     assigneesOf,
     effectiveTeamsOf(rows),
@@ -464,16 +520,29 @@ function canonicalScheduleParts(
               .map((row) => [row.id, row.deadline]),
           ),
         );
+  // On hold takes a leaf, and every ancestor all of whose leaves are held, out
+  // of the input before either engine reads it (ADR 0032). Blocked, readiness
+  // and blocked by proxy change nothing here.
+  // Proof: this reduction bypassed (an empty held set) made `lets a successor
+  // start at day zero, and reports the held row with no schedule` fail — the
+  // held row came back scheduled over days 0 to 5; watched 2026-09-29.
+  const heldLeafIds = new Set(
+    rows.filter((row) => row.hold === 'on_hold' && !hasChildren.has(row.id)).map((row) => row.id),
+  );
   return {
-    input: {
-      rows,
-      edges,
-      slices,
-      notBefore,
-      poolSizes,
-      reach: project.depReach,
-      deadlines,
-    },
+    input: withoutHeldSubtrees(
+      {
+        rows,
+        edges,
+        slices,
+        notBefore,
+        poolSizes,
+        reach: project.depReach,
+        deadlines,
+        typed,
+      },
+      heldLeafIds,
+    ),
     hasChildren,
     assigneesOf,
     rule,
@@ -599,6 +668,7 @@ export type WorkItemRefusal =
    * behind saying which engine decided it. ADR 0022's reasoning, applied to a
    * write.
    */
+  | 'calendar_range'
   | 'schedule_not_ready'
   /** The selected engine's adapter is not installed in this deployment. */
   | 'engine_unavailable'
@@ -614,6 +684,22 @@ export type WorkItemRefusal =
   | 'has_children'
   /** A dependency onto the work item's own ancestor, descendant, or itself. */
   | 'ancestor'
+  /**
+   * A typed dependency, alone or through a parent's expansion, joining a step
+   * node to itself. Its own reason rather than `cycle`: the relationship is
+   * wrong whatever else the plan holds.
+   */
+  | 'self_node'
+  /** A descendant-step selector needs a parent with descendant leaves. */
+  | 'not_a_parent'
+  | 'node_on_parent'
+  | 'descendant_step_on_leaf'
+  /** The addressed typed relationship no longer exists in this project. */
+  | 'unknown_dependency'
+  /** Another relationship already names these endpoints and this type. */
+  | 'duplicate_dependency'
+  /** This release understands only the relationship types in RELATIONSHIP_TYPES. */
+  | 'unsupported_relationship_type'
   /** A subtree past {@link MAX_DUPLICATED_ROWS}. */
   | 'too_large'
   /**
@@ -721,7 +807,13 @@ export type WorkItemRefusal =
    * project is not rejected. See the column's JSDoc in `schema.ts`, which is
    * where that asymmetry is argued.
    */
-  | 'deadline_before_project_start';
+  | 'deadline_before_project_start'
+  /** `setStatus` `ready` or `draft` on a leaf whose steps have already spoken. */
+  | 'readiness_after_progress'
+  /** `setStatus` `on_hold` or `blocked` on a row reading done. */
+  | 'cannot_hold_done'
+  /** `setStatus` `in_progress` or `done` in a project with no steps to speak for. */
+  | 'no_steps';
 
 export type WorkItemOutcome<T> =
   | { ok: true; value: T }
@@ -744,7 +836,30 @@ export type WorkItemOutcome<T> =
        * one was wrong.
        */
       projectDayZero?: IsoDate;
+      /** Relationships that prevent a structural change from changing endpoint scope. */
+      dependencyIds?: string[];
     };
+
+/** Orders relationship removal before a structural delete and restoration after it. */
+function withRemovedTyped(
+  structural: CompensatingCommand,
+  removed: readonly StoredTypedDependency[],
+  restore: boolean,
+): CompensatingCommand {
+  if (removed.length === 0) return structural;
+  return {
+    do: 'batch',
+    steps: restore
+      ? [
+          structural,
+          ...removed.map((dependency) => ({ do: 'add_typed_dependency' as const, dependency })),
+        ]
+      : [
+          ...removed.map((dependency) => ({ do: 'remove_typed_dependency' as const, dependency })),
+          structural,
+        ],
+  };
+}
 
 /**
  * Whether this release keeps figures in the unit a caller named.
@@ -801,6 +916,7 @@ export interface MoveWorkItem {
 }
 
 export interface WorkItemServiceOptions {
+  livePlans?: LivePlanStore;
   workItems: WorkItemStore;
   projects: ProjectStore;
   estimates: EstimateStore;
@@ -853,6 +969,7 @@ export interface WorkItemServiceOptions {
    */
   priorityBands: PriorityBandStore;
   dependencies: DependencyStore;
+  typedDependencies: TypedDependencyStore;
   subtrees: SubtreeStore;
   /**
    * Where every reversible command is written down.
@@ -864,8 +981,15 @@ export interface WorkItemServiceOptions {
    */
   journal: CommandJournalStore;
   broadcast: Broadcaster;
+  /**
+   * Who may write a project through this service: `CREATOR_ADMISSION`
+   * outside a batch that established wider authority. See {@link EditAdmission}.
+   */
+  admission: EditAdmission;
   /** The installed scheduling capabilities for live plan reads. */
   scheduler: Scheduler;
+  /** A borrowed command scope reads the captured cache on its own source connection. */
+  schedulerMode?: 'capture';
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock: Clock;
 }
@@ -943,6 +1067,45 @@ const asSibling = (workItem: WorkItem): Sibling => ({
   position: workItem.position,
 });
 
+/**
+ * A command with one `patch` step joined to it, as one batch: after it on the
+ * way forward, before it on the way back. `undefined` leaves the command alone.
+ */
+function withPatchStep(
+  command: CompensatingCommand,
+  step: CompensatingCommand | undefined,
+  order: 'after' | 'before',
+): CompensatingCommand {
+  if (step === undefined) return command;
+  return { do: 'batch', steps: order === 'after' ? [command, step] : [step, command] };
+}
+
+/** The readiness or hold every leaf agreed on, or null where any disagreed. */
+function agreedOn<T>(values: readonly (T | null)[]): T | null {
+  const [first] = values;
+  return first !== undefined && values.every((value) => value === first) ? first : null;
+}
+
+/** The history sentence for one `setStatus`, the row named already quoted. */
+function statusSentence(status: SettableStatus, name: string): string {
+  switch (status) {
+    case 'done':
+      return `mark ${name} done`;
+    case 'unknown':
+      return `set ${name} back to unknown`;
+    case 'ready':
+      return `mark ${name} ready`;
+    case 'draft':
+      return `mark ${name} draft`;
+    case 'in_progress':
+      return `start ${name}`;
+    case 'on_hold':
+      return `put ${name} on hold`;
+    case 'blocked':
+      return `mark ${name} blocked`;
+  }
+}
+
 /** The pair a statement is keyed by, as one map key. */
 const progressKey = (workItemId: string, stepId: string): string => `${workItemId}\u0000${stepId}`;
 
@@ -961,6 +1124,26 @@ function subtreeOf(rows: readonly WorkItem[], rootId: string): string[] {
   };
   visit(rootId);
   return collected;
+}
+
+/** Finds a relationship whose step endpoint no longer fits a projected tree. */
+function findInvalidTypedShape(
+  rows: readonly WorkItem[],
+  relationships: readonly StoredTypedDependency[],
+): StoredTypedDependency | undefined {
+  const held = new Set(rows.map((row) => row.id));
+  const parents = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
+  return relationships.find((relationship) =>
+    [relationship.predecessor, relationship.successor].some((endpoint) => {
+      if (!held.has(endpoint.workItemId)) {
+        throw new Error(`typed relationship ${relationship.id} names a missing work item`);
+      }
+      return (
+        (endpoint.scope === 'node' && parents.has(endpoint.workItemId)) ||
+        (endpoint.scope === 'descendant-step' && !parents.has(endpoint.workItemId))
+      );
+    }),
+  );
 }
 
 /** One row of `rows`, or a throw: an id from the same read is not allowed to be missing. */
@@ -1002,6 +1185,8 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   // columns over.
   if (patch.factStart !== undefined) named.push('factStart');
   if (patch.factEnd !== undefined) named.push('factEnd');
+  if (patch.readiness !== undefined) named.push('readiness');
+  if (patch.hold !== undefined) named.push('hold');
   // Proof: this line and the matching one in {@link revertTo} each deleted in
   // turn, and both `puts a replaced priority back, and leaves a priority a rename
   // did not name` and `takes a first priority away again, rather than leaving a
@@ -1092,6 +1277,8 @@ function revertTo(before: LabelledWorkItem, patch: WorkItemPatch): WorkItemPatch
   // `patch` step too, so its inverse is `factEnd: null` through this same line.
   if (patch.factStart !== undefined) out.factStart = before.factStart;
   if (patch.factEnd !== undefined) out.factEnd = before.factEnd;
+  if (patch.readiness !== undefined) out.readiness = before.readiness;
+  if (patch.hold !== undefined) out.hold = before.hold;
   if (patch.priority !== undefined) out.priority = before.priority;
   if (patch.serviceTeamId !== undefined) out.serviceTeamId = before.serviceTeamId;
   if (patch.teamIds !== undefined) out.teamIds = before.teamIds;
@@ -1329,6 +1516,13 @@ export interface Recording {
    * see `Preconditions` in `compensating.ts`.
    */
   before: readonly WorkItem[];
+  /**
+   * The allowance revision each step this command wrote held **before** it
+   * wrote, under {@link stepRevisionKey} — the step half of `before`, which
+   * `rebase` needs to carry the entry below past this one's undo. Absent for
+   * a command that writes no step.
+   */
+  stepsBefore?: Revisions;
 }
 
 export class WorkItemService {
@@ -1337,8 +1531,313 @@ export class WorkItemService {
   /** The {@link Command batch} collecting this service's recordings, or none. */
   private collector: BatchCollector | null = null;
 
+  /** The combined step-node graph every graph-changing write is checked against. */
+  private readonly graph: DependencyGraphGuard;
+
   constructor(private readonly opts: WorkItemServiceOptions) {
     this.clock = opts.clock;
+    this.graph = new DependencyGraphGuard(opts);
+  }
+
+  /**
+   * The self-node pair or directed cycle the project's combined dependency
+   * graph holds as the batch now stands, or `null`.
+   *
+   * The batch runner asks this after every command that can change the graph
+   * and refuses at that command, which rolls the whole batch back: the check
+   * sees the batch's own writes inside its transaction, so the state it judges
+   * is the state that would be committed. See {@link DependencyGraphGuard}.
+   */
+  findDependencyCycle(projectId: string): Promise<StepNodeCycle | null> {
+    return this.graph.findCycle(projectId);
+  }
+
+  /**
+   * {@link scheduleInput} through the caller's access: null for a foreign
+   * project, and under scoped access a project whose rows cross the project or
+   * the organization fails closed rather than scheduling on them.
+   */
+  async scheduleInputWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<ScheduleInput | null> {
+    if (!(await this.admits(projectId, access))) return null;
+    return this.scheduleInput(projectId);
+  }
+
+  /** Human-scoped Retry input; the shared chain and settings leave one closed authorized read. */
+  async optimizationInputWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<
+    | { readonly kind: 'scheduled'; readonly input: ScheduleInput; readonly enabled: boolean }
+    | { readonly kind: 'not_found' }
+    | AccessRefused
+    | {
+        readonly kind: 'unavailable';
+        readonly reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
+        readonly projectId: string;
+      }
+  > {
+    const captured = await this.opts.livePlans?.read(projectId, access);
+    if (captured?.kind === 'access_refused') return captured;
+    if (captured?.kind === 'not_found') return { kind: 'not_found' };
+    if (captured?.kind === 'shared') {
+      if (captured.chain.kind === 'engine_unavailable')
+        return {
+          kind: 'unavailable',
+          reason: 'engine_unavailable',
+          // Proof: replacing this with the target ID failed the mounted required-influencer Retry identity case.
+          projectId: captured.chain.projectId,
+        };
+      if (captured.chain.kind === 'unavailable')
+        return { kind: 'unavailable', reason: captured.chain.reason, projectId };
+      // Proof: substituting local-only input failed the mounted upstream-only
+      // Retry hash and wire-request holder assertions.
+      return {
+        kind: 'scheduled',
+        input: captured.chain.input,
+        enabled: captured.project.optimizationEnabled,
+      };
+    }
+    const input = await this.scheduleInputWithin(projectId, access);
+    if (input === null) return { kind: 'not_found' };
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) throw new Error('optimizer project disappeared during input capture');
+    return { kind: 'scheduled', input, enabled: project.optimizationEnabled };
+  }
+
+  /** Project-owned optimizer capture; shared input and settings leave one closed read snapshot. */
+  async optimizationInput(projectId: string): Promise<
+    | { readonly kind: 'scheduled'; readonly input: ScheduleInput; readonly enabled: boolean }
+    | { readonly kind: 'not_found' }
+    | {
+        readonly kind: 'unavailable';
+        readonly reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
+      }
+  > {
+    const captured = await this.opts.livePlans?.readProject(projectId);
+    if (captured?.kind === 'not_found') return { kind: 'not_found' };
+    if (captured?.kind === 'shared') {
+      if (captured.chain.kind === 'engine_unavailable')
+        return { kind: 'unavailable', reason: 'engine_unavailable' };
+      if (captured.chain.kind === 'unavailable')
+        return { kind: 'unavailable', reason: captured.chain.reason };
+      return {
+        kind: 'scheduled',
+        input: captured.chain.input,
+        // Proof: rereading enablement after the snapshot made mounted concurrent
+        // settings/input capture launch two children from the old booking.
+        enabled: captured.project.optimizationEnabled,
+      };
+    }
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { kind: 'not_found' };
+    const input = await this.scheduleInput(projectId);
+    if (input === null) throw new Error('optimizer project disappeared during input capture');
+    return { kind: 'scheduled', input, enabled: project.optimizationEnabled };
+  }
+
+  /**
+   * Where the project's event stream has reached, as {@link tree} reads it
+   * before its rows: every announced change that can move a date or a name
+   * advances it. What a per-project read memo is keyed on.
+   */
+  latestSeq(projectId: string): Promise<number> {
+    return this.opts.broadcast.latestSeq(projectId);
+  }
+
+  /** Internal detached export bundle from the same authorized observation as its catalogs and markers. */
+  async exportWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<
+    | { kind: 'isolated' }
+    | { kind: 'not_found' }
+    | AccessRefused
+    | EngineUnavailable
+    | { kind: 'shared'; project: Project; tree: PlanTree; document: PlanDocumentReads }
+  > {
+    if (this.opts.livePlans === undefined) return { kind: 'isolated' };
+    const captured = await this.opts.livePlans.readExport(projectId, access);
+    if (captured.kind !== 'shared') return captured;
+    const tree = projectSharedTree(captured);
+    if ('kind' in tree) return tree;
+    return { kind: 'shared', project: captured.project, tree, document: captured.document };
+  }
+
+  /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
+  async treeWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<Awaited<ReturnType<WorkItemService['tree']>> | AccessRefused> {
+    if (this.opts.livePlans !== undefined) {
+      const captured = await this.opts.livePlans.read(projectId, access);
+      if (captured.kind !== 'isolated') {
+        const tree = projectSharedTree(captured);
+        if (
+          captured.kind === 'shared' &&
+          captured.chain.kind === 'scheduled' &&
+          captured.project.optimizationEnabled &&
+          this.opts.scheduler.supports('optimized')
+        ) {
+          // The owned snapshot has closed before this live read may reserve a
+          // solver seat. Keep `tree`'s captured display even if it starts work.
+          // Proof: skipping this admission left the mounted shared tree with
+          // zero holder-bearing requests and zero durable slots.
+          await this.opts.scheduler.read({
+            projectId,
+            input: captured.chain.input,
+            engine: captured.project.scheduleEngine,
+            objective: captured.project.scheduleObjective,
+            enabled: captured.project.optimizationEnabled,
+            mode: 'live',
+          });
+        }
+        return tree;
+      }
+    }
+    if (!(await this.admits(projectId, access))) return null;
+    // Proof: bypassing the public isolated fixture read failed mounted disappearance (200 vs 404) and malformed-core export (200 vs 500).
+    const tree = await (this.opts.livePlans === undefined
+      ? this.tree(projectId)
+      : this.treeIsolated(projectId));
+    if (access.kind === 'legacy' || tree === null || 'kind' in tree) return tree;
+    // Assignees under their organization-local names, as the scoped people
+    // list shows them; the tree read itself knows only the legacy name.
+    // Proof: returning the tree's legacy names made `shows assignees under the
+    // organization's own names` in `schedule-organization.controller.db.test.ts`
+    // answer `root-pe-a` instead of `pe-a`; watched 2026-09-27.
+    const local = new Map(
+      (await this.opts.directory.listInOrganization('people', access.scope.organizationId)).map(
+        (person) => [person.id, person.name] as const,
+      ),
+    );
+    return {
+      ...tree,
+      assignedPeople: tree.assignedPeople.map((person) => {
+        const name = local.get(person.id);
+        // `admits` has already refused an assignee the organization does not own.
+        if (name === undefined) throw new Error(`assignee "${person.id}" has no local name`);
+        return { ...person, name };
+      }),
+    };
+  }
+
+  /** Private aggregate projection for load and space cache admission. */
+  async sharedTreesWithin(
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<
+    | AccessRefused
+    | { readonly kind: 'isolated' }
+    | {
+        readonly kind: 'shared';
+        readonly entries: readonly {
+          readonly projectId: string;
+          readonly name: string;
+          readonly rank: number;
+          readonly revision: number;
+          readonly seq: number;
+          readonly basis: string | null;
+          readonly tree: PlanTree | EngineUnavailable;
+        }[];
+      }
+  > {
+    if (this.opts.livePlans === undefined) return { kind: 'isolated' };
+    const captured = await this.opts.livePlans.readAggregate(actorId, access);
+    if (captured.kind !== 'shared') return captured;
+    return {
+      kind: 'shared',
+      entries: captured.entries.map(({ rank, basis, plan }) => ({
+        projectId: plan.project.id,
+        name: plan.project.name,
+        rank,
+        revision: plan.project.revision,
+        seq: plan.seq,
+        basis,
+        tree: projectSharedTree(plan),
+      })),
+    };
+  }
+
+  /**
+   * Whether the caller's access reaches the project, and, under scoped access,
+   * that nothing the schedule read follows leaves the project or the
+   * organization.
+   *
+   * @throws when a stored reference crosses: corrupt trusted state, which the
+   * activation reconciliation should have refused, is never scheduled on.
+   *
+   * Proof: skipping the cross-reference check made `fails the schedule read
+   * closed over a crossing estimate_step` in
+   * `schedule-organization.controller.db.test.ts` answer 200 instead of 500,
+   * and finding the project unscoped made `answers 404 alike for a foreign and
+   * an absent project` read the foreign tree, and running the check under
+   * legacy access too failed `reads any project deployment-wide, crossing rows
+   * and all`; watched 2026-09-27.
+   */
+  private async admits(projectId: string, access: ResourceAccess): Promise<boolean> {
+    const project = await findProjectWithin(this.opts.projects, projectId, access);
+    if (project === null) return false;
+    if (access.kind === 'scoped') {
+      const crossing = await this.opts.projects.findCrossReferences(
+        projectId,
+        access.scope.organizationId,
+      );
+      if (crossing.length > 0) {
+        const kinds = [...new Set(crossing.map((reference) => reference.kind))].sort();
+        throw new Error(
+          `project "${projectId}" holds references outside its organization: ${kinds.join(', ')}`,
+        );
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Whether a replay would name anything outside the project or its
+   * organization: a row that exists in another project, a restored row or
+   * dependency claiming another project, a step of another project, or a
+   * directory entry the organization does not own. Checked whole, nested
+   * batches included, before the replay writes anything, so no intermediate
+   * step can cross and be cleared again before a later check.
+   */
+  private async namesOutside(
+    projectId: string,
+    organizationId: string,
+    references: CompensatingReferences,
+  ): Promise<boolean> {
+    if (references.projects.some((each) => each !== projectId)) return true;
+    for (const id of new Set(references.workItems)) {
+      const row = await this.opts.workItems.findById(id);
+      if (row !== null && row.projectId !== projectId) return true;
+    }
+    const steps = new Set((await this.opts.projects.stepsOf(projectId)).map((step) => step.id));
+    if (references.steps.some((id) => !steps.has(id))) return true;
+    const catalogs: [DirectoryCatalog, readonly string[]][] = [
+      ['people', references.people],
+      ['teams', references.teams],
+      ['services', references.services],
+      ['tags', references.tags],
+      ['workItemTypes', references.types],
+      ['externalSystems', references.systems],
+    ];
+    for (const [catalog, ids] of catalogs) {
+      if (ids.length === 0) continue;
+      const owned = new Set(
+        (await this.opts.directory.listInOrganization(catalog, organizationId)).map(
+          (entry) => entry.id,
+        ),
+      );
+      if (ids.some((id) => !owned.has(id))) return true;
+    }
+    return false;
+  }
+
+  /** Whether `stepId` names one of this project's steps. */
+  async hasStepInProject(projectId: string, stepId: string): Promise<boolean> {
+    return (await this.opts.projects.stepsOf(projectId)).some((step) => step.id === stepId);
   }
 
   /** Whether a batch target is currently a row of this project, including rows created earlier in the batch. */
@@ -1373,6 +1872,19 @@ export class WorkItemService {
    * @returns `null` for an unknown project.
    * @throws when the numbering misses a row.
    */
+  /**
+   * {@link readAddresses} through the caller's access: null for a foreign
+   * project exactly as for an absent one, and under scoped access a project
+   * whose rows cross the project or the organization fails closed.
+   */
+  async readAddressesWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): ReturnType<WorkItemService['readAddresses']> {
+    if (!(await this.admits(projectId, access))) return null;
+    return this.readAddresses(projectId);
+  }
+
   async readAddresses(projectId: string): Promise<{
     workItems: { id: string; parentId: string | null; number: string }[];
     steps: Step[];
@@ -1404,11 +1916,20 @@ export class WorkItemService {
     const rows = await this.opts.workItems.listByProject(projectId);
     const estimates = await this.opts.estimates.listByProject(projectId);
     const edges = await this.opts.dependencies.listByProject(projectId);
+    const typed = await this.opts.typedDependencies.listByProject(projectId);
     const assignments = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
     const steps = await this.opts.projects.stepsOf(projectId);
     const poolSizes = await this.opts.capacity.slotsFor(projectId);
-    return canonicalScheduleParts(project, rows, estimates, edges, assignments, steps, poolSizes)
-      .input;
+    return canonicalScheduleParts(
+      project,
+      rows,
+      estimates,
+      edges,
+      typed,
+      assignments,
+      steps,
+      poolSizes,
+    ).input;
   }
 
   /**
@@ -1451,6 +1972,7 @@ export class WorkItemService {
          * two for any slice.
          */
         waitingForCapacity: number;
+        waitingElsewhere?: number;
         /**
          * Every slice the schedule placed, in the order the engine placed them.
          *
@@ -1565,12 +2087,27 @@ export class WorkItemService {
          * below it, each of which carries its own.
          */
         projectRevision: number;
+        /** Authored relationships, with stable node addresses for readers. */
+        typedDependencies: {
+          id: string;
+          predecessor: DependencyEndpoint & { stepNodeId?: string };
+          successor: DependencyEndpoint & { stepNodeId?: string };
+          type: string;
+        }[];
         /** Present when this process has the optimizer runtime wired. */
         optimization?: PlanOptimization;
       }
     | EngineUnavailable
     | null
   > {
+    if (this.opts.livePlans !== undefined) {
+      const captured = await this.opts.livePlans.readProject(projectId);
+      if (captured.kind !== 'isolated') return projectSharedTree(captured);
+    }
+    return this.treeIsolated(projectId);
+  }
+
+  private async treeIsolated(projectId: string): Promise<PlanTree | EngineUnavailable | null> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return null;
     const seq = await this.opts.broadcast.latestSeq(projectId);
@@ -1591,325 +2128,61 @@ export class WorkItemService {
     // {@link MeasureStore}.
     const measured = await this.opts.measures.listByProject(projectId);
     const edges = await this.opts.dependencies.listByProject(projectId);
+    const authored = await this.opts.typedDependencies.listByProject(projectId);
     // Proof: restoring listPeople() followed by the assigned-id filter made
     // `materializes only assigned project rows and names during a tiny tree read`
     // fail on 41 materialized people, expected at most 1, with the same payload.
     const { assignments: assigned, people: assignedPeople } =
       await this.opts.directory.assignmentsInProject(projectId);
-    const numbers = deriveNumbers(rows);
-    const totals = rollUp(rows, stored);
-    const recordedTotals = rollUpActuals(rows, recorded);
-    // Three folds over a tree already in memory, one per metric, because adding
-    // a token to an hour is the thing `rollUpMeasures` exists to make
-    // impossible. Built as a map of metric to the whole fold rather than as a
-    // per-row object here, so the recursion runs once per metric for the project
-    // instead of once per metric per row.
-    const measuredTotals = new Map(
-      MEASURE_METRICS.map((metric) => [metric, rollUpMeasures(rows, measured, metric)] as const),
-    );
-    // Which steps have work on each leaf: the ones with an estimate, the ones
-    // with a recorded day, and the ones somebody has already spoken about.
-    //
-    // This set is what makes `done` mean anything. A leaf where Dev says done
-    // and QA holds an estimate nobody has spoken about is **in progress**, not
-    // finished — and the only way the fold can know QA exists on that row is for
-    // the estimate to put it here. See `rollUpProgress`.
-    const statedTotals = rollUpProgress(rows, stated, workedStepsOf(stored, recorded, stated));
-    // The row's own reading, folded over its **children** rather than over its
-    // rolled-up steps — see `rollUpWorkItemStatuses` for why the two differ and which
-    // one is true.
-    const itemStatuses = rollUpWorkItemStatuses(rows, statedTotals);
-    // The write path refuses an edge that would close a cycle, but two clients
-    // drawing conflicting edges at the same instant are each checked against the
-    // graph as they read it. If one ever lands, every read of this project must
-    // still work: the rows are there, and a plan nobody can open is worse than
-    // one with no dates in it. The dates go, the rows stay, and the reason is
-    // reported rather than left as a page of zeroes.
-    // Step order comes from the project, because the order the steps are read
-    // in is the order the work runs in — see `ProjectRepository.stepsOf`.
     const steps = await this.opts.projects.stepsOf(projectId);
-    // How many slots this project may take of each team, read here rather than
-    // inside `slicesOf` so the adapter stays a pure function of what it is
-    // handed.
-    //
-    // `slotsOf` in name and in shape, and the seam C1 built is now doing the job
-    // it was built for. C1's own comment here predicted "one additive table and a
-    // first lookup, with this as the fallback"; `capacity-per-project` (Dany,
-    // 2026-08-13) kept the first half and refused the second, so this is the one
-    // lookup and there is **no fallback to `serviceTeam.size`** — a team this
-    // project has stated nothing about is absent from the map, and an absent key
-    // is unconstrained.
-    //
-    // Keyed on the team alone, not on the (project, team) pair: this is called
-    // once per project, so a project component inside the map would be constant
-    // for the whole call and every engine test would have to spell it. The pair
-    // is the key in the **store**. design.md D3.
     const slotsOf = await this.opts.capacity.slotsFor(projectId);
-    // The ladder, read here and handed straight to the payload. It is passed to
-    // nothing — not `slicesOf`, not `schedule` — and that is the change's whole
-    // claim about itself: `git diff` on this file shows one read and one field.
     const priorityBands = await this.opts.priorityBands.listFor(projectId);
     const canonical = canonicalScheduleParts(
       project,
       rows,
       stored,
       edges,
+      authored,
       assigned,
       steps,
       slotsOf,
     );
-    const { assigneesOf, hasChildren, rule } = canonical;
-    // What each row is **charged**, per step: a leaf's own estimate rounded, a
-    // parent's the sum of its descendants' rounded figures. Not `totals` put
-    // through the method — see `rollUpFinals`.
-    const charged = rollUpFinals(rows, stored, rule);
-    let optimization: PlanOptimization | undefined;
-    let timing = new Map<string, Scheduled>();
-    let scheduleError: ScheduleError = null;
-    /**
-     * How many work items are waiting for a person rather than for the plan.
-     *
-     * Zero when there is no schedule at all, which is honest rather than
-     * convenient: a plan that could not be computed has nobody queueing in it,
-     * and the banner about the cycle is what that reader needs.
-     */
-    let waitingForPerson = 0;
-    /**
-     * How many work items are waiting for a slot of their team rather than for
-     * the plan. Zero with no schedule, for {@link waitingForPerson}'s reason.
-     */
-    let waitingForCapacity = 0;
-    /**
-     * The engine's own output, kept: a plan that could not be scheduled leaves
-     * this empty and the rows keep their {@link UNSCHEDULED} spans.
-     */
-    let scheduledSlices: IdentifiedSlice[] = [];
+    let scheduling: TreeSchedule;
     try {
-      // The projection **and** the slices: a row's column shows its own span,
-      // and a chart draws the slices the span is a projection of.
-      // The reach comes off the project being scheduled, read beside the ladder
-      // and the capacity above and handed straight to the engine. It is
-      // deliberately **not** a request parameter: the schedule is the server's
-      // answer, and a client-supplied scheduling rule is a rule two clients can
-      // disagree about while looking at the same plan.
-      //
-      // Read from `project`, which is this call's own row, so two projects on
-      // different reaches in one process each get their own.
-      //
-      // Proof: `project.depReach` replaced by a module-level `let heldReach`
-      // memoised on the first plan read — the read hoisted out of the run — and
-      // `each project is scheduled by its own reach` failed on `Expected: 5 /
-      // Received: 3` for the second project's successor; watched 2026-08-29.
-      const scheduleRead = this.opts.scheduler.read({
-        projectId: project.id,
+      scheduling = await this.opts.scheduler.read({
+        projectId,
         input: canonical.input,
-        // Proof: forcing `fast` here made the unavailable service fixture
-        // return a full Fast tree with one dated slice instead of this refusal.
         engine: project.scheduleEngine,
         objective: project.scheduleObjective,
         enabled: project.optimizationEnabled,
-        mode: 'live',
+        mode: this.opts.schedulerMode ?? 'live',
       });
-      if (scheduleRead.kind === 'engine_unavailable') return scheduleRead;
-      const fast = scheduleRead.fast;
-      const optimizationRead = scheduleRead.optimization;
-      let optimized: Schedule | null = null;
-      if (
-        optimizationRead !== null &&
-        project.optimizationEnabled &&
-        project.scheduleEngine === 'optimized' &&
-        optimizationRead.variants[project.scheduleObjective].state === 'ready'
-      ) {
-        const selected = optimizationRead.schedules[project.scheduleObjective];
-        if (selected === null) {
-          throw new Error('optimized plan reader reported ready without a schedule');
-        }
-        optimized = selected;
-      }
-      const planned = optimized ?? fast;
-      // `selectedSchedule` states the same rule this block applies, and is what
-      // `arrangeBySchedule` asks so a press can never arrange by a schedule the
-      // chart is not drawing. Kept as an assertion rather than replacing the
-      // lines above: this read builds `optimized` on its way to `displayed` and
-      // the optimization payload, and rewriting it to call the helper would
-      // move four more decisions for no gain.
-      const selected = selectedSchedule(project, fast, optimizationRead);
-      if (selected.schedule !== planned) {
-        throw new Error('the plan read and `selectedSchedule` disagree about the drawn schedule');
-      }
-      if (optimizationRead !== null) {
-        const displayed = optimized === null ? 'fast' : project.scheduleObjective;
-        optimization = {
-          enabled: project.optimizationEnabled,
-          engine: project.scheduleEngine,
-          objective: project.scheduleObjective,
-          inputHash: optimizationRead.inputHash,
-          generation: optimizationRead.generation,
-          contractVersion: optimizationRead.contractVersion,
-          budgetMs: optimizationRead.budgetMs,
-          displayed,
-          variants: optimizationRead.variants,
-          // Unconditional, and that is the change: the figures used to be
-          // computed only for the variant on screen, so a project sitting on
-          // Fast — the state a project spends its first solve in, and the state
-          // the toggle leaves it in — had nothing to compare and the indicator
-          // drew nothing at all.
-          ...comparedWithFast(fast, optimizationRead),
-        };
-      }
-      // Scheduling uses dimensionless workday offsets and may remain valid
-      // beyond the finite calendar ECMAScript can represent. Name that state
-      // before any row calls `datesOf`, which would otherwise surface a 500.
-      // Proof: remove this preflight and the mounted controller case
-      // `models a plan beyond the calendar range without partial dates` fails
-      // on the unhandled invalid-Date projection.
-      if (project.startDate !== null) {
-        let projectFinish = 0;
-        for (const placed of planned.workItems.values()) {
-          if (placed.earliestFinish > projectFinish) projectFinish = placed.earliestFinish;
-        }
-        addWorkdays(project.startDate, lastWorkdayOf(0, projectFinish));
-      }
-      timing = planned.workItems;
-      waitingForPerson = planned.waitingForPerson;
-      waitingForCapacity = planned.waitingForCapacity;
-      // Spread rather than rebuilt field by field, and never put through any
-      // arithmetic: the engine's numbers are the answer, and this is the layer
-      // that would otherwise quietly round them.
-      //
-      // Proof: `({ id, ...placed })` mapped through `Math.round` on every
-      // number and `reports the engine's fractional numbers verbatim` failed —
-      // a slice of 3.6666666666666665 days came back as 4, a whole day of bar
-      // against the same plan's Start column; watched 2026-08-09.
-      //
-      // Proof: `resourcePredecessorId` left out of the entry — the spread
-      // replaced by the other twelve fields written out — and `names the slice
-      // the person was finishing, under the engine's own id` failed on
-      // `undefined`; the hand-off a person link is drawn from would have been
-      // absent from the payload with nothing to say it ever existed; watched
-      // 2026-08-09.
-      scheduledSlices = [...planned.slices].map(([id, placed]) => ({ id, ...placed }));
-    } catch (err) {
-      // Only the modeled failure. An unqualified catch here turned every
-      // exception in this block — a stack overflow on a pathological tree, a
-      // future mistake in `slicesOf` — into "your dependencies run in a
-      // circle", which is a lie told confidently. R5: unknown is not OK.
-      if (err instanceof ScheduleCycleError) scheduleError = 'cycle';
-      else if (err instanceof CalendarRangeError) scheduleError = 'calendar_range';
-      else throw err;
+    } catch (failure) {
+      if (failure instanceof ScheduleCycleError)
+        scheduling = { kind: 'unavailable', reason: 'cycle' };
+      else if (failure instanceof CalendarRangeError)
+        scheduling = { kind: 'unavailable', reason: 'calendar_range' };
+      else throw failure;
     }
-    const waitingFor = new Map<string, string[]>();
-    for (const found of edges) {
-      waitingFor.set(found.successorId, [
-        ...(waitingFor.get(found.successorId) ?? []),
-        found.predecessorId,
-      ]);
-    }
-    // The project's own ids, once. `dependsOn` below filters every row's stored
-    // predecessors down to the ones on this plan, and it did that with
-    // `rows.some(...)` **inside** the map over `rows` — O(rows × edges × rows),
-    // on the read every write and every socket frame performs.
-    const idsOnThisPlan = new Set(rows.map((row) => row.id));
-    const workItems = rows
-      .map((row) => ({
-        ...row,
-        number: numbers.get(row.id) ?? '',
-        estimates: Object.fromEntries(totals.get(row.id) ?? []),
-        // The days recorded against this row: its own if it is a leaf, the sum
-        // of its descendants' if it is not — the same fold, one table over.
-        //
-        // A step nobody has recorded days for is **absent from this object**,
-        // and an empty object means nobody has recorded anything on this row.
-        // Neither is a zero, and a face that renders a missing key as `0` is
-        // saying somebody stated the work took no time. See `actual` in
-        // `schema.ts`.
-        actuals: Object.fromEntries(recordedTotals.get(row.id) ?? []),
-        // The figures that are not days, metric first. A metric with no steps
-        // under this row is **struck from the object** rather than carried as
-        // `{}`, which is the same absence rule one level up: an empty object
-        // would say somebody looked at that unit on this row.
-        measures: Object.fromEntries(
-          [...measuredTotals]
-            .map(([metric, byItem]) => [metric, byItem.get(row.id) ?? new Map()] as const)
-            .filter(([, byStep]) => byStep.size > 0)
-            .map(([metric, byStep]) => [metric, Object.fromEntries(byStep)]),
-        ),
-        // Where each step's work on this row has got to: its own if it is a
-        // leaf, `agree` across its descendants' if it is not.
-        //
-        // **A step reading `unknown` is absent from this object**, exactly
-        // as an unestimated step is absent from `estimates` — the absence of a
-        // statement is how "nobody has said" is spelled everywhere in this tool,
-        // including on the wire. So an empty object means nobody has said
-        // anything about this row, and a step that is not a key has not been
-        // spoken about.
-        progress: Object.fromEntries(
-          [...(statedTotals.get(row.id) ?? [])].filter(
-            (entry): entry is [string, StepState] => entry[1] !== UNKNOWN,
-          ),
-        ),
-        // The row's own reading, **derived from its steps and never stored**:
-        // `done` when every step with work on it says so, `unknown` when
-        // none of them has said anything, and `in_progress` for every
-        // disagreement in between — including the one that matters most, one
-        // step finished and another silent. `@wbs/domain`'s `agree`.
-        status: itemStatuses.get(row.id) ?? UNKNOWN,
-        // A parent's charged days are the **sum of its descendants' rounded
-        // figures**, not its rolled-up triple put through the method once. The
-        // two agreed while days were fractional and part company the moment a
-        // step is rounded: two children holding half a day each are charged one
-        // day apiece, and a parent computed from the triples would say one day
-        // for the pair. `rollUpFinals` holds that decision and its proof.
-        ...finalsOf(charged.get(row.id) ?? new Map()),
-        rolledUp: hasChildren.has(row.id),
-        // Only predecessors that are in this project. A stored edge naming a
-        // work item from elsewhere — which the schema does not prevent — would
-        // otherwise be reported as a dependency on a number nobody can see.
-        dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => idsOnThisPlan.has(id)),
-        ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
-        schedule: timing.get(row.id) ?? UNSCHEDULED,
-        dates: datesOf(
-          project.startDate,
-          timing.get(row.id) ?? UNSCHEDULED,
-          scheduleError !== null,
-        ),
-      }))
-      // **Tree order, not the number string** (ADR 0023). The two agreed for as
-      // long as a frozen work item could not move — `deriveNumbers` built
-      // labels so a byte-wise sort equalled this walk — and a frozen number is
-      // a name now, so a row frozen `030` and dragged to the top is drawn at
-      // the top. Sorting by the label would draw it third, where its old name
-      // says it used to be.
-      .sort(byTreeOrder(treeOrder(rows)));
-    return {
-      workItems,
-      seq,
-      scheduleError,
-      waitingForPerson,
-      waitingForCapacity,
-      slices: scheduledSlices,
-      // The very array `slicesOf` was handed the ids of, so a slice's `stepId`
-      // is a step this list has and its place in the list is the order the
-      // engine placed the bars in. Neither is true of a step list fetched
-      // separately.
-      steps,
-      assignedPeople,
-      // Built from `slotsOf` rather than read a second time, so the numbers a
-      // client renders and the numbers these dates came out of cannot be answers
-      // to two different questions. Team-id order, as `listFor` gives, so the
-      // array does not reshuffle between two reads of an unchanged plan.
-      teamCapacities: [...slotsOf]
-        .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
-        .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
-      priorityBands,
-      estimateMethod: project.estimateMethod,
-      pertWeights: project.pertWeights,
-      estimateRounding: project.estimateRounding,
-      depReach: project.depReach,
-      startDate: project.startDate,
-      projectRevision: project.revision,
-      ...(optimization === undefined ? {} : { optimization }),
-    };
+    return projectTree(
+      {
+        project,
+        rows,
+        stored,
+        recorded,
+        stated,
+        measured,
+        edges,
+        authored,
+        assigned,
+        assignedPeople,
+        seq,
+        steps,
+        slotsOf,
+        priorityBands,
+      },
+      scheduling,
+    );
   }
 
   /**
@@ -1925,7 +2198,7 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<WorkItem> & { stepNodeMapping?: { from: string; to: string }[] }> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
     // `rows` is this project only, so a parent that is not among them belongs to
@@ -1947,6 +2220,12 @@ export class WorkItemService {
     // nothing. One stamp for the row, for the four hand-downs below it and for
     // the journal entry: a create and the estimates it moves are one act.
     const stamp = this.clock.stampFor(actorId);
+    // A leaf gaining its first child hands its readiness and hold down with its
+    // progress: both describe the work, and the work is the child now.
+    const firstChildOf =
+      input.parentId !== null && !rows.some((row) => row.parentId === input.parentId)
+        ? rows.find((row) => row.id === input.parentId)
+        : undefined;
     const workItem: WorkItem = {
       id: this.clock.newId(),
       projectId,
@@ -1966,6 +2245,10 @@ export class WorkItemService {
       deadline: null,
       factStart: null,
       factEnd: null,
+      // Nothing said about a new row, unless it takes its parent's statements
+      // as that parent's first child.
+      readiness: firstChildOf?.readiness ?? null,
+      hold: firstChildOf?.hold ?? null,
       priority,
       serviceTeamId: null,
       // Unlabelled, in the third dimension as in the other two: a new row states
@@ -1986,6 +2269,32 @@ export class WorkItemService {
       // at 1 — see {@link NumberedWorkItem.revision}.
       revision: 0,
     };
+    const statementsHandedDown =
+      firstChildOf !== undefined && (firstChildOf.readiness !== null || firstChildOf.hold !== null)
+        ? {
+            forward: {
+              do: 'patch' as const,
+              workItemId: firstChildOf.id,
+              patch: { readiness: null, hold: null },
+            },
+            inverse: {
+              do: 'patch' as const,
+              workItemId: firstChildOf.id,
+              patch: { readiness: firstChildOf.readiness, hold: firstChildOf.hold },
+            },
+          }
+        : undefined;
+    // Cleared **before** the child is inserted, so no read between the two
+    // writes sees a parent holding a statement (Fable review, I1).
+    // Proof: this write skipped made `hands a leaf’s readiness and hold down
+    // to its first child…` fail on `parent … holds a readiness or a hold`;
+    // watched 2026-09-29. Moved after the insert, `no read sees a parent
+    // holding a statement while a first child is created` failed on the read
+    // taken between the two writes; watched 2026-09-29.
+    if (statementsHandedDown !== undefined) {
+      const handed = await this.apply(projectId, statementsHandedDown.forward, stamp);
+      if (!handed.ok) throw new Error(`cannot hand statements down: ${handed.detail}`);
+    }
     await this.opts.workItems.insert(workItem, placed.renumbered, stamp);
     // A work item that had an estimate and now has a child no longer holds one:
     // the estimate described the work, and the work is the child now. Moving it
@@ -2045,6 +2354,36 @@ export class WorkItemService {
             from: formatStepNodeId({ workItemId: gainsFirstChild, stepId: step.id }),
             to: formatStepNodeId({ workItemId: workItem.id, stepId: step.id }),
           }));
+    const nodeRemaps =
+      gainsFirstChild === null
+        ? []
+        : (await this.opts.typedDependencies.listByProject(projectId))
+            .filter((dependency) =>
+              [dependency.predecessor, dependency.successor].some(
+                (endpoint) => endpoint.scope === 'node' && endpoint.workItemId === gainsFirstChild,
+              ),
+            )
+            .map((original) => ({
+              original,
+              remapped: {
+                ...original,
+                predecessor:
+                  original.predecessor.scope === 'node' &&
+                  original.predecessor.workItemId === gainsFirstChild
+                    ? { ...original.predecessor, workItemId: workItem.id }
+                    : original.predecessor,
+                successor:
+                  original.successor.scope === 'node' &&
+                  original.successor.workItemId === gainsFirstChild
+                    ? { ...original.successor, workItemId: workItem.id }
+                    : original.successor,
+              },
+            }));
+    // Proof: skipping the remap made mounted first-child create return 500 instead of
+    // preserving its node relationship; watched 2026-09-27.
+    for (const { remapped } of nodeRemaps) {
+      await this.opts.typedDependencies.update(remapped, stamp);
+    }
     // Proof: the estimates' `moveAll` skipped, be-01's `hands the estimates
     // back up when it undoes the first child that took them` failed — the
     // path the row menu's Add child takes. Watched 2026-09-27.
@@ -2140,38 +2479,60 @@ export class WorkItemService {
     };
     // The subtree commands remain readable by older binaries. Assignment changes
     // are ordinary journal steps, so their owners also enter undo/redo revisions.
+    const forwardSteps: CompensatingCommand[] = [
+      ...nodeRemaps.map(({ original }) => ({
+        do: 'remove_typed_dependency' as const,
+        dependency: original,
+      })),
+      ...(statementsHandedDown === undefined ? [] : [statementsHandedDown.forward]),
+      forward,
+      ...assignedHandedDown.map(({ workItemId, stepId }) => ({
+        do: 'assign' as const,
+        workItemId,
+        stepId,
+        personId: null,
+      })),
+      ...nodeRemaps.map(({ remapped }) => ({
+        do: 'add_typed_dependency' as const,
+        dependency: remapped,
+      })),
+    ];
+    const inverseSteps: CompensatingCommand[] = [
+      ...nodeRemaps.map(({ remapped }) => ({
+        do: 'remove_typed_dependency' as const,
+        dependency: remapped,
+      })),
+      inverse,
+      ...(statementsHandedDown === undefined ? [] : [statementsHandedDown.inverse]),
+      ...assignedHandedDown.map(({ workItemId, stepId, personId }) => ({
+        do: 'assign' as const,
+        workItemId,
+        stepId,
+        personId,
+      })),
+      ...nodeRemaps.map(({ original }) => ({
+        do: 'add_typed_dependency' as const,
+        dependency: original,
+      })),
+    ];
+    const forwardCommand: CompensatingCommand =
+      forwardSteps.length === 1 ? forward : { do: 'batch', steps: forwardSteps };
+    const inverseCommand: CompensatingCommand =
+      inverseSteps.length === 1 ? inverse : { do: 'batch', steps: inverseSteps };
     await this.record(projectId, stamp, 'create', `add ${quoteName(workItem.name)}`, {
-      forward:
-        assignedHandedDown.length === 0
-          ? forward
-          : {
-              do: 'batch',
-              steps: [
-                forward,
-                ...assignedHandedDown.map(({ workItemId, stepId }) => ({
-                  do: 'assign' as const,
-                  workItemId,
-                  stepId,
-                  personId: null,
-                })),
-              ],
-            },
-      inverse:
-        assignedHandedDown.length === 0
-          ? inverse
-          : {
-              do: 'batch',
-              steps: [
-                inverse,
-                ...assignedHandedDown.map(({ workItemId, stepId, personId }) => ({
-                  do: 'assign' as const,
-                  workItemId,
-                  stepId,
-                  personId,
-                })),
-              ],
-            },
-      touched: gainsFirstChild === null ? [workItem.id] : [workItem.id, gainsFirstChild],
+      forward: forwardCommand,
+      inverse: inverseCommand,
+      // Both batches name every typed endpoint whose revision replay writes.
+      // Proof: 2026-09-28, keeping only child and parent made both mounted
+      // hand-down undo chains return 409 on their earlier entry.
+      touched: [
+        ...new Set([
+          workItem.id,
+          ...(gainsFirstChild === null ? [] : [gainsFirstChild]),
+          ...touchedBy(forwardCommand),
+          ...touchedBy(inverseCommand),
+        ]),
+      ],
       before: rows,
     });
     return { ok: true, value: workItem, stepNodeMapping };
@@ -2369,6 +2730,42 @@ export class WorkItemService {
     // expanded graph loops…` both failed on `Received: 200` — the direct
     // command reparented. Watched 2026-09-27.
     if (broken !== null) return { ok: false, reason: broken };
+    if (input.parentId !== workItem.parentId) {
+      const authored = await this.opts.typedDependencies.listByProject(workItem.projectId);
+      const oldParent = workItem.parentId;
+      const stranded =
+        oldParent !== null && rows.filter((row) => row.parentId === oldParent).length === 1
+          ? authored.filter((dependency) =>
+              [dependency.predecessor, dependency.successor].some(
+                (endpoint) =>
+                  endpoint.scope === 'descendant-step' && endpoint.workItemId === oldParent,
+              ),
+            )
+          : [];
+      // Proof: skipping this refusal made mounted last-child move answer 500
+      // instead of 409 with the relationship id; watched 2026-09-27.
+      if (stranded.length > 0) {
+        return {
+          ok: false,
+          reason: 'descendant_step_on_leaf',
+          dependencyIds: stranded.map((row) => row.id),
+        };
+      }
+      const newParent = input.parentId;
+      const pinned =
+        newParent !== null && !rows.some((row) => row.parentId === newParent)
+          ? authored.filter((dependency) =>
+              [dependency.predecessor, dependency.successor].some(
+                (endpoint) => endpoint.scope === 'node' && endpoint.workItemId === newParent,
+              ),
+            )
+          : [];
+      // Proof: bypassing this check made mounted move onto a node-pinned leaf
+      // answer 500 instead of 409 with its relationship id; watched 2026-09-27.
+      if (pinned.length > 0) {
+        return { ok: false, reason: 'node_on_parent', dependencyIds: pinned.map((row) => row.id) };
+      }
+    }
 
     // Where it was, read before it leaves: the sibling it sat directly after,
     // or null when it was first. That is the shape `move` takes, so the
@@ -2381,17 +2778,123 @@ export class WorkItemService {
     const group = this.groupUnder(rows, input.parentId).filter((sibling) => sibling.id !== id);
     const placed = placeAfter(group, input.afterId);
     const stamp = this.clock.stampFor(actorId);
+    // A leaf another row moves under becomes a parent, and a parent holds no
+    // readiness or hold: its status is folded from its children. The moved row
+    // is other work, so the statements are cleared rather than handed to it.
+    const becomesParent =
+      input.parentId !== null &&
+      !rows.some((row) => row.parentId === input.parentId && row.id !== id)
+        ? rows.find((row) => row.id === input.parentId)
+        : undefined;
+    const statementsCleared =
+      becomesParent !== undefined &&
+      (becomesParent.readiness !== null || becomesParent.hold !== null)
+        ? {
+            forward: {
+              do: 'patch' as const,
+              workItemId: becomesParent.id,
+              patch: { readiness: null, hold: null },
+            },
+            inverse: {
+              do: 'patch' as const,
+              workItemId: becomesParent.id,
+              patch: { readiness: becomesParent.readiness, hold: becomesParent.hold },
+            },
+          }
+        : undefined;
+    // The parent the row leaves, when it was that parent's last child, becomes a
+    // leaf again and takes the statements every leaf it held agreed on, as a
+    // last-child delete does.
+    const leftParentId =
+      workItem.parentId !== null &&
+      workItem.parentId !== input.parentId &&
+      rows.filter((row) => row.parentId === workItem.parentId).length === 1
+        ? workItem.parentId
+        : null;
+    const movedLeaves = subtreeOf(rows, id)
+      .map((each) => rowOf(rows, each))
+      .filter((row) => !rows.some((child) => child.parentId === row.id));
+    const leftAgreed =
+      leftParentId === null
+        ? undefined
+        : {
+            readiness: agreedOn(movedLeaves.map((row) => row.readiness)),
+            hold: agreedOn(movedLeaves.map((row) => row.hold)),
+          };
+    const statementsHandedUp =
+      leftParentId !== null &&
+      leftAgreed !== undefined &&
+      (leftAgreed.readiness !== null || leftAgreed.hold !== null)
+        ? {
+            forward: { do: 'patch' as const, workItemId: leftParentId, patch: leftAgreed },
+            inverse: {
+              do: 'patch' as const,
+              workItemId: leftParentId,
+              patch: { readiness: null, hold: null },
+            },
+          }
+        : undefined;
+    // Cleared **before** the move, so no read between the two writes sees a
+    // parent holding a statement (Fable review, I1). Moved after the move,
+    // `no read sees a parent holding a statement while a row moves under a
+    // leaf` failed on the read taken between the two writes; watched 2026-09-29.
+    if (statementsCleared !== undefined) {
+      // Proof: this write skipped made `clears the readiness and hold of a leaf
+      // another row moves under…` fail on `parent … holds a readiness or a
+      // hold`; watched 2026-09-29.
+      const cleared = await this.apply(workItem.projectId, statementsCleared.forward, stamp);
+      if (!cleared.ok) throw new Error(`cannot clear the new parent: ${cleared.detail}`);
+    }
     await this.opts.workItems.move(id, input.parentId, placed.position, placed.renumbered, stamp);
+    if (statementsHandedUp !== undefined) {
+      // Proof: this write skipped made `gives the parent a moved last child
+      // leaves the statements it agreed on` fail on `readiness: null` where
+      // `ready` was owed; watched 2026-09-29.
+      const handed = await this.apply(workItem.projectId, statementsHandedUp.forward, stamp);
+      if (!handed.ok) throw new Error(`cannot hand statements up: ${handed.detail}`);
+    }
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'move', `move ${quoteName(workItem.name)}`, {
-      forward: { do: 'move', workItemId: id, parentId: input.parentId, afterId: input.afterId },
-      inverse: {
-        do: 'move',
-        workItemId: id,
-        parentId: workItem.parentId,
-        afterId: wasAfter?.id ?? null,
-      },
-      touched: [id],
+      forward: withPatchStep(
+        withPatchStep(
+          { do: 'move', workItemId: id, parentId: input.parentId, afterId: input.afterId },
+          statementsHandedUp?.forward,
+          'after',
+        ),
+        statementsCleared?.forward,
+        'before',
+      ),
+      // The parent it left cleared first, then back where it was, then the
+      // statements of the row it had moved under: each patch lands while its
+      // row is a leaf, so no read between the writes sees a parent holding a
+      // statement, and the write never refuses a statement on a parent.
+      // Proof: the new parent's restore ordered before the move-back made
+      // `clears the readiness and hold of a leaf another row moves under, and
+      // one undo restores them` fail on `Expected: true, Received: false` — the
+      // undo was refused; watched 2026-09-29. The left parent's clear ordered
+      // after the move-back made `no read sees a parent holding a statement
+      // while a move that emptied it is undone` fail on the read taken after
+      // the move-back (`parent … holds a readiness or a hold`); watched
+      // 2026-09-29 (Fable review, round 4).
+      inverse: withPatchStep(
+        withPatchStep(
+          {
+            do: 'move',
+            workItemId: id,
+            parentId: workItem.parentId,
+            afterId: wasAfter?.id ?? null,
+          },
+          statementsCleared?.inverse,
+          'after',
+        ),
+        statementsHandedUp?.inverse,
+        'before',
+      ),
+      touched: [
+        id,
+        ...(statementsCleared === undefined ? [] : [statementsCleared.forward.workItemId]),
+        ...(statementsHandedUp === undefined ? [] : [statementsHandedUp.forward.workItemId]),
+      ],
       before: rows,
     });
     return { ok: true, value: null };
@@ -2415,9 +2918,10 @@ export class WorkItemService {
    *   frozen row. Two rows answering one ticket is the failure freezing
    *   exists to prevent. The original is untouched, so a frozen work item can
    *   still be duplicated: copying is not moving.
-   * - **Only internal dependencies.** An edge with one end outside the
-   *   subtree is left behind, so the copy schedules against its own work
-   *   rather than inheriting wiring nobody asked it to have.
+   * - **Only internal dependencies.** Legacy and typed relationships with one
+   *   end outside the subtree are left behind. Internal typed relationships
+   *   receive new IDs and address the copied work items; their scopes, steps
+   *   and type stay the same.
    *
    * Refuses `too_large` past {@link MAX_DUPLICATED_ROWS}, having written
    * nothing.
@@ -2479,6 +2983,11 @@ export class WorkItemService {
         // no statements either (`step_progress` is not copied, below). ADR 0024.
         factStart: null,
         factEnd: null,
+        // A copy has a definition, not a history: it keeps the original's
+        // readiness and never its hold (`add-work-item-statuses`).
+        // Proof: this line removed made `copies a readiness and never a hold`
+        // fail on `hold: "on_hold"`; watched 2026-09-29.
+        hold: null,
         // Not the original's count. A copy is a new row that has never been
         // changed, and carrying the original's revision across would have a
         // reader's precondition on one row pass against the other.
@@ -2489,6 +2998,7 @@ export class WorkItemService {
     const stored = await this.opts.estimates.listByProject(workItem.projectId);
     const assigned = await this.opts.directory.assignmentsOf(originals);
     const edges = await this.opts.dependencies.listByProject(workItem.projectId);
+    const typed = await this.opts.typedDependencies.listByProject(workItem.projectId);
 
     const copiedEstimates = stored
       .filter((each) => inside.has(each.workItemId))
@@ -2517,9 +3027,30 @@ export class WorkItemService {
         predecessorId: copyOf(edge.predecessorId),
         successorId: copyOf(edge.successorId),
       }));
+    const copiedTyped = typed
+      // Proof: 2026-09-28, admitting either outside endpoint made the mounted
+      // copy test receive 500 instead of 200 (no copy exists for X).
+      .filter(
+        (dependency) =>
+          inside.has(dependency.predecessor.workItemId) &&
+          inside.has(dependency.successor.workItemId),
+      )
+      .map((dependency) => ({
+        ...dependency,
+        id: this.clock.newId(),
+        // Proof: 2026-09-27, retaining C1's source id failed the mounted copy test's copied-predecessor assertion.
+        predecessor: {
+          ...dependency.predecessor,
+          workItemId: copyOf(dependency.predecessor.workItemId),
+        },
+        successor: {
+          ...dependency.successor,
+          workItemId: copyOf(dependency.successor.workItemId),
+        },
+      }));
 
-    // One stamp for six tables: the copy is one transaction and one act, so
-    // every row it writes — work items, estimates, measures, assignments, edges
+    // One stamp for the copy: it is one transaction and one act, so
+    // every row it writes — work items, estimates, measures, assignments, dependencies
     // and the respacing of the originals' siblings — carries one instant.
     const stamp = this.clock.stampFor(actorId);
     await this.opts.subtrees.insertSubtree(
@@ -2551,55 +3082,76 @@ export class WorkItemService {
       },
       stamp,
     );
+    for (const dependency of copiedTyped) {
+      await this.opts.typedDependencies.add(dependency, stamp);
+    }
     // Once, at the end. The copy renumbers rows it never touched — every later
     // sibling of the original, at every level — so it is the whole tree rather
     // than the rows that were written.
     await this.announceTree(workItem.projectId);
     const copyIds = copies.map((copy) => copy.id);
+    const restore: CompensatingCommand = {
+      do: 'restore_subtree',
+      rows: copies,
+      rootPosition: placed.position,
+      reparented: [],
+      estimates: copiedEstimates,
+      actuals: [],
+      progress: [],
+      measures: copiedMeasures,
+      assignments: copiedAssignments,
+      internalDependencies: copiedEdges,
+      externalDependencies: [],
+      removedEstimates: [],
+      removedActuals: [],
+      removedProgress: [],
+      removedMeasures: [],
+    };
+    const deleteCopy: CompensatingCommand = {
+      do: 'delete_subtree',
+      rootId: copyOf(id),
+      expectedSubtree: copyIds,
+      remove: copyIds,
+      reparented: [],
+      setEstimates: [],
+      setActuals: [],
+      setProgress: [],
+      setMeasures: [],
+    };
     await this.record(
       workItem.projectId,
       stamp,
       'duplicate',
       `duplicate ${quoteName(workItem.name)}`,
       {
-        forward: {
-          do: 'restore_subtree',
-          rows: copies,
-          rootPosition: placed.position,
-          reparented: [],
-          estimates: copiedEstimates,
-          // Empty for the write's reason above: a redo of a duplication puts
-          // back the copy that was made, and no days were ever recorded on it.
-          actuals: [],
-          // Empty for the write's reason above: a redo of a duplication puts
-          // back the copy that was made, and nobody ever said a word about it.
-          progress: [],
-          // The same half of the table the write above put down: a redo of a
-          // duplication puts back the copy that was made, token plan and all,
-          // and no tokens or hours were ever spent on it.
-          measures: copiedMeasures,
-          assignments: copiedAssignments,
-          internalDependencies: copiedEdges,
-          externalDependencies: [],
-          removedEstimates: [],
-          removedActuals: [],
-          removedProgress: [],
-          removedMeasures: [],
-        },
-        inverse: {
-          do: 'delete_subtree',
-          rootId: copyOf(id),
-          expectedSubtree: copyIds,
-          remove: copyIds,
-          reparented: [],
-          setEstimates: [],
-          setActuals: [],
-          setProgress: [],
-          setMeasures: [],
-        },
-        // Every copied row, all of them at 0. Anything typed into the copy
-        // moves one of these and the undo refuses rather than throwing away
-        // work somebody did in it.
+        forward:
+          copiedTyped.length === 0
+            ? restore
+            : {
+                do: 'batch',
+                steps: [
+                  restore,
+                  ...copiedTyped.map((dependency) => ({
+                    do: 'add_typed_dependency' as const,
+                    dependency,
+                  })),
+                ],
+              },
+        inverse:
+          copiedTyped.length === 0
+            ? deleteCopy
+            : {
+                do: 'batch',
+                steps: [
+                  ...copiedTyped.map((dependency) => ({
+                    do: 'remove_typed_dependency' as const,
+                    dependency,
+                  })),
+                  deleteCopy,
+                ],
+              },
+        // Every copied row, including endpoint revisions bumped by copied
+        // typed relationships. Later writes to the copy make undo refuse.
         touched: copyIds,
         before: rows,
       },
@@ -2644,6 +3196,35 @@ export class WorkItemService {
     // `listByProject` takes no metric for.
     const storedMeasures = await this.opts.measures.listByProject(workItem.projectId);
     const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
+    const authored = await this.opts.typedDependencies.listByProject(workItem.projectId);
+    const survivor = workItem.parentId;
+    const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
+    const inside = new Set(doomed);
+    if (
+      survivor !== null &&
+      (children.length === 0 || strategy === 'cascade') &&
+      rows.filter((row) => row.parentId === survivor).length === 1
+    ) {
+      const stranded = authored.filter(
+        (dependency) =>
+          ![dependency.predecessor, dependency.successor].some((endpoint) =>
+            inside.has(endpoint.workItemId),
+          ) &&
+          [dependency.predecessor, dependency.successor].some(
+            (endpoint) => endpoint.scope === 'descendant-step' && endpoint.workItemId === survivor,
+          ),
+      );
+      // Proof: including relationships removed with the subtree made mounted
+      // last-child delete return 409 instead of 200; watched 2026-09-27.
+      // Skipping the refusal made the surviving-relationship case return 500.
+      if (stranded.length > 0) {
+        return {
+          ok: false,
+          reason: 'descendant_step_on_leaf',
+          dependencyIds: stranded.map((row) => row.id),
+        };
+      }
+    }
 
     if (children.length === 0 || strategy === 'cascade') {
       // The mirror of the rule in `create`: a parent losing its last child takes
@@ -2654,8 +3235,6 @@ export class WorkItemService {
       // it holds no estimate rows of its own, so nothing moved and the whole
       // subtree's estimates were then deleted with it.
       const parentId = workItem.parentId;
-      const doomed = subtreeOf(rows, id);
-      const inside = new Set(doomed);
       const handedUp: StoredEstimate[] = [];
       // The same rule, one table over: the parent is about to become a leaf
       // again, and a leaf reports what it holds. Without this the days the
@@ -2755,66 +3334,122 @@ export class WorkItemService {
       // tidiness: without it, deleting a work item anything depends on fails
       // with a constraint error the caller cannot act on.
       await this.opts.dependencies.removeAllFor(doomed, stamp);
+      // Proof: skipping this removal let SQLite cascade the rows without a
+      // journal record; mounted node-and-whole delete restored 0 instead of 2
+      // relationships on undo, watched 2026-09-27.
+      const removedTyped = await this.opts.typedDependencies.removeAllFor(doomed, stamp);
       await this.opts.workItems.remove(doomed, [], stamp);
+      // The parent becoming a leaf again takes a readiness or hold only where
+      // every former leaf agreed on it (`add-work-item-statuses`).
+      const formerLeaves = doomed
+        .map((each) => rowOf(rows, each))
+        .filter((row) => !rows.some((child) => child.parentId === row.id));
+      const statementsHandedUp =
+        parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1
+          ? {
+              readiness: agreedOn(formerLeaves.map((row) => row.readiness)),
+              hold: agreedOn(formerLeaves.map((row) => row.hold)),
+            }
+          : undefined;
+      const handUpStep =
+        statementsHandedUp !== undefined &&
+        parentId !== null &&
+        (statementsHandedUp.readiness !== null || statementsHandedUp.hold !== null)
+          ? {
+              forward: {
+                do: 'patch' as const,
+                workItemId: parentId,
+                patch: statementsHandedUp,
+              },
+              inverse: {
+                do: 'patch' as const,
+                workItemId: parentId,
+                patch: { readiness: null, hold: null },
+              },
+            }
+          : undefined;
+      if (handUpStep !== undefined) {
+        // Proof: this write skipped made `gives a parent losing its last child
+        // the readiness and hold every former leaf agreed on` fail on
+        // `readiness: null` where `draft` was owed; watched 2026-09-29.
+        const handed = await this.apply(workItem.projectId, handUpStep.forward, stamp);
+        if (!handed.ok) throw new Error(`cannot hand statements up: ${handed.detail}`);
+      }
       await this.announceTree(workItem.projectId);
       await this.record(workItem.projectId, stamp, 'delete', label, {
-        forward: {
-          do: 'delete_subtree',
-          rootId: id,
-          expectedSubtree: doomed,
-          remove: doomed,
-          reparented: [],
-          setEstimates: handedUp,
-          setActuals: recordedHandedUp,
-          setProgress: statedHandedUp,
-          setMeasures: measuredHandedUp,
-        },
-        inverse: {
-          do: 'restore_subtree',
-          rows: doomed.map((each) => rowOf(rows, each)),
-          rootPosition: workItem.position,
-          reparented: [],
-          estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
-          // Every day recorded anywhere in the branch, put back where it was
-          // recorded. Without this an undo of a delete answers `ok` and returns
-          // the branch with its estimates and none of its actuals — the plan
-          // looks whole and a week of somebody's record is gone.
-          actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
-          // Every statement made anywhere in the branch, put back where it was
-          // made. Without this an undo of a delete answers `ok` and returns the
-          // branch reading as work nobody has started — the plan looks whole and
-          // a fortnight of finished work is unfinished again.
-          progress: storedProgress.filter((each) => inside.has(each.workItemId)),
-          // Every token and hour recorded anywhere in the branch, put back where
-          // it was recorded. Without this an undo of a delete answers `ok` and
-          // returns the branch with its days and none of its tokens — the plan
-          // looks whole and the record of what the work cost to run is gone.
-          measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
-          assignments: doomedAssignments,
-          internalDependencies: cut.filter(
-            (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
+        forward: withPatchStep(
+          withRemovedTyped(
+            {
+              do: 'delete_subtree',
+              rootId: id,
+              expectedSubtree: doomed,
+              remove: doomed,
+              reparented: [],
+              setEstimates: handedUp,
+              setActuals: recordedHandedUp,
+              setProgress: statedHandedUp,
+              setMeasures: measuredHandedUp,
+            },
+            removedTyped,
+            false,
           ),
-          externalDependencies: cut.filter(
-            (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
+          handUpStep?.forward,
+          'after',
+        ),
+        inverse: withPatchStep(
+          withRemovedTyped(
+            {
+              do: 'restore_subtree',
+              rows: doomed.map((each) => rowOf(rows, each)),
+              rootPosition: workItem.position,
+              reparented: [],
+              estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
+              // Every day recorded anywhere in the branch, put back where it was
+              // recorded. Without this an undo of a delete answers `ok` and returns
+              // the branch with its estimates and none of its actuals — the plan
+              // looks whole and a week of somebody's record is gone.
+              actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
+              // Every statement made anywhere in the branch, put back where it was
+              // made. Without this an undo of a delete answers `ok` and returns the
+              // branch reading as work nobody has started — the plan looks whole and
+              // a fortnight of finished work is unfinished again.
+              progress: storedProgress.filter((each) => inside.has(each.workItemId)),
+              // Every token and hour recorded anywhere in the branch, put back where
+              // it was recorded. Without this an undo of a delete answers `ok` and
+              // returns the branch with its days and none of its tokens — the plan
+              // looks whole and the record of what the work cost to run is gone.
+              measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
+              assignments: doomedAssignments,
+              internalDependencies: cut.filter(
+                (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
+              ),
+              externalDependencies: cut.filter(
+                (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
+              ),
+              removedEstimates: handedUp.map((each) => ({
+                workItemId: each.workItemId,
+                stepId: each.stepId,
+              })),
+              removedActuals: recordedHandedUp.map((each) => ({
+                workItemId: each.workItemId,
+                stepId: each.stepId,
+              })),
+              removedProgress: statedHandedUp.map((each) => ({
+                workItemId: each.workItemId,
+                stepId: each.stepId,
+              })),
+              removedMeasures: measuredHandedUp.map((each) => ({
+                workItemId: each.workItemId,
+                stepId: each.stepId,
+                metric: each.metric,
+              })),
+            },
+            removedTyped,
+            true,
           ),
-          removedEstimates: handedUp.map((each) => ({
-            workItemId: each.workItemId,
-            stepId: each.stepId,
-          })),
-          removedActuals: recordedHandedUp.map((each) => ({
-            workItemId: each.workItemId,
-            stepId: each.stepId,
-          })),
-          removedProgress: statedHandedUp.map((each) => ({
-            workItemId: each.workItemId,
-            stepId: each.stepId,
-          })),
-          removedMeasures: measuredHandedUp.map((each) => ({
-            workItemId: each.workItemId,
-            stepId: each.stepId,
-            metric: each.metric,
-          })),
-        },
+          handUpStep?.inverse,
+          'before',
+        ),
         // Two deliberate absences. The deleted rows are not here — nothing can
         // hold a revision of a row that is gone, and the restore's refusal to
         // write over an id that exists is what guards them. Neither are the
@@ -2822,7 +3457,16 @@ export class WorkItemService {
         // are best-effort by design, and refusing to put a whole branch back
         // because somebody renamed a neighbour would strand the work for a
         // reason that has nothing to do with it.
-        touched: handedUp.map((each) => each.workItemId),
+        // Proof: the hand-up parent left out made `guards the parent a last-child
+        // delete hands statements up to` fail — its id was absent from the
+        // entry's preconditions, so a later edit to it would not make the undo
+        // stale; watched 2026-09-29.
+        touched: [
+          ...new Set([
+            ...handedUp.map((each) => each.workItemId),
+            ...(handUpStep === undefined ? [] : [handUpStep.forward.workItemId]),
+          ]),
+        ],
         before: rows,
       });
       return { ok: true, value: null };
@@ -2845,59 +3489,68 @@ export class WorkItemService {
     // going has nothing to point at, and the foreign keys say so. Only this row
     // leaves here — its children are promoted, and their edges stay valid.
     await this.opts.dependencies.removeAllFor([id], stamp);
+    const removedTyped = await this.opts.typedDependencies.removeAllFor([id], stamp);
     await this.opts.workItems.remove([id], promoted, stamp);
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'delete', label, {
-      forward: {
-        do: 'delete_subtree',
-        rootId: id,
-        expectedSubtree: subtreeOf(rows, id),
-        remove: [id],
-        reparented: promoted,
-        setEstimates: [],
-        // A promotion deletes one row and keeps its children, so the parent
-        // below is not becoming a leaf and nothing is handed anywhere.
-        setActuals: [],
-        setProgress: [],
-        setMeasures: [],
-      },
-      inverse: {
-        do: 'restore_subtree',
-        rows: [workItem],
-        rootPosition: workItem.position,
-        // Everyone the promotion rewrote, back where they were: the children
-        // under the row coming back, and the former siblings at the positions
-        // the promotion took from them. Restoring only the children would
-        // leave the group respaced around a gap that is no longer there.
-        reparented: promoted.map((each) => {
-          const was = rowOf(rows, each.id);
-          return { id: was.id, parentId: was.parentId, position: was.position };
-        }),
-        estimates: storedEstimates.filter((each) => each.workItemId === id),
-        // The promoted row's own recorded days — it had children, so it holds
-        // none, and this is the empty list every time until a promotion of a
-        // leaf becomes representable. Written from the same source as the
-        // estimates beside it rather than hard-coded, so it stays true if that
-        // ever changes.
-        actuals: storedActuals.filter((each) => each.workItemId === id),
-        // The promoted row's own statements — it had children, so it holds none,
-        // and this is the empty list every time until a promotion of a leaf
-        // becomes representable. Written from the same source as the two figures
-        // beside it rather than hard-coded, so it stays true if that ever changes.
-        progress: storedProgress.filter((each) => each.workItemId === id),
-        // The promoted row's own tokens and hours — it had children, so it holds
-        // none, and this is the empty list every time until a promotion of a
-        // leaf becomes representable. Written from the same source as the three
-        // beside it rather than hard-coded, so it stays true if that changes.
-        measures: storedMeasures.filter((each) => each.workItemId === id),
-        assignments: deletedAssignments,
-        internalDependencies: [],
-        externalDependencies: cut,
-        removedEstimates: [],
-        removedActuals: [],
-        removedProgress: [],
-        removedMeasures: [],
-      },
+      forward: withRemovedTyped(
+        {
+          do: 'delete_subtree',
+          rootId: id,
+          expectedSubtree: subtreeOf(rows, id),
+          remove: [id],
+          reparented: promoted,
+          setEstimates: [],
+          // A promotion deletes one row and keeps its children, so the parent
+          // below is not becoming a leaf and nothing is handed anywhere.
+          setActuals: [],
+          setProgress: [],
+          setMeasures: [],
+        },
+        removedTyped,
+        false,
+      ),
+      inverse: withRemovedTyped(
+        {
+          do: 'restore_subtree',
+          rows: [workItem],
+          rootPosition: workItem.position,
+          // Everyone the promotion rewrote, back where they were: the children
+          // under the row coming back, and the former siblings at the positions
+          // the promotion took from them. Restoring only the children would
+          // leave the group respaced around a gap that is no longer there.
+          reparented: promoted.map((each) => {
+            const was = rowOf(rows, each.id);
+            return { id: was.id, parentId: was.parentId, position: was.position };
+          }),
+          estimates: storedEstimates.filter((each) => each.workItemId === id),
+          // The promoted row's own recorded days — it had children, so it holds
+          // none, and this is the empty list every time until a promotion of a
+          // leaf becomes representable. Written from the same source as the
+          // estimates beside it rather than hard-coded, so it stays true if that
+          // ever changes.
+          actuals: storedActuals.filter((each) => each.workItemId === id),
+          // The promoted row's own statements — it had children, so it holds none,
+          // and this is the empty list every time until a promotion of a leaf
+          // becomes representable. Written from the same source as the two figures
+          // beside it rather than hard-coded, so it stays true if that ever changes.
+          progress: storedProgress.filter((each) => each.workItemId === id),
+          // The promoted row's own tokens and hours — it had children, so it holds
+          // none, and this is the empty list every time until a promotion of a
+          // leaf becomes representable. Written from the same source as the three
+          // beside it rather than hard-coded, so it stays true if that changes.
+          measures: storedMeasures.filter((each) => each.workItemId === id),
+          assignments: deletedAssignments,
+          internalDependencies: [],
+          externalDependencies: cut,
+          removedEstimates: [],
+          removedActuals: [],
+          removedProgress: [],
+          removedMeasures: [],
+        },
+        removedTyped,
+        true,
+      ),
       // The promoted rows are preconditions because putting them back under the
       // restored parent is part of the undo. The ends of the edges that left
       // are not, for the reason given in the cascade branch above.
@@ -2928,7 +3581,7 @@ export class WorkItemService {
   async arrangeBySchedule(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
     const stored = await this.opts.estimates.listByProject(projectId);
@@ -2941,21 +3594,34 @@ export class WorkItemService {
       rows,
       stored,
       edges,
+      await this.opts.typedDependencies.listByProject(projectId),
       assigned,
       steps,
       slotsOf,
     );
 
+    const captured =
+      this.opts.livePlans === undefined
+        ? undefined
+        : await this.opts.livePlans.readProject(projectId);
+    if (captured?.kind === 'not_found') return { ok: false, reason: 'not_found' };
+    const shared = captured?.kind === 'shared' ? captured.chain : undefined;
+    if (shared?.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
+    if (shared?.kind === 'unavailable') return { ok: false, reason: shared.reason };
+    const input = shared?.kind === 'scheduled' ? shared.input : canonical.input;
     let selected;
     try {
-      const read = this.opts.scheduler.read({
-        projectId: project.id,
-        input: canonical.input,
-        engine: project.scheduleEngine,
-        objective: project.scheduleObjective,
-        enabled: project.optimizationEnabled,
-        mode: 'live',
-      });
+      const read =
+        shared?.kind === 'scheduled'
+          ? shared.scheduled
+          : await this.opts.scheduler.read({
+              projectId: project.id,
+              input: canonical.input,
+              engine: project.scheduleEngine,
+              objective: project.scheduleObjective,
+              enabled: project.optimizationEnabled,
+              mode: this.opts.schedulerMode ?? 'live',
+            });
       if (read.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
       selected = selectedSchedule(project, read.fast, read.optimization);
     } catch (err) {
@@ -2967,7 +3633,12 @@ export class WorkItemService {
     }
     if (selected.awaitingSolve) return { ok: false, reason: 'schedule_not_ready' };
 
-    const arrangement = arrangeSiblingsBySchedule(rows, selected.schedule.workItems);
+    // Over the rows the schedule was computed from: an on-hold row has no
+    // scheduled start, so it is left where it is (`add-work-item-statuses`).
+    // Proof: the full `rows` passed here made `arranges a plan holding an
+    // on-hold leaf, and leaves the held row where it was` fail on `no
+    // scheduled start for work item …`; watched 2026-09-29.
+    const arrangement = arrangeSiblingsBySchedule(input.rows, selected.schedule.workItems);
     // Nothing to arrange. Not an error and not a write: the project already
     // reads in the order it is drawn in.
     if (arrangement.placements.length === 0) return { ok: true, value: null };
@@ -3003,6 +3674,62 @@ export class WorkItemService {
   }
 
   /**
+   * Sets a project step's estimate allowance: one journalled, undoable edit.
+   *
+   * Here rather than on `StepService` because an allowance changes what every
+   * estimate of the step charges, and the journal that makes it one undo lives
+   * here. HTTP (`PATCH` a step), the command batch and MCP all reach this one
+   * method through the `setStepAllowance` command.
+   *
+   * `allowancePercent` has been validated by the command boundary. An edit that
+   * leaves the allowance where it was writes and announces, but is not
+   * journalled: there is nothing to reverse.
+   *
+   * Proof: with the `record` call skipped, `undoes an allowance edit in one
+   * step` failed on `undone.ok` (`Expected: true, Received: false`), the undo
+   * answering `nothing_to_undo` (2026-09-27).
+   */
+  async setStepAllowance(
+    projectId: string,
+    actorId: string,
+    stepId: string,
+    allowancePercent: AllowancePercent,
+  ): Promise<WorkItemOutcome<null>> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
+
+    const stamp = this.clock.stampFor(actorId);
+    const written = await this.opts.projects.setStepAllowance(
+      projectId,
+      stepId,
+      allowancePercent,
+      stamp,
+    );
+    if (!written.ok) return { ok: false, reason: 'not_found' };
+    await this.opts.broadcast.publish(projectId, { type: 'step_updated', step: written.step });
+    await this.announceTree(projectId);
+    if (written.previousPercent !== allowancePercent) {
+      const rows = await this.opts.workItems.listByProject(projectId);
+      await this.record(
+        projectId,
+        stamp,
+        'set_step_allowance',
+        `set the ${written.step.name} allowance to +${String(allowancePercent)}%`,
+        {
+          forward: { do: 'set_step_allowance', stepId, allowancePercent },
+          inverse: { do: 'set_step_allowance', stepId, allowancePercent: written.previousPercent },
+          touched: [stepRevisionKey(stepId)],
+          before: rows,
+          // Every allowance write moves the revision by exactly one.
+          stepsBefore: { [stepRevisionKey(stepId)]: written.revision - 1 },
+        },
+      );
+    }
+    return { ok: true, value: null };
+  }
+
+  /**
    * Writes the currently derived number of every work item that has none stored.
    *
    * Work items added afterwards keep deriving, so a project can be frozen,
@@ -3013,7 +3740,7 @@ export class WorkItemService {
   async freeze(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
     const numbers = deriveNumbers(rows);
@@ -3068,7 +3795,7 @@ export class WorkItemService {
   async unfreezeProject(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
     const frozen = rows.filter((row) => row.frozenNumber !== null);
@@ -3563,6 +4290,20 @@ export class WorkItemService {
    * A parent is **not** `rolled_up` here, unlike {@link setProgress}: speaking
    * for the leaves beneath it is the point.
    *
+   * **Readiness and holds** (`add-work-item-statuses`, ADR 0032). `done` also
+   * clears each leaf's hold; `unknown` clears readiness and hold. `ready` and
+   * `draft` set readiness and clear the hold, refused `readiness_after_progress`
+   * once any leaf in scope holds a statement. `on_hold` and `blocked` set the
+   * hold and nothing else, refused `cannot_hold_done` when the row reads done;
+   * beneath a parent, a leaf reading done is left alone. `in_progress` writes
+   * `in_progress` on a leaf's first silent step, fills its empty fact start and
+   * clears its hold; on a leaf reading done it reopens the last step and clears
+   * the fact end instead. On a parent it starts one leaf: the first in tree
+   * order with no statement, unheld preferred; a parent reading done reopens
+   * its first leaf and clears its own fact end; a parent already in progress
+   * writes nothing. A project with no steps refuses `in_progress` and `done`
+   * with `no_steps`.
+   *
    * Proof: the `steps.length === 0` return deleted and `writes nothing when
    * nothing would change` fails on `Expected: 0 · Received: 1` journal entries —
    * an empty batch journalled; the `factEnd !== null` skip deleted and `keeps a
@@ -3590,49 +4331,126 @@ export class WorkItemService {
     const stamp = this.clock.stampFor(actorId);
     const day = on ?? isoDateOfInstant(stamp.at);
     const hasChildren = new Set(rows.map((row) => row.parentId));
-    const leaves = subtreeOf(rows, id).filter((each) => !hasChildren.has(each));
+    const order = treeOrder(rows);
+    const leaves = subtreeOf(rows, id)
+      .filter((each) => !hasChildren.has(each))
+      .sort((left, right) => (order.get(left) ?? 0) - (order.get(right) ?? 0));
+    const projectSteps = await this.opts.projects.stepsOf(workItem.projectId);
+    // Proof: this refusal removed made `refuses in progress and done with
+    // no_steps` fail on `Expected: {ok: false, reason: "no_steps"}, Received:
+    // {ok: true}` — a done mark with no step to write; watched 2026-09-29.
+    if ((status === 'done' || status === 'in_progress') && projectSteps.length === 0) {
+      return { ok: false, reason: 'no_steps' };
+    }
     const stated = await this.opts.progress.listByProject(workItem.projectId);
+    const statedOf = new Map(
+      stated.map((each) => [progressKey(each.workItemId, each.stepId), each.state]),
+    );
+    const rowsById = new Map(rows.map((row) => [row.id, row]));
+    const rowOf = (rowId: string): WorkItem => {
+      const row = rowsById.get(rowId);
+      if (row === undefined) throw new Error(`${rowId} is not a row of this project`);
+      return row;
+    };
+    // What each row read before this act: the read's own progress fold, never
+    // a stored flag, so the cell and this method agree about "was done".
+    const wasDone = rollUpWorkItemStatuses(
+      rows,
+      rollUpProgress(
+        rows,
+        stated,
+        workedStepsOf(
+          await this.opts.estimates.listByProject(workItem.projectId),
+          await this.opts.actuals.listByProject(workItem.projectId),
+          stated,
+        ),
+      ),
+    );
+    const readsDone = (rowId: string) => wasDone.get(rowId) === 'done';
     const steps: { forward: CompensatingCommand; inverse: CompensatingCommand }[] = [];
-    if (status === 'done') {
-      const statedOf = new Map(
-        stated.map((each) => [progressKey(each.workItemId, each.stepId), each.state]),
-      );
-      for (const leafId of leaves) {
-        for (const step of await this.opts.projects.stepsOf(workItem.projectId)) {
-          const before = statedOf.get(progressKey(leafId, step.id)) ?? null;
-          if (before === 'done') continue;
-          steps.push({
-            forward: { do: 'set_progress', workItemId: leafId, stepId: step.id, state: 'done' },
-            inverse:
-              before === null
-                ? { do: 'clear_progress', workItemId: leafId, stepId: step.id }
-                : { do: 'set_progress', workItemId: leafId, stepId: step.id, state: before },
-          });
-        }
+    /** One `patch` step naming only the fields that change, with its verbatim inverse. */
+    const patchRow = (
+      rowId: string,
+      wanted: {
+        readiness?: Readiness | null;
+        hold?: Hold | null;
+        factEnd?: IsoDate | null;
+        factStart?: IsoDate | null;
+      },
+    ) => {
+      const row = rowOf(rowId);
+      const forward: WorkItemPatch = {};
+      const inverse: WorkItemPatch = {};
+      if (wanted.readiness !== undefined && wanted.readiness !== row.readiness) {
+        forward.readiness = wanted.readiness;
+        inverse.readiness = row.readiness;
       }
-      const rowsById = new Map(rows.map((row) => [row.id, row]));
+      if (wanted.hold !== undefined && wanted.hold !== row.hold) {
+        forward.hold = wanted.hold;
+        // Proof: this line removed made `holds every leaf beneath a parent,
+        // and one undo restores each prior hold` fail — the undo left every
+        // leaf on hold; watched 2026-09-29.
+        inverse.hold = row.hold;
+      }
+      if (wanted.factEnd !== undefined && wanted.factEnd !== row.factEnd) {
+        forward.factEnd = wanted.factEnd;
+        inverse.factEnd = row.factEnd;
+      }
+      if (wanted.factStart !== undefined && wanted.factStart !== row.factStart) {
+        forward.factStart = wanted.factStart;
+        inverse.factStart = row.factStart;
+      }
+      if (Object.keys(forward).length === 0) return;
+      steps.push({
+        forward: { do: 'patch', workItemId: rowId, patch: forward },
+        inverse: { do: 'patch', workItemId: rowId, patch: inverse },
+      });
+    };
+    const setStep = (leafId: string, stepId: string, state: StepState) => {
+      const before = statedOf.get(progressKey(leafId, stepId)) ?? null;
+      if (before === state) return;
+      steps.push({
+        forward: { do: 'set_progress', workItemId: leafId, stepId, state },
+        inverse:
+          before === null
+            ? { do: 'clear_progress', workItemId: leafId, stepId }
+            : { do: 'set_progress', workItemId: leafId, stepId, state: before },
+      });
+    };
+    const hasStatement = (leafId: string) =>
+      projectSteps.some((step) => statedOf.has(progressKey(leafId, step.id)));
+    /** Starts one leaf: reopen it when it reads done, else speak for its first silent step. */
+    const startLeaf = (leafId: string) => {
+      if (readsDone(leafId)) {
+        const last = projectSteps.at(-1);
+        if (last === undefined) throw new Error('no_steps was refused above');
+        setStep(leafId, last.id, 'in_progress');
+        patchRow(leafId, { factEnd: null, hold: null });
+        return;
+      }
+      const silent = projectSteps.find((step) => !statedOf.has(progressKey(leafId, step.id)));
+      if (silent !== undefined) setStep(leafId, silent.id, 'in_progress');
+      patchRow(leafId, {
+        hold: null,
+        ...(rowOf(leafId).factStart === null ? { factStart: factStart ?? day } : {}),
+      });
+    };
+
+    if (status === 'done') {
+      for (const leafId of leaves) {
+        for (const step of projectSteps) setStep(leafId, step.id, 'done');
+        patchRow(leafId, { hold: null });
+      }
       for (const spokenFor of new Set([...leaves, id])) {
-        const row = rowsById.get(spokenFor);
-        if (row === undefined) throw new Error(`${spokenFor} is not a row of this project`);
+        const row = rowOf(spokenFor);
         // The two fills, each only where the row holds nothing: a typed day is
         // the planner's record and is never overwritten by a mark.
-        const fill: { factEnd?: IsoDate; factStart?: IsoDate } = {};
-        if (row.factEnd === null) fill.factEnd = day;
-        if (factStart !== undefined && row.factStart === null) fill.factStart = factStart;
-        if (Object.keys(fill).length === 0) continue;
-        steps.push({
-          forward: { do: 'patch', workItemId: spokenFor, patch: fill },
-          inverse: {
-            do: 'patch',
-            workItemId: spokenFor,
-            patch: {
-              ...(fill.factEnd === undefined ? {} : { factEnd: null }),
-              ...(fill.factStart === undefined ? {} : { factStart: null }),
-            },
-          },
+        patchRow(spokenFor, {
+          ...(row.factEnd === null ? { factEnd: day } : {}),
+          ...(factStart !== undefined && row.factStart === null ? { factStart } : {}),
         });
       }
-    } else {
+    } else if (status === 'unknown') {
       const inScope = new Set(leaves);
       for (const each of stated) {
         if (!inScope.has(each.workItemId)) continue;
@@ -3646,49 +4464,64 @@ export class WorkItemService {
           },
         });
       }
-      // A row taken back from done has a fact end for a finish that did not
-      // happen, so the day goes with the statements — and only off a row that
-      // **read** done. Which rows those are is the same fold the read shows in
-      // the Status column (`rollUpWorkItemStatuses` over `rollUpProgress`),
-      // computed here from the statements as they stood before this act, so
-      // the cell and this arm can never disagree about what "was done". A
-      // typed fact end on a row that was in progress or unknown is the
-      // planner's own record and stands, as does every fact start.
-      const stored = await this.opts.estimates.listByProject(workItem.projectId);
-      const recorded = await this.opts.actuals.listByProject(workItem.projectId);
-      const wasDone = rollUpWorkItemStatuses(
-        rows,
-        rollUpProgress(rows, stated, workedStepsOf(stored, recorded, stated)),
-      );
-      const rowsById = new Map(rows.map((row) => [row.id, row]));
+      for (const leafId of leaves) patchRow(leafId, { readiness: null, hold: null });
       for (const spokenFor of new Set([...leaves, id])) {
-        const row = rowsById.get(spokenFor);
-        if (row === undefined) throw new Error(`${spokenFor} is not a row of this project`);
         // Proof: this guard dropped, and `unknown on a row that was not done
         // leaves its typed fact end` fails on `Expected: "2026-09-10" /
         // Received: null` — an in-progress row's typed day taken as if the
         // finish it records had been unmarked; watched 2026-09-13.
-        if (wasDone.get(spokenFor) !== 'done') continue;
+        if (!readsDone(spokenFor)) continue;
         // Both facts go with the statements (Dany, 2026-09-13: "when from done
         // -> unknown clear fact start and fact end"): a finish that is unmarked
         // did not happen, and the days it began and ended on go with it.
-        const clear: { factEnd?: null; factStart?: null } = {};
-        const before: { factEnd?: IsoDate; factStart?: IsoDate } = {};
-        if (row.factEnd !== null) {
-          clear.factEnd = null;
-          before.factEnd = row.factEnd;
-        }
-        if (row.factStart !== null) {
-          clear.factStart = null;
-          before.factStart = row.factStart;
-        }
-        if (Object.keys(clear).length === 0) continue;
-        steps.push({
-          forward: { do: 'patch', workItemId: spokenFor, patch: clear },
-          inverse: { do: 'patch', workItemId: spokenFor, patch: before },
-        });
+        patchRow(spokenFor, { factEnd: null, factStart: null });
       }
+    } else if (status === 'ready' || status === 'draft') {
+      // Proof: this refusal removed made `refuses readiness once a step has
+      // spoken, and writes nothing` fail on `Expected: {ok: false, reason:
+      // "readiness_after_progress"}, Received: {ok: true}`; watched 2026-09-29.
+      if (leaves.some(hasStatement)) return { ok: false, reason: 'readiness_after_progress' };
+      for (const leafId of leaves) patchRow(leafId, { readiness: status, hold: null });
+    } else if (status === 'on_hold' || status === 'blocked') {
+      // Proof: this refusal removed made `refuses a hold on a leaf reading
+      // done` fail on `Expected: {ok: false, reason: "cannot_hold_done"},
+      // Received: {ok: true}`; watched 2026-09-29.
+      if (readsDone(id)) return { ok: false, reason: 'cannot_hold_done' };
+      for (const leafId of leaves) {
+        // A done leaf keeps no hold: one held before it finished loses it here.
+        // Proof: done leaves skipped outright made `takes the hold off a done
+        // leaf when its branch is held` fail on `hold: "on_hold"`; watched
+        // 2026-09-29.
+        patchRow(leafId, { hold: readsDone(leafId) ? null : status });
+      }
+    } else if (!leaves.includes(id)) {
+      // `in_progress` on a parent: one leaf starts, the rest are untouched.
+      // The status the row reads, holds and the graph included: a held branch
+      // whose progress fold says in progress is not already started.
+      // Proof: the progress-only fold consulted here made `starts a held branch
+      // whose progress fold reads in progress…` fail — nothing was written;
+      // watched 2026-09-29.
+      const reading = workItemStatusesOf(rows, wasDone, {
+        edges: (await this.opts.dependencies.listByProject(workItem.projectId)).filter(
+          (edge) => rowsById.has(edge.predecessorId) && rowsById.has(edge.successorId),
+        ),
+        typed: await this.opts.typedDependencies.listByProject(workItem.projectId),
+      });
+      if (reading.get(id) === 'in_progress') return { ok: true, value: null };
+      if (readsDone(id)) {
+        const first = leaves.at(0);
+        if (first === undefined) throw new Error(`parent ${id} reads done with no leaf`);
+        startLeaf(first);
+        patchRow(id, { factEnd: null });
+      } else {
+        const silent = leaves.filter((leafId) => !hasStatement(leafId));
+        const chosen = silent.find((leafId) => rowOf(leafId).hold === null) ?? silent.at(0) ?? null;
+        if (chosen !== null) startLeaf(chosen);
+      }
+    } else {
+      startLeaf(id);
     }
+
     if (steps.length === 0) return { ok: true, value: null };
     for (const { forward } of steps) {
       const applied = await this.apply(workItem.projectId, forward, stamp);
@@ -3704,9 +4537,7 @@ export class WorkItemService {
       workItem.projectId,
       stamp,
       'status',
-      status === 'done'
-        ? `mark ${quoteName(workItem.name)} done`
-        : `set ${quoteName(workItem.name)} back to unknown`,
+      statusSentence(status, quoteName(workItem.name)),
       steps.length === 1
         ? { forward: only.forward, inverse: only.inverse, touched, before: rows }
         : {
@@ -3720,6 +4551,178 @@ export class WorkItemService {
   }
 
   /** Sends the whole tree, for a change that can renumber more than it touched. */
+  /** Validates a typed row against this project's current tree and combined graph. */
+  private async typedRefusal(
+    projectId: string,
+    rows: readonly WorkItem[],
+    existing: readonly StoredTypedDependency[],
+    proposed: StoredTypedDependency,
+  ): Promise<WorkItemRefusal | null> {
+    // Proof: accepting every string in isWritableRelationshipType made `refuses an SF write
+    // at the application boundary` accept SF with `{ ok: true, value: "item-7" }`;
+    // watched 2026-09-28.
+    if (!isWritableRelationshipType(proposed.type)) return 'unsupported_relationship_type';
+    const leaves = new Map(
+      rows.map((row) => [row.id, !rows.some((child) => child.parentId === row.id)]),
+    );
+    const steps = new Set((await this.opts.projects.stepsOf(projectId)).map((step) => step.id));
+    for (const endpoint of [proposed.predecessor, proposed.successor]) {
+      // Proof: bypassing endpoint validation made `refuses invalid typed endpoints, duplicate keys,
+      // unsupported types and absent relationships` return 500 instead of 404 for an unknown step; watched 2026-09-27.
+      const defect = findTypedEndpointDefect(endpoint, {
+        isLeaf: (id) => leaves.get(id),
+        hasStep: (id) => steps.has(id),
+      });
+      if (defect !== null)
+        return defect === 'node_on_parent'
+          ? 'rolled_up'
+          : defect === 'descendant_step_on_leaf'
+            ? 'not_a_parent'
+            : defect;
+    }
+    // Proof: bypassing key comparison made the mounted duplicate case return 500 instead of 409; watched 2026-09-27.
+    if (
+      existing.some(
+        (row) =>
+          row.id !== proposed.id &&
+          formatTypedDependencyKey(row) === formatTypedDependencyKey(proposed),
+      )
+    )
+      return 'duplicate_dependency';
+    // Proof: bypassing this check made `rejects a cycle introduced by the second typed add`
+    // return 200 instead of 409; watched 2026-09-27.
+    const cycle = await this.graph.findCycle(projectId, {
+      typed: [...existing.filter((row) => row.id !== proposed.id), proposed],
+    });
+    return cycle === null ? null : cycle.kind === 'self_node' ? 'self_node' : 'cycle';
+  }
+
+  /**
+   * Compares a journalled relationship with the current stored row.
+   * Proof: bypassing the endpoint/type key comparison made `refuses undo when only a
+   * journalled relationship type changed outside history` receive 200 instead of 409;
+   * watched 2026-09-28.
+   */
+  private sameTypedDependency(
+    left: StoredTypedDependency | undefined,
+    right: StoredTypedDependency,
+  ): boolean {
+    if (left === undefined) return false;
+    return (
+      left.id === right.id &&
+      left.projectId === right.projectId &&
+      formatTypedDependencyKey(left) === formatTypedDependencyKey(right)
+    );
+  }
+
+  /** Adds a typed relationship and returns the minted stable identity. */
+  async addTypedDependency(
+    projectId: string,
+    actorId: string,
+    input: { predecessor: DependencyEndpoint; successor: DependencyEndpoint; type: string },
+  ): Promise<WorkItemOutcome<string>> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!isWritableRelationshipType(input.type))
+      return { ok: false, reason: 'unsupported_relationship_type' };
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const existing = await this.opts.typedDependencies.listByProject(projectId);
+    const dependency: StoredTypedDependency = {
+      id: this.clock.newId(),
+      projectId,
+      ...input,
+      type: input.type,
+    };
+    const refusal = await this.typedRefusal(projectId, rows, existing, dependency);
+    if (refusal !== null) return { ok: false, reason: refusal };
+    const stamp = this.clock.stampFor(actorId);
+    await this.opts.typedDependencies.add(dependency, stamp);
+    await this.announceTree(projectId);
+    await this.record(
+      projectId,
+      stamp,
+      'add_typed_dependency',
+      `make ${quoteName(nameOf(rows, input.successor.workItemId))} wait for ${quoteName(nameOf(rows, input.predecessor.workItemId))}`,
+      {
+        forward: { do: 'add_typed_dependency', dependency },
+        inverse: { do: 'remove_typed_dependency', dependency },
+        touched: touchedBy({ do: 'add_typed_dependency', dependency }),
+        before: rows,
+      },
+    );
+    return { ok: true, value: dependency.id };
+  }
+
+  /** Updates one typed relationship without changing its identity. */
+  async updateTypedDependency(
+    projectId: string,
+    actorId: string,
+    dependencyId: string,
+    input: { predecessor: DependencyEndpoint; successor: DependencyEndpoint; type: string },
+  ): Promise<WorkItemOutcome<null>> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!isWritableRelationshipType(input.type))
+      return { ok: false, reason: 'unsupported_relationship_type' };
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const existing = await this.opts.typedDependencies.listByProject(projectId);
+    const from = existing.find((row) => row.id === dependencyId);
+    if (from === undefined) return { ok: false, reason: 'unknown_dependency' };
+    const to: StoredTypedDependency = { id: dependencyId, projectId, ...input, type: input.type };
+    const refusal = await this.typedRefusal(projectId, rows, existing, to);
+    if (refusal !== null) return { ok: false, reason: refusal };
+    const stamp = this.clock.stampFor(actorId);
+    await this.opts.typedDependencies.update(to, stamp);
+    await this.announceTree(projectId);
+    await this.record(
+      projectId,
+      stamp,
+      'update_typed_dependency',
+      `change dependency from ${quoteName(nameOf(rows, to.predecessor.workItemId))} to ${quoteName(nameOf(rows, to.successor.workItemId))}`,
+      {
+        forward: { do: 'update_typed_dependency', from, to },
+        inverse: { do: 'update_typed_dependency', from: to, to: from },
+        touched: touchedBy({ do: 'update_typed_dependency', from, to }),
+        before: rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
+  /** Removes one typed relationship by stable identity. */
+  async removeTypedDependency(
+    projectId: string,
+    actorId: string,
+    dependencyId: string,
+  ): Promise<WorkItemOutcome<null>> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const dependency = (await this.opts.typedDependencies.listByProject(projectId)).find(
+      (row) => row.id === dependencyId,
+    );
+    if (dependency === undefined) return { ok: false, reason: 'unknown_dependency' };
+    const stamp = this.clock.stampFor(actorId);
+    await this.opts.typedDependencies.remove(dependencyId, stamp);
+    await this.announceTree(projectId);
+    await this.record(
+      projectId,
+      stamp,
+      'remove_typed_dependency',
+      `remove dependency from ${quoteName(nameOf(rows, dependency.predecessor.workItemId))} to ${quoteName(nameOf(rows, dependency.successor.workItemId))}`,
+      {
+        forward: { do: 'remove_typed_dependency', dependency },
+        inverse: { do: 'add_typed_dependency', dependency },
+        touched: touchedBy({ do: 'remove_typed_dependency', dependency }),
+        before: rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
   /**
    * Records "`predecessorId`'s anchor — its first slice in step order — must
    * finish before this starts"; the predecessor's later steps run beside it.
@@ -3743,6 +4746,18 @@ export class WorkItemService {
     // is unrepresentable rather than separately guarded.
     const refusal = canDepend(rows, existing, predecessorId, id);
     if (refusal !== null) return { ok: false, reason: refusal };
+
+    // Proof: omitting the proposed legacy edge from the combined graph made
+    // `refuses a direct legacy write that closes a typed SS cycle` receive
+    // `{ ok: true, value: null }` instead of `cycle`; watched 2026-09-28.
+    const cycle = await this.graph.findCycle(workItem.projectId, {
+      legacy: [
+        ...existing,
+        { id: 'proposed', projectId: workItem.projectId, predecessorId, successorId: id },
+      ],
+    });
+    if (cycle !== null)
+      return { ok: false, reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' };
 
     const stamp = this.clock.stampFor(actorId);
     await this.opts.dependencies.add(
@@ -3834,7 +4849,23 @@ export class WorkItemService {
    * refusing every later press of the key for a change nobody can reach.
    */
   undo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walkStack(projectId, actorId, 'undo');
+    return this.walkStack(projectId, actorId, 'undo', LEGACY_ACCESS);
+  }
+
+  /**
+   * {@link undo} through the caller's access. Under scoped access the entry is
+   * refused as `not_found` before anything is written when a row it would
+   * write exists in another project: an entry journalled before activation
+   * may name one, and the project's own closure would not show the write.
+   * The caller owns the project check and the closure check around it.
+   */
+  undoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
+    return this.walkStack(projectId, actorId, 'undo', access);
+  }
+
+  /** {@link redo} through the caller's access; see {@link undoWithin}. */
+  redoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
+    return this.walkStack(projectId, actorId, 'redo', access);
   }
 
   /**
@@ -3848,19 +4879,21 @@ export class WorkItemService {
    * command on top of a plan that has moved on is a different command.
    */
   redo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walkStack(projectId, actorId, 'redo');
+    return this.walkStack(projectId, actorId, 'redo', LEGACY_ACCESS);
   }
 
   private async walkStack(
     projectId: string,
     actorId: string,
     direction: 'undo' | 'redo',
+    access: ResourceAccess,
   ): Promise<UndoOutcome> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found', detail: null };
     // An undo is a mutation. Being allowed to read a restricted project is not
     // being allowed to reverse somebody's work in it.
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden', detail: null };
+    if (!this.opts.admission.admits(project, actorId))
+      return { ok: false, reason: 'forbidden', detail: null };
 
     // The whole stack, because applying one entry re-stamps its neighbours.
     // It is capped at fifty rows.
@@ -3874,6 +4907,18 @@ export class WorkItemService {
     const payload = readPayload(entry.payload);
     const command = direction === 'undo' ? readCommand(entry.inverse) : payload.forward;
     const preconditions = readPreconditions(entry.preconditions);
+
+    // Proof: disabling this check made `command-organization.controller.db.test.ts`
+    // answer 200 instead of 404 for `refuses an undo whose entry names another
+    // project's row`, for the nested foreign label and for the restored row of
+    // another project, and 409 `stale_undo` (discarding the entry) for a step
+    // of another project; watched 2026-09-27.
+    if (
+      access.kind === 'scoped' &&
+      (await this.namesOutside(projectId, access.scope.organizationId, referencesOf(command)))
+    ) {
+      return { ok: false, reason: 'not_found', detail: null };
+    }
 
     const moved = await this.staleness(projectId, preconditions.expected);
     if (moved !== null) {
@@ -3890,6 +4935,24 @@ export class WorkItemService {
     if (!applied.ok) {
       await this.opts.journal.discard(entry.id);
       return { ok: false, reason: 'stale_undo', detail: applied.detail, entryId: entry.id };
+    }
+    // The state the application left, asked before anything commits: the
+    // runner rolls this unit of work back on the refusal, so an undo or redo
+    // that would close a step-node cycle writes nothing.
+    // Proof: this check skipped made `refuses an undo that would close a
+    // step-node cycle` fail on `Expected: 409, Received: 200`; watched
+    // 2026-09-27.
+    // Proof: bypassing it with an SS relationship present made the same mounted
+    // undo test receive 200 instead of 409; watched 2026-09-28.
+    const cycle = await this.graph.findCycle(projectId);
+    if (cycle !== null) {
+      await this.opts.journal.discard(entry.id);
+      return {
+        ok: false,
+        reason: 'stale_undo',
+        detail: 'that would now close a dependency cycle between steps.',
+        entryId: entry.id,
+      };
     }
 
     // The entry now describes the other direction, so it checks the revisions
@@ -3966,7 +5029,18 @@ export class WorkItemService {
   private async staleness(projectId: string, expected: Revisions): Promise<string | null> {
     const rows = await this.opts.workItems.listByProject(projectId);
     const byId = new Map(rows.map((row) => [row.id, row]));
+    const stepRevisions = await this.opts.projects.stepAllowanceRevisions(projectId);
     for (const [id, revision] of Object.entries(expected)) {
+      const stepId = stepOfRevisionKey(id);
+      if (stepId !== null) {
+        const held = stepRevisions.get(stepId);
+        if (held === undefined) return 'a step this change touched has been removed since then.';
+        // Proof: with this comparison removed, `refuses an allowance undo
+        // after somebody else changed it and changed it back` failed: the undo
+        // answered ok and overwrote the peer's 30% (2026-09-27).
+        if (held !== revision) return 'that step’s allowance has changed since then.';
+        continue;
+      }
       const row = byId.get(id);
       // "since then" rather than a bare "since": these are read out at the end
       // of the caller's own sentence — `That could not be undone: “Roof it” has
@@ -3990,7 +5064,15 @@ export class WorkItemService {
    */
   private async revisionsOf(projectId: string, ids: readonly string[]): Promise<Revisions> {
     const rows = await this.opts.workItems.listByProject(projectId);
-    return revisionsIn(rows, ids);
+    const out = revisionsIn(rows, ids);
+    const stepIds = ids.flatMap((id) => stepOfRevisionKey(id) ?? []);
+    if (stepIds.length === 0) return out;
+    const stepRevisions = await this.opts.projects.stepAllowanceRevisions(projectId);
+    for (const stepId of stepIds) {
+      const revision = stepRevisions.get(stepId);
+      if (revision !== undefined) out[stepRevisionKey(stepId)] = revision;
+    }
+    return out;
   }
 
   /**
@@ -4023,6 +5105,27 @@ export class WorkItemService {
   ): Promise<ApplyOutcome> {
     switch (command.do) {
       case 'patch': {
+        // A statement goes back only onto a row that is still a leaf: one that
+        // has gained a child since is a parent, and the plan read refuses a
+        // parent holding a readiness or hold (`add-work-item-statuses`, ADR
+        // 0032). The store refuses the same write again in its own statement.
+        // Proof: this check removed made `refuses an undo that would put a
+        // hold back on a row that has since gained a child` fail — the refusal
+        // came from the store's conditional write instead, `gained children as
+        // this was written`, so this is the check that answers first; watched
+        // 2026-09-29.
+        if (
+          (command.patch.readiness !== undefined && command.patch.readiness !== null) ||
+          (command.patch.hold !== undefined && command.patch.hold !== null)
+        ) {
+          const rows = await this.opts.workItems.listByProject(projectId);
+          if (rows.some((row) => row.parentId === command.workItemId)) {
+            return {
+              ok: false,
+              detail: 'that work item has children now, so it takes no readiness or hold.',
+            };
+          }
+        }
         // Straight to the store, never through the authored `patch`: restoration
         // puts back the exact prior type set, including a type conflict.
         //
@@ -4043,11 +5146,13 @@ export class WorkItemService {
           return {
             ok: false,
             detail:
-              written.reason === 'unknown_team'
-                ? 'that service team is no longer in the directory.'
-                : written.reason === 'unknown_service'
-                  ? 'that service is no longer in the directory.'
-                  : 'the work item is no longer there.',
+              written.reason === 'has_children'
+                ? 'that work item gained children as this was written, so it takes no readiness or hold.'
+                : written.reason === 'unknown_team'
+                  ? 'that service team is no longer in the directory.'
+                  : written.reason === 'unknown_service'
+                    ? 'that service is no longer in the directory.'
+                    : 'the work item is no longer there.',
           };
         }
         return { ok: true, detail: null };
@@ -4214,6 +5319,52 @@ export class WorkItemService {
       case 'remove_dependency':
         await this.opts.dependencies.remove(command.predecessorId, command.successorId, stamp);
         return { ok: true, detail: null };
+      case 'add_typed_dependency': {
+        const existing = await this.opts.typedDependencies.listByProject(projectId);
+        // Proof: bypassing this identity check made `refuses redo when its relationship
+        // ID has been reused` receive 500 instead of 409; watched 2026-09-27.
+        if (existing.some((row) => row.id === command.dependency.id))
+          return { ok: false, detail: 'that relationship identity is already in use.' };
+        const rows = await this.opts.workItems.listByProject(projectId);
+        const refusal = await this.typedRefusal(projectId, rows, existing, command.dependency);
+        if (refusal !== null)
+          return { ok: false, detail: `that relationship would now be refused: ${refusal}.` };
+        await this.opts.typedDependencies.add(command.dependency, stamp);
+        return { ok: true, detail: null };
+      }
+      case 'remove_typed_dependency': {
+        const existing = await this.opts.typedDependencies.listByProject(projectId);
+        // Proof: bypassing this comparison made `refuses undo when the stored relationship
+        // changed outside the journal` return 200 instead of 409; watched 2026-09-27.
+        if (
+          !this.sameTypedDependency(
+            existing.find((row) => row.id === command.dependency.id),
+            command.dependency,
+          )
+        )
+          return { ok: false, detail: 'that relationship has changed since this command.' };
+        await this.opts.typedDependencies.remove(command.dependency.id, stamp);
+        return { ok: true, detail: null };
+      }
+      case 'update_typed_dependency': {
+        const existing = await this.opts.typedDependencies.listByProject(projectId);
+        // Proof: this comparison disabled made `refuses undo of an update when
+        // the stored relationship changed outside the journal` fail on
+        // `Expected: 409, Received: 200`; watched 2026-09-27.
+        if (
+          !this.sameTypedDependency(
+            existing.find((row) => row.id === command.from.id),
+            command.from,
+          )
+        )
+          return { ok: false, detail: 'that relationship has changed since this command.' };
+        const rows = await this.opts.workItems.listByProject(projectId);
+        const refusal = await this.typedRefusal(projectId, rows, existing, command.to);
+        if (refusal !== null)
+          return { ok: false, detail: `that relationship would now be refused: ${refusal}.` };
+        await this.opts.typedDependencies.update(command.to, stamp);
+        return { ok: true, detail: null };
+      }
       case 'move':
         return this.applyMove(
           projectId,
@@ -4234,6 +5385,19 @@ export class WorkItemService {
           };
         }
         await this.opts.workItems.setFrozenNumbers(command.updates, stamp);
+        return { ok: true, detail: null };
+      }
+      case 'set_step_allowance': {
+        // Unconditional here: `staleness` has already compared the step's
+        // allowance revision, inside this same unit of work.
+        const written = await this.opts.projects.setStepAllowance(
+          projectId,
+          command.stepId,
+          command.allowancePercent,
+          stamp,
+        );
+        if (!written.ok) return { ok: false, detail: 'that step is no longer in this project.' };
+        await this.opts.broadcast.publish(projectId, { type: 'step_updated', step: written.step });
         return { ok: true, detail: null };
       }
       case 'delete_subtree':
@@ -4276,6 +5440,17 @@ export class WorkItemService {
     // row somebody deleted while this entry sat on the stack.
     if (afterId !== null && !group.some((sibling) => sibling.id === afterId)) {
       return { ok: false, detail: 'the work item it sat after has been deleted since then.' };
+    }
+    if (moving.parentId !== parentId) {
+      const authored = await this.opts.typedDependencies.listByProject(projectId);
+      const invalid = findInvalidTypedShape(
+        rows.map((row) => (row.id === id ? { ...row, parentId } : row)),
+        authored,
+      );
+      // Proof: bypassing replay shape validation made mounted undo with a
+      // newer descendant-step or node relationship return 500 instead of 409.
+      if (invalid !== undefined)
+        return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
     }
     const placed = placeAfter(group, afterId);
     await this.opts.workItems.move(id, parentId, placed.position, placed.renumbered, stamp);
@@ -4333,7 +5508,29 @@ export class WorkItemService {
     if (now.size !== then.size || [...then].some((id) => !now.has(id))) {
       return { ok: false, detail: 'work has been added or removed under that row since then.' };
     }
+    const root = rows.find((row) => row.id === command.rootId);
+    if (root === undefined) throw new Error('delete root disappeared after its existence check');
+    const removed = new Set(command.remove);
+    const reparented = new Map(command.reparented.map((row) => [row.id, row]));
+    const projected = rows
+      .filter((row) => !removed.has(row.id))
+      .map((row) => {
+        const moved = reparented.get(row.id);
+        return moved === undefined ? row : { ...row, parentId: moved.parentId };
+      });
+    const authored = (await this.opts.typedDependencies.listByProject(projectId)).filter(
+      (relationship) =>
+        ![relationship.predecessor, relationship.successor].some((endpoint) =>
+          removed.has(endpoint.workItemId),
+        ),
+    );
+    const invalid = findInvalidTypedShape(projected, authored);
+    // Proof: bypassing replay shape validation made mounted redo of a deletion
+    // with a surviving descendant-step relationship return 500 instead of 409.
+    if (invalid !== undefined)
+      return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
+    await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
     await this.opts.workItems.remove(command.remove, command.reparented, stamp);
     for (const each of command.setEstimates) await this.opts.estimates.set(each, stamp);
     // The hand-up again, actuals with estimates. A re-applied delete that put
@@ -4369,6 +5566,22 @@ export class WorkItemService {
     if (root.parentId !== null && !rows.some((each) => each.id === root.parentId)) {
       return { ok: false, detail: 'the work item it sat under has been deleted since then.' };
     }
+    const reparented = new Map(command.reparented.map((row) => [row.id, row]));
+    const projectedTree = [
+      ...rows.map((row) => {
+        const moved = reparented.get(row.id);
+        return moved === undefined ? row : { ...row, parentId: moved.parentId };
+      }),
+      ...command.rows,
+    ];
+    const invalid = findInvalidTypedShape(
+      projectedTree,
+      await this.opts.typedDependencies.listByProject(projectId),
+    );
+    // Proof: disabling this projected shape check made mounted undo restore a
+    // child beneath a newer node endpoint and return 500 instead of 409.
+    if (invalid !== undefined)
+      return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
 
     // The sibling group as it will be once the reparenting has happened: the
     // rows going back under this branch leave it, and the ones the deletion
@@ -4539,6 +5752,12 @@ export class WorkItemService {
       },
       touched: [...new Set(recordings.flatMap((each) => each.recording.touched))],
       before: only.recording.before,
+      // The first step to write each step is the one whose before-state the
+      // batch started from, so later steps never overwrite it.
+      stepsBefore: recordings.reduceRight<Revisions>(
+        (later, each) => ({ ...later, ...each.recording.stepsBefore }),
+        {},
+      ),
     });
   }
 
@@ -4587,7 +5806,7 @@ export class WorkItemService {
           // list the mutation's own guard produced. Nothing is checked against
           // it — it is what tells a later undo whether the entry beneath this
           // one is still describing an unbroken chain. See `Preconditions`.
-          from: revisionsIn(recording.before, recording.touched),
+          from: { ...revisionsIn(recording.before, recording.touched), ...recording.stepsBefore },
         },
         createdAt: stamp.at,
       },
@@ -4776,9 +5995,431 @@ export class WorkItemService {
     if (workItem === null) return { ok: false, reason: 'not_found' };
     const project = await this.opts.projects.findById(workItem.projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
     const rows = await this.opts.workItems.listByProject(workItem.projectId);
     return { ok: true, value: { workItem, project, rows } };
   }
 }
 export type { NumberedWorkItem } from '../../service/numbered-work-item';
+
+interface TreeReads {
+  project: Project;
+  rows: LabelledWorkItem[];
+  stored: readonly StoredEstimate[];
+  recorded: readonly StoredActual[];
+  stated: readonly StoredProgress[];
+  measured: readonly StoredMeasure[];
+  edges: readonly Pick<StoredDependency, 'predecessorId' | 'successorId'>[];
+  authored: readonly TypedDependency[];
+  assigned: readonly Assignment[];
+  assignedPeople: { id: string; name: string }[];
+  seq: number;
+  steps: Step[];
+  slotsOf: ReadonlyMap<string, number>;
+  priorityBands: PriorityBand[];
+}
+
+/** Projects detached shared rows and captured schedules without reading stores or admitting work. */
+function projectSharedTree(
+  captured: Extract<LivePlanRead, { readonly kind: 'shared' }>,
+): PlanTree | EngineUnavailable;
+function projectSharedTree(
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'access_refused' }>,
+): PlanTree | EngineUnavailable | null;
+function projectSharedTree(
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' }>,
+): PlanTree | EngineUnavailable | AccessRefused | null;
+function projectSharedTree(
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' }>,
+): PlanTree | EngineUnavailable | AccessRefused | null {
+  if (captured.kind === 'access_refused') return captured;
+  if (captured.kind === 'not_found') return null;
+  const { chain, project, workItems: rows, steps, seq } = captured;
+  if (chain.kind === 'engine_unavailable') return chain;
+  const reads = chain.reads;
+  const people = new Set(reads.assignments.map((assignment) => assignment.personId));
+  return projectTree(
+    {
+      project,
+      rows,
+      steps,
+      seq,
+      stored: reads.estimates,
+      recorded: reads.actuals,
+      stated: reads.progress,
+      measured: reads.measures,
+      edges: reads.dependencies,
+      authored: reads.typedDependencies,
+      assigned: reads.assignments,
+      assignedPeople: reads.people
+        .filter((person) => people.has(person.id))
+        .map(({ id, name }) => ({ id, name })),
+      slotsOf: reads.capacity,
+      priorityBands: [...reads.priorityBands],
+    },
+    chain.kind === 'scheduled' ? chain.scheduled : { kind: 'unavailable', reason: chain.reason },
+  );
+}
+
+/** Pure live projection shared by isolated reads and coherent shared observations. */
+type TreeSchedule =
+  ScheduleRead | { readonly kind: 'unavailable'; readonly reason: Exclude<ScheduleError, null> };
+
+function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | EngineUnavailable {
+  const {
+    project,
+    rows,
+    stored,
+    recorded,
+    stated,
+    measured,
+    edges,
+    authored,
+    assigned,
+    assignedPeople,
+    seq,
+    steps,
+    slotsOf,
+    priorityBands,
+  } = reads;
+  const numbers = deriveNumbers(rows);
+  const totals = rollUp(rows, stored);
+  const recordedTotals = rollUpActuals(rows, recorded);
+  // Three folds over a tree already in memory, one per metric, because adding
+  // a token to an hour is the thing `rollUpMeasures` exists to make
+  // impossible. Built as a map of metric to the whole fold rather than as a
+  // per-row object here, so the recursion runs once per metric for the project
+  // instead of once per metric per row.
+  const measuredTotals = new Map(
+    MEASURE_METRICS.map((metric) => [metric, rollUpMeasures(rows, measured, metric)] as const),
+  );
+  // Which steps have work on each leaf: the ones with an estimate, the ones
+  // with a recorded day, and the ones somebody has already spoken about.
+  //
+  // This set is what makes `done` mean anything. A leaf where Dev says done
+  // and QA holds an estimate nobody has spoken about is **in progress**, not
+  // finished — and the only way the fold can know QA exists on that row is for
+  // the estimate to put it here. See `rollUpProgress`.
+  const statedTotals = rollUpProgress(rows, stated, workedStepsOf(stored, recorded, stated));
+  // The row's own reading, folded over its **children** rather than over its
+  // rolled-up steps — see `rollUpWorkItemStatuses` for why the two differ and which
+  // one is true.
+  // A legacy edge naming a work item from another project is stored state
+  // the schema does not prevent and the read already hides (`dependsOn`
+  // below); it cannot hold a leaf of this plan back, so the status fold is
+  // handed only edges between rows it holds. Typed dependencies are checked
+  // against the project when written, so a stray one there throws.
+  const rowIds = new Set(rows.map((row) => row.id));
+  const itemStatuses = workItemStatusesOf(rows, rollUpWorkItemStatuses(rows, statedTotals), {
+    edges: edges.filter((edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId)),
+    typed: authored,
+  });
+  // The write path refuses an edge that would close a cycle, but two clients
+  // drawing conflicting edges at the same instant are each checked against the
+  // graph as they read it. If one ever lands, every read of this project must
+  // still work: the rows are there, and a plan nobody can open is worse than
+  // one with no dates in it. The dates go, the rows stay, and the reason is
+  // reported rather than left as a page of zeroes.
+  // Step order comes from the project, because the order the steps are read
+  // in is the order the work runs in — see `ProjectRepository.stepsOf`.
+
+  // How many slots this project may take of each team, read here rather than
+  // inside `slicesOf` so the adapter stays a pure function of what it is
+  // handed.
+  //
+  // `slotsOf` in name and in shape, and the seam C1 built is now doing the job
+  // it was built for. C1's own comment here predicted "one additive table and a
+  // first lookup, with this as the fallback"; `capacity-per-project` (Dany,
+  // 2026-08-13) kept the first half and refused the second, so this is the one
+  // lookup and there is **no fallback to `serviceTeam.size`** — a team this
+  // project has stated nothing about is absent from the map, and an absent key
+  // is unconstrained.
+  //
+  // Keyed on the team alone, not on the (project, team) pair: this is called
+  // once per project, so a project component inside the map would be constant
+  // for the whole call and every engine test would have to spell it. The pair
+  // is the key in the **store**. design.md D3.
+
+  // The ladder, read here and handed straight to the payload. It is passed to
+  // nothing — not `slicesOf`, not `schedule` — and that is the change's whole
+  // claim about itself: `git diff` on this file shows one read and one field.
+
+  const canonical = canonicalScheduleParts(
+    project,
+    rows,
+    stored,
+    edges,
+    authored,
+    assigned,
+    steps,
+    slotsOf,
+  );
+  const { assigneesOf, hasChildren, rule } = canonical;
+  const scheduledIds = new Set(canonical.input.rows.map((row) => row.id));
+  // What each row is **charged**, per step: a leaf's own estimate uplifted by
+  // its step's allowance and rounded, a parent's the sum of its descendants'
+  // charged figures. Not `totals` put through the method — see `rollUpFinals`.
+  const charged = rollUpFinals(
+    rows,
+    stored,
+    rule,
+    new Map(steps.map((step) => [step.id, step.allowancePercent])),
+  );
+  let optimization: PlanOptimization | undefined;
+  let timing = new Map<string, Scheduled>();
+  let scheduleError: ScheduleError = scheduling.kind === 'unavailable' ? scheduling.reason : null;
+  /**
+   * How many work items are waiting for a person rather than for the plan.
+   *
+   * Zero when there is no schedule at all, which is honest rather than
+   * convenient: a plan that could not be computed has nobody queueing in it,
+   * and the banner about the cycle is what that reader needs.
+   */
+  let waitingForPerson = 0;
+  /**
+   * How many work items are waiting for a slot of their team rather than for
+   * the plan. Zero with no schedule, for {@link waitingForPerson}'s reason.
+   */
+  let waitingForCapacity = 0;
+  let waitingElsewhere: number | undefined;
+  /**
+   * The engine's own output, kept: a plan that could not be scheduled leaves
+   * this empty and the rows keep their {@link UNSCHEDULED} spans.
+   */
+  let scheduledSlices: IdentifiedSlice[] = [];
+  try {
+    if (scheduling.kind !== 'unavailable') {
+      const scheduleRead = scheduling;
+      // The projection **and** the slices: a row's column shows its own span,
+      // and a chart draws the slices the span is a projection of.
+      // The reach comes off the project being scheduled, read beside the ladder
+      // and the capacity above and handed straight to the engine. It is
+      // deliberately **not** a request parameter: the schedule is the server's
+      // answer, and a client-supplied scheduling rule is a rule two clients can
+      // disagree about while looking at the same plan.
+      //
+      // Read from `project`, which is this call's own row, so two projects on
+      // different reaches in one process each get their own.
+      //
+      // Proof: `project.depReach` replaced by a module-level `let heldReach`
+      // memoised on the first plan read — the read hoisted out of the run — and
+      // `each project is scheduled by its own reach` failed on `Expected: 5 /
+      // Received: 3` for the second project's successor; watched 2026-08-29.
+      if (scheduleRead.kind === 'engine_unavailable') return scheduleRead;
+      const fast = scheduleRead.fast;
+      const optimizationRead = scheduleRead.optimization;
+      let optimized: Schedule | null = null;
+      if (
+        optimizationRead !== null &&
+        project.optimizationEnabled &&
+        project.scheduleEngine === 'optimized' &&
+        optimizationRead.variants[project.scheduleObjective].state === 'ready'
+      ) {
+        const selected = optimizationRead.schedules[project.scheduleObjective];
+        if (selected === null) {
+          throw new Error('optimized plan reader reported ready without a schedule');
+        }
+        optimized = selected;
+      }
+      const planned = optimized ?? fast;
+      // `selectedSchedule` states the same rule this block applies, and is what
+      // `arrangeBySchedule` asks so a press can never arrange by a schedule the
+      // chart is not drawing. Kept as an assertion rather than replacing the
+      // lines above: this read builds `optimized` on its way to `displayed` and
+      // the optimization payload, and rewriting it to call the helper would
+      // move four more decisions for no gain.
+      const selected = selectedSchedule(project, fast, optimizationRead);
+      if (selected.schedule !== planned) {
+        throw new Error('the plan read and `selectedSchedule` disagree about the drawn schedule');
+      }
+      if (optimizationRead !== null) {
+        const displayed = optimized === null ? 'fast' : project.scheduleObjective;
+        optimization = {
+          enabled: project.optimizationEnabled,
+          engine: project.scheduleEngine,
+          objective: project.scheduleObjective,
+          inputHash: optimizationRead.inputHash,
+          generation: optimizationRead.generation,
+          contractVersion: optimizationRead.contractVersion,
+          budgetMs: optimizationRead.budgetMs,
+          displayed,
+          variants: optimizationRead.variants,
+          // Unconditional, and that is the change: the figures used to be
+          // computed only for the variant on screen, so a project sitting on
+          // Fast — the state a project spends its first solve in, and the state
+          // the toggle leaves it in — had nothing to compare and the indicator
+          // drew nothing at all.
+          ...comparedWithFast(fast, optimizationRead),
+        };
+      }
+      // Scheduling uses dimensionless workday offsets and may remain valid
+      // beyond the finite calendar ECMAScript can represent. Name that state
+      // before any row calls `datesOf`, which would otherwise surface a 500.
+      // Proof: remove this preflight and the mounted controller case
+      // `models a plan beyond the calendar range without partial dates` fails
+      // on the unhandled invalid-Date projection.
+      if (project.startDate !== null) {
+        let projectFinish = 0;
+        for (const placed of planned.workItems.values()) {
+          if (placed.earliestFinish > projectFinish) projectFinish = placed.earliestFinish;
+        }
+        addWorkdays(project.startDate, lastWorkdayOf(0, projectFinish));
+      }
+      timing = planned.workItems;
+      waitingForPerson = planned.waitingForPerson;
+      waitingForCapacity = planned.waitingForCapacity;
+      // Proof: omitting this projection fails mounted shared tree/export waiting count.
+      waitingElsewhere = planned.waitingElsewhere;
+      // Spread rather than rebuilt field by field, and never put through any
+      // arithmetic: the engine's numbers are the answer, and this is the layer
+      // that would otherwise quietly round them.
+      //
+      // Proof: `({ id, ...placed })` mapped through `Math.round` on every
+      // number and `reports the engine's fractional numbers verbatim` failed —
+      // a slice of 3.6666666666666665 days came back as 4, a whole day of bar
+      // against the same plan's Start column; watched 2026-08-09.
+      //
+      // Proof: `resourcePredecessorId` left out of the entry — the spread
+      // replaced by the other twelve fields written out — and `names the slice
+      // the person was finishing, under the engine's own id` failed on
+      // `undefined`; the hand-off a person link is drawn from would have been
+      // absent from the payload with nothing to say it ever existed; watched
+      // 2026-08-09.
+      scheduledSlices = [...planned.slices].map(([id, placed]) => ({ id, ...placed }));
+    }
+  } catch (err) {
+    // Only the modeled failure. An unqualified catch here turned every
+    // exception in this block — a stack overflow on a pathological tree, a
+    // future mistake in `slicesOf` — into "your dependencies run in a
+    // circle", which is a lie told confidently. R5: unknown is not OK.
+    if (err instanceof ScheduleCycleError) scheduleError = 'cycle';
+    else if (err instanceof CalendarRangeError) scheduleError = 'calendar_range';
+    else throw err;
+  }
+  const waitingFor = new Map<string, string[]>();
+  for (const found of edges) {
+    waitingFor.set(found.successorId, [
+      ...(waitingFor.get(found.successorId) ?? []),
+      found.predecessorId,
+    ]);
+  }
+  // The project's own ids, once. `dependsOn` below filters every row's stored
+  // predecessors down to the ones on this plan, and it did that with
+  // `rows.some(...)` **inside** the map over `rows` — O(rows × edges × rows),
+  // on the read every write and every socket frame performs.
+  const idsOnThisPlan = new Set(rows.map((row) => row.id));
+  const workItems = rows
+    .map((row) => ({
+      ...row,
+      number: numbers.get(row.id) ?? '',
+      estimates: Object.fromEntries(totals.get(row.id) ?? []),
+      // The days recorded against this row: its own if it is a leaf, the sum
+      // of its descendants' if it is not — the same fold, one table over.
+      //
+      // A step nobody has recorded days for is **absent from this object**,
+      // and an empty object means nobody has recorded anything on this row.
+      // Neither is a zero, and a face that renders a missing key as `0` is
+      // saying somebody stated the work took no time. See `actual` in
+      // `schema.ts`.
+      actuals: Object.fromEntries(recordedTotals.get(row.id) ?? []),
+      // The figures that are not days, metric first. A metric with no steps
+      // under this row is **struck from the object** rather than carried as
+      // `{}`, which is the same absence rule one level up: an empty object
+      // would say somebody looked at that unit on this row.
+      measures: Object.fromEntries(
+        [...measuredTotals]
+          .map(([metric, byItem]) => [metric, byItem.get(row.id) ?? new Map()] as const)
+          .filter(([, byStep]) => byStep.size > 0)
+          .map(([metric, byStep]) => [metric, Object.fromEntries(byStep)]),
+      ),
+      // Where each step's work on this row has got to: its own if it is a
+      // leaf, `agree` across its descendants' if it is not.
+      //
+      // **A step reading `unknown` is absent from this object**, exactly
+      // as an unestimated step is absent from `estimates` — the absence of a
+      // statement is how "nobody has said" is spelled everywhere in this tool,
+      // including on the wire. So an empty object means nobody has said
+      // anything about this row, and a step that is not a key has not been
+      // spoken about.
+      progress: Object.fromEntries(
+        [...(statedTotals.get(row.id) ?? [])].filter(
+          (entry): entry is [string, StepState] => entry[1] !== UNKNOWN,
+        ),
+      ),
+      // The row's own reading, **derived and never stored**: a leaf's from
+      // its steps' progress, its hold, its readiness and its predecessors, a
+      // parent's from its children — `workItemStatusesOf`.
+      status: statusOfRow(itemStatuses, row.id),
+      // A parent's charged days are the **sum of its descendants' rounded
+      // figures**, not its rolled-up triple put through the method once. The
+      // two agreed while days were fractional and part company the moment a
+      // step is rounded: two children holding half a day each are charged one
+      // day apiece, and a parent computed from the triples would say one day
+      // for the pair. `rollUpFinals` holds that decision and its proof.
+      ...finalsOf(charged.get(row.id) ?? new Map()),
+      rolledUp: hasChildren.has(row.id),
+      // Only predecessors that are in this project. A stored edge naming a
+      // work item from elsewhere — which the schema does not prevent — would
+      // otherwise be reported as a dependency on a number nobody can see.
+      dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => idsOnThisPlan.has(id)),
+      ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
+      // A row the hold reduction took out has no schedule and no dates: it
+      // takes no part in the plan, and a placeholder span would draw it.
+      // Proof: the placeholder kept here made `lets a successor start at day
+      // zero…` fail on a zero-length schedule where `null` was owed; watched
+      // 2026-09-29.
+      schedule: scheduledIds.has(row.id) ? (timing.get(row.id) ?? UNSCHEDULED) : null,
+      dates: scheduledIds.has(row.id)
+        ? datesOf(project.startDate, timing.get(row.id) ?? UNSCHEDULED, scheduleError !== null)
+        : null,
+    }))
+    // **Tree order, not the number string** (ADR 0023). The two agreed for as
+    // long as a frozen work item could not move — `deriveNumbers` built
+    // labels so a byte-wise sort equalled this walk — and a frozen number is
+    // a name now, so a row frozen `030` and dragged to the top is drawn at
+    // the top. Sorting by the label would draw it third, where its old name
+    // says it used to be.
+    .sort(byTreeOrder(treeOrder(rows)));
+  return {
+    workItems,
+    typedDependencies: authored.map(({ id, predecessor, successor, type }) => ({
+      id,
+      predecessor:
+        predecessor.scope === 'node'
+          ? { ...predecessor, stepNodeId: formatStepNodeId(predecessor) }
+          : predecessor,
+      successor:
+        successor.scope === 'node'
+          ? { ...successor, stepNodeId: formatStepNodeId(successor) }
+          : successor,
+      type,
+    })),
+    seq,
+    scheduleError,
+    waitingForPerson,
+    waitingForCapacity,
+    ...(waitingElsewhere === undefined ? {} : { waitingElsewhere }),
+    slices: scheduledSlices,
+    // The very array `slicesOf` was handed the ids of, so a slice's `stepId`
+    // is a step this list has and its place in the list is the order the
+    // engine placed the bars in. Neither is true of a step list fetched
+    // separately.
+    steps,
+    assignedPeople,
+    // Built from `slotsOf` rather than read a second time, so the numbers a
+    // client renders and the numbers these dates came out of cannot be answers
+    // to two different questions. Team-id order, as `listFor` gives, so the
+    // array does not reshuffle between two reads of an unchanged plan.
+    teamCapacities: [...slotsOf]
+      .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
+      .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
+    priorityBands,
+    estimateMethod: project.estimateMethod,
+    pertWeights: project.pertWeights,
+    estimateRounding: project.estimateRounding,
+    depReach: project.depReach,
+    startDate: project.startDate,
+    projectRevision: project.revision,
+    ...(optimization === undefined ? {} : { optimization }),
+  };
+}

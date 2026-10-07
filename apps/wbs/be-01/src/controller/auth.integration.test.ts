@@ -1,21 +1,35 @@
+import { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { describe, expect, it } from 'bun:test';
 import { jwtVerify, SignJWT } from 'jose';
 
 import { buildApp } from '../app';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { AuthService } from '../service/auth.service';
-import { LoginThrottle } from '../service/login-throttle';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingJoinRequests,
+  refusingTestEmailDelivery,
+} from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { refusingOnboarding } from '../testing/onboarding-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingDomains,
+  refusingMemberships,
+} from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { testProjectService } from '../testing/project-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
+import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
@@ -25,6 +39,16 @@ const TEST_SECRET = 'x'.repeat(32);
 
 function app(auth = testAuthService(), maxConcurrentLogins?: number) {
   return buildApp({
+    organizations: legacyOrganizationAccess,
+    memberships: refusingMemberships,
+    domains: refusingDomains,
+    emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
+    spaces: refusingSpaces,
+    projectRanks: refusingProjectRanks,
+    emailDelivery: refusingTestEmailDelivery,
+    onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(maxConcurrentLogins),
     appOrigin: 'http://localhost',
     clock: testClock,
@@ -139,6 +163,16 @@ describe('GET /api/auth/me', () => {
       },
     });
     const res = await buildApp({
+      organizations: legacyOrganizationAccess,
+      memberships: refusingMemberships,
+      domains: refusingDomains,
+      emailVerification: refusingEmailVerification,
+      invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
+      spaces: refusingSpaces,
+      projectRanks: refusingProjectRanks,
+      emailDelivery: refusingTestEmailDelivery,
+      onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
       appOrigin: 'http://localhost',
       clock: testClock,

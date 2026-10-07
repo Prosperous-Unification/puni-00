@@ -1,9 +1,16 @@
-import type { PlanDocumentRequest } from '@wbs/contracts';
+import type { PlanDocumentImport } from '@wbs/contracts';
 import {
+  type AllowancePercent,
+  allowancePercentOf,
+  findTypedEndpointDefect,
+  formatTypedDependencyKey,
+  type Hold,
   isHexTriple,
   isIsoDate,
   isMarkerName,
   isOrphanedNotBeforeReason,
+  isReservedStepCode,
+  isStepCode,
   isStepState,
   LONGEST_NOT_BEFORE_REASON,
   MEASURE_METRICS,
@@ -11,24 +18,27 @@ import {
   MOST_PEOPLE_AT_ONCE,
   PertWeights,
   priorityLadderProblem,
+  type Readiness,
   type StepState,
   suggestStepCodes,
   type ThreePointEstimate as Estimate,
   ThreePointEstimate,
+  type TypedDependency,
   validateCustomColor,
 } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
-import type { StoredDependency } from '../../ports/dependency-store';
+import type { StoredDependency } from '../../ports/dependency-values';
 import type { Scheduler } from '../../ports/scheduler';
-import type { WorkItem } from '../../ports/work-item-store';
+import type { WorkItem } from '../../ports/work-item-values';
 import { cleanName } from '../../service/clean-name';
 import { MOST_CHARACTERS_IN_A_REF_NAME } from '../../service/command-normalizers';
 import { canDepend } from '../../service/dependency';
+import { findDependencyGraphCycle } from '../../service/dependency-graph';
 
-type DocumentRow = PlanDocumentRequest['workItems'][number];
-type DocumentStep = PlanDocumentRequest['steps'][number];
-type DocumentDirectory = PlanDocumentRequest['directory'];
+type DocumentRow = PlanDocumentImport['workItems'][number];
+type DocumentStep = PlanDocumentImport['steps'][number];
+type DocumentDirectory = PlanDocumentImport['directory'];
 
 export interface PreparedCapacity {
   teamFileId: string;
@@ -46,10 +56,11 @@ export interface PreparedStep {
   fileId: string;
   name: string;
   position: number;
+  allowancePercent: AllowancePercent;
   /**
-   * The step code the imported step is written with. A version 1 document
-   * carries none, so each is suggested from the name exactly as for a newly
-   * created step, in step order.
+   * The step code the imported step is written with: the file's own from
+   * version 3. A version 1 or 2 document carries none, so each is suggested
+   * from the name exactly as for a newly created step, in step order.
    */
   code: string;
 }
@@ -110,6 +121,8 @@ export interface PreparedWorkItem {
   deadline: string | null;
   factStart: string | null;
   factEnd: string | null;
+  readiness: Readiness | null;
+  hold: Hold | null;
   priority: number | null;
   serviceTeamFileId: string | null;
   serviceFileId: string | null;
@@ -133,13 +146,14 @@ export interface PreparedDependency {
 }
 
 export interface PreparedImport {
-  settings: PlanDocumentRequest['settings'];
+  settings: PlanDocumentImport['settings'];
   capacity: PreparedCapacity[];
-  priorityBands: PlanDocumentRequest['priorityBands'];
+  priorityBands: PlanDocumentImport['priorityBands'];
   calendarMarkers: PreparedMarker[];
   steps: PreparedStep[];
   workItems: PreparedWorkItem[];
   dependencies: PreparedDependency[];
+  typedDependencies: TypedDependency[];
   stepByFileId: ReadonlyMap<string, PreparedStep>;
   teamByFileId: ReadonlyMap<string, PreparedTeam>;
   personByFileId: ReadonlyMap<string, PreparedPerson>;
@@ -151,6 +165,7 @@ export interface PreparedImport {
 
 export type ImportRefusalCode =
   | 'invalid_body'
+  | 'invalid_typed_dependency'
   | 'unknown_ref'
   | 'cycle'
   | 'ancestor'
@@ -302,6 +317,8 @@ function rowShape(row: DocumentRow): WorkItem {
     deadline: row.deadline,
     factStart: row.factStart,
     factEnd: row.factEnd,
+    readiness: row.readiness,
+    hold: row.hold,
     priority: row.priority,
     serviceTeamId: row.serviceTeamId,
     serviceId: row.serviceId,
@@ -328,6 +345,8 @@ function preparedRow(
     deadline: row.deadline,
     factStart: row.factStart,
     factEnd: row.factEnd,
+    readiness: row.readiness,
+    hold: row.hold,
     priority: row.priority,
     serviceTeamFileId: row.serviceTeamId,
     serviceFileId: row.serviceId,
@@ -469,7 +488,7 @@ function multiTypeRowsRefusal(
 /**
  * Validates and resolves one archival document completely before source admission.
  *
- * The input has already crossed {@link PlanDocumentRequest}'s structural boundary,
+ * The input has already crossed {@link PlanDocumentImport}'s structural boundary,
  * but leaf step maps remain opaque there so derived parent aggregates can be
  * discarded without interpretation. This pass derives leafhood from `parentId`,
  * validates only leaf maps, checks hierarchy and dependencies against the complete
@@ -480,7 +499,7 @@ function multiTypeRowsRefusal(
  * plan retains an optimized preference so a later deployment can enable it.
  */
 export function prepareImport(
-  supplied: PlanDocumentRequest,
+  supplied: PlanDocumentImport,
   scheduler: Pick<Scheduler, 'supports'>,
 ): ImportPreparation {
   const document = structuredClone(supplied);
@@ -612,6 +631,7 @@ export function prepareImport(
   const steps = indexById(document.steps, 'steps');
   if (isRefusal(steps)) return steps;
   const stepPositions = new Set<number>();
+  const stepCodes = new Set<string>();
   for (let at = 0; at < document.steps.length; at += 1) {
     const step = document.steps.at(at);
     if (step === undefined) throw new Error('steps changed length during preparation');
@@ -619,6 +639,30 @@ export function prepareImport(
     if (!Number.isSafeInteger(step.position) || stepPositions.has(step.position))
       return refuses('invalid_body', `steps[${String(at)}].position`, String(step.position));
     stepPositions.add(step.position);
+    // Proof: with this guard bypassed, `refuses a step allowance over 1000%,
+    // and carries a valid one to the prepared step` prepared 1000.01% instead
+    // of refusing it (2026-09-27).
+    if (allowancePercentOf(step.allowancePercent) === null)
+      return refuses(
+        'invalid_body',
+        `steps[${String(at)}].allowancePercent`,
+        String(step.allowancePercent),
+      );
+    if (step.code === null) continue;
+    // Proof: with this guard bypassed, `refuses a version-3 step code that is
+    // malformed, reserved or a duplicate` prepared `QA` instead of refusing it
+    // (2026-09-27).
+    if (!isStepCode(step.code))
+      return refuses('invalid_body', `steps[${String(at)}].code`, step.code);
+    // Proof: with this guard bypassed, the same test prepared the reserved
+    // `s1-qa` instead of refusing it (2026-09-27).
+    if (isReservedStepCode(step.code))
+      return refuses('invalid_body', `steps[${String(at)}].code`, step.code);
+    // Proof: with this guard bypassed, the same test prepared a second step
+    // coded `impl` instead of refusing it (2026-09-27).
+    if (stepCodes.has(step.code))
+      return refuses('invalid_body', `steps[${String(at)}].code`, step.code);
+    stepCodes.add(step.code);
   }
   const rows = indexById(document.workItems, 'workItems');
   if (isRefusal(rows)) return rows;
@@ -729,19 +773,89 @@ export function prepareImport(
       successorFileId: row.id,
     })),
   );
+  const typedDependencies: TypedDependency[] = [];
+  const relationshipKeys = new Set<string>();
+  const leafByFileId = new Map(preparedRows.map(({ fileId, isLeaf }) => [fileId, isLeaf]));
   const inStepOrder = [...document.steps].sort(
     (left, right) =>
       left.position - right.position || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
   );
+  for (const [at, relationship] of document.typedDependencies.entries()) {
+    const prefix = `typedDependencies[${String(at)}]`;
+    const endpointOf = (endpoint: typeof relationship.predecessor) =>
+      endpoint.scope === 'whole'
+        ? { scope: 'whole' as const, workItemId: endpoint.workItem }
+        : { scope: endpoint.scope, workItemId: endpoint.workItem, stepId: endpoint.step };
+    const typed: TypedDependency = {
+      id: relationship.id,
+      predecessor: endpointOf(relationship.predecessor),
+      successor: endpointOf(relationship.successor),
+      type: relationship.type,
+    };
+    for (const side of ['predecessor', 'successor'] as const) {
+      const defect = findTypedEndpointDefect(typed[side], {
+        isLeaf: (workItemId) => leafByFileId.get(workItemId),
+        hasStep: (stepId) => steps.byId.has(stepId),
+      });
+      // Proof (2026-09-28): forcing hasStep true made the memory source's
+      // missing-step transfer test throw from graph resolution instead of
+      // returning invalid_typed_dependency before admission.
+      if (defect !== null)
+        return refuses(
+          'invalid_typed_dependency',
+          `${prefix}.${side}.${defect === 'unknown_step' ? 'step' : 'workItem'}`,
+          defect,
+        );
+    }
+    const key = formatTypedDependencyKey(typed);
+    // Proof (2026-09-28): bypassing this check made the memory source's
+    // duplicate-relationship import throw from its store instead of refusing.
+    if (relationshipKeys.has(key)) return refuses('invalid_typed_dependency', prefix, 'duplicate');
+    relationshipKeys.add(key);
+    typedDependencies.push(typed);
+  }
+  if (typedDependencies.length > 0) {
+    const cycle = findDependencyGraphCycle({
+      rows: document.workItems.map(rowShape),
+      // Proof (2026-09-28): restoring file-array order made the shuffled-step
+      // position-order cycle test import a project instead of refusing it.
+      steps: inStepOrder.map(({ id, allowancePercent }) => {
+        const checked = allowancePercentOf(allowancePercent);
+        if (checked === null) throw new Error(`validated allowance disappeared for step ${id}`);
+        return { id, allowancePercent: checked };
+      }),
+      estimates: preparedRows.flatMap(({ fileId, estimates }) =>
+        estimates.map(({ stepFileId }) => ({ workItemId: fileId, stepId: stepFileId })),
+      ),
+      legacy: dependencies.map(({ predecessorFileId, successorFileId }, at) => ({
+        id: `file-edge-${String(at)}`,
+        projectId: 'file',
+        predecessorId: predecessorFileId,
+        successorId: successorFileId,
+      })),
+      typed: typedDependencies,
+      reach: document.settings.depReach,
+    });
+    // Proof (2026-09-28): bypassing this refusal made the memory source admit
+    // a combined legacy/typed cycle and create a project (ok: true).
+    if (cycle !== null) return refuses('invalid_typed_dependency', 'typedDependencies', cycle.kind);
+  }
+  // A file of an earlier version codes none of its steps and one of version 3
+  // codes all of them (`classifyPlanDocument`); suggesting around the file's
+  // own codes keeps the two apart without assuming which.
+  const uncoded = inStepOrder.filter(({ code }) => code === null);
   const suggested = suggestStepCodes(
-    inStepOrder.map(({ name }) => name),
-    new Set(),
+    uncoded.map(({ name }) => name),
+    stepCodes,
   );
-  const codeByFileId = new Map(inStepOrder.map(({ id }, at) => [id, suggested[at]] as const));
-  const preparedSteps = document.steps.map(({ id, name, position }) => {
+  const codeByFileId = new Map<string, string | undefined>([
+    ...inStepOrder.flatMap(({ id, code }) => (code === null ? [] : [[id, code] as const])),
+    ...uncoded.map(({ id }, at) => [id, suggested[at]] as const),
+  ]);
+  const preparedSteps = document.steps.map(({ id, name, position, allowancePercent }) => {
     const code = codeByFileId.get(id);
     if (code === undefined) throw new Error(`step ${id} was not coded during preparation`);
-    return { fileId: id, name, position, code };
+    return { fileId: id, name, position, allowancePercent, code };
   });
   const stepByFileId = new Map(preparedSteps.map((step) => [step.fileId, step] as const));
   const preparedTeams = document.directory.teams.map(({ id, name, serviceIds }) => ({
@@ -772,6 +886,7 @@ export function prepareImport(
       steps: preparedSteps,
       workItems: preparedRows,
       dependencies,
+      typedDependencies,
       stepByFileId,
       teamByFileId,
       personByFileId,

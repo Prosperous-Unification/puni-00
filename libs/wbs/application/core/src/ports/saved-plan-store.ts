@@ -5,6 +5,7 @@ import type {
   SavedPlanTouchOutcome,
   SavedPlanWrite,
   SavedPlanWriteOutcome,
+  ScopedSavedPlanWrite,
   StoredSavedPlan,
 } from './saved-plan-values';
 export type {
@@ -16,6 +17,7 @@ export type {
   SavedPlanTouchOutcome,
   SavedPlanWrite,
   SavedPlanWriteOutcome,
+  ScopedSavedPlanWrite,
   StoredSavedPlan,
 } from './saved-plan-values';
 
@@ -27,10 +29,15 @@ export interface SavedPlanStore {
   write<Refusal>(
     plan: SavedPlanWrite,
     check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
+    scoped?: ScopedSavedPlanWrite,
   ): Promise<SavedPlanWriteOutcome<Refusal>>;
   readOf(savedPlanId: string): Promise<StoredSavedPlan | null>;
   listOf(projectId: string): Promise<readonly SavedPlanRow[]>;
   principalsOf(savedPlanId: string): Promise<SavedPlanPrincipals | null>;
-  renameTo(savedPlanId: string, name: string): Promise<SavedPlanTouchOutcome>;
-  deleteOf(savedPlanId: string): Promise<SavedPlanTouchOutcome>;
+  renameTo(
+    savedPlanId: string,
+    name: string,
+    scoped?: ScopedSavedPlanWrite,
+  ): Promise<SavedPlanTouchOutcome>;
+  deleteOf(savedPlanId: string, scoped?: ScopedSavedPlanWrite): Promise<SavedPlanTouchOutcome>;
 }

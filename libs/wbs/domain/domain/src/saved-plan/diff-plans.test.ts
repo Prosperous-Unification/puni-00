@@ -241,6 +241,8 @@ describe('diffPlans — 7.2, the presentation categories', () => {
       ['freeze', 'workItems[0].frozenNumber'],
       ['service-assignment', 'workItems[0].serviceTeamId'],
       ['start-no-earlier-than', 'workItems[0].startNoEarlierThan'],
+      ['progress', 'workItems[0].readiness'],
+      ['progress', 'workItems[0].hold'],
       ['uncertainty', 'stepValues[0].optimistic'],
       ['estimates', 'stepValues[0].derived'],
       ['actuals', 'stepValues[0].actual'],
@@ -271,6 +273,25 @@ describe('diffPlans — 7.2, the presentation categories', () => {
     );
     expect(
       diffPlans(side(), side(noAssignments)).input.every((d) => d.category === 'ownership'),
+    ).toBe(true);
+  });
+
+  it('reports a typed endpoint edit under dependencies by relationship id', () => {
+    const changed = canonicalisePlanInput({
+      ...planFixtureRows,
+      typedDependencies: planFixtureRows.typedDependencies.map((row) =>
+        row.id === 'typed-1'
+          ? { ...row, successor: { scope: 'node' as const, workItemId: 'w2', stepId: 's2' } }
+          : row,
+      ),
+    });
+    const differences = diffPlans(side(), side(changed)).input;
+    expect(
+      differences.some(
+        (difference) =>
+          difference.category === 'dependencies' &&
+          difference.path === 'typedDependencies[typed-1].successor',
+      ),
     ).toBe(true);
   });
 

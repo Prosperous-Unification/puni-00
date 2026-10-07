@@ -1,6 +1,7 @@
 import type { ActualStore } from './actual-store';
 import type { CalendarMarkerStore } from './calendar-marker-store';
 import type { CapacityStore } from './capacity-store';
+import type { LivePlanStore } from './chain-snapshot-store';
 import type { CommandJournalStore } from './command-journal-store';
 import type { DependencyStore } from './dependency-store';
 import type { DirectoryStore } from './directory-store';
@@ -10,17 +11,23 @@ import type { MeasureStore } from './measure-store';
 import type { PlanEventStore } from './plan-event-store';
 import type { PriorityBandStore } from './priority-band-store';
 import type { StepProgressStore } from './progress-store';
+import type { ProjectRankStore } from './project-rank-store';
 import type { ProjectStore } from './project-store';
 import type { SavedPlanCaptureStore } from './saved-plan-capture-store';
 import type { SavedPlanStore } from './saved-plan-store';
 import type { StepStore } from './step-store';
 import type { SubtreeStore } from './subtree-store';
+import type { TypedDependencyStore } from './typed-dependency-store';
 import type { OidcIdentityStore, UserStore } from './user-store';
 import type { WorkItemStore } from './work-item-store';
 
 /** Every store a command batch may use. Account and history stores are absent. */
 export interface PlanTransactionalStores {
+  /** Optional only for legacy fixture adapters; production SQLite installs it explicitly. */
+  livePlans?: LivePlanStore;
   projects: ProjectStore;
+  /** Borrowed SQLite rank writer; legacy in-memory sources need not install this capability. */
+  projectRanks?: ProjectRankStore;
   directory: DirectoryStore;
   capacity: CapacityStore;
   priorityBands: PriorityBandStore;
@@ -34,6 +41,7 @@ export interface PlanTransactionalStores {
   measures: MeasureStore;
   progress: StepProgressStore;
   dependencies: DependencyStore;
+  typedDependencies: TypedDependencyStore;
   subtrees: SubtreeStore;
   journal: CommandJournalStore;
 }

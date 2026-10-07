@@ -185,7 +185,7 @@ class AnsweredRequests(unittest.TestCase):
         response = json.loads(done.stdout)
         self.assertEqual(response["status"], "feasible")
         self.assertEqual(sorted(response["offsets"].values()), [0, 10, 20])
-        self.assertEqual(response["wireVersion"], 1)
+        self.assertEqual(response["wireVersion"], 3)
 
     def test_search_workers_are_process_metadata_and_reach_the_solver_config(self) -> None:
         request = (FIXTURES / "valid-quantised-baseline.json").read_bytes()
@@ -194,7 +194,7 @@ class AnsweredRequests(unittest.TestCase):
 
         def answer(parsed: object, config: object) -> dict[str, object]:
             seen.append((config.num_search_workers, config.child_deadline_epoch_ms))
-            return {"wireVersion": 1, "status": "infeasible"}
+            return {"wireVersion": 3, "status": "infeasible"}
 
         with (
             mock.patch.object(cli, "read_request", return_value=request),

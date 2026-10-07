@@ -1,14 +1,15 @@
 import { expect, spyOn, test } from 'bun:test';
 
-import { PlanCommandRunner } from '../service/plan-commands';
+import { createPlanCommandRunner } from '../module/plan-commands/composition';
 import { inMemoryServices } from '../testing/harness';
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { batchServices, testWrites } from '../testing/writes-fixture';
 import { workItemRoutes } from './work-item.routes';
 
 function fixture() {
   const plan = inMemoryServices();
   const writes = testWrites(undefined, batchServices(plan));
-  const runner = new PlanCommandRunner({
+  const runner = createPlanCommandRunner({
     batchServices: writes.batch,
     publicServices: batchServices(plan),
     uow: writes.uow,
@@ -16,9 +17,12 @@ function fixture() {
   });
   return {
     runner,
-    endpoints: workItemRoutes(plan.service, runner, {
-      sha256: () => Promise.resolve('0'.repeat(64)),
-    }),
+    endpoints: workItemRoutes(
+      plan.service,
+      runner,
+      { sha256: () => Promise.resolve('0'.repeat(64)) },
+      legacyOrganizationAccess,
+    ),
   };
 }
 
@@ -26,8 +30,8 @@ test('typed undo and redo preserve actor and details without exposing journal en
   const f = fixture();
   const actor = { id: 'owner', username: 'owner', scopes: ['read', 'write'] as const };
   for (const [endpoint, operation] of [
-    [f.endpoints[3], 'undo'],
-    [f.endpoints[4], 'redo'],
+    [f.endpoints[3], 'undoWithin'],
+    [f.endpoints[4], 'redoWithin'],
   ] as const) {
     const call = spyOn(f.runner, operation);
     const completed = {
@@ -44,6 +48,6 @@ test('typed undo and redo preserve actor and details without exposing journal en
         request: { method: 'POST', url: new URL('http://localhost'), headers: new Headers() },
       }),
     ).toEqual({ ok: true, status: 200, body: { done: 'Undo change', detail: 'Work' } });
-    expect(call).toHaveBeenCalledWith('p', 'owner');
+    expect(call).toHaveBeenCalledWith('p', 'owner', { kind: 'legacy' });
   }
 });

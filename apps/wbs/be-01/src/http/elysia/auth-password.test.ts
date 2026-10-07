@@ -1,9 +1,9 @@
+import { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { expect, spyOn, test } from 'bun:test';
 
 import { authPasswordEndpoints } from '../../controller/auth-password-endpoints';
 import { bunPasswordHasher, joseTokenCodec } from '../../runtime/bun-runtime';
-import { AuthService } from '../../service/auth.service';
-import { LoginThrottle } from '../../service/login-throttle';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../../testing/auth-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import type { IdentityResolver } from '../endpoint';

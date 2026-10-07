@@ -1,24 +1,56 @@
 import {
+  type DocumentTypedDependency,
+  documentTypedDependencyRequest,
+  documentV4TypedDependencyRequest,
+  PLAN_DOCUMENT_VERSION,
   type PlanDocument,
   planDocumentHeaderRequest,
+  type PlanDocumentImport,
   type PlanDocumentRequest,
   planDocumentRequest,
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
+import {
+  formatStepNodeId,
+  formatStepReference,
+  isHold,
+  isReadiness,
+  NO_ALLOWANCE,
+  orderSteps,
+} from '@wbs/domain';
 
 import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { Clock } from '../../ports/clock';
 import type {
+  DirectoryCatalog,
+  DirectoryCatalogRows,
   DirectoryStore,
   PersonWithTeams,
   TeamWithServices,
 } from '../../ports/directory-store';
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { Project } from '../../ports/project-store';
+import type { PlanDocumentReads } from '../../ports/shared-people-values';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
+
+type TreeEndpoint = NonNullable<WorkItemTree['typedDependencies']>[number]['predecessor'];
+
+/** Writes file-local references and refuses an incomplete trusted tree projection. */
+function documentEndpoint(endpoint: TreeEndpoint): DocumentTypedDependency['predecessor'] {
+  if (endpoint.scope === 'whole') return { scope: 'whole', workItem: endpoint.workItemId };
+  // Proof (2026-09-28): removing this guard let the missing-step tree export
+  // succeed with an undefined step; its trusted-endpoint test then failed.
+  if (endpoint.stepId === undefined)
+    throw new Error(`typed ${endpoint.scope} endpoint has no step in tree read`);
+  // Proof (2026-09-28): forcing this scope to whole made the memory source
+  // "round trips multiple step links" fail on node/step endpoint equality.
+  return { scope: endpoint.scope, workItem: endpoint.workItemId, step: endpoint.stepId };
+}
 
 type PlanDirectory = Pick<
   DirectoryStore,
+  | 'listInOrganization'
   | 'listTeams'
   | 'listPeople'
   | 'listTags'
@@ -33,6 +65,23 @@ export interface PlanDocumentServiceOptions {
   clock: Pick<Clock, 'now'>;
 }
 
+/** The be-01 command that codes every step an older writer left uncoded. */
+const STEP_CODE_BACKFILL_COMMAND = 'bun run src/backfill-step-codes-cli.ts';
+
+/**
+ * A plan export: the document, or the modeled refusal of a project holding
+ * uncoded steps, which names each one and the be-01 backfill `command` that
+ * codes them, after which the export succeeds.
+ */
+export type PlanDocumentExport =
+  | { ok: true; value: PlanDocument }
+  | {
+      ok: false;
+      error: 'uncoded_steps';
+      steps: { id: string; name: string }[];
+      command: string;
+    };
+
 /**
  * Constructs the versioned archival document around the established project
  * tree projection.
@@ -43,86 +92,359 @@ export interface PlanDocumentServiceOptions {
 export class PlanDocumentService {
   constructor(private readonly options: PlanDocumentServiceOptions) {}
 
-  async export(project: Project, tree: WorkItemTree): Promise<PlanDocument> {
+  /**
+   * Exports `tree` as the current plan document, or refuses while any step is
+   * uncoded (`code: null`, written mid-swap by an older be-01 and not yet
+   * backfilled): the document carries every step's code and never invents one.
+   *
+   * Under scoped access the directory closure is read from the organization's
+   * own catalogs, under their local names, so a person's teams and a team's
+   * services that cross into another organization fail the export closed
+   * rather than export a foreign entry; see {@link DirectoryStore.listInOrganization}.
+   *
+   * Proof: reading the global directory under scoped access made `exports
+   * only the organization's own directory, under its local names` in
+   * `import-export-organization.controller.db.test.ts` export the root names
+   * `root-pe-a`, `root-tm-a` and `root-sv-a`; watched 2026-09-27.
+   *
+   * @throws when a step has no `code` key at all. This service reads its own
+   * store, which always answers the key; an absent one is an older reader's
+   * wire shape and cannot reach here.
+   */
+  async export(
+    project: Project,
+    tree: WorkItemTree,
+    access: ResourceAccess,
+  ): Promise<PlanDocumentExport> {
+    const coded = codedTree(tree);
+    if (!coded.ok) return coded;
+    return {
+      ok: true,
+      value: buildDocument(
+        project,
+        coded.value,
+        await this.readDocumentReads(project, access),
+        this.options.clock.now(),
+      ),
+    };
+  }
+
+  /** Builds from detached export evidence and performs no store reads. */
+  exportCaptured(
+    project: Project,
+    tree: WorkItemTree,
+    reads: PlanDocumentReads,
+  ): PlanDocumentExport {
+    const coded = codedTree(tree);
+    if (!coded.ok) return coded;
+    return {
+      ok: true,
+      value: buildDocument(project, coded.value, reads, this.options.clock.now()),
+    };
+  }
+
+  private async readDocumentReads(
+    project: Project,
+    access: ResourceAccess,
+  ): Promise<PlanDocumentReads> {
+    const directory = this.options.directory;
+    const read = <C extends DirectoryCatalog>(
+      catalog: C,
+      legacy: () => Promise<DirectoryCatalogRows[C]>,
+    ): Promise<DirectoryCatalogRows[C]> =>
+      access.kind === 'scoped'
+        ? directory.listInOrganization(catalog, access.scope.organizationId)
+        : legacy();
     const [teams, people, tags, services, types, externalSystems, markerRead] = await Promise.all([
-      this.options.directory.listTeams(),
-      this.options.directory.listPeople(),
-      this.options.directory.listTags(),
-      this.options.directory.listServices(),
-      this.options.directory.listWorkItemTypes(),
-      this.options.directory.listExternalSystems(),
+      read('teams', () => directory.listTeams()),
+      read('people', () => directory.listPeople()),
+      read('tags', () => directory.listTags()),
+      read('services', () => directory.listServices()),
+      read('workItemTypes', () => directory.listWorkItemTypes()),
+      read('externalSystems', () => directory.listExternalSystems()),
       this.options.markers.list(project.id),
     ]);
     if (!markerRead.ok) throw new Error(`project "${project.id}" disappeared during export`);
-    const closure = referencedDirectory(tree, {
-      teams,
-      people,
-      tags,
-      services,
-      types,
-      externalSystems,
-    });
     return {
-      project,
-      ...tree,
-      document: {
-        format: 'wbs-plan',
-        version: 1,
-        exportedAt: new Date(this.options.clock.now()).toISOString(),
-      },
-      settings: {
-        name: project.name,
-        restricted: project.restricted,
-        estimateMethod: project.estimateMethod,
-        depReach: project.depReach,
-        pertWeights: project.pertWeights,
-        // Proof: dropping estimateRounding made the mounted JSON export return
-        // 500 instead of 200 before its unchanged project/workItems controls.
-        estimateRounding: project.estimateRounding,
-        startDate: project.startDate,
-        solutionRef: project.solutionRef,
-        optimizationEnabled: project.optimizationEnabled,
-        scheduleEngine: project.scheduleEngine,
-        scheduleObjective: project.scheduleObjective,
-      },
-      capacity: tree.teamCapacities.map(({ serviceTeamId, size }) => ({
-        teamId: serviceTeamId,
-        size,
-      })),
-      calendarMarkers: markerRead.value.map(({ id, date, name, color }) => ({
-        id,
-        date,
-        name,
-        color,
-      })),
-      directory: closure,
+      directory: { teams, people, tags, services, types, externalSystems },
+      markers: markerRead.value,
     };
   }
 }
 
-export type PlanDocumentClassification =
-  | { ok: true; value: PlanDocumentRequest }
-  | { ok: false; code: 'invalid_body' | 'unsupported_version'; path: string };
+function codedTree(
+  tree: WorkItemTree,
+):
+  | { ok: true; value: WorkItemTree & { steps: PlanDocument['steps'] } }
+  | Extract<PlanDocumentExport, { ok: false }> {
+  const coded: PlanDocument['steps'] = [];
+  const uncoded: { id: string; name: string }[] = [];
+  for (const step of tree.steps) {
+    // Proof: with this throw removed, `throws on a step read without a code
+    // key` received an export instead of an Error (2026-09-27).
+    if (step.code === undefined) throw new Error(`step "${step.id}" was read without a code`);
+    // Proof: with this branch removed, `refuses to export a project holding
+    // an uncoded step, naming it` received ok: true, and the mounted be-01
+    // export received 500 instead of 409 (2026-09-27).
+    if (step.code === null) uncoded.push({ id: step.id, name: step.name });
+    else coded.push({ ...step, code: step.code });
+  }
+  if (uncoded.length > 0)
+    return {
+      ok: false,
+      error: 'uncoded_steps',
+      steps: uncoded,
+      command: STEP_CODE_BACKFILL_COMMAND,
+    };
+  return { ok: true, value: { ...tree, steps: coded } };
+}
+
+/** Serializes detached evidence without following any store capability. */
+function buildDocument(
+  project: Project,
+  tree: WorkItemTree & { steps: PlanDocument['steps'] },
+  reads: PlanDocumentReads,
+  exportedAt: number,
+): PlanDocument {
+  const closure = referencedDirectory(tree, reads.directory);
+  // Proof (2026-09-28): removing this guard made the missing-list export
+  // test receive a TypeError from .map instead of the named trusted-state error.
+  if (tree.typedDependencies === undefined)
+    throw new Error(`project "${project.id}" tree was read without typed dependencies`);
+  return {
+    project,
+    ...tree,
+    typedDependencies: tree.typedDependencies.map(({ id, predecessor, successor, type }) => {
+      // Proof (2026-09-28): omitting this guard let the unknown-type tree
+      // export succeed; its trusted-relationship test failed.
+      if (type !== 'FS' && type !== 'SS' && type !== 'FF')
+        throw new Error(`unknown typed dependency type ${type}`);
+      return {
+        id,
+        predecessor: documentEndpoint(predecessor),
+        successor: documentEndpoint(successor),
+        // Proof: forcing FF to FS here made the memory import/export round
+        // trip expect FF but receive FS (1 failing test, 2026-09-28).
+        type,
+      };
+    }),
+    stepNodes: spellStepNodes(tree),
+    document: {
+      format: 'wbs-plan',
+      version: PLAN_DOCUMENT_VERSION,
+      exportedAt: new Date(exportedAt).toISOString(),
+    },
+    settings: {
+      name: project.name,
+      restricted: project.restricted,
+      estimateMethod: project.estimateMethod,
+      depReach: project.depReach,
+      pertWeights: project.pertWeights,
+      // Proof: dropping estimateRounding made the mounted JSON export return
+      // 500 instead of 200 before its unchanged project/workItems controls.
+      estimateRounding: project.estimateRounding,
+      startDate: project.startDate,
+      solutionRef: project.solutionRef,
+      optimizationEnabled: project.optimizationEnabled,
+      scheduleEngine: project.scheduleEngine,
+      scheduleObjective: project.scheduleObjective,
+    },
+    capacity: tree.teamCapacities.map(({ serviceTeamId, size }) => ({
+      teamId: serviceTeamId,
+      size,
+    })),
+    calendarMarkers: reads.markers.map(({ id, date, name, color }) => ({
+      id,
+      date,
+      name,
+      color,
+    })),
+    directory: closure,
+  };
+}
 
 /**
- * Projects an archival payload to writable version-1 fields. Header validation
- * runs first so an unsupported version never gets interpreted as version 1.
+ * Every leaf's step nodes in tree and step order, each with its reference —
+ * the same nodes and spellings the work-item read answers, for a fully coded
+ * tree.
+ */
+function spellStepNodes(tree: {
+  workItems: readonly { id: string; parentId: string | null; number: string }[];
+  steps: PlanDocument['steps'];
+}): PlanDocument['stepNodes'] {
+  const parentIds = new Set(tree.workItems.map(({ parentId }) => parentId));
+  const ordered = orderSteps(tree.steps);
+  return tree.workItems.flatMap(({ id: workItemId, number }) =>
+    // Proof: with the leaf filter removed, `spells each leaf's step nodes
+    // beside their IDs` received the parent's nodes too (2026-09-27).
+    parentIds.has(workItemId)
+      ? []
+      : ordered.map(({ id: stepId, code }) => ({
+          id: formatStepNodeId({ workItemId, stepId }),
+          workItemId,
+          stepId,
+          reference: formatStepReference(number, code),
+        })),
+  );
+}
+
+export type PlanDocumentClassification =
+  | { ok: true; value: PlanDocumentImport }
+  | {
+      ok: false;
+      code: 'invalid_body' | 'invalid_typed_dependency' | 'unsupported_version';
+      path: string;
+    };
+
+/**
+ * Projects an archival payload to writable fields at its version. Header
+ * validation runs first so an unsupported version is never interpreted as a
+ * supported one.
+ *
+ * Version 1 is the explicit legacy conversion: it has no step allowances, so
+ * every step is imported at 0% and a version-1 file that names one is refused
+ * rather than half-read. Versions 2 and 3 require an allowance on every step;
+ * its range is checked with the rest of the document by `prepareImport`.
+ *
+ * Versions 1 and 2 keep no step code: whatever a file holds under `code` is
+ * ignored exactly as before codes existed (a version-2 export wrote the read's
+ * `code: null`), and each step is imported with `code: null`, which
+ * `prepareImport` codes by suggestion. Version 3 requires a string code on
+ * every step; its grammar, reservation and uniqueness are checked by
+ * `prepareImport`. Versions 1–3 ignore typed relationships, retaining their
+ * legacy link semantics; version 4 requires an FS-only typed list, while
+ * version 5 accepts FS, SS and FF.
  */
 export async function classifyPlanDocument(input: unknown): Promise<PlanDocumentClassification> {
   const header = await validateSchema(planDocumentHeaderRequest, input);
   if (header.issues !== undefined) {
     return { ok: false, code: 'invalid_body', path: pathOf(header.issues[0]?.path) };
   }
-  // Proof: moving this after version-1 validation made the mounted future-file
+  const version = header.value.document.version;
+  // Proof: moving this after version validation made the mounted future-file
   // response invalid_body/workItems[3].priority instead of
   // unsupported_version/document.version.
-  if (header.value.document.version !== 1) {
+  if (
+    version !== 1 &&
+    version !== 2 &&
+    version !== 3 &&
+    version !== 4 &&
+    version !== 5 &&
+    version !== PLAN_DOCUMENT_VERSION
+  ) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
   }
   const checked = await validateSchema(planDocumentRequest, input);
-  return checked.issues === undefined
-    ? { ok: true, value: checked.value }
-    : { ok: false, code: 'invalid_body', path: pathOf(checked.issues[0]?.path) };
+  if (checked.issues !== undefined) {
+    return { ok: false, code: 'invalid_body', path: pathOf(checked.issues[0]?.path) };
+  }
+  const typedDependencies: PlanDocumentImport['typedDependencies'] = [];
+  if (version >= 4) {
+    // Proof (2026-09-28): removing this check made a missing version-4 list
+    // throw from .entries instead of returning invalid_typed_dependency.
+    if (!Array.isArray(checked.value.typedDependencies))
+      return { ok: false, code: 'invalid_typed_dependency', path: 'typedDependencies' };
+    for (const [at, entry] of checked.value.typedDependencies.entries()) {
+      if (typeof entry === 'object' && entry !== null && !Array.isArray(entry)) {
+        for (const side of ['predecessor', 'successor'] as const) {
+          const endpoint: unknown = Reflect.get(entry, side);
+          if (typeof endpoint !== 'object' || endpoint === null || Array.isArray(endpoint))
+            continue;
+          const scope: unknown = Reflect.get(endpoint, 'scope');
+          // Proof (2026-09-28): without this scope check, the mounted import
+          // returned predecessor.step for an unknown scope instead of .scope.
+          if (scope !== 'whole' && scope !== 'node' && scope !== 'descendant-step')
+            return {
+              ok: false,
+              code: 'invalid_typed_dependency',
+              path: `typedDependencies[${String(at)}].${side}.scope`,
+            };
+        }
+      }
+      // Proof: selecting the v5 schema for v4 made the explicit legacy
+      // conversion accept SS in "version 5 classifies SS and FF while version 4
+      // keeps its FS-only conversion" (2026-09-28).
+      const parsed = await validateSchema(
+        version === 4 ? documentV4TypedDependencyRequest : documentTypedDependencyRequest,
+        entry,
+      );
+      // Proof (2026-09-28): bypassing schema refusal made the unknown-type
+      // memory import throw on an undefined relationship in preparation.
+      if (parsed.issues !== undefined)
+        return {
+          ok: false,
+          code: 'invalid_typed_dependency',
+          path: `typedDependencies[${String(at)}]${pathOf(parsed.issues[0]?.path) === 'body' ? '' : `.${pathOf(parsed.issues[0]?.path)}`}`,
+        };
+      typedDependencies.push(parsed.value);
+    }
+  }
+  const steps: PlanDocumentImport['steps'] = [];
+  for (const [at, { code, ...step }] of checked.value.steps.entries()) {
+    const path = `steps[${String(at)}].allowancePercent`;
+    if (version === 1) {
+      // Proof: with this refusal removed, `refuses a version-1 file that names
+      // a step allowance` imported it at 0% (2026-09-27).
+      if (step.allowancePercent !== undefined) return { ok: false, code: 'invalid_body', path };
+      steps.push({ ...step, allowancePercent: NO_ALLOWANCE, code: null });
+      continue;
+    }
+    // Proof: with this refusal removed, `refuses a current-format file whose
+    // step has no allowance` imported it (2026-09-27).
+    if (step.allowancePercent === undefined) return { ok: false, code: 'invalid_body', path };
+    if (version === 2) {
+      steps.push({ ...step, allowancePercent: step.allowancePercent, code: null });
+      continue;
+    }
+    // Proof: with this refusal removed, `refuses a version-3 file whose step
+    // has no string code` received ok: true (2026-09-27).
+    if (typeof code !== 'string')
+      return { ok: false, code: 'invalid_body', path: `steps[${String(at)}].code` };
+    steps.push({ ...step, allowancePercent: step.allowancePercent, code });
+  }
+  const workItems = statusFactsOf(version, checked.value.workItems);
+  if (!Array.isArray(workItems)) return workItems;
+  return { ok: true, value: { ...checked.value, steps, typedDependencies, workItems } };
+}
+
+/**
+ * Each row's readiness and hold as the file states them: from version 6 every
+ * row names both, each null or a member of its vocabulary and never on a
+ * parent; before version 6 both read as nothing said (`add-work-item-statuses`).
+ *
+ * A hold on a row whose work is done is accepted: marking progress never
+ * clears a hold, the status read folds done over it, and the file carries what
+ * the store holds, so refusing it would refuse the plan's own export.
+ *
+ * Proof: the vocabulary check removed made `refuses a version-6 hold or
+ * readiness outside its vocabulary…` accept `hold: 'paused'`; the parent check
+ * removed accepted a hold on the parent; watched 2026-09-29. A hold refused on
+ * done work made `re-imports its own export of a leaf held and then marked
+ * done` fail on `Expected: true, Received: false`; watched 2026-09-29 (Fable
+ * review of #225).
+ */
+function statusFactsOf(
+  version: number,
+  rows: PlanDocumentRequest['workItems'],
+): PlanDocumentImport['workItems'] | Extract<PlanDocumentClassification, { ok: false }> {
+  if (version < 6) return rows.map((row) => ({ ...row, readiness: null, hold: null }));
+  const parents = new Set(rows.map((row) => row.parentId));
+  const imported: PlanDocumentImport['workItems'] = [];
+  for (const [at, row] of rows.entries()) {
+    const path = (field: string) => `workItems[${String(at)}].${field}`;
+    const readiness =
+      row.readiness === null ? null : isReadiness(row.readiness) ? row.readiness : undefined;
+    if (readiness === undefined) {
+      return { ok: false, code: 'invalid_body', path: path('readiness') };
+    }
+    const hold = row.hold === null ? null : isHold(row.hold) ? row.hold : undefined;
+    if (hold === undefined) return { ok: false, code: 'invalid_body', path: path('hold') };
+    if (parents.has(row.id) && (readiness !== null || hold !== null)) {
+      return { ok: false, code: 'invalid_body', path: path(hold === null ? 'readiness' : 'hold') };
+    }
+    imported.push({ ...row, readiness, hold });
+  }
+  return imported;
 }
 
 function pathOf(path: readonly (PropertyKey | { key: PropertyKey })[] | undefined): string {

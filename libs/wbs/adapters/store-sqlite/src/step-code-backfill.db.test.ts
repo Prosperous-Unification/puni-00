@@ -113,7 +113,14 @@ describe('backfillStepCodes', () => {
         subscription: 'project:p',
         message: {
           type: 'step_renamed',
-          step: { id: 'p-dev', projectId: 'p', name: 'Dev', position: 10, code: 'dev' },
+          step: {
+            id: 'p-dev',
+            projectId: 'p',
+            name: 'Dev',
+            position: 10,
+            code: 'dev',
+            allowancePercent: 0,
+          },
         },
         created_at: 5_000,
       },

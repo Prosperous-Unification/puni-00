@@ -28,8 +28,8 @@ const itDom = hasDom ? it : it.skip;
 
 afterEach(cleanup);
 
-const DEV: StepView = { id: 'step-dev', name: 'Dev' };
-const QA: StepView = { id: 'step-qa', name: 'QA' };
+const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
+const QA: StepView = { id: 'step-qa', name: 'QA', allowancePercent: 0 };
 
 /** A plan where no row sets an earliest start, which is what a fresh project is. */
 const UNDATED: FrameLayoutState = {
@@ -54,8 +54,13 @@ const PEOPLE: Record<string, string> = { p1: 'Kat', p2: 'Ada' };
  * behind`, were about the shell and moved there with it.
  */
 function stubbed(overrides: Partial<Parameters<typeof StepsPanel>[0]> = {}) {
-  const addStep = vi.fn(() => Promise.resolve({ id: 'step-design', name: 'Design' }));
-  const renameStep = vi.fn(() => Promise.resolve({ id: 'step-qa', name: 'Review' }));
+  const addStep = vi.fn(() =>
+    Promise.resolve({ id: 'step-design', name: 'Design', allowancePercent: 0 }),
+  );
+  const renameStep = vi.fn(() =>
+    Promise.resolve({ id: 'step-qa', name: 'Review', allowancePercent: 0 }),
+  );
+  const setStepAllowance = vi.fn(() => Promise.resolve({ ...QA, allowancePercent: 30 }));
   const removeStep = vi.fn(() => Promise.resolve({ ok: true }));
   const setDepReach = vi.fn(() => Promise.resolve());
   const onChanged = vi.fn(() => Promise.resolve());
@@ -71,13 +76,23 @@ function stubbed(overrides: Partial<Parameters<typeof StepsPanel>[0]> = {}) {
     nameOf: (id: string) => PEOPLE[id] ?? null,
     addStep,
     renameStep,
+    setStepAllowance,
     removeStep,
     onChanged,
     onDirtyChange,
     ...overrides,
   };
   render(<StepsPanel {...props} />);
-  return { addStep, renameStep, removeStep, setDepReach, onChanged, onDirtyChange, props };
+  return {
+    addStep,
+    renameStep,
+    setStepAllowance,
+    removeStep,
+    setDepReach,
+    onChanged,
+    onDirtyChange,
+    props,
+  };
 }
 
 /** Lets the two awaits every change makes — the call, then the reread — settle. */
@@ -92,6 +107,64 @@ const type = (label: string, value: string): void => {
 };
 
 describe('the steps a project holds', () => {
+  itDom('commits a changed allowance and rereads the plan', async () => {
+    const stub = stubbed();
+    type('QA allowance (%)', '30');
+    fireEvent.keyDown(screen.getByLabelText('QA allowance (%)'), { key: 'Enter' });
+    await settle();
+    expect(stub.setStepAllowance).toHaveBeenCalledWith('step-qa', 30);
+    expect(stub.onChanged).toHaveBeenCalled();
+  });
+
+  itDom('refuses a fractional hundredth overflow locally', async () => {
+    const stub = stubbed();
+    type('QA allowance (%)', '30.001');
+    fireEvent.blur(screen.getByLabelText('QA allowance (%)'));
+    await settle();
+    expect(stub.setStepAllowance).not.toHaveBeenCalled();
+    expect(screen.getByText(/invalid allowance/i)).toBeInTheDocument();
+  });
+
+  itDom.each(['', '-1', '1000.01', '30.001', 'Infinity'])(
+    'refuses %s without sending it',
+    async (typed) => {
+      const stub = stubbed();
+      type('QA allowance (%)', typed);
+      fireEvent.blur(screen.getByLabelText('QA allowance (%)'));
+      await settle();
+      expect(screen.getByText(/invalid allowance/i)).toBeInTheDocument();
+      expect(stub.setStepAllowance).not.toHaveBeenCalled();
+    },
+  );
+
+  itDom('shows a server allowance refusal on the settings surface', async () => {
+    const stub = stubbed({
+      setStepAllowance: vi.fn(() => Promise.reject(new Error('invalid_allowance'))),
+    });
+    type('QA allowance (%)', '30');
+    fireEvent.blur(screen.getByLabelText('QA allowance (%)'));
+    await settle();
+    expect(screen.getByText(/invalid allowance/i)).toBeInTheDocument();
+    expect(stub.onChanged).not.toHaveBeenCalled();
+  });
+
+  itDom('says why an allowance past the calendar was refused', async () => {
+    const stub = stubbed({
+      setStepAllowance: vi.fn(() => Promise.reject(new Error('calendar_range'))),
+    });
+    type('QA allowance (%)', '1000');
+    fireEvent.blur(screen.getByLabelText('QA allowance (%)'));
+    await settle();
+    expect(screen.getByText(/past the last date the calendar supports/i)).toBeInTheDocument();
+    expect(stub.onChanged).not.toHaveBeenCalled();
+  });
+
+  itDom('does not send an unchanged allowance', async () => {
+    const stub = stubbed();
+    fireEvent.blur(screen.getByLabelText('QA allowance (%)'));
+    await settle();
+    expect(stub.setStepAllowance).not.toHaveBeenCalled();
+  });
   itDom('quotes the folded width of the columns actually on screen', () => {
     // `configurable-columns`: a reader who has hidden Depends on is 86px
     // narrower than the default table, and the sentence has to say so — the

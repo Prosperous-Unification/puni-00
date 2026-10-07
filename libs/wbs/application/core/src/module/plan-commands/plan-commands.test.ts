@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
@@ -10,7 +11,9 @@ import type { PlanCommand } from '../../service/plan-command';
 import { testClock } from '../../testing/clock-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
-import { PlanCommandRunner } from './plan-commands.feature';
+import { createPlanCommandRunner } from './composition';
+import type { PlanCommandRunner } from './plan-commands.feature';
+import { createWorkingPlan } from './working-plan.resource';
 
 const OWNER = 'plan-command-owner';
 
@@ -22,7 +25,12 @@ function silentBroadcaster(): Broadcaster {
 }
 
 const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-  servicesOver(stores, { clock: testClock, broadcast, scheduler: fastScheduler });
+  servicesOver(stores, {
+    admission: CREATOR_ADMISSION,
+    clock: testClock,
+    broadcast,
+    scheduler: fastScheduler,
+  });
 
 function runnerOver(
   source: ReturnType<typeof openMemorySource>,
@@ -33,7 +41,7 @@ function runnerOver(
     broadcast,
   ) => compose(scope.stores, broadcast),
 ): PlanCommandRunner {
-  return new PlanCommandRunner({
+  return createPlanCommandRunner({
     uow,
     announcements: silentBroadcaster(),
     publicServices: publicGraph,
@@ -75,7 +83,7 @@ describe('working plan batch ownership', () => {
     const projectId = createdProject.project.id;
     const stepId = createdProject.steps[0].id;
     await source.stores.steps.add(
-      { id: stepId, projectId, name: createdProject.steps[0].name },
+      { id: stepId, projectId, name: createdProject.steps[0].name, allowancePercent: 0 },
       { at: 1, by: OWNER },
     );
     const created = await publicGraph.workItems.create(projectId, OWNER, {
@@ -258,7 +266,7 @@ describe('working plan batch ownership', () => {
       announcements += 1;
       await announceTreeNow(announcedProjectId);
     };
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: source.uow,
       announcements: direct,
       publicServices: publicGraph,
@@ -301,7 +309,12 @@ describe('working plan command before-images', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock: testClock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock: testClock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, direct);
 
     try {
@@ -329,7 +342,7 @@ describe('working plan command before-images', () => {
       if (!seeded.ok) throw new Error('before-image fixture labelling refused');
 
       const observedTagSets: string[][] = [];
-      const runner = new PlanCommandRunner({
+      const runner = createPlanCommandRunner({
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -581,6 +594,144 @@ describe('working plan directory mutations through runner commands', () => {
 });
 
 describe('working plan dependency mutations through runner commands', () => {
+  it('lets a later command read the committed FF type after an edit', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const createdProject = await publicGraph.projects.create('Typed working plan', OWNER);
+      const projectId = createdProject.project.id;
+      const predecessor = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Predecessor',
+      });
+      const successor = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Successor',
+      });
+      if (!predecessor.ok || !successor.ok) throw new Error('typed fixture creation refused');
+      const first = { scope: 'whole' as const, workItemId: predecessor.value.id };
+      const second = { scope: 'whole' as const, workItemId: successor.value.id };
+      const firstNode = {
+        scope: 'node' as const,
+        workItemId: predecessor.value.id,
+        stepId: createdProject.steps[0].id,
+      };
+      await source.stores.typedDependencies.add(
+        { id: 'typed-working', projectId, predecessor: first, successor: second, type: 'FS' },
+        { at: 1, by: OWNER },
+      );
+      let updates = 0;
+      const observedAfterEdit: Awaited<
+        ReturnType<PlanTransactionalStores['typedDependencies']['listByProject']>
+      >[number][] = [];
+      const observedLabels: string[][] = [];
+      const runner = runnerOver(source, publicGraph, source.uow, (scope, broadcast) => {
+        const workItems = {
+          ...scope.stores.workItems,
+          listByProject: async (requestedProjectId: string) => {
+            const rows = await scope.stores.workItems.listByProject(requestedProjectId);
+            if (updates === 1) observedLabels.push(rows.map((row) => row.name));
+            return rows;
+          },
+        };
+        const typedDependencies = {
+          ...scope.stores.typedDependencies,
+          listByProject: async (requestedProjectId: string) => {
+            const rows = await scope.stores.typedDependencies.listByProject(requestedProjectId);
+            if (updates === 1) observedAfterEdit.push(...rows);
+            return rows;
+          },
+          update: async (
+            ...parameters: Parameters<PlanTransactionalStores['typedDependencies']['update']>
+          ) => {
+            await scope.stores.typedDependencies.update(...parameters);
+            updates += 1;
+          },
+        };
+        return compose({ ...scope.stores, workItems, typedDependencies }, broadcast);
+      });
+      const committed = await runner.run(projectId, OWNER, [
+        {
+          kind: 'updateTypedDependency',
+          dependencyId: 'typed-working',
+          predecessor: firstNode,
+          successor: second,
+          type: 'FF',
+        },
+        {
+          kind: 'updateTypedDependency',
+          dependencyId: 'typed-working',
+          predecessor: firstNode,
+          successor: second,
+          type: 'SS',
+        },
+      ]);
+      expect(committed).toMatchObject({ ok: true });
+      expect(observedAfterEdit).toContainEqual({
+        id: 'typed-working',
+        projectId,
+        predecessor: firstNode,
+        successor: second,
+        type: 'FF',
+      });
+      expect(observedLabels).toContainEqual(['Predecessor', 'Successor']);
+      expect(await source.stores.typedDependencies.listByProject(projectId)).toMatchObject([
+        { id: 'typed-working', type: 'SS' },
+      ]);
+      const refused = await runner.run(projectId, OWNER, [
+        {
+          kind: 'addTypedDependency',
+          predecessor: second,
+          successor: first,
+          type: 'FS',
+        },
+      ]);
+      expect(refused).toMatchObject({ ok: false, at: 0, reason: 'cycle' });
+      expect(await source.stores.typedDependencies.listByProject(projectId)).toMatchObject([
+        { id: 'typed-working', predecessor: firstNode, successor: second, type: 'SS' },
+      ]);
+      await source.stores.estimates.set(
+        {
+          workItemId: successor.value.id,
+          stepId: createdProject.steps[0].id,
+          optimistic: 2,
+          realistic: 2,
+          pessimistic: 2,
+        },
+        { at: 2, by: OWNER },
+      );
+      await source.stores.typedDependencies.add(
+        { id: 'typed-fs', projectId, predecessor: first, successor: second, type: 'FS' },
+        { at: 2, by: OWNER },
+      );
+      const retained = createWorkingPlan({ stores: source.stores }, projectId);
+      try {
+        const beforeRefusal = await retained.stores.typedDependencies.listByProject(projectId);
+        const graph = compose(retained.stores, direct);
+        const refusedFinish = await graph.workItems.addTypedDependency(projectId, OWNER, {
+          predecessor: second,
+          successor: first,
+          type: 'FF',
+        });
+        expect(refusedFinish).toMatchObject({ ok: false, reason: 'cycle' });
+        expect(await retained.stores.typedDependencies.listByProject(projectId)).toEqual(
+          beforeRefusal,
+        );
+      } finally {
+        retained.close();
+      }
+    } finally {
+      await source.close();
+    }
+  });
+
   it('refuses a reversed edge through the dependency added earlier in the batch', async () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
@@ -663,9 +814,14 @@ describe('working plan subtree mutations through runner commands', () => {
         },
       });
       const composeBatch = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-        servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+        servicesOver(stores, {
+          admission: CREATOR_ADMISSION,
+          clock,
+          broadcast,
+          scheduler: fastScheduler,
+        });
       const publicGraph = composeBatch(source.stores, direct);
-      const runner = new PlanCommandRunner({
+      const runner = createPlanCommandRunner({
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -745,7 +901,10 @@ describe('working plan value mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Mixed-case value ordering', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       for (const id of ['a', 'A']) {
         await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
           at: 2,
@@ -823,7 +982,10 @@ describe('working plan value mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Value group ordering', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       for (const id of ['z-existing', 'a-earlier']) {
         await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
           at: 2,
@@ -919,7 +1081,10 @@ describe('working plan value mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Value hand-down refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       const parent = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -995,7 +1160,10 @@ describe('working plan value mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Value move refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       for (const id of ['z-source', 'm-existing']) {
         await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
           at: 2,
@@ -1022,9 +1190,14 @@ describe('working plan value mutations through runner commands', () => {
         },
       });
       const orderedCompose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-        servicesOver(stores, { clock: orderedClock, broadcast, scheduler: fastScheduler });
+        servicesOver(stores, {
+          admission: CREATOR_ADMISSION,
+          clock: orderedClock,
+          broadcast,
+          scheduler: fastScheduler,
+        });
       const admitted = captureAdmittedStores(source.uow);
-      const runner = new PlanCommandRunner({
+      const runner = createPlanCommandRunner({
         uow: admitted.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -1112,7 +1285,10 @@ describe('working plan value mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Value hand-up refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       const parent = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -1179,7 +1355,10 @@ describe('working plan value mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Value remove refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       const leaf = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -1381,7 +1560,10 @@ describe('working plan row mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Arranged row refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       for (const [id, position] of [
         ['a', 10],
         ['b', 20],
@@ -1648,7 +1830,12 @@ async function expectSubtreePlacementFaultRollsBack(
       },
     });
     const composeBatch = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = composeBatch(source.stores, direct);
     const runner = runnerOver(source, publicGraph, brokenUow, (scope, broadcast) =>
       composeBatch(scope.stores, broadcast),
@@ -1900,7 +2087,7 @@ describe('working plan value placement validation rolls back its production unit
         const projectId = createdProject.project.id;
         const stepId = createdProject.steps[0].id;
         await source.stores.steps.add(
-          { id: stepId, projectId, name: 'Build' },
+          { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
           { at: 2, by: OWNER },
         );
         for (const id of ['z-existing', 'a-earlier']) {

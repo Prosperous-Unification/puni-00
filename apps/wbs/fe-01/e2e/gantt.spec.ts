@@ -315,7 +315,7 @@ async function seedPlan(
   await depends.click();
   await depends.fill('010.1');
   await depends.press('Enter');
-  await expect(page.getByRole('button', { name: 'Stop 010.2 waiting for 010.1' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Stop 010\.2 waiting for 010\.1/ })).toBeVisible();
 
   // The day be-01 says this row starts, typed back in as the day it may not
   // start before: the caret and the bar's left edge on the same workday.
@@ -403,7 +403,7 @@ async function seedUnestimatedChain(page: Page, _account: string): Promise<void>
   await depends.click();
   await depends.fill('010');
   await depends.press('Enter');
-  await expect(page.getByRole('button', { name: 'Stop 020 waiting for 010' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Stop 020 waiting for 010/ })).toBeVisible();
   await depends.press('Escape');
   await expect(page.getByRole('listbox')).toHaveCount(0);
 }
@@ -477,7 +477,7 @@ async function seedEdgeRoutes(page: Page, _account: string): Promise<void> {
     await depends.fill(on);
     await depends.press('Enter');
     await expect(
-      page.getByRole('button', { name: `Stop ${waiting} waiting for ${on}` }),
+      page.getByRole('button', { name: new RegExp(`^Stop ${waiting} waiting for ${on}`) }),
     ).toBeVisible();
     // Enter commits the chip and leaves the list open on what is still
     // pickable, and that list hangs over the rows underneath — so the next
@@ -1732,14 +1732,20 @@ test.describe('the chart on a phone', () => {
  *
  * `role="tooltip"` and not a `data-` hook: it is the same the `HoverCard` the
  * Name cell opens, and naming it by its step is what says the two are one
- * surface rather than two that happen to look alike. The right-edge placement
- * check passes the accessible label so a folded estimate's tooltip cannot
- * stand in for the chart's facts.
+ * surface rather than two that happen to look alike.
  */
-const surface = (page: Page, label?: string): Locator =>
-  label === undefined
-    ? page.getByRole('tooltip')
-    : page.getByRole('tooltip', { name: label, exact: true });
+const surface = (page: Page): Locator => page.getByRole('tooltip');
+
+/**
+ * The surface one row's bar opens, by the name `HoverCard` gives it.
+ *
+ * {@link surface} is any card on the page, and a table card can still be up
+ * when a bar is hovered: CI run 36482644786's trace has the wait resolve on a
+ * folded step cell's `folded-…` card, with no `Facts for …` card drawn yet.
+ * Named, the wait is for the bar's own card and not whichever is up first.
+ */
+const barSurface = (page: Page, number: string): Locator =>
+  page.getByRole('tooltip', { name: `Facts for ${number}`, exact: true });
 
 /**
  * The bar for one row **and one step**, found by the accessible name it carries.
@@ -1797,15 +1803,6 @@ const panelScroll = (page: Page): Promise<{ left: number; top: number }> =>
  * that the numbers are ever measured at all is only true in here.
  */
 test.describe('the surface a bar opens, as a browser places it', () => {
-  test('does not mistake a folded estimate tooltip for bar facts', async ({ page }) => {
-    await seedPlan(page, nextAccount());
-    await page.locator('[data-final]').first().hover();
-    await expect(page.getByRole('tooltip')).toBeVisible();
-    // Proof: ignoring the label made this fail with `Expected: 0, Received: 1`
-    // for the full 30s timeout while the folded estimate tooltip was visible.
-    await expect(surface(page, 'Facts for 010.1')).toHaveCount(0);
-  });
-
   test('reads the hovered bar’s own dates, with the chart scrolled partway', async ({ page }) => {
     // Wide enough that the panel really scrolls: at `PAST_THE_WEEKEND` the
     // whole chart fits in 1400px, `scrollLeft` stays 0 whatever it is set to,
@@ -1839,7 +1836,8 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     // its centre would have Playwright scroll the chart to find it.
     const bar = barOf(page, '010.2', 'Dev');
     await bar.hover({ position: { x: 4, y: 4 } });
-    await expect(surface(page)).toBeVisible();
+    const shown = barSurface(page, '010.2');
+    await expect(shown).toBeVisible();
 
     // The row's own printed days, off the table rather than computed here: two
     // derivations of one rule agree by construction and say nothing.
@@ -1847,8 +1845,8 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     const from = await row.locator('[data-start]').textContent();
     const to = await row.locator('[data-finish]').textContent();
     expect(from, 'the Start cell prints nothing to compare against').not.toBe('');
-    await expect(surface(page)).toContainText(`${String(from)} → ${String(to)}`);
-    await expect(surface(page)).toContainText('010.2');
+    await expect(shown).toContainText(`${String(from)} → ${String(to)}`);
+    await expect(shown).toContainText('010.2');
   });
 
   test('names an axis day’s month on hover, from the chart and not the browser', async ({
@@ -1887,13 +1885,20 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     });
 
     const bar = page.locator('[data-gantt-bar]').last();
+    const label = await bar.getAttribute('aria-label');
+    if (label === null) throw new Error('the last bar carries no accessible name');
+    const number = /^(\S+) - /.exec(label)?.[1];
+    if (number === undefined) {
+      throw new Error(`the last bar's name starts with no number: ${label}`);
+    }
     await bar.hover();
-    await expect(surface(page)).toBeVisible();
+    const shownSurface = barSurface(page, number);
+    await expect(shownSurface).toBeVisible();
 
     // The bar first, and with an area — a mark of no height is one every
     // "above" comparison holds about (the sixteenth check).
     const mark = await rectOfLocator(bar, 'the last bar on the chart');
-    const shown = await rectOfLocator(surface(page), 'the surface');
+    const shown = await rectOfLocator(shownSurface, 'the surface');
     const window_ = await page.evaluate(() => ({
       width: window.innerWidth,
       height: window.innerHeight,
@@ -1929,11 +1934,26 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     await scrollChartFullyRight(page);
 
     const bar = page.locator('[data-gantt-bar]').last();
+    await expect(bar).toHaveAttribute('aria-label', /^010\.2 - /);
     await bar.hover();
-    await expect(surface(page, 'Facts for 010.2')).toBeVisible();
+    // The bar's own card, not any tooltip. Observed in CI run 36482644786's
+    // trace: the wait resolved on 010.1's folded Dev card, still up after the
+    // Gantt click, and no `Facts for 010.2` card had been drawn when the box
+    // read found nothing — `the surface is not on the page at all`, 3 times in
+    // 20 here. Locally, seeding's last click leaves the pointer where the
+    // estimate fill brings that cell under it, and its card closed about 190ms
+    // after the pointer left, i.e. after the bar was hovered.
+    // Proof: with the pointer hovered onto 010.1's Dev cell before the bar and
+    // a 400ms pause after this wait, `surface(page)` passed 5 of 5 at the
+    // shipped `REACH_FOR_THE_CARD_MS`; raised to 5000, so the folded card is
+    // still up when the bar's opens, it failed 5 of 5 on `strict mode
+    // violation: getByRole('tooltip') resolved to 2 elements`, and this
+    // locator passed 5 of 5.
+    const shownSurface = barSurface(page, '010.2');
+    await expect(shownSurface).toBeVisible();
 
     const mark = await rectOfLocator(bar, 'the right-most bar');
-    const shown = await rectOfLocator(surface(page, 'Facts for 010.2'), 'the surface');
+    const shown = await rectOfLocator(shownSurface, 'the surface');
     const width = await page.evaluate(() => window.innerWidth);
     // The precondition, and the whole reason this is not a check about a
     // surface that was inside the window all along: placed from the bar's own
@@ -3329,10 +3349,32 @@ async function seedTwoStepChain(page: Page): Promise<void> {
     await expect(box).not.toHaveValue('');
   }
 
-  const depends = page.getByLabel('Add a dependency to 020');
-  await depends.click();
-  await depends.fill('010');
-  await depends.press('Enter');
+  // A **legacy** link, through the command API. The picker's one-click default
+  // writes a typed Whole→Whole FS link, which waits for the predecessor's last
+  // step under either reach by design (`add-step-finish-start-dependencies`);
+  // only a legacy link still follows `depReach`, and that is what this chain is
+  // for.
+  await page.evaluate(async () => {
+    const projectId = localStorage.getItem('wbs.project');
+    if (projectId === null) throw new Error('no open project to link');
+    const read = await fetch(`/api/projects/${projectId}/work-items`);
+    if (!read.ok) throw new Error(`reading the plan failed: ${String(read.status)}`);
+    const tree = (await read.json()) as { workItems: { id: string; number: string }[] };
+    const idOf = (number: string): string => {
+      const row = tree.workItems.find((each) => each.number === number);
+      if (row === undefined) throw new Error(`no ${number} in the seeded plan`);
+      return row.id;
+    };
+    const write = await fetch(`/api/projects/${projectId}/commands`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        commands: [{ kind: 'addDependency', workItemId: idOf('020'), predecessorId: idOf('010') }],
+      }),
+    });
+    if (!write.ok) throw new Error(`linking 020 to 010 failed: ${String(write.status)}`);
+  });
+  await page.reload();
   await expect(page.getByRole('button', { name: 'Stop 020 waiting for 010' })).toBeVisible();
 }
 
@@ -3852,17 +3894,10 @@ test.describe('the marker rule, measured in the columns it paints', () => {
     // count to reach zero is `hover-cards.spec.ts:54`'s own inert park.
     await page.mouse.move(0, 0);
     await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
-    // Force the first measured rung to be a real scale change, so every
-    // `present` clip, like every `absent` one, follows a whole-chart layout.
-    // Without it, on `batch-9/integration-5` the body identity failed at 28px
-    // with maxDelta 40 over columns 122-124 (the day-4 edge, where WBS
-    // 010.4.4's zero-time slice stacks a placeholder, a bar, its priority cap,
-    // an arrowhead and a caret) while both chart DOMs were equal but for the
-    // rule; with it, all three rungs read changedPixels=0. Suspected cause: a
-    // partial re-raster after the save, not ink. Proof it still sees ink: an
-    // untagged line eight days right of the rule in `gantt-panel.tsx` failed
-    // this test at 28px with maxDelta 129 (local, 2026-09-27).
-    await pickRung(page, RUNGS[RUNGS.length - 1]);
+    // Measure the freshly saved 28px chart at the same scale. A marker change
+    // must leave the existing marks intact without needing a scale change to
+    // repaint them. Proof: disabling the chart's keyed paint surface failed
+    // here 5/5 times at columns 122-124 (20 pixels, maxDelta 40), 2026-10-01.
 
     const rule = page.locator('[data-gantt-marker-rule]');
     await expect(rule).toHaveCount(1);

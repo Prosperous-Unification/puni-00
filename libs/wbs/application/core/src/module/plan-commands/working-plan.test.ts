@@ -2,13 +2,24 @@ import { openMemorySource } from '@wbs/store-memory';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import { testClock } from '../../testing/clock-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
-import { PlanCommandRunner } from './plan-commands.feature';
+import { createPlanCommandRunner } from './composition';
 import { createWorkingPlan } from './working-plan.resource';
+
+/** Whether a call refused, synchronously or by rejecting; `.rejects` cannot be awaited under Bun's types. */
+async function refusesCall(call: () => unknown): Promise<boolean> {
+  try {
+    await call();
+    return false;
+  } catch {
+    return true;
+  }
+}
 
 const OWNER = 'working-plan-owner';
 const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 } as const;
@@ -21,14 +32,93 @@ function silentBroadcaster(): Broadcaster {
 }
 
 describe('the admitted working batch baseline', () => {
+  it('passes typed links through the batch and refuses cross-project and closed access', async () => {
+    const source = openMemorySource();
+    const plan = createWorkingPlan({ stores: source.stores }, 'project-a');
+    const row = {
+      id: 'typed-a',
+      projectId: 'project-a',
+      predecessor: { scope: 'whole' as const, workItemId: 'a' },
+      successor: { scope: 'whole' as const, workItemId: 'b' },
+      type: 'FS' as const,
+    };
+    const stamp = { at: 1, by: OWNER };
+    try {
+      await plan.stores.typedDependencies.add(row, stamp);
+      expect(await plan.stores.typedDependencies.listByProject('project-a')).toEqual([row]);
+      const later = {
+        ...row,
+        id: 'typed-later',
+        successor: { scope: 'whole' as const, workItemId: 'c' },
+      };
+      await source.stores.typedDependencies.add(later, stamp);
+      expect(await plan.stores.typedDependencies.listByProject('project-a')).toEqual([row, later]);
+      expect(() => plan.stores.typedDependencies.listByProject('project-b')).toThrow();
+      expect(() =>
+        plan.stores.typedDependencies.add({ ...row, id: 'other', projectId: 'project-b' }, stamp),
+      ).toThrow();
+      await source.stores.typedDependencies.add(
+        {
+          ...row,
+          id: 'foreign',
+          projectId: 'project-b',
+          predecessor: { scope: 'whole', workItemId: 'foreign' },
+        },
+        stamp,
+      );
+      expect(await refusesCall(() => plan.stores.typedDependencies.remove('foreign', stamp))).toBe(
+        true,
+      );
+      expect(
+        await refusesCall(() => plan.stores.typedDependencies.removeAllFor(['foreign'], stamp)),
+      ).toBe(true);
+      plan.close();
+      expect(() => plan.stores.typedDependencies.listByProject('project-a')).toThrow();
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('reads the committed SS type and endpoints after an FF edit', async () => {
+    const source = openMemorySource();
+    const plan = createWorkingPlan({ stores: source.stores }, 'project-a');
+    const stamp = { at: 1, by: OWNER };
+    const before = {
+      id: 'typed-edit',
+      projectId: 'project-a',
+      predecessor: { scope: 'whole' as const, workItemId: 'a' },
+      successor: { scope: 'whole' as const, workItemId: 'b' },
+      type: 'FF' as const,
+    };
+    const after = {
+      ...before,
+      successor: { scope: 'node' as const, workItemId: 'b', stepId: 'review' },
+      type: 'SS' as const,
+    };
+    try {
+      await plan.stores.typedDependencies.add(before, stamp);
+      expect(await plan.stores.typedDependencies.listByProject('project-a')).toEqual([before]);
+      await plan.stores.typedDependencies.update(after, stamp);
+      expect(await plan.stores.typedDependencies.listByProject('project-a')).toEqual([after]);
+    } finally {
+      plan.close();
+      await source.close();
+    }
+  });
+
   it('preserves the four mutation sequences through a working collection', async () => {
     const source = openMemorySource();
     const admitted: PlanTransactionalStores[] = [];
     const direct = silentBroadcaster();
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock: testClock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock: testClock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, direct);
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: source.uow,
       announcements: direct,
       publicServices: publicGraph,
@@ -47,7 +137,7 @@ describe('the admitted working batch baseline', () => {
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
-        { id: stepId, projectId, name: createdProject.steps[0].name },
+        { id: stepId, projectId, name: createdProject.steps[0].name, allowancePercent: 0 },
         { at: 1, by: OWNER },
       );
 
@@ -176,7 +266,12 @@ describe('the admitted working batch baseline', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock: testClock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock: testClock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, direct);
     try {
       await source.stores.users.create(
@@ -186,7 +281,7 @@ describe('the admitted working batch baseline', () => {
       const projectId = (await publicGraph.projects.create('Working lifecycle', OWNER)).project.id;
       let retainedRead:
         (() => ReturnType<PlanTransactionalStores['workItems']['listByProject']>) | undefined;
-      const runner = new PlanCommandRunner({
+      const runner = createPlanCommandRunner({
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -215,10 +310,48 @@ describe('the admitted working batch baseline', () => {
     }
   });
 
+  it('closes the working plan when graph composition throws', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const graph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
+      clock: testClock,
+      broadcast: direct,
+      scheduler: fastScheduler,
+    });
+    const projectId = 'broken-graph-project';
+    let retainedRead:
+      (() => ReturnType<PlanTransactionalStores['workItems']['listByProject']>) | undefined;
+    const runner = createPlanCommandRunner({
+      uow: source.uow,
+      announcements: direct,
+      publicServices: graph,
+      batchServices(scope) {
+        retainedRead = () => scope.stores.workItems.listByProject(projectId);
+        throw new Error('graph construction failed');
+      },
+    });
+    try {
+      try {
+        await runner.run(projectId, OWNER, []);
+        throw new Error('command graph unexpectedly composed');
+      } catch (cause) {
+        expect(cause).toEqual(new Error('graph construction failed'));
+      }
+      if (retainedRead === undefined) throw new Error('graph did not retain its read');
+      // Proof: omitting the close on a graph factory throw let this read resolve;
+      // watched with the composition catch removed in the isolated candidate.
+      expect(retainedRead()).rejects.toThrow(/working plan.*closed/i);
+    } finally {
+      await source.close();
+    }
+  });
+
   it('loads on first demand and detaches every retained answer', async () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -300,6 +433,7 @@ describe('targeted working-plan refreshes', () => {
   it('reloads every loaded collection and keeps unloaded collections lazy after a global write', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
       scheduler: fastScheduler,
@@ -407,6 +541,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -447,6 +582,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -494,6 +630,7 @@ describe('targeted working-plan refreshes', () => {
   it('keeps a newly added edge in authoritative order and returned edges detached', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
       scheduler: fastScheduler,
@@ -562,6 +699,7 @@ describe('targeted working-plan refreshes', () => {
   it('refreshes every restore-related collection and preserves borrowed before-images', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
       scheduler: fastScheduler,
@@ -575,7 +713,10 @@ describe('targeted working-plan refreshes', () => {
       const createdProject = await publicGraph.projects.create('Retained subtree restore', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       for (const row of [
         workItemRow({ id: 'prior-parent', projectId, position: 10, name: 'Prior parent' }),
         workItemRow({ id: 'other-values', projectId, position: 20, name: 'Other values' }),
@@ -703,6 +844,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -786,6 +928,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -885,6 +1028,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -961,6 +1105,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -1043,6 +1188,7 @@ describe('working plan value failures', () => {
   it('does not advance a retained value after a modeled set refusal', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
       scheduler: fastScheduler,
@@ -1055,7 +1201,10 @@ describe('working plan value failures', () => {
       const createdProject = await publicGraph.projects.create('Refused value refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       const leaf = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -1100,6 +1249,7 @@ describe('working plan value failures', () => {
   it('does not advance a retained value before a throwing mutation succeeds', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
       scheduler: fastScheduler,
@@ -1112,7 +1262,10 @@ describe('working plan value failures', () => {
       const createdProject = await publicGraph.projects.create('Throwing value refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       const leaf = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -1157,6 +1310,7 @@ describe('working plan value failures', () => {
   it('does not advance retained edges before throwing dependency mutations succeed', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
       scheduler: fastScheduler,

@@ -2,16 +2,19 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Broadcaster } from '@wbs/core';
+import type { Broadcaster, PlanCommandRunner } from '@wbs/core';
 import type { PlanCommand } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core';
 import { CapacityService } from '@wbs/core';
 import { DirectoryService } from '@wbs/core';
-import { type BatchOutcome, PlanCommandRunner } from '@wbs/core';
+import { type BatchOutcome } from '@wbs/core';
 import { PriorityBandService } from '@wbs/core';
 import { ProjectService } from '@wbs/core';
 import { StepService } from '@wbs/core';
 import { WorkItemService } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
+import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
@@ -36,6 +39,7 @@ import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 import { StepRepository } from './step';
 import { StepMeasureRepository } from './step-measure';
 import { StepProgressRepository } from './step-progress';
+import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
 import { SubtreeRepository, WorkItemRepository } from './work-item';
 
@@ -143,6 +147,7 @@ beforeEach(async () => {
     capacity: capacityStore,
     priorityBands: bandStore,
     dependencies: new DependencyRepository(db, OPEN),
+    typedDependencies: new TypedDependencyRepository(db, OPEN),
     subtrees: new SubtreeRepository(db, OPEN),
     journal: new CommandJournalRepository(db, OPEN),
     broadcast,
@@ -152,6 +157,7 @@ beforeEach(async () => {
   const admitted = { ...buildStores(db, OPEN), workItems: suspendingWorkItems };
   const servicesWith = (selectedBroadcast: Broadcaster) => ({
     workItems: new WorkItemService({
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       ...serviceOptions,
       broadcast: selectedBroadcast,
@@ -162,23 +168,33 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     capacity: new CapacityService({
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       projects: projectStore,
       capacity: capacityStore,
       broadcast: selectedBroadcast,
     }),
     priorityBands: new PriorityBandService({
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       projects: projectStore,
       bands: bandStore,
       broadcast: selectedBroadcast,
     }),
     projects: new ProjectService({
+      dependencyGraph: new DependencyGraphGuard({
+        ...buildStores(db, OPEN),
+        projects: projectStore,
+      }),
       clock: testClock,
       projects: projectStore,
       broadcast: selectedBroadcast,
     }),
     steps: new StepService({
+      dependencyGraph: new DependencyGraphGuard({
+        ...buildStores(db, OPEN),
+        projects: projectStore,
+      }),
       clock: testClock,
       projects: projectStore,
       steps: stepStore,
@@ -191,7 +207,7 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
   });
-  runner = new PlanCommandRunner({
+  runner = createPlanCommandRunner({
     batchServices: (_scope, collector) => servicesWith(collector),
     publicServices: servicesWith(broadcast),
     uow: sqliteUnitOfWork(db, coordinator, admitted),
@@ -200,6 +216,7 @@ beforeEach(async () => {
   // The route's own service, built exactly as `buildServices` builds it: the
   // step store on the process connection, and no knowledge of the batch at all.
   steps = new StepService({
+    dependencyGraph: new DependencyGraphGuard({ ...buildStores(db, OPEN), projects: projectStore }),
     clock: testClock,
     projects: projectStore,
     steps: stepStore,
@@ -207,6 +224,7 @@ beforeEach(async () => {
   });
 
   const created = await new ProjectService({
+    dependencyGraph: new DependencyGraphGuard({ ...buildStores(db, OPEN), projects: projectStore }),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
@@ -245,7 +263,7 @@ describe('the write coordinator', () => {
     // Started while the batch holds the transaction open, and deliberately not
     // awaited yet: what this case is about is where the write *lands*, and on a
     // process whose route writes take no turn it lands inside the batch.
-    const added = steps.add(projectId, ownerId, 'Wiring');
+    const added = steps.add(projectId, ownerId, 'Wiring', 0);
     hold.release();
 
     const outcome = await batch;
@@ -279,7 +297,10 @@ describe('the write coordinator', () => {
     await hold.reached;
 
     const writes = [
-      stepStore.add({ id: crypto.randomUUID(), projectId, name: 'Wiring' }, stamp),
+      stepStore.add(
+        { id: crypto.randomUUID(), projectId, name: 'Wiring', allowancePercent: 0 },
+        stamp,
+      ),
       publicDirectory.addTag({ id: crypto.randomUUID(), name: 'urgent' }, stamp),
       publicEventLog.recordEvent(`project:${projectId}`, { type: 'saved_plans_changed' }, 1),
       publicProjects.update(projectId, { name: 'Rewire the shed, again' }, stamp),

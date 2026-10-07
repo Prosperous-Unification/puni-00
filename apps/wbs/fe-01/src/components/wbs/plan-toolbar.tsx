@@ -22,6 +22,7 @@ import type { PlanCommands } from '@/modules/plan-commands/contract';
 import { MenuControl } from './actions-menu';
 import { useClosedByPointerOutside } from './close-on-outside-pointer';
 import { DateField } from './date-field';
+import { ImportWithAiHelp } from './import-with-ai-help';
 import type { PlanTableFeatures } from './plan-columns/column';
 import type { EstimateGaps } from './plan-completeness';
 import { describeGaps } from './plan-completeness';
@@ -958,6 +959,8 @@ export function PlanToolbar({
           nameOf: (personId) => people.find((person) => person.id === personId)?.name ?? null,
           addStep: (name) => commands.addStep(name),
           renameStep: (stepId, name) => commands.renameStep(stepId, name),
+          setStepAllowance: (stepId, allowancePercent) =>
+            commands.setStepAllowance(stepId, allowancePercent),
           removeStep: (stepId, cascade) => commands.removeStep(stepId, cascade),
           // How far a dependency reaches, on the same surface as the steps it
           // is about: reordering them moves what an `anchor-slice` dependency
@@ -1349,6 +1352,11 @@ export function PlanToolbar({
                 onChange={importJson}
               />
             </label>
+            {/*
+              Guidance, not a transfer: it opens a dialog and changes nothing. It sits beside
+              Import JSON because that is where someone bringing a project in already looks.
+            */}
+            <ImportWithAiHelp />
             {/*
             The one setting among the export actions, and it governs two of them:
             `Copy as Mermaid` and `Download as Markdown` both write their fence

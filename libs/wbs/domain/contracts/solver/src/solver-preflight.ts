@@ -1,4 +1,10 @@
-import { SOLVER_HORIZON_UNITS_MAX, type SolverOffsetMap, type SolverSlice } from './wire-types';
+import {
+  SOLVER_HORIZON_UNITS_MAX,
+  type SolverEdge,
+  type SolverElsewhere,
+  type SolverOffsetMap,
+  type SolverSlice,
+} from './wire-types';
 
 /**
  * The two arithmetic refusals that must happen **before a process is spawned**
@@ -16,7 +22,11 @@ import { SOLVER_HORIZON_UNITS_MAX, type SolverOffsetMap, type SolverSlice } from
  * and because the failure token is the thing the cached row records.
  */
 
-export const SOLVER_PREFLIGHT_FAILURES = ['horizon-overflow', 'objective-overflow'] as const;
+export const SOLVER_PREFLIGHT_FAILURES = [
+  'horizon-overflow',
+  'objective-overflow',
+  'incompatible-solver',
+] as const;
 export type SolverPreflightFailure = (typeof SOLVER_PREFLIGHT_FAILURES)[number];
 
 export type SolverPreflight =
@@ -32,12 +42,18 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 /**
  * `horizonUnits` and the two preflights, in the order they can be answered.
  *
- * **The horizon is the SERIAL bound** `max(0, ...notBeforeUnits) + Σ
- * durationUnits`: every slice placed after the latest floor, one after another,
- * with no overlap at all. Seeded with zero, because a plan with slices and no
- * manual floors is the ordinary state of nearly every project and an unseeded
- * `max` over an empty set has no value — `schedule.ts` writes `Math.max(0, ...)`
- * for the same shape.
+ * **The horizon is a constructive serial bound**: latest floor plus every
+ * duration, after the latest booking end, plus every positive FF start-weight excess over its predecessor's
+ * duration. Place slices in topological order, starting no earlier than the
+ * serial cursor and all predecessor bounds. An FS bound is paid by the
+ * predecessor duration; SS costs no extra time; an FF bound can advance the
+ * cursor by at most `max(0, startWeightUnits - predecessor duration)`.
+ * Charging that excess for every FF edge therefore bounds every such advance,
+ * even when several edges converge. The final cursor bounds every start and
+ * finish. This gives CP-SAT a feasible placement within its start domain when
+ * the plan has no conflicting deadline. It does not bound arbitrarily idled
+ * schedules, which need no representation for feasibility. The latest floor is
+ * seeded with zero for plans without manual floors.
  *
  * It is deliberately **not** the Fast makespan plus remaining effort. That
  * stops being an upper bound the moment the optimizer is allowed to idle a
@@ -60,7 +76,7 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
  * builder computed.
  *
  * **It is the FINISH, not the horizon, and the difference is load-bearing.**
- * `horizonUnits` bounds a slice's *start* (`solver-wire.v1.json` clause 1, and
+ * `horizonUnits` bounds a slice's *start* (`solver-wire.v3.json` clause 1, and
  * `model.py` builds the start domain from it); PRIORITY is `Σ w(s) · finish(s)`
  * and a finish past the horizon is legal — the makespan's business, not an
  * error. So the true ceiling exceeds `Σ w(s) × horizonUnits` by exactly
@@ -91,11 +107,14 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 export function preflightSolverRequest(
   slices: readonly SolverSlice[],
   baselineOffsets: SolverOffsetMap,
+  edges: readonly SolverEdge[],
+  elsewhere: SolverElsewhere = {},
 ): SolverPreflight {
   let latestFloor = 0n;
   let totalDuration = 0n;
   let totalWeight = 0n;
   let weightedDuration = 0n;
+  const durationByKey = new Map(slices.map((slice) => [slice.key, slice.durationUnits]));
   for (const slice of slices) {
     const floor = BigInt(slice.notBeforeUnits);
     if (floor > latestFloor) latestFloor = floor;
@@ -110,7 +129,25 @@ export function preflightSolverRequest(
     weightedDuration += weight * duration;
   }
 
-  const horizon = latestFloor + totalDuration;
+  // Proof: ignoring booking ends made `extends the serial horizon past a
+  // booking end` return 48 instead of 4849 (0 pass / 1 fail).
+  for (const bookings of Object.values(elsewhere)) {
+    for (const [, end] of bookings) {
+      if (BigInt(end) > latestFloor) latestFloor = BigInt(end);
+    }
+  }
+
+  let placementGaps = 0n;
+  for (const edge of edges) {
+    if (edge.type !== 'FF') continue;
+    const duration = durationByKey.get(edge.predecessorKey);
+    if (duration === undefined) throw new Error(`no predecessor slice ${edge.predecessorKey}`);
+    const gap = BigInt(edge.startWeightUnits) - BigInt(duration);
+    if (gap > 0n) placementGaps += gap;
+  }
+  // Proof: removing placementGaps made the A=1/48+1e-12, B=0 FF request
+  // test fail: B's baseline finish was 2 while horizonUnits was 1.
+  const horizon = latestFloor + totalDuration + placementGaps;
   if (horizon > BigInt(SOLVER_HORIZON_UNITS_MAX)) {
     return {
       ok: false,

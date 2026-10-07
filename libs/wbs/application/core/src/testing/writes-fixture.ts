@@ -8,14 +8,15 @@ import {
   testWorkItemService,
 } from '@wbs/store-memory/testing/service-fixtures';
 
+import type { CalendarMarkerService } from '../module/calendar-marker/calendar-marker.resource';
+import type { PlanCommandServices } from '../module/plan-commands/plan-commands.feature';
+import type { ImportService } from '../module/plan-import/plan-import.feature';
+import type { ProjectService } from '../module/project/project.resource';
+import type { StepService } from '../module/step/step.resource';
 import type { Broadcaster } from '../ports/project-event';
 import type { TransactionalStores } from '../ports/stores';
 import type { Scope, UnitOfWork } from '../ports/unit-of-work';
-import type { CalendarMarkerService } from '../service/calendar-marker.service';
-import type { ImportService } from '../service/import.service';
-import type { PlanCommandServices } from '../service/plan-commands';
-import type { ProjectService } from '../service/project.service';
-import type { StepService } from '../service/step.service';
+import type { CommittedFanoutDelivery } from '../service/committed-fanout';
 import type { InMemoryPlan } from './harness';
 
 export interface WritingServices extends PlanCommandServices {
@@ -82,21 +83,30 @@ export function countingUnitOfWork(): UnitOfWork & {
  */
 export function testWrites(
   broadcast: Broadcaster = silentBroadcaster(),
-  services: WritingServices = {
-    workItems: testWorkItemService(),
-    directory: testDirectoryService(),
-    capacity: testCapacityService(),
-    priorityBands: testPriorityBandService(),
-    projects: testProjectService(),
-    steps: testStepService(),
-    calendarMarkers: testCalendarMarkerService(),
-  },
+  /**
+   * The services the batch graph hands out; any left out are the in-memory
+   * doubles. A harness whose routes use a real service for one of these must
+   * pass that same service here: a project reach change and a step removal run
+   * through this graph (`admitted-write.ts`), and a double beside a real route
+   * service answers for a project it has never seen.
+   */
+  given: Partial<WritingServices> = {},
 ): {
   imports: Pick<ImportService, 'import'>;
   uow: ReturnType<typeof countingUnitOfWork>;
   batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
   announcements: Broadcaster;
+  committedFanout: CommittedFanoutDelivery;
 } {
+  const services: WritingServices = {
+    workItems: given.workItems ?? testWorkItemService(),
+    directory: given.directory ?? testDirectoryService(),
+    capacity: given.capacity ?? testCapacityService(),
+    priorityBands: given.priorityBands ?? testPriorityBandService(),
+    projects: given.projects ?? testProjectService(),
+    steps: given.steps ?? testStepService(),
+    calendarMarkers: given.calendarMarkers ?? testCalendarMarkerService(),
+  };
   return {
     imports: {
       import: () =>
@@ -123,6 +133,7 @@ export function testWrites(
     // `announcement-ownership.db.test.ts`'s, on real services.
     batch: () => services,
     announcements: broadcast,
+    committedFanout: { now: () => 0, deliverCommitted: () => Promise.resolve() },
   };
 }
 

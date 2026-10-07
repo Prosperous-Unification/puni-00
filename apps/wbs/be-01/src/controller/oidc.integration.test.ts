@@ -14,12 +14,26 @@ import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingJoinRequests,
+  refusingTestEmailDelivery,
+} from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { refusingOnboarding } from '../testing/onboarding-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingDomains,
+  refusingMemberships,
+} from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { testProjectService } from '../testing/project-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
+import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
@@ -154,6 +168,16 @@ function fixture(
   };
   const users = inMemoryUsers();
   const app = buildApp({
+    organizations: legacyOrganizationAccess,
+    memberships: refusingMemberships,
+    domains: refusingDomains,
+    emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
+    spaces: refusingSpaces,
+    projectRanks: refusingProjectRanks,
+    emailDelivery: refusingTestEmailDelivery,
+    onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
     clock: testClock,
     appOrigin: oidc.appOrigin,
@@ -513,9 +537,17 @@ describe('OIDC browser routes', () => {
     const f = fixture({ ...claims, wbs_groups: ['dev:wbs:read'] });
     const publicProtocolRoutes = new Set([
       '/api/auth/login',
+      // Exchanges a credential for a bounded context; it writes no domain state.
+      '/api/auth/context',
       '/api/auth/logout',
       '/api/auth/refresh',
       '/api/auth/register',
+      // Auth protocol start uses a fresh first-party password proof instead of a bearer write scope.
+      // Proof: 2026-09-28, removing this classification made `guards every registered user-facing mutation with write scope` receive 400 for link start instead of the expected 403 domain-write policy.
+      '/api/auth/link/auth0',
+      // Selection writes only a credential-bound browser cookie after checking
+      // current membership; read-only users may choose their organization.
+      '/api/organization/active',
       '/api/smoke/echo',
     ]);
     const mutations = registeredRoutes(f.app.routes as unknown).filter(
@@ -539,9 +571,15 @@ describe('OIDC browser routes', () => {
     expect(mutations.length).toBeGreaterThanOrEqual(10);
     for (const route of mutations) {
       const path = route.path.replace(/:[^/]+/g, 'test-id');
+      const body =
+        route.path === '/api/onboarding/organizations'
+          ? { name: 'Example' }
+          : route.path === '/api/onboarding/join-requests'
+            ? { organizationId: 'test-id' }
+            : {};
       const res = await f.app.handle(
         new Request(`https://dev.wbs.test${path}`, {
-          body: route.method === 'DELETE' ? undefined : '{}',
+          body: route.method === 'DELETE' ? undefined : JSON.stringify(body),
           headers: {
             'content-type': 'application/json',
             cookie: '__Host-wbs_access=reader-token',

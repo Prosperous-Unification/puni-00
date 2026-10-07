@@ -1,9 +1,10 @@
+import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { expect, spyOn, test } from 'bun:test';
 
 import { workItemRoutes } from '../../controller/work-item.routes';
 import { nodeDigest } from '../../runtime/bun-runtime';
-import { PlanCommandRunner } from '../../service/plan-commands';
 import { inMemoryServices } from '../../testing/harness';
+import { legacyOrganizationAccess } from '../../testing/organization-access-fixture';
 import { projectRow } from '../../testing/project-fixture';
 import { batchServices, testWrites } from '../../testing/writes-fixture';
 import { mountEndpoints } from './mount';
@@ -11,13 +12,13 @@ import { mountEndpoints } from './mount';
 function fixture(readOnly = false) {
   const plan = inMemoryServices();
   const writes = testWrites(undefined, batchServices(plan));
-  const runner = new PlanCommandRunner({
+  const runner = createPlanCommandRunner({
     batchServices: writes.batch,
     publicServices: batchServices(plan),
     uow: writes.uow,
     announcements: writes.announcements,
   });
-  const endpoints = workItemRoutes(plan.service, runner, nodeDigest);
+  const endpoints = workItemRoutes(plan.service, runner, nodeDigest, legacyOrganizationAccess);
   const app = mountEndpoints(endpoints, {
     appOrigin: 'http://localhost',
     reportUnexpectedFailure: () => undefined,
@@ -48,7 +49,7 @@ function fixture(readOnly = false) {
 
 test('mounted command classification preserves derived numbering and legacy semantic order before structural errors', async () => {
   const f = fixture();
-  const run = spyOn(f.runner, 'run');
+  const run = spyOn(f.runner, 'runWithin');
   for (const [commands, expected] of [
     [
       [{ kind: 'patchWorkItem', patch: { number: '010' } }],
@@ -78,7 +79,7 @@ test('mounted command classification preserves derived numbering and legacy sema
 
 test('mounted semantic classification preserves eager common and branch field precedence', async () => {
   const f = fixture();
-  const run = spyOn(f.runner, 'run');
+  const run = spyOn(f.runner, 'runWithin');
   const cases = [
     [
       { kind: 'createWorkItem', priority: 0, parentRef: 7 },
@@ -115,7 +116,7 @@ test('mounted semantic classification preserves eager common and branch field pr
 
 test('mounted command results erase internal kind after validating producer-specific requirements', async () => {
   const f = fixture();
-  const run = spyOn(f.runner, 'run');
+  const run = spyOn(f.runner, 'runWithin');
   run.mockResolvedValueOnce({
     ok: true,
     results: [{ index: 0, kind: 'createTeam', id: 't', entity: { id: 't', name: 'Team' } }],
@@ -154,7 +155,7 @@ test('mounted command results erase internal kind after validating producer-spec
 
 test('mounted runtime refusals retain status, command context and code-specific detail', async () => {
   const f = fixture();
-  const run = spyOn(f.runner, 'run');
+  const run = spyOn(f.runner, 'runWithin');
   for (const [reason, detail, status] of [
     ['taken', { name: 'Existing' }, 409],
     ['in_use', { usage: { projects: [], members: [{ id: 'p', name: 'Person' }] } }, 409],
@@ -183,7 +184,7 @@ test('mounted runtime refusals retain status, command context and code-specific 
 
 test('mounted command admission rejects structural extras and unknown kind before any transaction', async () => {
   const f = fixture();
-  const run = spyOn(f.runner, 'run');
+  const run = spyOn(f.runner, 'runWithin');
   for (const command of [
     { kind: 'patchWorkItem', patch: { extra: true } },
     {
@@ -210,7 +211,7 @@ test('mounted command admission rejects structural extras and unknown kind befor
 
 test('mounted parsing preserves priority absence and null while defaulting assignee absence', async () => {
   const f = fixture();
-  const run = spyOn(f.runner, 'run');
+  const run = spyOn(f.runner, 'runWithin');
   run.mockResolvedValueOnce({
     ok: true,
     results: [],
@@ -230,12 +231,17 @@ test('mounted parsing preserves priority absence and null while defaulting assig
   expect(response.status).toBe(200);
   // Proof: defaulting an absent create priority to null in the production parser failed this
   // assertion with the first received create command gaining `"priority": null`.
-  expect(run).toHaveBeenCalledWith('p', 'owner', [
-    { kind: 'createWorkItem', parentId: null, afterId: null },
-    { kind: 'createWorkItem', parentId: null, afterId: null, priority: null },
-    { kind: 'setAssignee', stepId: 's', personId: null },
-    { kind: 'setAssignee', stepId: 's', personId: null },
-  ]);
+  expect(run).toHaveBeenCalledWith(
+    'p',
+    'owner',
+    [
+      { kind: 'createWorkItem', parentId: null, afterId: null },
+      { kind: 'createWorkItem', parentId: null, afterId: null, priority: null },
+      { kind: 'setAssignee', stepId: 's', personId: null },
+      { kind: 'setAssignee', stepId: 's', personId: null },
+    ],
+    { kind: 'legacy' },
+  );
 });
 
 test('mounted create without priority uses the project middle-band default', async () => {
@@ -280,7 +286,7 @@ test('mounted command policies precede body parsing and bodyless undo refuses by
   );
   expect(response.status).toBe(403);
   expect(await response.json()).toEqual({ error: 'invalid_origin' });
-  const undo = spyOn(f.runner, 'undo');
+  const undo = spyOn(f.runner, 'undoWithin');
   expect((await f.call({}, '/api/projects/p/undo')).status).toBe(400);
   expect(undo).not.toHaveBeenCalled();
 });
@@ -330,6 +336,7 @@ test('mounted tree validates core fields, deadline and slice lateness while pres
   if (tree === null) throw new Error('Tree fixture missing');
   const row = tree.workItems.at(0);
   if (row === undefined) throw new Error('Tree fixture row missing');
+  if (row.schedule === null) throw new Error('Tree fixture row unscheduled');
   const slice = {
     ...row.schedule,
     id: 'slice',
@@ -401,7 +408,7 @@ test('mounted parser refusals reject malformed known context instead of matching
 
 test('mounted create and duplicate results require their minted top-level ids', async () => {
   const f = fixture();
-  const run = spyOn(f.runner, 'run');
+  const run = spyOn(f.runner, 'runWithin');
   for (const produced of [
     { kind: 'createWorkItem' },
     { kind: 'duplicateWorkItem' },

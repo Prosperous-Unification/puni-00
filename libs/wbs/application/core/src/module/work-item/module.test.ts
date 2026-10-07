@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { installWorkItem } from './check';
@@ -36,9 +37,11 @@ async function seeded() {
       capacity: stores.capacity,
       priorityBands: stores.priorityBands,
       dependencies: stores.dependencies,
+      typedDependencies: stores.typedDependencies,
       subtrees: stores.subtrees,
       journal: stores.journal,
       broadcast,
+      admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: clockOf({ now: () => 2, newId: () => `item-${String(++next)}` }),
     },
@@ -51,6 +54,7 @@ const hostRequirements = () => {
     workItemStore: DiBag.createProvider(() => stores.workItems, {
       factoryReturnKind: 'sync-value',
     }),
+    livePlans: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     projectStore: DiBag.createProvider(() => stores.projects, { factoryReturnKind: 'sync-value' }),
     estimateStore: DiBag.createProvider(() => stores.estimates, {
       factoryReturnKind: 'sync-value',
@@ -65,6 +69,9 @@ const hostRequirements = () => {
     priorityBandStore: DiBag.createProvider(() => stores.priorityBands, {
       factoryReturnKind: 'sync-value',
     }),
+    typedDependencyStore: DiBag.createProvider(() => stores.typedDependencies, {
+      factoryReturnKind: 'sync-value',
+    }),
     dependencyStore: DiBag.createProvider(() => stores.dependencies, {
       factoryReturnKind: 'sync-value',
     }),
@@ -73,7 +80,13 @@ const hostRequirements = () => {
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
       factoryReturnKind: 'sync-value',
     }),
+    editAdmission: DiBag.createProvider(() => CREATOR_ADMISSION, {
+      factoryReturnKind: 'sync-value',
+    }),
     scheduler: DiBag.createProvider(() => fastScheduler, { factoryReturnKind: 'sync-value' }),
+    schedulerMode: DiBag.createProvider(() => 'capture' as const, {
+      factoryReturnKind: 'sync-value',
+    }),
   };
 };
 
@@ -97,6 +110,53 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Work item module', () => {
+  it('refuses an SF write at the application boundary', async () => {
+    const { requirements } = await seeded();
+    const { workItems } = installWorkItem(requirements);
+    const first = await workItems.create(PROJECT, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'A',
+    });
+    const second = await workItems.create(PROJECT, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'B',
+    });
+    if (!first.ok || !second.ok) throw new Error('fixture work items were refused');
+    const proposed = await workItems.addTypedDependency(PROJECT, OWNER, {
+      predecessor: { scope: 'whole', workItemId: first.value.id },
+      successor: { scope: 'whole', workItemId: second.value.id },
+      type: 'SF',
+    });
+    expect(proposed).toEqual({ ok: false, reason: 'unsupported_relationship_type' });
+  });
+
+  it('refuses a direct legacy write that closes a typed SS cycle', async () => {
+    const { requirements } = await seeded();
+    const { workItems } = installWorkItem(requirements);
+    const first = await workItems.create(PROJECT, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'A',
+    });
+    const second = await workItems.create(PROJECT, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'B',
+    });
+    if (!first.ok || !second.ok) throw new Error('fixture work items were refused');
+    const typed = await workItems.addTypedDependency(PROJECT, OWNER, {
+      predecessor: { scope: 'whole', workItemId: first.value.id },
+      successor: { scope: 'whole', workItemId: second.value.id },
+      type: 'SS',
+    });
+    expect(typed.ok).toBe(true);
+    const legacy = await workItems.addDependency(first.value.id, OWNER, second.value.id);
+    expect(legacy).toEqual({ ok: false, reason: 'cycle' });
+    expect(await requirements.dependencies.listByProject(PROJECT)).toEqual([]);
+  });
+
   it('announces a created work item through the broadcaster installWorkItem wires', async () => {
     const { broadcast, requirements } = await seeded();
     const { workItems } = installWorkItem(requirements);
@@ -113,6 +173,23 @@ describe('the Work item module', () => {
         event.type === 'tree_replaced' ? event.workItems.map((row) => row.name) : event.type,
       ),
     ).toEqual([['Scope']]);
+  });
+
+  // Proof: handing the resource `{ admits: () => true }` instead of the
+  // supplied admission made this test receive `ok: true` (5 pass, 1 fail);
+  // watched 2026-09-28.
+  it('asks the admission installWorkItem wires before a work item write', async () => {
+    const { broadcast, requirements } = await seeded();
+    const { workItems } = installWorkItem({ ...requirements, admission: { admits: () => false } });
+
+    const created = await workItems.create(PROJECT, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Scope',
+    });
+
+    expect(created).toEqual({ ok: false, reason: 'forbidden' });
+    expect(broadcast.published).toEqual([]);
   });
 
   /**

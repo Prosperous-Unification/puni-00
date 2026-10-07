@@ -1,5 +1,5 @@
 import type { Step, StepRemoved, StepStore, StepUsageRows } from '@wbs/core';
-import { STEP_POSITION_STEP, suggestStepCode } from '@wbs/domain';
+import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCode } from '@wbs/domain';
 
 /**
  * A `Step` row carrying every field the schema requires.
@@ -15,6 +15,7 @@ export function stepRow(overrides: Partial<Step> = {}): Step {
     name,
     position: STEP_POSITION_STEP,
     code: suggestStepCode(name, new Set()),
+    allowancePercent: NO_ALLOWANCE,
     ...overrides,
   };
 }
@@ -87,8 +88,8 @@ export function inMemorySteps(
       rows.push(written);
       return Promise.resolve({ ok: true, step: written });
     },
-    rename(stepId, name, _stamp) {
-      const found = rows.find((each) => each.id === stepId);
+    rename(projectId, stepId, name, _stamp) {
+      const found = rows.find((each) => each.id === stepId && each.projectId === projectId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       const taken = rows.some(
         (each) => each.projectId === found.projectId && each.name === name && each.id !== stepId,

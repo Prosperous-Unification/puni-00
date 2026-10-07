@@ -78,6 +78,8 @@ const rowAt = (
   tags: { own: [], inherited: [] },
   trioByStep: new Map(),
   waitsFor: [],
+  stoppedBy: [],
+  held: false,
   ...extras,
 });
 
@@ -138,6 +140,7 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   slices: [],
   dependencies: [],
   tree: treeFrom(parts.rows ?? []),
+  heldLeafIds: new Set(),
   // Off unless a test is about the sentence a filter's dropped waits earn.
   narrowedByFilter: false,
   steps: [
@@ -375,6 +378,29 @@ describe('bars', () => {
       'Held by its start-no-earlier-than date — waiting on client sign-off',
       'Held by its start-no-earlier-than date — waiting on client sign-off',
     ]);
+  });
+});
+
+describe('an on-hold row (add-work-item-statuses)', () => {
+  it('draws no bracket for a parent with no schedule, and no arrow to or from a held row', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('branch', 0, 0, { leaf: false, schedule: null }),
+          rowAt('strip', 0, 0, { depth: 1, schedule: null }),
+          rowAt('sand', 0, 2),
+        ],
+        slices: [sliceAt('sand-dev', 'sand', 0, 2)],
+        dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      }),
+    );
+
+    // Proof: the null-schedule return removed from the layout made this fail
+    // on `Cannot read properties of null (reading 'earliestStart')`; watched
+    // 2026-09-29.
+    expect(chart.brackets).toEqual([]);
+    expect(chart.arrows).toEqual([]);
+    expect(chart.bars.map((bar) => bar.rowIndex)).toEqual([2]);
   });
 });
 
@@ -939,9 +965,521 @@ describe('a binding floor this build does not know', () => {
     expect(() => layOutGantt(heldByTheUnknown())).toThrow(GanttDataError);
     expect(() => layOutGantt(heldByTheUnknown())).toThrow('phaseOfTheMoon');
   });
+
+  it('sends a bar held elsewhere to the error boundary until it has words', () => {
+    const heldElsewhere = planOf({
+      rows: [rowAt('strip', 0, 3)],
+      slices: [sliceAt('strip-dev', 'strip', 0, 3, { boundBy: 'elsewhere' })],
+    });
+    expect(() => layOutGantt(heldElsewhere)).toThrow(GanttDataError);
+    expect(() => layOutGantt(heldElsewhere)).toThrow('held elsewhere');
+  });
 });
 
 describe('dependency arrows', () => {
+  it('uses first whole steps for SS starts and last whole steps for FF finishes', () => {
+    const plan = planOf({
+      rows: [rowAt('A', 0, 4), rowAt('B', 1, 5)],
+      steps: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 2),
+        sliceAt('A-qa', 'A', 2, 4, { stepId: 'qa' }),
+        sliceAt('B-dev', 'B', 1, 3),
+        sliceAt('B-qa', 'B', 3, 5, { stepId: 'qa' }),
+      ],
+      typedDependencies: [
+        {
+          id: 'ss',
+          type: 'SS',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    expect(placeOnWorkdays(layOutGantt(plan)).typedArrows).toMatchObject([
+      { type: 'SS', predecessorSliceId: 'A-dev', successorSliceId: 'B-dev', fromX: 0, toX: 1 },
+      { type: 'FF', predecessorSliceId: 'A-qa', successorSliceId: 'B-qa', fromX: 4, toX: 5 },
+    ]);
+  });
+  it('attaches SS to starts and FF to actual finishes, including an unknown tick', () => {
+    const plan = planOf({
+      rows: [rowAt('A', 1, 4), rowAt('B', 3, 6)],
+      slices: [sliceAt('A-dev', 'A', 1, 4), sliceAt('B-dev', 'B', 3, 6)],
+      typedDependencies: [
+        {
+          id: 'ss',
+          type: 'SS',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    expect(placeOnWorkdays(layOutGantt(plan)).typedArrows).toMatchObject([
+      { type: 'SS', fromX: 1, toX: 3 },
+      { type: 'FF', fromX: 4, toX: 6 },
+    ]);
+    const unknown = planOf({
+      rows: [rowAt('A', 0, 0), rowAt('B', 2, 2)],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 0, { estimated: false }),
+        sliceAt('B-dev', 'B', 2, 2, { estimated: false }),
+      ],
+      typedDependencies: [
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    const unknownPlaced = placeOnWorkdays(layOutGantt(unknown));
+    expect(unknownPlaced.typedArrows[0]).toMatchObject({
+      fromX: 0,
+      toX: 2,
+    });
+    const unknownRoute = routeArrow(
+      unknownPlaced.typedArrows[0],
+      unknownPlaced.bars,
+      { approach: 0.4, barInset: 0.18 },
+      { boundaryEntry: true },
+    );
+    expect(unknownRoute?.at(-2)?.x).toBe(2);
+    expect(unknownRoute?.at(-1)?.x).toBe(2);
+  });
+
+  it('routes FF straight down into an unknown tick at the predecessor finish', () => {
+    // The unknown tick's placeholder [2, 4) sits under the direct arrival, and on
+    // adjacent rows the arrival band is the departure band. The route must not
+    // run out to the gutter and back along the same line.
+    const plan = planOf({
+      rows: [rowAt('A', 0, 2), rowAt('B', 2, 2)],
+      slices: [sliceAt('A-dev', 'A', 0, 2), sliceAt('B-dev', 'B', 2, 2, { estimated: false })],
+      typedDependencies: [
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    const placed = placeOnWorkdays(layOutGantt(plan));
+    expect(placed.typedArrows[0]).toMatchObject({ fromX: 2, toX: 2 });
+    const route = routeArrow(
+      placed.typedArrows[0],
+      placed.bars,
+      { approach: 0.4, barInset: 0.18 },
+      { boundaryEntry: true },
+    );
+    expect(route).toEqual([
+      { x: 2, y: 0.5 },
+      { x: 2, y: 1.5 },
+    ]);
+  });
+
+  it('routes FF into a second unknown step lane at its zero-time tick', () => {
+    const plan = planOf({
+      rows: [rowAt('A', 0, 2), rowAt('B', 2, 2)],
+      steps: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 2),
+        sliceAt('B-dev', 'B', 2, 2, { estimated: false }),
+        sliceAt('B-qa', 'B', 2, 2, { stepId: 'qa', estimated: false }),
+      ],
+      typedDependencies: [
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'qa' },
+        },
+      ],
+    });
+    const placed = placeOnWorkdays(layOutGantt(plan));
+    const route = routeArrow(
+      placed.typedArrows[0],
+      placed.bars,
+      { approach: 0.4, barInset: 0.18 },
+      { boundaryEntry: true },
+    );
+    expect(route?.at(-1)?.x).toBe(2);
+    expect(route?.at(-2)?.x).toBe(2);
+  });
+
+  it.each([
+    {
+      name: 'SS into QA after a contiguous Dev bar',
+      type: 'SS' as const,
+      sourceFinish: 2,
+      targetStart: 2,
+      targetFinish: 4,
+      unknown: false,
+    },
+    {
+      name: 'FF into an unknown QA tick below an overlapping Dev placeholder',
+      type: 'FF' as const,
+      sourceFinish: 3,
+      targetStart: 3,
+      targetFinish: 3,
+      unknown: true,
+    },
+  ])(
+    'routes $name without crossing a bar',
+    ({ type, sourceFinish, targetStart, targetFinish, unknown }) => {
+      const clearance = { approach: 0.4, barInset: 0.18 };
+      const placed = placeOnWorkdays(
+        layOutGantt(
+          planOf({
+            rows: [rowAt('A', 0, sourceFinish), rowAt('B', 0, 4)],
+            slices: [
+              sliceAt('A-dev', 'A', 0, sourceFinish),
+              sliceAt('B-dev', 'B', unknown ? 2 : 0, unknown ? 4 : 2, { estimated: !unknown }),
+              sliceAt('B-qa', 'B', targetStart, targetFinish, {
+                stepId: 'qa',
+                estimated: !unknown,
+              }),
+            ],
+            typedDependencies: [
+              {
+                id: 'scoped',
+                type,
+                predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+                successor: { scope: 'node', workItemId: 'B', stepId: 'qa' },
+              },
+            ],
+          }),
+        ),
+      );
+      const route = routeArrow(placed.typedArrows[0], placed.bars, clearance, {
+        boundaryEntry: true,
+      });
+      expect(route).not.toBeNull();
+      if (route === null) throw new Error('expected a clear typed route');
+      expect(route.at(-1)?.x).toBe(type === 'SS' ? targetStart : targetFinish);
+      for (const bar of placed.bars) {
+        const top =
+          bar.bar.rowIndex +
+          clearance.barInset +
+          (bar.bar.lane * (1 - 2 * clearance.barInset)) / bar.bar.lanes;
+        const bottom =
+          bar.bar.rowIndex +
+          clearance.barInset +
+          ((bar.bar.lane + 1) * (1 - 2 * clearance.barInset)) / bar.bar.lanes;
+        const left = bar.x;
+        const right = bar.x + bar.width;
+        const crosses = route.slice(1).some((corner, index) => {
+          const prior = route[index];
+          return prior.x === corner.x
+            ? prior.x > left &&
+                prior.x < right &&
+                Math.min(prior.y, corner.y) < bottom &&
+                Math.max(prior.y, corner.y) > top
+            : prior.y > top &&
+                prior.y < bottom &&
+                Math.min(prior.x, corner.x) < right &&
+                Math.max(prior.x, corner.x) > left;
+        });
+        expect(crosses, bar.bar.sliceId).toBe(false);
+      }
+    },
+  );
+
+  it('routes SS left of both starts and FF right of both finishes', () => {
+    const plan = planOf({
+      rows: [rowAt('A', 1, 4), rowAt('B', 3, 6)],
+      slices: [sliceAt('A-dev', 'A', 1, 4), sliceAt('B-dev', 'B', 3, 6)],
+      typedDependencies: [
+        {
+          id: 'ss',
+          type: 'SS',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    const placed = placeOnWorkdays(layOutGantt(plan));
+    const ss = routeArrow(
+      placed.typedArrows[0],
+      placed.bars,
+      { approach: 0.4, barInset: 0.18 },
+      { boundaryEntry: true },
+    );
+    const ff = routeArrow(
+      placed.typedArrows[1],
+      placed.bars,
+      { approach: 0.4, barInset: 0.18 },
+      { boundaryEntry: true },
+    );
+    expect(ss?.[0].x).toBe(1);
+    expect(ss?.at(-1)?.x).toBe(3);
+    expect(ss?.some((point) => point.x < 1)).toBe(true);
+    expect(ff?.[0].x).toBe(4);
+    expect(ff?.at(-1)?.x).toBe(6);
+    expect(ff?.some((point) => point.x > 6)).toBe(true);
+    expect(ff?.at(-2)?.x).toBeGreaterThan(6);
+    expect(ff?.at(-2)?.y).toBe(ff?.at(-1)?.y);
+  });
+
+  it('keeps collapsed proxy types separate', () => {
+    const plan = planOf({
+      rows: [rowAt('P', 0, 2, { leaf: false }), rowAt('A', 0, 2, { depth: 1 }), rowAt('Q', 2, 4)],
+      tree: [
+        { id: 'P', parentId: null },
+        { id: 'A', parentId: 'P' },
+        { id: 'Q', parentId: null },
+      ],
+      slices: [sliceAt('A-dev', 'A', 0, 2), sliceAt('Q-dev', 'Q', 2, 4)],
+      typedDependencies: [
+        {
+          id: 'ss',
+          type: 'SS',
+          predecessor: { scope: 'whole', workItemId: 'P' },
+          successor: { scope: 'whole', workItemId: 'Q' },
+        },
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'P' },
+          successor: { scope: 'whole', workItemId: 'Q' },
+        },
+      ],
+    });
+    expect(layOutGantt({ ...plan, rows: [plan.rows[0], plan.rows[2]] }).typedArrows).toMatchObject([
+      { type: 'SS', proxy: true, count: 1 },
+      { type: 'FF', proxy: true, count: 1 },
+    ]);
+  });
+  it('uses project step order for whole endpoints despite shuffled slices', () => {
+    const plan = planOf({
+      rows: [rowAt('A', 0, 4), rowAt('B', 4, 8)],
+      steps: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      slices: [
+        sliceAt('A-qa', 'A', 2, 4, { stepId: 'qa' }),
+        sliceAt('B-qa', 'B', 6, 8, { stepId: 'qa' }),
+        sliceAt('A-dev', 'A', 0, 2),
+        sliceAt('B-dev', 'B', 4, 6),
+      ],
+      typedDependencies: [
+        {
+          id: 'whole',
+          type: 'FS',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    expect(layOutGantt(plan).typedArrows).toMatchObject([
+      { predecessorSliceId: 'A-qa', successorSliceId: 'B-dev', fromFinish: 4, toStart: 4 },
+    ]);
+  });
+
+  it('expands a descendant step and keeps scope groups separate', () => {
+    const plan = planOf({
+      rows: [rowAt('P', 0, 2, { leaf: false }), rowAt('A', 0, 2, { depth: 1 }), rowAt('B', 2, 4)],
+      slices: [sliceAt('A-dev', 'A', 0, 2), sliceAt('B-dev', 'B', 2, 4)],
+      typedDependencies: [
+        {
+          id: 'descendant',
+          type: 'FS',
+          predecessor: { scope: 'descendant-step', workItemId: 'P', stepId: 'dev' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+        },
+        {
+          id: 'whole',
+          type: 'FS',
+          predecessor: { scope: 'whole', workItemId: 'P' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+        },
+      ],
+    });
+    const arrows = layOutGantt({ ...plan, rows: [plan.rows[0], plan.rows[2]] }).typedArrows;
+    expect(arrows).toHaveLength(2);
+    expect(arrows.map(({ scope, predecessorSliceId }) => [scope, predecessorSliceId])).toEqual([
+      ['descendant-step->node', 'A-dev'],
+      ['whole->node', 'A-dev'],
+    ]);
+  });
+
+  it('keeps each grouped relationship’s resolved slices', () => {
+    const plan = planOf({
+      rows: [rowAt('P', 0, 2, { leaf: false }), rowAt('A', 0, 2, { depth: 1 }), rowAt('B', 2, 6)],
+      steps: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 2),
+        sliceAt('B-dev', 'B', 2, 4),
+        sliceAt('B-qa', 'B', 4, 6, { stepId: 'qa' }),
+      ],
+      typedDependencies: [
+        {
+          id: 'dev',
+          type: 'FS',
+          predecessor: { scope: 'whole', workItemId: 'P' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+        },
+        {
+          id: 'qa',
+          type: 'FS',
+          predecessor: { scope: 'whole', workItemId: 'P' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'qa' },
+        },
+      ],
+    });
+    const arrows = layOutGantt({ ...plan, rows: [plan.rows[0], plan.rows[2]] }).typedArrows;
+    expect(arrows).toHaveLength(1);
+    expect(arrows[0].relationshipSlices).toEqual([
+      { relationshipId: 'dev', predecessorSliceId: 'A-dev', successorSliceId: 'B-dev' },
+      { relationshipId: 'qa', predecessorSliceId: 'A-dev', successorSliceId: 'B-qa' },
+    ]);
+  });
+
+  it('anchors typed node arrows at scheduled finish and start, including unknown placeholders', () => {
+    const plan = planOf({
+      rows: [rowAt('A', 0, 0), rowAt('B', 0, 2)],
+      slices: [sliceAt('A-dev', 'A', 0, 0, { estimated: false }), sliceAt('B-dev', 'B', 0, 2)],
+      typedDependencies: [
+        {
+          id: 'edge',
+          type: 'FS',
+          predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+        },
+      ],
+    });
+    const placed = placeOnWorkdays(layOutGantt(plan));
+    expect(placed.typedArrows).toMatchObject([
+      { fromX: 0, toX: 0, predecessorSliceId: 'A-dev', successorSliceId: 'B-dev' },
+    ]);
+    expect(placed.bars.find((bar) => bar.bar.sliceId === 'A-dev')?.width).toBe(
+      ASSUMED_SLICE_WORKDAYS,
+    );
+  });
+
+  it('expands parent endpoints and groups collapsed proxies and internal relationships', () => {
+    const dependencies = [
+      {
+        id: 'external',
+        type: 'FS',
+        predecessor: { scope: 'whole', workItemId: 'P' },
+        successor: { scope: 'whole', workItemId: 'Q' },
+      },
+      {
+        id: 'internal',
+        type: 'FS',
+        predecessor: { scope: 'whole', workItemId: 'A' },
+        successor: { scope: 'whole', workItemId: 'B' },
+      },
+    ] as const;
+    const base = planOf({
+      rows: [
+        rowAt('P', 0, 2, { leaf: false }),
+        rowAt('A', 0, 1, { depth: 1 }),
+        rowAt('B', 1, 2, { depth: 1 }),
+        rowAt('Q', 2, 3),
+      ],
+      tree: [
+        { id: 'P', parentId: null },
+        { id: 'A', parentId: 'P' },
+        { id: 'B', parentId: 'P' },
+        { id: 'Q', parentId: null },
+      ],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 1),
+        sliceAt('B-dev', 'B', 1, 2),
+        sliceAt('Q-dev', 'Q', 2, 3),
+      ],
+      typedDependencies: dependencies,
+    });
+    expect(
+      layOutGantt(base).typedArrows.filter((arrow) => arrow.relationshipId === 'external'),
+    ).toHaveLength(2);
+    const collapsed = layOutGantt({ ...base, rows: [base.rows[0], base.rows[3]] });
+    expect(collapsed.typedArrows).toMatchObject([
+      { count: 2, proxy: true, predecessorId: 'P', successorId: 'Q' },
+    ]);
+    expect(collapsed.internalDependencies).toEqual([{ rowId: 'P', count: 1 }]);
+  });
+
+  it.each([
+    [
+      'unknown work item',
+      { scope: 'whole', workItemId: 'missing' },
+      [sliceAt('A-dev', 'A', 0, 1)],
+      'unknown chart work item',
+    ],
+    ['missing slices', { scope: 'whole', workItemId: 'A' }, [], 'missing chart slices'],
+    [
+      'node on parent',
+      { scope: 'node', workItemId: 'P', stepId: 'dev' },
+      [sliceAt('A-dev', 'A', 0, 1)],
+      'node endpoint is not a leaf',
+    ],
+    [
+      'descendant step on leaf',
+      { scope: 'descendant-step', workItemId: 'A', stepId: 'dev' },
+      [sliceAt('A-dev', 'A', 0, 1)],
+      'descendant-step endpoint is a leaf',
+    ],
+    [
+      'missing step',
+      { scope: 'node', workItemId: 'A', stepId: 'qa' },
+      [sliceAt('A-dev', 'A', 0, 1)],
+      'missing chart step',
+    ],
+  ] as const)(
+    'refuses %s in a typed chart endpoint',
+    (_case, predecessor, sourceSlices, message) => {
+      const plan = planOf({
+        rows: [rowAt('P', 0, 1, { leaf: false }), rowAt('A', 0, 1, { depth: 1 }), rowAt('B', 1, 2)],
+        tree: [
+          { id: 'P', parentId: null },
+          { id: 'A', parentId: 'P' },
+          { id: 'B', parentId: null },
+        ],
+        slices: [...sourceSlices, sliceAt('B-dev', 'B', 1, 2)],
+        typedDependencies: [
+          {
+            id: 'invalid',
+            type: 'FS',
+            predecessor,
+            successor: { scope: 'whole', workItemId: 'B' },
+          },
+        ],
+      });
+      expect(() => layOutGantt(plan)).toThrow(message);
+      expect(() => layOutGantt(plan)).toThrow(GanttDataError);
+    },
+  );
   const twoRowsOneEdge = (parts: Partial<GanttPlan> = {}): GanttPlan =>
     planOf({
       rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5)],
@@ -962,6 +1500,7 @@ describe('dependency arrows', () => {
         fromFinish: 3,
         toRowIndex: 1,
         toStart: 3,
+        blocked: false,
       },
     ]);
     expect(chart.personLinks).toEqual([]);
@@ -1040,6 +1579,7 @@ describe('dependency arrows', () => {
         fromFinish: 3,
         toRowIndex: 1,
         toStart: 3,
+        blocked: false,
       },
     ]);
   });
@@ -1078,6 +1618,7 @@ describe('dependency arrows', () => {
         fromFinish: 4,
         toRowIndex: 3,
         toStart: 4,
+        blocked: false,
       },
     ]);
   });
@@ -1118,6 +1659,7 @@ describe('dependency arrows', () => {
         fromFinish: 4,
         toRowIndex: 1,
         toStart: 4,
+        blocked: false,
       },
     ]);
   });
@@ -1169,6 +1711,7 @@ describe('dependency arrows', () => {
         fromFinish: 4,
         toRowIndex: 5,
         toStart: 4,
+        blocked: false,
       },
     ]);
   });
@@ -1268,6 +1811,7 @@ describe('dependency arrows', () => {
         fromFinish: 6,
         toRowIndex: 3,
         toStart: 6,
+        blocked: false,
       },
     ]);
   });
@@ -1334,8 +1878,8 @@ describe('the rest of the chart', () => {
     // id: 'step', number: '010', … }`, and the panel drew a column of names
     // with no numbers in it. Watched, 2026-08-09.
     expect(chart.labels).toEqual([
-      { id: 'step', number: '010', name: 'Prep', depth: 0, rowIndex: 0 },
-      { id: 'strip', number: '010.1', name: 'Strip', depth: 1, rowIndex: 1 },
+      { id: 'step', number: '010', name: 'Prep', depth: 0, rowIndex: 0, held: false },
+      { id: 'strip', number: '010.1', name: 'Strip', depth: 1, rowIndex: 1, held: false },
     ]);
   });
 
@@ -1886,6 +2430,8 @@ describe('the shapes a real schedule makes', () => {
       bars: [],
       brackets: [],
       arrows: [],
+      typedArrows: [],
+      internalDependencies: [],
       personLinks: [],
       capacityLinks: [],
       notBeforeFlags: [],
@@ -2183,8 +2729,14 @@ describe('routing an arrow past the bars it does not join', () => {
   const rectOf = (placed: PlacedBar) => ({
     left: placed.x,
     right: placed.x + placed.width,
-    top: placed.bar.rowIndex + CLEARANCE.barInset,
-    bottom: placed.bar.rowIndex + 1 - CLEARANCE.barInset,
+    top:
+      placed.bar.rowIndex +
+      CLEARANCE.barInset +
+      (placed.bar.lane * (1 - 2 * CLEARANCE.barInset)) / placed.bar.lanes,
+    bottom:
+      placed.bar.rowIndex +
+      CLEARANCE.barInset +
+      ((placed.bar.lane + 1) * (1 - 2 * CLEARANCE.barInset)) / placed.bar.lanes,
   });
 
   /**
@@ -2221,6 +2773,120 @@ describe('routing an arrow past the bars it does not join', () => {
   type Router = (arrow: PlacedArrow, drawn: PlacedBar[]) => { x: number; y: number }[];
 
   const asItRoutes: Router = (arrow, drawn) => routeArrow(arrow, drawn, CLEARANCE);
+
+  it('routes a reversed typed lane below its contiguous next step', () => {
+    const placed = placeOnWorkdays(
+      layOutGantt(
+        planOf({
+          rows: [rowAt('B', 1, 3), rowAt('A', 0, 3)],
+          steps: [
+            { id: 'one', name: 'One' },
+            { id: 'two', name: 'Two' },
+            { id: 'dev', name: 'Dev' },
+            { id: 'qa', name: 'QA' },
+          ],
+          slices: [
+            sliceAt('A-one', 'A', 0, 0, { stepId: 'one', estimated: false }),
+            sliceAt('A-two', 'A', 0, 0, { stepId: 'two', estimated: false }),
+            sliceAt('A-dev', 'A', 0, 1),
+            sliceAt('A-qa', 'A', 1, 3, { stepId: 'qa' }),
+            sliceAt('B-dev', 'B', 1, 3),
+          ],
+          typedDependencies: [
+            {
+              id: 'edge',
+              type: 'FS',
+              predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+              successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+            },
+          ],
+        }),
+      ),
+    );
+    const route = routeArrow(placed.typedArrows[0], placed.bars, CLEARANCE, {
+      boundaryEntry: true,
+    });
+    expect(route).not.toBeNull();
+    if (route === null) throw new Error('expected the lower gap to be routable');
+    expect(route.some((corner) => corner.y > 1.5)).toBe(true);
+    for (const bar of placed.bars) {
+      expect(
+        route.slice(1).some((corner, index) => runsInside(route[index], corner, rectOf(bar))),
+        bar.bar.sliceId,
+      ).toBe(false);
+    }
+  });
+
+  it('enters a later contiguous target at its boundary without crossing either bar', () => {
+    const placed = placeOnWorkdays(
+      layOutGantt(
+        planOf({
+          rows: [rowAt('A', 0, 2), rowAt('B', 2, 6)],
+          steps: [
+            { id: 'dev', name: 'Dev' },
+            { id: 'qa', name: 'QA' },
+          ],
+          slices: [
+            sliceAt('A-dev', 'A', 0, 2),
+            sliceAt('B-dev', 'B', 2, 4),
+            sliceAt('B-qa', 'B', 4, 6, { stepId: 'qa' }),
+          ],
+          typedDependencies: [
+            {
+              id: 'qa',
+              type: 'FS',
+              predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+              successor: { scope: 'node', workItemId: 'B', stepId: 'qa' },
+            },
+          ],
+        }),
+      ),
+    );
+    const route = routeArrow(placed.typedArrows[0], placed.bars, CLEARANCE, {
+      boundaryEntry: true,
+    });
+    if (route === null) throw new Error('expected a clear boundary route');
+    const crossings = placed.bars.flatMap((bar) =>
+      route
+        .slice(1)
+        .flatMap((corner, index) =>
+          runsInside(route[index], corner, rectOf(bar)) ? [bar.bar.sliceId] : [],
+        ),
+    );
+    expect(crossings).toEqual([]);
+    expect(route.at(-1)).toEqual({ x: 4, y: 1.5 });
+  });
+
+  it('retains the origin placeholder as an obstacle and leaves along its boundary', () => {
+    const placed = placeOnWorkdays(
+      layOutGantt(
+        planOf({
+          rows: [rowAt('A', 0, 0), rowAt('B', 0, 2)],
+          slices: [sliceAt('A-dev', 'A', 0, 0, { estimated: false }), sliceAt('B-dev', 'B', 0, 2)],
+          typedDependencies: [
+            {
+              id: 'tick',
+              type: 'FS',
+              predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+              successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+            },
+          ],
+        }),
+      ),
+    );
+    const route = routeArrow(placed.typedArrows[0], placed.bars, CLEARANCE, {
+      boundaryEntry: true,
+    });
+    if (route === null) throw new Error('expected a clear origin route');
+    const crossings = placed.bars.flatMap((bar) =>
+      route
+        .slice(1)
+        .flatMap((corner, index) =>
+          runsInside(route[index], corner, rectOf(bar)) ? [bar.bar.sliceId] : [],
+        ),
+    );
+    expect(crossings).toEqual([]);
+  });
 
   /** Every (arrow, bar) pair the chart draws through, named the way a reader would find it. */
   const crossingsIn = (placed: PlacedGantt, route_: Router = asItRoutes): string[] => {
@@ -3373,5 +4039,177 @@ describe('a done leaf draws one bar over its facts', () => {
       }),
     );
     expect(chart.brackets.map((bracket) => [bracket.start, bracket.finish])).toEqual([[8, 15]]);
+  });
+});
+
+describe('each status on the chart (add-work-item-statuses)', () => {
+  /** `strip` on hold, taken out of the schedule, and `sand` waiting on it. */
+  const heldStrip = (): GanttPlan =>
+    planOf({
+      rows: [
+        rowAt('strip', 0, 0, { status: 'on_hold', held: true, schedule: null }),
+        rowAt('sand', 0, 3, {
+          status: 'blocked_by_proxy',
+          stoppedBy: ['strip - Strip (On hold)'],
+        }),
+      ],
+      slices: [sliceAt('sand-dev', 'sand', 0, 3)],
+      dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      heldLeafIds: new Set(['strip']),
+    });
+
+  it('draws no bar for a held leaf and says On hold in its row instead', () => {
+    const chart = layOutGantt(heldStrip());
+    expect(chart.bars.map((bar) => bar.sliceId)).toEqual(['sand-dev']);
+    expect(chart.labels.map((label) => [label.id, label.held])).toEqual([
+      ['strip', true],
+      ['sand', false],
+    ]);
+    expect(chart.arrows).toEqual([]);
+  });
+
+  it('hatches the bar a held predecessor stops, and names that predecessor on it', () => {
+    const [bar] = layOutGantt(heldStrip()).bars;
+    expect([bar.stop, bar.stoppedBy]).toEqual(['blocked_by_proxy', ['strip - Strip (On hold)']]);
+  });
+
+  it('outlines a blocked bar and draws its arrows in the blocked colour, and no other', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('strip', 0, 2, { status: 'blocked' }),
+          rowAt('sand', 2, 4, { status: 'blocked_by_proxy' }),
+          rowAt('paint', 4, 6),
+        ],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 2),
+          sliceAt('sand-dev', 'sand', 2, 4),
+          sliceAt('paint-dev', 'paint', 4, 6),
+        ],
+        dependencies: [
+          { predecessorId: 'strip', successorId: 'sand' },
+          { predecessorId: 'sand', successorId: 'paint' },
+        ],
+      }),
+    );
+    expect(chart.bars.map((bar) => [bar.sliceId, bar.stop])).toEqual([
+      ['strip-dev', 'blocked'],
+      ['sand-dev', 'blocked_by_proxy'],
+      ['paint-dev', null],
+    ]);
+    expect(chart.arrows.map((arrow) => [arrow.predecessorId, arrow.blocked])).toEqual([
+      ['strip', true],
+      ['sand', false],
+    ]);
+  });
+
+  it('leaves a done bar as it was: no stop, whatever it depends on', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 8, 15, { status: 'done', factEndStop: 12 })],
+        slices: [sliceAt('strip-dev', 'strip', 8, 15)],
+      }),
+    );
+    expect(chart.bars.map((bar) => [bar.done, bar.stop])).toEqual([[true, null]]);
+  });
+
+  it('leaves an arrow from a branch with a held leaf from the leaf still scheduled', () => {
+    // The held leaf has no slice on the chart, because be-01 took it out of the
+    // schedule; the branch's arrow leaves from the leaf that is still in it.
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('branch', 0, 4, { leaf: false }),
+          rowAt('strip', 0, 0, { depth: 1, status: 'on_hold', held: true, schedule: null }),
+          rowAt('sand', 0, 4, { depth: 1 }),
+          rowAt('paint', 4, 6),
+        ],
+        slices: [sliceAt('sand-dev', 'sand', 0, 4), sliceAt('paint-dev', 'paint', 4, 6)],
+        dependencies: [{ predecessorId: 'branch', successorId: 'paint' }],
+        heldLeafIds: new Set(['strip']),
+      }),
+    );
+    expect(chart.arrows.map((arrow) => [arrow.predecessorId, arrow.fromFinish])).toEqual([
+      ['branch', 4],
+    ]);
+  });
+
+  it('draws no typed arrow from a held leaf, and does not take its missing slices for bad data', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('strip', 0, 0, { status: 'on_hold', held: true, schedule: null }),
+          rowAt('sand', 0, 3),
+        ],
+        slices: [sliceAt('sand-dev', 'sand', 0, 3)],
+        typedDependencies: [
+          {
+            id: 'ss',
+            type: 'SS',
+            predecessor: { scope: 'whole', workItemId: 'strip' },
+            successor: { scope: 'whole', workItemId: 'sand' },
+          },
+        ],
+        heldLeafIds: new Set(['strip']),
+      }),
+    );
+    expect(chart.typedArrows).toEqual([]);
+  });
+});
+
+describe('a held leaf is no end of an arrow (add-work-item-statuses)', () => {
+  // be-01 takes every leaf whose stored hold is `on_hold` out of the schedule,
+  // whatever it reads — done included — so it has no slice in the payload.
+  // `strip` is such a leaf: held, then marked done.
+  const heldThenDone = (depth = 0): GanttRow =>
+    rowAt('strip', 0, 0, { depth, status: 'done', held: true, schedule: null });
+
+  it('leaves an arrow from a branch holding a held leaf from the leaf still scheduled', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('branch', 0, 4, { leaf: false }),
+          heldThenDone(1),
+          rowAt('sand', 0, 4, { depth: 1 }),
+          rowAt('paint', 4, 6),
+        ],
+        slices: [sliceAt('sand-dev', 'sand', 0, 4), sliceAt('paint-dev', 'paint', 4, 6)],
+        dependencies: [{ predecessorId: 'branch', successorId: 'paint' }],
+        heldLeafIds: new Set(['strip']),
+      }),
+    );
+    expect(chart.arrows.map((arrow) => [arrow.predecessorId, arrow.fromFinish])).toEqual([
+      ['branch', 4],
+    ]);
+    // Held by the stored hold, so its row says On hold although it reads done.
+    // Proof: the label keyed on `status === 'on_hold'`, and this failed on
+    // `expected [ [ 'branch', false ], …(3) ] to deep equally contain [ 'strip',
+    // true ]`; watched 2026-09-29.
+    expect(chart.labels.map((label) => [label.id, label.held])).toContainEqual(['strip', true]);
+  });
+
+  it('draws no authored arrow to or from a held leaf, and does not read its missing slices as bad data', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [heldThenDone(), rowAt('sand', 0, 3), rowAt('paint', 3, 5)],
+        slices: [sliceAt('sand-dev', 'sand', 0, 3), sliceAt('paint-dev', 'paint', 3, 5)],
+        typedDependencies: [
+          {
+            id: 'from-held',
+            type: 'FS',
+            predecessor: { scope: 'whole', workItemId: 'strip' },
+            successor: { scope: 'whole', workItemId: 'sand' },
+          },
+          {
+            id: 'to-held',
+            type: 'SS',
+            predecessor: { scope: 'whole', workItemId: 'paint' },
+            successor: { scope: 'whole', workItemId: 'strip' },
+          },
+        ],
+        heldLeafIds: new Set(['strip']),
+      }),
+    );
+    expect(chart.typedArrows).toEqual([]);
   });
 });

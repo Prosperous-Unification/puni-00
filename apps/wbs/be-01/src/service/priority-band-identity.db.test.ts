@@ -2,7 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand, suggestStepCode } from '@wbs/domain';
+import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
@@ -292,6 +294,7 @@ describe('a priority ladder moves no date', () => {
     const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
     const service = new WorkItemService({
+      admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems,
@@ -301,6 +304,7 @@ describe('a priority ladder moves no date', () => {
       measures,
       progress,
       dependencies,
+      typedDependencies: inMemoryTypedDependencies(),
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands({ contended: bands }),
@@ -339,6 +343,7 @@ describe('a priority ladder moves no date', () => {
           name: 'Dev',
           position: STEP_POSITION_STEP,
           code: 'dev',
+          allowancePercent: 0,
         },
       ],
       STAMP,
@@ -446,7 +451,9 @@ describe('a priority ladder moves no date', () => {
       return null;
     };
 
-    const { depReach, pertWeights, estimateRounding, ...treeWithoutReach } = tree;
+    const { depReach, pertWeights, estimateRounding, typedDependencies, ...treeWithoutReach } =
+      tree;
+    expect(typedDependencies).toEqual([]);
     // The weights and the rounding are lifted for `depReach`'s reason exactly —
     // the oracle predates both fields — and asserted rather than dropped, so a
     // replay that stopped setting them would fail here instead of being
@@ -470,8 +477,11 @@ describe('a priority ladder moves no date', () => {
       // and asserted rather than dropped: the oracle predates step codes, and
       // every replayed step was created with the code its name suggests. A
       // step code names a step; it moves no date.
-      steps: tree.steps.map(({ code, ...step }) => {
+      steps: tree.steps.map(({ code, allowancePercent, ...step }) => {
         expect(code).toBe(suggestStepCode(step.name, new Set()));
+        // The capture also predates step allowances: every replayed step carries
+        // the 0% the migration gives it.
+        expect(allowancePercent).toBe(0);
         return step;
       }),
       // The capture predates the pool named on each slice. Assert the new field
@@ -517,8 +527,15 @@ describe('a priority ladder moves no date', () => {
           deadline,
           factStart,
           factEnd,
+          readiness,
+          hold,
           ...row
         }) => {
+          // Lifted by `add-work-item-statuses` and asserted null for the fact
+          // dates' reason: the oracle predates both columns and nothing in the
+          // replayed plans says a readiness or a hold.
+          expect(readiness).toBeNull();
+          expect(hold).toBeNull();
           // Lifted by `work-item-deadline` 6.1, which made the column readable,
           // and asserted **null** for `tagIds`' reason: the oracle predates the
           // column, nothing in sixteen replayed plans sets one, and a null on
@@ -702,6 +719,7 @@ describe('a priority ladder moves no date', () => {
     const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
     const service = new WorkItemService({
+      admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems,
@@ -711,6 +729,7 @@ describe('a priority ladder moves no date', () => {
       measures,
       progress,
       dependencies,
+      typedDependencies: inMemoryTypedDependencies(),
       directory,
       // The pools the capture was taken under — see {@link CAPACITIES}. Identical
       // across both replays, so the ladder is the only thing that differs.
@@ -757,6 +776,7 @@ describe('a priority ladder moves no date', () => {
       name: `Step ${String(place)}`,
       code: `step-${String(place)}`,
       position: (place + 1) * STEP_POSITION_STEP,
+      allowancePercent: 0,
     }));
     await projects.create(project, steps, STAMP);
     for (const row of plan.rows) {

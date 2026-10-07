@@ -1,6 +1,7 @@
 import { DiBag } from 'di-bag';
 
 import type { Clock } from '../../ports/clock';
+import type { EditAdmission } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
 import type { StepStore } from '../../ports/step-store';
@@ -18,7 +19,7 @@ import { StepService, type StepServiceOptions } from './step.resource';
  * `stepStore` because the host graph's `steps` key is this module's export.
  *
  * The module registers no disposer: `StepService` holds the borrowed stores of
- * one scope, a clock and a broadcaster, and no handle of its own.
+ * one scope, a clock, a broadcaster and a dependency graph guard, and no handle of its own.
  */
 export const stepModule = DiBag.createBuilder()
   .withServices({
@@ -28,11 +29,17 @@ export const stepModule = DiBag.createBuilder()
         stepStore,
         broadcast,
         clock,
+        recoveryAdmission,
+        dependencyGraph,
+        beforeRemove,
       }: {
         projectStore: ProjectStore;
         stepStore: StepStore;
         broadcast: Broadcaster;
         clock: Clock;
+        recoveryAdmission: EditAdmission | undefined;
+        dependencyGraph: StepServiceOptions['dependencyGraph'];
+        beforeRemove: StepServiceOptions['beforeRemove'];
       }): StepServiceOptions => ({
         projects: projectStore,
         steps: stepStore,
@@ -42,6 +49,9 @@ export const stepModule = DiBag.createBuilder()
         // failing (4 pass, 1 fail): it received `[]`.
         broadcast,
         clock,
+        recoveryAdmission,
+        dependencyGraph,
+        beforeRemove,
       }),
       { factoryReturnKind: 'sync-value' },
     ),

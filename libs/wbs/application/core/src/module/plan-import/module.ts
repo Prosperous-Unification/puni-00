@@ -1,11 +1,8 @@
 import { DiBag } from 'di-bag';
 
-import type { Clock } from '../../ports/clock';
-import type { Broadcaster } from '../../ports/project-event';
-import type { Scheduler } from '../../ports/scheduler';
-import type { UnitOfWork } from '../../ports/unit-of-work';
+import { createImportService, type PlanImportSource } from './composition';
 import { PLAN_IMPORT_LABEL } from './contract';
-import { ImportService, type ImportServiceOptions } from './plan-import.feature';
+import type { ImportService } from './plan-import.feature';
 
 /**
  * Plan import as a sealed DI Bag module.
@@ -17,33 +14,20 @@ import { ImportService, type ImportServiceOptions } from './plan-import.feature'
  * anonymous binding.
  *
  * The module registers no disposer, because nothing it owns has one:
- * `ImportService` holds five borrowed ports and callbacks and no timer, socket
+ * `ImportService` holds a mapped transaction, three borrowed ports and no timer, socket
  * or handle of its own. Its lifetime therefore stays the composition root's,
  * exactly as `bootBe01` owns the source it borrows.
  */
 export const planImportModule = DiBag.createBuilder()
   .withServices({
-    importOptions: DiBag.createProvider(
-      ({
-        clock,
-        scheduler,
-        uow,
-        announcements,
-        batchServices,
-      }: {
-        clock: Clock;
-        scheduler: Scheduler;
-        uow: UnitOfWork;
-        announcements: Broadcaster;
-        batchServices: ImportServiceOptions['batchServices'];
-      }): ImportServiceOptions => ({ clock, scheduler, uow, announcements, batchServices }),
-      { factoryReturnKind: 'sync-value' },
-    ),
+    importOptions: DiBag.createProvider((source: PlanImportSource): PlanImportSource => source, {
+      factoryReturnKind: 'sync-value',
+    }),
   })
   .withServices({
     imports: DiBag.createProvider(
-      ({ importOptions }: { importOptions: ImportServiceOptions }): ImportService =>
-        new ImportService(importOptions),
+      ({ importOptions }: { importOptions: PlanImportSource }): ImportService =>
+        createImportService(importOptions),
       { factoryReturnKind: 'sync-value' },
     ),
   })

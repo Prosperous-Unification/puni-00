@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { closeSync, openSync } from 'node:fs';
 
-import { Database } from 'bun:sqlite';
+import { Database, SQLiteError } from 'bun:sqlite';
 
 import {
   McpStoreRefused,
@@ -68,24 +68,7 @@ export class McpSessionStore {
       const created = path === ':memory:' || createdAbsent(path);
       db = new Database(path, { create: false, readwrite: true, strict: true });
       db.run('PRAGMA busy_timeout = 5000');
-      const walDeadline = performance.now() + 5_000;
-      for (;;) {
-        try {
-          db.run('PRAGMA journal_mode = WAL');
-          break;
-        } catch (cause) {
-          // Proof: one injected SQLITE_BUSY failed creator startup without retry; persistent busy
-          // stops at the deadline, and an injected busy on an existing empty file is not retried.
-          if (
-            !created ||
-            path === ':memory:' ||
-            !(cause instanceof Error && 'code' in cause && cause.code === 'SQLITE_BUSY') ||
-            performance.now() >= walDeadline
-          )
-            throw cause;
-          Bun.sleepSync(5);
-        }
-      }
+      switchToWal(db);
       db.run('PRAGMA foreign_keys = ON');
       db.run('PRAGMA synchronous = FULL');
       migrateMcpStore(db, created);
@@ -462,6 +445,58 @@ export class McpSessionStore {
         { cause },
       );
     }
+  }
+}
+
+const WAL_SWITCH_ATTEMPTS = 100;
+const WAL_SWITCH_PAUSE_MS = 50;
+
+/**
+ * Sets `journal_mode = WAL`, retrying `SQLITE_BUSY` for up to 100 attempts 50 ms apart.
+ *
+ * A read-to-write lock upgrade refuses at once, but an exclusive rival can make each attempt
+ * wait for the configured `busy_timeout`. Disable that handler during this bounded retry and
+ * restore its original setting even when the switch fails.
+ * Two starts on one absent store collide exactly here: the creator refused with `database is
+ * locked` while its rival refused the empty file as not its own, and the store stayed an empty
+ * file that every later start refuses.
+ *
+ * @param db The store connection, outside any transaction.
+ * @param pause Waits between attempts; a test passes one that releases its rival's lock.
+ * @throws If the busy timeout cannot be read, the last `SQLITE_BUSY` when every attempt is
+ * refused, or any other error at once.
+ */
+export function switchToWal(
+  db: Database,
+  pause: (ms: number) => void = (ms) => {
+    Bun.sleepSync(ms);
+  },
+): void {
+  const configured = db.query<{ timeout: number }, []>('PRAGMA busy_timeout').get();
+  // Proof: a reader returning null made the malformed-timeout case refuse before any pragma.
+  if (configured === null || !Number.isInteger(configured.timeout) || configured.timeout < 0) {
+    throw new Error('SQLite did not report a valid busy timeout before the WAL switch');
+  }
+  // Proof: without this zero, an exclusive rival held the 20 ms handler for 100 attempts;
+  // the browser-free store test observed 2051 ms against its 1000 ms bound.
+  db.run('PRAGMA busy_timeout = 0');
+  try {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        db.run('PRAGMA journal_mode = WAL');
+        return;
+      } catch (cause) {
+        const busy = cause instanceof SQLiteError && cause.code === 'SQLITE_BUSY';
+        // Proof: removing the non-BUSY branch made a read-only WAL switch pause 99 times
+        // instead of throwing SQLITE_READONLY at once.
+        if (!busy || attempt === WAL_SWITCH_ATTEMPTS) throw cause;
+      }
+      pause(WAL_SWITCH_PAUSE_MS);
+    }
+  } finally {
+    // Proof: removing this restore made the rival-release case read 0 instead of 5000,
+    // and the SQLITE_READONLY failure case read 0 instead of its caller's 1234.
+    db.run(`PRAGMA busy_timeout = ${String(configured.timeout)}`);
   }
 }
 

@@ -12,14 +12,17 @@ import {
   serialiseCanonicalPlanInput,
 } from '@wbs/domain';
 
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { Digest } from '../../ports/runtime';
 import type { PlanInputReads } from '../../ports/saved-plan-capture-values';
 import type {
   SavedPlanBodyWrite,
   SavedPlanScheduleWrite,
   SavedPlanWrite,
+  ScopedSavedPlanWrite,
 } from '../../ports/saved-plan-values';
 import type { Scheduler } from '../../ports/scheduler';
+import type { AccessRefused, SharedPeopleRead } from '../../ports/shared-people-values';
 import { defaultSavedPlanName } from '../../service/saved-plan-default-name';
 import { planInputRowsOf } from '../../service/saved-plan-input';
 import type { SavedPlanQuota, SavedPlanQuotaRefusal } from '../../service/saved-plan-quota';
@@ -91,10 +94,14 @@ export interface SavedPlanSaveRequest {
    * that fallback silently. See {@link SavedPlanWrite.createdById}.
    */
   readonly createdById: string | null;
+  /** Reclassified by the writer on its separate connection, after capture. */
+  readonly scoped?: ScopedSavedPlanWrite;
+  /** Human authority already admitted by the route; rechecked with a shared snapshot. */
+  readonly access?: ResourceAccess;
 }
 
 /**
- * The four answers a save has, as a union.
+ * The save answers, including a scoped in-transaction permission refusal.
  *
  * `refused` carries the quota refusal rather than a boolean because the caller
  * has to say *which* limit was hit; `no_project` is separate from `refused`
@@ -109,6 +116,7 @@ export interface SavedPlanSaveRequest {
  */
 export type SavedPlanSaveOutcome =
   | { readonly outcome: 'saved'; readonly record: SavedPlanWrite }
+  | { readonly outcome: 'forbidden' }
   | { readonly outcome: 'refused'; readonly refusal: SavedPlanQuotaRefusal }
   | { readonly outcome: 'no_project' }
   /** Another connection held the write lock. Nothing was written; a retry may succeed. */
@@ -147,6 +155,19 @@ export interface SavedPlanServiceOptions {
   readonly quota?: SavedPlanQuota;
   /** The installed scheduling capability used after captured reads detach. */
   readonly scheduler: Scheduler;
+  /** Shared-mode capture keeps upstream selection coherent; omitted for isolated captures. */
+  readonly captureSharedPlan?: (
+    projectId: string,
+    access: ResourceAccess,
+  ) => Promise<SharedPeopleRead | AccessRefused | { readonly kind: 'isolated' }>;
+}
+
+/** A human whose admission expired before the shared read snapshot opened. */
+export class SavedPlanCaptureRefusal extends Error {
+  constructor(readonly refusal: AccessRefused['refusal']) {
+    super(`Saved-plan capture refused: ${refusal}`);
+    this.name = 'SavedPlanCaptureRefusal';
+  }
 }
 
 /**
@@ -244,8 +265,9 @@ export class SavedPlanService {
    * Spec's stored-schedule bound lawfully permits returning `unavailable` here,
    * and that would answer "no schedule was saved" about the live side of this
    * feature's primary direction. So the schedule is `schedule()`'s return over
-   * the values just captured — computed **outside** the read snapshot, as
-   * {@link captureAndAttempt} already arranges for the save path — labelled
+   * the values just captured — computed outside the read snapshot under isolated
+   * capture, or selected coherently within the shared chain snapshot by
+   * {@link captureSharedPlan}, as {@link captureAndAttempt} arranges for the save path — labelled
    * with the algorithm identity currently in force, with a `ScheduleCycleError`
    * mapping to `infeasible` on the same derivation a save records.
    *
@@ -255,8 +277,8 @@ export class SavedPlanService {
    * against parsed stored bytes would report every difference the serializer
    * normalises away as a real one.
    */
-  async projectCurrentPlan(projectId: string): Promise<PlanSide | null> {
-    const attempt = await this.captureAndAttempt(projectId);
+  async projectCurrentPlan(projectId: string, access?: ResourceAccess): Promise<PlanSide | null> {
+    const attempt = await this.captureAndAttempt(projectId, access);
     if (attempt === null) return null;
     const input = canonicalisePlanInput(planInputRowsOf(attempt.reads));
     if (!attempt.schedule.present) {
@@ -334,10 +356,11 @@ export class SavedPlanService {
     projectId: string,
     left: SavedPlanSideRef,
     right: SavedPlanSideRef,
+    access?: ResourceAccess,
   ): Promise<SavedPlanCompareOutcome> {
-    const leftSide = await this.sideOf(projectId, left);
+    const leftSide = await this.sideOf(projectId, left, access);
     if (leftSide.outcome !== 'side') return leftSide;
-    const rightSide = await this.sideOf(projectId, right);
+    const rightSide = await this.sideOf(projectId, right, access);
     if (rightSide.outcome !== 'side') return rightSide;
     return { outcome: 'compared', diff: diffPlans(leftSide.side, rightSide.side) };
   }
@@ -349,9 +372,13 @@ export class SavedPlanService {
    * returns it when the project is gone, which is the same fact the route's own
    * project read would have found a moment earlier.
    */
-  private async sideOf(projectId: string, ref: SavedPlanSideRef): Promise<SavedPlanSideOutcome> {
+  private async sideOf(
+    projectId: string,
+    ref: SavedPlanSideRef,
+    access?: ResourceAccess,
+  ): Promise<SavedPlanSideOutcome> {
     if (ref.kind === 'current') {
-      const side = await this.projectCurrentPlan(projectId);
+      const side = await this.projectCurrentPlan(projectId, access);
       return side === null ? { outcome: 'no_project' } : { outcome: 'side', side };
     }
     /*
@@ -413,6 +440,15 @@ export class SavedPlanService {
   }
 
   /**
+   * The project a saved plan belongs to, from its header alone, so a corrupt
+   * plan still answers; null for a plan that is not there. Routes addressed by
+   * a saved plan's id check that project against the caller's access.
+   */
+  projectOf(savedPlanId: string): Promise<string | null> {
+    return this.opts.resource.projectOfPlan(savedPlanId);
+  }
+
+  /**
    * Renames a saved plan, if `actorId` may touch it. Writes `name` and nothing
    * else — the repository's one `UPDATE` is the whole of the write.
    *
@@ -429,8 +465,13 @@ export class SavedPlanService {
    * permanent record. A saved plan is not an editable row of the plan; it is
    * somebody's record of it.
    */
-  async rename(savedPlanId: string, actorId: string, name: string): Promise<SavedPlanTouchResult> {
-    return this.opts.resource.renamePlan(savedPlanId, actorId, name);
+  async rename(
+    savedPlanId: string,
+    actorId: string,
+    name: string,
+    scoped?: ScopedSavedPlanWrite,
+  ): Promise<SavedPlanTouchResult> {
+    return this.opts.resource.renamePlan(savedPlanId, actorId, name, scoped);
   }
 
   /**
@@ -441,8 +482,12 @@ export class SavedPlanService {
    * the only way a saved plan leaves, so anybody who may relabel a record may
    * also destroy it and nobody else may do either.
    */
-  async delete(savedPlanId: string, actorId: string): Promise<SavedPlanTouchResult> {
-    return this.opts.resource.deletePlan(savedPlanId, actorId);
+  async delete(
+    savedPlanId: string,
+    actorId: string,
+    scoped?: ScopedSavedPlanWrite,
+  ): Promise<SavedPlanTouchResult> {
+    return this.opts.resource.deletePlan(savedPlanId, actorId, scoped);
   }
 
   async save(request: SavedPlanSaveRequest): Promise<SavedPlanSaveOutcome> {
@@ -452,7 +497,7 @@ export class SavedPlanService {
     // earlier than the snapshot, never later, so the label never claims to
     // cover a write that happened after it.
     const createdAt = this.opts.now();
-    const attempt = await this.captureAndAttempt(request.projectId);
+    const attempt = await this.captureAndAttempt(request.projectId, request.access);
     if (attempt === null) return { outcome: 'no_project' };
 
     // Folded once. The header's `input_schema_version` is read off **this**
@@ -491,7 +536,7 @@ export class SavedPlanService {
       input,
       schedule,
     };
-    const written = await this.opts.resource.writePlan(record, this.quota);
+    const written = await this.opts.resource.writePlan(record, this.quota, request.scoped);
     // Switched over rather than tested for `null`, so a fourth repository
     // outcome would stop compiling here instead of being read as a save.
     switch (written.outcome) {
@@ -501,13 +546,19 @@ export class SavedPlanService {
         return { outcome: 'refused', refusal: written.refusal };
       case 'snapshot_busy':
         return { outcome: 'snapshot_busy' };
+      case 'forbidden':
+        return { outcome: 'forbidden' };
+      case 'not_found':
+        return { outcome: 'no_project' };
     }
   }
 
   /**
    * Captures one detached input and asks the shared scheduler for that exact input.
+   * Explicit shared capture borrows {@link SharedPeopleReader}'s coherent chain selection;
+   * the same detached evidence feeds save and current comparison through the S4 policy below.
    *
-   * {@link SavedPlanResource.capturePlan} closes its snapshot before it
+   * Under isolated capture, {@link SavedPlanResource.capturePlan} closes its snapshot before it
    * returns, so both Fast scheduling and optimized-cache selection happen with
    * no capture connection held. The scheduler receives `mode: 'capture'`: it
    * may read an already-computed optimized answer, but it cannot mutate live
@@ -519,19 +570,48 @@ export class SavedPlanService {
    * `unavailable`; solver infeasibility and dependency cycles are
    * `infeasible`. A missing project remains distinct as `null`.
    */
-  private async captureAndAttempt(projectId: string): Promise<ScheduleAttempt | null> {
-    const reads = await this.opts.resource.capturePlan(projectId);
+  private async captureAndAttempt(
+    projectId: string,
+    access?: ResourceAccess,
+  ): Promise<ScheduleAttempt | null> {
+    // Proof: ignoring shared capture stored start 2 instead of 3 in the upstream-edit/delete negative.
+    let observed:
+      Awaited<ReturnType<NonNullable<SavedPlanServiceOptions['captureSharedPlan']>>> | undefined;
+    if (this.opts.captureSharedPlan !== undefined) {
+      // Proof: removing this guard made the installed feature's no-access save and
+      // current test invoke the shared callback twice before any authorization.
+      if (access === undefined)
+        throw new Error('installed shared saved-plan capture requires admitted human access');
+      observed = await this.opts.captureSharedPlan(projectId, access);
+    }
+    if (observed?.kind === 'access_refused') throw new SavedPlanCaptureRefusal(observed.refusal);
+    const shared = observed?.kind === 'isolated' ? undefined : observed;
+    if (shared?.kind === 'not_found') return null;
+    const reads =
+      shared === undefined ? await this.opts.resource.capturePlan(projectId) : shared.reads;
     if (reads === null) return null;
-    const input = scheduleInputOfCaptured(reads);
+    if (shared?.kind === 'engine_unavailable')
+      return { reads, schedule: { present: false, absentReason: 'unavailable' } };
+    if (shared?.kind === 'unavailable')
+      return {
+        reads,
+        schedule: {
+          present: false,
+          absentReason: 'infeasible',
+        },
+      };
+    const input = shared?.input ?? scheduleInputOfCaptured(reads);
     try {
-      const scheduled = this.opts.scheduler.read({
-        projectId,
-        input,
-        engine: reads.project.scheduleEngine,
-        objective: reads.project.scheduleObjective,
-        enabled: reads.project.optimizationEnabled,
-        mode: 'capture',
-      });
+      const scheduled =
+        shared?.scheduled ??
+        this.opts.scheduler.read({
+          projectId,
+          input,
+          engine: reads.project.scheduleEngine,
+          objective: reads.project.scheduleObjective,
+          enabled: reads.project.optimizationEnabled,
+          mode: 'capture',
+        });
       if (scheduled.kind === 'engine_unavailable')
         return { reads, schedule: { present: false, absentReason: 'unavailable' } };
       if (!reads.project.optimizationEnabled || reads.project.scheduleEngine === 'fast') {
@@ -561,6 +641,7 @@ export class SavedPlanService {
               present: true,
               // Proof: substituting `scheduled.fast` here stored
               // `waitingForCapacity: 0`; the selected ready schedule test expected 73.
+              // Proof: mounted shared selected-ready save stored start 3 instead of 8.
               planned,
               algorithmId: `optimized:${optimization.contractVersion}:${objective}:${String(optimization.budgetMs)}`,
             },
@@ -615,8 +696,9 @@ function planSideOfRead(plan: SavedPlanRead): PlanSide {
  * to decide which is right.
  *
  * `inputSha256` is this save's own input hash, stored so a reader can *check*
- * that these dates were computed from these rows and refuse to render them
- * against an input that did not produce them.
+ * that this historical display was saved beside these target rows and refuse
+ * to render it against another captured target. Shared-mode dates also reflect
+ * detached upstream bookings, whose durable replay provenance is out of scope.
  */
 async function scheduleWrite(
   digest: Digest,

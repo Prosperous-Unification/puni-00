@@ -122,7 +122,13 @@ export interface ExportRow {
    */
   maxParallel: number;
   dates: { startsOn: string; endsOn: string } | null;
-  schedule: { earliestStart: number; earliestFinish: number; float: number; critical: boolean };
+  /** Null for an on-hold row, which takes no part in the schedule. */
+  schedule: {
+    earliestStart: number;
+    earliestFinish: number;
+    float: number;
+    critical: boolean;
+  } | null;
   assignees: Record<string, string | undefined>;
   doesEveryStep: string | null;
 }
@@ -486,13 +492,13 @@ function scopeField(plan: PlanExport, scope: FilteredScope): { key: string; valu
 
 /** What a row's Starts cell says: a date, a day offset, or nothing knowable. */
 function startsCell(plan: PlanExport, row: ExportRow): string {
-  if (plan.scheduleError !== null) return NO_SCHEDULE;
+  if (plan.scheduleError !== null || row.schedule === null) return NO_SCHEDULE;
   return row.dates?.startsOn ?? `day ${showFigure(row.schedule.earliestStart)}`;
 }
 
 /** What a row's Ends cell says. `endsOn` is the last day the work is still on. */
 function endsCell(plan: PlanExport, row: ExportRow): string {
-  if (plan.scheduleError !== null) return NO_SCHEDULE;
+  if (plan.scheduleError !== null || row.schedule === null) return NO_SCHEDULE;
   return row.dates?.endsOn ?? `day ${showFigure(row.schedule.earliestFinish)}`;
 }
 
@@ -842,7 +848,7 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
     {
       header: 'Slack',
       cell: (row) => {
-        if (plan.scheduleError !== null) return NO_SCHEDULE;
+        if (plan.scheduleError !== null || row.schedule === null) return NO_SCHEDULE;
         return row.schedule.critical ? 'critical' : showFigure(row.schedule.float);
       },
     },

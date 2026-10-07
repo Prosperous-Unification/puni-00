@@ -1,0 +1,91 @@
+## 1. Resolve endpoints on the step-node graph
+
+- [x] 1.1 Red: `resolveStepNodeGraph` cases for whole/node/descendant-step endpoints, each default mapping (Whole→Whole last→first, node→whole, whole→node), parent Cartesian, stepless work-item boundary and `authored` provenance with relationship ID, including a self-node refusal.
+- [x] 1.2 Add authored edges to the `address-step-nodes` seam and one combined-graph cycle check.
+- [x] 1.3 Negative proof: omit one expanded parent pair; watch the graph refusal test fail, restore, add adjacent `Proof:`.
+
+## 1a. Carry node endpoints through structural edits
+
+- [x] 1a.1 Red: mounted hand-down remaps node endpoints with undo restoring them; deletion removes typed links in the deleted subtree in the same undo entry; move or deletion leaving a descendant-step endpoint on a leaf is refused naming the relationships.
+- [x] 1a.2 Apply the journaled step node mapping to typed endpoints inside the structural transaction.
+- [x] 1a.3 Negative proof: skip the endpoint remap, then separately skip the descendant-step leaf refusal; watch each mounted test fail, restore, add adjacent `Proof:`.
+
+## 2. Guard every graph-changing write
+
+- [x] 2.1 Red: mounted legacy and typed writes, reparent, step reorder/delete, project `depReach` update and estimate-driven legacy-anchor change, each with an atomic cycle refusal.
+- [x] 2.2 Call the shared graph check on each resulting state before persistence.
+- [x] 2.3 Negative proof: bypass the legacy-write, project-update or estimate-edit graph guard separately; watch each mounted refusal fail, restore, add adjacent `Proof:` comments.
+
+## 3. Persist typed links and guard migration rollback
+
+- [x] 3.1 Red: typed-row validation of scope/step pairing, leaf-only node and parent-only descendant-step endpoints, scope-encoded uniqueness, absent/unreadable migration state and rollback refusal with rows present.
+- [x] 3.2 Add the typed table in additive `migration.sql` beside `down.sql`, and guard rollback with the recovery command.
+- [x] 3.3 Negative proof: bypass the typed-row rollback guard; watch production-path refusal fail, restore, add adjacent `Proof:`.
+
+## 4. Expose typed commands through HTTP and MCP
+
+- [x] 4.1 Red: mounted add/update/remove with step node ID and batch-local node endpoints (including rollback when a later command is refused), and old `addDependency` compatibility, invalid references and duplicate/cycle 4xx.
+- [x] 4.2 Implement typed discriminators and regenerate HTTP/OpenAPI/MCP contracts, retaining old request shapes.
+- [x] 4.3 Negative proof: remove old-command compatibility or typed input validation; watch mounted tests fail, restore, add adjacent `Proof:`.
+
+## 5. Keep history and batches atomic
+
+- [x] 5.1 Red: one-command undo/redo identity, stale refusal, batch-local references and later-command cycle refusal.
+- [x] 5.2 Journal exact typed state and validate combined graph during undo/redo and batch replay.
+- [x] 5.3 Negative proof: bypass stale undo or replay graph validation; watch mounted refusal fail, restore, add adjacent `Proof:`.
+
+## 6. Version import and export
+
+- [x] 6.1 Red: typed/legacy round-trip and malformed or dangling new-format refusal.
+- [x] 6.2 Allocate an archive version after earlier changes and implement explicit converters.
+- [x] 6.3 Negative proof: drop an endpoint scope or accept a missing step; watch transfer test fail, restore, add adjacent `Proof:`.
+
+## 6a. Remap copied relationships
+
+- [x] 6a.1 Red: mounted subtree duplication fails when its internal typed relationship is absent. No separate project-copy command exists; project transfer is export/import in a later task.
+- [x] 6a.2 Remap both internal endpoints and relationship IDs; retain scopes, steps and type; omit external relationships and journal typed rows around subtree replay.
+- [x] 6a.3 Negative proofs: retaining a source work-item ID fails the endpoint assertion; copying an external relationship fails the relationship-count assertion. Both faults restored with adjacent `Proof:` comments.
+
+## 6b. Capture saved-plan history
+
+- [x] 6b.1 Red: a later step reorder or relationship edit does not change a saved-plan read.
+- [x] 6b.2 Capture typed IDs, scopes, steps and type for immutable read/display.
+- [x] 6b.3 Negative proof: resolve history against live typed rows, omit captured rows, and drop them from scheduling; watch saved-plan and schedule tests fail, restore, add adjacent `Proof:`.
+
+## 6c. Expose working-plan mutations
+
+- [x] 6c.1 Red: a later command in an admitted batch sees the typed edit and a refused edit leaves retained state unchanged.
+- [x] 6c.2 Publish committed typed state through the working-plan read.
+- [x] 6c.3 Negative proof: return the pre-edit retained state; watch batch-read test fail, restore, add adjacent `Proof:`.
+
+## 7. Schedule expanded FS edges in Fast
+
+- [x] 7.1 Red: later successor step, parent expansion, unknown predecessor and dynamic legacy reach Fast goldens.
+- [x] 7.2 Feed resolved FS edges into Fast placement and date projection.
+- [x] 7.3 Negative proof: omit a later-step edge; watch its golden fail, restore, add adjacent `Proof:`.
+
+## 8. Carry FS edges through solver publication
+
+- [x] 8.1 Red: solver wire/hash and independently rejected expanded-edge violation.
+- [x] 8.2 Carry all edges through CP-SAT and independent materialized response validation.
+- [x] 8.3 Negative proof: remove one response edge check; watch rejection test fail, restore, add adjacent `Proof:`.
+
+## 9. Retire stale scheduler results
+
+- [x] 9.1 Red: cache built without typed edges cannot publish after a typed edit.
+- [x] 9.2 Bump `SCHEDULER_CONTRACT_VERSION`, update hash and regenerate versioned corpora.
+- [x] 9.3 Negative proof: reuse the old contract version; watch cache-retirement test fail, restore, add adjacent `Proof:`.
+
+## 10. Expose editing and graph geometry
+
+- [x] 10.1 Red: one-click default, same-step preselection from a step cell (unavailable when the predecessor lacks it), step-reference chips and descendant-step chip spelling, Customize without write, keyboard/mobile and refused picker choices.
+- [x] 10.2 Implement picker, chip, card and accessible edit flow.
+- [x] 10.3 Negative proof: write on Customize activation; watch the no-write test fail, restore, add adjacent `Proof:`.
+- [x] 10.4 Red: selected FS ticks, unknown placeholder and collapsed-parent proxy geometry.
+- [x] 10.5 Draw actual boundary arrows and grouped proxies.
+- [x] 10.6 Negative proof: anchor an arrow to placeholder width; watch geometry fail, restore, add adjacent `Proof:`.
+
+## 11. Verify
+
+- [x] 11.1 Run mounted/domain/scheduler/browser checks, migration lint and rollback, format, lint, typecheck, build, OpenSpec validation and host gate. Record outputs and every observed fault in verify.md.
+      Evidence: round 29, PR #216 (merge `802432df`, head `87afcbb7`): h2puni `gate-87afcbb7b39c-20260929T012741Z.log` printed `h2puni gate: running on 87afcbb7…`, ran test, lint, typecheck and build for 35 projects, OpenSpec validation and the solver-image smoke, `GATE_EXIT=0`. CI on #216: `gate workspace` (includes Migration lint), `gate tool wiki` and `pixels` 4/4 passed; `lint` failed only on `ACTIVATION_*`. Rollback is covered by `migrate-down.db.test.ts` (`20260927213000_add_typed_dependency`) inside that gate. See verify.md.

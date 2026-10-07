@@ -1,29 +1,34 @@
 import {
   deadlineOffsetsOf,
   effectiveTeamsOf,
+  type Elsewhere,
   type EstimateRule,
   type IsoDate,
   type Schedule,
   schedule,
   type Slice,
+  withoutHeldSubtrees,
   workdaysBetween,
 } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { PlanInputReads } from '../../ports/saved-plan-capture-values';
-import { NO_DEADLINES, slicesOf } from '../../service/work-item.service';
+import { NO_DEADLINES, slicesOf } from '../work-item/work-item.resource';
 import type { SavedPlanResource } from './saved-plan.resource';
 
 /**
  * The dates a captured plan has, computed from the captured values alone.
  *
- * Every argument `schedule()` takes is derived here from {@link PlanInputReads}
- * and from nothing else: no store, no connection, no second read. That is the
- * whole point of slice 3 and the reason {@link PlanInputReads} is kept apart
+ * Captured arguments to `schedule()` are derived here from {@link PlanInputReads};
+ * typed dependencies come from that same snapshot. There is no store, connection,
+ * or second read. That is the
+ * isolated capture ordering from slice 3 and the reason {@link PlanInputReads} is kept apart
  * from `PlanInputRows` — a scheduling pass is the most expensive thing this
  * feature does, and running it inside the capture's read transaction would hold
  * a WAL reader open for the length of a levelling run on somebody else's
- * database.
+ * database. Shared-mode chain capture deliberately derives and schedules on
+ * its dedicated snapshot so influencer selection is coherent; its detached
+ * target inputs alone cannot replay the historical bookings.
  *
  * The derivation mirrors the live projection's (`work-item.service.ts`
  * `:1320-1448`) and shares its `slicesOf`, so a saved plan and the live plan
@@ -33,7 +38,10 @@ import type { SavedPlanResource } from './saved-plan.resource';
  * (`pending`, and the other reasons), and swallowing it now would leave that
  * row nothing to test.
  */
-export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
+export function scheduleInputOfCaptured(
+  reads: PlanInputReads,
+  elsewhere?: Elsewhere,
+): ScheduleInput {
   // A snapshot holds no facts — `saved-plan-input.ts` says why — and the
   // schedule reads none, so the captured rows are widened to the row shape
   // `slicesOf` takes with both absent. Nothing below this line can read a fact
@@ -62,7 +70,7 @@ export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
     rows,
     reads.estimates,
     hasChildren,
-    reads.steps.map((each) => each.id),
+    reads.steps,
     rule,
     assigneesOf,
     effectiveTeamsOf(rows),
@@ -101,20 +109,34 @@ export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
               .map((row) => [row.id, row.deadline]),
           ),
         );
-  return {
-    rows,
-    edges: reads.dependencies,
-    slices,
-    notBefore,
-    poolSizes: reads.capacity,
-    reach: reads.project.depReach,
-    deadlines,
-  };
+  // The live read's hold reduction, on the captured statements: a saved plan
+  // schedules without the work that was on hold when it was saved.
+  // Proof: this reduction bypassed made `schedules a saved plan without its
+  // on-hold work…` fail on B starting at day 3; watched 2026-09-29.
+  const heldLeafIds = new Set(
+    rows.filter((row) => row.hold === 'on_hold' && !hasChildren.has(row.id)).map((row) => row.id),
+  );
+  return withoutHeldSubtrees(
+    {
+      rows,
+      edges: reads.dependencies,
+      slices,
+      notBefore,
+      poolSizes: reads.capacity,
+      reach: reads.project.depReach,
+      deadlines,
+      // Proof: dropping the captured list made `schedules a captured node relationship into a later successor step` observe B.s2 at day 1 instead of 3 (2026-09-27).
+      typed: reads.typedDependencies,
+      // Proof: dropping this projection failed the captured elsewhere calendar test (undefined).
+      ...(elsewhere === undefined ? {} : { elsewhere }),
+    },
+    heldLeafIds,
+  );
 }
 
-/** Schedules the canonical seven-field input derived from detached capture reads. */
-export function schedulePlanInput(reads: PlanInputReads): Schedule {
-  const input = scheduleInputOfCaptured(reads);
+/** Schedules the canonical input derived from detached capture reads. */
+export function schedulePlanInput(reads: PlanInputReads, elsewhere?: Elsewhere): Schedule {
+  const input = scheduleInputOfCaptured(reads, elsewhere);
   return schedule(
     input.rows,
     input.edges,
@@ -123,6 +145,10 @@ export function schedulePlanInput(reads: PlanInputReads): Schedule {
     input.poolSizes,
     input.reach,
     input.deadlines,
+    input.typed,
+    undefined,
+    // Proof: omitting this argument places the captured assigned slice at 0 instead of 5.
+    input.elsewhere,
   );
 }
 

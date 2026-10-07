@@ -23,9 +23,38 @@ const STORE_BINDINGS = [
   'projects',
   'steps',
   'subtrees',
+  'typedDependencies',
   'users',
   'workItems',
 ] as const satisfies readonly (keyof TransactionalStores)[];
+
+it('refuses scoped saved-plan writes without a transactional membership source', async () => {
+  const source = openMemorySource();
+  const scoped = { organizationId: 'org-a', actorId: 'writer', operation: 'rename' as const };
+  expect(() => source.history.savedPlans.renameTo('missing', 'No', scoped)).toThrow(
+    'cannot classify scoped writes',
+  );
+  expect(() =>
+    source.history.savedPlans.deleteOf('missing', { ...scoped, operation: 'delete' }),
+  ).toThrow('cannot classify scoped writes');
+  expect(() =>
+    source.history.savedPlans.write(
+      {
+        id: 'missing',
+        projectId: 'p1',
+        name: 'No',
+        createdBy: 'writer',
+        createdById: 'writer',
+        createdAt: 1,
+        input: { schemaVersion: 1, bytes: '{}', sha256: 'x' },
+        schedule: { present: false, absentReason: 'unavailable' },
+      },
+      () => Promise.resolve(null),
+      { ...scoped, operation: 'save' },
+    ),
+  ).toThrow('cannot classify scoped writes');
+  await source.close();
+});
 
 async function seededSource() {
   const source = openMemorySource();
@@ -51,7 +80,7 @@ async function seededSource() {
       scheduleEngine: 'fast',
       scheduleObjective: 'pri',
     },
-    [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
+    [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 }],
     stamp,
   );
   return source;
@@ -83,11 +112,21 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
   const workItem = workItemRow({ id: 'wi-1', projectId: 'p1', name: 'Stored work' });
   await stores.workItems.insert(workItem, [], stamp);
   const addedStep = await stores.steps.add(
-    { id: 'step-memory', projectId: 'p1', name: 'Stored step' },
+    { id: 'step-memory', projectId: 'p1', name: 'Stored step', allowancePercent: 0 },
     stamp,
   );
   await stores.dependencies.add(
     { id: 'dep-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
+    stamp,
+  );
+  await stores.typedDependencies.add(
+    {
+      id: 'typed-1',
+      projectId: 'p1',
+      predecessor: { scope: 'whole', workItemId: 'wi-1' },
+      successor: { scope: 'whole', workItemId: 'wi-2' },
+      type: 'FS',
+    },
     stamp,
   );
   await stores.estimates.set(
@@ -201,6 +240,11 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       name: 'dependencies',
       returned: await stores.dependencies.listByProject('p1'),
       reread: () => stores.dependencies.listByProject('p1'),
+    },
+    {
+      name: 'typed dependencies',
+      returned: await stores.typedDependencies.listByProject('p1'),
+      reread: () => stores.typedDependencies.listByProject('p1'),
     },
     {
       name: 'directory',
@@ -395,9 +439,22 @@ describe('the staged memory source', () => {
     const source = await seededSource();
     const settled = Promise.race([
       source.uow.run(async (scope) => {
-        await scope.stores.steps.add({ id: 'st-2', projectId: 'p1', name: 'QA' }, stamp);
+        await scope.stores.steps.add(
+          { id: 'st-2', projectId: 'p1', name: 'QA', allowancePercent: 0 },
+          stamp,
+        );
         await scope.stores.directory.addTag({ id: 'tag-1', name: 'urgent' }, stamp);
         await scope.stores.projects.update('p1', { name: 'Committed' }, stamp);
+        await scope.stores.typedDependencies.add(
+          {
+            id: 'committed-typed',
+            projectId: 'p1',
+            predecessor: { scope: 'whole', workItemId: 'wi-1' },
+            successor: { scope: 'whole', workItemId: 'wi-2' },
+            type: 'FS',
+          },
+          stamp,
+        );
         return { commit: true, value: 'applied' as const };
       }),
       new Promise<'timed-out'>((resolve) => {
@@ -413,6 +470,9 @@ describe('the staged memory source', () => {
     );
     expect((await source.stores.directory.listTags()).map((tag) => tag.name)).toContain('urgent');
     expect((await source.stores.projects.findById('p1'))?.name).toBe('Committed');
+    expect((await source.stores.typedDependencies.listByProject('p1')).map(({ id }) => id)).toEqual(
+      ['committed-typed'],
+    );
   });
 
   it('queues public writes behind a held batch', async () => {
@@ -452,13 +512,24 @@ describe('the staged memory source', () => {
     await source.uow.run(async (scope) => {
       refusedStores = scope.stores;
       await scope.stores.projects.update('p1', { name: 'Refused' }, stamp);
+      await scope.stores.typedDependencies.add(
+        {
+          id: 'refused-typed',
+          projectId: 'p1',
+          predecessor: { scope: 'whole', workItemId: 'wi-1' },
+          successor: { scope: 'whole', workItemId: 'wi-2' },
+          type: 'FS',
+        },
+        stamp,
+      );
       await scope.stores.steps.add(
-        { id: 'refused-step', projectId: 'p1', name: 'Refused only' },
+        { id: 'refused-step', projectId: 'p1', name: 'Refused only', allowancePercent: 0 },
         stamp,
       );
       return { commit: false, value: undefined };
     });
     expect((await source.stores.projects.findById('p1'))?.name).toBe('Before');
+    expect(await source.stores.typedDependencies.listByProject('p1')).toEqual([]);
 
     let committedStores: unknown;
     await source.uow.run(async (scope) => {
@@ -544,7 +615,16 @@ describe('the staged memory source', () => {
         scheduleEngine: 'fast',
         scheduleObjective: 'pri',
       },
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       stamp,
     );
     const entry: NewJournalEntry = {

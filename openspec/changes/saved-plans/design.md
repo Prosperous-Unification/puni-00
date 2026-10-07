@@ -414,3 +414,13 @@ plan on an unrestricted project the ability to delete their own record, and it
 would make 6.2's `creator` column untestable by making it identical to the
 third-party one. That is a product decision, and this is not the place to take it
 by omission.
+
+## Shared-people capture exception
+
+`share-people-across-projects` slice 6 adds an explicitly installed shared capture capability.
+For shared capture/current comparison only, authorization, influencer inputs and displayed
+optimized schedules are selected and scheduled inside one dedicated read-only snapshot. The
+existing isolated path still schedules after capture closes. Serialization, hashing for saved
+bodies, quotas and persistence run after both paths detach. The stored target schedule is
+historical display evidence; captured target input alone cannot replay upstream bookings.
+No upstream history or booking ledger is persisted, and durable replay/provenance is deferred.

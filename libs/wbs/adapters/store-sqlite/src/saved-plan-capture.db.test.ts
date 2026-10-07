@@ -22,7 +22,9 @@ import { ProjectRepository } from './project';
 import type { PlanInputReads } from './saved-plan-capture';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { person, project, step, tag, workItem, workItemTag } from './schema';
+import { StepRepository } from './step';
 import { nodeDigest } from './testing/node-digest';
+import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 
@@ -46,7 +48,7 @@ const rendered = (statement: unknown): string => JSON.stringify(statement);
  *
  * `select` is recorded as the literal `read` rather than as SQL: the claim
  * these tests make is about *enclosure* — which statements fall between the
- * `BEGIN` and the `COMMIT` — and rendering seventeen queries would assert their
+ * `BEGIN` and the `COMMIT` — and rendering eighteen queries would assert their
  * text instead, which is the store's business and not this class's.
  */
 interface TracingOptions {
@@ -144,7 +146,16 @@ describe('capturing a project’s plan input', () => {
       // cases below: `before`/`pert` is the seeded state, and the one edit
       // committed mid-capture moves both.
       projectRow({ id: 'p1', name: 'before', ownerId: 'owner', estimateMethod: 'pert' }),
-      [{ id: 'st-1', projectId: 'p1', name: 'before', position: 10, code: 'before' }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'before',
+          position: 10,
+          code: 'before',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);
@@ -175,6 +186,8 @@ describe('capturing a project’s plan input', () => {
         deadline: null,
         factStart: null,
         factEnd: null,
+        readiness: null,
+        hold: null,
         revision: 0,
       },
       [],
@@ -210,6 +223,62 @@ describe('capturing a project’s plan input', () => {
       seen.close();
     }
   };
+
+  it('keeps captured node endpoints after step reorder and live relationship removal', async () => {
+    const writing = openConnection(path);
+    try {
+      await new StepRepository(writing.db, OPEN).add(
+        { id: 'st-2', projectId: 'p1', name: 'Second', code: 'second', allowancePercent: 0 },
+        wrote,
+      );
+      await new TypedDependencyRepository(writing.db, OPEN).add(
+        {
+          id: 'typed-1',
+          projectId: 'p1',
+          predecessor: { scope: 'node', workItemId: 'wi-1', stepId: 'st-1' },
+          successor: { scope: 'node', workItemId: 'wi-1', stepId: 'st-2' },
+          type: 'FS',
+        },
+        wrote,
+      );
+      const captured = await capture().readPlanInput('p1');
+      expect(captured?.typedDependencies).toEqual([
+        {
+          id: 'typed-1',
+          predecessor: { scope: 'node', workItemId: 'wi-1', stepId: 'st-1' },
+          successor: { scope: 'node', workItemId: 'wi-1', stepId: 'st-2' },
+          type: 'FS',
+        },
+      ]);
+      writing.db
+        .update(step)
+        .set({ name: 'after', code: 'after', position: 30 })
+        .where(eq(step.id, 'st-1'))
+        .run();
+      writing.db.update(step).set({ position: 5 }).where(eq(step.id, 'st-2')).run();
+      expect(
+        (await new ProjectRepository(writing.db, OPEN).stepsOf('p1')).map(({ id }) => id),
+      ).toEqual(['st-2', 'st-1']);
+      await new TypedDependencyRepository(writing.db, OPEN).remove('typed-1', wrote);
+      expect(captured?.typedDependencies[0]?.predecessor).toEqual({
+        scope: 'node',
+        workItemId: 'wi-1',
+        stepId: 'st-1',
+      });
+      expect(captured?.steps.map(({ id, code, position }) => ({ id, code, position }))).toEqual([
+        { id: 'st-1', code: 'before', position: 10 },
+        { id: 'st-2', code: 'second', position: 20 },
+      ]);
+      expect(captured?.typedDependencies[0]?.successor).toEqual({
+        scope: 'node',
+        workItemId: 'wi-1',
+        stepId: 'st-2',
+      });
+      expect((await capture().readPlanInput('p1'))?.typedDependencies).toEqual([]);
+    } finally {
+      writing.close();
+    }
+  });
 
   /**
    * **A calendar marker changes no saved plan's `input_sha256`** — task 5.2.
@@ -279,10 +348,10 @@ describe('capturing a project’s plan input', () => {
     expect(read).not.toBeNull();
     expect(trace.statements.at(0)).toContain('BEGIN DEFERRED');
     expect(trace.statements.at(-1)).toContain('COMMIT');
-    // Seventeen reads, and no statement outside the block. Counted rather than
+    // Eighteen reads, and no statement outside the block. Counted rather than
     // listed: which store issues which query is the store's business, but a read
     // that escaped the snapshot would land outside these bounds.
-    expect(trace.statements.filter((each) => each === 'read').length).toBeGreaterThanOrEqual(17);
+    expect(trace.statements.filter((each) => each === 'read').length).toBeGreaterThanOrEqual(18);
     expect(trace.closes).toBe(1);
   });
 
@@ -399,9 +468,9 @@ describe('capturing a project’s plan input', () => {
    *
    * It is spread deliberately across the read order rather than aimed at one
    * table: the project row (read 1), the work item and the `work_item_tag`
-   * junction folded into it (read 2), a step (read 9), a person and the
-   * `person_team` row that cascades with it (read 12), and the `tag` registry
-   * (read 15). A capture that tore anywhere between the first read and the last
+   * junction folded into it (read 2), a step (read 10), a person and the
+   * `person_team` row that cascades with it (read 13), and the `tag` registry
+   * (read 16). A capture that tore anywhere between the first read and the last
    * would show some of these moved and some not — which is exactly the failure
    * mode a revision counter cannot see, since `tag` and `person_team` carry no
    * revision column at all.
@@ -442,24 +511,24 @@ describe('capturing a project’s plan input', () => {
       // read 2 — the item, and the junction the labelled row folds in.
       workItemName: side(item !== undefined, item?.name === 'before'),
       tagJunction: side(item !== undefined, item?.tagIds.includes('tag-1') === true),
-      // read 9 — the step edit.
+      // read 10 — the step edit.
       stepName: side(seededStep !== undefined, seededStep?.name === 'before'),
-      // read 12 — the directory cascade: the person, and its `person_team` row.
+      // read 13 — the directory cascade: the person, and its `person_team` row.
       unassignedPerson: side(
         true,
         read.people.some((each) => each.id === 'pp-unassigned'),
       ),
-      // read 15 — the registry rename, the case with no revision column behind it.
+      // read 16 — the registry rename, the case with no revision column behind it.
       tagName: side(seededTag !== undefined, seededTag?.name === 'urgent'),
     };
   };
 
   // 3.2's positive: **every** read boundary, capture-only ones included, not
   // just the twelve the projection shares. Each boundary is its own `it` so the
-  // fixture is reseeded — one `it` looping over all seventeen would leave the
+  // fixture is reseeded — one `it` looping over all eighteen would leave the
   // database in the post-edit state after the first pass and assert nothing
   // afterwards.
-  for (let boundary = 1; boundary <= 17; boundary += 1) {
+  for (let boundary = 1; boundary <= 18; boundary += 1) {
     it(`captures entirely before or entirely after an edit committed at read ${String(boundary)}`, async () => {
       const green = openConnection(path);
       let read: PlanInputReads | null;

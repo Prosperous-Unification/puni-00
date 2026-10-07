@@ -35,10 +35,23 @@ test('tree boundary refuses missing core producer fields while allowing additive
   const node = { id: 'sn1.w.s', workItemId: 'w', stepId: 's', reference: '010.dev' };
   const current = { ...olderReply, addressRevision: 'ar1:00', stepNodes: [node] };
   expect((await validateSchema(read, current)).issues).toBeUndefined();
+  const typed = {
+    id: 'd',
+    predecessor: { scope: 'node', workItemId: 'w', stepId: 's', stepNodeId: 'sn1.w.s' },
+    successor: { scope: 'whole', workItemId: 'b' },
+    type: 'FS',
+  };
+  expect(
+    (await validateSchema(read, { ...current, typedDependencies: [typed] })).issues,
+  ).toBeUndefined();
   for (const malformed of [
     { ...current, addressRevision: 7 },
     { ...current, stepNodes: [{ ...node, reference: 5 }] },
     { ...current, stepNodes: [{ ...node, id: undefined }] },
+    {
+      ...current,
+      typedDependencies: [{ ...typed, predecessor: { ...typed.predecessor, stepNodeId: 7 } }],
+    },
   ]) {
     expect((await validateSchema(read, malformed)).issues).toBeDefined();
   }
@@ -71,6 +84,8 @@ test('checks deadline and slice lateness while retaining additive nested respons
     deadline: '2026-09-07',
     factStart: null,
     factEnd: '2026-09-12',
+    readiness: null,
+    hold: 'blocked',
     priority: null,
     serviceTeamId: null,
     serviceId: null,

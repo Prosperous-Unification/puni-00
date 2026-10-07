@@ -40,6 +40,8 @@ const TREE = (projectId: string, ids: string[]): string =>
       deadline: null,
       factStart: null,
       factEnd: null,
+      readiness: null,
+      hold: null,
       priority: null,
       serviceTeamId: null,
       serviceId: null,
@@ -126,7 +128,9 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
   return {
     ...tree,
     project: PROJECT,
-    document: { format: 'wbs-plan', version: 1, exportedAt: '2026-09-14T08:30:00.000Z' },
+    stepNodes: [],
+    document: { format: 'wbs-plan', version: 6, exportedAt: '2026-09-14T08:30:00.000Z' },
+    typedDependencies: [],
     settings: {
       name: PROJECT.name,
       restricted: PROJECT.restricted,
@@ -147,7 +151,14 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
 };
 
 const importDocument = async (): Promise<PlanDocumentRequest> => {
-  const preflight = await preflightRequest(importProject, { body: PLAN_DOCUMENT() });
+  const legacyDocument = PLAN_DOCUMENT();
+  legacyDocument['document'] = {
+    format: 'wbs-plan',
+    version: 3,
+    exportedAt: '2026-09-14T08:30:00.000Z',
+  };
+  delete legacyDocument['typedDependencies'];
+  const preflight = await preflightRequest(importProject, { body: legacyDocument });
   if (preflight.kind === 'failure') throw new Error('the import fixture is not a valid request');
   return preflight.input.body;
 };
@@ -174,6 +185,21 @@ describe('plan JSON transfer', () => {
     expect(call?.[0]).toBe('/api/projects/p1/export?format=json');
     expect(call?.[1]?.method).toBe('GET');
     expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
+  });
+
+  it('downloads a version-6 JSON representation containing a typed dependency', async () => {
+    const document = PLAN_DOCUMENT(['first', 'second']);
+    document['typedDependencies'] = [
+      {
+        id: 'link',
+        predecessor: { scope: 'whole', workItem: 'first' },
+        successor: { scope: 'whole', workItem: 'second' },
+        type: 'FS',
+      },
+    ];
+    vi.stubGlobal('fetch', () => Promise.resolve(response(200, JSON.stringify(document))));
+
+    await expect(httpProjectApi('token').exportPlan('p1')).resolves.toEqual(document);
   });
 
   it('imports the archival request and returns its typed summary', async () => {
@@ -300,13 +326,100 @@ describe('removing a step', () => {
 });
 
 describe('adding and renaming a step', () => {
+  it('keeps allowances on project reads and rename replies', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          url === '/api/projects/p1'
+            ? response(
+                200,
+                JSON.stringify({
+                  project: PROJECT,
+                  steps: [
+                    { id: 'r3', projectId: 'p1', name: 'QA', position: 0, allowancePercent: 30 },
+                  ],
+                }),
+              )
+            : response(
+                200,
+                JSON.stringify({
+                  step: {
+                    id: 'r3',
+                    projectId: 'p1',
+                    name: 'Review',
+                    position: 0,
+                    allowancePercent: 30,
+                  },
+                }),
+              ),
+        ),
+      ),
+    );
+    const api = httpProjectApi('t');
+    await expect(api.steps('p1')).resolves.toEqual([
+      { id: 'r3', name: 'QA', allowancePercent: 30 },
+    ]);
+    await expect(api.renameStep('p1', 'r3', 'Review')).resolves.toEqual({
+      id: 'r3',
+      name: 'Review',
+      allowancePercent: 30,
+    });
+  });
+
+  it('sends an allowance patch and returns the updated policy', async () => {
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(
+        response(
+          200,
+          JSON.stringify({
+            step: { id: 'r3', projectId: 'p1', name: 'QA', position: 0, allowancePercent: 30 },
+          }),
+        ),
+      ),
+    );
+    vi.stubGlobal('fetch', fetched);
+    await expect(httpProjectApi('t').setStepAllowance('p1', 'r3', 30)).resolves.toEqual({
+      id: 'r3',
+      name: 'QA',
+      allowancePercent: 30,
+    });
+    expect(fetched.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ allowancePercent: 30 }));
+  });
+
+  it('throws the invalid allowance refusal', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(422, JSON.stringify({ error: 'invalid_allowance' })))),
+    );
+    await expect(httpProjectApi('t').setStepAllowance('p1', 'r3', 30.001)).rejects.toMatchObject({
+      message: 'invalid_allowance',
+    });
+  });
+
+  it('throws the calendar range refusal of an allowance past the calendar', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(422, JSON.stringify({ error: 'calendar_range' })))),
+    );
+    await expect(httpProjectApi('t').setStepAllowance('p1', 'r3', 1000)).rejects.toMatchObject({
+      message: 'calendar_range',
+    });
+  });
   it('sends the name and answers with the step', async () => {
     const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(
         response(
           200,
           JSON.stringify({
-            step: { id: 'r3', projectId: 'p1', name: 'Design', position: 0, code: 'design' },
+            step: {
+              id: 'r3',
+              projectId: 'p1',
+              name: 'Design',
+              position: 0,
+              code: 'design',
+              allowancePercent: 0,
+            },
           }),
         ),
       ),
@@ -315,6 +428,7 @@ describe('adding and renaming a step', () => {
     await expect(httpProjectApi('t').addStep('p1', 'Design')).resolves.toEqual({
       id: 'r3',
       name: 'Design',
+      allowancePercent: 0,
     });
     expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/steps');
     expect(fetched.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ name: 'Design' }));
@@ -779,8 +893,8 @@ describe('what a refused directory change says', () => {
   });
 
   it('has a sentence for every code the directory routes answer with', () => {
-    // The list is `statusFor` and `DirectoryRefusal` in
-    // `apps/wbs/be-01/src/service/directory.service.ts`, plus the one this client
+    // The list is `DirectoryRefusal` in
+    // `libs/wbs/application/core/src/module/directory/directory.resource.ts`, plus the one this client
     // raises itself. A code with no sentence would reach the page as itself.
     for (const code of [
       'name_required',
@@ -911,6 +1025,28 @@ describe('the browser writes through command batches (plan-commands)', () => {
       [() => api.clearEstimate('w1', 'r1'), 'clearEstimate'],
       [() => api.assignPerson('w1', 'r1', 'k'), 'setAssignee'],
       [() => api.addDependency('w2', 'w1'), 'addDependency'],
+      [
+        () =>
+          api.addTypedDependency(
+            'p1',
+            { scope: 'whole', workItemId: 'w1' },
+            { scope: 'whole', workItemId: 'w2' },
+            'FS',
+          ),
+        'addTypedDependency',
+      ],
+      [
+        () =>
+          api.updateTypedDependency(
+            'p1',
+            'd1',
+            { scope: 'whole', workItemId: 'w1' },
+            { scope: 'whole', workItemId: 'w2' },
+            'FS',
+          ),
+        'updateTypedDependency',
+      ],
+      [() => api.removeTypedDependency('p1', 'd1'), 'removeTypedDependency'],
       [() => api.removeDependency('w2', 'w1'), 'removeDependency'],
       [() => api.freezeProject('p1'), 'freezeProject'],
       [() => api.unfreezeProject('p1'), 'unfreezeProject'],
@@ -931,6 +1067,18 @@ describe('the browser writes through command batches (plan-commands)', () => {
         body.commands.map((each) => each.kind),
         kind,
       ).toEqual([kind]);
+      if (kind === 'addTypedDependency' || kind === 'updateTypedDependency') {
+        expect(body.commands[0]).toMatchObject({
+          kind,
+          predecessor: { scope: 'whole', workItemId: 'w1' },
+          successor: { scope: 'whole', workItemId: 'w2' },
+          type: 'FS',
+          ...(kind === 'updateTypedDependency' ? { dependencyId: 'd1' } : {}),
+        });
+      }
+      if (kind === 'removeTypedDependency') {
+        expect(body.commands[0]).toEqual({ kind, dependencyId: 'd1' });
+      }
     }
     // And the create answers the id the batch minted, as the route did.
     await expect(
@@ -939,6 +1087,36 @@ describe('the browser writes through command batches (plan-commands)', () => {
       id: 'new',
     });
   });
+
+  it.each(['SS', 'FF'] as const)(
+    'sends %s when an endpoint-only edit keeps its type',
+    async (type) => {
+      const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+        Promise.resolve(
+          response(
+            200,
+            JSON.stringify({ results: [{ index: 0 }], undoable: true, redoable: false }),
+          ),
+        ),
+      );
+      vi.stubGlobal('fetch', fetched);
+      const api = httpProjectApi('t');
+      await api.updateTypedDependency(
+        'p1',
+        'd1',
+        { scope: 'whole', workItemId: 'w1' },
+        { scope: 'node', stepNodeId: 'sn1.w2.qa' },
+        type,
+      );
+      const body = JSON.parse(bodyOf(fetched.mock.calls[0]?.[1])) as {
+        commands: { type: string; successor: unknown }[];
+      };
+      expect(body.commands[0]).toMatchObject({
+        type,
+        successor: { scope: 'node', stepNodeId: 'sn1.w2.qa' },
+      });
+    },
+  );
 
   it('writes the directory at its own route, answering the entry the batch produced', async () => {
     stubbed(
@@ -1238,6 +1416,28 @@ describe('read ownership across API lifetimes', () => {
       systemId: 'sys-jira',
       url: 'https://jira.example.test/browse/WBS-7',
     });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
+    );
+
+    await expect(httpProjectApi('t').tree('p1')).rejects.toMatchObject({
+      message: 'invalid_response',
+      problem: { kind: 'failure', failure: { code: 'invalid_response' } },
+    });
+  });
+
+  it('rejects a status word it does not know, so the plan reads as a failed query and never a blank glyph', async () => {
+    // `add-work-item-statuses`: the Status cell draws `STATUS_GLYPH[status]`,
+    // which is nothing for a word this client has never heard of. The read's
+    // own schema is where that is caught, once, and the page's query-failure
+    // state is what a rejected tree read renders.
+    // Proof: with the contract's `status` widened to `string` in
+    // `libs/wbs/domain/contracts/src/http/work-item-response.ts`, this failed
+    // on `promise resolved … instead of rejecting`; watched 2026-09-29.
+    const tree = JSON.parse(TREE('p1', ['w1'])) as { workItems: { status: string }[] };
+    const [row] = tree.workItems;
+    row.status = 'paused';
     vi.stubGlobal(
       'fetch',
       vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),

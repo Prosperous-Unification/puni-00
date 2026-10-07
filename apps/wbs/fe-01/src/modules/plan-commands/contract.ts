@@ -21,11 +21,15 @@ export const PROJECT_COMMAND_ROUTES = [
   'setPriorityBands',
   'addStep',
   'renameStep',
+  'setStepAllowance',
   'removeStep',
   'createWorkItem',
   'arrangeBySchedule',
   'freezeProject',
   'unfreezeProject',
+  'addTypedDependency',
+  'updateTypedDependency',
+  'removeTypedDependency',
 ] as const;
 
 /**

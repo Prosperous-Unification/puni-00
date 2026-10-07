@@ -5,6 +5,11 @@ import { join } from 'node:path';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import type { ReservedSolverChild, ReservedSpawnRequest } from '../module/optimization/contract';
+import {
+  OptimizationCoordinator,
+  type OptimizationCoordinatorOptions,
+} from '../module/optimization/optimization.feature';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
@@ -16,14 +21,9 @@ import { allocateGeneration, readGeneration } from '../repository/optimization-g
 import { enqueueSolverRequest } from '../repository/optimization-queue';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { solverQueue, solverSlot } from '../repository/schema';
-import {
-  OptimizationCoordinator,
-  type ReservedSolverChild,
-  type ReservedSpawnRequest,
-} from './optimization-coordinator';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-const CONTRACT = '7+0.1.0';
+const CONTRACT = '7+0.2.0';
 const BUDGET = 60_000;
 const INPUT: ScheduleInput = {
   rows: [{ id: 'w-1', parentId: null, position: 10, frozenNumber: null, priority: null }],
@@ -41,6 +41,7 @@ const INPUT: ScheduleInput = {
   notBefore: new Map(),
   poolSizes: new Map(),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 const dirs: string[] = [];
@@ -102,18 +103,21 @@ function restarted(
   db: ReturnType<typeof openDrizzle>,
   calls: ReservedSpawnRequest[],
   interval: (callback: () => void) => unknown = () => 'timer',
+  inputOf: () => Promise<ScheduleInput | null> = () => Promise.resolve(INPUT),
+  captureOf?: OptimizationCoordinatorOptions['captureOf'],
 ): OptimizationCoordinator {
   let token = 0;
   return new OptimizationCoordinator({
-    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
     hashInput: scheduleInputHash,
     contractVersion: CONTRACT,
-    solverVersion: '0.1.0',
+    solverVersion: '0.2.0',
     budgetMs: BUDGET,
     ownerId: 'restarted',
     now: () => 10,
     attemptToken: () => `restart-token-${String(token++)}`,
-    inputOf: () => Promise.resolve(INPUT),
+    inputOf,
+    captureOf,
     enabledOf: () => Promise.resolve(true),
     spawn: (request): Promise<ReservedSolverChild> => {
       calls.push(request);
@@ -126,7 +130,7 @@ function restarted(
         kill: () => undefined,
       });
     },
-    pushRecorded: () => Promise.resolve(),
+    deliverCommitted: () => Promise.resolve(),
     setInterval: interval,
     clearInterval: () => undefined,
     onChildError: (error) => {
@@ -136,6 +140,83 @@ function restarted(
 }
 
 describe('OptimizationCoordinator restart semantics', () => {
+  it.each(['not_found', 'engine_unavailable', 'cycle', 'calendar_range', 'disabled'] as const)(
+    'releases a queued reservation after %s capture and pumps the next entry',
+    async (refusal) => {
+      const { db, generation } = prepared();
+      queued(db, generation, 'pri');
+      queued(db, generation, 'time');
+      const calls: ReservedSpawnRequest[] = [];
+      let captures = 0;
+      const captureOf: NonNullable<OptimizationCoordinatorOptions['captureOf']> = () => {
+        captures += 1;
+        if (captures > 1)
+          return Promise.resolve({ kind: 'scheduled', input: INPUT, enabled: true });
+        if (refusal === 'not_found') return Promise.resolve({ kind: 'not_found' });
+        if (refusal === 'disabled')
+          return Promise.resolve({ kind: 'scheduled', input: INPUT, enabled: false });
+        return Promise.resolve({ kind: 'unavailable', reason: refusal });
+      };
+      const instance = restarted(db, calls, undefined, undefined, captureOf);
+
+      instance.start();
+      await instance.drain();
+
+      expect(captures).toBe(2);
+      expect(calls.map((request) => request.objective)).toEqual(['time']);
+      expect(db.select().from(solverQueue).all()).toEqual([]);
+      expect(db.select().from(solverSlot).all()).toEqual([]);
+      await instance.stop();
+    },
+  );
+
+  it('releases a queued reservation when input capture throws before launch', async () => {
+    const { db, generation } = prepared();
+    queued(db, generation, 'pri');
+    queued(db, generation, 'time');
+    const captureFailure = new Error('shared input capture failed');
+    const calls: ReservedSpawnRequest[] = [];
+    let tick: () => void = () => {
+      throw new Error('reconciliation did not start');
+    };
+    let captures = 0;
+    const instance = restarted(
+      db,
+      calls,
+      (callback) => {
+        tick = callback;
+        return 'timer';
+      },
+      () => Promise.reject(new Error('legacy input reader was called')),
+      () => {
+        captures += 1;
+        return captures === 1
+          ? Promise.reject(captureFailure)
+          : Promise.resolve({ kind: 'scheduled', input: INPUT, enabled: true });
+      },
+    );
+
+    instance.start();
+    let observed: unknown;
+    try {
+      await instance.drain();
+    } catch (failure) {
+      observed = failure;
+    }
+    expect(observed).toBe(captureFailure);
+
+    expect(calls).toEqual([]);
+    expect(db.select().from(solverQueue).all()).toHaveLength(1);
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+    tick();
+    await instance.drain();
+    expect(captures).toBe(2);
+    expect(calls.map((request) => request.objective)).toEqual(['time']);
+    expect(db.select().from(solverQueue).all()).toEqual([]);
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+    await instance.stop();
+  });
+
   it('does not adopt or duplicate old children and retries their durable variants after release', async () => {
     const { db, generation } = prepared();
     for (const objective of ['pri', 'time'] as const) {
@@ -167,7 +248,7 @@ describe('OptimizationCoordinator restart semantics', () => {
 
     expect(calls).toEqual([]);
     expect(db.select().from(solverQueue).all()).toHaveLength(2);
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
     await instance.drain();
     expect(calls).toEqual([]);
     expect(readGeneration(db, 'p-1', CONTRACT)?.generation).toBe(generation);

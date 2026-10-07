@@ -2,6 +2,7 @@ import type { BuiltSolverRequest } from '@wbs/contracts/solver/build-request';
 import type { OptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import type { PlanInfeasibleResult } from '@wbs/contracts/solver/plan-infeasible';
 import type { OptimizationVariantState, ProjectEvent, RecordedEvent } from '@wbs/core';
+import type { CommittedProjectEvent } from '@wbs/core/service/committed-fanout';
 import type { SolverFailureReason, SolverObjectiveName } from '@wbs/domain';
 import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
@@ -196,8 +197,8 @@ export interface SolverSlotReleaseOutcome {
 export interface SolverSlotRepository {
   refreshSlot(
     slot: SolverSlotIdentity & { readonly admittedCancelEpoch: number; readonly now: number },
-  ): SolverSlotHeartbeatOutcome;
-  releaseSlot(slot: SolverSlotIdentity): SolverSlotReleaseOutcome;
+  ): Promise<SolverSlotHeartbeatOutcome>;
+  releaseSlot(slot: SolverSlotIdentity): Promise<SolverSlotReleaseOutcome>;
 }
 
 export interface OptimizationQueueRequest extends Omit<SolverSlotIdentity, 'attemptToken'> {
@@ -231,6 +232,7 @@ export type RecordedOptimizationOutcome =
     }
   | { readonly kind: 'superseded' | 'already-recorded' };
 export type OptimizationRetryDecision =
+  | { readonly kind: 'forbidden' | 'not_found' }
   | {
       readonly kind: 'not-retryable';
       readonly state: OptimizationVariantState['state'];
@@ -242,6 +244,12 @@ export type OptimizationRetryDecision =
       readonly admission: ReservedSolverAdmission | null;
     };
 
+/** A committed admission decision and its exact durable fan-out envelopes. */
+export interface CommittedDecision<T> {
+  readonly decision: T;
+  readonly envelopes: readonly CommittedProjectEvent[];
+}
+
 /** Durable optimization decisions. Outcome recording and slot release are separate transactions. */
 export interface OptimizationRepository extends SolverSlotRepository {
   allocateGeneration(
@@ -249,46 +257,57 @@ export interface OptimizationRepository extends SolverSlotRepository {
     contractVersion: string,
     inputHash: string,
     now: number,
-  ): number | null;
-  /** Snapshot both cached variants before invoking admission callbacks; return that snapshot even if callbacks write cache rows. */
-  readPairAndAdmit(
+  ): Promise<number | null>;
+  /** One gated immediate observation; callbacks cannot recursively enter the source turn. */
+  observeForAdmission(
     key: OptimizationCacheKey,
-    admit: (request: {
-      readonly key: OptimizationCacheKey;
-      readonly objective: SolverObjectiveName;
-    }) => void,
-  ): OptimizationCachedPair;
+    now: number,
+  ): Promise<
+    | { readonly kind: 'idle' }
+    | {
+        readonly kind: 'observed';
+        readonly generation: number;
+        readonly pair: OptimizationCachedPair;
+        readonly requests: readonly {
+          readonly key: OptimizationCacheKey;
+          readonly objective: SolverObjectiveName;
+        }[];
+      }
+  >;
   isVariantLive(
     key: OptimizationCacheKey,
     generation: number,
     objective: SolverObjectiveName,
     now: number,
-  ): boolean;
+  ): Promise<boolean>;
   /** Reserve a counted seat before launch; the returned start time belongs to this admission. */
-  reserveSlot(request: SolverSlotRequest): SolverSlotAdmission;
-  bindSlot(slot: SolverSlotIdentity & { readonly pid: number }): boolean;
-  enqueueRequest(request: OptimizationQueueRequest): {
+  reserveSlot(request: SolverSlotRequest): Promise<CommittedDecision<SolverSlotAdmission>>;
+  bindSlot(slot: SolverSlotIdentity & { readonly pid: number }): Promise<boolean>;
+  enqueueRequest(request: OptimizationQueueRequest): Promise<{
     readonly kind: 'queued' | 'already-present' | 'closed';
-  };
+  }>;
   /** Keep a head blocked by a matching retained slot so a later pump can retry it. */
   dequeueRequest(request: {
     readonly ownerId: string;
     readonly attemptToken: string;
     readonly now: number;
-  }): OptimizationDequeued;
-  /** Decide eligibility and admission in one immediate transaction; mint the token only after writer ownership and the live check. */
+  }): Promise<CommittedDecision<OptimizationDequeued>>;
+  /** Await one owned immediate transaction before answering Retry; mint the token only after writer ownership and the live check, and return accepted only after its audit and reservation commit. */
   admitRetry(ask: {
     readonly key: OptimizationCacheKey;
     readonly objective: SolverObjectiveName;
     readonly ownerId: string;
     readonly now: number;
     readonly attemptToken: () => string;
-  }): OptimizationRetryDecision;
-  /** Atomically write the outcome and durable event; a superseded attempt publishes neither. Slot release is separate. */
-  recordOutcome(write: OptimizationOutcomeWrite): RecordedOptimizationOutcome;
-  reconcileDrains(now: number): {
+    readonly scoped?: { readonly organizationId: string; readonly actorId: string };
+  }): Promise<CommittedDecision<OptimizationRetryDecision>>;
+  /** Commit the outcome and event before returning downstream envelopes; slot release is separate. */
+  recordOutcome(
+    write: OptimizationOutcomeWrite,
+  ): Promise<CommittedDecision<RecordedOptimizationOutcome>>;
+  reconcileDrains(now: number): Promise<{
     readonly reclaimed: number;
     readonly finished: number;
     readonly waiting: number;
-  };
+  }>;
 }

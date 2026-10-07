@@ -29,6 +29,7 @@
 
 import type { DependencyReach } from './dependency-reach';
 import type { StepNodeRef } from './step-node';
+import type { DependencyEndpoint, RelationshipType, TypedDependency } from './typed-dependency';
 
 /**
  * The half of a `Slice` the reach reads: whether anybody estimated it.
@@ -78,11 +79,30 @@ export interface SliceEdgeEnd {
  * `schedule()` converts them to its own node indices. Neither conversion is
  * this module's business, and doing it here would pick one of them.
  */
-export interface StepNodeGraphEdge {
-  readonly predecessor: SliceEdgeEnd;
-  readonly successor: SliceEdgeEnd;
-  readonly type: 'FS';
-  readonly provenance: 'workflow' | 'legacy';
+export type StepNodeGraphEdge =
+  | {
+      readonly predecessor: SliceEdgeEnd;
+      readonly successor: SliceEdgeEnd;
+      readonly type: 'FS';
+      readonly provenance: 'workflow' | 'legacy';
+    }
+  | {
+      readonly predecessor: SliceEdgeEnd;
+      readonly successor: SliceEdgeEnd;
+      readonly type: RelationshipType;
+      readonly provenance: 'authored';
+      /** The typed dependency this pair was resolved from. */
+      readonly relationshipId: string;
+    };
+
+/**
+ * The typed dependencies to resolve, and the tree they are resolved against:
+ * `leavesUnder` answers every leaf beneath a work item, a leaf answering itself,
+ * and throws for a work item it does not know.
+ */
+export interface AuthoredDependencies {
+  readonly dependencies: readonly TypedDependency[];
+  readonly leavesUnder: (workItemId: string) => readonly string[];
 }
 
 /**
@@ -171,7 +191,8 @@ export function resolveStepNodeGraph(
   slicesOf: (leafId: string) => readonly GraphSlice[],
   leafEdges: readonly LeafEdge[],
   reach: DependencyReach,
-): { nodes: StepNodeGraphNode[]; edges: StepNodeGraphEdge[] } {
+  authored: AuthoredDependencies = { dependencies: [], leavesUnder: (id) => [id] },
+): StepNodeGraph {
   const nodes: StepNodeGraphNode[] = [];
   const edges: StepNodeGraphEdge[] = [];
 
@@ -254,5 +275,206 @@ export function resolveStepNodeGraph(
     });
   }
 
+  // The authored edges: every resolved predecessor node to every resolved
+  // successor node, one edge per pair and per relationship. Two relationships
+  // whose expansions overlap stay two edges, each naming its own record.
+  for (const dependency of authored.dependencies) {
+    const before = resolveEndpoint(dependency, 'predecessor', slicesOf, authored.leavesUnder);
+    const after = resolveEndpoint(dependency, 'successor', slicesOf, authored.leavesUnder);
+    for (const predecessor of before) {
+      for (const successor of after) {
+        edges.push({
+          predecessor,
+          successor,
+          type: dependency.type,
+          provenance: 'authored',
+          relationshipId: dependency.id,
+        });
+      }
+    }
+  }
+
   return { nodes, edges };
+}
+
+/** The step-node graph {@link resolveStepNodeGraph} answers. */
+export interface StepNodeGraph {
+  readonly nodes: StepNodeGraphNode[];
+  readonly edges: StepNodeGraphEdge[];
+}
+
+/**
+ * The step nodes one end of a typed dependency resolves to.
+ *
+ * A `whole` predecessor leaves each leaf at its last node and a `whole`
+ * successor enters each at its first, which in a stepless project is the lone
+ * boundary node either way. `node` is itself, and `descendant-step` is that
+ * step's node in every leaf beneath the parent.
+ *
+ * Throws on an endpoint the write boundary should have refused — a node on a
+ * parent, a descendant-step on a leaf, a step the leaf does not hold. Stored
+ * state that says any of those is malformed, and resolving it by guessing
+ * would schedule a relationship nobody wrote.
+ */
+function resolveEndpoint(
+  dependency: TypedDependency,
+  side: 'predecessor' | 'successor',
+  slicesOf: (leafId: string) => readonly GraphSlice[],
+  leavesUnder: (workItemId: string) => readonly string[],
+): SliceEdgeEnd[] {
+  const endpoint: DependencyEndpoint = dependency[side];
+  const leaves = leavesUnder(endpoint.workItemId);
+  const isLeaf = leaves.length === 1 && leaves[0] === endpoint.workItemId;
+  // Every leaf, never the first: a parent means all of them, and one dropped
+  // pair is a constraint nobody sees missing.
+  // Proof: `leaves.slice(0, 1)` here made `refuses a cycle a parent expansion
+  // closes` fail on `- Expected - 6 / + Received + 1` (null, the cycle through
+  // the second leaf unseen) and the parent-expansion case on `- Expected - 1`;
+  // watched 2026-09-27.
+  // Proof (2026-09-28): the same first-leaf-only fault made `expands SS and FF
+  // parent endpoints to every leaf pair` emit one pair instead of four and
+  // three existing FS parent/cycle tests fail (30 pass / 4 fail).
+  if (endpoint.scope === 'whole') {
+    return leaves.map((leafId) => {
+      // Asked on both sides, for the legacy join's reason: a successor leaf
+      // with no group must throw rather than have an edge drawn onto a
+      // position that does not exist.
+      // Proof: position 0 returned without the lookup made `asks the lookup
+      // for both ends of an authored edge` fail on `Received function did not
+      // throw`; watched 2026-09-27.
+      const own = slicesOf(leafId);
+      // Whole SS joins sources; FF joins sinks; FS joins a sink to a source.
+      // Proof: forcing the FS successor boundary for FF made `selects the whole
+      // leaf boundary named by each relationship type` fail at A2→B0 versus
+      // A2→B1; watched 2026-09-28.
+      const last =
+        (side === 'predecessor' && dependency.type !== 'SS') ||
+        (side === 'successor' && dependency.type === 'FF');
+      return { leafId, at: last ? own.length - 1 : 0 };
+    });
+  }
+  // Proof: each of these two refusals deleted in turn made `refuses a node
+  // endpoint on a parent, a descendant-step on a leaf, and an unknown step`
+  // fail on `Received function did not throw` for its own assertion; watched
+  // 2026-09-27.
+  if (endpoint.scope === 'node' && !isLeaf) {
+    throw new Error(
+      `node endpoint of ${dependency.id} names ${endpoint.workItemId}, which is not a leaf`,
+    );
+  }
+  if (endpoint.scope === 'descendant-step' && isLeaf) {
+    throw new Error(
+      `descendant-step endpoint of ${dependency.id} names ${endpoint.workItemId}, which is a leaf`,
+    );
+  }
+  return leaves.map((leafId) => {
+    const at = slicesOf(leafId).findIndex((slice) => slice.stepId === endpoint.stepId);
+    // Proof: this refusal deleted made the unknown-step assertion of the same
+    // case fail on `Received function did not throw` (the edge was drawn at
+    // position -1); watched 2026-09-27.
+    if (at === -1) {
+      throw new Error(`no step ${endpoint.stepId} in work item ${leafId} for ${dependency.id}`);
+    }
+    return { leafId, at };
+  });
+}
+
+/**
+ * Why a step-node graph cannot be ordered: a relationship that joins a node to
+ * itself, or a directed cycle. `relationshipIds` names the authored edges that
+ * lie on the cyclic remainder, in the order they were resolved and without
+ * repeats; it is empty when workflow and legacy edges alone close the cycle.
+ */
+export interface StepNodeCycle {
+  readonly kind: 'self_node' | 'cycle';
+  readonly relationshipIds: readonly string[];
+}
+
+/**
+ * Whether the combined graph — workflow, legacy and authored edges — has a
+ * self-node pair or a directed cycle, or `null` when it can be ordered.
+ *
+ * Asked of the resolved step-node graph and never of work items: `A.dev →
+ * B.dev` beside `B.qa → A.qa` looks cyclic between A and B and is a valid DAG
+ * here. A write that can change this graph is expected to ask it of the state
+ * it would leave, before anything is persisted (design.md, "Model and
+ * validation").
+ *
+ * Kahn's algorithm over positions. The nodes left with an incoming edge after
+ * the sort are those on or behind a cycle; the authored edges between two of
+ * them are the ones reported.
+ *
+ * Throws on an edge whose end is not one of `graph.nodes`: a graph that names
+ * a node it does not hold was not built by {@link resolveStepNodeGraph}, and
+ * counting that node as a source would invent it.
+ */
+export function findStepNodeCycle(graph: StepNodeGraph): StepNodeCycle | null {
+  const formatNodeKey = (end: SliceEdgeEnd): string => `${end.leafId}#${String(end.at)}`;
+  const indegree = new Map<string, number>();
+  const successors = new Map<string, string[]>();
+  for (const graphNode of graph.nodes) {
+    const leafId = graphNode.kind === 'step' ? graphNode.ref.workItemId : graphNode.workItemId;
+    indegree.set(formatNodeKey({ leafId, at: graphNode.at }), 0);
+  }
+  for (const edge of graph.edges) {
+    const from = formatNodeKey(edge.predecessor);
+    const to = formatNodeKey(edge.successor);
+    const count = indegree.get(to);
+    // Checked before the self-pair answer, so an unheld node never passes as
+    // a self-node pair.
+    // Proof: this refusal disabled made `refuses to order a graph whose edge
+    // names a node it does not hold` and `refuses an unheld node before
+    // answering a self-node pair` fail on `Received function did not throw`;
+    // watched 2026-09-27.
+    if (count === undefined || !indegree.has(from)) {
+      throw new Error(`an edge ${from} → ${to} names a node the graph does not hold`);
+    }
+    indegree.set(to, count + 1);
+    const out = successors.get(from);
+    if (out === undefined) successors.set(from, [to]);
+    else out.push(to);
+  }
+
+  // Proof: the self-pair branch disabled made `refuses a self-node pair` fail on
+  // `- Expected - 1 / + Received + 1`, a `cycle` where `self_node` was
+  // expected; watched 2026-09-27.
+  const selfPairs = graph.edges.filter(
+    (edge) =>
+      edge.provenance === 'authored' &&
+      formatNodeKey(edge.predecessor) === formatNodeKey(edge.successor),
+  );
+  if (selfPairs.length > 0) {
+    return { kind: 'self_node', relationshipIds: collectAuthoredIds(selfPairs) };
+  }
+  const ready = [...indegree].filter(([, count]) => count === 0).map(([key]) => key);
+  while (ready.length > 0) {
+    const key = ready.pop();
+    if (key === undefined) throw new Error('the ready list emptied while it had length');
+    indegree.delete(key);
+    for (const next of successors.get(key) ?? []) {
+      const held = indegree.get(next);
+      if (held === undefined) throw new Error(`node ${next} was released twice`);
+      const count = held - 1;
+      indegree.set(next, count);
+      if (count === 0) ready.push(next);
+    }
+  }
+  // Proof: `return null` here unconditionally made `refuses a directed cycle
+  // through the workflow chain`, `refuses a cycle a parent expansion closes`,
+  // `refuses a cycle a legacy edge closes against a typed one` and the anchor
+  // case fail on `Received: null`; watched 2026-09-27.
+  if (indegree.size === 0) return null;
+  const onCycle = graph.edges.filter(
+    (edge) =>
+      indegree.has(formatNodeKey(edge.predecessor)) && indegree.has(formatNodeKey(edge.successor)),
+  );
+  return { kind: 'cycle', relationshipIds: collectAuthoredIds(onCycle) };
+}
+
+function collectAuthoredIds(edges: readonly StepNodeGraphEdge[]): string[] {
+  return [
+    ...new Set(
+      edges.flatMap((edge) => (edge.provenance === 'authored' ? [edge.relationshipId] : [])),
+    ),
+  ];
 }

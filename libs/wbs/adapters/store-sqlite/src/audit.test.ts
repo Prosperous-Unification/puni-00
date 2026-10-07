@@ -25,9 +25,8 @@ import { describe, expect, it } from 'bun:test';
  *
  * **What it does not cover**, stated rather than left to be discovered: it reads
  * text, so a write assembled across two statements, or one whose table is named
- * through a variable, is invisible to it. Both are absent today and the
- * assertion below on the number of statements it found is what will notice if a
- * refactor makes them present.
+ * through a variable, is invisible to it. The count floor below detects a
+ * broad loss of matches, but it cannot detect one newly invisible write.
  *
  * Proof, and it is not a hypothetical: on its **first** run this found two
  * unstamped updates nobody had noticed — `revision.ts`'s `bumpWorkItems` and
@@ -42,7 +41,8 @@ const FOLDER = import.meta.dir;
 
 /**
  * The drizzle tables that carry no audit columns, by the identifier the code
- * writes them as — the five exceptions `schema.ts` documents.
+ * writes them as. The exemption test below checks that each remains without
+ * audit columns.
  *
  * `eventLog`, `commandJournal` and `planEvent` record an **act** rather than a
  * record: each already holds the acting user and the instant, and nothing ever
@@ -114,6 +114,39 @@ const EXEMPT = new Set([
   'savedPlan',
   'savedPlanBody',
   'calendarMarker',
+  // Ownership mappings, not authored rows: the root each maps carries the
+  // creation audit, and the bridge triggers write the same tables without one.
+  'projectOrganization',
+  'savedPlanOrganization',
+  // A project's solution link, part of its settings: the project row's own
+  // audit columns and revision move with every write of it.
+  'projectSolution',
+  // An audit record is its own authorship: `actor_id` and `created_at` are
+  // the act it records, not audit columns about the row.
+  'organizationAudit',
+  // Short-lived address proof: challenge rows date creation and each state
+  // transition (`revoked_at`, `consumed_at`), with no actor or general audit
+  // columns. The exemption assertion below checks the schema.
+  // Proof: 2026-09-28, injecting auditColumns() into emailChallenge made
+  // `exempts only tables that carry no audit columns` fail for this entry.
+  'emailChallenge',
+]);
+
+/**
+ * Files whose inserts put rows back **exactly as saved**, audit columns
+ * included. `typed-dependency-rollback.ts` restores typed dependencies that a
+ * rollback removed (`docs/runbook-prod-deploy.md#typed-dependency-rollback`):
+ * each row was stamped by `auditOnCreate` when it was first written, and
+ * stamping it again on restore would replace who drew the relationship and when
+ * with whoever ran the restore — a lossy restore. `space-rollback.ts` does the
+ * same for spaces and their members (`#space-rollback`), and
+ * `project-rank-rollback.ts` for project ranks (`#project-rank-rollback`). Only
+ * inserts are excused; the `it` below keeps the list to files that exist.
+ */
+const RESTORES = new Set([
+  'project-rank-rollback.ts',
+  'space-rollback.ts',
+  'typed-dependency-rollback.ts',
 ]);
 
 /** The files that hold writes — every repository, and not this test or the helper. */
@@ -142,6 +175,7 @@ interface Write {
 }
 
 function auditedWrites(): Write[] {
+  const schema = readFileSync(join(FOLDER, 'schema.ts'), 'utf8');
   const found: Write[] = [];
   for (const { name, text } of repositorySources()) {
     for (const hit of text.matchAll(/\.(insert|update)\((\w+)\)/g)) {
@@ -151,6 +185,12 @@ function auditedWrites(): Write[] {
       // input can reach.
       const table = hit[2];
       if (EXEMPT.has(table)) continue;
+      // Only a declared drizzle table is a write: the hash updates
+      // `createHash().update(asset)` in `public-email-policy.ts` and
+      // `createHash().update(dnsValue)` in `domain-claim.ts` are not.
+      // Proof: 2026-09-28, dropping this check made `stamps every update with
+      // auditOnUpdate` fail with `public-email-policy.ts: update of asset`.
+      if (tableDeclaration(schema, table) === null) continue;
       const end = text.indexOf(';', hit.index);
       found.push({
         file: name,
@@ -212,9 +252,17 @@ describe('every write fills the audit columns', () => {
     ).toBeGreaterThan(40);
   });
 
+  // Proof: the entry misspelt `typed-dependency-restore.ts` made this case and
+  // `stamps every insert with auditOnCreate` fail; watched 2026-09-27.
+  it('excuses only restore files that exist', () => {
+    const present = new Set(repositorySources().map((source) => source.name));
+    expect([...RESTORES].filter((name) => !present.has(name))).toEqual([]);
+  });
+
   it('stamps every insert with auditOnCreate', () => {
     const missing = writes
       .filter((write) => write.kind === 'insert')
+      .filter((write) => !RESTORES.has(write.file))
       .filter((write) => !write.statement.includes('auditOnCreate('))
       // `users` and `project` date themselves, so their inserts carry the
       // variant that leaves their own `created_at` alone.

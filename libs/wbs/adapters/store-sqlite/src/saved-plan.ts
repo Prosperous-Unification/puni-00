@@ -1,12 +1,26 @@
-import { bodyByteLength, type SavedPlanRow, type SavedPlanStore } from '@wbs/core';
+import {
+  bodyByteLength,
+  type SavedPlanRow,
+  type SavedPlanStore,
+  type ScopedSavedPlanWrite,
+} from '@wbs/core';
 import { and, desc, eq, sql } from 'drizzle-orm';
 
 import { isWriteLockBusy } from './constraint';
 import type { Connection, Drizzle } from './db';
 import { drizzleOuterTransaction, drizzleReadTransaction, refuseToWaitForWriteLock } from './db';
+import { OPEN } from './gate';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
+import { readOrganizationActivation } from './organization-activation';
+import { ProjectRepository } from './project';
 import { savedPlanWriteFaultOf } from './saved-plan-write-fault';
-import { project, savedPlan, savedPlanBody } from './schema';
+import {
+  project,
+  projectOrganization,
+  savedPlan,
+  savedPlanBody,
+  savedPlanOrganization,
+} from './schema';
 
 export { bodyByteLength } from '@wbs/core';
 
@@ -111,7 +125,8 @@ export type SavedPlanWriteOutcome<Refusal> =
   | { readonly outcome: 'written' }
   | { readonly outcome: 'refused'; readonly refusal: Refusal }
   /** `BEGIN IMMEDIATE` met a lock another connection holds. Nothing was written. */
-  | { readonly outcome: 'snapshot_busy' };
+  | { readonly outcome: 'snapshot_busy' }
+  | { readonly outcome: 'forbidden' | 'not_found' };
 
 /**
  * One saved plan exactly as it is stored — header row, and each side's bytes.
@@ -166,7 +181,7 @@ function savedPlanHeader(
  * nothing, which is a fact the route has to turn into an answer. `false` would
  * carry the same information and lose the name for it at every call site.
  */
-export type SavedPlanTouchOutcome = 'touched' | 'no_such_plan' | 'snapshot_busy';
+export type SavedPlanTouchOutcome = 'touched' | 'no_such_plan' | 'snapshot_busy' | 'forbidden';
 
 /**
  * The two ids a rename or a delete has to be authorised against, and nothing
@@ -276,10 +291,14 @@ export class SavedPlanRepository implements SavedPlanStore {
    * Only `BEGIN` is watched for it. A `SQLITE_BUSY` out of a later statement is
    * not this condition — the lock is already held by then — so it stays an
    * unknown and is thrown.
+   * Scoped saves classify the current membership and project after that BEGIN
+   * and append recovery audit to this same transaction. A quota refusal rolls
+   * that record back with the unwritten plan.
    */
   async write<Refusal>(
     plan: SavedPlanWrite,
     check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
+    scoped?: ScopedSavedPlanWrite,
   ): Promise<SavedPlanWriteOutcome<Refusal>> {
     const expectedPlan = structuredClone(plan);
     const writeFault = savedPlanWriteFaultOf(this);
@@ -302,6 +321,25 @@ export class SavedPlanRepository implements SavedPlanStore {
         }
         let isTransactionActive = true;
         try {
+          if (scoped !== undefined) {
+            // Proof: forcing `ordinary` here made `audits a super-admin save,
+            // rename and delete of another creator’s restricted project` find
+            // no save record (0 pass, 1 fail); watched 2026-09-28.
+            const admitted = await new ProjectRepository(db, OPEN).admitEditInOrganization(
+              plan.projectId,
+              scoped.organizationId,
+              scoped.actorId,
+              { savedPlan: 'save' },
+            );
+            // Proof: skipping this refusal made `reclassifies a removed actor
+            // inside the saved-plan save transaction` answer written instead
+            // of forbidden; watched 2026-09-28.
+            if (admitted === null || admitted === 'forbidden') {
+              tx.rollback();
+              isTransactionActive = false;
+              return { outcome: admitted === null ? 'not_found' : 'forbidden' } as const;
+            }
+          }
           const refusal = await check(
             await this.holdingOf(db, plan.projectId),
             inputBytes + (scheduleBytes ?? 0),
@@ -317,6 +355,51 @@ export class SavedPlanRepository implements SavedPlanStore {
           }
           const header = savedPlanHeader(plan, inputBytes, scheduleBytes);
           await db.insert(savedPlan).values(header);
+          // The plan belongs to its project's organization. Before activation
+          // the bridge trigger has already mapped it; after it, nothing else
+          // would, so the mapping is written here, in the save's own
+          // transaction. Builder statements rather than a raw one, so the
+          // transaction's only raw statements stay its BEGIN and its end.
+          // Proof: skipping this insert made `maps a plan saved after
+          // activation to its project's organization` in
+          // `saved-plan-organization.controller.db.test.ts` (and the store suite `saved-plan-organization.db.test.ts`) find no mapping;
+          // watched 2026-09-27.
+          const owner = (
+            await db
+              .select({ organizationId: projectOrganization.organizationId })
+              .from(projectOrganization)
+              .where(eq(projectOrganization.resourceId, plan.projectId))
+          ).at(0);
+          const mapped = await db
+            .select({
+              id: savedPlanOrganization.resourceId,
+              organizationId: savedPlanOrganization.organizationId,
+            })
+            .from(savedPlanOrganization)
+            .where(eq(savedPlanOrganization.resourceId, plan.id));
+          if (readOrganizationActivation(db) === 'activated') {
+            // After activation the invariant is complete ownership: a project
+            // without an owner, or a plan already mapped elsewhere, is corrupt
+            // trusted state, and the save rolls back rather than store it.
+            // Proof: skipping this refusal made `refuses a save after
+            // activation for a project without an owner` in
+            // `saved-plan-organization.db.test.ts` answer `written`; watched
+            // 2026-09-27.
+            if (owner === undefined) {
+              throw new Error(`project "${plan.projectId}" has no organization after activation`);
+            }
+            const held = mapped.at(0);
+            if (held !== undefined && held.organizationId !== owner.organizationId) {
+              throw new Error(
+                `saved plan "${plan.id}" is mapped outside its project's organization`,
+              );
+            }
+          }
+          if (owner !== undefined && mapped.length === 0) {
+            await db
+              .insert(savedPlanOrganization)
+              .values({ resourceId: plan.id, organizationId: owner.organizationId });
+          }
           if (writeFault?.kind !== 'omit-input' || writeFault.targetId !== plan.id)
             await db
               .insert(savedPlanBody)
@@ -560,8 +643,15 @@ export class SavedPlanRepository implements SavedPlanStore {
    * On its own connection with the write lock refused rather than waited on,
    * for {@link write}'s reason: a rename is a header row and must never hold a
    * lock a live edit is queued behind.
+   * Scoped touches take an immediate transaction so admission and audit share
+   * the header write; legacy touches keep this single-statement path.
    */
-  async renameTo(savedPlanId: string, name: string): Promise<SavedPlanTouchOutcome> {
+  async renameTo(
+    savedPlanId: string,
+    name: string,
+    scoped?: ScopedSavedPlanWrite,
+  ): Promise<SavedPlanTouchOutcome> {
+    if (scoped !== undefined) return this.touchScoped(savedPlanId, scoped, name);
     const connection = this.opts.openConnection();
     try {
       const db = connection.db;
@@ -594,8 +684,14 @@ export class SavedPlanRepository implements SavedPlanStore {
    *
    * Deleting is the only way a saved plan leaves, and it is permissioned like
    * the rename — creator or project owner (6.1), decided above this line.
+   * A scoped recovery instead uses {@link touchScoped}'s current membership,
+   * project and author check inside its immediate transaction.
    */
-  async deleteOf(savedPlanId: string): Promise<SavedPlanTouchOutcome> {
+  async deleteOf(
+    savedPlanId: string,
+    scoped?: ScopedSavedPlanWrite,
+  ): Promise<SavedPlanTouchOutcome> {
+    if (scoped !== undefined) return this.touchScoped(savedPlanId, scoped);
     const connection = this.opts.openConnection();
     try {
       const db = connection.db;
@@ -611,6 +707,80 @@ export class SavedPlanRepository implements SavedPlanStore {
         return 'snapshot_busy';
       }
       return removed.length === 0 ? 'no_such_plan' : 'touched';
+    } finally {
+      connection.close();
+    }
+  }
+
+  /** Rechecks the plan's author and project admission inside its own immediate write. */
+  private async touchScoped(
+    savedPlanId: string,
+    scoped: ScopedSavedPlanWrite,
+    name?: string,
+  ): Promise<SavedPlanTouchOutcome> {
+    // Proof: removing this check made `refuses a scoped touch whose operation
+    // disagrees with the write` resolve instead of throw; watched 2026-09-28.
+    if (scoped.operation !== (name === undefined ? 'delete' : 'rename'))
+      throw new Error('saved-plan touch operation disagrees with its authorization');
+    const connection = this.opts.openConnection();
+    try {
+      const db = connection.db;
+      refuseToWaitForWriteLock(db);
+      const transaction = drizzleOuterTransaction(db);
+      try {
+        transaction.begin();
+      } catch (failure) {
+        if (isWriteLockBusy(failure)) return 'snapshot_busy';
+        throw failure;
+      }
+      try {
+        const principals = (
+          await db
+            .select({
+              projectId: savedPlan.projectId,
+              createdById: savedPlan.createdById,
+              projectOwnerId: project.ownerId,
+            })
+            .from(savedPlan)
+            .innerJoin(project, eq(project.id, savedPlan.projectId))
+            .where(eq(savedPlan.id, savedPlanId))
+        ).at(0);
+        if (principals === undefined) {
+          transaction.rollback();
+          return 'no_such_plan';
+        }
+        // Proof: forcing `ordinary` here made the mounted super-admin rename
+        // answer 403 instead of 200 (0 pass, 1 fail); watched 2026-09-28.
+        const admitted = await new ProjectRepository(db, OPEN).admitEditInOrganization(
+          principals.projectId,
+          scoped.organizationId,
+          scoped.actorId,
+          { savedPlan: scoped.operation },
+        );
+        // Proof: bypassing this refusal made the store-path removed-actor
+        // touch answer "touched" instead of "forbidden"; watched 2026-09-28.
+        if (
+          admitted === null ||
+          admitted === 'forbidden' ||
+          // Proof: omitting this author-or-project-creator check let an
+          // unrelated member rename another person's unrestricted plan:
+          // `refuses member, admin and viewer writers and leaves creator writes
+          // unaudited` got 200 instead of 403; watched 2026-09-28.
+          (admitted === 'ordinary' &&
+            principals.createdById !== scoped.actorId &&
+            principals.projectOwnerId !== scoped.actorId)
+        ) {
+          transaction.rollback();
+          return admitted === null ? 'no_such_plan' : 'forbidden';
+        }
+        if (name === undefined) await db.delete(savedPlan).where(eq(savedPlan.id, savedPlanId));
+        else await db.update(savedPlan).set({ name }).where(eq(savedPlan.id, savedPlanId));
+        transaction.commit();
+        return 'touched';
+      } catch (failure) {
+        transaction.rollback();
+        throw failure;
+      }
     } finally {
       connection.close();
     }

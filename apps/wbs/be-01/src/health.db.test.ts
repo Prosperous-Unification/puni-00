@@ -13,12 +13,26 @@ import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
 import { testCapacityService } from './testing/capacity-fixture';
 import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingJoinRequests,
+  refusingTestEmailDelivery,
+} from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
+import { refusingOnboarding } from './testing/onboarding-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingDomains,
+  refusingMemberships,
+} from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { testProjectService } from './testing/project-fixture';
+import { refusingProjectRanks } from './testing/project-rank-fixture';
 import { testReplay } from './testing/replay-fixture';
 import { testSavedPlanService } from './testing/saved-plan-fixture';
+import { refusingSpaces } from './testing/space-fixture';
 import { testStepService } from './testing/step-fixture';
 import { testWorkItemService } from './testing/work-item-fixture';
 import { testWrites } from './testing/writes-fixture';
@@ -28,6 +42,16 @@ const TEST_SECRET = 'x'.repeat(32);
 describe('GET /health', () => {
   it('returns 200 with status:"ok" when ready', async () => {
     const app = buildApp({
+      organizations: legacyOrganizationAccess,
+      memberships: refusingMemberships,
+      domains: refusingDomains,
+      emailVerification: refusingEmailVerification,
+      invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
+      spaces: refusingSpaces,
+      projectRanks: refusingProjectRanks,
+      emailDelivery: refusingTestEmailDelivery,
+      onboarding: refusingOnboarding,
       clock: testClock,
       loginThrottle: testLoginThrottle(),
       appOrigin: 'http://localhost',
@@ -55,6 +79,16 @@ describe('GET /health', () => {
 
   it('returns 503 while migrations still running', async () => {
     const app = buildApp({
+      organizations: legacyOrganizationAccess,
+      memberships: refusingMemberships,
+      domains: refusingDomains,
+      emailVerification: refusingEmailVerification,
+      invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
+      spaces: refusingSpaces,
+      projectRanks: refusingProjectRanks,
+      emailDelivery: refusingTestEmailDelivery,
+      onboarding: refusingOnboarding,
       clock: testClock,
       loginThrottle: testLoginThrottle(),
       appOrigin: 'http://localhost',
@@ -93,6 +127,16 @@ describe('/health tells the truth about the database', () => {
     try {
       const { db, close } = openConnection(join(dir, 'empty.db'));
       const app = buildApp({
+        organizations: legacyOrganizationAccess,
+        memberships: refusingMemberships,
+        domains: refusingDomains,
+        emailVerification: refusingEmailVerification,
+        invitations: refusingInvitations,
+        joinRequests: refusingJoinRequests,
+        spaces: refusingSpaces,
+        projectRanks: refusingProjectRanks,
+        emailDelivery: refusingTestEmailDelivery,
+        onboarding: refusingOnboarding,
         clock: testClock,
         loginThrottle: testLoginThrottle(),
         appOrigin: 'http://localhost',
@@ -134,6 +178,16 @@ describe('/health tells the truth about the database', () => {
       runMigrations(path, new URL('../drizzle', import.meta.url).pathname);
       const { db, close } = openConnection(path);
       const app = buildApp({
+        organizations: legacyOrganizationAccess,
+        memberships: refusingMemberships,
+        domains: refusingDomains,
+        emailVerification: refusingEmailVerification,
+        invitations: refusingInvitations,
+        joinRequests: refusingJoinRequests,
+        spaces: refusingSpaces,
+        projectRanks: refusingProjectRanks,
+        emailDelivery: refusingTestEmailDelivery,
+        onboarding: refusingOnboarding,
         clock: testClock,
         loginThrottle: testLoginThrottle(),
         appOrigin: 'http://localhost',
@@ -165,6 +219,16 @@ describe('/health tells the truth about the database', () => {
 
   it('is unhealthy when the probe itself throws', async () => {
     const app = buildApp({
+      organizations: legacyOrganizationAccess,
+      memberships: refusingMemberships,
+      domains: refusingDomains,
+      emailVerification: refusingEmailVerification,
+      invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
+      spaces: refusingSpaces,
+      projectRanks: refusingProjectRanks,
+      emailDelivery: refusingTestEmailDelivery,
+      onboarding: refusingOnboarding,
       clock: testClock,
       loginThrottle: testLoginThrottle(),
       appOrigin: 'http://localhost',

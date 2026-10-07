@@ -1,11 +1,12 @@
 import { defineEndpointShape, responseSchema } from '@wbs/contracts';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { type } from 'arktype';
 import { expect, spyOn, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { jwtVerify, SignJWT } from 'jose';
 
 import { bunPasswordHasher, joseTokenCodec } from '../../runtime/bun-runtime';
-import { AuthService } from '../../service/auth.service';
+import { REFUSE_DELEGATIONS } from '../../runtime/delegation';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../../testing/auth-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { bind } from '../endpoint';
@@ -48,7 +49,7 @@ function userApp(auth: AuthService, requirement: 'signed-in' | 'read-scope' | 'w
       {
         appOrigin: 'https://app.example',
         reportUnexpectedFailure: () => undefined,
-        resolveIdentity: identityResolver(auth, internalSecret),
+        resolveIdentity: identityResolver(auth, internalSecret, REFUSE_DELEGATIONS),
       },
     ),
   );
@@ -72,7 +73,7 @@ function internalApp(auth: AuthService) {
       {
         appOrigin: 'https://app.example',
         reportUnexpectedFailure: () => undefined,
-        resolveIdentity: identityResolver(auth, internalSecret),
+        resolveIdentity: identityResolver(auth, internalSecret, REFUSE_DELEGATIONS),
       },
     ),
   );
@@ -128,6 +129,41 @@ test('resolves the actual password account once for each user requirement', asyn
       expect(await reply.json()).toEqual(fixture.user);
       expect(authenticate).toHaveBeenCalledTimes(1);
     }
+  } finally {
+    authenticate.mockRestore();
+  }
+});
+
+test('keeps a verified organization binding on this request when authentication reuses a principal', async () => {
+  const fixture = await passwordFixture();
+  const authenticated = await fixture.auth.authenticate(fixture.token);
+  if (authenticated === null) throw new Error('credential did not authenticate');
+  const shared = { ...authenticated };
+  const authenticate = spyOn(fixture.auth, 'authenticate').mockResolvedValue(shared);
+  try {
+    const resolve = identityResolver(fixture.auth, internalSecret, REFUSE_DELEGATIONS, () =>
+      Promise.resolve({
+        kind: 'native',
+        userId: shared.id,
+        digest: 'a'.repeat(64),
+        expiresAt: Date.now() + 60_000,
+      }),
+    );
+    const first = await resolve('signed-in', {
+      url: new URL('https://backend.example/identity'),
+      method: 'GET',
+      headers: new Headers({ authorization: `Bearer ${fixture.token}` }),
+    });
+    if (!first.ok || !('id' in first.principal)) throw new Error('first request was not a user');
+    expect(first.principal.organizationBinding?.credential.userId).toBe(shared.id);
+    const second = await resolve('signed-in', {
+      url: new URL('https://backend.example/identity'),
+      method: 'GET',
+      headers: new Headers(),
+    });
+    if (!second.ok || !('id' in second.principal)) throw new Error('second request was not a user');
+    expect(second.principal.organizationBinding).toBeUndefined();
+    expect(shared.organizationBinding).toBeUndefined();
   } finally {
     authenticate.mockRestore();
   }

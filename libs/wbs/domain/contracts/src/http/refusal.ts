@@ -32,6 +32,9 @@ export type ParserRefusalCode =
   | 'conflicting_step_address'
   | 'invalid_step_node_id'
   | 'unknown_step_node_encoding'
+  | 'invalid_typed_endpoint'
+  | 'type_must_be_text'
+  | 'dependencyId_must_be_text'
   | 'cannot_send_both_teamIds_and_serviceTeamId'
   | 'unknown_kind'
   | 'unknown_strategy'
@@ -67,7 +70,8 @@ export type ParserRefusalCode =
   | `${'priority' | 'maxParallel' | 'size'}_must_be_a_whole_number_from_1`
   | `${'maxParallel' | 'size'}_must_be_at_most_1000`
   | 'cascade_must_be_true_or_false'
-  | 'startNoEarlierThanReason_must_be_at_most_200_characters';
+  | 'startNoEarlierThanReason_must_be_at_most_200_characters'
+  | 'allowancePercent_must_be_0_to_1000_with_two_decimals';
 
 /** Service/runner refusals after a command kind has been recognized. */
 export type CommandRefusalCode =
@@ -106,6 +110,14 @@ export type CommandRefusalCode =
   | 'rolled_up'
   | 'has_children'
   | 'ancestor'
+  /** A typed dependency resolving a step node onto itself. */
+  | 'self_node'
+  | 'not_a_parent'
+  | 'node_on_parent'
+  | 'descendant_step_on_leaf'
+  | 'unknown_dependency'
+  | 'duplicate_dependency'
+  | 'unsupported_relationship_type'
   | 'too_large'
   | 'unknown_step'
   | 'unknown_metric'
@@ -119,6 +131,12 @@ export type CommandRefusalCode =
   | 'work_item_takes_one_type'
   | 'not_before_reason_needs_a_date'
   | 'deadline_before_project_start'
+  /** `setStatus` `ready` or `draft` once a step has spoken (`add-work-item-statuses`). */
+  | 'readiness_after_progress'
+  /** `setStatus` `on_hold` or `blocked` on a row reading done. */
+  | 'cannot_hold_done'
+  /** `setStatus` `in_progress` or `done` in a project with no steps. */
+  | 'no_steps'
   | 'invalid_kind'
   | 'nothing_to_change'
   | 'taken'
@@ -154,7 +172,7 @@ export interface DirectoryUsage {
 }
 
 /**
- * Mirrors apps/wbs/be-01/src/service/step.service.ts::StepInUse, including explicit
+ * Mirrors libs/wbs/application/core/src/module/step/step.resource.ts::StepInUse, including explicit
  * assignments omitted by the initial HTTP inventory. Proof (type boundary only):
  * making assignments optional produces TS2578 for its missing-field fixture.
  */
@@ -206,24 +224,55 @@ export type CommandRefusalDetail = {
     // Proof: making projectDayZero optional caused TS2578 in the deadline refusal type fixture.
     (C extends 'deadline_before_project_start'
       ? { workItemId: string; projectDayZero: string }
-      : C extends 'in_use'
-        ? { usage: DirectoryUsage }
-        : C extends 'taken'
-          ? { name?: string }
-          : Record<never, never>);
+      : C extends 'node_on_parent' | 'descendant_step_on_leaf'
+        ? { dependencyIds: string[] }
+        : C extends 'in_use'
+          ? { usage: DirectoryUsage }
+          : C extends 'taken'
+            ? { name?: string }
+            : Record<never, never>);
 };
 
 type BareRefusalCode =
   | 'unauthenticated'
   | 'insufficient_scope'
+  /** Authenticated, but the session is bound to no organization (after activation). */
+  | 'no_active_organization'
+  | 'onboarding_inactive'
+  | 'context_inactive'
+  | 'invalid_binding'
+  | 'email_verification_required'
+  | 'password_account_required'
+  | 'address_conflict'
+  | 'challenge_invalid'
+  | 'invitation_invalid'
+  | 'recipient_mismatch'
+  | 'delivery_failed'
+  | 'already_member'
+  | 'domain_matched'
+  | 'invalid_domain'
+  | 'unclaimable'
+  | 'already_claimed'
+  | 'stale'
+  | 'proof_mismatch'
+  | 'domain_taken'
+  | 'dns_unavailable'
+  | 'join_request_pending'
+  | 'request_resolved'
+  | 'domain_changed'
+  /** Authenticated, but the bound organization no longer lists the user. */
+  | 'not_a_member'
   | 'invalid_origin'
   | 'unauthorized'
   | 'invalid_body'
+  | 'invalid_allowance'
   | 'invalid_query'
   | 'unsupported_format'
   | 'bad_start_date'
   | 'bad_pert_weights'
   | 'optimizer_unavailable'
+  /** Another of the organization's projects holds the requested solution slug. */
+  | 'solution_taken'
   | 'engine_unavailable'
   | 'snapshot_busy'
   | 'invalid_client'
@@ -250,9 +299,23 @@ type BareRefusalCode =
   | 'unknown_work_item'
   | 'parent_work_item'
   | 'unknown_code'
-  | 'alias_mismatch';
+  | 'alias_mismatch'
+  // A membership change that would leave the organization without a
+  // super-admin (task 3.7).
+  | 'last_super_admin'
+  // A project reach change or a step removal that would close a step-node
+  // dependency cycle. Outside a batch, so it carries no command position.
+  | 'dependency_cycle'
+  // Spaces (`add-spaces`): legacy access with no legacy organization to own a
+  // space; a space name the organization already holds; a project already in
+  // the space; a write addressed to the virtual All projects.
+  | 'organization_required'
+  | 'name_taken'
+  | 'already_in_space'
+  | 'virtual_space';
 
-type SharedCommandCode = 'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use';
+type SharedCommandCode =
+  'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use' | 'calendar_range';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -274,11 +337,20 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     not_found: { savedPlanId?: string } | { field?: 'markerId' } | CommandContext;
     forbidden: undefined | CommandContext;
     name_required: undefined | CommandContext;
+    /** Bare from a step PATCH's allowance; with its command context from a batch. */
+    calendar_range: undefined | CommandContext;
     taken: undefined | { field?: 'markerId' } | CommandRefusalDetail['taken'];
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
+    /** The typed dependencies naming a step that a removal would take away. */
+    referenced_by_dependency: { dependencyIds: string[] };
     nothing_to_undo: { detail: string | null };
     stale_undo: { detail: string | null };
     stale_address_revision: { addressRevision: string };
+    /**
+     * A plan export of a project holding steps an older writer left uncoded:
+     * each such step, and the be-01 backfill command that codes them.
+     */
+    uncoded_steps: { steps: { id: string; name: string }[]; command: string };
     unresolvable_reference: {
       reason:
         | 'malformed'
@@ -310,6 +382,7 @@ export type RefusalCode = keyof RefusalDetail;
 export interface ImportRefusal {
   error:
     | 'invalid_body'
+    | 'invalid_typed_dependency'
     | 'unsupported_version'
     | 'unknown_ref'
     | 'cycle'
@@ -347,7 +420,12 @@ export type OptimizerRetryRefusal =
       code: 'not-retryable';
       state: 'ready' | 'pending' | 'retrying' | 'failed' | 'corrupt' | 'plan-infeasible' | 'idle';
     }
-  | { code: 'already-running' };
+  | { code: 'already-running' }
+  | {
+      code: 'schedule-input-unavailable';
+      reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
+      projectId: string;
+    };
 
 export type Refusal<C extends RefusalCode = RefusalCode> = ErrorRefusal<C> | OptimizerRetryRefusal;
 

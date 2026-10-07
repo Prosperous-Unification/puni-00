@@ -8,6 +8,7 @@ import type { RetentionTimer } from './module/bounded-replay-sweep/retention-tim
 import { installCalendarMarker } from './module/calendar-marker/check';
 import { installCapacity } from './module/capacity/check';
 import { installDirectory } from './module/directory/check';
+import { standaloneDirectoryService } from './module/directory/standalone-directory';
 import { installEventLog } from './module/event-log/check';
 import { installPlanCommands } from './module/plan-commands/check';
 import type { PlanCommandRunner } from './module/plan-commands/plan-commands.feature';
@@ -27,7 +28,10 @@ import type { SavedPlanService } from './module/saved-plans/saved-plans.feature'
 import { installStep } from './module/step/check';
 import { installWorkItem } from './module/work-item/check';
 import type { Clock } from './ports/clock';
+import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
+import type { BeforeProjectUpdate, BeforeStepRemoval } from './ports/fanout-capture-store';
 import type { OidcVerifier } from './ports/oidc-verifier';
+import type { ResourceAccess } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
 import type { PushTransport } from './ports/push-transport';
 import type { Digest, PasswordHasher, TokenCodec } from './ports/runtime';
@@ -36,7 +40,12 @@ import type { Source } from './ports/source';
 import type { PlanTransactionalStores, TransactionalStores } from './ports/stores';
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
-import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
+import type { CommittedFanoutDelivery } from './service/committed-fanout';
+import { DependencyGraphGuard } from './service/dependency-graph';
+import {
+  OptimizerTriggerBroadcaster,
+  reactToProjectEvent,
+} from './service/optimizer-trigger-broadcaster';
 
 /** Runtime capabilities required by every service composition. */
 export interface RuntimePorts {
@@ -74,6 +83,14 @@ export interface ServicesOverOptions {
   readonly clock: Clock;
   readonly broadcast: Broadcaster;
   readonly scheduler: Scheduler;
+  /** A borrowed command graph reads the transaction-captured cache without live admission. */
+  readonly schedulerMode?: 'capture';
+  /** Who may write a project through the built services; see {@link EditAdmission}. */
+  readonly admission: EditAdmission;
+  /** Scoped dependent writes use this only after their own unit of work grants it. */
+  readonly recoveryAdmission?: EditAdmission;
+  readonly beforeProjectUpdate?: BeforeProjectUpdate;
+  readonly beforeStepRemoval?: BeforeStepRemoval;
 }
 
 /**
@@ -81,47 +98,59 @@ export interface ServicesOverOptions {
  *
  * Called once for the public graph and once per admitted batch or import, so
  * every resource module is installed here, per call, over the stores it is
- * handed — never once for the process. A shared installation would hand one
+ * handed — never once for the process. Project and Step share one dependency
+ * graph guard over those same stores. A shared installation would hand one
  * batch's staged stores to the next: the backend module map's "A singleton
  * module installation here would leak staged stores" hazard, and the
  * `Writing modules are installed per admitted scope` requirement of
  * `openspec/changes/adopt-di-composition/specs/di-composition/spec.md`.
  */
 export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOverOptions) {
-  const { clock, broadcast, scheduler } = shared;
+  const { clock, broadcast, scheduler, admission } = shared;
+  const recoveryAdmission = shared.recoveryAdmission ?? NO_ADMISSION;
+  const dependencyGraph = new DependencyGraphGuard(stores);
   return {
     projects: installProject({
       clock,
       projects: stores.projects,
       broadcast,
       optimizerAvailable: () => scheduler.supports('optimized'),
+      dependencyGraph,
+      beforeUpdate: shared.beforeProjectUpdate,
     }).projects,
     capacity: installCapacity({
       clock,
       projects: stores.projects,
       capacity: stores.capacity,
       broadcast,
+      admission,
     }).capacity,
     calendarMarkers: installCalendarMarker({
       clock,
       projects: stores.projects,
       markers: stores.calendarMarkers,
       broadcast,
+      recoveryAdmission,
     }).calendarMarkers,
     priorityBands: installPriorityBand({
       clock,
       projects: stores.projects,
       bands: stores.priorityBands,
       broadcast,
+      admission,
     }).priorityBands,
     steps: installStep({
       clock,
       projects: stores.projects,
       steps: stores.steps,
       broadcast,
+      recoveryAdmission,
+      dependencyGraph,
+      beforeRemove: shared.beforeStepRemoval,
     }).steps,
     directory: installDirectory({ clock, directory: stores.directory, broadcast }).directory,
     workItems: installWorkItem({
+      ...(stores.livePlans === undefined ? {} : { livePlans: stores.livePlans }),
       clock,
       workItems: stores.workItems,
       projects: stores.projects,
@@ -130,13 +159,16 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       measures: stores.measures,
       progress: stores.progress,
       dependencies: stores.dependencies,
+      typedDependencies: stores.typedDependencies,
       directory: stores.directory,
       capacity: stores.capacity,
       priorityBands: stores.priorityBands,
       subtrees: stores.subtrees,
       journal: stores.journal,
       broadcast,
+      admission,
       scheduler,
+      ...(shared.schedulerMode === undefined ? {} : { schedulerMode: shared.schedulerMode }),
     }).workItems,
   };
 }
@@ -147,10 +179,21 @@ interface CommonServices extends WritingServices {
   readonly clock: Clock;
   readonly scheduler: Scheduler;
   readonly announcements: Broadcaster;
+  readonly committedFanout: CommittedFanoutDelivery;
   readonly gatewayBroadcaster: GatewayBroadcaster;
   readonly replayBuffer: ReplayBuffer;
   readonly uow: Source['uow'];
-  readonly batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
+  /**
+   * One batch's writing graph over the scope its unit of work admitted, with
+   * the admission that unit of work established; see {@link EditAdmission}.
+   */
+  readonly batch: (
+    scope: Scope,
+    broadcast: Broadcaster,
+    admission: EditAdmission,
+    beforeProjectUpdate?: BeforeProjectUpdate,
+    beforeStepRemoval?: BeforeStepRemoval,
+  ) => WritingServices;
   readonly history: HistoryService;
   readonly plans: SavedPlanService;
   readonly savedPlans: SavedPlanService;
@@ -226,22 +269,85 @@ export function composeServices(
     runtime.onPlanChanged === undefined
       ? broadcaster
       : new OptimizerTriggerBroadcaster(broadcaster, runtime.onPlanChanged);
-  const publicServices = servicesOver(source.stores, {
+  const committedFanout: CommittedFanoutDelivery = {
+    now: () => runtime.clock.now(),
+    deliverCommitted: async (events) => {
+      // Every row is durable before this callback; trigger all recipients before transport can wait.
+      if (runtime.onPlanChanged !== undefined)
+        for (const { projectId, event } of events)
+          // Proof: omitting the committed reaction left the recipient unchanged
+          // while transport was held; direct delivery test received [].
+          reactToProjectEvent(projectId, event, runtime.onPlanChanged);
+      for (const { recorded, event } of events)
+        // Proof: substituting publish advanced the durable sequence and the
+        // direct delivery test received a second row instead of the original.
+        await broadcaster.pushRecorded(recorded.subscription, recorded, event);
+    },
+  };
+  const rawPublicServices = servicesOver(source.stores, {
     clock: runtime.clock,
     broadcast: announcements,
     scheduler: runtime.scheduler,
+    admission: CREATOR_ADMISSION,
   });
-  const batch = (scope: Scope, broadcast: Broadcaster) =>
+  const publicServices = {
+    ...rawPublicServices,
+    directory:
+      source.stores.livePlans === undefined
+        ? rawPublicServices.directory
+        : standaloneDirectoryService({
+            directory: source.stores.directory,
+            uow: source.uow,
+            clock: runtime.clock,
+            announcements,
+            delivery: committedFanout,
+          }),
+  };
+  const batch = (
+    scope: Scope,
+    broadcast: Broadcaster,
+    admission: EditAdmission,
+    beforeProjectUpdate?: BeforeProjectUpdate,
+    beforeStepRemoval?: BeforeStepRemoval,
+  ) =>
+    // Proof: binding the public standalone directory service here made a
+    // project-null command attempt a nested UoW (typed 500 instead of 200)
+    // before its one durable fan-out could commit.
     servicesOver(scope.stores, {
       clock: runtime.clock,
       broadcast,
       scheduler: runtime.scheduler,
+      // Borrowed command reads use this source connection's captured cache;
+      // live admission would wait for the writer turn this batch already owns.
+      // Proof: omitting capture mode made the isolated mounted arrange command
+      // enter the throwing live optimizer and answer 500 instead of 200.
+      schedulerMode: 'capture',
+      admission,
+      recoveryAdmission: admission,
+      beforeProjectUpdate,
+      beforeStepRemoval,
     });
   const { savedPlans } = installSavedPlans({
     digest: runtime.digest,
     capture: source.history.savedPlanCapture,
     plans: source.history.savedPlans,
     scheduler: runtime.scheduler,
+    // The installed save/current path rechecks admitted human authority in this read snapshot.
+    // Proof: removing this entire binding failed mounted saved displacement (expected 3, got 0).
+    ...(source.stores.livePlans === undefined
+      ? {}
+      : {
+          captureSharedPlan: async (projectId: string, access: ResourceAccess) => {
+            // Proof: project-owned readProject bypassed revoked human membership: mounted
+            // comparison returned 200 instead of 403/not_a_member; save writer still refused.
+            const captured = await source.stores.livePlans?.read(projectId, access);
+            if (captured === undefined)
+              throw new Error('installed shared saved-plan capture lost its live-plan store');
+            // Proof: injecting process-scheduler live mode here for an enabled optimized
+            // target failed the mounted S4 no-write assertion: a generation and cache rows appeared.
+            return captured.kind === 'shared' ? captured.chain : captured;
+          },
+        }),
     newId: () => runtime.clock.newId(),
     now: () => Math.floor(runtime.clock.now() / 1_000),
   });
@@ -250,6 +356,7 @@ export function composeServices(
     clock: runtime.clock,
     scheduler: runtime.scheduler,
     announcements,
+    committedFanout,
     gatewayBroadcaster: broadcaster,
     replayBuffer: buffer,
     uow: source.uow,
@@ -259,13 +366,21 @@ export function composeServices(
       scheduler: runtime.scheduler,
       uow: source.uow,
       announcements,
-      batchServices: batch,
+      // Proof: dropping this binding made the mounted tied import answer 500
+      // instead of recording (B,A); watched in 6j.a.
+      committedFanout,
+      // An import writes only the project it creates for its importer, whom
+      // the creator rule admits.
+      // Proof: replacing this borrowed directory with the public standalone
+      // wrapper made the mounted import hit its bounded nested-owner refusal.
+      batchServices: (scope, broadcast) => batch(scope, broadcast, CREATOR_ADMISSION),
     }).imports,
     commands: installPlanCommands({
       batchServices: batch,
       publicServices,
       uow: source.uow,
       announcements,
+      committedFanout,
     }).commands,
     history: installPlanHistory({
       projects: publicServices.projects,

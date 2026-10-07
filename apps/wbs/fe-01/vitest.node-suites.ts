@@ -18,6 +18,7 @@
  */
 export const NODE_SUITES: readonly string[] = [
   'playwright-config.test.ts',
+  'src/components/board/step-board.test.ts',
   'src/components/wbs/cell-card-store.test.ts',
   'src/components/wbs/column-hints.test.ts',
   'src/components/wbs/dep-graph.test.ts',
@@ -26,6 +27,7 @@ export const NODE_SUITES: readonly string[] = [
   'src/components/wbs/drag-drop.test.ts',
   'src/components/wbs/estimate-draft.test.ts',
   'src/components/wbs/gantt-geometry.test.ts',
+  'src/components/wbs/import-with-ai-guide.test.ts',
   'src/components/wbs/initials.test.ts',
   'src/components/wbs/logical-grid.test.ts',
   'src/components/wbs/marker-rule-density.test.ts',
@@ -40,6 +42,7 @@ export const NODE_SUITES: readonly string[] = [
   'src/components/wbs/pointed-row-store.test.ts',
   'src/components/wbs/project-picker.test.ts',
   'src/components/wbs/short-date.test.ts',
+  'src/components/wbs/status-offers.test.ts',
   'src/components/wbs/wbs-rows.test.ts',
   // `work-item-deadline` 8.9's repository assertion. It parses `.tsx` sources
   // with the TypeScript parser and reads them off disk, which is a file-system
@@ -48,8 +51,10 @@ export const NODE_SUITES: readonly string[] = [
   // Not `src/lib/api.test.ts`: `websocketUrl` reads `location`, so one of its
   // cases needs a browser after all. It is the file the plan's own measurement
   // named as the exception, and the guard below asserts it stays one.
+  'src/components/spaces/single-flight.test.ts',
   'src/lib/local-write.test.ts',
   'src/lib/plan-refresh.test.ts',
+  'src/lib/step-view.test.ts',
   'src/lib/refusal.test.ts',
   // Of saved-plans' three `src/lib` suites this is the only one the tier rule
   // reads as DOM-free, and the other two are excluded by that rule rather
@@ -72,6 +77,7 @@ export const NODE_SUITES: readonly string[] = [
   'src/modules/plan-feed/plan-feed.feature.test.ts',
   'src/modules/plan-feed/plan-feed.resource.test.ts',
   'src/modules/plan-feed/presence-store.model.test.ts',
+  'src/modules/plan-feed/same-steps.test.ts',
   'src/modules/plan-writer/busy-store.model.test.ts',
   'src/modules/plan-writer/plan-writer.test.ts',
   // Proof: on 2026-09-24, listing the deleted `composition.test.ts` here again failed

@@ -1,6 +1,16 @@
 import type { PersonKind } from '@wbs/domain';
 
 import type {
+  Assignment,
+  DirectoryCatalog,
+  DirectoryCatalogRows,
+  NamedCatalog,
+  Person,
+  PersonWithTeams,
+  ServiceTeam,
+  TeamWithServices,
+} from './directory-values';
+import type {
   AssignmentWritten,
   ExternalSystem,
   LabelledWorkItem,
@@ -12,40 +22,16 @@ import type {
   WorkItemTypeWritten,
 } from './work-item-store';
 import type { WriteStamp } from './write-stamp';
-
-/**
- * A service or team work can be labelled with. Global, shared by every project.
- *
- * **No `size`.** The column is still in the table — blue and green share one
- * SQLite file and the outgoing release still selects it, which is `design.md`
- * D4 — but nothing in this release reads it, and this type is where that claim
- * is enforced rather than asserted. A team's capacity is a fact about one
- * project now: {@link CapacityStore}.
- *
- * It is also the shape `/api/teams` answers with, so leaving `size` here would
- * put the retired number back on the wire through an unqualified `select()`,
- * which is exactly how it got there before this type said no.
- */
-export interface ServiceTeam {
-  id: string;
-  name: string;
-}
-
-/**
- * A team and the services it is **responsible for** — the ownership map, read
- * on the team's own row.
- *
- * {@link PersonWithTeams}' shape one dimension over, and the resemblance stops
- * at the shape: a person's `teamIds` says who they work with, and a team's
- * `serviceIds` says what it is accountable for. Neither labels a work item.
- *
- * Empty means a team that owns nothing, which is every team the day this ships
- * — the map starts with no data by design, because nothing may invent who owns
- * what.
- */
-export interface TeamWithServices extends ServiceTeam {
-  serviceIds: string[];
-}
+export type {
+  Assignment,
+  DirectoryCatalog,
+  DirectoryCatalogRows,
+  NamedCatalog,
+  Person,
+  PersonWithTeams,
+  ServiceTeam,
+  TeamWithServices,
+} from './directory-values';
 
 /**
  * A change to one team: a new name, a new owned set, or both.
@@ -58,30 +44,6 @@ export interface TeamWithServices extends ServiceTeam {
 export interface TeamPatch {
   name?: string;
   serviceIds?: readonly string[];
-}
-
-/**
- * Somebody who does work. Not an account on this tool.
- *
- * `kind` is **required, because every row read back carries one**: the column is
- * `NOT NULL DEFAULT 'person'` and the migration wrote `person` onto every row
- * that predates it, so there is no person in the database without a kind and no
- * read path that could produce one. It was optional between 2.1 and this
- * narrowing only because making it required means a separate input type for the
- * insert, which is {@link PersonInsert}.
- *
- * It is declared at all because it *arrives* at all: `DirectoryRepository`
- * spreads the Drizzle row, so `kind` reached the API response the moment the
- * column existed, and a type that denied it would have been a lie TypeScript
- * cannot catch — excess properties survive a spread. Required is the stronger
- * form of the same argument: a caller that reads a person and renders `kind`
- * now needs no `?? 'person'` fallback, and a fallback is where the two spellings
- * of "unknown kind" would have started to diverge.
- */
-export interface Person {
-  id: string;
-  name: string;
-  kind: PersonKind;
 }
 
 /**
@@ -103,18 +65,6 @@ export interface PersonInsert {
   id: string;
   name: string;
   kind?: PersonKind;
-}
-
-/** A person and the teams they belong to — empty means a free agent. */
-export interface PersonWithTeams extends Person {
-  teamIds: string[];
-}
-
-/** Who is doing one work item's work for one step. */
-export interface Assignment {
-  workItemId: string;
-  stepId: string;
-  personId: string;
 }
 
 /**
@@ -266,7 +216,76 @@ export type DirectoryRemoved =
   | { ok: false; reason: 'not_found' }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsageRows };
 
+/** What an organization-local rename answered; see {@link DirectoryStore.renameInOrganization}. */
+export type OrganizationRenamed =
+  { ok: true; projectIds: TouchedProjects } | { ok: false; reason: 'not_found' | 'taken' };
+
 export interface DirectoryStore {
+  /**
+   * On an addressed miss, distinguish a missing/foreign entry from a present
+   * trusted root whose ownership mapping is absent or conflicting. Optional
+   * for older in-memory readers; persistent public writers provide it.
+   * @throws for missing or conflicting trusted ownership of a present root.
+   */
+  inspectMissingOwnership?(catalog: NamedCatalog, resourceId: string): Promise<void>;
+  /**
+   * One catalog as one organization sees it: only the entries it owns, under
+   * their organization-local display names, ordered by that name. A person's
+   * teams and a team's services are the organization's own.
+   *
+   * @throws when a stored membership or team-service link crosses into another
+   * organization. That is corrupt trusted state, and answering it would reveal
+   * a foreign id.
+   */
+  listInOrganization<C extends DirectoryCatalog>(
+    catalog: C,
+    organizationId: string,
+  ): Promise<DirectoryCatalogRows[C]>;
+  /**
+   * Maps a root that has just been created to `organizationId` under its
+   * organization-local display name. The root itself carries an opaque name.
+   *
+   * @throws when the root is already mapped or another root of the
+   * organization holds the name: the ownership freeze refuses both, and the
+   * caller checked the name inside the same unit of work.
+   */
+  mapInOrganization(
+    catalog: DirectoryCatalog,
+    resourceId: string,
+    organizationId: string,
+    name: string,
+  ): Promise<void>;
+  /**
+   * Renames one entry's organization-local display name; the root keeps its
+   * opaque name. `not_found` for an entry the organization does not own, alike
+   * for a foreign and an absent one; `taken` for a name another of its entries
+   * holds. Answers the projects whose rows name the entry, for the
+   * announcement.
+   *
+   * @throws when a project outside the organization names the entry: corrupt
+   * trusted state, never a project to announce to.
+   */
+  renameInOrganization(
+    catalog: NamedCatalog,
+    resourceId: string,
+    organizationId: string,
+    name: string,
+    stamp: WriteStamp,
+  ): Promise<OrganizationRenamed>;
+  /**
+   * Every reference to one of the organization's entries from outside it:
+   * a work item, assignment or capacity of a project the organization does
+   * not own, a membership of a person or team it does not own, or a service
+   * ownership by a team it does not own. Each as `relation:id`. Empty for an
+   * entry only its organization reaches.
+   */
+  foreignReferencesTo(
+    catalog: NamedCatalog,
+    resourceId: string,
+    organizationId: string,
+  ): Promise<string[]>;
+  /** Which of `projectIds` the organization does not own. */
+  projectsOutside(projectIds: readonly string[], organizationId: string): Promise<string[]>;
   /** Every tag in the global directory, by name. */
   listTags(): Promise<Tag[]>;
   /**

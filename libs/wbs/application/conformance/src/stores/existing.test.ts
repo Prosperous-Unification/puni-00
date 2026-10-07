@@ -20,6 +20,7 @@ describe('the migrated existing store kits', () => {
       measures: unopened,
       progress: unopened,
       dependencies: unopened,
+      typedDependencies: unopened,
       directory: unopened,
       eventLog: unopened,
       planEvents: unopened,
@@ -48,9 +49,11 @@ describe('the migrated existing store kits', () => {
     // Proof: before savedPlanRegistrations joined the production catalog, this
     // failed with exactly the two Task 6.1 IDs absent (`Expected - 2 / Received + 0`).
     expect(registrations.map(({ caseId }) => caseId)).toEqual([
+      'livePlans.read:legacy-and-absence',
       'projects.create:steps',
       'projects.update:scope',
       'projects.recordOpen:reader-order',
+      'projectRanks.orderIn:scoped-move',
       'users.create:unique-name',
       'users.find:identity',
       'users.resolveOidcIdentity:issuer-subject',
@@ -102,6 +105,7 @@ describe('the migrated existing store kits', () => {
       'dependencies.add:idempotent-pair',
       'dependencies.remove:pair',
       'dependencies.removeAllFor:touching-set',
+      'typedDependencies.write:identity-and-bulk',
       'directory.addTag',
       'directory.assign:unknown_person',
       'directory.assign:scope-replace-clear',

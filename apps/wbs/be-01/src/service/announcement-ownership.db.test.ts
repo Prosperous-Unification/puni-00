@@ -4,6 +4,11 @@ import { join } from 'node:path';
 
 import type { Broadcaster, ProjectEvent } from '@wbs/core';
 import { clockOf } from '@wbs/core';
+import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import type { PlanCommand } from '@wbs/core/service/plan-command';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from '../repository/db';
@@ -13,9 +18,6 @@ import { sqliteUnitOfWork } from '../repository/sqlite-unit-of-work';
 import { buildStores, servicesOver } from '../services';
 import { testClock } from '../testing/clock-fixture';
 import { optimizerWiring } from './optimizer-wiring';
-import type { PlanCommand } from './plan-command';
-import { PlanCommandRunner } from './plan-commands';
-import { ProjectService } from './project.service';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -101,6 +103,7 @@ beforeEach(async () => {
     { at: 1, by: ownerId },
   );
   const created = await new ProjectService({
+    dependencyGraph: new DependencyGraphGuard(stores),
     clock: testClock,
     projects: stores.projects,
     broadcast,
@@ -142,7 +145,7 @@ beforeEach(async () => {
   }) as typeof admitted.workItems;
 
   const batchStores = { ...admitted, workItems: suspendingWorkItems };
-  runner = new PlanCommandRunner({
+  runner = createPlanCommandRunner({
     // The graph the runner builds per batch, over the collector it hands in.
     batchServices: (_scope, collector) =>
       servicesOver(batchStores, { ...shared, broadcast: collector }),
@@ -161,7 +164,7 @@ describe('who owns an announcement', () => {
     // The window D24 names: a route finishes its store write, lets go of its
     // turn, and is **publishing** when the next batch opens. Serialising the
     // store methods does not serialise what happens after them.
-    const routeWrite = routes.steps.add(projectId, ownerId, 'Wiring');
+    const routeWrite = routes.steps.add(projectId, ownerId, 'Wiring', 0);
     // The store write is done and its turn is released; the announcement has
     // not been offered to anybody yet.
     await beforeRoutePublish.reached;

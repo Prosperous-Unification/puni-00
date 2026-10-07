@@ -11,11 +11,20 @@ describe('OptimizerTriggerBroadcaster', () => {
     const broadcast = new OptimizerTriggerBroadcaster(inner, (projectId) => {
       changed.push(projectId);
     });
-    const step = { id: 's-1', projectId: 'p-1', name: 'Dev', position: 10, code: 'dev' };
+    const step = {
+      id: 's-1',
+      projectId: 'p-1',
+      name: 'Dev',
+      position: 10,
+      code: 'dev',
+      allowancePercent: 0,
+    };
     const schedulingEvents: ProjectEvent[] = [
+      { type: 'elsewhere_changed', projectId: 'p-1', causeProjectId: 'upstream' },
       { type: 'tree_replaced', workItems: [] },
       { type: 'step_added', step },
       { type: 'step_removed', stepId: 's-1' },
+      { type: 'step_updated', step: { ...step, allowancePercent: 30 } },
       { type: 'directory_changed' },
       { type: 'capacity_changed' },
       {
@@ -58,5 +67,26 @@ describe('OptimizerTriggerBroadcaster', () => {
     );
     expect(refusal).toContain('record refused');
     expect(changed).toEqual([]);
+  });
+});
+
+describe('OptimizerTriggerBroadcaster and step allowances', () => {
+  it('starts the optimizer debounce after a step allowance edit', async () => {
+    const changed: string[] = [];
+    const broadcast = new OptimizerTriggerBroadcaster(recordingBroadcaster(), (projectId) => {
+      changed.push(projectId);
+    });
+    await broadcast.publish('p-1', {
+      type: 'step_updated',
+      step: {
+        id: 's-1',
+        projectId: 'p-1',
+        name: 'QA',
+        position: 20,
+        code: 'qa',
+        allowancePercent: 30,
+      },
+    });
+    expect(changed).toEqual(['p-1']);
   });
 });

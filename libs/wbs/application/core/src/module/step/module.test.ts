@@ -4,6 +4,8 @@ import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
+import { NO_ADMISSION } from '../../ports/edit-admission';
+import { DependencyGraphGuard } from '../../service/dependency-graph';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { installStep } from './check';
 import { STEP_LABEL } from './contract';
@@ -28,6 +30,7 @@ async function seeded() {
       steps: source.stores.steps,
       clock: clockOf({ now: () => 2, newId: () => `step-${String(++next)}` }),
       broadcast,
+      dependencyGraph: new DependencyGraphGuard(source.stores),
     },
   };
 }
@@ -42,6 +45,10 @@ const hostRequirements = () => {
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
       factoryReturnKind: 'sync-value',
     }),
+    dependencyGraph: DiBag.createProvider(() => new DependencyGraphGuard(source.stores), {
+      factoryReturnKind: 'sync-value',
+    }),
+    beforeRemove: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
   };
 };
 
@@ -61,6 +68,7 @@ const completeHost = () =>
       clock: DiBag.createProvider(() => clockOf({ now: () => 0, newId: () => 'unused' }), {
         factoryReturnKind: 'sync-value',
       }),
+      recoveryAdmission: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     })
     .buildContainer();
 
@@ -69,7 +77,7 @@ describe('the Step module', () => {
     const { broadcast, requirements } = await seeded();
     const { steps } = installStep(requirements);
 
-    const added = await steps.add(PROJECT, OWNER, ' Review ');
+    const added = await steps.add(PROJECT, OWNER, ' Review ', 0);
     if (!added.ok) throw new Error(`the step was refused: ${added.reason}`);
 
     expect(added.value).toMatchObject({ id: 'step-1', projectId: PROJECT, name: 'Review' });
@@ -129,5 +137,33 @@ describe('the Step module', () => {
     expect(() => host.resolve('steps')).toThrow(
       `Cannot resolve "${STEP_LABEL}/stepOptions": dependency "clock" is not registered. Resolution path: steps -> ${STEP_LABEL}/stepOptions -> clock.`,
     );
+  });
+
+  it('refuses a host without its dependency graph guard', () => {
+    const source = openMemorySource();
+    const partial = DiBag.createBuilder()
+      .withInstalledModules([stepModule])
+      .withServices({
+        projectStore: DiBag.createProvider(() => source.stores.projects, {
+          factoryReturnKind: 'sync-value',
+        }),
+        stepStore: DiBag.createProvider(() => source.stores.steps, {
+          factoryReturnKind: 'sync-value',
+        }),
+        clock: DiBag.createProvider(() => clockOf({ now: () => 0, newId: () => 'unused' }), {
+          factoryReturnKind: 'sync-value',
+        }),
+        broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
+          factoryReturnKind: 'sync-value',
+        }),
+        recoveryAdmission: DiBag.createProvider(() => NO_ADMISSION, {
+          factoryReturnKind: 'sync-value',
+        }),
+      }) as unknown as { buildContainer: () => { resolve: (key: string) => unknown } };
+    const host = partial.buildContainer();
+
+    // Proof: removing dependencyGraph from both module provider inputs and options made this
+    // assertion fail (10 pass, 2 fail across the two module suites): resolution did not refuse it.
+    expect(() => host.resolve('steps')).toThrow('dependency "dependencyGraph" is not registered');
   });
 });

@@ -24,6 +24,19 @@ import { fileJournal } from './journal';
 import { K8S_TIERS, type K8sTier, type ReleaseIdentity, type ReleaseRequest } from './release';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
+
+/**
+ * The lab-only additive migration that deploy/k8s/wbs/lab/backend-upgrade.Dockerfile adds to v2.
+ *
+ * Its stamp is far in the future so it sorts after every committed backend migration.
+ * migrate-down reverses only migrations newer than the swap baseline, so a stamp that a
+ * committed migration overtakes survives the schema rollback and the induced-failure
+ * scenario ends `rollback-failed` (CI run 36296199037).
+ *
+ * Proof: with the old 20260918000000 stamp, lab-migration.test.ts failed
+ * `Expected: > 20260927150000`, and the live rehearsal failed `release ended rolled-back`.
+ */
+export const LAB_MIGRATION = '29991231000000_lab_additive';
 const CLUSTER = 'puni-f8-lab';
 const REGISTRY = 'puni-f8-registry';
 const CONTEXT = `k3d-${CLUSTER}`;
@@ -159,10 +172,18 @@ async function proveMissingMcpKeyExits(keys: McpLabKeys): Promise<void> {
     secrets,
   );
   await k(['-n', 'wbs', 'rollout', 'restart', 'deployment/wbs-mcp']);
+  // A crash-looping container restarts within seconds, and containerd drops the log of the
+  // container `lastState` names once a newer one replaces it; `kubectl logs --previous` then
+  // prints "unable to retrieve container logs" (run 36429927264, twice on one head). Re-read
+  // the pod and its previous log together until one terminated container shows both facts.
   const deadline = Date.now() + 180_000;
-  let exited: { pod: string; exitCode: string } | null = null;
-  while (exited === null) {
-    if (Date.now() > deadline) throw new Error('MCP pod without a store key did not exit in 180 s');
+  let observed = 'no MCP container has terminated yet';
+  for (;;) {
+    if (Date.now() > deadline) {
+      throw new Error(
+        `ASSERTION FAILED: MCP pod without a store key exits non-zero and names the key in its log; last seen: ${observed}`,
+      );
+    }
     await Bun.sleep(2_000);
     const pods: (string | undefined)[][] = (
       await k([
@@ -180,19 +201,20 @@ async function proveMissingMcpKeyExits(keys: McpLabKeys): Promise<void> {
       .split('\n')
       .map((line) => line.trim().split(' '));
     const [pod, exitCode] = pods.find(([, code]) => code !== undefined && code !== '') ?? [];
-    if (pod !== undefined && exitCode !== undefined) exited = { pod, exitCode };
+    if (pod === undefined || exitCode === undefined) continue;
+    const logs = redactDiagnostic(
+      await k(['-n', 'wbs', 'logs', pod, '-c', 'mcp', '--previous', '--tail=40']),
+      secrets,
+    );
+    observed = `pod ${pod} exited ${exitCode}; log: ${logs}`;
+    // Blank rather than delete: deleting the key from the Secret stops at kubelet
+    // CreateContainerConfigError before the process runs (observed on the kept lab, 2026-09-27).
+    // Proof: expecting MCP_STORE_KEY_FAULT_INJECTED here failed run 36438630324 on the deadline
+    // with `last seen: pod … exited 1`, and this head passed k3s-rehearsal on #180.
+    if (exitCode !== '0' && logs.includes('MCP_STORE_KEY_CURRENT is required')) break;
   }
-  const logs = redactDiagnostic(
-    await k(['-n', 'wbs', 'logs', exited.pod, '-c', 'mcp', '--previous', '--tail=40']),
-    secrets,
-  );
-  log(`MCP without a store key: pod ${exited.pod} exited ${exited.exitCode}; log: ${logs}`);
-  // Blank rather than delete: deleting the key from the Secret stops at kubelet
-  // CreateContainerConfigError before the process runs (observed on the kept lab, 2026-09-27).
-  assert(
-    exited.exitCode !== '0' && logs.includes('MCP_STORE_KEY_CURRENT is required'),
-    'MCP pod without a store key exits non-zero and names the key in its log',
-  );
+  log(`MCP without a store key: ${observed}`);
+  log('assert ok: MCP pod without a store key exits non-zero and names the key in its log');
   await applyMcpSecret(
     { MCP_STORE_KEY_CURRENT: keys.store, MCP_SIGNING_KEY_CURRENT: keys.signing },
     secrets,
@@ -655,7 +677,7 @@ async function expectRestored(v1: ReleaseIdentity, rows: readonly string[]): Pro
   const schema = await schemaFacts();
   assert(!schema.columns.includes('lab_marker'), 'work_item has no lab_marker column (old schema)');
   assert(
-    !schema.migrations.includes('20260918000000_lab_additive'),
+    !schema.migrations.includes(LAB_MIGRATION),
     'the lab migration is not recorded as applied',
   );
   const names = await projectNames();

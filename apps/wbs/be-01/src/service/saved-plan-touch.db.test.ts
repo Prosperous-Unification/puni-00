@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openConnection, openDatabase } from '../repository/db';
@@ -16,7 +17,6 @@ import { WorkItemRepository } from '../repository/work-item';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { projectRow } from '../testing/project-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import { SavedPlanService } from './saved-plan.service';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -66,6 +66,8 @@ describe('renaming and deleting a saved plan', () => {
     deadline: null,
     factStart: null,
     factEnd: null,
+    readiness: null,
+    hold: null,
     revision: 0,
   });
 
@@ -81,7 +83,16 @@ describe('renaming and deleting a saved plan', () => {
     }
     await new ProjectRepository(db, OPEN).create(
       projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     await new WorkItemRepository(db, OPEN).insert(item('wi-1', 10), [], wrote);

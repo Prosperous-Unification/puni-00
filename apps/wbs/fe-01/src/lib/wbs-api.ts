@@ -49,7 +49,13 @@ import type { PriorityBand } from '@wbs/domain/priority-band';
 // build time. It is here rather than restated as `string` because a marker's
 // date being absolute — never a workday number — is the whole of task 7.4, and
 // a `string` on this seam would be the one place that claim is not written down.
-import type { SettableStatus, WorkItemStatus } from '@wbs/domain/progress';
+import type {
+  Hold,
+  Readiness,
+  SettableStatus,
+  StepState,
+  WorkItemStatus,
+} from '@wbs/domain/progress';
 import type { IsoDate } from '@wbs/domain/workday';
 
 import { browserClient, unreachable } from './http';
@@ -167,7 +173,14 @@ export interface ScheduleView {
  * between them.
  */
 export type ScheduleFloorView =
-  'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'capacity' | 'optimizer';
+  | 'projectStart'
+  | 'predecessor'
+  | 'stepOrder'
+  | 'notBefore'
+  | 'person'
+  | 'elsewhere'
+  | 'capacity'
+  | 'optimizer';
 
 /**
  * One placed slice — one work item's work for one step — as be-01 sends it.
@@ -328,12 +341,28 @@ export interface WorkItemView {
    */
   deadline: string | null;
   /**
-   * What this work item reads as — `unknown`, `in_progress` or `done` — folded
-   * by be-01 from its steps' progress and, for a parent, from its children.
-   * Never stored and never computed here: the Status cell shows it, and setting
-   * it goes through {@link ProjectApi.setStatus}, which writes every step.
+   * What this work item reads as — one of the eight statuses — folded by be-01
+   * from its steps' progress, hold, readiness and predecessors and, for a
+   * parent, from its children. Never stored and never computed here: the
+   * Status cell shows it, and setting it goes through
+   * {@link ProjectApi.setStatus}.
    */
   status: WorkItemStatus;
+  /**
+   * Whether somebody has said this work is defined well enough to start, or
+   * null where nobody has. Stored on a leaf only; a parent always reads null
+   * and folds its children's. The row menu reads it to leave out a status
+   * whose write would change nothing.
+   */
+  readiness: Readiness | null;
+  /** Whether this leaf is parked or stopped by the world, or null. A parent reads null. */
+  hold: Hold | null;
+  /**
+   * What each step has said about this row, by step id; a step with nothing
+   * said is absent. Read by the row menu, which offers Draft and Ready only
+   * where no step of any leaf beneath has spoken.
+   */
+  progress: Record<string, StepState>;
   /**
    * The day work on this item actually began, or null where nobody has said.
    * Date-only like the two constraints above it; read by no engine, drawn as the
@@ -499,12 +528,59 @@ export interface WorkItemView {
    * two independent children of 3 and 4 days are 7 days of work in a 4-day
    * branch. Both are true, and the table labels them so.
    */
-  schedule: ScheduleView;
+  schedule: ScheduleView | null;
 }
 
 export interface StepView {
   id: string;
   name: string;
+  allowancePercent: number;
+}
+
+export type TypedDependencyType = 'FS' | 'SS' | 'FF';
+
+/** A scope chosen for one end of an authored relationship. */
+export type TypedDependencyEndpoint =
+  | { scope: 'whole'; workItemId: string }
+  | { scope: 'node'; stepNodeId: string }
+  | { scope: 'descendant-step'; workItemId: string; stepId: string };
+
+/** The explicit relationship returned by a project tree read. */
+export interface TypedDependencyView {
+  id: string;
+  predecessor: {
+    scope: 'whole' | 'node' | 'descendant-step';
+    workItemId: string;
+    stepId?: string;
+    stepNodeId?: string;
+  };
+  successor: {
+    scope: 'whole' | 'node' | 'descendant-step';
+    workItemId: string;
+    stepId?: string;
+    stepNodeId?: string;
+  };
+  type: string;
+}
+
+/**
+ * One step as be-01 sent it, read into a {@link StepView}.
+ *
+ * An absent `allowancePercent` is a modeled state, not a missing default: blue
+ * and green serve side by side during a swap, and an older be-01 that predates
+ * step allowances sends no field. That server charged every step at 0%, so 0%
+ * is what it means, and it is what the page shows until the reader reaches a
+ * be-01 that sends the field.
+ *
+ * Proof: with the absent case read as 30, `reads a step from an older be-01
+ * at 0%` failed (2026-09-27).
+ */
+export function stepViewOf(step: {
+  id: string;
+  name: string;
+  allowancePercent?: number;
+}): StepView {
+  return { id: step.id, name: step.name, allowancePercent: step.allowancePercent ?? 0 };
 }
 
 /**
@@ -1298,6 +1374,7 @@ export interface PlanRead extends Omit<
   'workItems' | 'slices' | 'steps' | 'waitingForPerson' | 'waitingForCapacity'
 > {
   workItems: WorkItemView[];
+  typedDependencies?: TypedDependencyView[];
   slices: SliceView[];
   /**
    * The steps the slices above were placed under, in the engine's own order.
@@ -1498,6 +1575,7 @@ export interface ProjectApi {
   /** Adds a step to the project. Throws `taken` when the name is already one. */
   addStep(projectId: string, name: string): Promise<StepView>;
   renameStep(projectId: string, stepId: string, name: string): Promise<StepView>;
+  setStepAllowance(projectId: string, stepId: string, allowancePercent: number): Promise<StepView>;
   /**
    * Removes a step, or answers what it would take.
    *
@@ -1748,6 +1826,20 @@ export interface ProjectApi {
    */
   addDependency(id: string, predecessorId: string): Promise<void>;
   removeDependency(id: string, predecessorId: string): Promise<void>;
+  addTypedDependency(
+    projectId: string,
+    predecessor: TypedDependencyEndpoint,
+    successor: TypedDependencyEndpoint,
+    type: TypedDependencyType,
+  ): Promise<void>;
+  updateTypedDependency(
+    projectId: string,
+    dependencyId: string,
+    predecessor: TypedDependencyEndpoint,
+    successor: TypedDependencyEndpoint,
+    type: TypedDependencyType,
+  ): Promise<void>;
+  removeTypedDependency(projectId: string, dependencyId: string): Promise<void>;
 }
 
 const WBS_SHAPES = [
@@ -1899,6 +1991,10 @@ export const STEP_REFUSALS: RefusalWords = {
   sentences: {
     taken: 'That name is already a step on this plan.',
     name_required: 'A step needs a name.',
+    invalid_allowance: 'Invalid allowance. Enter 0–1000 with at most two decimal places.',
+    // Proof: without this sentence, `says why an allowance past the calendar was
+    // refused` (steps-panel.test.tsx) found no sentence; watched 2026-09-28.
+    calendar_range: 'That allowance would push the plan past the last date the calendar supports.',
     in_use: 'That step still holds estimates or assignments on this plan.',
     unknown_step: 'That step is no longer on this plan — somebody else removed it.',
     not_found: 'That step is no longer on this plan.',
@@ -2454,6 +2550,8 @@ export function httpProjectApi(token: string): ProjectApi {
       );
       const plan: PlanRead = {
         ...tree,
+        typedDependencies: tree.typedDependencies ?? [],
+        steps: tree.steps.map(stepViewOf),
         workItems: tree.workItems.map((row) => ({
           ...row,
           teamIds: [...row.teamIds],
@@ -2625,7 +2723,7 @@ export function httpProjectApi(token: string): ProjectApi {
       return jsonBody(
         readProjectShape,
         await client.getApiProjectsById({ params: { id: projectId }, headers: auth(token) }),
-      ).steps.map(({ id, name }) => ({ id, name }));
+      ).steps.map(stepViewOf);
     },
     async addStep(projectId, name) {
       const { step } = jsonBody(
@@ -2636,7 +2734,7 @@ export function httpProjectApi(token: string): ProjectApi {
           headers: auth(token),
         }),
       );
-      return { id: step.id, name: step.name };
+      return stepViewOf(step);
     },
     async renameStep(projectId, stepId, name) {
       const { step } = jsonBody(
@@ -2647,7 +2745,18 @@ export function httpProjectApi(token: string): ProjectApi {
           headers: auth(token),
         }),
       );
-      return { id: step.id, name: step.name };
+      return stepViewOf(step);
+    },
+    async setStepAllowance(projectId, stepId, allowancePercent) {
+      const { step } = jsonBody(
+        renameStepShape,
+        await client.patchApiProjectsByIdStepsByStepId({
+          params: { id: projectId, stepId },
+          body: { allowancePercent },
+          headers: auth(token),
+        }),
+      );
+      return stepViewOf(step);
     },
     async removeStep(projectId, stepId, cascade) {
       const reply = await client.deleteApiProjectsByIdStepsByStepId({
@@ -2735,6 +2844,22 @@ export function httpProjectApi(token: string): ProjectApi {
     },
     async removeDependency(id, predecessorId) {
       await onRow(id, { kind: 'removeDependency', workItemId: id, predecessorId });
+    },
+    async addTypedDependency(projectId, predecessor, successor, type) {
+      await command(projectId, { kind: 'addTypedDependency', predecessor, successor, type });
+    },
+    async updateTypedDependency(projectId, dependencyId, predecessor, successor, type) {
+      await command(projectId, {
+        kind: 'updateTypedDependency',
+        dependencyId,
+        predecessor,
+        successor,
+        // Proof: hard-coding FS here made `sends SS when an endpoint-only edit keeps its type` fail with type FS instead of SS; watched 2026-09-28.
+        type,
+      });
+    },
+    async removeTypedDependency(projectId, dependencyId) {
+      await command(projectId, { kind: 'removeTypedDependency', dependencyId });
     },
   };
 }

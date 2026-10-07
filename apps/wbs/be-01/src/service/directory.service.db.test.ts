@@ -2,6 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { DirectoryStore, Person, Step, WorkItem, WriteStamp } from '../repository';
@@ -17,10 +19,9 @@ import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { directoryWith } from '../testing/directory-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
-import { DirectoryService } from './directory.service';
-import { ProjectService } from './project.service';
 
 /**
  * The directory service, against real SQLite.
@@ -82,6 +83,7 @@ const added = async (name: string, teamIds: readonly string[]): Promise<Person> 
 /** A second project with one work item, so a team can be held in two at once. */
 async function roofProject(): Promise<{ projectOf: string; workItemOf: string }> {
   const created = await new ProjectService({
+    dependencyGraph: sqliteDependencyGraph(db, projects),
     clock: testClock,
     projects,
     broadcast: recordingBroadcaster(),
@@ -126,6 +128,7 @@ beforeEach(async () => {
   );
 
   const created = await new ProjectService({
+    dependencyGraph: sqliteDependencyGraph(db, projects),
     clock: testClock,
     projects,
     broadcast: recordingBroadcaster(),

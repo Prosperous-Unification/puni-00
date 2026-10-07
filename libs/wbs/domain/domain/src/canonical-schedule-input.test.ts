@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 
-import { canonicalScheduleInput, type ScheduleInput } from './canonical-schedule-input';
+import {
+  canonicalElsewhere,
+  canonicalScheduleInput,
+  type ScheduleInput,
+} from './canonical-schedule-input';
 import type { PlannedRow } from './derive-numbers';
 import { serializeSchedule } from './fast-golden-corpus';
 import { schedule, type Slice } from './schedule';
@@ -82,6 +86,7 @@ const BASE: ScheduleInput = {
   notBefore: new Map([['b', 1]]),
   poolSizes: new Map([['team', 1]]),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 
@@ -146,6 +151,7 @@ const TIED: ScheduleInput = {
   notBefore: new Map(),
   poolSizes: new Map([['team', 1]]),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 
@@ -170,6 +176,7 @@ const CHAINED: ScheduleInput = {
   notBefore: new Map(),
   poolSizes: new Map(),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 
@@ -203,6 +210,7 @@ const PARALLEL: ScheduleInput = {
     ['beta', 1],
   ]),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 
@@ -236,6 +244,7 @@ const NESTED: ScheduleInput = {
   notBefore: new Map(),
   poolSizes: new Map(),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 
@@ -695,5 +704,158 @@ describe('canonicalScheduleInput', () => {
     const orphaned: ScheduleInput = { ...BASE, slices: [step('p', null, 2)] };
     expect(() => canonicalScheduleInput(orphaned)).toThrow(/not a leaf/);
     expect(() => run(orphaned)).toThrow(/not a leaf/);
+  });
+});
+
+describe('typed dependencies in the canonical input', () => {
+  const plan = (typed: ScheduleInput['typed']): ScheduleInput => ({ ...CHAINED, edges: [], typed });
+  const node = (workItemId: string) => ({ scope: 'node' as const, workItemId, stepId: 's' });
+  const whole = (workItemId: string) => ({ scope: 'whole' as const, workItemId });
+
+  it('keeps the hash a plan had before typed dependencies when it holds none', () => {
+    expect(canonicalScheduleInput(plan([]))).not.toContain('typed');
+  });
+
+  /**
+   * Proof: the `typed` entry left out of `canonicalScheduleInput` made this
+   * case fail on the whole and node plans hashing equal; watched 2026-09-27.
+   */
+  it('hashes a typed dependency’s endpoints, scope and identity', () => {
+    const byWhole = canonicalScheduleInput(
+      plan([{ id: 'r1', predecessor: whole('x'), successor: whole('y'), type: 'FS' }]),
+    );
+    const byNode = canonicalScheduleInput(
+      plan([{ id: 'r1', predecessor: node('x'), successor: whole('y'), type: 'FS' }]),
+    );
+    const renamed = canonicalScheduleInput(
+      plan([{ id: 'r2', predecessor: whole('x'), successor: whole('y'), type: 'FS' }]),
+    );
+    expect(new Set([canonicalScheduleInput(plan([])), byWhole, byNode, renamed]).size).toBe(4);
+  });
+
+  it('changes the cache input when an authored FS relationship becomes FF', () => {
+    const relationship = {
+      id: 'r1',
+      predecessor: whole('x'),
+      successor: whole('y'),
+    };
+    const fs = canonicalScheduleInput(plan([{ ...relationship, type: 'FS' }]));
+    const ff = canonicalScheduleInput(plan([{ ...relationship, type: 'FF' }]));
+
+    expect(fs).not.toBe(ff);
+    expect(fs).toContain('"type":"FS"');
+    expect(ff).toContain('"type":"FF"');
+  });
+
+  it('orders typed dependencies by id, so arrival order does not move the hash', () => {
+    const first = { id: 'a', predecessor: whole('x'), successor: whole('y'), type: 'FS' as const };
+    const second = { id: 'b', predecessor: node('x'), successor: whole('y'), type: 'FS' as const };
+    expect(canonicalScheduleInput(plan([first, second]))).toBe(
+      canonicalScheduleInput(plan([second, first])),
+    );
+  });
+});
+
+describe('bookings elsewhere in the canonical input', () => {
+  const plan = (elsewhere?: ScheduleInput['elsewhere']): ScheduleInput => ({
+    ...BASE,
+    ...(elsewhere === undefined ? {} : { elsewhere }),
+  });
+  const held = (start: number, end: number, workItemId = 'x1') => ({
+    start,
+    end,
+    projectId: 'platform',
+    workItemId,
+  });
+  const run10 = (input: ScheduleInput): unknown =>
+    serializeSchedule(
+      schedule(
+        input.rows,
+        input.edges,
+        input.slices,
+        input.notBefore,
+        input.poolSizes,
+        input.reach,
+        input.deadlines,
+        input.typed,
+        undefined,
+        input.elsewhere,
+      ),
+    );
+
+  it('keeps the hash a plan had before bookings existed when it holds none', () => {
+    const before = canonicalScheduleInput(BASE);
+    expect(canonicalScheduleInput(plan(new Map()))).toBe(before);
+    expect(before).not.toContain('elsewhere');
+  });
+
+  it('refuses a person listed with no booking, as the engine does', () => {
+    const listed = plan(new Map([['ana', []]]));
+    expect(() => canonicalScheduleInput(listed)).toThrow(/listed with no booking/);
+    expect(() => run10(listed)).toThrow(/listed with no booking/);
+  });
+
+  it('hashes a booking elsewhere, its interval and its holder', () => {
+    const hashes = [
+      plan(),
+      plan(new Map([['ana', [held(0, 2)]]])),
+      plan(new Map([['ana', [held(0, 3)]]])),
+      plan(new Map([['ana', [held(0, 2, 'x2')]]])),
+      plan(new Map([['ben', [held(0, 2)]]])),
+    ].map(canonicalScheduleInput);
+    expect(new Set(hashes).size).toBe(5);
+  });
+
+  it('uses only canonical incoming bookings for the cache basis', () => {
+    const forward = new Map([
+      ['ana', [held(0, 2)]],
+      ['ben', [held(3, 4)]],
+    ]);
+    const backward = new Map([
+      ['ben', [held(3, 4)]],
+      ['ana', [held(0, 2)]],
+    ]);
+    expect(canonicalElsewhere(forward)).toBe(canonicalElsewhere(backward));
+    expect(canonicalElsewhere()).toBe('[]');
+    expect(canonicalElsewhere(new Map())).toBe('[]');
+    expect(canonicalElsewhere(forward)).not.toBe(
+      canonicalElsewhere(
+        new Map([
+          ['ana', [held(0, 3)]],
+          ['ben', [held(3, 4)]],
+        ]),
+      ),
+    );
+    expect(canonicalElsewhere(forward)).not.toBe(
+      canonicalElsewhere(
+        new Map([
+          ['ana', [held(0, 2, 'other')]],
+          ['ben', [held(3, 4)]],
+        ]),
+      ),
+    );
+  });
+
+  it('moves a placement when a booking of the plan’s own person moves', () => {
+    const person = { ...BASE, slices: BASE.slices.map((slice) => ({ ...slice, personId: 'ana' })) };
+    const early = { ...person, elsewhere: new Map([['ana', [held(0, 1)]]]) };
+    const late = { ...person, elsewhere: new Map([['ana', [held(0, 4)]]]) };
+    expect(canonicalScheduleInput(early)).not.toBe(canonicalScheduleInput(late));
+    expect(run10(early)).not.toEqual(run10(late));
+  });
+
+  it('orders persons, so arrival order does not move the hash, and refuses unordered bookings', () => {
+    const forward = new Map([
+      ['ana', [held(0, 1), held(2, 3)]],
+      ['ben', [held(5, 6)]],
+    ]);
+    const backward = new Map([
+      ['ben', [held(5, 6)]],
+      ['ana', [held(0, 1), held(2, 3)]],
+    ]);
+    expect(canonicalScheduleInput(plan(forward))).toBe(canonicalScheduleInput(plan(backward)));
+    expect(() =>
+      canonicalScheduleInput(plan(new Map([['ana', [held(2, 3), held(0, 1)]]]))),
+    ).toThrow(/out of order/);
   });
 });

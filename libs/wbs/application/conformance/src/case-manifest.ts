@@ -4,6 +4,7 @@ export type PortName = keyof TransactionalStores | keyof HistoryStores;
 
 export const PORT_NAMES = [
   'projects',
+  'projectRanks',
   'users',
   'directory',
   'capacity',
@@ -18,14 +19,18 @@ export const PORT_NAMES = [
   'measures',
   'progress',
   'dependencies',
+  'typedDependencies',
   'subtrees',
   'journal',
   'savedPlans',
   'savedPlanCapture',
+  'livePlans',
 ] as const satisfies readonly PortName[];
 
 export const CASE_MANIFEST = {
+  livePlans: ['livePlans.read:legacy-and-absence'],
   projects: ['projects.create:steps', 'projects.update:scope', 'projects.recordOpen:reader-order'],
+  projectRanks: ['projectRanks.orderIn:scoped-move'],
   users: [
     'users.create:unique-name',
     'users.find:identity',
@@ -105,6 +110,7 @@ export const CASE_MANIFEST = {
     'dependencies.remove:pair',
     'dependencies.removeAllFor:touching-set',
   ],
+  typedDependencies: ['typedDependencies.write:identity-and-bulk'],
   subtrees: ['subtrees.insertSubtree:complete-copy', 'subtrees.insertSubtree:late-failure'],
   journal: [
     'journal.append:history-atomic',

@@ -204,11 +204,11 @@ interface CodeSpan {
  */
 export function wireVocabularies(schema: unknown): Map<VocabularyName, Vocabulary> {
   const defs = (schema as { $defs?: Record<string, unknown> }).$defs;
-  if (!defs) throw new Error('solver-wire.v1.json has no $defs');
+  if (!defs) throw new Error('solver-wire.v3.json has no $defs');
 
   const requiredAt = (name: string): string[] => {
     const node = defs[name] as { required?: unknown } | undefined;
-    if (!node) throw new Error(`solver-wire.v1.json has no $defs/${name}`);
+    if (!node) throw new Error(`solver-wire.v3.json has no $defs/${name}`);
     const required = node.required;
     if (!Array.isArray(required)) throw new Error(`$defs/${name} has no required array`);
     return required as string[];
@@ -216,7 +216,7 @@ export function wireVocabularies(schema: unknown): Map<VocabularyName, Vocabular
 
   const enumAt = (name: string, property: string): string[] => {
     const node = defs[name] as { properties?: Record<string, unknown> } | undefined;
-    if (!node) throw new Error(`solver-wire.v1.json has no $defs/${name}`);
+    if (!node) throw new Error(`solver-wire.v3.json has no $defs/${name}`);
     const member = node.properties?.[property] as { enum?: unknown } | undefined;
     const values = member?.enum;
     if (!Array.isArray(values))
@@ -240,37 +240,37 @@ export function wireVocabularies(schema: unknown): Map<VocabularyName, Vocabular
     {
       name: 'request',
       members: new Set(requiredAt('request')),
-      source: 'solver-wire.v1.json#/$defs/request/required',
+      source: 'solver-wire.v3.json#/$defs/request/required',
     },
     {
       name: 'response',
       members: responseUnion,
-      source: 'solver-wire.v1.json#/$defs/response — union of every required array',
+      source: 'solver-wire.v3.json#/$defs/response — union of every required array',
     },
     {
       name: 'slice',
       members: new Set(requiredAt('slice')),
-      source: 'solver-wire.v1.json#/$defs/slice/required',
+      source: 'solver-wire.v3.json#/$defs/slice/required',
     },
     {
       name: 'objective-term',
       members: new Set(requiredAt('objective-term')),
-      source: 'solver-wire.v1.json#/$defs/objective-term/required',
+      source: 'solver-wire.v3.json#/$defs/objective-term/required',
     },
     {
       name: 'objective-values',
       members: new Set(requiredAt('objectiveValues')),
-      source: 'solver-wire.v1.json#/$defs/objectiveValues/required',
+      source: 'solver-wire.v3.json#/$defs/objectiveValues/required',
     },
     {
       name: 'response-status',
       members: new Set(enumAt('response', 'status')),
-      source: 'solver-wire.v1.json#/$defs/response/properties/status/enum',
+      source: 'solver-wire.v3.json#/$defs/response/properties/status/enum',
     },
     {
       name: 'objective-term-status',
       members: new Set(enumAt('objective-term', 'status')),
-      source: 'solver-wire.v1.json#/$defs/objective-term/properties/status/enum',
+      source: 'solver-wire.v3.json#/$defs/objective-term/properties/status/enum',
     },
   ];
 
@@ -404,7 +404,7 @@ export const NEIGHBOUR_VOCABULARIES: readonly Vocabulary[] = [
     name: 'objective-term-name',
     members: new Set(['PRIORITY', 'MAKESPAN', 'MOVEMENT']),
     source:
-      'design.md — "Objective mathematics": `MAKESPAN = max finish`, `MOVEMENT = Σ |start − baselineStart|`, `PRIORITY = Σ w(s)·finish(s)`. These are the mathematical term NAMES and deliberately not the wire keys, which solver-wire.v1.json#/$defs/objectiveValues fixes lowercase and whose own $comment says so',
+      'design.md — "Objective mathematics": `MAKESPAN = max finish`, `MOVEMENT = Σ |start − baselineStart|`, `PRIORITY = Σ w(s)·finish(s)`. These are the mathematical term NAMES and deliberately not the wire keys, which solver-wire.v3.json#/$defs/objectiveValues fixes lowercase and whose own $comment says so',
   },
 ];
 

@@ -26,6 +26,36 @@ const WORKSPACE = resolve(new URL('../../../', import.meta.url).pathname);
 
 const sdkVersion = await installedDaggerSdkVersion();
 
+/** Waits for a child's lifecycle signal and reports an early exit with its stderr. */
+async function waitForChildLine(
+  child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>,
+  expected: string,
+): Promise<void> {
+  const reader = child.stdout.getReader();
+  const decoder = new TextDecoder();
+  let printed = '';
+  try {
+    while (!printed.includes('\n')) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      printed += decoder.decode(chunk.value, { stream: true });
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (printed !== `${expected}\n`) {
+    // A complete wrong line may come from a child that remains alive. Report it
+    // now; only a closed stream needs its exit code and stderr for context.
+    if (printed.includes('\n')) {
+      throw new Error(`child printed ${JSON.stringify(printed)} instead of ${expected}`);
+    }
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+    throw new Error(
+      `child printed ${JSON.stringify(printed)} instead of ${expected}; exit ${String(exitCode)}; stderr: ${stderr}`,
+    );
+  }
+}
+
 const expectedEngine = {
   State: {
     Running: false,
@@ -122,7 +152,8 @@ describe('candidate image inputs', () => {
     );
     writeFileSync(
       join(commands, 'docker'),
-      '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$WBS_DOCKER_LOG"\nexit 86\n',
+      '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$WBS_DOCKER_LOG"\n' +
+        '[ "$1 $2" = "image inspect" ] && echo "No such image: $3" >&2\nexit 86\n',
     );
     chmodSync(join(commands, 'mktemp'), 0o755);
     chmodSync(join(commands, 'docker'), 0o755);
@@ -142,8 +173,10 @@ describe('candidate image inputs', () => {
     expect(invocation.exitCode).toBe(86);
     // Proof: with the old `../../..` ascent, the real script called fake Docker with
     // `<workspace>/apps/apps/wbs/be-01/Dockerfile` and context `<workspace>/apps`.
-    expect(readFileSync(dockerLog, 'utf8').split('\n')[0]).toBe(
-      `build --file ${WORKSPACE}/apps/wbs/be-01/Dockerfile --tag wbs-be-01:solver-smoke ${WORKSPACE}`,
+    expect(readFileSync(dockerLog, 'utf8').split('\n')[0]).toMatch(
+      new RegExp(
+        `^build --file ${WORKSPACE}/apps/wbs/be-01/Dockerfile --tag wbs-be-01:solver-smoke-[0-9a-f-]{36} ${WORKSPACE}$`,
+      ),
     );
   });
 });
@@ -353,6 +386,28 @@ describe('assertEngineContract', () => {
 });
 
 describe('runEngineLifecycle', () => {
+  it('reports a wrong readiness line while the child is still alive', async () => {
+    const child = Bun.spawn(
+      ['bun', '-e', "process.stdout.write('wrong\\n'); setInterval(() => undefined, 1_000);"],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+    const readiness = waitForChildLine(child, 'ready').then(
+      () => ({ kind: 'accepted' as const }),
+      (failure: unknown) => ({ kind: 'refused' as const, failure }),
+    );
+    try {
+      const response = await Promise.race([readiness, Bun.sleep(500).then(() => null)]);
+      expect(response).not.toBeNull();
+      expect(response).toMatchObject({ kind: 'refused' });
+      if (response?.kind === 'refused') {
+        expect(String(response.failure)).toContain('printed "wrong\\n" instead of ready');
+      }
+    } finally {
+      child.kill();
+      await child.exited;
+    }
+  });
+
   function control(stopError?: Error): { control: EngineControl; calls: string[] } {
     const calls: string[] = [];
     return {
@@ -425,7 +480,7 @@ describe('runEngineLifecycle', () => {
           start: () => { appendFileSync(marker, 'started\\n'); return Promise.resolve(); },
           stop: () => { appendFileSync(marker, 'stopped\\n'); return Promise.resolve(); },
         },
-        () => { appendFileSync(marker, 'ready\\n'); return new Promise(() => {}); },
+        () => { appendFileSync(marker, 'ready\\n'); process.stdout.write('ready\\n'); return new Promise(() => {}); },
       );
     `;
     const child = Bun.spawn(['bun', '-e', childScript], {
@@ -435,16 +490,7 @@ describe('runEngineLifecycle', () => {
     });
 
     try {
-      const deadline = Date.now() + 2_000;
-      while (Date.now() < deadline) {
-        try {
-          if (readFileSync(marker, 'utf8').includes('ready')) break;
-        } catch (error: unknown) {
-          if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT')
-            throw error;
-        }
-        await Bun.sleep(10);
-      }
+      await waitForChildLine(child, 'ready');
       expect(readFileSync(marker, 'utf8')).toContain('ready');
 
       child.kill('SIGTERM');
@@ -470,10 +516,12 @@ describe('runEngineLifecycle', () => {
       import { runEngineLifecycle } from ${JSON.stringify(moduleUrl)};
       const marker = process.env['WBS_SIGNAL_MARKER'];
       if (marker === undefined) throw new Error('missing marker');
+      await Bun.sleep(2_100);
       await runEngineLifecycle(
         {
           start: () => {
             appendFileSync(marker, 'start-entered\\nengine-running\\n');
+            process.stdout.write('engine-running\\n');
             return new Promise(() => {});
           },
           stop: () => { appendFileSync(marker, 'stopped\\n'); return Promise.resolve(); },
@@ -488,16 +536,9 @@ describe('runEngineLifecycle', () => {
     });
 
     try {
-      const deadline = Date.now() + 2_000;
-      while (Date.now() < deadline) {
-        try {
-          if (readFileSync(marker, 'utf8').includes('engine-running')) break;
-        } catch (error: unknown) {
-          if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT')
-            throw error;
-        }
-        await Bun.sleep(10);
-      }
+      // Proof: delaying this child by 2.1 s made the former 2 s marker poll fail
+      // with ENOENT before SIGTERM; the stdout line now signals readiness.
+      await waitForChildLine(child, 'engine-running');
       expect(readFileSync(marker, 'utf8')).toContain('engine-running');
 
       child.kill('SIGTERM');

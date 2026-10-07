@@ -3,6 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { clockOf } from '@wbs/core';
+import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { automaticColor, MARKER_NAME_MAX } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
@@ -16,19 +19,31 @@ import { ProjectRepository } from '../repository/project';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { AuthService } from '../service/auth.service';
-import { CalendarMarkerService } from '../service/calendar-marker.service';
-import { ProjectService } from '../service/project.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingJoinRequests,
+  refusingTestEmailDelivery,
+} from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { refusingOnboarding } from '../testing/onboarding-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingDomains,
+  refusingMemberships,
+} from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
+import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
@@ -160,12 +175,28 @@ describe('the calendar-marker routes', () => {
       tokens: joseTokenCodec(TEST_JWT_KEY),
       passwords: bunPasswordHasher,
     });
+    const projectService = new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(db, projects),
+      clock: testClock,
+      projects,
+      broadcast,
+    });
     app = buildApp({
+      organizations: legacyOrganizationAccess,
+      memberships: refusingMemberships,
+      domains: refusingDomains,
+      emailVerification: refusingEmailVerification,
+      invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
+      spaces: refusingSpaces,
+      projectRanks: refusingProjectRanks,
+      emailDelivery: refusingTestEmailDelivery,
+      onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       appOrigin: 'http://localhost',
       auth,
-      projects: new ProjectService({ clock: testClock, projects, broadcast }),
+      projects: projectService,
       // A clock held still, because `createdAt` is an ordering key here rather
       // than a stamp: every marker this file creates ties on `(date,
       // createdAt)`, which is the only state in which the third key decides
@@ -185,7 +216,9 @@ describe('the calendar-marker routes', () => {
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
-      writes: testWrites(broadcast),
+      // The same project service the routes use: a project PATCH runs through
+      // the batch graph, and a double there has never seen these projects.
+      writes: testWrites(broadcast, { projects: projectService }),
       migrationsApplied: true,
     });
 
@@ -1229,6 +1262,8 @@ describe('the calendar-marker routes', () => {
       deadline: null,
       factStart: null,
       factEnd: null,
+      readiness: null,
+      hold: null,
       serviceTeamId: null,
       serviceId: null,
       maxParallel: 1,

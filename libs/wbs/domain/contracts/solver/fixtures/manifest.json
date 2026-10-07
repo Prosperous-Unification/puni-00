@@ -1,12 +1,18 @@
 {
-  "$comment": "The shared golden corpus both suites run (2.1). Each entry names the branch of solver-wire.v1.json to validate against \u2014 #/$defs/<branch> \u2014 and whether the schema must accept it. A consumer that accepts a message the schema rejects, or rejects one it accepts, fails the contract test. Every slice key here contains a real U+0000, written as the \\u0000 escape: the escape parses to the exact character, so the corpus is verbatim while the files stay text to git and grep.",
-  "schema": "../solver-wire.v1.json",
+  "$comment": "The shared golden corpus both suites run (2.1). Each entry names the branch of solver-wire.v3.json to validate against — #/$defs/<branch> — and whether the schema must accept it. A consumer that accepts a message the schema rejects, or rejects one it accepts, fails the contract test. Every slice key here contains a real U+0000, written as the \\u0000 escape: the escape parses to the exact character, so the corpus is verbatim while the files stay text to git and grep.",
+  "schema": "../solver-wire.v3.json",
   "fixtures": [
+    {
+      "file": "request/valid-ff-quantization.json",
+      "branch": "request",
+      "valid": true,
+      "why": "Two real durations 0.030 and 0.021 both quantize to two units. The FF wire edge carries the one-unit strengthened start bound, and the serial baseline is a feasible hint."
+    },
     {
       "file": "request/valid-two-slices.json",
       "branch": "request",
       "valid": true,
-      "why": "Two slices under one predecessor edge; both keys carry a real U+0000. personId null and an empty poolIds are legal states, not omissions."
+      "why": "Two slices under one predecessor edge; both keys carry a real U+0000. personId null, empty poolIds and an empty person booking calendar are legal states, not omissions."
     },
     {
       "file": "request/valid-quantised-baseline.json",

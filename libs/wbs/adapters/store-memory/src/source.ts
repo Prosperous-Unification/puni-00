@@ -6,6 +6,7 @@ import type {
   SavedPlanStore,
   SavedPlanWrite,
   SavedPlanWriteOutcome,
+  ScopedSavedPlanWrite,
   Source,
   StoredDependency,
   StoredSavedPlan,
@@ -71,6 +72,11 @@ import {
 } from './replay-fixture';
 import { inMemorySteps, type MemoryStepTable, memoryStepTable } from './step-fixture';
 import { inMemorySubtrees } from './subtree-fixture';
+import {
+  inMemoryTypedDependencies,
+  type MemoryTypedDependencyTable,
+  memoryTypedDependencyTable,
+} from './typed-dependency-fixture';
 
 interface MemoryTables {
   readonly users: MemoryUserTable;
@@ -78,6 +84,7 @@ interface MemoryTables {
   readonly directory: MemoryDirectoryTables;
   readonly steps: MemoryStepTable;
   readonly dependencies: MemoryDependencyTable;
+  readonly typedDependencies: MemoryTypedDependencyTable;
   readonly workItems: MemoryWorkItemTables;
   readonly estimates: MemoryEstimateTable;
   readonly actuals: MemoryActualTable;
@@ -97,6 +104,7 @@ function emptyTables(): MemoryTables {
     directory: memoryDirectoryTables(),
     steps: memoryStepTable(),
     dependencies: memoryDependencyTable(),
+    typedDependencies: memoryTypedDependencyTable(),
     workItems: memoryWorkItemTables(),
     estimates: memoryEstimateTable(),
     actuals: memoryActualTable(),
@@ -169,6 +177,9 @@ export class MemoryState {
     replaceMap(this.tables.projects.projects, next.tables.projects.projects);
     replaceMap(this.tables.projects.steps, next.tables.projects.steps);
     replaceMap(this.tables.projects.opened, next.tables.projects.opened);
+    // Proof: with this line removed, `undoes an allowance edit committed in an
+    // earlier unit of work` failed: the undo answered ok: false (2026-09-27).
+    replaceMap(this.tables.projects.allowanceRevisions, next.tables.projects.allowanceRevisions);
     replaceMap(this.tables.directory.teams, next.tables.directory.teams);
     replaceMap(this.tables.directory.tags, next.tables.directory.tags);
     replaceMap(this.tables.directory.services, next.tables.directory.services);
@@ -180,6 +191,9 @@ export class MemoryState {
     replaceMap(this.tables.directory.assignments, next.tables.directory.assignments);
     replaceArray(this.tables.steps.rows, next.tables.steps.rows);
     replaceArray(this.tables.dependencies.rows, next.tables.dependencies.rows);
+    // Proof: omitting this copy left `commits all mixed-store writes together`
+    // with no committed typed row; watched failing 2026-09-27.
+    replaceArray(this.tables.typedDependencies.rows, next.tables.typedDependencies.rows);
     replaceMap(this.tables.workItems.byId, next.tables.workItems.byId);
     replaceMap(this.tables.workItems.teamsOf, next.tables.workItems.teamsOf);
     replaceMap(this.tables.workItems.tagsOf, next.tables.workItems.tagsOf);
@@ -229,6 +243,7 @@ function bindStores(
   };
   workItems = inMemoryWorkItems(directory, state.tables.workItems);
   const dependencies = inMemoryDependencies([], state.tables.dependencies, workItems);
+  const typedDependencies = inMemoryTypedDependencies([], state.tables.typedDependencies);
   const steps = inMemorySteps([], state.tables.steps);
   const estimates = inMemoryEstimates(workItems, state.tables.estimates, steps);
   const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
@@ -266,6 +281,7 @@ function bindStores(
     measures,
     progress,
     dependencies,
+    typedDependencies,
     capacity: inMemoryCapacity({}, state.tables.capacity),
     priorityBands: inMemoryPriorityBands({}, state.tables.priorityBands),
     calendarMarkers: inMemoryCalendarMarkers([], state.tables.calendarMarkers),
@@ -337,7 +353,11 @@ function coordinatedStores(
 ): TransactionalStores {
   return {
     users: coordinatedStore(stores.users, ['create', 'resolveOidcIdentity'], coordinator),
-    projects: coordinatedStore(stores.projects, ['create', 'recordOpen', 'update'], coordinator),
+    projects: coordinatedStore(
+      stores.projects,
+      ['create', 'recordOpen', 'update', 'setStepAllowance'],
+      coordinator,
+    ),
     directory: coordinatedStore(
       stores.directory,
       [
@@ -383,6 +403,11 @@ function coordinatedStores(
     dependencies: coordinatedStore(
       stores.dependencies,
       ['add', 'remove', 'removeAllFor'],
+      coordinator,
+    ),
+    typedDependencies: coordinatedStore(
+      stores.typedDependencies,
+      ['add', 'update', 'remove', 'removeAllFor'],
       coordinator,
     ),
     subtrees: coordinatedStore(stores.subtrees, ['insertSubtree'], coordinator),
@@ -511,12 +536,12 @@ function openMemorySourceWithSeams(
     );
   };
   const commandStagedSavedPlans: SavedPlanStore = {
-    write: (plan, check) => activeCommandHistory().write(plan, check),
+    write: (plan, check, scoped) => activeCommandHistory().write(plan, check, scoped),
     readOf: (id) => activeCommandHistory().readOf(id),
     listOf: (projectId) => activeCommandHistory().listOf(projectId),
     principalsOf: (id) => activeCommandHistory().principalsOf(id),
-    renameTo: (id, name) => activeCommandHistory().renameTo(id, name),
-    deleteOf: (id) => activeCommandHistory().deleteOf(id),
+    renameTo: (id, name, scoped) => activeCommandHistory().renameTo(id, name, scoped),
+    deleteOf: (id, scoped) => activeCommandHistory().deleteOf(id, scoped),
   };
 
   return {
@@ -759,6 +784,14 @@ function assertSavedPlanScheduleBoundary(
     throw new Error('saved-plan schedule boundary lacks complete header and input');
 }
 
+/** A memory history source has no membership or durable audit to admit scoped writes. */
+function refuseScopedSavedPlanWrite(scoped: ScopedSavedPlanWrite | undefined): void {
+  // Proof: skipping this refusal on rename made `refuses scoped saved-plan
+  // writes without a transactional membership source` receive a resolved
+  // Promise instead of a throw; watched 2026-09-28.
+  if (scoped !== undefined) throw new Error('memory saved plans cannot classify scoped writes');
+}
+
 function memorySavedPlans(
   state: HistoryState,
   stores: () => TransactionalStores,
@@ -766,7 +799,8 @@ function memorySavedPlans(
   lateWrite: MemoryLateWriteSeam,
 ): SavedPlanStore {
   return {
-    write: (plan, check) => {
+    write: (plan, check, scoped) => {
+      refuseScopedSavedPlanWrite(scoped);
       const expectedPlan = structuredClone(plan);
       return writeTurn(async () => {
         const rows = [...state.plans.values()].filter(
@@ -837,7 +871,8 @@ function memorySavedPlans(
         createdById: found.header.createdById,
       };
     },
-    renameTo(savedPlanId, name) {
+    renameTo(savedPlanId, name, scoped) {
+      refuseScopedSavedPlanWrite(scoped);
       const found = state.plans.get(savedPlanId);
       if (found === undefined) return Promise.resolve('no_such_plan');
       state.plans.set(savedPlanId, {
@@ -846,7 +881,8 @@ function memorySavedPlans(
       });
       return Promise.resolve('touched');
     },
-    deleteOf(savedPlanId) {
+    deleteOf(savedPlanId, scoped) {
+      refuseScopedSavedPlanWrite(scoped);
       return Promise.resolve(state.plans.delete(savedPlanId) ? 'touched' : 'no_such_plan');
     },
   };
@@ -868,6 +904,7 @@ async function capturePlanInput(
     progress,
     measures,
     dependencies,
+    typedDependencies,
     assignmentRows,
     capacity,
     priorityBands,
@@ -885,6 +922,7 @@ async function capturePlanInput(
     stores.progress.listByProject(projectId),
     stores.measures.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
+    stores.typedDependencies.listByProject(projectId),
     stores.directory.assignmentsInProject(projectId),
     stores.capacity.slotsFor(projectId),
     stores.priorityBands.listFor(projectId),
@@ -904,6 +942,12 @@ async function capturePlanInput(
     progress,
     measures,
     dependencies,
+    typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({
+      id,
+      predecessor,
+      successor,
+      type,
+    })),
     assignments: assignmentRows.assignments,
     capacity,
     priorityBands,

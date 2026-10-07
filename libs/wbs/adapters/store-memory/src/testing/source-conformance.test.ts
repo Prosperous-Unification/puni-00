@@ -7,6 +7,7 @@ import {
   type CaptureDirectoryChange,
   type CaseFixture,
   type CaseId,
+  changeSavedPlanCaptureTypedDependencies,
   completeSubtreeCopy,
   createFaultControl,
   defineFault,
@@ -187,6 +188,7 @@ function readersOf(source: MemorySource): SourceReaders {
     measures: source.stores.measures,
     progress: source.stores.progress,
     dependencies: source.stores.dependencies,
+    typedDependencies: source.stores.typedDependencies,
     directory: source.stores.directory,
     journal: source.stores.journal,
     planEvents: source.stores.planEvents,
@@ -234,6 +236,7 @@ async function seedMemorySource(
         name: stepIndex === 0 ? 'Dev' : 'QA',
         code: stepIndex === 0 ? 'dev' : 'qa',
         position: (stepIndex + 1) * 10,
+        allowancePercent: 0,
       }));
       await stores.projects.create(
         projectRow({
@@ -484,7 +487,13 @@ async function openMemorySavedPlanCaptureCase(
             firstRead: { entered, release },
             changeDirectory: () => changeMemoryCaptureDirectory(source),
           }
-        : { kind: 'ordinary' },
+        : caseId === 'savedPlanCapture.readPlanInput:detached'
+          ? {
+              kind: 'capture-typed-change',
+              changeTypedDependencies: () =>
+                changeSavedPlanCaptureTypedDependencies(source.stores, DETERMINISTIC_SEED),
+            }
+          : { kind: 'ordinary' },
     close: async () => {
       release();
       await source.close();
@@ -724,6 +733,7 @@ async function seedProgressStep(source: MemorySource): Promise<void> {
       id: PROGRESS_SENTINEL_STEP_ID,
       projectId: DETERMINISTIC_SEED.projectIds[0],
       name: 'Review',
+      allowancePercent: 0,
     },
     DETERMINISTIC_SEED.stamps[0],
   );
@@ -829,6 +839,7 @@ const openers: ExistingStoreOpeners = {
   measures: (caseId) => openMemoryCase('measures', caseId),
   progress: (caseId) => openMemoryCase('progress', caseId),
   dependencies: (caseId) => openMemoryCase('dependencies', caseId),
+  typedDependencies: (caseId) => openMemoryCase('typedDependencies', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
   eventLog: (caseId) => openMemoryCase('eventLog', caseId),
   planEvents: (caseId) => openMemoryCase('planEvents', caseId),
@@ -939,6 +950,14 @@ const declaration: SourceDeclaration = {
   revision: sourceRevision(),
   historyAdmission: 'independent-write',
   capabilities: {
+    livePlans: {
+      kind: 'absent',
+      reason: 'Memory fixtures offer isolated stores without the SQLite shared snapshot reader.',
+    },
+    projectRanks: {
+      kind: 'absent',
+      reason: 'Memory fixtures do not install the SQLite organization rank writer.',
+    },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     users: { kind: 'offered', gaps: [], open: openers.users },
     capacity: {
@@ -959,6 +978,7 @@ const declaration: SourceDeclaration = {
     measures: { kind: 'offered', gaps: [measureUnknownStepGap], open: openers.measures },
     progress: { kind: 'offered', gaps: [progressUnknownStepGap], open: openers.progress },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
+    typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
     eventLog: { kind: 'offered', gaps: [], open: openers.eventLog },
     planEvents: { kind: 'offered', gaps: [], open: openers.planEvents },
@@ -1044,6 +1064,7 @@ function emptyMissingCapture(): PlanInputReads {
     progress: [],
     measures: [],
     dependencies: [],
+    typedDependencies: [],
     assignments: [],
     capacity: new Map(),
     priorityBands: [],
@@ -4222,7 +4243,14 @@ async function proveFault(
           journalAppender: source.journal,
           seed: DETERMINISTIC_SEED,
           readers: readersOf(source),
-          scenario: { kind: 'ordinary' },
+          scenario:
+            caseId === 'savedPlanCapture.readPlanInput:detached'
+              ? {
+                  kind: 'capture-typed-change',
+                  changeTypedDependencies: () =>
+                    changeSavedPlanCaptureTypedDependencies(source.stores, DETERMINISTIC_SEED),
+                }
+              : { kind: 'ordinary' },
           close: () => source.close(),
         });
       };
@@ -4239,6 +4267,7 @@ async function proveFault(
         measures: (caseId) => takeFixture('measures', caseId),
         progress: (caseId) => takeFixture('progress', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
+        typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
         planEvents: (caseId) => takeFixture('planEvents', caseId),
@@ -5423,6 +5452,7 @@ describe('memory existing source conformance', () => {
 +         "factEnd": null,
 +         "factStart": null,
 +         "frozenNumber": "030",
++         "hold": null,
 +         "id": "subtree-copy-root",
 +         "maxParallel": 2,
 +         "name": "Copied root",
@@ -5431,6 +5461,7 @@ describe('memory existing source conformance', () => {
 +         "position": 20,
 +         "priority": 2,
 +         "projectId": "project-a",
++         "readiness": null,
 +         "revision": 0,
 +         "serviceId": "service-a",
 +         "serviceIds": [],
@@ -5675,9 +5706,26 @@ describe('memory existing source conformance', () => {
     ).toEqual(
       expected
         .map(({ caseId }) => caseId)
-        .filter((caseId) => !knownGaps.some((gap) => gap.caseId === caseId))
+        .filter(
+          (caseId) =>
+            caseId !== 'livePlans.read:legacy-and-absence' &&
+            caseId !== 'projectRanks.orderIn:scoped-move' &&
+            !knownGaps.some((gap) => gap.caseId === caseId),
+        )
         .toSorted(),
     );
+    expect(failedCase(report, 'livePlans.read:legacy-and-absence')).toMatchObject({
+      family: 'livePlans',
+      caseId: 'livePlans.read:legacy-and-absence',
+      status: 'not-offered',
+      executed: false,
+    });
+    expect(failedCase(report, 'projectRanks.orderIn:scoped-move')).toMatchObject({
+      family: 'projectRanks',
+      caseId: 'projectRanks.orderIn:scoped-move',
+      status: 'not-offered',
+      executed: false,
+    });
     expect(
       knownGaps.map((gap) => {
         const execution = failedCase(report, gap.caseId);
@@ -6718,6 +6766,8 @@ describe('memory existing source conformance', () => {
     deadline: null,
     factStart: null,
     factEnd: null,
+    readiness: null,
+    hold: null,
     priority: null,
     serviceTeamId: "team-a",
     serviceId: null,

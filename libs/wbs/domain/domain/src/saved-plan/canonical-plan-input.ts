@@ -1,6 +1,8 @@
 import type { DependencyReach } from '../dependency-reach';
 import type { EstimateMethod, EstimateRounding } from '../estimate';
+import type { Hold, Readiness } from '../progress';
 import type { StepState } from '../progress';
+import type { TypedDependency } from '../typed-dependency';
 
 /**
  * Every field a Saved plan's **plan input** body holds, and nothing else.
@@ -40,7 +42,7 @@ import type { StepState } from '../progress';
  */
 export interface CanonicalPlanInput {
   /** Bumped whenever this field list changes; the body carries it. */
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 4;
   readonly project: CanonicalProject;
   /** Sorted by `id`. */
   readonly workItems: readonly CanonicalWorkItem[];
@@ -52,6 +54,8 @@ export interface CanonicalPlanInput {
   readonly measures: readonly CanonicalMeasure[];
   /** Sorted by `predecessorId`, then `successorId`. */
   readonly dependencies: readonly CanonicalDependency[];
+  /** Relationship IDs and endpoint identities, sorted by `id`. */
+  readonly typedDependencies: readonly TypedDependency[];
   /** Sorted by `workItemId`, then `stepId`, then `personId`. */
   readonly assignments: readonly CanonicalAssignment[];
   /** Sorted by `id`. */
@@ -137,6 +141,10 @@ export interface CanonicalWorkItem {
   readonly serviceId: string | null;
   readonly startNoEarlierThan: string | null;
   readonly startNoEarlierThanReason: string | null;
+  /** The planner's readiness, `draft` or `ready`, or null where unsaid (schema 4). */
+  readonly readiness: Readiness | null;
+  /** The planner's hold, `on_hold` or `blocked`, or null for none (schema 4). */
+  readonly hold: Hold | null;
 }
 
 /**
@@ -180,8 +188,16 @@ export interface CanonicalExternalRef {
 
 export interface CanonicalStep {
   readonly id: string;
+  /** Captured step code, or null when the step was uncoded at capture. */
+  readonly code: string | null;
   readonly name: string;
   readonly position: number;
+  /**
+   * The step's estimate allowance when the plan was saved — history, never
+   * the live project's (`add-project-step-estimate-allowances`). A version-1
+   * body predates allowances and is read at 0% by the `1` upgrade.
+   */
+  readonly allowancePercent: number;
 }
 
 /** The three-point estimate, the derived number, the actual and the progress. */
@@ -314,6 +330,7 @@ export interface PlanInputRows {
   readonly stepValues: readonly CanonicalStepValue[];
   readonly measures: readonly CanonicalMeasure[];
   readonly dependencies: readonly CanonicalDependency[];
+  readonly typedDependencies: readonly TypedDependency[];
   readonly assignments: readonly CanonicalAssignment[];
   readonly people: readonly CanonicalNamedRow[];
   readonly teams: readonly CanonicalNamedRow[];
@@ -330,7 +347,7 @@ export interface PlanInputRows {
 }
 
 /** The one version this module writes. Stored bodies carry it; readers check it. */
-export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 1 as const;
+export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 4 as const;
 
 const byString =
   <T>(...keys: readonly ((row: T) => string)[]) =>
@@ -424,14 +441,18 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       serviceId: row.serviceId,
       startNoEarlierThan: row.startNoEarlierThan,
       startNoEarlierThanReason: row.startNoEarlierThanReason,
+      readiness: row.readiness,
+      hold: row.hold,
     })),
     steps: sorted(
       values.steps,
       byString((row) => row.id),
     ).map((row) => ({
       id: row.id,
+      code: row.code,
       name: row.name,
       position: row.position,
+      allowancePercent: row.allowancePercent,
     })),
     stepValues: sorted(
       values.stepValues,
@@ -469,6 +490,31 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
         (row) => row.successorId,
       ),
     ).map((row) => ({ predecessorId: row.predecessorId, successorId: row.successorId })),
+    typedDependencies: sorted(
+      values.typedDependencies,
+      byString((row) => row.id),
+    ).map((row) => ({
+      id: row.id,
+      predecessor:
+        row.predecessor.scope === 'whole'
+          ? { scope: row.predecessor.scope, workItemId: row.predecessor.workItemId }
+          : {
+              scope: row.predecessor.scope,
+              workItemId: row.predecessor.workItemId,
+              stepId: row.predecessor.stepId,
+            },
+      successor:
+        row.successor.scope === 'whole'
+          ? { scope: row.successor.scope, workItemId: row.successor.workItemId }
+          : {
+              scope: row.successor.scope,
+              workItemId: row.successor.workItemId,
+              stepId: row.successor.stepId,
+            },
+      // Proof: replacing the captured FF type with FS made the mounted saved-plan
+      // read after a live FF→FS edit fail: expected FF, received FS (2026-09-28).
+      type: row.type,
+    })),
     assignments: sorted(
       values.assignments,
       byString(

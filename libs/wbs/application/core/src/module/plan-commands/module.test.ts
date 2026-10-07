@@ -5,6 +5,7 @@ import { DiBag } from 'di-bag';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Scope } from '../../ports/unit-of-work';
@@ -31,10 +32,16 @@ async function seeded() {
   let next = 0;
   const clock = clockOf({ now: () => 2, newId: () => `item-${String(++next)}` });
   const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-    servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+    servicesOver(stores, {
+      admission: CREATOR_ADMISSION,
+      clock,
+      broadcast,
+      scheduler: fastScheduler,
+    });
   const announcements = recordingBroadcaster();
   const handed: Broadcaster[] = [];
   return {
+    source,
     announcements,
     handed,
     requirements: {
@@ -45,6 +52,7 @@ async function seeded() {
       publicServices: graphOver(source.stores, recordingBroadcaster()),
       uow: source.uow,
       announcements,
+      committedFanout: { now: () => 2, deliverCommitted: () => Promise.resolve() },
     },
   };
 }
@@ -53,7 +61,12 @@ const hostRequirements = () => {
   const source = openMemorySource();
   const clock = clockOf({ now: () => 0, newId: () => 'unused' });
   const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-    servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+    servicesOver(stores, {
+      admission: CREATOR_ADMISSION,
+      clock,
+      broadcast,
+      scheduler: fastScheduler,
+    });
   return {
     batchServices: DiBag.createProvider(
       () => (scope: Scope, broadcast: Broadcaster) => graphOver(scope.stores, broadcast),
@@ -63,6 +76,10 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     uow: DiBag.createProvider(() => source.uow, { factoryReturnKind: 'sync-value' }),
+    committedFanout: DiBag.createProvider(
+      () => ({ now: () => 0, deliverCommitted: () => Promise.resolve() }),
+      { factoryReturnKind: 'sync-value' },
+    ),
   };
 };
 
@@ -86,6 +103,48 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Plan commands module', () => {
+  /** Proof: provider omission made this scoped shared command throw missing delivery. */
+  it('passes the committed fan-out capability through its installed command graph', async () => {
+    const { source, requirements } = await seeded();
+    const capture = {
+      capture: () =>
+        Promise.resolve({
+          observation: { mode: 'shared' as const, organizationId: 'org-a', projects: [] },
+          localFacts: new Map<string, string>(),
+        }),
+      authorizeProjectUpdate: () => Promise.resolve({ ok: true as const }),
+      authorizeStepRemoval: () => Promise.resolve({ ok: true as const }),
+    };
+    const uow: typeof source.uow = {
+      run: (act) =>
+        source.uow.run((scope) =>
+          act({
+            ...scope,
+            stores: {
+              ...scope.stores,
+              projects: new Proxy(scope.stores.projects, {
+                get: (projects, key, receiver): unknown => {
+                  if (key === 'admitEditInOrganization') return () => Promise.resolve('ordinary');
+                  if (key === 'findCrossReferences') return () => Promise.resolve([]);
+                  return Reflect.get(projects, key, receiver) as unknown;
+                },
+              }),
+            },
+            fanoutCapture: capture,
+          }),
+        ),
+    };
+    const { commands } = installPlanCommands({ ...requirements, uow });
+    expect(
+      (
+        await commands.runWithin(PROJECT, OWNER, [], {
+          kind: 'scoped',
+          scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
+        })
+      ).ok,
+    ).toBe(true);
+  });
+
   it('drains a committed batch into the broadcaster installPlanCommands wires', async () => {
     const { announcements, requirements } = await seeded();
     const { commands } = installPlanCommands(requirements);
@@ -170,5 +229,41 @@ describe('the Plan commands module', () => {
     expect(() => host.resolve('commands')).toThrow(
       `Cannot resolve "${PLAN_COMMANDS_LABEL}/planCommandOptions": dependency "announcements" is not registered. Resolution path: commands -> ${PLAN_COMMANDS_LABEL}/planCommandOptions -> announcements.`,
     );
+  });
+});
+
+describe('a step allowance edit over the memory source', () => {
+  /** Proof: see the allowance revisions line in the memory source's commit. */
+  it('undoes an allowance edit committed in an earlier unit of work', async () => {
+    const source = openMemorySource();
+    await source.stores.projects.create(
+      projectRow({ id: PROJECT, ownerId: OWNER }),
+      [{ id: 'qa', projectId: PROJECT, name: 'QA', position: 10, code: 'qa', allowancePercent: 0 }],
+      { at: 1, by: OWNER },
+    );
+    const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
+    const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
+    const { commands } = installPlanCommands({
+      batchServices: (scope: Scope, broadcast: Broadcaster) => graphOver(scope.stores, broadcast),
+      publicServices: graphOver(source.stores, recordingBroadcaster()),
+      uow: source.uow,
+      announcements: recordingBroadcaster(),
+      committedFanout: { now: () => 2, deliverCommitted: () => Promise.resolve() },
+    });
+
+    const edited = await commands.run(PROJECT, OWNER, [
+      { kind: 'setStepAllowance', stepId: 'qa', allowancePercent: 30 },
+    ]);
+    expect(edited.ok).toBe(true);
+
+    expect((await commands.undo(PROJECT, OWNER)).ok).toBe(true);
+    const steps = await source.stores.projects.stepsOf(PROJECT);
+    expect(steps.map((step) => step.allowancePercent)).toEqual([0]);
   });
 });

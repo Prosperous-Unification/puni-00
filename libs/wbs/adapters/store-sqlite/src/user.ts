@@ -5,10 +5,13 @@ import type { User, UserStore, WriteStamp } from '@wbs/core';
 import { and, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import { auditOnCreateBesidesCreatedAt, auditOnUpdate } from './audit';
+import { auditOnCreate, auditOnCreateBesidesCreatedAt, auditOnUpdate } from './audit';
+import { canonicalOidcEmail } from './canonical-oidc-email';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
+import { ExternalIdentityRepository } from './external-identity';
 import type { Gate } from './gate';
-import { users } from './schema';
+import { readOrganizationActivation } from './organization-activation';
+import { externalIdentity, users } from './schema';
 
 /**
  * SQLite reports a uniqueness violation as a message, not a typed error, so
@@ -46,6 +49,24 @@ export class UserRepository implements UserStore {
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
   ) {}
+
+  /** The activation marker is read afresh for each explicit link start. */
+  isLinkActive(): Promise<boolean> {
+    return new ExternalIdentityRepository(this.db, this.gate).isLinkActive();
+  }
+
+  /** One explicit link, separate from login resolution and its account-creation branch. */
+  linkPasswordIdentity(
+    userId: string,
+    identity: Pick<OidcIdentity, 'issuer' | 'subject' | 'email' | 'emailVerified'>,
+    stamp: WriteStamp,
+  ) {
+    return new ExternalIdentityRepository(this.db, this.gate).linkPasswordIdentity(
+      userId,
+      identity,
+      stamp,
+    );
+  }
 
   /**
    * Makes the fixed local-mode identity a real owner before any project write
@@ -118,10 +139,19 @@ export class UserRepository implements UserStore {
   }
 
   /**
-   * Resolves one first login under a single SQLite transaction. Subject wins
-   * over email, and email can only attach to a password account whose legacy
-   * username is that verified address. `null` is an identity collision, not
-   * "not found": the caller must stop rather than silently reassign it.
+   * Resolves one first login under a single SQLite transaction. `null` is an
+   * identity collision, not "not found": the caller must stop rather than
+   * silently reassign it.
+   *
+   * The activation marker is read inside that transaction, on every call, so
+   * another process activating isolation takes effect without a restart.
+   * Before activation subject wins over email, and email can only attach to a
+   * password account whose legacy username is that verified address. After
+   * activation the pair resolves only through `external_identity`; see
+   * {@link resolveMappedIdentity}.
+   *
+   * @throws {OrganizationActivationRefused} when the marker is absent,
+   * unreadable or malformed; and, after activation, on a broken mapping.
    */
   async resolveOidcIdentity(
     identity: Pick<OidcIdentity, 'issuer' | 'subject' | 'email' | 'emailVerified'>,
@@ -130,80 +160,231 @@ export class UserRepository implements UserStore {
   ): Promise<User | null> {
     return await this.gate.enter(async () => {
       return Promise.resolve(
-        this.db.transaction((tx) => {
-          const subject = tx
-            .select(USER_COLUMNS)
-            .from(users)
-            .where(and(eq(users.idpIssuer, identity.issuer), eq(users.idpSub, identity.subject)))
-            .limit(1)
-            .all();
-          const subjectAccount = subject.at(0) ?? null;
-          if (subjectAccount !== null) return subjectAccount;
-
-          const normalizedEmail = identity.email === null ? null : normalizeEmail(identity.email);
-          const trustedEmail = identity.emailVerified ? normalizedEmail : null;
-          if (trustedEmail !== null) {
-            const emailOwner = tx
+        this.db.transaction(
+          (tx) => {
+            // Proof: resolving as before activation regardless of the marker failed
+            // five cases of `user-oidc.db.test.ts`'s after-activation block;
+            // watched 2026-09-28.
+            if (readOrganizationActivation(tx) === 'activated')
+              return resolveMappedIdentity(tx, identity, create, stamp);
+            const subject = tx
               .select(USER_COLUMNS)
               .from(users)
-              .where(sql`lower(${users.email}) = ${trustedEmail}`)
+              .where(and(eq(users.idpIssuer, identity.issuer), eq(users.idpSub, identity.subject)))
               .limit(1)
               .all();
-            if ((emailOwner.at(0) ?? null) !== null) return null;
+            const subjectAccount = subject.at(0) ?? null;
+            if (subjectAccount !== null) return subjectAccount;
 
-            const legacy = tx
-              .select(USER_COLUMNS)
-              .from(users)
-              .where(sql`lower(${users.username}) = ${trustedEmail}`)
-              .limit(1)
-              .all();
-            const candidate = legacy.at(0) ?? null;
-            if (
-              candidate?.idpIssuer === null &&
-              candidate.idpSub === null &&
-              looksLikeEmail(candidate.username)
-            ) {
-              const linked = tx
-                .update(users)
-                .set({
-                  email: trustedEmail,
-                  idpIssuer: identity.issuer,
-                  idpSub: identity.subject,
-                  // Only the update clock moves: this row's author is whoever
-                  // registered the password account, and a first OIDC login
-                  // linking to it is not that act. The stamp's `by` names the id
-                  // this login would have minted, which is deliberately not
-                  // written anywhere here.
-                  ...auditOnUpdate(stamp),
-                })
-                .where(eq(users.id, candidate.id))
-                .returning(USER_COLUMNS)
+            const normalizedEmail = identity.email === null ? null : normalizeEmail(identity.email);
+            const trustedEmail = identity.emailVerified ? normalizedEmail : null;
+            if (trustedEmail !== null) {
+              const emailOwner = tx
+                .select(USER_COLUMNS)
+                .from(users)
+                .where(sql`lower(${users.email}) = ${trustedEmail}`)
+                .limit(1)
                 .all();
-              return linked[0] ?? null;
-            }
-          }
+              if ((emailOwner.at(0) ?? null) !== null) return null;
 
-          const username = availableOidcUsername(tx, identity);
-          const created: User = {
-            id: create.id,
-            username,
-            passwordHash: null,
-            email: trustedEmail,
-            idpIssuer: identity.issuer,
-            idpSub: identity.subject,
-            createdAt: stamp.at,
-          };
-          tx.insert(users)
-            .values({ ...created, ...auditOnCreateBesidesCreatedAt(stamp) })
-            .run();
-          return created;
-        }),
+              const legacy = tx
+                .select(USER_COLUMNS)
+                .from(users)
+                .where(sql`lower(${users.username}) = ${trustedEmail}`)
+                .limit(1)
+                .all();
+              const candidate = legacy.at(0) ?? null;
+              if (
+                candidate?.idpIssuer === null &&
+                candidate.idpSub === null &&
+                looksLikeEmail(candidate.username)
+              ) {
+                const linked = tx
+                  .update(users)
+                  .set({
+                    email: trustedEmail,
+                    idpIssuer: identity.issuer,
+                    idpSub: identity.subject,
+                    // Only the update clock moves: this row's author is whoever
+                    // registered the password account, and a first OIDC login
+                    // linking to it is not that act. The stamp's `by` names the id
+                    // this login would have minted, which is deliberately not
+                    // written anywhere here.
+                    ...auditOnUpdate(stamp),
+                  })
+                  .where(eq(users.id, candidate.id))
+                  .returning(USER_COLUMNS)
+                  .all();
+                return linked[0] ?? null;
+              }
+            }
+
+            const username = availableOidcUsername(tx, identity);
+            const created: User = {
+              id: create.id,
+              username,
+              passwordHash: null,
+              email: trustedEmail,
+              idpIssuer: identity.issuer,
+              idpSub: identity.subject,
+              createdAt: stamp.at,
+            };
+            tx.insert(users)
+              .values({ ...created, ...auditOnCreateBesidesCreatedAt(stamp) })
+              .run();
+            return created;
+          },
+          { behavior: 'immediate' },
+        ),
       );
     });
   }
 }
 
 type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+
+/**
+ * Resolves a verified pair after activation, through `external_identity`
+ * alone: email never selects or merges an account (linking is task 4.2).
+ *
+ * - A mapped pair refreshes its user's email and verification when the new
+ *   address is available; a collision refuses resolution, retains the old
+ *   address and revokes its verification for any existing session.
+ * - An unmapped pair whose verified email an account already holds, as its
+ *   email or as its email-shaped username, is a collision: null.
+ * - Any other unmapped pair creates a user and its mapping together.
+ *
+ * Nothing is repaired at login. Activation (task 7.1) copies every legacy
+ * pair first (`backfillExternalIdentities`), so a legacy pair without its
+ * mapping, a mapping to no user, a user whose legacy pair names someone else,
+ * or an empty issuer or subject is corrupt trusted state.
+ *
+ * @throws on any such corruption.
+ */
+function resolveMappedIdentity(
+  tx: Transaction,
+  identity: Pick<OidcIdentity, 'issuer' | 'subject' | 'email' | 'emailVerified'>,
+  create: { id: string },
+  stamp: WriteStamp,
+): User | null {
+  const { issuer, subject } = identity;
+  // Proof: skipping this made `throws on an empty issuer or subject` in
+  // `user-oidc.db.test.ts` create an account; watched 2026-09-28.
+  if (issuer.length === 0 || subject.length === 0)
+    throw new Error('a verified identity has an empty issuer or subject');
+  const mappings = tx
+    .select({ userId: sql<unknown>`${externalIdentity.userId}` })
+    .from(externalIdentity)
+    .where(and(eq(externalIdentity.issuer, issuer), eq(externalIdentity.subject, subject)))
+    .all();
+  // The unique index allows one; a second, or a user id that is not text, is
+  // corrupt trusted state.
+  // Proof: answering the first of two mappings made `throws on a duplicate
+  // or malformed mapping` in `user-oidc.db.test.ts` resolve; watched
+  // 2026-09-28.
+  if (mappings.length > 1)
+    throw new Error(
+      `external identity ${issuer} ${subject} is mapped ${String(mappings.length)} times`,
+    );
+  const legacyOwners = tx
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.idpIssuer, issuer), eq(users.idpSub, subject)))
+    .all();
+  const mapping = mappings.at(0);
+  if (mapping !== undefined) {
+    if (typeof mapping.userId !== 'string' || mapping.userId.length === 0)
+      throw new Error(`external identity ${issuer} ${subject} has a malformed user id`);
+    const owner = tx.select(USER_COLUMNS).from(users).where(eq(users.id, mapping.userId)).get();
+    // Proof: skipping this check, then the disagreement check below, each
+    // made `throws on a mapping to no user and on one its user disagrees with`
+    // in `user-oidc.db.test.ts` fail; watched 2026-09-28.
+    if (owner === undefined)
+      throw new Error(`external identity ${issuer} ${subject} maps to no user`);
+    const ownPair = owner.idpIssuer === null && owner.idpSub === null;
+    if (!ownPair && (owner.idpIssuer !== issuer || owner.idpSub !== subject))
+      throw new Error(`external identity ${issuer} ${subject} disagrees with its user's own pair`);
+    // Proof: skipping this made `throws when the pair maps to one user and
+    // is another's legacy pair` in `user-oidc.db.test.ts` resolve; watched
+    // 2026-09-28.
+    if (legacyOwners.some(({ id }) => id !== owner.id))
+      throw new Error(`external identity ${issuer} ${subject} is another user's legacy pair`);
+    const email = canonicalOidcEmail(identity.email);
+    if (email !== null) {
+      const holder = tx
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          sql`(lower(${users.email}) = ${email} OR lower(${users.username}) = ${email}) AND ${users.id} <> ${owner.id}`,
+        )
+        .get();
+      // Proof: 2026-09-28, bypassing this check made `refuses a mapped email
+      // collision without changing the old address or identity` return a user.
+      if (holder !== undefined) {
+        // Proof: 2026-09-28, skipping this update made `revokes a verified
+        // mapped address after a colliding callback for an existing session`
+        // leave the old claimed domain available to onboarding.
+        tx.update(users)
+          .set({ emailVerified: false, ...auditOnUpdate(stamp) })
+          .where(eq(users.id, owner.id))
+          .run();
+        return null;
+      }
+    }
+    // Proof: 2026-09-28, omitting this update failed `answers the mapped user
+    // whatever email the token now carries` and `clears verification when a
+    // mapped callback lacks literal verified evidence`.
+    return tx
+      .update(users)
+      .set({
+        email,
+        emailVerified: identity.emailVerified && email !== null,
+        ...auditOnUpdate(stamp),
+      })
+      .where(eq(users.id, owner.id))
+      .returning(USER_COLUMNS)
+      .get();
+  }
+  // Proof: skipping this made `throws on a legacy pair activation never
+  // mapped` in `user-oidc.db.test.ts` create a second account; watched
+  // 2026-09-28.
+  if (legacyOwners.length > 0)
+    throw new Error(`legacy identity ${issuer} ${subject} was never mapped at activation`);
+  const normalizedEmail = canonicalOidcEmail(identity.email);
+  if (normalizedEmail !== null) {
+    const holder = tx
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        sql`lower(${users.email}) = ${normalizedEmail} OR lower(${users.username}) = ${normalizedEmail}`,
+      )
+      .get();
+    // Proof: skipping this made `refuses an unmapped identity whose verified
+    // email an account holds, changing nothing` in `user-oidc.db.test.ts`
+    // create an account; watched 2026-09-28.
+    if (holder !== undefined) return null;
+  }
+  const created: User = {
+    id: create.id,
+    username: availableOidcUsername(tx, identity),
+    passwordHash: null,
+    email: normalizedEmail,
+    idpIssuer: issuer,
+    idpSub: subject,
+    createdAt: stamp.at,
+  };
+  tx.insert(users)
+    .values({
+      ...created,
+      emailVerified: identity.emailVerified && normalizedEmail !== null,
+      ...auditOnCreateBesidesCreatedAt(stamp),
+    })
+    .run();
+  tx.insert(externalIdentity)
+    .values({ id: create.id, userId: create.id, issuer, subject, ...auditOnCreate(stamp) })
+    .run();
+  return created;
+}
 
 function availableOidcUsername(
   tx: Transaction,

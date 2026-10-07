@@ -47,7 +47,7 @@ function must<T>(value: T | undefined, what: string): T {
 
 const repoRoot = new URL('../../../../../../', import.meta.url);
 const schema = JSON.parse(
-  readFileSync(new URL('libs/wbs/domain/contracts/solver/solver-wire.v1.json', repoRoot), 'utf8'),
+  readFileSync(new URL('libs/wbs/domain/contracts/solver/solver-wire.v3.json', repoRoot), 'utf8'),
 ) as unknown;
 
 /**
@@ -63,7 +63,7 @@ const SUPERSEDED_SLICE_SENTENCE =
   '`personId`, set-valued `poolIds`, a resolved `priorityWeight`, and a resolved `notBeforeUnits`.';
 
 describe('the wire vocabularies come from the schema, not from prose', () => {
-  it('parses the four wire sets out of solver-wire.v1.json', () => {
+  it('parses the four wire sets out of solver-wire.v3.json', () => {
     const wire = wireVocabularies(schema);
     expect([...must(wire.get('slice'), 'the slice vocabulary').members].sort()).toEqual([
       'deadlineUnits',

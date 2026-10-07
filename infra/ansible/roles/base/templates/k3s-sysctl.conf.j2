@@ -4,3 +4,7 @@ net.bridge.bridge-nf-call-ip6tables = 1
 fs.inotify.max_user_instances = 8192
 fs.inotify.max_user_watches = 524288
 
+{% if 'ingress' in puni_node_capabilities %}
+# The platform Traefik binds 80 and 443 on the host network as UID 65532 and stays non-root.
+net.ipv4.ip_unprivileged_port_start = 0
+{% endif %}

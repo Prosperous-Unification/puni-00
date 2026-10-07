@@ -1,9 +1,17 @@
-import type { PlanDocumentRequest } from '@wbs/contracts';
+import type { PlanDocument, PlanDocumentImport } from '@wbs/contracts';
 import { suggestStepCode } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
+import {
+  classifyPlanDocument,
+  PlanDocumentService,
+} from '../module/plan-document/plan-document.resource';
+import { createImportService } from '../module/plan-import/composition';
+import type { ImportService } from '../module/plan-import/plan-import.feature';
 import { clockOf } from '../ports/clock';
+import { CREATOR_ADMISSION } from '../ports/edit-admission';
+import { LEGACY_ACCESS } from '../ports/organization-access';
 import type { Broadcaster, ProjectEvent } from '../ports/project-event';
 import type { ProjectStore } from '../ports/project-store';
 import type { NewProject } from '../ports/project-store';
@@ -11,8 +19,6 @@ import type { Source } from '../ports/source';
 import type { TransactionalStores } from '../ports/stores';
 import type { UnitOfWork } from '../ports/unit-of-work';
 import type { WorkItemStore } from '../ports/work-item-store';
-import { ImportService } from '../service/import.service';
-import { classifyPlanDocument, PlanDocumentService } from '../service/plan-document';
 import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';
 import { planDocumentFixture } from './plan-document-fixture';
 import { fastScheduler } from './scheduler-fixture';
@@ -35,13 +41,18 @@ function importService(
     newId: () => `imported-${String(++next)}`,
   });
   const announcements = options.announcements ?? recordingBroadcaster();
-  return new ImportService({
+  return createImportService({
     clock,
     scheduler: fastScheduler,
     uow: options.uow ?? source.uow,
     announcements,
     batchServices: (scope, broadcast) =>
-      servicesOver(scope.stores, { clock, broadcast, scheduler: fastScheduler }),
+      servicesOver(scope.stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      }),
   });
 }
 
@@ -97,7 +108,7 @@ function heldBroadcaster(
   };
 }
 
-function roundTripFixture(): PlanDocumentRequest {
+function roundTripFixture(): PlanDocumentImport {
   const document = planDocumentFixture();
   document.settings = {
     ...document.settings,
@@ -116,9 +127,9 @@ function roundTripFixture(): PlanDocumentRequest {
     scheduleObjective: 'time',
   };
   document.steps = [
-    { id: 'step-discover', name: 'Discover', position: 10 },
-    { id: 'step-build', name: 'Build', position: 30 },
-    { id: 'step-verify', name: 'Verify', position: 70 },
+    { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0, code: 'discover' },
+    { id: 'step-build', name: 'Build', position: 30, allowancePercent: 12.5, code: 'impl' },
+    { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 30, code: 'verify' },
   ];
   document.calendarMarkers = [
     {
@@ -206,13 +217,18 @@ function roundTripFixture(): PlanDocumentRequest {
   return document;
 }
 
-async function exportProject(
+async function exportDocument(
   source: Source<TransactionalStores>,
   projectId: string,
-): Promise<PlanDocumentRequest> {
+): Promise<PlanDocument> {
   const clock = clockOf({ now: () => STAMP.at, newId: () => crypto.randomUUID() });
   const broadcast = recordingBroadcaster();
-  const graph = servicesOver(source.stores, { clock, broadcast, scheduler: fastScheduler });
+  const graph = servicesOver(source.stores, {
+    admission: CREATOR_ADMISSION,
+    clock,
+    broadcast,
+    scheduler: fastScheduler,
+  });
   const [project, tree] = await Promise.all([
     source.stores.projects.findById(projectId),
     graph.workItems.tree(projectId),
@@ -223,13 +239,21 @@ async function exportProject(
     directory: source.stores.directory,
     markers: graph.calendarMarkers,
     clock,
-  }).export(project, tree);
-  const classified = await classifyPlanDocument(exported);
+  }).export(project, tree, LEGACY_ACCESS);
+  if (!exported.ok) throw new Error(`imported project export refused: ${exported.error}`);
+  return exported.value;
+}
+
+async function exportProject(
+  source: Source<TransactionalStores>,
+  projectId: string,
+): Promise<PlanDocumentImport> {
+  const classified = await classifyPlanDocument(await exportDocument(source, projectId));
   if (!classified.ok) throw new Error(`exported project refused at ${classified.path}`);
   return classified.value;
 }
 
-function authoredSnapshot(document: PlanDocumentRequest): unknown {
+function authoredSnapshot(document: PlanDocumentImport): unknown {
   const aliases = new Map<string, string>();
   const alias = (kind: string, id: string, name: string): void => {
     aliases.set(id, `${kind}:${name}`);
@@ -346,13 +370,31 @@ function heldSolutionUnitOfWork(
             }
             return stored.create(project, steps, stamp);
           },
+          createInOrganization: (project, steps, stamp, organizationId) =>
+            stored.createInOrganization(project, steps, stamp, organizationId),
           findById: (id) => stored.findById(id),
+          findInOrganization: (id, organizationId) => stored.findInOrganization(id, organizationId),
+          editInOrganization: (id, patch, stamp, organizationId, editor) =>
+            stored.editInOrganization(id, patch, stamp, organizationId, editor),
+          admitEditInOrganization: (projectId, organizationId, actorId, detail) =>
+            stored.admitEditInOrganization(projectId, organizationId, actorId, detail),
+          findCrossReferences: (projectId, organizationId) =>
+            stored.findCrossReferences(projectId, organizationId),
+          listForInOrganization: (userId, organizationId) =>
+            stored.listForInOrganization(userId, organizationId),
           findBySolutionSlug: (slug) => stored.findBySolutionSlug(slug),
+          findBySolutionSlugInOrganization: (slug, organizationId) =>
+            stored.findBySolutionSlugInOrganization(slug, organizationId),
           list: () => stored.list(),
           listFor: (userId) => stored.listFor(userId),
           recordOpen: (projectId, stamp) => stored.recordOpen(projectId, stamp),
+          recordOpenInOrganization: (projectId, stamp, organizationId) =>
+            stored.recordOpenInOrganization(projectId, stamp, organizationId),
           update: (id, changes, stamp) => stored.update(id, changes, stamp),
           stepsOf: (projectId) => stored.stepsOf(projectId),
+          setStepAllowance: (projectId, stepId, percent, stamp) =>
+            stored.setStepAllowance(projectId, stepId, percent, stamp),
+          stepAllowanceRevisions: (projectId) => stored.stepAllowanceRevisions(projectId),
         };
         return act({ stores: { ...scope.stores, projects } });
       });
@@ -382,7 +424,7 @@ export function importServiceSourceContract(
         await source.stores.directory.addTag({ id: 'held-tag', name: 'Release' }, STAMP);
         const document = planDocumentFixture();
 
-        const imported = await importService(source).import(document, ACTOR);
+        const imported = await importService(source).import(document, ACTOR, LEGACY_ACCESS);
 
         expect(imported).toMatchObject({
           ok: true,
@@ -429,7 +471,7 @@ export function importServiceSourceContract(
         const beforeBytes = JSON.stringify(before);
         const document = planDocumentFixture();
 
-        await importService(source).import(document, ACTOR);
+        await importService(source).import(document, ACTOR, LEGACY_ACCESS);
 
         const after = (await source.stores.directory.listPeople()).find(
           ({ id }) => id === added.person.id,
@@ -445,7 +487,7 @@ export function importServiceSourceContract(
       try {
         const document = planDocumentFixture();
 
-        await importService(source).import(document, ACTOR);
+        await importService(source).import(document, ACTOR, LEGACY_ACCESS);
 
         const team = (await source.stores.directory.listTeams()).find(
           ({ name }) => name === 'Billing',
@@ -493,7 +535,7 @@ export function importServiceSourceContract(
           url: 'https://example.test/imported',
         };
 
-        const imported = await importService(source).import(document, ACTOR);
+        const imported = await importService(source).import(document, ACTOR, LEGACY_ACCESS);
 
         expect(imported).toMatchObject({ ok: true, solutionRef: 'left-off' });
       } finally {
@@ -514,9 +556,9 @@ export function importServiceSourceContract(
         document.settings.scheduleEngine = 'optimized';
         document.settings.scheduleObjective = 'time';
         document.steps = [
-          { id: 'step-discover', name: 'Discover', position: 10 },
-          { id: 'step-build', name: 'Build', position: 30 },
-          { id: 'step-verify', name: 'Verify', position: 70 },
+          { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0, code: null },
+          { id: 'step-build', name: 'Build', position: 30, allowancePercent: 0, code: null },
+          { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 0, code: null },
         ];
         const row = document.workItems.at(0);
         if (row === undefined) throw new Error('plan document fixture has no work item');
@@ -536,7 +578,7 @@ export function importServiceSourceContract(
           },
         ];
 
-        const imported = await importService(source).import(document, ACTOR);
+        const imported = await importService(source).import(document, ACTOR, LEGACY_ACCESS);
         if (!imported.ok) throw new Error(`valid import refused at ${imported.path}`);
         const project = await source.stores.projects.findById(imported.projectId);
         const steps = await source.stores.projects.stepsOf(imported.projectId);
@@ -693,12 +735,13 @@ export function importServiceSourceContract(
             revision: 0,
             createdAt: STAMP.at,
           },
-          document.steps.map(({ id, name, position }) => ({
+          document.steps.map(({ id, name, position, allowancePercent }) => ({
             id,
             projectId: 'source-project',
             name,
             position,
             code: suggestStepCode(name, new Set()),
+            allowancePercent,
           })),
           STAMP,
         );
@@ -717,6 +760,8 @@ export function importServiceSourceContract(
               deadline: null,
               factStart: null,
               factEnd: null,
+              readiness: null,
+              hold: null,
               priority: null,
               serviceTeamId: null,
               serviceId: null,
@@ -741,7 +786,7 @@ export function importServiceSourceContract(
         );
         const originals = await source.stores.workItems.listByProject('source-project');
 
-        const imported = await importService(source).import(document, ACTOR);
+        const imported = await importService(source).import(document, ACTOR, LEGACY_ACCESS);
         if (!imported.ok) throw new Error(`valid import refused at ${imported.path}`);
         const [rows, steps, estimates, actuals, progress, measures, dependencies, assigned] =
           await Promise.all([
@@ -928,7 +973,7 @@ export function importServiceSourceContract(
             announcements,
             uow: faultedUnitOfWork(source, fault, admitted, release.promise),
           });
-          const settled = service.import(planDocumentFixture(), ACTOR).then(
+          const settled = service.import(planDocumentFixture(), ACTOR, LEGACY_ACCESS).then(
             (outcome) => ({ kind: 'returned' as const, outcome }),
             (cause: unknown) => ({ kind: 'threw' as const, cause }),
           );
@@ -985,9 +1030,9 @@ export function importServiceSourceContract(
           url: 'https://example.test/solutions/second',
         };
 
-        const first = service.import(firstDocument, ACTOR);
+        const first = service.import(firstDocument, ACTOR, LEGACY_ACCESS);
         await creationHeld.promise;
-        const second = service.import(secondDocument, ACTOR);
+        const second = service.import(secondDocument, ACTOR, LEGACY_ACCESS);
         await secondStarted.promise;
         release.resolve(undefined);
         const [firstOutcome, secondOutcome] = await Promise.all([first, second]);
@@ -1039,6 +1084,7 @@ export function importServiceSourceContract(
         const imported = await importService(source, { announcements }).import(
           planDocumentFixture(),
           ACTOR,
+          LEGACY_ACCESS,
         );
         if (!imported.ok) throw new Error(`valid import refused at ${imported.path}`);
 
@@ -1085,6 +1131,7 @@ export function importServiceSourceContract(
         const importing = importService(source, { announcements }).import(
           planDocumentFixture(),
           ACTOR,
+          LEGACY_ACCESS,
         );
         await publishing.promise;
 
@@ -1107,11 +1154,469 @@ export function importServiceSourceContract(
       }
     });
 
+    it.each([
+      [1, ['discover', 'build', 'verify']],
+      [2, ['discover', 'build', 'verify']],
+      [3, ['discover', 'impl', 'verify']],
+    ] as const)(
+      'round trips a version-%d file’s step codes, suggesting those it does not keep',
+      async (version, codes) => {
+        const source = await ownedSource();
+        try {
+          const file: unknown = structuredClone(roundTripFixture());
+          const header: unknown = Reflect.get(file as object, 'document');
+          Reflect.set(header as object, 'version', version);
+          if (version === 3)
+            Reflect.set(file as object, 'typedDependencies', [
+              {
+                id: 'ignored',
+                predecessor: { scope: 'node', workItem: 'absent', step: 'absent' },
+                successor: { scope: 'whole', workItem: 'absent' },
+                type: 'SS',
+              },
+            ]);
+          if (version === 1)
+            for (const step of Reflect.get(file as object, 'steps') as object[])
+              Reflect.deleteProperty(step, 'allowancePercent');
+          const classified = await classifyPlanDocument(file);
+          if (!classified.ok) throw new Error(`version ${String(version)} refused`);
+
+          const imported = await importService(source).import(
+            classified.value,
+            ACTOR,
+            LEGACY_ACCESS,
+          );
+          if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+          const exported = await exportDocument(source, imported.projectId);
+
+          expect(exported.document.version).toBe(6);
+          expect(exported.typedDependencies).toEqual([]);
+          expect(exported.steps.map(({ name, code }) => [name, code])).toEqual([
+            ['Discover', codes[0]],
+            ['Build', codes[1]],
+            ['Verify', codes[2]],
+          ]);
+          // The copy's nodes follow its own work item and step IDs.
+          const stepIds = new Set(exported.steps.map(({ id }) => id));
+          const rowIds = new Set(exported.workItems.map(({ id }) => id));
+          for (const node of exported.stepNodes) {
+            expect(stepIds.has(node.stepId) && rowIds.has(node.workItemId)).toBe(true);
+            expect(node.id).toBe(`sn1.${node.workItemId}.${node.stepId}`);
+          }
+          expect(exported.stepNodes.length).toBeGreaterThan(0);
+        } finally {
+          await source.close();
+        }
+      },
+    );
+
+    it('round trips SS and FF step links and a legacy link with fresh identities', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 5;
+        Reflect.set(file, 'typedDependencies', [
+          {
+            id: 'node-link',
+            predecessor: { scope: 'node', workItem: 'row-build', step: 'step-build' },
+            successor: { scope: 'node', workItem: 'row-verify', step: 'step-verify' },
+            type: 'SS',
+          },
+          {
+            id: 'whole-link',
+            predecessor: { scope: 'whole', workItem: 'row-build' },
+            successor: { scope: 'whole', workItem: 'row-verify' },
+            type: 'FF',
+          },
+        ]);
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+        const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
+        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+        const exported = await exportDocument(source, imported.projectId);
+        const build = exported.workItems.find(({ name }) => name === 'Build release');
+        const verify = exported.workItems.find(({ name }) => name === 'Verify release');
+        const buildStep = exported.steps.find(({ code }) => code === 'impl');
+        const verifyStep = exported.steps.find(({ code }) => code === 'verify');
+        if (
+          build === undefined ||
+          verify === undefined ||
+          buildStep === undefined ||
+          verifyStep === undefined
+        )
+          throw new Error('round-trip relationship references disappeared');
+        expect(exported.document.version).toBe(6);
+        expect(
+          exported.typedDependencies.map(({ predecessor, successor, type }) => ({
+            predecessor,
+            successor,
+            type,
+          })),
+        ).toEqual([
+          {
+            predecessor: { scope: 'node', workItem: build.id, step: buildStep.id },
+            successor: { scope: 'node', workItem: verify.id, step: verifyStep.id },
+            type: 'SS',
+          },
+          {
+            predecessor: { scope: 'whole', workItem: build.id },
+            successor: { scope: 'whole', workItem: verify.id },
+            type: 'FF',
+          },
+        ]);
+        expect(new Set(exported.typedDependencies.map(({ id }) => id)).size).toBe(2);
+        expect(exported.typedDependencies.map(({ id }) => id)).not.toContain('node-link');
+        expect(verify.dependsOn).toContain(build.id);
+        expect(exported.settings.depReach).toBe('anchor-slice');
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('round-trips a version-6 readiness and hold, and reads a version-5 file with neither', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 6;
+        const leaf = file.workItems.find(
+          (row) => !file.workItems.some((child) => child.parentId === row.id),
+        );
+        if (leaf === undefined) throw new Error('round-trip fixture has no leaf');
+        Reflect.set(leaf, 'readiness', 'ready');
+        Reflect.set(leaf, 'hold', 'blocked');
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+        const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
+        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+        const exported = await exportDocument(source, imported.projectId);
+        expect(exported.workItems.find(({ name }) => name === leaf.name)).toMatchObject({
+          readiness: 'ready',
+          hold: 'blocked',
+        });
+
+        file.document.version = 5;
+        const older = await classifyPlanDocument(file);
+        if (!older.ok) throw new Error(`version 5 refused at ${older.path}`);
+        expect(
+          older.value.workItems.every(({ readiness, hold }) => readiness === null && hold === null),
+        ).toBe(true);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('re-imports its own export of a leaf held and then marked done (add-work-item-statuses)', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 6;
+        const leaf = file.workItems.find(
+          (row) => !file.workItems.some((child) => child.parentId === row.id),
+        );
+        if (leaf === undefined) throw new Error('round-trip fixture has no leaf');
+        Reflect.set(leaf, 'hold', 'on_hold');
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+        const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
+        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+
+        const graph = servicesOver(source.stores, {
+          admission: CREATOR_ADMISSION,
+          clock: clockOf({ now: () => STAMP.at, newId: () => crypto.randomUUID() }),
+          broadcast: recordingBroadcaster(),
+          scheduler: fastScheduler,
+        });
+        const tree = await graph.workItems.tree(imported.projectId);
+        if (tree === null || 'kind' in tree) throw new Error('imported project has no tree');
+        const held = tree.workItems.find(({ name }) => name === leaf.name);
+        if (held === undefined) throw new Error('imported leaf is missing');
+        for (const step of tree.steps) {
+          const marked = await graph.workItems.setProgress(held.id, ACTOR, step.id, 'done');
+          if (!marked.ok) throw new Error(`cannot mark ${step.id} done`);
+        }
+
+        const exported = await exportDocument(source, imported.projectId);
+        expect(exported.workItems.find(({ name }) => name === leaf.name)).toMatchObject({
+          hold: 'on_hold',
+        });
+        const again = await classifyPlanDocument(exported);
+        expect(again.ok).toBe(true);
+        if (!again.ok) return;
+        const reimported = await importService(source).import(again.value, ACTOR, LEGACY_ACCESS);
+        if (!reimported.ok) throw new Error(`re-import refused at ${reimported.path}`);
+        const reread = await graph.workItems.tree(reimported.projectId);
+        if (reread === null || 'kind' in reread) throw new Error('re-imported project has no tree');
+        expect(reread.workItems.find(({ name }) => name === leaf.name)).toMatchObject({
+          status: 'done',
+          hold: 'on_hold',
+        });
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('refuses a missing typed step before any project write', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 4;
+        Reflect.set(file, 'typedDependencies', [
+          {
+            id: 'missing-step',
+            predecessor: { scope: 'node', workItem: 'row-build', step: 'absent' },
+            successor: { scope: 'whole', workItem: 'row-verify' },
+            type: 'FS',
+          },
+        ]);
+        const before = await source.stores.projects.list();
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+        expect(
+          await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS),
+        ).toMatchObject({
+          ok: false,
+          code: 'invalid_typed_dependency',
+          path: 'typedDependencies[0].predecessor.step',
+        });
+        expect(await source.stores.projects.list()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('refuses a shuffled-step relationship cyclic in position order before writing', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 4;
+        const verify = file.workItems.find(({ id }) => id === 'row-verify');
+        if (verify === undefined) throw new Error('fixture verification leaf disappeared');
+        verify.dependsOn = [];
+        file.steps.reverse();
+        Reflect.set(file, 'typedDependencies', [
+          {
+            id: 'backward-step',
+            predecessor: { scope: 'node', workItem: 'row-build', step: 'step-verify' },
+            successor: { scope: 'node', workItem: 'row-build', step: 'step-build' },
+            type: 'FS',
+          },
+        ]);
+        const before = await source.stores.projects.list();
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+
+        expect(
+          await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS),
+        ).toMatchObject({
+          ok: false,
+          code: 'invalid_typed_dependency',
+          path: 'typedDependencies',
+        });
+        expect(await source.stores.projects.list()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('imports a shuffled-step relationship valid in position order', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 4;
+        const verify = file.workItems.find(({ id }) => id === 'row-verify');
+        if (verify === undefined) throw new Error('fixture verification leaf disappeared');
+        verify.dependsOn = [];
+        file.steps.reverse();
+        Reflect.set(file, 'typedDependencies', [
+          {
+            id: 'forward-step',
+            predecessor: { scope: 'node', workItem: 'row-build', step: 'step-build' },
+            successor: { scope: 'node', workItem: 'row-build', step: 'step-verify' },
+            type: 'FS',
+          },
+        ]);
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+
+        const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
+        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+        expect((await exportDocument(source, imported.projectId)).typedDependencies).toHaveLength(
+          1,
+        );
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('imports distinct relationships whose work-item and step IDs share a delimiter spelling', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 4;
+        const first = file.workItems.find(({ id }) => id === 'row-build');
+        const target = file.workItems.find(({ id }) => id === 'row-verify');
+        if (first === undefined || target === undefined)
+          throw new Error('fixture leaves disappeared');
+        first.id = 'a:b';
+        target.dependsOn = [];
+        file.workItems.push({ ...structuredClone(target), id: 'a', position: 30, name: 'Other' });
+        file.steps.push(
+          { id: 'c', name: 'C', position: 80, allowancePercent: 0, code: 'c' },
+          { id: 'b:c', name: 'BC', position: 90, allowancePercent: 0, code: 'bc' },
+        );
+        Reflect.set(file, 'typedDependencies', [
+          {
+            id: 'first',
+            predecessor: { scope: 'node', workItem: 'a:b', step: 'c' },
+            successor: { scope: 'whole', workItem: 'row-verify' },
+            type: 'FS',
+          },
+          {
+            id: 'second',
+            predecessor: { scope: 'node', workItem: 'a', step: 'b:c' },
+            successor: { scope: 'whole', workItem: 'row-verify' },
+            type: 'FS',
+          },
+        ]);
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+
+        const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
+        if (!imported.ok)
+          throw new Error(`import refused at ${imported.path}: ${String(imported.detail)}`);
+        expect((await exportDocument(source, imported.projectId)).typedDependencies).toHaveLength(
+          2,
+        );
+      } finally {
+        await source.close();
+      }
+    });
+
+    it.each([
+      [
+        'unknown scope',
+        {
+          id: 'bad',
+          predecessor: { scope: 'elsewhere', workItem: 'row-build' },
+          successor: { scope: 'whole', workItem: 'row-verify' },
+          type: 'FS',
+        },
+      ],
+      [
+        'unknown type',
+        {
+          id: 'bad',
+          predecessor: { scope: 'whole', workItem: 'row-build' },
+          successor: { scope: 'whole', workItem: 'row-verify' },
+          type: 'SS',
+        },
+      ],
+      [
+        'unknown work item',
+        {
+          id: 'bad',
+          predecessor: { scope: 'whole', workItem: 'absent' },
+          successor: { scope: 'whole', workItem: 'row-verify' },
+          type: 'FS',
+        },
+      ],
+      [
+        'node on parent',
+        {
+          id: 'bad',
+          predecessor: { scope: 'node', workItem: 'row-1', step: 'step-build' },
+          successor: { scope: 'whole', workItem: 'row-verify' },
+          type: 'FS',
+        },
+      ],
+      [
+        'descendant step on leaf',
+        {
+          id: 'bad',
+          predecessor: { scope: 'descendant-step', workItem: 'row-build', step: 'step-build' },
+          successor: { scope: 'whole', workItem: 'row-verify' },
+          type: 'FS',
+        },
+      ],
+      [
+        'duplicate relationship',
+        {
+          id: 'bad',
+          predecessor: { scope: 'whole', workItem: 'row-build' },
+          successor: { scope: 'whole', workItem: 'row-verify' },
+          type: 'FS',
+        },
+      ],
+      [
+        'combined cycle',
+        {
+          id: 'bad',
+          predecessor: { scope: 'whole', workItem: 'row-verify' },
+          successor: { scope: 'whole', workItem: 'row-build' },
+          type: 'FS',
+        },
+      ],
+      [
+        'self node',
+        {
+          id: 'bad',
+          predecessor: { scope: 'node', workItem: 'row-build', step: 'step-build' },
+          successor: { scope: 'node', workItem: 'row-build', step: 'step-build' },
+          type: 'FS',
+        },
+      ],
+    ] as const)('refuses a %s without a partial plan write', async (fault, relationship) => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 4;
+        Reflect.set(
+          file,
+          'typedDependencies',
+          fault === 'duplicate relationship'
+            ? [relationship, { ...relationship, id: 'also-bad' }]
+            : [relationship],
+        );
+        const before = await source.stores.projects.list();
+        const classified = await classifyPlanDocument(file);
+        const refusal = classified.ok
+          ? await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS)
+          : classified;
+        expect(refusal).toMatchObject({ ok: false, code: 'invalid_typed_dependency' });
+        expect(await source.stores.projects.list()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('refuses a version-3 file with a duplicate step code, writing no project', async () => {
+      const source = await ownedSource();
+      try {
+        const before = await source.stores.projects.list();
+        const duplicated = roundTripFixture();
+        const verify = duplicated.steps.at(2);
+        if (verify === undefined) throw new Error('round-trip fixture lacks its third step');
+        verify.code = 'impl';
+
+        const refused = await importService(source).import(duplicated, ACTOR, LEGACY_ACCESS);
+
+        expect(refused).toMatchObject({
+          ok: false,
+          code: 'invalid_body',
+          path: 'steps[2].code',
+          detail: 'impl',
+        });
+        expect(await source.stores.projects.list()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    });
+
     it('round trips every authored input while storing leaf values only', async () => {
       const source = await ownedSource();
       try {
         const service = importService(source);
-        const seeded = await service.import(roundTripFixture(), ACTOR);
+        const seeded = await service.import(roundTripFixture(), ACTOR, LEGACY_ACCESS);
         if (!seeded.ok) throw new Error(`round-trip seed refused at ${seeded.path}`);
         const exported = await exportProject(source, seeded.projectId);
         const directoryBefore = {
@@ -1123,7 +1628,7 @@ export function importServiceSourceContract(
           systems: await source.stores.directory.listExternalSystems(),
         };
 
-        const restored = await service.import(exported, ACTOR);
+        const restored = await service.import(exported, ACTOR, LEGACY_ACCESS);
         if (!restored.ok) throw new Error(`round-trip restore refused at ${restored.path}`);
         expect(restored.solutionRef).toBe('left-off');
         const reexported = await exportProject(source, restored.projectId);

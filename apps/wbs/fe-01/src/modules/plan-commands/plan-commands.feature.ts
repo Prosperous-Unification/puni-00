@@ -27,6 +27,7 @@ export function createPlanCommands({ projectId, routes }: PlanCommandPorts): Pla
     setPriorityBands: (...rest) => routes.setPriorityBands(projectId, ...rest),
     addStep: (...rest) => routes.addStep(projectId, ...rest),
     renameStep: (...rest) => routes.renameStep(projectId, ...rest),
+    setStepAllowance: (...rest) => routes.setStepAllowance(projectId, ...rest),
     removeStep: (...rest) => routes.removeStep(projectId, ...rest),
     createWorkItem: (...rest) => routes.createWorkItem(projectId, ...rest),
     arrangeBySchedule: (...rest) => routes.arrangeBySchedule(projectId, ...rest),
@@ -39,6 +40,9 @@ export function createPlanCommands({ projectId, routes }: PlanCommandPorts): Pla
     // [ 'freeze:p1', 'patch:w1' ]`: the replaced route never heard the call.
     freezeProject: (...rest) => routes.freezeProject(projectId, ...rest),
     unfreezeProject: (...rest) => routes.unfreezeProject(projectId, ...rest),
+    addTypedDependency: (...rest) => routes.addTypedDependency(projectId, ...rest),
+    updateTypedDependency: (...rest) => routes.updateTypedDependency(projectId, ...rest),
+    removeTypedDependency: (...rest) => routes.removeTypedDependency(projectId, ...rest),
     // Proof: on 2026-09-24, handing `patchWorkItem` the project in place of the work item failed
     // `passes every work-item command through unchanged, leaving out what the caller left out`:
     // the route received `p1` where `w1` was expected.

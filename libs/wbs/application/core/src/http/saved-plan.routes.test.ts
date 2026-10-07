@@ -4,6 +4,7 @@ import { expect, mock, test } from 'bun:test';
 
 import type { SavedPlanWrite } from '../ports/saved-plan-store';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { EMPTY } from './endpoint';
 import { savedPlanRoutes } from './saved-plan.routes';
 const principal: AuthenticatedUser = { id: 'actor', username: 'Ada', scopes: ['read', 'write'] };
@@ -49,8 +50,13 @@ function fixture() {
   const rename = mock(() => Promise.resolve({ outcome: 'touched' as const, projectId: 'p' }));
   const remove = mock(() => Promise.resolve({ outcome: 'touched' as const, projectId: 'p' }));
   const plans = { save, list, read, compare, rename, delete: remove };
-  const projects = { read: projectRead };
-  const endpoints = savedPlanRoutes(plans as never, projects as never, announcements);
+  const projects = { readWithin: projectRead };
+  const endpoints = savedPlanRoutes(
+    plans as never,
+    projects as never,
+    announcements,
+    legacyOrganizationAccess,
+  );
   return { endpoints, save, list, read, compare, rename, remove, projectRead, announcements };
 }
 
@@ -63,20 +69,20 @@ test('direct save and touch bindings pass the admitted actor and announce commit
   });
   expect(f.save).toHaveBeenCalledWith({
     projectId: 'p',
-    name: undefined,
     createdBy: 'Ada',
     createdById: 'actor',
+    access: { kind: 'legacy' },
   });
   expect(
     await f.endpoints[4].handle({ ...direct, params: { id: 's' }, body: { name: '  ' } }),
   ).toEqual({ ok: true, status: 200, body: { savedPlanId: 's', name: '  ' } });
-  expect(f.rename).toHaveBeenCalledWith('s', 'actor', '  ');
+  expect(f.rename).toHaveBeenCalledWith('s', 'actor', '  ', undefined);
   expect(await f.endpoints[5].handle({ ...direct, params: { id: 's' }, body: undefined })).toEqual({
     ok: true,
     status: 204,
     body: EMPTY,
   });
-  expect(f.remove).toHaveBeenCalledWith('s', 'actor');
+  expect(f.remove).toHaveBeenCalledWith('s', 'actor', undefined);
   expect(f.announcements.published).toEqual(
     Array.from({ length: 3 }, () => ({ projectId: 'p', event: { type: 'saved_plans_changed' } })),
   );

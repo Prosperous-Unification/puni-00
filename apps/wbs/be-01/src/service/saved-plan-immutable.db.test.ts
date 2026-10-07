@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from '../repository/capacity';
@@ -22,7 +23,6 @@ import { WorkItemRepository } from '../repository/work-item';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { projectRow } from '../testing/project-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import { SavedPlanService } from './saved-plan.service';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -63,6 +63,8 @@ describe('a saved plan does not move when the live plan does', () => {
     deadline: null,
     factStart: null,
     factEnd: null,
+    readiness: null,
+    hold: null,
     revision: 0,
   });
 
@@ -85,8 +87,22 @@ describe('a saved plan does not move when the live plan does', () => {
         startDate: '2026-03-02',
       }),
       [
-        { id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' },
-        { id: 'st-2', projectId: 'p1', name: 'Review', position: 20, code: 'review' },
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+        {
+          id: 'st-2',
+          projectId: 'p1',
+          name: 'Review',
+          position: 20,
+          code: 'review',
+          allowancePercent: 0,
+        },
       ],
       wrote,
     );

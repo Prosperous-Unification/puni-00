@@ -1,0 +1,54 @@
+{
+  "wireVersion": 3,
+  "contractVersion": "15+0.2.0",
+  "solverVersion": "0.2.0",
+  "objective": "time",
+  "budgetMs": 1000,
+  "stageBudgetSplit": [0.6, 0.25, 0.15],
+  "quantum": 48,
+  "horizonUnits": 4,
+  "slices": [
+    {
+      "workItemKey": "A",
+      "key": "A\u0000",
+      "durationUnits": 2,
+      "width": 1,
+      "personId": null,
+      "poolIds": [],
+      "priorityWeight": 0,
+      "notBeforeUnits": 0,
+      "deadlineUnits": null,
+      "workItemIsMilestone": false
+    },
+    {
+      "workItemKey": "B",
+      "key": "B\u0000",
+      "durationUnits": 2,
+      "width": 1,
+      "personId": null,
+      "poolIds": [],
+      "priorityWeight": 0,
+      "notBeforeUnits": 0,
+      "deadlineUnits": null,
+      "workItemIsMilestone": false
+    }
+  ],
+  "edges": [
+    {
+      "predecessorKey": "A\u0000",
+      "successorKey": "B\u0000",
+      "type": "FF",
+      "startWeightUnits": 1
+    }
+  ],
+  "pools": {},
+  "baselineOffsets": {
+    "A\u0000": 0,
+    "B\u0000": 2
+  },
+  "elsewhere": {},
+  "fastHint": {
+    "A\u0000": 0,
+    "B\u0000": 2
+  }
+}

@@ -1,4 +1,5 @@
 import type { ScheduleInput } from './canonical-schedule-input';
+import { validateRealBoundaries } from './real-boundaries';
 import { type Schedule, schedule } from './schedule';
 import { type RealObjectiveValues, scoreReal } from './score-real';
 
@@ -115,6 +116,7 @@ export function guardRealPublication(
   weightOf: (sliceKey: string) => number,
   baselineStartOf: (sliceKey: string) => number,
 ): PublicationDecision {
+  validateRealBoundaries(input, optimized);
   // Every field of `ScheduleInput`, in the argument tuple's own order. The
   // interface and this signature are the same tuple by design
   // (`canonical-schedule-input.ts`), so a field named there and absent here is
@@ -134,6 +136,11 @@ export function guardRealPublication(
     input.poolSizes,
     input.reach,
     input.deadlines,
+    input.typed,
+    undefined,
+    // The baseline the optimized answer is scored against is the Fast plan the
+    // reader would otherwise see, bookings elsewhere included.
+    input.elsewhere,
   );
 
   const optimizedValues = scoreReal(optimized, weightOf, baselineStartOf);

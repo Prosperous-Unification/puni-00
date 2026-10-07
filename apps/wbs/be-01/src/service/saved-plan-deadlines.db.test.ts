@@ -2,8 +2,15 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CREATOR_ADMISSION } from '@wbs/core';
+import {
+  captureAndSchedulePlan,
+  scheduleInputOfCaptured,
+  schedulePlanInput,
+} from '@wbs/core/service/saved-plan-schedule';
 import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ActualRepository } from '../repository/actual';
@@ -29,11 +36,6 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import {
-  captureAndSchedulePlan,
-  scheduleInputOfCaptured,
-  schedulePlanInput,
-} from './saved-plan-schedule';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -102,7 +104,16 @@ describe('a captured plan and its deadlines', () => {
         estimateMethod: 'realistic',
         startDate: START,
       }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);
@@ -135,6 +146,8 @@ describe('a captured plan and its deadlines', () => {
           deadline,
           factStart: null,
           factEnd: null,
+          readiness: null,
+          hold: null,
           revision: 0,
         },
         [],
@@ -179,6 +192,7 @@ describe('a captured plan and its deadlines', () => {
     opened.push(live);
     const { db } = live;
     return new WorkItemService({
+      admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems: new WorkItemRepository(db, OPEN),
@@ -188,6 +202,7 @@ describe('a captured plan and its deadlines', () => {
       measures: new StepMeasureRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       dependencies: new DependencyRepository(db, OPEN),
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
       directory: new DirectoryRepository(db, OPEN),
       capacity: new CapacityRepository(db, OPEN),
       priorityBands: new PriorityBandRepository(db, OPEN),

@@ -34,6 +34,8 @@ const fixture = (): FixtureDocument => ({
     '/health': { get: { operationId: 'getHealth' } },
     '/metrics': { get: { operationId: 'getMetrics' } },
     '/api/smoke/echo': { post: { operationId: 'postApiSmokeEcho' } },
+    '/api/organization/memberships': { get: { operationId: 'getApiOrganizationMemberships' } },
+    '/api/organization/active': { post: { operationId: 'postApiOrganizationActive' } },
     '/api/auth/login': { post: { operationId: 'postApiAuthLogin' } },
     '/internal/forward': { post: { operationId: 'postInternalForward' } },
     '/api/projects/': {
@@ -108,6 +110,8 @@ describe('toolsFromDocument, on a fixture document', () => {
     expect(names).not.toContain('postApiSmokeEcho');
     expect(names).not.toContain('postApiAuthLogin');
     expect(names).not.toContain('postInternalForward');
+    expect(names).not.toContain('getApiOrganizationMemberships');
+    expect(names).not.toContain('postApiOrganizationActive');
     expect([...names].sort()).toEqual(['getApiProjects', 'getApiProjectsById', 'putBand']);
   });
 
@@ -242,7 +246,7 @@ describe('toolsFromDocument, on the generated document', () => {
       'workItems',
     ]);
     expect(JSON.stringify(importDocument.inputSchema)).not.toContain('"$ref"');
-    expect(EXCLUDED_PATHS).toHaveLength(3);
+    expect(EXCLUDED_PATHS).toHaveLength(5);
   });
 
   it('offers batches, not single writes (plan-commands)', () => {
@@ -320,11 +324,15 @@ describe('toolsFromDocument, on the generated document', () => {
       'setAssignee',
       'addDependency',
       'removeDependency',
+      'addTypedDependency',
+      'updateTypedDependency',
+      'removeTypedDependency',
       'arrangeBySchedule',
       'freezeProject',
       'unfreezeProject',
       'unfreezeWorkItem',
       'setCapacity',
+      'setStepAllowance',
       'setPriorityBands',
       'createTeam',
       'patchTeam',
@@ -413,14 +421,21 @@ describe('toolsFromDocument, on the generated document', () => {
   });
 
   it('derives a write with path parameters and a body from both sides', () => {
-    // The step rename: two path parameters and a typebox body. Until
-    // `plan-commands` this read the estimate PUT, which is a batch command now.
+    // The step patch: two path parameters and a body that renames the step,
+    // sets its estimate allowance, or both. Until `plan-commands` this read
+    // the estimate PUT, which is a batch command now.
     const rename = byName(tools, 'patchApiProjectsByIdStepsByStepId');
     expect(rename.method).toBe('patch');
-    expect(Object.keys(rename.inputSchema.properties).sort()).toEqual(['id', 'name', 'stepId']);
-    expect([...(rename.inputSchema.required ?? [])].sort()).toEqual(['id', 'name', 'stepId']);
+    expect(Object.keys(rename.inputSchema.properties).sort()).toEqual([
+      'allowancePercent',
+      'id',
+      'name',
+      'stepId',
+    ]);
+    expect([...(rename.inputSchema.required ?? [])].sort()).toEqual(['id', 'stepId']);
     expect(rename.locations['stepId']).toBe('path');
     expect(rename.locations['name']).toBe('body');
+    expect(rename.locations['allowancePercent']).toBe('body');
     expect(byName(tools, 'postApiProjectsByIdCommands').description).toContain('all or none');
   });
 

@@ -24,6 +24,10 @@ import {
   assertDigestPinnedRef,
   assertOidcEnvAllowed,
   assertTierEnvAllowed,
+  assertTierEnvComplete,
+  backupDbCommand,
+  backupSnapshotPath,
+  capacityModesCommand,
   composeUpArgs,
   containerName,
   CURRENT_ENV,
@@ -31,6 +35,7 @@ import {
   EDGE_CONTAINER,
   type EnvLayout,
   grantAliasCommands,
+  holdKindsCommand,
   manifestInspectArgs,
   migrateCommand,
   migrateDownCommand,
@@ -38,9 +43,15 @@ import {
   NETWORK,
   PORT,
   psColorsFrom,
+  readinessKindsCommand,
+  relationshipTypesCommand,
   revokeAliasCommands,
   ROOT,
   SHARED_ENV_PATH,
+  storedCapacityModesCommand,
+  storedHoldsCommand,
+  storedReadinessesCommand,
+  storedRelationshipTypesCommand,
   tierComposeContext,
   tierComposeFile,
   tierEnvFiles,
@@ -473,21 +484,34 @@ export async function startGreen(
   deps: StartGreenDeps = START_GREEN_DEPS,
 ): Promise<void> {
   const appEnvPath = tierEnvFiles(tier)[0];
-  assertTierEnvAllowed(tier, await deps.readText(appEnvPath));
+  const appEnvText = await deps.readText(appEnvPath);
+  assertTierEnvAllowed(tier, appEnvText);
 
   // Proof: the three `startGreen env preflight` cases observe only the app
   // and OIDC reads when that file is absent, unreadable, or carries PORT.
   // Moving this below the phase/Compose calls makes their event assertions red.
+  let oidcEnvText: string | null = null;
   if (deps.oidcEnvPath !== null && (tier === 'be' || tier === 'gw')) {
-    assertOidcEnvAllowed(await deps.readText(deps.oidcEnvPath));
+    oidcEnvText = await deps.readText(deps.oidcEnvPath);
+    assertOidcEnvAllowed(oidcEnvText);
   }
+  const sharedEnvText = tierHasSecrets(tier) ? await deps.readText(SHARED_ENV_PATH) : null;
+  // Proof: skipping this call made all seven refusals in `startGreen
+  // required-key preflight` fail (67 pass, 7 fail, 2026-09-29): with GW_URL,
+  // JWT_SIGNING_KEY_CURRENT or AUTH_AUDIENCE absent, or AUTH_MODE=local, the
+  // swap wrote the phase and ran Compose instead of refusing.
+  assertTierEnvComplete(
+    tier,
+    { appEnvText, sharedEnvText, oidcEnvText },
+    { ...CURRENT_ENV, oidcEnvPath: deps.oidcEnvPath },
+  );
 
   await deps.writePhaseFile(phasePath, 'preparing');
   // Re-derive on every start, including an empty allowed set, so a stale
   // secrets file cannot outlive deletion from the shared source. Mode 0600
   // applies to the temp file at birth; there is no world-readable interval.
-  if (tierHasSecrets(tier)) {
-    const secrets = deriveTierSecrets(tier, await deps.readText(SHARED_ENV_PATH));
+  if (sharedEnvText !== null) {
+    const secrets = deriveTierSecrets(tier, sharedEnvText);
     await deps.writeAtomicFile(tierSecretsFile(tier), secrets, 0o600);
   }
   const context = tierComposeContext(tier, to, image);
@@ -498,12 +522,15 @@ export async function startGreen(
 // Steps at or before `reload` are still reversible: nothing client-facing has
 // switched over yet (or, for `reload` itself, the switch is what's failing).
 // A failure anywhere in this window must delegate to `abortSwap`. Steps after
-// `reload` (`drain`, `revoke-alias`, `stop-blue`, `backfill-step-codes`, `commit`) are NOT reversible
+// `reload` (`drain`, `revoke-alias`, `stop-blue`, `stored-vocabularies-after-stop`,
+// `backfill-step-codes`, `commit`) are NOT reversible
 // by this mechanism: routing has already moved to `to`, which is now the
 // legitimately live colour, so rolling back to `from` would be exactly
 // backwards. See the boundary enforced in `execute`'s per-step try/catch.
 const ABORTABLE_STEPS: ReadonlySet<SwapStep> = new Set<SwapStep>([
   'start-green',
+  'stored-vocabularies',
+  'backup-db',
   'migrate',
   'health-gate',
   'grant-alias',
@@ -524,6 +551,203 @@ export interface SwapExecutionIo {
 }
 
 const PRODUCTION_SWAP_IO: SwapExecutionIo = { sh, readPhase, writePhase, writeAtomic };
+
+/**
+ * A closed set the database stores and a release must be able to read before
+ * it may serve that database: its name in messages, the key a stored row
+ * names its value by, and the recovery a refusal names.
+ */
+interface StoredVocabulary {
+  name: string;
+  key: 'type' | 'kind' | 'mode';
+  supportedCommand: (container: string) => string[];
+  storedCommand: (container: string) => string[];
+  recoveryCli: string;
+  runbookAnchor: string;
+}
+
+const RELATIONSHIP_TYPES_VOCABULARY: StoredVocabulary = {
+  name: 'relationship types',
+  key: 'type',
+  supportedCommand: relationshipTypesCommand,
+  storedCommand: storedRelationshipTypesCommand,
+  recoveryCli: 'typed-dependency-rollback-cli.ts',
+  runbookAnchor: 'typed-dependency-rollback',
+};
+
+/**
+ * Work item holds (`add-work-item-statuses`). A release that cannot read
+ * `work_item.hold` schedules held work as if nothing were held (ADR 0032), so
+ * a stored hold it does not name refuses the swap exactly as an unknown
+ * relationship type does.
+ */
+const HOLD_KINDS_VOCABULARY: StoredVocabulary = {
+  name: 'hold kinds',
+  key: 'kind',
+  supportedCommand: holdKindsCommand,
+  storedCommand: storedHoldsCommand,
+  recoveryCli: 'work-item-status-facts-rollback-cli.ts',
+  runbookAnchor: 'work-item-status-facts-rollback',
+};
+
+/**
+ * Work item readiness (`add-work-item-statuses`). A release that cannot read
+ * `work_item.readiness` can make a ready leaf a parent without clearing it, and
+ * the status read then refuses the plan (design.md, decided after the slice 3
+ * review), so a stored readiness it does not name refuses the swap too.
+ */
+const READINESS_VOCABULARY: StoredVocabulary = {
+  name: 'readinesses',
+  key: 'kind',
+  supportedCommand: readinessKindsCommand,
+  storedCommand: storedReadinessesCommand,
+  recoveryCli: 'work-item-status-facts-rollback-cli.ts',
+  runbookAnchor: 'work-item-status-facts-rollback',
+};
+
+/** Release-supported organization capacity modes, independent of stored numeric encoding. */
+const CAPACITY_MODES_VOCABULARY: StoredVocabulary = {
+  name: 'capacity modes',
+  key: 'mode',
+  supportedCommand: capacityModesCommand,
+  storedCommand: storedCapacityModesCommand,
+  recoveryCli: 'shared-people-rollback-cli.ts',
+  runbookAnchor: 'shared-people-rollback',
+};
+
+// Proof: `HOLD_KINDS_VOCABULARY` left out of this list made four cases fail,
+// among them `refuses an image that reads no holds while holds are stored, and
+// stops green` and `refuses a hold written after the first check once blue
+// stops`: the swap went on to migrate over held rows; watched 2026-09-28.
+// Proof: `READINESS_VOCABULARY` left out of this list made `refuses an image
+// that reads no readiness while readiness is stored` fail — the swap went on to
+// migrate; watched 2026-09-29.
+const STORED_VOCABULARIES: readonly StoredVocabulary[] = [
+  RELATIONSHIP_TYPES_VOCABULARY,
+  HOLD_KINDS_VOCABULARY,
+  READINESS_VOCABULARY,
+  // Proof: omitting this entry fails shared-mode refusal before migration and after outgoing stop.
+  CAPACITY_MODES_VOCABULARY,
+];
+
+/** Parses the incoming release's supported values at the Docker output boundary. */
+function parseSupported(output: string, vocabulary: StoredVocabulary): string[] {
+  const parsed: unknown = JSON.parse(output);
+  if (!Array.isArray(parsed))
+    throw new Error(`incoming release reported malformed supported ${vocabulary.name}`);
+  return parsed.map((value: unknown) => {
+    // Proof: disabling this type check made `rejects a non-string supported relationship type`
+    // fail on `Unable to find property` for the expected malformed-output error.
+    if (typeof value !== 'string')
+      throw new Error(`incoming release reported malformed supported ${vocabulary.name}`);
+    return value;
+  });
+}
+
+interface StoredValue {
+  value: string;
+  count: number;
+}
+
+/** Parses distinct stored values and counts at the Docker output boundary. */
+function parseStored(output: string, vocabulary: StoredVocabulary): StoredValue[] {
+  const parsed: unknown = JSON.parse(output);
+  if (!Array.isArray(parsed))
+    throw new Error(`database reported malformed stored ${vocabulary.name}`);
+  return parsed.map((row: unknown) => {
+    if (row === null || typeof row !== 'object')
+      throw new Error(`database reported malformed stored ${vocabulary.name}`);
+    const value: unknown = Reflect.get(row, vocabulary.key);
+    const count: unknown = Reflect.get(row, 'count');
+    if (
+      typeof value !== 'string' ||
+      typeof count !== 'number' ||
+      // Proof: disabling the integer check made `rejects a stored relationship with a fractional count`
+      // fail: it received `stored relationship types unsupported ... FF (1.5)` instead of malformed output.
+      !Number.isSafeInteger(count) ||
+      count <= 0
+    ) {
+      throw new Error(`database reported malformed stored ${vocabulary.name}`);
+    }
+    return { value, count };
+  });
+}
+
+/** Refuses a release that cannot read a value of `vocabulary` currently stored in the shared DB. */
+async function assertSupported(
+  vocabulary: StoredVocabulary,
+  container: string,
+  shCommand: SwapExecutionIo['sh'],
+  afterStop: boolean,
+): Promise<void> {
+  const supported = parseSupported(
+    await shCommand(vocabulary.supportedCommand(container)),
+    vocabulary,
+  );
+  const stored = parseStored(await shCommand(vocabulary.storedCommand(container)), vocabulary);
+  // Proof: replacing this comparison with `stored.filter(() => false)` made
+  // `refuses FS-only code with stored FF before migration and stops green`
+  // fail on `Expected value: StringContaining "FF (2)"; Unable to find property`.
+  const unsupported = stored.filter((row) => !supported.includes(row.value));
+  if (unsupported.length === 0) return;
+
+  const values = unsupported.map((row) => `${row.value} (${String(row.count)})`).join(', ');
+  const runbook = `docs/runbook-prod-deploy.md#${vocabulary.runbookAnchor}`;
+  if (afterStop) {
+    throw new Error(
+      `stored ${vocabulary.name} unsupported by ${container} after the outgoing colour stopped: ${values}. ` +
+        `The new colour is serving and this swap cannot commit. Redeploy a release that understands these ${vocabulary.name}, ` +
+        `or save and remove the rows with ${vocabulary.recoveryCli} save|remove as described in ${runbook}`,
+    );
+  }
+  throw new Error(
+    `stored ${vocabulary.name} unsupported by ${container}: ${values}. ` +
+      `Save and remove these rows losslessly with ${vocabulary.recoveryCli} save|remove, ` +
+      'then rerun deploy; restore after redeploying a compatible release. ' +
+      `See ${runbook}`,
+  );
+}
+
+/**
+ * The `stored-vocabularies` steps: every {@link STORED_VOCABULARIES} entry the
+ * incoming release must read, checked before migrating and again after the
+ * outgoing colour stops, when nothing else can write.
+ */
+async function assertSupportedVocabularies(
+  container: string,
+  shCommand: SwapExecutionIo['sh'],
+  afterStop: boolean,
+): Promise<void> {
+  for (const vocabulary of STORED_VOCABULARIES) {
+    await assertSupported(vocabulary, container, shCommand, afterStop);
+  }
+}
+
+/**
+ * Reads `backup-db-cli.ts`'s one JSON line at the Docker output boundary and
+ * returns the snapshot path it reports.
+ *
+ * @throws When the output is not that JSON, or reports a different path or no
+ * migrations: a backup the swap cannot account for is no backup.
+ */
+export function parseBackupReport(output: string, expectedPath: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output);
+  } catch (cause) {
+    throw new Error(`backup-db reported malformed output: ${output.slice(0, 200)}`, { cause });
+  }
+  const path: unknown =
+    parsed !== null && typeof parsed === 'object' ? Reflect.get(parsed, 'path') : undefined;
+  const migrations: unknown =
+    parsed !== null && typeof parsed === 'object' ? Reflect.get(parsed, 'migrations') : undefined;
+  if (path !== expectedPath || !Array.isArray(migrations) || migrations.length === 0) {
+    throw new Error(
+      `backup-db did not report a verified snapshot at ${expectedPath}: ${output.slice(0, 200)}`,
+    );
+  }
+  return expectedPath;
+}
 
 export async function execute(
   plan: SwapPlan,
@@ -688,6 +912,25 @@ export async function execute(
       switch (step) {
         case 'start-green': {
           await startGreen(tier, to, image, phasePath);
+          break;
+        }
+
+        case 'stored-vocabularies': {
+          await assertSupportedVocabularies(greenName, io.sh, false);
+          break;
+        }
+
+        case 'backup-db': {
+          // Before the migrate step changes the schema blue is serving from:
+          // a failure aborts with nothing migrated. The snapshot is the
+          // rollback once blue has stopped or a down script cannot be trusted;
+          // docs/runbook-prod-deploy.md#first-product-deploy restores it.
+          const snapshotPath = backupSnapshotPath(sha, new Date());
+          const reported = parseBackupReport(
+            await io.sh(backupDbCommand(greenName, snapshotPath)),
+            snapshotPath,
+          );
+          console.log(`[swap-${tier}] backed up to ${reported} (host: ${ROOT}/data/backups)`);
           break;
         }
 
@@ -870,6 +1113,12 @@ export async function execute(
           if (from !== null) await io.sh(['stop', containerName(tier, from)]);
           break;
 
+        case 'stored-vocabularies-after-stop':
+          // Proof: omitting this recheck made `refuses FF inserted after the first check`
+          // fail on `Received message: "step-code backfill failed..."` after running past stop-blue.
+          await assertSupportedVocabularies(greenName, io.sh, true);
+          break;
+
         case 'backfill-step-codes':
           // After `stop-blue`, so this is outside `ABORTABLE_STEPS`: a failure
           // throws past `commit`, leaving the new colour serving and the deploy
@@ -893,7 +1142,7 @@ export async function execute(
         await abortSwap(`${tier}-${to} failed during '${step}'`, e);
       }
       // Steps after `reload` (`drain`, `revoke-alias`, `stop-blue`,
-      // `backfill-step-codes`, `commit`): routing has already moved onto `to`, which is now the
+      // `stored-vocabularies-after-stop`, `backfill-step-codes`, `commit`): routing has already moved onto `to`, which is now the
       // legitimately live colour — that is the explicit boundary
       // `ABORTABLE_STEPS` draws. Rolling back to `from` here would be
       // exactly backwards: Caddy and (for `be`) gw's forward alias already

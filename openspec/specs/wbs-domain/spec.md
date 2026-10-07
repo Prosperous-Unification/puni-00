@@ -1,0 +1,482 @@
+# wbs-domain Specification
+
+## Purpose
+
+Define the work breakdown domain rules that planners observe: how estimated and unestimated
+steps are scheduled and reported.
+
+## Requirements
+
+### Requirement: An unestimated slice takes an assumed duration in the schedule
+
+The system SHALL schedule a slice nobody has estimated across two workdays,
+called its **assumed duration**, rather than across no time at all.
+
+The assumed duration SHALL be one constant shared by the schedule and the
+drawing, so that a bar's width and the dates beside it cannot disagree.
+
+The assumption SHALL apply to every constraint the schedule holds: dependencies,
+not-before floors, resource leveling and team capacity. An unestimated slice
+with an assignee SHALL occupy that assignee, and one on a team SHALL spend that
+team's pool, for its assumed duration.
+
+#### Scenario: an entirely unestimated predecessor delays its successor
+
+- **GIVEN** a predecessor with two steps and no estimates, and a successor
+  depending on it
+- **WHEN** the plan is scheduled
+- **THEN** the predecessor SHALL finish four workdays after it starts
+- **AND** the successor SHALL start no earlier than that
+
+#### Scenario: two unestimated slices for one person do not overlap
+
+- **GIVEN** two unestimated slices assigned to the same person
+- **WHEN** the plan is scheduled
+- **THEN** they SHALL NOT be placed on the same workdays
+
+#### Scenario: the drawing and the dates agree
+
+- **GIVEN** an unestimated slice
+- **WHEN** its bar is drawn and its dates are read
+- **THEN** the bar's span SHALL be the same number of workdays as the schedule
+  placed it across
+
+### Requirement: An assumed duration is not an estimate
+
+The system SHALL NOT write an estimate for a slice it has assumed a duration
+for. Everything that reports whether work has been estimated SHALL continue to
+report that it has not: the days column, the roll-up, the readiness badge and
+its walk to the next gap, the export, the filter's estimated-steps facet, and
+the anchor-slice reach's choice of first **estimated** slice.
+
+An unestimated slice's bar SHALL continue to be painted as a guess — its dotted
+outline, its translucent fill and its `?` unchanged.
+
+#### Scenario: an unestimated item still reports no estimate
+
+- **GIVEN** a work item with no estimates, scheduled after this change
+- **THEN** its days column SHALL be blank
+- **AND** it SHALL be counted as an estimate gap
+- **AND** the export SHALL report it as unestimated
+
+#### Scenario: the anchor reach still means first _estimated_
+
+- **GIVEN** a project on the `anchor-slice` reach, and a predecessor whose first
+  step is unestimated and whose second step is estimated
+- **WHEN** the plan is scheduled
+- **THEN** the successor SHALL wait for the **second** step's finish
+- **AND** it SHALL NOT wait for the first step's assumed finish
+
+#### Scenario: the bar still says it is a guess
+
+- **GIVEN** an unestimated slice with detail shown
+- **WHEN** its bar is drawn
+- **THEN** it SHALL carry the assumed marking it carried before this change
+
+### Requirement: A work item's status is unknown, in progress or done, and is never stored
+
+Every work item SHALL report a `status` of `unknown`, `in_progress` or `done`, folded on read
+from its steps' progress — `done` when every step with work on it says so, `unknown` when no
+step has said anything, `in_progress` for every disagreement — and, for a parent, from its
+children's statuses. The value SHALL never be stored on the row. `unknown` replaces the former
+`not_started` on the wire, in `@wbs/domain` and in every reader; no row ever held the old
+value, so no migration accompanies the rename.
+
+#### Scenario: a leaf nobody has spoken about is unknown
+
+- **GIVEN** a leaf with an estimate on `Dev` and no progress statement on any step
+- **WHEN** the plan is read
+- **THEN** the leaf reports `status: 'unknown'` and its `progress` object is empty
+
+#### Scenario: one silent step keeps a leaf in progress
+
+- **GIVEN** a leaf whose `Dev` says `done` and whose `QA` holds an estimate and no statement
+- **WHEN** the plan is read
+- **THEN** the leaf reports `status: 'in_progress'`
+
+#### Scenario: a parent reads its children's fold
+
+- **GIVEN** a parent with two leaves, both reporting `done`
+- **WHEN** the plan is read
+- **THEN** the parent reports `status: 'done'`, and `in_progress` the moment one leaf reports
+  anything else
+
+### Requirement: A work item's status is set to done or unknown as one act
+
+A project SHALL accept one plan command, `setStatus`, carrying a work item, a `status` of
+`done` or `unknown`, and an optional `on` date. For a leaf, `done` SHALL write `done` on every
+step of the project for that leaf; for a parent, on every step of every leaf beneath it. For a
+leaf, `unknown` SHALL take away every progress statement the leaf holds; for a parent, every
+statement every leaf beneath it holds. Steps already reading the asked-for state SHALL NOT be
+rewritten. The command SHALL be journalled as one entry whose inverse restores every prior
+statement and every prior fact end verbatim, SHALL bump the revision of exactly the work items
+it wrote, and SHALL announce one tree change. When nothing would change, nothing SHALL be
+written, journalled or announced. `in_progress` SHALL NOT be accepted: it is a step's
+statement and has its own command.
+
+#### Scenario: marking a two-step leaf done writes both steps
+
+- **GIVEN** a project holding `Dev` and `QA`, and a leaf estimated on `Dev` only
+- **WHEN** `setStatus` marks the leaf `done`
+- **THEN** the leaf's `progress` reads `{ Dev: 'done', QA: 'done' }` and its `status` is `done`
+
+#### Scenario: marking a parent done speaks for every leaf beneath
+
+- **GIVEN** a parent with three leaves, one of them already `done` on every step
+- **WHEN** `setStatus` marks the parent `done`
+- **THEN** the two other leaves gain `done` on every step, the already-done leaf is not
+  rewritten, the parent reports `done`, and one journal entry holds the act
+
+#### Scenario: one undo puts every statement back
+
+- **GIVEN** a parent whose leaves held `{ Dev: 'in_progress' }`, `{}` and `{ Dev: 'done', QA:
+'done' }` before it was marked `done`
+- **WHEN** the actor undoes once
+- **THEN** each leaf holds exactly the statements it held before, and each fact end this act
+  filled is `null` again
+
+#### Scenario: a second press writes nothing
+
+- **GIVEN** a leaf already `done` on every step with a fact end
+- **WHEN** `setStatus` marks it `done` again
+- **THEN** no journal entry is added, no revision moves and no tree change is announced
+
+#### Scenario: unknown takes the statements away and leaves the facts
+
+- **GIVEN** a done leaf with a fact start and a fact end
+- **WHEN** `setStatus` sets it `unknown`
+- **THEN** its `progress` is empty, its `status` is `unknown`, and both fact dates are what they
+  were
+
+#### Scenario: the value is guarded where the shape is not
+
+- **GIVEN** a `setStatus` command whose `status` is `in_progress`, `finished` or `7`
+- **WHEN** it reaches the commands route
+- **THEN** it is refused `400 invalid_status` before any service runs; an `on` that is not an
+  `IsoDate` is refused `400 on_must_be_a_date`
+
+### Requirement: A work item carries a fact start and a fact end, date-only, on any row
+
+Every work item SHALL carry `factStart` and `factEnd`: nullable, date-only `IsoDate`, with no
+time of day and no zone, stored as `work_item.fact_start` and `work_item.fact_end`. Both SHALL
+join the work-item patch as nullable dates validated at the route — a non-date refused `400
+fact_start_must_be_a_date` / `fact_end_must_be_a_date`, `null` clearing — on any work item,
+leaf or parent, never handed down when a leaf gains a child and never folded. Both SHALL ride
+the existing `patch` journal entry and its undo, with no new step kind. A duplicate SHALL copy
+neither. Saved plans SHALL hold neither. The JSON export SHALL carry both and the status
+through the shared work-item shape, and the table's spreadsheet export SHALL carry all three
+as columns. Every work item existing before this change SHALL report both as `null`.
+
+#### Scenario: a fact end is written, read and undone as an ordinary field
+
+- **GIVEN** a leaf with `factEnd: null`
+- **WHEN** it is patched with `factEnd: '2026-09-12'`, then the edit is undone
+- **THEN** the read reports `'2026-09-12'` after the patch and `null` after the undo, through
+  the same `patch` entry every other field uses
+
+#### Scenario: a non-date is refused at the boundary
+
+- **GIVEN** a patch with `factStart: 'yesterday'`
+- **WHEN** it reaches the commands route
+- **THEN** it is refused `400 fact_start_must_be_a_date` and no row is written
+
+#### Scenario: a duplicate has not happened
+
+- **GIVEN** a done leaf with both fact dates
+- **WHEN** its subtree is duplicated
+- **THEN** the copy reports `factStart: null`, `factEnd: null` and `status: 'unknown'`
+
+#### Scenario: an undo of a delete puts the facts back
+
+- **GIVEN** a leaf with both fact dates that is deleted
+- **WHEN** the delete is undone
+- **THEN** the restored row reports both dates as they were
+
+### Requirement: Marking done fills an empty fact end with the day of the act
+
+Marking a work item `done` SHALL fill the fact end of every work item the act writes — the
+leaves and, for a parent, the parent itself — whose `factEnd` is `null` with `on`, and the
+fact start of each whose `factStart` is `null` with `factStart` when the command carries one;
+`on` absent, be-01 SHALL take the calendar day of the act's own write stamp in UTC. A stored
+day SHALL NOT be overwritten by the fill. A `factStart` that is not an `IsoDate` SHALL be
+refused `400 factStart_must_be_a_date` before any service runs. Setting `unknown` SHALL set
+both `factEnd` and `factStart` to `null` on every work item in scope whose status read `done`
+before the act, and SHALL leave the facts of every other row untouched. The fills and the
+clears SHALL be part of the same journal entry as the statements, so one undo takes them away
+or puts them back together.
+
+#### Scenario: a typed fact end survives the mark
+
+- **GIVEN** a leaf whose fact end reads `2026-09-10`
+- **WHEN** it is marked `done` with `on: '2026-09-12'`
+- **THEN** its fact end still reads `2026-09-10`
+
+#### Scenario: be-01 supplies the day when the client does not
+
+- **GIVEN** a clock whose act stamps `2026-09-12T23:30:00Z`
+- **WHEN** a leaf with no fact end is marked `done` with no `on`
+- **THEN** its fact end reads `2026-09-12`
+
+#### Scenario: the reader's day wins over the server's
+
+- **GIVEN** a browser whose local day is `2026-09-13` while UTC is still `2026-09-12`, and a
+  leaf with no fact end whose forecast ends on or after `2026-09-13`
+- **WHEN** the Status cell marks it done and the completion prompt is confirmed as offered
+- **THEN** the command carries `on: '2026-09-13'` and the fact end reads `2026-09-13`
+
+#### Scenario: the start is filled where empty and kept where typed
+
+- **GIVEN** two leaves, one with no fact start and one with `2026-09-02`
+- **WHEN** each is marked `done` with `on: '2026-09-12', factStart: '2026-09-08'`
+- **THEN** the first's fact start reads `2026-09-08` and the second's still `2026-09-02`
+
+#### Scenario: a non-date start is refused
+
+- **GIVEN** a `setStatus` with `factStart: 'last week'`
+- **WHEN** it reaches the commands route
+- **THEN** it is refused `400 factStart_must_be_a_date` and no row is written
+
+#### Scenario: unknown takes both days, and one undo brings both back
+
+- **GIVEN** a parent marked `done` on `2026-09-12` from `2026-09-08`
+- **WHEN** `setStatus` sets it `unknown`, then the actor undoes once
+- **THEN** every fact start and fact end in scope is `null` after the act and back after the
+  undo, from one journal entry
+
+### Requirement: The table shows Status, Fact start and Fact end, and strikes a done row
+
+The table SHALL offer three columns — `Status`, `Fact start`, `Fact end` — hidden by default
+and offered in the Columns control in table order after `Deadline`. The Status cell SHALL show
+the row's status in words and offer `Unknown` and `Done` to choose, on a parent as on a leaf;
+`In progress` SHALL be shown but not offered. The two fact cells SHALL be date cells with the
+deadline cell's rest and edit states. A row whose status is `done` SHALL carry `data-row-done`
+and its name SHALL read struck through, on every stripe and under every row light.
+
+#### Scenario: the Columns control offers the three in order
+
+- **GIVEN** the Columns control open on a two-step plan
+- **WHEN** its entries are read
+- **THEN** `Status`, `Fact start`, `Fact end` follow `Deadline` in that order, and none of the
+  three is on screen until chosen
+
+#### Scenario: choosing Done marks the row and fills the fact end
+
+- **GIVEN** a leaf reading `Unknown` with the three columns shown
+- **WHEN** `Done` is chosen in its Status cell
+- **THEN** the row reads `Done`, its name is struck through, and its Fact end cell reads today
+
+#### Scenario: a partly done row reads In progress and can still be finished
+
+- **GIVEN** a leaf whose `Dev` says `done` and whose `QA` says nothing
+- **WHEN** its Status cell is read and then opened
+- **THEN** it reads `In progress`, and the list offers `Unknown` and `Done` only
+
+### Requirement: A done work item draws one done bar over its fact span
+
+On the Gantt panel a leaf whose status is `done` SHALL draw one bar in place of its slices: it
+SHALL stop at the end of its fact end's day and start at its fact start's day, or where its
+first slice started when it has no fact start; a start at or after the stop SHALL be drawn as
+the one day the fact end names. Absent a fact end, the done bar SHALL span the leaf's slices.
+On a plan with no start date the done bar SHALL span the leaf's slices unclipped. The done bar
+SHALL be marked as done in paint, in its `aria-label` and in `data-done`, SHALL NOT reuse the
+assumed span's dotted translucent signature, SHALL answer for every slice id of its leaf so
+person and capacity links still find it, and dependency arrows leaving the leaf SHALL leave the
+done bar's stop. A parent's bracket SHALL stay be-01's projection.
+
+#### Scenario: the estimate reaches past the fact and the bar does not
+
+- **GIVEN** a done leaf whose slices run workdays 8→15 and whose fact end is the day of
+  workday 11
+- **WHEN** the chart is laid out
+- **THEN** one bar is drawn for the leaf, starting at 8 and stopping at the end of workday 11,
+  and no bar for the leaf reaches 15
+
+#### Scenario: a plan that drifted past the fact still draws the fact
+
+- **GIVEN** a done leaf whose slices run workdays 20→25 and whose fact end is the day of
+  workday 11, with no fact start
+- **WHEN** the chart is laid out
+- **THEN** the leaf draws one bar covering exactly workday 11
+
+#### Scenario: a fact start moves the bar's start
+
+- **GIVEN** a done leaf whose slices run workdays 8→15, fact start on workday 6, fact end on
+  workday 11
+- **WHEN** the chart is laid out
+- **THEN** the bar runs 6→12 (the stop of workday 11)
+
+#### Scenario: the arrow leaves the done bar
+
+- **GIVEN** a done leaf clipped to workday 11 with a successor waiting on it
+- **WHEN** the arrows are laid out
+- **THEN** the arrow's `fromFinish` is the done bar's stop, not the slice's 15
+
+#### Scenario: a person link still finds the done bar
+
+- **GIVEN** a done leaf whose `QA` slice was somebody's resource predecessor
+- **WHEN** the person links are laid out
+- **THEN** the link is drawn from the done bar and none is dropped
+
+#### Scenario: the done bar is not the assumed span
+
+- **GIVEN** a done leaf whose slices were unestimated
+- **WHEN** its bar is painted
+- **THEN** it carries `data-done="true"`, no `data-assumed`, a solid stroke and the done mark
+
+### Requirement: Dependencies constrain scheduled slices
+
+Legacy dependencies SHALL continue to use the project's dynamic `depReach`, including `anchor-slice`, until explicitly edited. Typed FS dependencies SHALL name a predecessor and a successor endpoint, each `{ scope: whole, workItemId }`, `{ scope: node, stepNodeId }` or `{ scope: descendant-step, workItemId, stepId }`, and SHALL constrain each resolved predecessor step node's finish to no later than each resolved successor step node's start. A whole leaf predecessor SHALL resolve to its last step node and a whole leaf successor to its first. A whole parent SHALL resolve to every descendant leaf, and a descendant-step endpoint to that step's node in every descendant leaf; every resolved predecessor/successor pair SHALL be constrained. A node endpoint SHALL name a leaf's step node; a descendant-step endpoint SHALL name a parent. A project without steps SHALL offer only whole scope, resolved to each leaf's work-item boundary. Unknown step nodes SHALL remain zero-duration graph nodes, irrespective of their visual placeholder width. Resolved typed edges SHALL carry `authored` provenance and their relationship ID beside `workflow` and `legacy` edges.
+
+#### Scenario: Dev handoff overlaps QA
+
+- **GIVEN** A and B each have Dev then QA, with A.Dev estimated and A.QA still running
+- **WHEN** an FS dependency from node `A.dev` to node `B.dev` is scheduled
+- **THEN** B.Dev may start when A.Dev finishes, subject to other real constraints
+- **AND** it does not wait for A.QA solely because of this dependency
+
+#### Scenario: A node predecessor and a whole successor
+
+- **GIVEN** A and B each have Dev then QA
+- **WHEN** node `A.dev` → whole B FS is scheduled
+- **THEN** B.Dev waits for A.Dev's finish and B.QA follows B.Dev through its workflow edge
+
+#### Scenario: A whole predecessor and a node successor
+
+- **GIVEN** A and B each have Dev then QA
+- **WHEN** whole A → node `B.qa` FS is scheduled
+- **THEN** B.QA waits for A.QA's finish and B.Dev may start earlier
+
+#### Scenario: A parent endpoint selects every leaf
+
+- **GIVEN** parent A has two leaf descendants and B has one
+- **WHEN** Whole A to Whole B FS is added
+- **THEN** B's first step node waits for both A leaves' last step nodes
+- **AND** the picker explains “All descendant work items” with the affected count
+
+#### Scenario: A descendant-step endpoint selects one step in every leaf
+
+- **GIVEN** parent A has two leaves, each with Dev then QA
+- **WHEN** descendant-step A Dev → node `B.dev` FS is added
+- **THEN** B.Dev waits for both leaves' Dev nodes and not for their QA nodes
+
+#### Scenario: Legacy anchor remains dynamic
+
+- **GIVEN** an existing dependency under `anchor-slice` reach
+- **WHEN** the project's steps or estimates change without editing that dependency
+- **THEN** it follows the current anchor rule, rather than a pinned explicit endpoint
+
+### Requirement: Authored dependencies form an acyclic step-node graph
+
+The system SHALL validate the resolved step-node graph, including workflow and legacy edges, before accepting typed or legacy dependency creation, update or removal; reparenting, step insertion, deletion or reordering; project `depReach` changes; estimate edits that move a dynamic legacy anchor; or undo/redo and batch replay. All relevant writes SHALL validate the combined graph atomically against their resulting tree, step order, estimates and links. A refusal SHALL preserve all earlier state. It SHALL reject directed cycles, self-node pairs and any selector expansion producing one, without silently omitting pairs. A valid step-node DAG SHALL NOT be refused merely because work-item IDs appear cyclic. Deleting a step referenced by a node or descendant-step endpoint SHALL be refused until its typed dependencies are removed or reassigned. When a leaf with node endpoints gains its first child, those endpoints SHALL move with the hand-down's step node mapping in the same transaction. Deleting a work item SHALL remove, in the same undoable entry, the typed relationships whose node or descendant-step endpoints lie in the deleted subtree; hand-up of facts SHALL carry no endpoints. A move or deletion that would leave a descendant-step endpoint naming a leaf SHALL be refused naming the affected dependencies. No structural edit SHALL broaden or narrow an endpoint's scope.
+
+#### Scenario: Apparent work-item cycle is a valid step-node DAG
+
+- **GIVEN** `A.dev` → `B.dev` and `B.qa` → `A.qa` with Dev then QA inside each item
+- **WHEN** the second edge is validated
+- **THEN** it is accepted if the resolved step-node graph is acyclic
+
+#### Scenario: Parent expansion introduces a self-node pair
+
+- **GIVEN** a proposed parent endpoint whose descendant expansion includes the successor step node
+- **WHEN** the dependency is submitted
+- **THEN** the entire write is refused with a modeled conflict and no edge is stored
+
+#### Scenario: An estimate edit moves a legacy anchor into a cycle
+
+- **GIVEN** typed `A.qa` → `B.qa` and legacy B → A with `anchor-slice` reach currently anchored at B.Dev
+- **WHEN** B.Dev's estimate is cleared so B.QA becomes the legacy anchor
+- **THEN** the combined-graph cycle is refused atomically and the estimate and anchor stay unchanged
+
+#### Scenario: Changing dependency reach closes a cycle
+
+- **GIVEN** typed `A.qa` → `B.qa` and legacy B → A with `anchor-slice` reach anchored at B.Dev
+- **WHEN** a mounted project update changes `depReach` to `whole-item`
+- **THEN** the resulting combined-graph cycle is refused atomically and `depReach` and links stay unchanged
+
+#### Scenario: A legacy write bypasses a typed edge
+
+- **GIVEN** an existing typed edge in a valid step-node DAG
+- **WHEN** a mounted legacy `addDependency` or history replay would close a cycle
+- **THEN** it is refused with no partial dependency or history write
+
+#### Scenario: A descendant-step parent cannot silently become a leaf
+
+- **GIVEN** descendant-step 020 Dev → node `030.dev` and 020 has one child
+- **WHEN** that child is deleted
+- **THEN** the deletion is refused naming the relationship and nothing is written
+
+#### Scenario: A node endpoint follows hand-down
+
+- **GIVEN** a typed dependency on node `010.dev`
+- **WHEN** 010 gains its first child 010.1
+- **THEN** the dependency names node `010.1.dev` and undo restores `010.dev`
+
+### Requirement: Explicit dependencies are editable from the table and chart
+
+The Depends on picker SHALL add Whole→Whole FS by clicking a search result after opening it. Opened from a leaf's step cell, it SHALL preselect the same step on both sides, resolved by step ID and replaced by any explicit choice; a predecessor lacking that step SHALL show the choice unavailable rather than substitute another. Its separate Customize action SHALL open endpoint editing without creating a dependency. Chips SHALL spell endpoints by step reference or work-item number, then type, then the successor's step code when not whole, e.g. `[010.dev FS → dev]` or `[010 FS]`; a descendant-step endpoint SHALL show its parent, step and leaf count and SHALL NOT be spelled as a single step reference. Chips SHALL expose full accessible labels naming both work items and steps. The editor SHALL preserve step order, explain parent expansion and show refusals. Keyboard and mobile users SHALL be able to create, inspect, edit and remove the same relationships without hover. Gantt FS arrows SHALL attach to the resolved step nodes' actual finish/start boundaries, highlight with their chips and cards, and summarize collapsed-parent relationships without misleading self-arrows.
+
+#### Scenario: One-click default and separate customization
+
+- **GIVEN** the dependency picker is open on B's row
+- **WHEN** A's search result is clicked
+- **THEN** one Whole A → Whole B FS dependency is committed
+- **AND** activating A's `›` instead opens endpoint fields without a write
+
+#### Scenario: Opening from a step cell preselects the same step
+
+- **GIVEN** the dependency picker is opened from B's QA cell
+- **WHEN** A is chosen in Customize
+- **THEN** node `A.qa` → node `B.qa` FS is proposed and nothing is written until Save
+
+#### Scenario: Unknown step node arrow uses scheduled time
+
+- **GIVEN** an unestimated predecessor node with a two-day visual placeholder
+- **WHEN** its FS arrow is drawn
+- **THEN** the arrow starts at its zero-time scheduled finish tick
+- **AND** the placeholder's right edge does not delay or anchor the relationship
+
+#### Scenario: Collapsed relationships remain explainable
+
+- **GIVEN** several leaf relationships under collapsed parents
+- **WHEN** the Gantt is drawn
+- **THEN** external connectors are grouped by visible ancestors, type and scope with a count
+- **AND** internal relationships show an internal-dependencies count rather than a self-arrow
+
+### Requirement: The row menu offers the one status change that applies
+
+The ⋯ menu of a row — on the table and on a card — SHALL offer `Set status to Done` when the row's
+status is not `done`, which SHALL open the completion prompt for that row and send nothing
+until it is confirmed; and SHALL offer `Set status to Unknown` when the row is `done`, which
+SHALL send `setStatus … unknown` at once. The ⋯ SHALL sit centred in its cell.
+
+#### Scenario: from the menu to the prompt and back
+
+- **GIVEN** a leaf reading unknown with the Status column hidden
+- **WHEN** `Set status to Done` is chosen from its ⋯ and the prompt confirmed
+- **THEN** one `setStatus … done` is sent and the row reads done; its ⋯ then offers `Set status
+to unknown`, which sends `setStatus … unknown`
+
+### Requirement: The completion prompt asks for both days, starting from the forecast
+
+The completion prompt SHALL show `Started on` and `Finished on`. `Started on` SHALL open on the
+row's held fact start, else the forecast start, else today. `Finished on` SHALL open on the
+held fact end, else today while today is not after the forecast end, else the forecast end.
+Beside each field the prompt SHALL say what the day is — the day already recorded, the same as
+the forecast start or end, today, or a day the reader typed — read off the field's current
+value. `Mark done` SHALL be held back while either field is not a calendar day. Confirming
+SHALL send `setStatus` with `on` as the finish and `factStart` as the start; a held day the
+reader changed SHALL follow as a `patch`.
+
+#### Scenario: today before the forecast end
+
+- **GIVEN** a leaf forecast `2026-09-01` → `2026-09-20`, no facts held, today `2026-09-13`
+- **WHEN** the prompt opens
+- **THEN** `Started on` reads `2026-09-01` with `Same as the forecast start.`, `Finished on`
+  reads `2026-09-13` with `Today.`, and confirming sends `on: '2026-09-13', factStart:
+'2026-09-01'`
+
+#### Scenario: today after the forecast end
+
+- **GIVEN** a leaf forecast `2026-09-01` → `2026-09-10`, no facts held, today `2026-09-13`
+- **WHEN** the prompt opens
+- **THEN** `Finished on` reads `2026-09-10` with `Same as the forecast end.`

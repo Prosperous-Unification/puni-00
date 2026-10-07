@@ -1,23 +1,63 @@
 import type {
   Broadcaster,
   Clock,
+  DomainChallenges,
+  EditAdmission,
+  EmailDelivery,
+  EmailVerification,
   HistoryService,
   ImportService,
+  Invitation,
+  JoinRequest,
+  MembershipAdministration,
+  Onboarding,
+  OrganizationAccess,
+  ProjectRankStore,
   ReplayOrchestrator,
   SavedPlanService,
+  SpaceStore,
 } from '@wbs/core';
+import type { Scope, UnitOfWork } from '@wbs/core';
+import { clockOf } from '@wbs/core';
+import { domainRoutes } from '@wbs/core/http/domain.routes';
+import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
+import { invitationRoutes } from '@wbs/core/http/invitation.routes';
+import { joinRequestRoutes } from '@wbs/core/http/join-request.routes';
+import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
+import { organizationRoutes } from '@wbs/core/http/organization.routes';
+import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
+import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
+import { spaceRoutes } from '@wbs/core/http/space.routes';
+import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
+import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
+import type { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
+import type { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
+import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import type { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
+import type { ProjectService } from '@wbs/core/module/project/project.resource';
+import type { StepService } from '@wbs/core/module/step/step.resource';
+import type { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import type { BeforeProjectUpdate, BeforeStepRemoval } from '@wbs/core/ports/fanout-capture-store';
+import type { AuthService } from '@wbs/core/service/auth.service';
+import type { CommittedFanoutDelivery } from '@wbs/core/service/committed-fanout';
+import { PersonLoad } from '@wbs/core/service/person-load.feature';
+import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
+import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
 
 import { authOidcEndpoints } from './controller/auth-oidc-endpoints';
 import { authPasswordEndpoints } from './controller/auth-password-endpoints';
+import { bearerContextRoutes } from './controller/bearer-context.routes';
 import { calendarMarkerRoutes } from './controller/calendar-marker.routes';
 import { directoryRoutes } from './controller/directory.routes';
 import { historyRoutes } from './controller/history.routes';
 import { importRoutes } from './controller/import.routes';
 import { infrastructureEndpoints } from './controller/infrastructure-endpoints';
-import { internalRoutes } from './controller/internal.routes';
+import { gatewayAccessRoutes, internalRoutes } from './controller/internal.routes';
 import type { OidcRouteOptions } from './controller/oidc-options';
+import { organizationSelectionRoutes } from './controller/organization-selection.routes';
 import { projectRoutes } from './controller/project.routes';
 import { savedPlanRoutes } from './controller/saved-plan.routes';
 import { smokeRoutes } from './controller/smoke.routes';
@@ -28,21 +68,17 @@ import { mountEndpoints } from './http/elysia/mount';
 import { createUnexpectedFailureReporter } from './http/elysia/unexpected-failure';
 import type { BoundEndpoint } from './http/endpoint';
 import { identityResolver } from './http/identity';
+import type { OptimizationCoordinator } from './module/optimization/optimization.feature';
 import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
+import { type IssueBearerContext, REFUSE_BEARER_CONTEXT } from './runtime/bearer-context';
 import { nodeDigest } from './runtime/bun-runtime';
-import type { AuthService } from './service/auth.service';
-import type { CalendarMarkerService } from './service/calendar-marker.service';
-import type { CapacityService } from './service/capacity.service';
-import type { DirectoryService } from './service/directory.service';
-import type { LoginThrottle } from './service/login-throttle';
-import type { OptimizationCoordinator } from './service/optimization-coordinator';
-import { PlanCommandRunner } from './service/plan-commands';
-import type { PriorityBandService } from './service/priority-band.service';
-import type { ProjectService } from './service/project.service';
-import type { StepService } from './service/step.service';
-import type { Scope, UnitOfWork } from './service/unit-of-work';
-import type { WorkItemService } from './service/work-item.service';
+import { type DelegationVerifier, REFUSE_DELEGATIONS } from './runtime/delegation';
+import type { VerifiedCredentialOf } from './runtime/organization-credential';
+import {
+  type OrganizationSelection,
+  REFUSE_ORGANIZATION_SELECTION,
+} from './runtime/organization-selection';
 import type { WritingServices } from './services';
 
 export interface AppOptions {
@@ -56,6 +92,10 @@ export interface AppOptions {
    * absent, answering 404 — indistinguishable from a routing fault at the edge.
    */
   auth: AuthService;
+  /** Optional evidence seam; absent callers cannot select an organization. */
+  credentialEvidence?: VerifiedCredentialOf;
+  /** Selection is intentionally refusing unless the composition explicitly enables it. */
+  organizationSelection?: OrganizationSelection;
   /** The composition's one password-attempt throttle. */
   loginThrottle: LoginThrottle;
   oidc?: OidcRouteOptions;
@@ -65,6 +105,30 @@ export interface AppOptions {
    * rather than a process built without its domain.
    */
   projects: ProjectService;
+  /**
+   * Resolves each protected request's organization authority. Required: a
+   * default would have to be legacy access, which is exactly the answer an
+   * activated deployment must never give by omission.
+   */
+  organizations: OrganizationAccess;
+  /**
+   * Changes and removes memberships under the role matrix (task 3.7).
+   * Required, like `organizations`: a process built without it would answer
+   * 404 on the membership routes, which reads as a release without them.
+   */
+  memberships: MembershipAdministration;
+  /** Checked policy and transactional challenge storage; omission is a composition error. */
+  domains: DomainChallenges;
+  /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
+  onboarding: Onboarding;
+  /** Required durable challenge boundary; absence is a boot configuration error. */
+  emailVerification: EmailVerification;
+  /** Required invitation boundary, inert until activation. */
+  invitations: Invitation;
+  /** Required join-request decision boundary. */
+  joinRequests: JoinRequest;
+  /** Injected mail sink; production's current adapter refuses delivery visibly. */
+  emailDelivery: EmailDelivery;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
@@ -112,11 +176,29 @@ export interface AppOptions {
    */
   calendarMarkers: CalendarMarkerService;
   /**
+   * Organization spaces (`add-spaces`). Required, like `organizations`: a
+   * process built without it would answer 404 on every space route.
+   */
+  spaces: SpaceStore;
+  /**
+   * The organizations' project rank (`share-people-across-projects`, slice
+   * 3). Required, like `spaces`: the load reads order by it.
+   */
+  projectRanks: ProjectRankStore;
+  /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
    * failing every forward with a 401 that only shows up in a real deployment.
    */
   internalAuthSecret: string;
+  /**
+   * Verifies WBS-signed delegation tokens (task 2.5). Absent, every delegation
+   * is refused with 401 (`REFUSE_DELEGATIONS`): production issues none yet,
+   * so the path stays inert. Configuring keys alone never activates it.
+   */
+  delegation?: DelegationVerifier;
+  /** Direct bearer issuance stays refusing unless explicitly wired after activation. */
+  bearerContext?: IssueBearerContext;
   /**
    * Required for the same reason as `auth`, and for one more: the stub this
    * replaced answered every resume with `replaying, count: 0`, which no client
@@ -138,7 +220,8 @@ export interface AppOptions {
    * What a command batch runs inside: the source's unit of work and the batch's
    * own service graph — `sqliteUnitOfWork(db, coordinator, admitted)` in
    * production, the counting fixture on in-memory stores. See
-   * `libs/wbs/application/core/src/service/plan-commands.ts`, ADR 0007 and ADR 0015.
+   * `libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts`,
+   * ADR 0007 and ADR 0015.
    */
   writes: {
     /** The process's atomic archival plan importer over this same source admission boundary. */
@@ -154,14 +237,22 @@ export interface AppOptions {
      * announcements are its own (D24). These are
      * **not** the services beside them in these options: those take a turn per
      * write and publish straight through, which is what keeps a route write —
-     * and a route event — out of an open batch.
+     * and a route event — out of an open batch. The admission is the one the
+     * batch's own unit of work established (see `EditAdmission`).
      */
-    batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
+    batch: (
+      scope: Scope,
+      broadcast: Broadcaster,
+      admission: EditAdmission,
+      beforeProjectUpdate?: BeforeProjectUpdate,
+      beforeStepRemoval?: BeforeStepRemoval,
+    ) => WritingServices;
     /**
      * Where a batch's collected announcements go once it has committed and let
      * go of its turn, and where every route publishes directly.
      */
     announcements: Broadcaster;
+    committedFanout: CommittedFanoutDelivery;
   };
   /**
    * The commit the checkout on disk is at, read fresh on every `/health` call.
@@ -195,19 +286,32 @@ export function mountedEndpoints(
     logger: createLogger({ service: 'be-01', version: opts.version }),
     scrapeMetrics: opts.metricsScrape ?? (() => scrapeMetrics('be-01')),
   },
-) {
+): readonly BoundEndpoint[] {
   const passwordThrottle = opts.loginThrottle;
-  const commands = new PlanCommandRunner({
+  const commands = createPlanCommandRunner({
     batchServices: opts.writes.batch,
     publicServices: {
       workItems: opts.workItems,
+      steps: opts.steps,
       directory: opts.directory,
       capacity: opts.capacity,
       priorityBands: opts.priorityBands,
     },
     uow: opts.writes.uow,
     announcements: opts.writes.announcements,
+    // Proof: omitting mounted delivery made a cold shared command answer 500
+    // instead of 200, with no downstream row.
+    committedFanout: opts.writes.committedFanout,
   });
+  // A project reach change and a step removal read the combined dependency
+  // graph before they write, so each runs as one unit of work: a write landing
+  // between the check and the write could otherwise leave a cycle.
+  const admitted = createAdmittedWrites(opts.writes);
+  // Spaces and rank moves stamp their writes; the app's clock is time alone, so ids are
+  // random UUIDs as `services.ts` issues them.
+  const spaceClock = clockOf({ now: () => opts.clock.now(), newId: () => crypto.randomUUID() });
+  // One cache per app, which is one per process in production (design memo §8).
+  const rollUpCache = new RollUpCache(opts.clock);
   return [
     // Proof: omitting health and metrics separately made app.routes.test.ts
     // expect 40 local bindings and receive 39 for each injected fault.
@@ -224,35 +328,108 @@ export function mountedEndpoints(
       scrapeMetrics: runtime.scrapeMetrics,
     }),
     ...authPasswordEndpoints(opts.auth, opts.oidc, passwordThrottle),
+    ...bearerContextRoutes(opts.bearerContext ?? REFUSE_BEARER_CONTEXT),
     // Proof: removing this spread made app.routes.test.ts receive 40 bindings
     // instead of the 44 required by the OIDC composition.
-    ...(opts.oidc === undefined ? [] : authOidcEndpoints(opts.auth, opts.oidc)),
+    ...(opts.oidc === undefined ? [] : authOidcEndpoints(opts.auth, opts.oidc, passwordThrottle)),
     // Proof: omitting this binding made “binds each shared HTTP shape once”
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
-    ...stepRoutes(opts.steps),
-    ...directoryRoutes(opts.directory),
-    ...historyRoutes(opts.history),
-    ...solutionRoutes(opts.projects),
+    ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
+    ...organizationSelectionRoutes(opts.organizationSelection ?? REFUSE_ORGANIZATION_SELECTION),
+    ...domainRoutes(opts.organizations, opts.domains, opts.clock),
+    ...onboardingRoutes(opts.onboarding, opts.clock),
+    ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),
+    ...invitationRoutes(
+      opts.invitations,
+      opts.organizations,
+      opts.emailDelivery,
+      opts.clock,
+      nodeDigest,
+    ),
+    ...joinRequestRoutes(
+      opts.joinRequests,
+      opts.organizations,
+      opts.emailDelivery,
+      opts.clock,
+      nodeDigest,
+    ),
+    ...stepRoutes(
+      {
+        addWithin: (...args) => opts.steps.addWithin(...args),
+        findWithin: (...args) => opts.steps.findWithin(...args),
+        renameWithin: (...args) => opts.steps.renameWithin(...args),
+        removeWithin: admitted.removeStepWithin,
+      },
+      commands,
+      opts.organizations,
+      opts.writes,
+    ),
+    ...directoryRoutes(opts.directory, opts.organizations),
+    // One per mounted app, so its memo lives as long as the process serving it.
+    ...personLoadRoutes(
+      new PersonLoad({
+        projects: opts.projects,
+        workItems: opts.workItems,
+        directory: opts.directory,
+        ranks: opts.projectRanks,
+      }),
+      opts.organizations,
+    ),
+    ...projectRankRoutes(
+      new ProjectRankResource({
+        ranks: opts.projectRanks,
+        projects: opts.projects,
+        clock: spaceClock,
+      }),
+      opts.organizations,
+    ),
+    ...historyRoutes(opts.history, opts.projects, opts.organizations),
+    ...solutionRoutes(opts.projects, opts.organizations),
     // Proof: omitting this spread made the production import reachability test receive 404.
-    ...importRoutes(opts.writes.imports),
+    ...importRoutes(opts.writes.imports, opts.organizations),
     ...projectRoutes(
-      opts.projects,
+      {
+        authorizeRetry: (...args) => opts.projects.authorizeRetry(...args),
+        createWithin: (...args) => opts.projects.createWithin(...args),
+        listWithin: (...args) => opts.projects.listWithin(...args),
+        openWithin: (...args) => opts.projects.openWithin(...args),
+        readWithin: (...args) => opts.projects.readWithin(...args),
+        updateWithin: admitted.updateProjectWithin,
+      },
+      opts.organizations,
       opts.workItems,
       opts.directory,
       opts.calendarMarkers,
       opts.clock,
       opts.optimizer,
     ),
-    ...workItemRoutes(opts.workItems, commands, nodeDigest),
-    ...calendarMarkerRoutes(opts.calendarMarkers),
-    ...savedPlanRoutes(opts.savedPlans, opts.projects, opts.writes.announcements),
+    ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
+    ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
+    ...spaceRoutes(
+      new SpaceResource({
+        spaces: opts.spaces,
+        projects: opts.projects,
+        clock: spaceClock,
+        trees: opts.workItems,
+        sequences: opts.writes.announcements,
+        rollUpCache,
+      }),
+      opts.organizations,
+    ),
+    ...savedPlanRoutes(
+      opts.savedPlans,
+      opts.projects,
+      opts.writes.announcements,
+      opts.organizations,
+    ),
     ...internalRoutes({
       // A deliberate pure ack: every mutation is an HTTP call to be-01, so a
       // client socket message has no write authority.
       onForward: () => Promise.resolve({ push_responses: [] }),
       onResume: (points) => opts.replay.replay(points),
     }),
+    ...gatewayAccessRoutes(opts.projects, opts.organizations),
   ] as const;
 }
 
@@ -297,7 +474,12 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
         // report postApiAuthRegister equal to the 404/NOT_FOUND router miss.
         mountEndpoints(endpoints, {
           appOrigin: opts.appOrigin,
-          resolveIdentity: identityResolver(opts.auth, opts.internalAuthSecret),
+          resolveIdentity: identityResolver(
+            opts.auth,
+            opts.internalAuthSecret,
+            opts.delegation ?? REFUSE_DELEGATIONS,
+            opts.credentialEvidence,
+          ),
           // Proof: on 2026-09-21, replacing this production callback with a no-op made
           // “reports one redacted unexpected production failure with its shared occurrence” receive
           // zero logger calls instead of one.

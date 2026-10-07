@@ -50,6 +50,8 @@ export * from './marker-color';
 export * from './marker-name';
 export * from './not-before';
 export * from './on-time';
+// A person's bookings across projects on one workday axis: overlaps and weekly load.
+export * from './person-load';
 export * from './place-sibling';
 export * from './priority-band';
 // The dense rank the solver objective multiplies. Separate from
@@ -57,10 +59,18 @@ export * from './priority-band';
 // it is WORTH relative to the others in one plan.
 export * from './priority-weight';
 export * from './progress';
+// The two readings a hold adds to a plan: which successors it stops (from the
+// full graph) and the smaller schedule input it leaves (ADR 0032).
+export * from './blocked-by-proxy';
+export * from './without-held-subtrees';
 // The one write gate every resource and feature asks: `canEditProject`. Domain
 // code rather than a Project-resource export, because a resource importing a
 // sibling resource for it is the sideways edge K6 forbids.
+export * from './in-progress-now';
+export * from './organization-access';
 export * from './project-ownership';
+export * from './project-roll-up';
+export * from './public-email-domain';
 // The value a Saved plan's input body is, and the pure fold that produces it.
 // Types and one pure function: the reads it is folded from live in be-01, and
 // the hash is taken over this module's serialization.
@@ -88,6 +98,7 @@ export * from './score-real';
 // computing the Baseline anywhere else would mean a caller could satisfy the
 // type while comparing against another plan's answer.
 export * from './publication-guard';
+export * from './real-boundaries';
 // The cache payload's own seam (tasks.md 4.12), beside `schedule` because it is
 // the inverse of what `schedule()` returns and nothing else may encode one: a
 // `Map` renders as `{}` under `JSON.stringify`, so a second implementation would
@@ -123,4 +134,5 @@ export * from './step-reference';
 // of those are drawn on the same screen.
 export * from './stored-vocabularies';
 export * from './tree-order';
+export * from './typed-dependency';
 export * from './workday';

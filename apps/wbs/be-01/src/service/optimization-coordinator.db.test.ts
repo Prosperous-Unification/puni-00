@@ -1,14 +1,26 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type {
+  CommittedFanoutDelivery,
+  CommittedProjectEvent,
+} from '@wbs/core/service/committed-fanout';
 import { schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import type {
+  OptimizationRepository,
+  ReservedSolverChild,
+  ReservedSolverTerminal,
+  ReservedSpawnRequest,
+} from '../module/optimization/contract';
+import { OptimizationCoordinator } from '../module/optimization/optimization.feature';
+import { runSolverChildLifecycle } from '../module/optimization/solver-child-lifecycle';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
-import { OPEN } from '../repository/gate';
+import { OPEN, WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { createOptimizationRepository } from '../repository/optimization';
 import { reserveSolverSlot } from '../repository/optimization-admission';
@@ -22,16 +34,9 @@ import { enqueueSolverRequest } from '../repository/optimization-queue';
 import { readOptimizedPair, storeOptimizedOutcome } from '../repository/optimized-schedule-cache';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { eventLog, optimizedScheduleCache, solverQueue, solverSlot } from '../repository/schema';
-import {
-  OptimizationCoordinator,
-  type ReservedSolverChild,
-  type ReservedSolverTerminal,
-  type ReservedSpawnRequest,
-} from './optimization-coordinator';
-import { runSolverChildLifecycle } from './solver-child-lifecycle';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-const CONTRACT = '7+0.1.0';
+const CONTRACT = '7+0.2.0';
 const BUDGET = 60_000;
 
 const INPUT: ScheduleInput = {
@@ -50,10 +55,11 @@ const INPUT: ScheduleInput = {
   notBefore: new Map(),
   poolSizes: new Map(),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 const FEASIBLE_RESPONSE = `${JSON.stringify({
-  wireVersion: 1,
+  wireVersion: 3,
   status: 'feasible',
   offsets: { 'w-1\u0000step-dev': 0 },
   objectiveValues: {
@@ -156,13 +162,27 @@ function coordinator(
   // A movable clock, defaulting to the fixed instant every other case here
   // relies on. Only the expiry cases below advance it.
   now: () => number = () => 10,
+  beforeReserve?: () => void,
+  repositoryOf?: (repository: OptimizationRepository) => OptimizationRepository,
+  committedFanout?: CommittedFanoutDelivery,
 ): OptimizationCoordinator {
   let token = 0;
+  const repository = createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN);
+  const reservation =
+    beforeReserve === undefined
+      ? repository
+      : {
+          ...repository,
+          reserveSlot: (request: Parameters<OptimizationRepository['reserveSlot']>[0]) => {
+            beforeReserve();
+            return repository.reserveSlot(request);
+          },
+        };
   return new OptimizationCoordinator({
-    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+    repository: repositoryOf?.(reservation) ?? reservation,
     hashInput: scheduleInputHash,
     contractVersion: CONTRACT,
-    solverVersion: '0.1.0',
+    solverVersion: '0.2.0',
     budgetMs: BUDGET,
     ownerId,
     now,
@@ -174,12 +194,712 @@ function coordinator(
       return await childOf(request);
     },
     runChild,
-    pushRecorded: () => Promise.resolve(),
     onChildError,
+    deliverCommitted: committedFanout
+      ? (events) => committedFanout.deliverCommitted(events)
+      : () => Promise.resolve(),
   });
 }
 
+function seedReadyVariant(
+  db: ReturnType<typeof openDrizzle>,
+  generation: number,
+  objective: 'pri' | 'time',
+): void {
+  const admission = reserveSolverSlot(db, {
+    projectId: 'p-1',
+    contractVersion: CONTRACT,
+    generation,
+    objective,
+    budgetMs: BUDGET,
+    ownerId: 'seed',
+    attemptToken: `seed-${objective}`,
+    now: 3,
+  });
+  if (admission.kind !== 'reserved') throw new Error('ready variant fixture was not admitted');
+  const claim = {
+    projectId: 'p-1',
+    contractVersion: CONTRACT,
+    generation,
+    objective,
+    budgetMs: BUDGET,
+    ownerId: 'seed',
+    attemptToken: admission.attemptToken,
+  };
+  expect(
+    storeOptimizedOutcome(db, {
+      claim,
+      inputHash: scheduleInputHash(INPUT),
+      admittedCancelEpoch: admission.admittedCancelEpoch,
+      outcome: {
+        kind: 'ok',
+        result: {
+          publication: 'solver',
+          schedule: schedule(
+            INPUT.rows,
+            INPUT.edges,
+            INPUT.slices,
+            INPUT.notBefore,
+            INPUT.poolSizes,
+          ),
+          objectiveValues: {
+            makespan: { value: 96, stageValue: 96, bound: 96, status: 'optimal' },
+            priority: { value: 0, stageValue: 0, bound: 0, status: 'optimal' },
+            movement: { value: 0, stageValue: 0, bound: 0, status: 'optimal' },
+          },
+        },
+      },
+      now: 4,
+    }),
+  ).toBe('stored');
+  expect(releaseSolverSlot(db, claim).released).toBe(true);
+}
+
 describe('OptimizationCoordinator read', () => {
+  it('hands off the stored outcome before downstream rows and releases its slot while delivery is held', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const log = new DrizzleEventLogStore(db, OPEN);
+    // The extra durable row is injected at the consumer boundary; 6k.b owns
+    // the installed transactional producer proof.
+    const downstream = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await log.recordEvent('project:p-1', downstream, 3);
+    const envelope = { projectId: 'p-1', event: downstream, recorded };
+    const held = deferred<undefined>();
+    const delivered: CommittedProjectEvent[][] = [];
+    const errors: unknown[] = [];
+    const instance = coordinator(
+      db,
+      [],
+      'blue',
+      () => ({
+        pid: 42,
+        stdout: stream(FEASIBLE_RESPONSE),
+        stderr: stream(''),
+        exited: Promise.resolve(0),
+        verdict: () => undefined,
+        kill: () => undefined,
+      }),
+      runSolverChildLifecycle,
+      (error) => errors.push(error),
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        recordOutcome: async (write) => {
+          const committed = await repository.recordOutcome(write);
+          return write.claim.objective === 'pri' && committed.decision.kind === 'stored'
+            ? { ...committed, envelopes: [envelope] }
+            : committed;
+        },
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: async (events) => {
+          delivered.push([...events]);
+          if (events.some((entry) => entry.event.type === 'elsewhere_changed')) await held.promise;
+        },
+      },
+    );
+    await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT });
+    for (let turn = 0; turn < 100 && db.select().from(solverSlot).all().length > 0; turn += 1)
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+    const outcomeDelivery = delivered.find((events) =>
+      events.some((entry) => entry.event.type === 'elsewhere_changed'),
+    );
+    expect(outcomeDelivery?.map(({ event }) => event.type)).toEqual([
+      'schedule_optimized',
+      'elsewhere_changed',
+    ]);
+    expect(outcomeDelivery?.[1]).toEqual(envelope);
+    expect(outcomeDelivery?.map(({ recorded }) => recorded.seq)).toEqual([
+      recorded.seq + 1,
+      recorded.seq,
+    ]);
+    expect(delivered.flat()).toHaveLength(3);
+    expect(new Set(delivered.flat().map(({ recorded }) => recorded.seq)).size).toBe(3);
+    expect(db.select().from(eventLog).all()).toHaveLength(3);
+    let stopped = false;
+    const stopping = instance.stop().then(() => {
+      stopped = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(stopped).toBe(false);
+    held.reject(new Error('outcome transport rejected after commit'));
+    await stopping;
+    expect(errors).toHaveLength(1);
+    if (!(errors[0] instanceof Error)) throw new Error('outcome delivery error was not reported');
+    expect(errors[0].message).toBe('outcome transport rejected after commit');
+  });
+
+  it('does not invoke committed delivery for empty adapter envelopes', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const calls: ReservedSpawnRequest[] = [];
+    let deliveries = 0;
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        now: () => 3,
+        deliverCommitted: () => {
+          deliveries += 1;
+          return Promise.resolve();
+        },
+      },
+    );
+    await instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT, enabled: true });
+    await instance.drain();
+    expect(deliveries).toBe(0);
+  });
+
+  it('hands off a committed reservation envelope without waiting for held delivery', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const log = new DrizzleEventLogStore(db, OPEN);
+    const recorded = await log.recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const held = Promise.withResolvers<undefined>();
+    const delivered: CommittedProjectEvent[] = [];
+    const calls: ReservedSpawnRequest[] = [];
+    let injected = false;
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        reserveSlot: async (request) => {
+          const committed = await repository.reserveSlot(request);
+          const envelopes = injected ? [] : [envelope];
+          injected = true;
+          return { ...committed, envelopes };
+        },
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: async (events) => {
+          delivered.push(...events);
+          await held.promise;
+        },
+      },
+    );
+    const reading = instance.readPlan({
+      projectId: 'p-1',
+      objective: 'pri',
+      input: INPUT,
+      enabled: true,
+    });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const withheld = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error('committed reservation waited for transport'));
+      }, 500);
+    });
+    let answer: Awaited<typeof reading>;
+    try {
+      answer = await Promise.race([reading, withheld]);
+    } catch (error) {
+      held.resolve(undefined);
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+    expect(answer.generation).not.toBeNull();
+    expect(delivered).toEqual([envelope]);
+    let stopped = false;
+    const stopping = instance.stop().then(() => {
+      stopped = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(stopped).toBe(false);
+    held.resolve(undefined);
+    await stopping;
+    expect(stopped).toBe(true);
+  });
+
+  it('delivers a committed project-full reservation answer before its early branch', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(INPUT), 2);
+    for (let budgetMs = 1; budgetMs <= 4; budgetMs += 1) {
+      expect(
+        reserveSolverSlot(db, {
+          projectId: 'p-1',
+          contractVersion: CONTRACT,
+          generation,
+          objective: 'pri',
+          budgetMs,
+          ownerId: 'other',
+          attemptToken: `other-${String(budgetMs)}`,
+          now: 3,
+        }).kind,
+      ).toBe('reserved');
+    }
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const delivered: CommittedProjectEvent[] = [];
+    const calls: ReservedSpawnRequest[] = [];
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        reserveSlot: async (request) => {
+          const committed = await repository.reserveSlot(request);
+          expect(committed.decision.kind).toBe('project-full');
+          return { ...committed, envelopes: [envelope] };
+        },
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: (events) => {
+          delivered.push(...events);
+          return Promise.resolve();
+        },
+      },
+    );
+    await instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT, enabled: true });
+    await instance.drain();
+    expect(delivered).toEqual([envelope, envelope]);
+    expect(calls).toEqual([]);
+  });
+
+  it('delivers an empty-dequeue commit before the queue pump returns', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const delivered: CommittedProjectEvent[] = [];
+    const entered = Promise.withResolvers<undefined>();
+    const held = Promise.withResolvers<undefined>();
+    const instance = coordinator(
+      db,
+      [],
+      'blue',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        dequeueRequest: async (request) => ({
+          ...(await repository.dequeueRequest(request)),
+          envelopes: [envelope],
+        }),
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: async (events) => {
+          delivered.push(...events);
+          entered.resolve();
+          await held.promise;
+        },
+      },
+    );
+    instance.start();
+    await entered.promise;
+    expect(delivered).toEqual([envelope]);
+    let stopped = false;
+    const stopping = instance.stop().then(() => {
+      stopped = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(stopped).toBe(false);
+    held.resolve(undefined);
+    await stopping;
+    expect(stopped).toBe(true);
+  });
+
+  it('keeps a dequeued token while its committed delivery is held then rejected', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(INPUT), 2);
+    expect(
+      enqueueSolverRequest(db, {
+        projectId: 'p-1',
+        contractVersion: CONTRACT,
+        generation,
+        objective: 'pri',
+        budgetMs: BUDGET,
+        enqueuedAt: 3,
+      }),
+    ).toEqual({ kind: 'queued' });
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const held = Promise.withResolvers<undefined>();
+    const delivered: CommittedProjectEvent[] = [];
+    const errors: unknown[] = [];
+    const calls: ReservedSpawnRequest[] = [];
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      (error) => errors.push(error),
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        dequeueRequest: async (request) => {
+          const committed = await repository.dequeueRequest(request);
+          return {
+            ...committed,
+            envelopes: committed.decision.kind === 'reserved' ? [envelope] : [],
+          };
+        },
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: async (events) => {
+          delivered.push(...events);
+          await held.promise;
+        },
+      },
+    );
+    instance.start();
+    await untilCalls(calls, 1);
+    expect(calls).toHaveLength(1);
+    expect(delivered).toEqual([envelope]);
+    const secondWriter = openDatabase(path);
+    try {
+      secondWriter.run("UPDATE project SET name = 'writer-entered' WHERE id = 'p-1'");
+    } finally {
+      secondWriter.close();
+    }
+    let stopped = false;
+    const stopping = instance.stop().then(() => {
+      stopped = true;
+    });
+    await Promise.resolve();
+    expect(stopped).toBe(false);
+    held.reject(new Error('transport refused after dequeue commit'));
+    await stopping;
+    expect(errors).toHaveLength(1);
+    expect(stopped).toBe(true);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:p-1', -1)).toEqual([
+      recorded,
+    ]);
+  });
+
+  it('coalesces reconciliation ticks behind one unsettled source turn', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const repository = createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN);
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    let interval: (() => void) | undefined;
+    let reconciles = 0;
+    const timed = new OptimizationCoordinator({
+      repository: {
+        ...repository,
+        reconcileDrains: async (now) => {
+          reconciles += 1;
+          if (reconciles === 1) {
+            entered.resolve(undefined);
+            await release.promise;
+          }
+          return await repository.reconcileDrains(now);
+        },
+      },
+      hashInput: scheduleInputHash,
+      contractVersion: CONTRACT,
+      solverVersion: '0.2.0',
+      budgetMs: BUDGET,
+      ownerId: 'blue',
+      now: () => 10,
+      attemptToken: () => 'reconcile-token',
+      inputOf: () => Promise.resolve(null),
+      enabledOf: () => Promise.resolve(true),
+      spawn: () => Promise.reject(new Error('reconcile cannot launch')),
+      deliverCommitted: () => Promise.resolve(),
+      onChildError: (error) => {
+        throw error;
+      },
+      setInterval: (callback) => {
+        interval = callback;
+        return 'reconcile-timer';
+      },
+      clearInterval: () => undefined,
+    });
+    timed.start();
+    await entered.promise;
+    if (interval === undefined) throw new Error('reconciliation interval was not installed');
+    interval();
+    interval();
+    await Bun.sleep(0);
+    expect(reconciles).toBe(1);
+    release.resolve(undefined);
+    await timed.drain();
+    await timed.stop();
+    expect(reconciles).toBe(2);
+    // Proof: clearing the in-flight guard starts overlapping reconciliation
+    // calls on each tick instead of coalescing a single follow-up.
+  });
+
+  it('finishes unlaunched slot release before dequeuing the next project', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    seedProject(path, 'p-2');
+    const inputHash = scheduleInputHash(INPUT);
+    for (const projectId of ['p-1', 'p-2']) {
+      const generation = allocateGeneration(db, projectId, CONTRACT, inputHash, 2);
+      expect(
+        enqueueSolverRequest(db, {
+          projectId,
+          contractVersion: CONTRACT,
+          generation,
+          objective: 'pri',
+          budgetMs: BUDGET,
+          enqueuedAt: 3,
+        }),
+      ).toEqual({ kind: 'queued' });
+    }
+    const repository = createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN);
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    const calls: ReservedSpawnRequest[] = [];
+    let dequeues = 0;
+    let tokens = 0;
+    const instance = new OptimizationCoordinator({
+      repository: {
+        ...repository,
+        dequeueRequest: async (request) => {
+          dequeues += 1;
+          return await repository.dequeueRequest(request);
+        },
+        releaseSlot: async (slot) => {
+          if (slot.projectId === 'p-1') {
+            entered.resolve(undefined);
+            await release.promise;
+          }
+          return await repository.releaseSlot(slot);
+        },
+      },
+      hashInput: scheduleInputHash,
+      contractVersion: CONTRACT,
+      solverVersion: '0.2.0',
+      budgetMs: BUDGET,
+      ownerId: 'blue',
+      now: () => 10,
+      attemptToken: () => `pump-${String(tokens++)}`,
+      inputOf: (projectId) => Promise.resolve(projectId === 'p-1' ? null : INPUT),
+      enabledOf: () => Promise.resolve(true),
+      spawn: (request) => {
+        calls.push(request);
+        return Promise.resolve({
+          pid: 101,
+          stdout: stream(''),
+          stderr: stream(''),
+          exited: never,
+          verdict: () => undefined,
+          kill: () => undefined,
+        });
+      },
+      runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
+      deliverCommitted: () => Promise.resolve(),
+      onChildError: (error) => {
+        throw error;
+      },
+      setInterval: () => 'pump-timer',
+      clearInterval: () => undefined,
+    });
+    instance.start();
+    await entered.promise;
+    try {
+      await Bun.sleep(0);
+      expect(dequeues).toBe(1);
+      expect(calls).toEqual([]);
+      expect(db.select().from(solverSlot).all()).toHaveLength(1);
+    } finally {
+      release.resolve(undefined);
+    }
+    await instance.drain();
+    await instance.stop();
+    expect(calls.map(({ key }) => key.projectId)).toEqual(['p-2']);
+    expect(db.select().from(solverSlot).all()).toHaveLength(1);
+    // Proof: dropping the awaited unlaunched release in pumpQueue lets the
+    // second dequeue run while the first project's starting seat is held.
+  });
+
+  it('holds shutdown and the next queue step until durable dequeue settles', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(INPUT), 10);
+    expect(
+      enqueueSolverRequest(db, {
+        projectId: 'p-1',
+        contractVersion: CONTRACT,
+        generation,
+        objective: 'pri',
+        budgetMs: BUDGET,
+        enqueuedAt: 10,
+      }),
+    ).toEqual({ kind: 'queued' });
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    const calls: ReservedSpawnRequest[] = [];
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        dequeueRequest: async (request) => {
+          entered.resolve(undefined);
+          await release.promise;
+          return await repository.dequeueRequest(request);
+        },
+      }),
+    );
+    instance.start();
+    await entered.promise;
+    let stopped = false;
+    const stopping = instance.stop().then(() => {
+      stopped = true;
+    });
+    try {
+      await Bun.sleep(0);
+      expect(stopped).toBe(false);
+      expect(calls).toEqual([]);
+      expect(db.select().from(solverQueue).all()).toHaveLength(1);
+    } finally {
+      release.resolve(undefined);
+    }
+    await stopping;
+    expect(db.select().from(solverQueue).all()).toEqual([]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('tracks held reconciliation through stop and releases the draining generation', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    allocateGeneration(db, 'p-1', CONTRACT, 'draining-input', 10);
+    expect(beginOptimizationDrain(db, 'p-1', { at: 11, by: 'u-1' }, CONTRACT)).toBe(0);
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    const instance = coordinator(
+      db,
+      [],
+      'blue',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        reconcileDrains: async (now) => {
+          entered.resolve(undefined);
+          await release.promise;
+          return await repository.reconcileDrains(now);
+        },
+      }),
+    );
+    instance.start();
+    await entered.promise;
+    let stopped = false;
+    const stopping = instance.stop().then(() => {
+      stopped = true;
+    });
+    try {
+      await Bun.sleep(0);
+      expect(stopped).toBe(false);
+      expect(readGeneration(db, 'p-1', CONTRACT)).not.toBeNull();
+    } finally {
+      release.resolve(undefined);
+    }
+    await stopping;
+    expect(readGeneration(db, 'p-1', CONTRACT)).toBeNull();
+  });
+
+  it.each(['superseded', 'disabled', 'draining'] as const)(
+    'refuses a %s request after observation and before reservation',
+    async (change) => {
+      const { path, db } = database();
+      seedProject(path);
+      const calls: ReservedSpawnRequest[] = [];
+      let changed = false;
+      const instance = coordinator(
+        db,
+        calls,
+        'blue',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        () => {
+          if (changed) return;
+          changed = true;
+          if (change === 'superseded') allocateGeneration(db, 'p-1', CONTRACT, 'newer-input', 11);
+          else if (change === 'disabled') {
+            const write = openDatabase(path);
+            try {
+              write.run("UPDATE project SET optimization_enabled = 0 WHERE id = 'p-1'");
+            } finally {
+              write.close();
+            }
+          } else beginOptimizationDrain(db, 'p-1', { at: 11, by: 'u-1' }, CONTRACT);
+        },
+      );
+      await instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT, enabled: true });
+      await instance.drain();
+      expect(changed).toBe(true);
+      expect(calls).toEqual([]);
+      expect(db.select().from(solverSlot).all()).toEqual([]);
+      expect(db.select().from(solverQueue).all()).toEqual([]);
+    },
+  );
   it('reconciles abandoned drains at startup and on the owned interval without resuming work', async () => {
     const { path, db } = database();
     seedProject(path);
@@ -204,10 +924,10 @@ describe('OptimizationCoordinator read', () => {
     const spawned: ReservedSpawnRequest[] = [];
     const errors: unknown[] = [];
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'restarted',
       now: () => 600,
@@ -218,7 +938,7 @@ describe('OptimizationCoordinator read', () => {
         spawned.push(request);
         throw new Error('a drain reconciliation must not resume a solve');
       },
-      pushRecorded: () => Promise.resolve(),
+      deliverCommitted: () => Promise.resolve(),
       onChildError: (error) => errors.push(error),
       setInterval: (callback, milliseconds) => {
         tick = callback;
@@ -229,12 +949,14 @@ describe('OptimizationCoordinator read', () => {
     });
 
     instance.start();
+    await instance.drain();
     expect(readGeneration(db, 'p-1', CONTRACT)).toBeNull();
     expect(scheduled).toEqual([DRAIN_RECONCILE_INTERVAL_MS]);
     expect(spawned).toEqual([]);
 
     markDraining('interval-hash');
     tick();
+    await instance.drain();
     expect(readGeneration(db, 'p-1', CONTRACT)).toBeNull();
     await instance.stop();
     expect(cleared).toEqual(['drain-timer']);
@@ -252,10 +974,10 @@ describe('OptimizationCoordinator read', () => {
     let inputReads = 0;
     let enabled = true;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -282,7 +1004,7 @@ describe('OptimizationCoordinator read', () => {
         });
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
-      pushRecorded: () => Promise.resolve(),
+      deliverCommitted: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
       },
@@ -310,7 +1032,7 @@ describe('OptimizationCoordinator read', () => {
     // enabled check reads the input and attempts admission after the OFF event.
   });
 
-  it('bypasses allocation and both solvers when the canonical plan has no work', () => {
+  it('bypasses allocation and both solvers when the canonical plan has no work', async () => {
     const { path, db } = database();
     seedProject(path);
     const calls: ReservedSpawnRequest[] = [];
@@ -321,7 +1043,7 @@ describe('OptimizationCoordinator read', () => {
     };
 
     for (const input of [empty, zeroDuration]) {
-      const read = coordinator(db, calls).readPlan({
+      const read = await coordinator(db, calls).readPlan({
         projectId: 'p-1',
         objective: 'pri',
         input,
@@ -348,12 +1070,23 @@ describe('OptimizationCoordinator read', () => {
     seedProject(path);
     const calls: ReservedSpawnRequest[] = [];
 
-    const read = coordinator(db, calls).readPlan({
-      projectId: 'p-1',
-      objective: 'pri',
-      input: INPUT,
-      enabled: true,
-    });
+    const read = await Promise.race([
+      coordinator(db, calls, 'blue', undefined, undefined, undefined, undefined, undefined, () =>
+        createOptimizationRepository(
+          db,
+          new DrizzleEventLogStore(db, OPEN),
+          new WriteCoordinator(),
+        ),
+      ).readPlan({
+        projectId: 'p-1',
+        objective: 'pri',
+        input: INPUT,
+        enabled: true,
+      }),
+      Bun.sleep(1_000).then(() => {
+        throw new Error('cold admission did not settle');
+      }),
+    ]);
     expect(read).toMatchObject({
       inputHash: scheduleInputHash(INPUT),
       generation: 1,
@@ -382,7 +1115,7 @@ describe('OptimizationCoordinator read', () => {
     ]);
 
     expect(
-      coordinator(db, calls, 'green').read({
+      await coordinator(db, calls, 'green').read({
         projectId: 'p-1',
         objective: 'time',
         input: INPUT,
@@ -394,7 +1127,46 @@ describe('OptimizationCoordinator read', () => {
     // check lets green call the spawner twice more for the same generation.
   });
 
-  it('does not label a terminal row retrying from a different-budget slot', () => {
+  it('admits only a missing objective after a ready hit and none after a full hit', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(INPUT), 2);
+    seedReadyVariant(db, generation, 'pri');
+    const calls: ReservedSpawnRequest[] = [];
+    const instance = coordinator(db, calls);
+
+    const oneMissing = await instance.readPlan({
+      projectId: 'p-1',
+      objective: 'pri',
+      input: INPUT,
+      enabled: true,
+    });
+    expect(oneMissing.generation).toBe(generation);
+    expect(oneMissing.variants.pri.state).toBe('ready');
+    expect(oneMissing.variants.time.state).toBe('pending');
+    expect(calls.map(({ objective }) => objective)).toEqual(['time']);
+
+    const { path: fullPath, db: fullDb } = database();
+    seedProject(fullPath);
+    const fullGeneration = allocateGeneration(fullDb, 'p-1', CONTRACT, scheduleInputHash(INPUT), 2);
+    seedReadyVariant(fullDb, fullGeneration, 'pri');
+    seedReadyVariant(fullDb, fullGeneration, 'time');
+    const fullCalls: ReservedSpawnRequest[] = [];
+    const fullHit = await coordinator(fullDb, fullCalls).readPlan({
+      projectId: 'p-1',
+      objective: 'time',
+      input: INPUT,
+      enabled: true,
+    });
+    expect(fullHit.generation).toBe(fullGeneration);
+    expect(fullHit.variants.pri.state).toBe('ready');
+    expect(fullHit.variants.time.state).toBe('ready');
+    expect(fullCalls).toEqual([]);
+    // Proof: broadening automatic selection to any non-idle row re-launches
+    // a ready hit; the exact objective list must remain miss-only.
+  });
+
+  it('does not label a terminal row retrying from a different-budget slot', async () => {
     const { path, db } = database();
     seedProject(path);
     const inputHash = scheduleInputHash(INPUT);
@@ -426,7 +1198,7 @@ describe('OptimizationCoordinator read', () => {
       }),
     ).toMatchObject({ kind: 'reserved' });
 
-    const read = coordinator(db, []).readPlan({
+    const read = await coordinator(db, []).readPlan({
       projectId: 'p-1',
       objective: 'pri',
       input: INPUT,
@@ -441,7 +1213,7 @@ describe('OptimizationCoordinator read', () => {
     // to `retrying`, even though the only running solve cannot fill this row.
   });
 
-  it('persists both absent objectives when project capacity is already full', () => {
+  it('persists both absent objectives when project capacity is already full', async () => {
     const { path, db } = database();
     seedProject(path);
     const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(INPUT), 2);
@@ -462,7 +1234,7 @@ describe('OptimizationCoordinator read', () => {
     const calls: ReservedSpawnRequest[] = [];
 
     expect(
-      coordinator(db, calls).read({ projectId: 'p-1', objective: 'pri', input: INPUT }),
+      await coordinator(db, calls).read({ projectId: 'p-1', objective: 'pri', input: INPUT }),
     ).toBeNull();
     expect(calls).toEqual([]);
     expect(
@@ -480,7 +1252,11 @@ describe('OptimizationCoordinator read', () => {
       { objective: 'time', budgetMs: BUDGET, generation, epoch: 0 },
     ]);
 
-    coordinator(db, calls, 'green').read({ projectId: 'p-1', objective: 'time', input: INPUT });
+    await coordinator(db, calls, 'green').read({
+      projectId: 'p-1',
+      objective: 'time',
+      input: INPUT,
+    });
     expect(db.select().from(solverQueue).all()).toHaveLength(2);
 
     // Proof: ignoring project-full/global-full leaves this FIFO empty; replacing
@@ -547,8 +1323,8 @@ describe('OptimizationCoordinator read', () => {
 
     instance.start();
     await untilCalls(calls, 2);
-    instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT });
-    instance.read({ projectId: 'p-2', objective: 'pri', input: INPUT });
+    await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT });
+    await instance.read({ projectId: 'p-2', objective: 'pri', input: INPUT });
     expect(calls.map(({ key, objective }) => `${key.projectId}:${objective}`)).toEqual([
       'p-0:pri',
       'p-0:time',
@@ -609,10 +1385,10 @@ describe('OptimizationCoordinator read', () => {
     let enabledReads = 0;
     let inputReads = 0;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -629,7 +1405,7 @@ describe('OptimizationCoordinator read', () => {
         calls.push(request);
         throw new Error('an OFF project reached the launcher');
       },
-      pushRecorded: () => Promise.resolve(),
+      deliverCommitted: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
       },
@@ -654,6 +1430,72 @@ describe('OptimizationCoordinator read', () => {
     // with `replacementInput`'s hash and launches both replacement objectives.
   });
 
+  it('releases a stale queued seat before observing replacement enablement', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const oldHash = scheduleInputHash(INPUT);
+    const replacement: ScheduleInput = { ...INPUT, notBefore: new Map([['w-1', 1]]) };
+    const generation = allocateGeneration(db, 'p-1', CONTRACT, oldHash, 2);
+    expect(
+      enqueueSolverRequest(db, {
+        projectId: 'p-1',
+        contractVersion: CONTRACT,
+        generation,
+        objective: 'pri',
+        budgetMs: BUDGET,
+        enqueuedAt: 3,
+      }),
+    ).toEqual({ kind: 'queued' });
+    const repository = createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN);
+    const entered = deferred<undefined>();
+    const release = deferred<undefined>();
+    let enabledReads = 0;
+    const instance = new OptimizationCoordinator({
+      repository: {
+        ...repository,
+        releaseSlot: async (slot) => {
+          entered.resolve(undefined);
+          await release.promise;
+          return await repository.releaseSlot(slot);
+        },
+      },
+      hashInput: scheduleInputHash,
+      contractVersion: CONTRACT,
+      solverVersion: '0.2.0',
+      budgetMs: BUDGET,
+      ownerId: 'blue',
+      now: () => 10,
+      attemptToken: () => 'stale-token',
+      inputOf: () => Promise.resolve(replacement),
+      enabledOf: () => {
+        enabledReads += 1;
+        return Promise.resolve(false);
+      },
+      spawn: () => {
+        throw new Error('disabled replacement reached launcher');
+      },
+      runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
+      deliverCommitted: () => Promise.resolve(),
+      onChildError: (error) => {
+        throw error;
+      },
+      setInterval: () => 'stale-timer',
+      clearInterval: () => undefined,
+    });
+    instance.start();
+    try {
+      await entered.promise;
+      await Promise.resolve();
+      expect(enabledReads).toBe(0);
+      expect(db.select().from(solverSlot).all()).toHaveLength(1);
+    } finally {
+      release.resolve(undefined);
+    }
+    await instance.stop();
+    expect(enabledReads).toBe(1);
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+  });
+
   it('fences allocation when OFF commits as the stale-input enabled read returns', async () => {
     const { path, db } = database();
     seedProject(path);
@@ -676,10 +1518,10 @@ describe('OptimizationCoordinator read', () => {
     const switcher = openDatabase(path);
     const calls: ReservedSpawnRequest[] = [];
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -693,7 +1535,7 @@ describe('OptimizationCoordinator read', () => {
         calls.push(request);
         throw new Error('an OFF project reached the launcher');
       },
-      pushRecorded: () => Promise.resolve(),
+      deliverCommitted: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
       },
@@ -716,7 +1558,7 @@ describe('OptimizationCoordinator read', () => {
     expect(db.select().from(solverSlot).all()).toEqual([]);
   });
 
-  it('stores both preflight refusals without creating a launcher', () => {
+  it('stores both preflight refusals without creating a launcher', async () => {
     const { path, db } = database();
     seedProject(path);
     const calls: ReservedSpawnRequest[] = [];
@@ -725,9 +1567,16 @@ describe('OptimizationCoordinator read', () => {
       notBefore: new Map([['w-1', 50_000_000]]),
     };
 
-    expect(
-      coordinator(db, calls).read({ projectId: 'p-1', objective: 'pri', input: tooLate }),
-    ).toBeNull();
+    const captured = await coordinator(db, calls).readPlan({
+      projectId: 'p-1',
+      objective: 'pri',
+      input: tooLate,
+      enabled: true,
+    });
+    expect(captured.inputHash).toBe(scheduleInputHash(tooLate));
+    expect(captured.generation).toBe(1);
+    expect(captured.variants).toEqual({ pri: { state: 'idle' }, time: { state: 'idle' } });
+    expect(captured.schedules).toEqual({ pri: null, time: null });
     expect(calls).toEqual([]);
     expect(db.select().from(solverSlot).all()).toEqual([]);
 
@@ -740,11 +1589,14 @@ describe('OptimizationCoordinator read', () => {
     expect(pair.pri).toMatchObject({ kind: 'failed', reason: 'horizon-overflow' });
     expect(pair.time).toMatchObject({ kind: 'failed', reason: 'horizon-overflow' });
 
+    // Proof: rereading the cache after preflight replaces the captured idle
+    // display with a failure that was written after the observation closed.
+
     // Proof: passing the refusal to spawn creates two launcher calls; skipping
     // the fenced store leaves both variants as misses and repeats on every read.
   });
 
-  it('does not automatically request exact-key failed or corrupt objectives', () => {
+  it('does not automatically request exact-key failed or corrupt objectives', async () => {
     const { path, db } = database();
     seedProject(path);
     const inputHash = scheduleInputHash(INPUT);
@@ -766,7 +1618,7 @@ describe('OptimizationCoordinator read', () => {
     const calls: ReservedSpawnRequest[] = [];
 
     expect(
-      coordinator(db, calls).read({ projectId: 'p-1', objective: 'pri', input: INPUT }),
+      await coordinator(db, calls).read({ projectId: 'p-1', objective: 'pri', input: INPUT }),
     ).toBeNull();
     expect(calls).toEqual([]);
 
@@ -807,7 +1659,7 @@ describe('OptimizationCoordinator read', () => {
       };
     });
 
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
     await instance.drain();
     expect(verdicts).toEqual(['abort', 'abort']);
     expect(killed).toBe(0);
@@ -824,6 +1676,56 @@ describe('OptimizationCoordinator read', () => {
     // Proof: dropping the bind CAS or sending `bound` unconditionally lets
     // both delayed launchers exec against replacement-owned reservations.
     // Calling kill here would race the host's awaited abort cleanup.
+  });
+
+  it('waits for durable PID bind before sending the child bound verdict', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const calls: ReservedSpawnRequest[] = [];
+    const verdicts: string[] = [];
+    const entered = deferred<undefined>();
+    const release = deferred<undefined>();
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      () => ({
+        pid: 42,
+        stdout: stream(''),
+        stderr: stream(''),
+        exited: never,
+        verdict: (verdict) => {
+          verdicts.push(verdict);
+        },
+        kill: () => undefined,
+      }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        bindSlot: async (request) => {
+          entered.resolve(undefined);
+          await release.promise;
+          return await repository.bindSlot(request);
+        },
+      }),
+    );
+    await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT });
+    try {
+      await entered.promise;
+      await Promise.resolve();
+      expect(verdicts).toEqual([]);
+      expect(db.select({ lifecycle: solverSlot.lifecycle }).from(solverSlot).all()).toEqual([
+        { lifecycle: 'starting' },
+        { lifecycle: 'starting' },
+      ]);
+    } finally {
+      release.resolve(undefined);
+    }
+    await instance.drain();
+    expect(verdicts).toEqual(['bound', 'bound']);
   });
 
   it('runs bound children through evaluation, the token-fenced store, and release', async () => {
@@ -845,7 +1747,7 @@ describe('OptimizationCoordinator read', () => {
       runSolverChildLifecycle,
     );
 
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
     await instance.drain();
 
     const pair = readOptimizedPair(db, {
@@ -857,11 +1759,70 @@ describe('OptimizationCoordinator read', () => {
     expect(pair.pri.kind).toBe('ok');
     expect(pair.time.kind).toBe('ok');
     expect(db.select().from(solverSlot).all()).toEqual([]);
-    expect(instance.read({ projectId: 'p-1', objective: 'time', input: INPUT })).not.toBeNull();
+    expect(
+      await instance.read({ projectId: 'p-1', objective: 'time', input: INPUT }),
+    ).not.toBeNull();
     expect(calls).toHaveLength(2);
   });
 
-  it('reports an admission-closed miss idle beside a ready incomplete result', () => {
+  it('persists a terminal outcome before the lifecycle releases its seat', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const calls: ReservedSpawnRequest[] = [];
+    const entered = deferred<undefined>();
+    const release = deferred<undefined>();
+    let released = 0;
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      () => ({
+        pid: 42,
+        stdout: stream(FEASIBLE_RESPONSE),
+        stderr: stream(''),
+        exited: Promise.resolve(0),
+        verdict: () => undefined,
+        kill: () => undefined,
+      }),
+      runSolverChildLifecycle,
+      undefined,
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        recordOutcome: async (write) => {
+          entered.resolve(undefined);
+          await release.promise;
+          return await repository.recordOutcome(write);
+        },
+        releaseSlot: async (slot) => {
+          released += 1;
+          return await repository.releaseSlot(slot);
+        },
+      }),
+    );
+    await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT });
+    try {
+      await entered.promise;
+      await Promise.resolve();
+      expect(released).toBe(0);
+      expect(db.select().from(solverSlot).all()).toHaveLength(2);
+    } finally {
+      release.resolve(undefined);
+    }
+    await instance.drain();
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+    expect(
+      readOptimizedPair(db, {
+        projectId: 'p-1',
+        inputHash: scheduleInputHash(INPUT),
+        contractVersion: CONTRACT,
+        budgetMs: BUDGET,
+      }).pri.kind,
+    ).toBe('ok');
+  });
+
+  it('reports an admission-closed miss idle beside a ready incomplete result', async () => {
     const { path, db } = database();
     seedProject(path);
     const calls: ReservedSpawnRequest[] = [];
@@ -943,7 +1904,7 @@ describe('OptimizationCoordinator read', () => {
     expect(beginOptimizationDrain(db, 'p-1', { at: 5, by: 'u-1' }, CONTRACT)).toBe(0);
     expect(db.select().from(solverQueue).all()).toEqual([]);
 
-    const plan = instance.readPlan({
+    const plan = await instance.readPlan({
       projectId: 'p-1',
       objective: 'pri',
       input: INPUT,
@@ -976,7 +1937,7 @@ describe('OptimizationCoordinator read', () => {
       (error) => void errors.push(error),
     );
 
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
     await instance.drain();
 
     const pair = readOptimizedPair(db, {
@@ -995,7 +1956,7 @@ describe('OptimizationCoordinator read', () => {
     ]);
     expect(errors).toHaveLength(2);
 
-    expect(instance.read({ projectId: 'p-1', objective: 'time', input: INPUT })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'time', input: INPUT })).toBeNull();
     expect(calls).toHaveLength(2);
   });
 
@@ -1039,7 +2000,7 @@ describe('OptimizationCoordinator read', () => {
       () => clock,
     );
 
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
     await instance.drain();
 
     const key = {
@@ -1061,14 +2022,14 @@ describe('OptimizationCoordinator read', () => {
     expect(seats).toHaveLength(2);
     const deadline = seats[0];
 
-    const stateOf = (): string =>
-      instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT, enabled: true })
+    const stateOf = async (): Promise<string> =>
+      (await instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT, enabled: true }))
         .variants.pri.state;
 
     clock = deadline - 1;
-    expect(stateOf()).toBe('retrying');
+    expect(await stateOf()).toBe('retrying');
     expect(
-      instance.retry({
+      await instance.retry({
         projectId: 'p-1',
         objective: 'pri',
         inputHash: key.inputHash,
@@ -1077,11 +2038,11 @@ describe('OptimizationCoordinator read', () => {
     ).toEqual({ kind: 'already-running' });
 
     clock = deadline;
-    expect(stateOf()).toBe('failed');
+    expect(await stateOf()).toBe('failed');
     // And the escape is reachable: Retry admits rather than refusing, which is
     // what puts a real solve back on the wire and sweeps the dead seat.
     expect(
-      instance.retry({
+      await instance.retry({
         projectId: 'p-1',
         objective: 'pri',
         inputHash: key.inputHash,
@@ -1117,7 +2078,7 @@ describe('OptimizationCoordinator read', () => {
       (error) => void errors.push(error),
     );
 
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
     await instance.drain();
 
     const pair = readOptimizedPair(db, {
@@ -1149,7 +2110,7 @@ describe('OptimizationCoordinator read', () => {
       return start.promise;
     });
 
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
     expect(calls).toHaveLength(2);
     expect(starts).toHaveLength(2);
     expect(db.select({ lifecycle: solverSlot.lifecycle }).from(solverSlot).all()).toEqual([
@@ -1245,7 +2206,7 @@ describe('OptimizationCoordinator read', () => {
         runSolverChildLifecycle,
       );
 
-      expect(instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+      expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
       await instance.drain();
       const pair = readOptimizedPair(db, {
         projectId: 'p-1',
@@ -1288,7 +2249,7 @@ describe('OptimizationCoordinator read', () => {
       runSolverChildLifecycle,
     );
 
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
     await instance.drain();
     const pair = readOptimizedPair(db, {
       projectId: 'p-1',
@@ -1328,7 +2289,7 @@ describe('OptimizationCoordinator read', () => {
       (error) => void errors.push(error),
     );
 
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
     await Promise.resolve();
     for (const terminal of terminals) {
       terminal.reject(new Error('supervisor EOF before terminal'));
@@ -1394,12 +2355,154 @@ describe('OptimizationCoordinator Retry admission', () => {
     input,
   });
 
-  it('refuses a stale body before retryability and carries the current hash', () => {
+  it('retains an accepted Retry while committed delivery is held then rejected', async () => {
+    const { path, db } = database();
+    const generation = generationWith(path, db, 'failed');
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const held = Promise.withResolvers<undefined>();
+    const delivered: CommittedProjectEvent[] = [];
+    const errors: unknown[] = [];
+    const calls: ReservedSpawnRequest[] = [];
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      (error) => errors.push(error),
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        admitRetry: async (request) => ({
+          ...(await repository.admitRetry(request)),
+          envelopes: [envelope],
+        }),
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: async (events) => {
+          delivered.push(...events);
+          await held.promise;
+        },
+      },
+    );
+    const answer = await instance.retry(ask());
+    expect(answer).toMatchObject({ kind: 'accepted', generation });
+    expect(delivered).toEqual([envelope]);
+    await untilCalls(calls, 1);
+    expect(calls).toHaveLength(1);
+    const secondWriter = openDatabase(path);
+    try {
+      secondWriter.run("UPDATE project SET name = 'writer-entered' WHERE id = 'p-1'");
+    } finally {
+      secondWriter.close();
+    }
+    held.reject(new Error('transport refused after Retry commit'));
+    await instance.drain();
+    expect(errors).toHaveLength(1);
+    expect(db.select().from(solverSlot).all()).toHaveLength(1);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:p-1', -1)).toEqual([
+      recorded,
+    ]);
+  });
+
+  it('returns an accepted Retry after a synchronous committed-delivery throw', async () => {
+    const { path, db } = database();
+    const generation = generationWith(path, db, 'failed');
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const errors: unknown[] = [];
+    const calls: ReservedSpawnRequest[] = [];
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      (error) => errors.push(error),
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        admitRetry: async (request) => ({
+          ...(await repository.admitRetry(request)),
+          envelopes: [envelope],
+        }),
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: () => {
+          throw new Error('synchronous transport failure');
+        },
+      },
+    );
+    expect(await instance.retry(ask())).toMatchObject({ kind: 'accepted', generation });
+    await untilCalls(calls, 1);
+    await instance.drain();
+    expect(calls).toHaveLength(1);
+    expect(errors).toHaveLength(1);
+  });
+
+  it('delivers a non-retryable committed answer before returning its refusal', async () => {
+    const { path, db } = database();
+    generationWith(path, db, 'none');
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: 'p-1',
+      causeProjectId: 'p-2',
+    };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
+    const envelope = { projectId: 'p-1', event, recorded };
+    const delivered: CommittedProjectEvent[] = [];
+    const calls: ReservedSpawnRequest[] = [];
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (repository) => ({
+        ...repository,
+        admitRetry: async (request) => ({
+          ...(await repository.admitRetry(request)),
+          envelopes: [envelope],
+        }),
+      }),
+      {
+        now: () => 3,
+        deliverCommitted: (events) => {
+          delivered.push(...events);
+          return Promise.resolve();
+        },
+      },
+    );
+    expect(await instance.retry(ask())).toEqual({ kind: 'not-retryable', state: 'idle' });
+    await instance.drain();
+    expect(delivered).toEqual([envelope]);
+    expect(calls).toEqual([]);
+  });
+
+  it('refuses a stale body before retryability and carries the current hash', async () => {
     const { path, db } = database();
     generationWith(path, db, 'failed');
     const calls: ReservedSpawnRequest[] = [];
 
-    expect(coordinator(db, calls).retry(ask('stale-hash'))).toEqual({
+    expect(await coordinator(db, calls).retry(ask('stale-hash'))).toEqual({
       kind: 'stale-input-hash',
       currentInputHash: inputHash,
     });
@@ -1407,7 +2510,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     expect(db.select().from(solverSlot).all()).toEqual([]);
   });
 
-  it('names a live miss pending instead of reporting it already-running', () => {
+  it('names a live miss pending instead of reporting it already-running', async () => {
     const { path, db } = database();
     const generation = generationWith(path, db, 'none');
     expect(
@@ -1421,7 +2524,7 @@ describe('OptimizationCoordinator Retry admission', () => {
       }),
     ).toEqual({ kind: 'queued' });
 
-    expect(coordinator(db, []).retry(ask())).toEqual({
+    expect(await coordinator(db, []).retry(ask())).toEqual({
       kind: 'not-retryable',
       state: 'pending',
     });
@@ -1432,12 +2535,12 @@ describe('OptimizationCoordinator Retry admission', () => {
   it.each([
     { marker: 'none', state: 'idle' },
     { marker: 'plan-infeasible', state: 'plan-infeasible' },
-  ] as const)('names an unlaunchable $state variant not-retryable', ({ marker, state }) => {
+  ] as const)('names an unlaunchable $state variant not-retryable', async ({ marker, state }) => {
     const { path, db } = database();
     generationWith(path, db, marker);
     const calls: ReservedSpawnRequest[] = [];
 
-    expect(coordinator(db, calls).retry(ask())).toEqual({ kind: 'not-retryable', state });
+    expect(await coordinator(db, calls).retry(ask())).toEqual({ kind: 'not-retryable', state });
     // Both, because neither alone is "no solver process starts": `spawn` runs
     // **before** `bindSolverSlot`, so a regression that starts a child and then
     // fails to bind leaves this table empty and the process real. The spawn
@@ -1455,13 +2558,13 @@ describe('OptimizationCoordinator Retry admission', () => {
       const calls: ReservedSpawnRequest[] = [];
       const instance = coordinator(db, calls);
 
-      expect(instance.retry(ask())).toEqual({
+      expect(await instance.retry(ask())).toEqual({
         kind: 'accepted',
         state: 'retrying',
         generation,
         inputHash,
       });
-      expect(instance.retry(ask())).toEqual({ kind: 'already-running' });
+      expect(await instance.retry(ask())).toEqual({ kind: 'already-running' });
       await untilCalls(calls, 1);
 
       expect(calls.map((call) => call.objective)).toEqual(['pri']);
@@ -1470,7 +2573,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     },
   );
 
-  it('matches already-running on budget and admits beside a different-budget slot', () => {
+  it('matches already-running on budget and admits beside a different-budget slot', async () => {
     const { path, db } = database();
     const generation = generationWith(path, db, 'failed');
     expect(
@@ -1486,14 +2589,14 @@ describe('OptimizationCoordinator Retry admission', () => {
       }),
     ).toMatchObject({ kind: 'reserved' });
 
-    expect(coordinator(db, []).retry(ask())).toMatchObject({
+    expect(await coordinator(db, []).retry(ask())).toMatchObject({
       kind: 'accepted',
       state: 'retrying',
     });
     expect(db.select().from(solverSlot).all()).toHaveLength(2);
   });
 
-  it('queues a failed Retry behind project capacity without replacing its marker', () => {
+  it('queues a failed Retry behind project capacity without replacing its marker', async () => {
     const { path, db } = database();
     const generation = generationWith(path, db, 'failed');
     for (let index = 0; index < 4; index += 1) {
@@ -1512,7 +2615,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     }
     const calls: ReservedSpawnRequest[] = [];
 
-    expect(coordinator(db, calls).retry(ask())).toEqual({
+    expect(await coordinator(db, calls).retry(ask())).toEqual({
       kind: 'accepted',
       state: 'retrying',
       generation,
@@ -1533,7 +2636,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     // retained marker at admission changes its final kind away from `failed`.
   });
 
-  it('takes SQLite writer ownership before reading Retry eligibility', () => {
+  it('takes SQLite writer ownership before reading Retry eligibility', async () => {
     const { path, db } = database();
     const generation = generationWith(path, db, 'failed');
     const contender = openDatabase(path);
@@ -1541,10 +2644,10 @@ describe('OptimizationCoordinator Retry admission', () => {
     const calls: ReservedSpawnRequest[] = [];
     let contention: unknown;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -1569,14 +2672,14 @@ describe('OptimizationCoordinator Retry admission', () => {
           kill: () => undefined,
         });
       },
-      pushRecorded: () => Promise.resolve(),
+      deliverCommitted: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
       },
     });
 
     try {
-      expect(instance.retry(ask())).toMatchObject({ kind: 'accepted', generation });
+      expect(await instance.retry(ask())).toMatchObject({ kind: 'accepted', generation });
     } finally {
       contender.close();
     }
@@ -1587,7 +2690,7 @@ describe('OptimizationCoordinator Retry admission', () => {
 
   it.each(['OFF', 'draining'] as const)(
     'refuses a failed Retry while the project is %s',
-    (condition) => {
+    async (condition) => {
       const { path, db } = database();
       generationWith(path, db, 'failed');
       const write = openDatabase(path);
@@ -1603,7 +2706,7 @@ describe('OptimizationCoordinator Retry admission', () => {
         write.close();
       }
 
-      expect(coordinator(db, []).retry(ask())).toEqual({
+      expect(await coordinator(db, []).retry(ask())).toEqual({
         kind: 'not-retryable',
         state: 'failed',
       });
@@ -1641,10 +2744,10 @@ describe('OptimizationCoordinator Retry admission', () => {
     const errors: unknown[] = [];
     let token = 0;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -1663,13 +2766,13 @@ describe('OptimizationCoordinator Retry admission', () => {
         });
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
-      pushRecorded: () => Promise.resolve(),
+      deliverCommitted: () => Promise.resolve(),
       onChildError: (error) => errors.push(error),
       setInterval: () => 'drain-timer',
       clearInterval: () => undefined,
     });
 
-    expect(instance.retry(ask(refusedHash, refusedInput))).toMatchObject({
+    expect(await instance.retry(ask(refusedHash, refusedInput))).toMatchObject({
       kind: 'accepted',
       generation: refusedGeneration,
     });
@@ -1705,4 +2808,399 @@ describe('OptimizationCoordinator Retry admission', () => {
     // Proof: timestamping the preflight failure from the lagging clock throws
     // before this row is stored and leaves p-2 queued with zero launcher calls.
   });
+});
+
+it('retires an old integer-infeasibility certificate under the current solver cache key', () => {
+  const { path, db } = database();
+  seedProject(path);
+  const oldContract = '14+0.1.3';
+  const currentRequest = JSON.parse(
+    readFileSync(
+      new URL(
+        '../../../../../libs/wbs/domain/contracts/solver/fixtures/request/valid-two-slices.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ) as { contractVersion: string };
+  const inputHash = scheduleInputHash(INPUT);
+  const generation = allocateGeneration(db, 'p-1', oldContract, inputHash, 2);
+  db.insert(optimizedScheduleCache)
+    .values({
+      projectId: 'p-1',
+      inputHash,
+      objective: 'pri',
+      contractVersion: oldContract,
+      budgetMs: BUDGET,
+      generation,
+      status: 'plan-infeasible',
+      resultJson: '{"dtoVersion":1,"items":[]}',
+      failureReason: null,
+      createdAt: 3,
+    })
+    .run();
+  expect(
+    readOptimizedPair(db, {
+      projectId: 'p-1',
+      inputHash,
+      contractVersion: oldContract,
+      budgetMs: BUDGET,
+    }).pri.kind,
+  ).toBe('plan-infeasible');
+  expect(
+    readOptimizedPair(db, {
+      projectId: 'p-1',
+      inputHash,
+      contractVersion: currentRequest.contractVersion,
+      budgetMs: BUDGET,
+    }).pri.kind,
+  ).toBe('miss');
+});
+
+describe('wire 3 preflight admission cleanup', () => {
+  it.each(['initial', 'retry'] as const)(
+    'finishes %s preflight release before requesting another queue dequeue',
+    async (pathway) => {
+      const { path, db } = database();
+      seedProject(path);
+      const input: ScheduleInput = {
+        ...INPUT,
+        slices: INPUT.slices.map((slice) => ({ ...slice, days: 2 ** 52 })),
+      };
+      const hash = scheduleInputHash(input);
+      if (pathway === 'retry') {
+        const generation = allocateGeneration(db, 'p-1', CONTRACT, hash, 2);
+        db.insert(optimizedScheduleCache)
+          .values({
+            projectId: 'p-1',
+            inputHash: hash,
+            objective: 'pri',
+            contractVersion: CONTRACT,
+            budgetMs: BUDGET,
+            generation,
+            status: 'failed',
+            resultJson: null,
+            failureReason: 'timeout',
+            createdAt: 3,
+          })
+          .run();
+      }
+      const repository = createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN);
+      const entered = deferred<undefined>();
+      const release = deferred<undefined>();
+      let dequeues = 0;
+      const instance = coordinator(
+        db,
+        [],
+        'blue',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        () => ({
+          ...repository,
+          releaseSlot: async (slot) => {
+            entered.resolve(undefined);
+            await release.promise;
+            return await repository.releaseSlot(slot);
+          },
+          dequeueRequest: async (request) => {
+            dequeues += 1;
+            return await repository.dequeueRequest(request);
+          },
+        }),
+      );
+      const reading =
+        pathway === 'initial'
+          ? instance.readPlan({ projectId: 'p-1', objective: 'pri', input, enabled: true })
+          : instance.retry({ projectId: 'p-1', objective: 'pri', inputHash: hash, input });
+      try {
+        await entered.promise;
+        await Promise.resolve();
+        expect(dequeues).toBe(0);
+        expect(db.select().from(solverSlot).all()).toHaveLength(1);
+      } finally {
+        release.resolve(undefined);
+      }
+      await reading;
+      await instance.drain();
+      expect(dequeues).toBeGreaterThan(0);
+      expect(db.select().from(solverSlot).all()).toEqual([]);
+    },
+  );
+  it('persists a queued preflight refusal before releasing its reserved seat', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const input: ScheduleInput = {
+      ...INPUT,
+      slices: INPUT.slices.map((slice) => ({ ...slice, days: 2 ** 52 })),
+    };
+    const hash = scheduleInputHash(input);
+    const generation = allocateGeneration(db, 'p-1', CONTRACT, hash, 2);
+    expect(
+      enqueueSolverRequest(db, {
+        projectId: 'p-1',
+        contractVersion: CONTRACT,
+        generation,
+        objective: 'pri',
+        budgetMs: BUDGET,
+        enqueuedAt: 3,
+      }),
+    ).toEqual({ kind: 'queued' });
+    const repository = createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN);
+    const entered = deferred<undefined>();
+    const release = deferred<undefined>();
+    let released = 0;
+    const errors: unknown[] = [];
+    const instance = new OptimizationCoordinator({
+      repository: {
+        ...repository,
+        recordOutcome: async (write) => {
+          entered.resolve(undefined);
+          await release.promise;
+          return await repository.recordOutcome(write);
+        },
+        releaseSlot: async (slot) => {
+          released += 1;
+          return await repository.releaseSlot(slot);
+        },
+      },
+      hashInput: scheduleInputHash,
+      contractVersion: CONTRACT,
+      solverVersion: '0.2.0',
+      budgetMs: BUDGET,
+      ownerId: 'blue',
+      now: () => 10,
+      attemptToken: () => 'queued-token',
+      inputOf: () => Promise.resolve(input),
+      enabledOf: () => Promise.resolve(true),
+      spawn: () => {
+        throw new Error('preflight refusal reached launcher');
+      },
+      runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
+      deliverCommitted: () => Promise.resolve(),
+      onChildError: (error) => {
+        errors.push(error);
+      },
+      setInterval: () => 'held-queue',
+      clearInterval: () => undefined,
+    });
+    instance.start();
+    try {
+      await entered.promise;
+      await Promise.resolve();
+      expect(released).toBe(0);
+      expect(db.select().from(solverSlot).all()).toHaveLength(1);
+    } finally {
+      release.resolve(undefined);
+    }
+    await instance.stop();
+    expect(errors).toEqual([]);
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+    expect(
+      readOptimizedPair(db, {
+        projectId: 'p-1',
+        inputHash: hash,
+        contractVersion: CONTRACT,
+        budgetMs: BUDGET,
+      }).pri,
+    ).toMatchObject({ kind: 'failed', reason: 'horizon-overflow' });
+  });
+  it.each(['initial', 'retry'] as const)(
+    'persists a %s preflight refusal before releasing its reserved seat',
+    async (pathway) => {
+      const { path, db } = database();
+      seedProject(path);
+      const input: ScheduleInput = {
+        ...INPUT,
+        slices: INPUT.slices.map((slice) => ({ ...slice, days: 2 ** 52 })),
+      };
+      const hash = scheduleInputHash(input);
+      if (pathway === 'retry') {
+        const generation = allocateGeneration(db, 'p-1', CONTRACT, hash, 2);
+        db.insert(optimizedScheduleCache)
+          .values({
+            projectId: 'p-1',
+            inputHash: hash,
+            objective: 'pri',
+            contractVersion: CONTRACT,
+            budgetMs: BUDGET,
+            generation,
+            status: 'failed',
+            resultJson: null,
+            failureReason: 'timeout',
+            createdAt: 3,
+          })
+          .run();
+      }
+      const entered = deferred<undefined>();
+      const release = deferred<undefined>();
+      let released = 0;
+      const instance = coordinator(
+        db,
+        [],
+        'blue',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        (repository) => ({
+          ...repository,
+          recordOutcome: async (write) => {
+            entered.resolve(undefined);
+            await release.promise;
+            return await repository.recordOutcome(write);
+          },
+          releaseSlot: async (slot) => {
+            released += 1;
+            return await repository.releaseSlot(slot);
+          },
+        }),
+      );
+      const reading =
+        pathway === 'initial'
+          ? instance.readPlan({ projectId: 'p-1', objective: 'pri', input, enabled: true })
+          : instance.retry({ projectId: 'p-1', objective: 'pri', inputHash: hash, input });
+      try {
+        await entered.promise;
+        await Promise.resolve();
+        expect(released).toBe(0);
+        expect(db.select().from(solverSlot).all()).toHaveLength(1);
+        expect(
+          readOptimizedPair(db, {
+            projectId: 'p-1',
+            inputHash: hash,
+            contractVersion: CONTRACT,
+            budgetMs: BUDGET,
+          }).pri.kind,
+        ).toBe(pathway === 'retry' ? 'failed' : 'miss');
+      } finally {
+        release.resolve(undefined);
+      }
+      await reading;
+      expect(db.select().from(solverSlot).all()).toEqual([]);
+      expect(
+        readOptimizedPair(db, {
+          projectId: 'p-1',
+          inputHash: hash,
+          contractVersion: CONTRACT,
+          budgetMs: BUDGET,
+        }).pri,
+      ).toMatchObject({ kind: 'failed', reason: 'horizon-overflow' });
+    },
+  );
+  const refusals = [
+    { name: 'compatibility', version: '0.1.4', reason: 'internal-error', input: INPUT },
+    {
+      name: 'arithmetic',
+      version: '0.2.0',
+      reason: 'horizon-overflow',
+      input: { ...INPUT, slices: INPUT.slices.map((slice) => ({ ...slice, days: 2 ** 52 })) },
+    },
+    {
+      name: 'booking arithmetic',
+      version: '0.2.0',
+      reason: 'horizon-overflow',
+      input: {
+        ...INPUT,
+        elsewhere: new Map([
+          ['ana', [{ start: 0, end: Number.MAX_VALUE, projectId: 'higher', workItemId: 'held' }]],
+        ]),
+      },
+    },
+  ] as const;
+  for (const refusal of refusals) {
+    it.each(['initial', 'queued', 'retry'] as const)(
+      `releases ${refusal.name} refusal after %s admission`,
+      async (pathway) => {
+        const { path, db } = database();
+        const hash = scheduleInputHash(refusal.input);
+        seedProject(path);
+        if (pathway === 'retry') {
+          const generation = allocateGeneration(db, 'p-1', CONTRACT, hash, 2);
+          db.insert(optimizedScheduleCache)
+            .values({
+              projectId: 'p-1',
+              inputHash: hash,
+              objective: 'pri',
+              contractVersion: CONTRACT,
+              budgetMs: BUDGET,
+              generation,
+              status: 'failed',
+              resultJson: null,
+              failureReason: 'timeout',
+              createdAt: 3,
+            })
+            .run();
+        }
+        const calls: ReservedSpawnRequest[] = [];
+        const errors: unknown[] = [];
+        let token = 0;
+        const instance = new OptimizationCoordinator({
+          repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
+          hashInput: scheduleInputHash,
+          contractVersion: CONTRACT,
+          solverVersion: refusal.version,
+          budgetMs: BUDGET,
+          ownerId: 'blue',
+          now: () => 10,
+          attemptToken: () => `preflight-${String(token++)}`,
+          inputOf: () => Promise.resolve(refusal.input),
+          enabledOf: () => Promise.resolve(true),
+          spawn: (request) => {
+            calls.push(request);
+            throw new Error('a refused request reached spawn');
+          },
+          runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
+          deliverCommitted: () => Promise.resolve(),
+          onChildError: (error) => errors.push(error),
+          setInterval: () => 'preflight-timer',
+          clearInterval: () => undefined,
+        });
+        if (pathway === 'queued') {
+          const generation = allocateGeneration(db, 'p-1', CONTRACT, hash, 1);
+          enqueueSolverRequest(db, {
+            projectId: 'p-1',
+            contractVersion: CONTRACT,
+            generation,
+            objective: 'pri',
+            budgetMs: BUDGET,
+            enqueuedAt: 2,
+          });
+        } else if (pathway === 'retry') {
+          expect(
+            await instance.retry({
+              projectId: 'p-1',
+              objective: 'pri',
+              inputHash: hash,
+              input: refusal.input,
+            }),
+          ).toMatchObject({ kind: 'accepted' });
+        } else {
+          await instance.readPlan({
+            projectId: 'p-1',
+            objective: 'pri',
+            input: refusal.input,
+            enabled: true,
+          });
+        }
+        instance.start();
+        await instance.stop();
+        expect(errors).toEqual([]);
+        expect(calls).toEqual([]);
+        expect(db.select().from(solverSlot).all()).toEqual([]);
+        expect(db.select().from(solverQueue).all()).toEqual([]);
+        expect(
+          readOptimizedPair(db, {
+            projectId: 'p-1',
+            inputHash: hash,
+            contractVersion: CONTRACT,
+            budgetMs: BUDGET,
+          }).pri,
+        ).toMatchObject({ kind: 'failed', reason: refusal.reason });
+      },
+    );
+  }
 });

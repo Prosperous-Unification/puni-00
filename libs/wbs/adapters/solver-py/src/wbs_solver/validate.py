@@ -1,8 +1,8 @@
-"""Request validation: the schema, then the six things this receiver says itself.
+"""Request validation: the schema, then the receiver's cross-field invariants.
 
 THE SCHEMA IS NOT A COPY OF THE RULES, IT IS THE RULES
 ------------------------------------------------------
-`solver-wire.v1.json` is the single normative definition of both messages
+`solver-wire.v3.json` is the single normative definition of both messages
 (design.md "Solver wire contract — one versioned schema, four consumers"). This
 module is the third of that file's four consumers. It validates against the copy
 installed **beside** the package, because a wheel deployed into the be-01 image
@@ -76,7 +76,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
-SCHEMA_FILENAME = "solver-wire.v1.json"
+SCHEMA_FILENAME = "solver-wire.v3.json"
 SCHEMA_PATH = Path(__file__).resolve().parent / SCHEMA_FILENAME
 
 
@@ -155,7 +155,11 @@ def validate_against_schema(message: dict[str, Any], branch: str = "request") ->
 
 
 def check_cross_field(request: dict[str, Any]) -> None:
-    """The six invariants this receiver states for itself. See the module docstring."""
+    """Check receiver invariants, including ordered person calendars within the horizon.
+
+    Fixed bookings are half-open positive intervals. Adjacent intervals are legal;
+    overlapping or unsorted intervals and finishes past the horizon raise RequestRejected.
+    """
     slice_keys = [s["key"] for s in request["slices"]]
     key_set = set(slice_keys)
     if len(key_set) != len(slice_keys):
@@ -172,6 +176,19 @@ def check_cross_field(request: dict[str, Any]) -> None:
             )
 
     horizon = request["horizonUnits"]
+    # Proof: removing this block made the production-boundary malformed-bookings test
+    # accept zero/reversed spans, an end past the horizon, unsorted spans and overlap
+    # (five failing subcases). The schema cannot compare these fields.
+    for person, bookings in request["elsewhere"].items():
+        previous_end = 0
+        for index, (start, end) in enumerate(bookings):
+            if start >= end:
+                raise RequestRejected(f"elsewhere[{person!r}][{index}] must have start < end")
+            if end > horizon:
+                raise RequestRejected(f"elsewhere[{person!r}][{index}] ends past horizonUnits {horizon}")
+            if start < previous_end:
+                raise RequestRejected(f"elsewhere[{person!r}] must be sorted without overlap")
+            previous_end = end
     for field in ("baselineOffsets", "fastHint"):
         for key, value in request[field].items():
             if value > horizon:
@@ -185,6 +202,24 @@ def check_cross_field(request: dict[str, Any]) -> None:
                 raise RequestRejected(
                     f"edges[{index}].{endpoint} {edge[endpoint]!r} is not a slice key"
                 )
+        # Independent receiver guard for the typed edge contract. JSON Schema
+        # also states this shape, but the model must never treat an omitted or
+        # malformed FF weight as an implicit zero.
+        # Proof (helper scope): removing this block made all six
+        # TypedEdgeBoundary helper negatives accept malformed edges. The
+        # production entrypoint also has JSON Schema protection. Disabling both
+        # made its malformed-edge test fail in all three subcases (RequestRejected
+        # not raised); both faults were restored before the green run.
+        edge_type = edge.get("type")
+        if edge_type not in ("FS", "SS", "FF"):
+            raise RequestRejected(f"edges[{index}] has unsupported dependency type {edge_type!r}")
+        has_weight = "startWeightUnits" in edge
+        if edge_type == "FF":
+            weight = edge.get("startWeightUnits")
+            if not has_weight or isinstance(weight, bool) or not isinstance(weight, int):
+                raise RequestRejected(f"edges[{index}].startWeightUnits must be an integer for FF")
+        elif has_weight:
+            raise RequestRejected(f"edges[{index}].startWeightUnits is only allowed for FF")
 
     # TASK-329 AC #1. `deadlineUnits` is `(D + 1) x quantum`, so a value that is
     # not a multiple names no day at all — the due day `deadlineUnits / quantum
@@ -283,6 +318,11 @@ def check_cross_field(request: dict[str, Any]) -> None:
 def validate_request(raw: bytes) -> dict[str, Any]:
     """Parse, validate, cross-check. The entrypoint's whole front door."""
     request = parse_request(raw)
+    # Proof: replacing the bundled schema's elsewhere $ref with {} made the production
+    # malformed-bookings test accept an empty person key, bool and fractional ends;
+    # its malformed tuple raised ValueError instead of RequestRejected. Removing required
+    # elsewhere made test_missing_elsewhere_is_refused raise KeyError; removing wireVersion's
+    # const made test_wire_two_with_elsewhere_is_still_refused accept wire 2. All restored.
     validate_against_schema(request, "request")
     check_cross_field(request)
     return request

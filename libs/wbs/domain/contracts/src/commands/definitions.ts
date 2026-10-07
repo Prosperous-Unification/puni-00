@@ -42,6 +42,13 @@ const predecessor = {
   'predecessorId?': 'string',
   'predecessorRef?': 'string',
 } as const;
+const dependencyEndpoint = type({
+  scope: "'whole' | 'node' | 'descendant-step'",
+  'workItemId?': 'string',
+  'workItemRef?': 'string',
+  'stepId?': 'string',
+  'stepNodeId?': 'string',
+});
 const team = { 'teamId?': 'string', 'teamRef?': 'string' } as const;
 const person = { 'personId?': 'string', 'personRef?': 'string' } as const;
 const tag = { 'tagId?': 'string', 'tagRef?': 'string' } as const;
@@ -149,13 +156,13 @@ export const commandDefinitions = {
     schema: type({
       kind: "'setStatus'",
       ...target,
-      status: "'unknown' | 'done'",
+      status: "'draft' | 'ready' | 'in_progress' | 'on_hold' | 'blocked' | 'done' | 'unknown'",
       'on?': 'string',
       'factStart?': 'string',
     }),
     scope: 'project',
     description:
-      'Mark a work item done, or take every progress statement back to unknown. `on` is the day it finished (YYYY-MM-DD); absent means today. `factStart` is the day it began, filled where the row holds none. Unknown clears both facts of a row that read done.',
+      'Set a work item status; on a parent it acts on the leaves beneath. done marks every step done (on = the day it finished, YYYY-MM-DD, absent means today; factStart fills an empty fact start). unknown takes every statement, readiness and hold back and clears both facts of a row that read done. ready/draft set readiness (refused readiness_after_progress once a step has spoken). on_hold/blocked set a hold (refused cannot_hold_done on a done row); on_hold takes the work out of the schedule. in_progress starts the first silent step (on a parent, one leaf), or reopens a done row. blocked_by_proxy is derived and cannot be set.',
   }),
   setMeasure: defineCommand('setMeasure', {
     schema: type({ kind: "'setMeasure'", ...step, metric: 'string', value: 'number' }),
@@ -190,6 +197,38 @@ export const commandDefinitions = {
     scope: 'project',
     description: 'Stop a work item waiting for another.',
   }),
+  addTypedDependency: defineCommand('addTypedDependency', {
+    schema: type({
+      kind: "'addTypedDependency'",
+      predecessor: dependencyEndpoint,
+      successor: dependencyEndpoint,
+      // Proof: accepting string made the mounted unsupported-type test receive 422
+      // instead of the input-boundary 400; watched 2026-09-28.
+      type: "'FS' | 'SS' | 'FF'",
+    }),
+    scope: 'project',
+    description:
+      'Add a typed FS, SS or FF dependency. Each endpoint is whole work item, leaf step node, or one step across all descendant leaves. Returns a stable relationship id.',
+  }),
+  updateTypedDependency: defineCommand('updateTypedDependency', {
+    schema: type({
+      kind: "'updateTypedDependency'",
+      dependencyId: 'string',
+      predecessor: dependencyEndpoint,
+      successor: dependencyEndpoint,
+      // Proof: accepting string made the mounted unsupported-update test receive
+      // 422 instead of the input-boundary 400; watched 2026-09-28.
+      type: "'FS' | 'SS' | 'FF'",
+    }),
+    scope: 'project',
+    description:
+      'Change both endpoints and FS, SS or FF type of a typed relationship by its stable dependencyId.',
+  }),
+  removeTypedDependency: defineCommand('removeTypedDependency', {
+    schema: type({ kind: "'removeTypedDependency'", dependencyId: 'string' }),
+    scope: 'project',
+    description: 'Remove a typed relationship by dependencyId.',
+  }),
   arrangeBySchedule: defineCommand('arrangeBySchedule', {
     schema: type({ kind: "'arrangeBySchedule'" }),
     scope: 'project',
@@ -214,6 +253,13 @@ export const commandDefinitions = {
     schema: type({ kind: "'setCapacity'", ...team, size: 'number | null' }),
     scope: 'project',
     description: 'How many of a team may be at work at once on this project; null means unstated.',
+  }),
+  setStepAllowance: defineCommand('setStepAllowance', {
+    schema: type({ kind: "'setStepAllowance'", stepId: 'string', allowancePercent: 'number' }),
+    scope: 'project',
+    description:
+      'Set one project step’s estimate allowance: a percentage from 0 to 1000 with at most ' +
+      'two decimal places, applied to every estimate for that step before rounding. One undo.',
   }),
   setPriorityBands: defineCommand('setPriorityBands', {
     schema: type({

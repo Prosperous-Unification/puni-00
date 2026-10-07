@@ -10,11 +10,47 @@ test('default MCP document is generated directly from the shared declarations', 
   expect(tools.map((tool) => tool.name)).toContain('getApiProjectsByIdSaved-plansCompare');
 });
 
+test('generated project command tool exposes addTypedDependency with endpoints', () => {
+  const tool = toolsFromDocument(readDocument()).find(
+    (candidate) => candidate.name === 'postApiProjectsByIdCommands',
+  );
+  if (tool === undefined) throw new Error('Project command tool missing');
+  const commands = tool.inputSchema.properties['commands'] as {
+    items: {
+      anyOf: {
+        properties: { kind: { const: string }; predecessor?: unknown; successor?: unknown };
+        required: string[];
+      }[];
+    };
+  };
+  const add = commands.items.anyOf.find(
+    (arm) => arm.properties.kind.const === 'addTypedDependency',
+  );
+  for (const field of ['kind', 'predecessor', 'successor', 'type'])
+    expect(add?.required).toContain(field);
+  expect(add?.properties.predecessor).toBeDefined();
+  expect(add?.properties.successor).toBeDefined();
+  for (const kind of ['addTypedDependency', 'updateTypedDependency']) {
+    const typed = commands.items.anyOf.find((arm) => arm.properties.kind.const === kind);
+    expect((typed?.properties as { type?: { enum?: string[] } }).type?.enum).toEqual([
+      'FF',
+      'FS',
+      'SS',
+    ]);
+  }
+});
+
 test('required exclusion drift remains a failure when operational routes are absent', () => {
   const document = documentFromShapes(httpShapes);
   for (const path of Object.keys(document.paths))
     if (path.startsWith('/internal/')) Reflect.deleteProperty(document.paths, path);
   expect(() => toolsFromDocument(document)).toThrow('exclusion list');
+});
+
+test('keeps browser organization selection out of the generated MCP tools', () => {
+  const names = toolsFromDocument(readDocument()).map((tool) => tool.name);
+  expect(names).not.toContain('getApiOrganizationMemberships');
+  expect(names).not.toContain('postApiOrganizationActive');
 });
 
 test('pins every generated MCP operation name independently of the registry', () => {
@@ -25,11 +61,24 @@ test('pins every generated MCP operation name independently of the registry', ()
       .map((tool) => tool.name)
       .sort(),
   ).toEqual([
+    'deleteApiOrganizationDomainsById',
+    'deleteApiOrganizationInvitationsById',
+    'deleteApiOrganizationMembersByUserId',
     'deleteApiProjectsByIdCalendar-markersByMarkerId',
     'deleteApiProjectsByIdStepsByStepId',
     'deleteApiSaved-plansById',
+    'deleteApiSpacesById',
+    'deleteApiSpacesByIdProjectsByProjectId',
     'getApiExternal-systems',
+    'getApiOnboarding',
+    'getApiOrganizationDomains',
+    'getApiOrganizationInvitations',
+    'getApiOrganizationJoinRequests',
+    'getApiOrganizationMembers',
+    'getApiOrganizationProject-rank',
     'getApiPeople',
+    'getApiPeopleByPersonIdLoad',
+    'getApiPeopleLoad',
     'getApiProjects',
     'getApiProjectsById',
     'getApiProjectsByIdCalendar-markers',
@@ -41,15 +90,33 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiProjectsByIdWork-items',
     'getApiSaved-plansById',
     'getApiServices',
+    'getApiSpaces',
+    'getApiSpacesById',
+    'getApiSpacesByIdIn-progress',
+    'getApiSpacesByIdRoll-ups',
     'getApiTags',
     'getApiTeams',
     'getApiWork-item-types',
     'getPlansBy-solutionBySlug',
+    'patchApiOrganizationMembersByUserId',
     'patchApiProjectsById',
     'patchApiProjectsByIdCalendar-markersByMarkerId',
     'patchApiProjectsByIdStepsByStepId',
     'patchApiSaved-plansById',
+    'patchApiSpacesById',
     'postApiDirectoryCommands',
+    'postApiOnboardingEmailChallenges',
+    'postApiOnboardingEmailChallengesConfirm',
+    'postApiOnboardingInvitationsAccept',
+    'postApiOnboardingJoinRequests',
+    'postApiOnboardingOrganizations',
+    'postApiOrganizationDomainsByIdRotate',
+    'postApiOrganizationDomainsByIdVerify',
+    'postApiOrganizationDomainsChallenges',
+    'postApiOrganizationInvitations',
+    'postApiOrganizationJoinRequestsByIdApprove',
+    'postApiOrganizationJoinRequestsByIdDeny',
+    'postApiOrganizationProjectsByIdRank',
     'postApiProjects',
     'postApiProjectsByIdCalendar-markers',
     'postApiProjectsByIdCommands',
@@ -60,6 +127,9 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiProjectsByIdSteps',
     'postApiProjectsByIdUndo',
     'postApiProjectsImport',
+    'postApiSpaces',
+    'postApiSpacesByIdProjects',
+    'postApiSpacesByIdProjectsByProjectIdMove',
   ]);
 });
 

@@ -1,6 +1,7 @@
 import { arrangeBySchedule as arrangeSiblings } from '@wbs/domain/arrange-siblings';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import { deriveNumbers, type WorkItemPlacement } from '@wbs/domain/derive-numbers';
+import { allowancePercentOf, chargedDays } from '@wbs/domain/estimate';
 import { automaticColor } from '@wbs/domain/marker-color';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { byTreeOrder, treeOrder } from '@wbs/domain/tree-order';
@@ -11,7 +12,9 @@ import type {
   Days,
   EstimateMethod,
   ProjectApi,
+  ScheduleView,
   StepView,
+  TypedDependencyView,
   UndoResult,
   WorkItemView,
 } from '@/lib/wbs-api';
@@ -35,12 +38,12 @@ import { refusingApi } from './refusing-api';
  */
 
 /** The first step every fixture starts with. */
-export const DEV: StepView = { id: 'step-dev', name: 'Dev' };
+export const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
 /**
  * A second step, because "one assignee is assumed to do every step" is only
  * observable when there is another step for them to be assumed into.
  */
-export const QA: StepView = { id: 'step-qa', name: 'QA' };
+export const QA: StepView = { id: 'step-qa', name: 'QA', allowancePercent: 0 };
 
 /**
  * A ProjectApi over an in-memory tree, numbering rows the way be-01 does.
@@ -127,6 +130,8 @@ export function fakeProjectApi(): ProjectApi & {
    * of the API, and be-01's answer side has no `null` in it.
    */
   const markers: CalendarMarkerView[] = [];
+  const typedDependencies: TypedDependencyView[] = [];
+  let nextDependencyId = 0;
   /** Minted here when the caller names none, as be-01 mints one. */
   let nextMarkerId = 0;
   const markerAt = (markerId: string): CalendarMarkerView => {
@@ -195,10 +200,16 @@ export function fakeProjectApi(): ProjectApi & {
   let stackAnswer: UndoResult = { ok: true, done: 'rename “Strip”', detail: null };
 
   /** The final figure be-01 would report, under whichever method is set. */
-  const finalOf = (days: Days): number =>
-    estimateMethod === 'pert'
-      ? (days.optimistic + 4 * days.realistic + days.pessimistic) / 6
-      : days[estimateMethod];
+  const finalOf = (days: Days, stepId: string): number => {
+    const step = stepList.find((candidate) => candidate.id === stepId);
+    // Proof: disabling this guard made `refuses a broken estimate that names a step absent from the policy` fail with a TypeError instead of `Unknown step missing-step`.
+    if (step === undefined) throw new Error(`Unknown step ${stepId}`);
+    return chargedDays(
+      days,
+      { method: estimateMethod, pertWeights: DEFAULT_PERT_WEIGHTS_VIEW, rounding: 'ceil' },
+      step.allowancePercent,
+    );
+  };
 
   /**
    * The schedule be-01 would compute, in miniature.
@@ -208,7 +219,7 @@ export function fakeProjectApi(): ProjectApi & {
    * faithfully is the part the table renders differently: an unestimated row,
    * and a parent's span being its children's rather than their sum.
    */
-  function scheduleOf(row: WorkItemView): WorkItemView['schedule'] {
+  function scheduleOf(row: WorkItemView): ScheduleView {
     const children = rows.filter((r) => r.parentId === row.id);
     const own = Object.values(row.estimates).reduce(
       (total, days) => total + (days.optimistic + 4 * days.realistic + days.pessimistic) / 6,
@@ -287,6 +298,22 @@ export function fakeProjectApi(): ProjectApi & {
     };
     walk(of.id);
     return summed;
+  }
+
+  function rolledUpFinalDays(of: WorkItemView): Record<string, number> {
+    const charged: Record<string, number> = {};
+    const walk = (row: WorkItemView): void => {
+      const children = rows.filter((candidate) => candidate.parentId === row.id);
+      if (children.length > 0) {
+        for (const child of children) walk(child);
+        return;
+      }
+      for (const [stepId, days] of Object.entries(row.estimates)) {
+        charged[stepId] = (charged[stepId] ?? 0) + finalOf(days, stepId);
+      }
+    };
+    walk(of);
+    return charged;
   }
 
   /**
@@ -434,6 +461,7 @@ export function fakeProjectApi(): ProjectApi & {
       // The sequence advances with every mutation, the way be-01's does, so a
       // test that asserts what the stream was told is asserting something real.
       const plan = {
+        typedDependencies: typedDependencies.map((dependency) => ({ ...dependency })),
         workItems: rows.map((r) => ({
           ...r,
           projectId,
@@ -444,7 +472,6 @@ export function fakeProjectApi(): ProjectApi & {
           typeIds: [...(r.typeIds ?? [])],
           externalRefs: (r.externalRefs ?? []).map((ref) => ({ ...ref })),
           actuals: {},
-          progress: {},
           // The row's own, written by this fake's `setStatus` — the fold be-01
           // derives, stored here because a fake has no steps to fold.
           status: r.status,
@@ -458,13 +485,8 @@ export function fakeProjectApi(): ProjectApi & {
           // `rolledUp` flag in the same object, so the roll-up column read
           // empty in jsdom and every claim about it was made against nothing.
           estimates: rolledUpEstimates(r),
-          finalDays: Object.fromEntries(
-            Object.entries(rolledUpEstimates(r)).map(([stepId, days]) => [stepId, finalOf(days)]),
-          ),
-          finalTotal: Object.values(rolledUpEstimates(r)).reduce(
-            (total, days) => total + finalOf(days),
-            0,
-          ),
+          finalDays: rolledUpFinalDays(r),
+          finalTotal: Object.values(rolledUpFinalDays(r)).reduce((total, days) => total + days, 0),
           // be-01 works the dates out; the fake only has to place them on the
           // calendar the same way, so the table is asserted on what it renders.
           dates: startDate === null ? null : { startsOn: startDate, endsOn: startDate },
@@ -526,6 +548,16 @@ export function fakeProjectApi(): ProjectApi & {
           position,
           code: `fake-${String(position + 1)}`,
         })),
+        stepNodes: rows
+          .filter((row) => !rows.some((child) => child.parentId === row.id))
+          .flatMap((row) =>
+            stepList.map((step) => ({
+              id: `sn1.${row.id}.${step.id}`,
+              workItemId: row.id,
+              stepId: step.id,
+              reference: `${row.number}.${step.name.toLowerCase()}`,
+            })),
+          ),
         assignedPeople: people.map(({ id, name }) => ({ id, name })),
         // Present and empty, never absent: be-01 always sends it, so a fake that
         // left it out would let `teamsOnThePlan` be handed `undefined` here and
@@ -737,7 +769,7 @@ export function fakeProjectApi(): ProjectApi & {
       if (stepList.some((step) => step.name === clean)) {
         return Promise.reject(new Error('taken'));
       }
-      const step = { id: `step-${clean.toLowerCase()}`, name: clean };
+      const step = { id: `step-${clean.toLowerCase()}`, name: clean, allowancePercent: 0 };
       stepList.push(step);
       renumber();
       return Promise.resolve(step);
@@ -752,6 +784,15 @@ export function fakeProjectApi(): ProjectApi & {
       }
       step.name = clean;
       renumber();
+      return Promise.resolve({ ...step });
+    },
+    setStepAllowance(_projectId, stepId, allowancePercent) {
+      const percent = allowancePercentOf(allowancePercent);
+      // Proof: with this refusal guard disabled, `refuses invalid allowance without changing the step` failed: fake_invalid_response replaced invalid_allowance after 30.001 reached the transport shape.
+      if (percent === null) return Promise.reject(new Error('invalid_allowance'));
+      const step = stepList.find((candidate) => candidate.id === stepId);
+      if (step === undefined) return Promise.reject(new Error('not_found'));
+      step.allowancePercent = percent;
       return Promise.resolve({ ...step });
     },
     removeStep(_projectId, stepId, cascade) {
@@ -823,6 +864,9 @@ export function fakeProjectApi(): ProjectApi & {
         factStart: null,
         factEnd: null,
         status: 'unknown' as const,
+        readiness: null,
+        hold: null,
+        progress: {},
         // A duplicate `teamIds` sat here until 2026-08-18, and a duplicate
         // `startNoEarlierThanReason` until 2026-09-02 — both harmless, and both
         // only possible because nothing typechecked this file. Moving it here,
@@ -898,6 +942,10 @@ export function fakeProjectApi(): ProjectApi & {
       return Promise.resolve();
     },
     setStatus(id, status, on, factStart) {
+      const [firstStep] = stepList;
+      if ((status === 'done' || status === 'in_progress') && stepList.length === 0) {
+        return Promise.reject(new Error('no_steps'));
+      }
       // be-01's fan-out and its fill, in the fake's own terms: the row and every
       // row beneath it take the status, and a done row with no fact end takes
       // `on`. Recorded for the tests that assert what was sent.
@@ -907,6 +955,25 @@ export function fakeProjectApi(): ProjectApi & {
         const row = rows.find((r) => r.id === id_);
         if (row === undefined) continue;
         row.status = status;
+        // The statements behind the status, so the menu reads what be-01 would
+        // send back: readiness and holds as `setStatus` writes them, and one
+        // statement per step for the two that speak for steps.
+        if (status === 'draft' || status === 'ready') {
+          row.readiness = status;
+          row.hold = null;
+        } else if (status === 'on_hold' || status === 'blocked') {
+          row.hold = status;
+        } else if (status === 'unknown') {
+          row.readiness = null;
+          row.hold = null;
+          row.progress = {};
+        } else {
+          row.hold = null;
+          row.progress =
+            status === 'done'
+              ? Object.fromEntries(stepList.map((step) => [step.id, 'done' as const]))
+              : { ...row.progress, [firstStep.id]: 'in_progress' as const };
+        }
         if (status === 'done' && row.factEnd === null) row.factEnd = on;
         if (status === 'done' && factStart !== undefined && row.factStart === null) {
           row.factStart = factStart;
@@ -1048,6 +1115,60 @@ export function fakeProjectApi(): ProjectApi & {
     removeDependency(id, predecessorId) {
       const at = edges.findIndex((e) => e.predecessorId === predecessorId && e.successorId === id);
       if (at >= 0) edges.splice(at, 1);
+      renumber();
+      return Promise.resolve();
+    },
+    addTypedDependency(_projectId, predecessor, successor, type) {
+      typedDependencies.push({
+        id: `dependency-${String(++nextDependencyId)}`,
+        predecessor:
+          predecessor.scope === 'node'
+            ? {
+                ...predecessor,
+                workItemId: predecessor.stepNodeId.split('.')[1] ?? '',
+                stepId: predecessor.stepNodeId.split('.')[2],
+              }
+            : predecessor,
+        successor:
+          successor.scope === 'node'
+            ? {
+                ...successor,
+                workItemId: successor.stepNodeId.split('.')[1] ?? '',
+                stepId: successor.stepNodeId.split('.')[2],
+              }
+            : successor,
+        type,
+      });
+      renumber();
+      return Promise.resolve();
+    },
+    updateTypedDependency(_projectId, dependencyId, predecessor, successor, type) {
+      const dependency = typedDependencies.find((candidate) => candidate.id === dependencyId);
+      if (dependency === undefined) return Promise.reject(new Error('not_found'));
+      dependency.predecessor =
+        predecessor.scope === 'node'
+          ? {
+              ...predecessor,
+              workItemId: predecessor.stepNodeId.split('.')[1] ?? '',
+              stepId: predecessor.stepNodeId.split('.')[2],
+            }
+          : predecessor;
+      dependency.successor =
+        successor.scope === 'node'
+          ? {
+              ...successor,
+              workItemId: successor.stepNodeId.split('.')[1] ?? '',
+              stepId: successor.stepNodeId.split('.')[2],
+            }
+          : successor;
+      dependency.type = type;
+      renumber();
+      return Promise.resolve();
+    },
+    removeTypedDependency(_projectId, dependencyId) {
+      const at = typedDependencies.findIndex((dependency) => dependency.id === dependencyId);
+      if (at < 0) return Promise.reject(new Error('not_found'));
+      typedDependencies.splice(at, 1);
       renumber();
       return Promise.resolve();
     },

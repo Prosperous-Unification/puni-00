@@ -14,15 +14,22 @@ import {
 } from '@wbs/contracts';
 import { type, ValidationError } from '@wbs/validation';
 
+import type {
+  AppliedCommand,
+  BatchRefusal,
+  PlanCommandRunner,
+  WholeBatchRefusal,
+} from '../module/plan-commands/plan-commands.feature';
+import { runCommandBatch } from '../module/plan-commands/run-command-batch';
 import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
+import type { UndoOutcome, WorkItemService } from '../module/work-item/work-item.resource';
+import type { OrganizationAccess } from '../ports/organization-access';
 import type { Digest } from '../ports/runtime';
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
 import type { PlanCommand } from '../service/plan-command';
-import type { AppliedCommand, BatchRefusal, PlanCommandRunner } from '../service/plan-commands';
-import type { UndoOutcome, WorkItemService } from '../service/work-item.service';
-import { runCommandBatch } from '../use-cases/run-command-batch';
 import { BadCapacity } from './capacity-body';
 import { bind, type HttpReply, type RequestFailure } from './endpoint';
+import { organizationRefusal } from './organization-refusal';
 import { BadLadder } from './priority-ladder-body';
 import { isFieldBag } from './route';
 
@@ -211,6 +218,15 @@ async function parsedBatch(body: unknown) {
   }
 }
 
+/** A batch refused whole under scoped access: the same 404 as an absent project, or 403. */
+function answerWholeBatch(
+  refusal: WholeBatchRefusal['refusal'],
+): Extract<HttpReply<typeof applyProjectCommands>, { ok: false }> {
+  return refusal === 'not_found'
+    ? { ok: false, status: 404, body: { error: 'not_found' } }
+    : { ok: false, status: 403, body: { error: 'forbidden' } };
+}
+
 /** A finite status switch retains command detail; an unmodeled producer reason cannot acquire a default. */
 function answerBatch(
   outcome: BatchRefusal,
@@ -225,6 +241,7 @@ function answerBatch(
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
     case 'calendar_range':
+    case 'unsupported_relationship_type':
       return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
     case 'taken':
       return {
@@ -238,11 +255,19 @@ function answerBatch(
         status: 409,
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
+    case 'descendant_step_on_leaf':
+    case 'node_on_parent':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
     case 'forbidden':
       return { ok: false, status: 403, body: { ...context, error: outcome.reason } };
     case 'not_found':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_step':
+    case 'unknown_dependency':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_metric':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
@@ -272,7 +297,15 @@ function answerBatch(
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'ancestor':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'self_node':
+    case 'not_a_parent':
+    case 'duplicate_dependency':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'too_large':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'readiness_after_progress':
+    case 'cannot_hold_done':
+    case 'no_steps':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'too_many_commands':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
@@ -323,6 +356,7 @@ async function appliedWire(applied: AppliedCommand) {
   switch (kind) {
     case 'createWorkItem':
     case 'duplicateWorkItem':
+    case 'addTypedDependency':
     case 'createTeam':
     case 'createPerson':
     case 'createTag':
@@ -360,13 +394,23 @@ export function workItemRoutes(
   workItems: WorkItemService,
   commands: PlanCommandRunner,
   digest: Digest,
+  organizations: OrganizationAccess,
 ) {
   return [
     bind(getWorkItems, async ({ params, principal }): Promise<HttpReply<typeof getWorkItems>> => {
-      const tree = await workItems.tree(params.id);
+      // Proof: reading the tree without resolving access made `refuses an
+      // unbound session and a removed member before any lookup` in
+      // `schedule-organization.controller.db.test.ts` answer 200; watched
+      // 2026-09-27.
+      const resolved = await organizations.resolve(principal);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      const tree = await workItems.treeWithin(params.id, resolved.access);
       if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
       // Proof: removing this branch made the mounted unavailable work-item read
       // receive 500 instead of the required 409.
+      // Proof: removing this mapping failed mounted revocation: expected 403 became 500.
+      if ('kind' in tree && tree.kind === 'access_refused')
+        return organizationRefusal(tree.refusal);
       if ('kind' in tree)
         return {
           ok: false,
@@ -388,14 +432,22 @@ export function workItemRoutes(
       async ({ params, body, principal }): Promise<HttpReply<typeof applyProjectCommands>> => {
         const parsed = await parsedBatch(body);
         if (!parsed.ok) return parsed;
+        // Proof: running the batch without resolving access made `refuses an
+        // unbound session and a removed member before any batch` in
+        // `command-organization.controller.db.test.ts` answer 200; watched
+        // 2026-09-27.
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const outcome = await runCommandBatch(commands, {
           projectId: params.id,
           actor: principal,
           commands: parsed.commands,
+          access: resolved.access,
         });
         if ('error' in outcome) {
           return { ok: false, status: 403, body: { error: outcome.error } };
         }
+        if ('refusal' in outcome) return answerWholeBatch(outcome.refusal);
         if (!outcome.ok) return answerBatch(outcome);
         return {
           ok: true,
@@ -414,14 +466,18 @@ export function workItemRoutes(
       async ({ body, principal }): Promise<HttpReply<typeof applyDirectoryCommands>> => {
         const parsed = await parsedBatch(body);
         if (!parsed.ok) return parsed;
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const outcome = await runCommandBatch(commands, {
           projectId: null,
           actor: principal,
           commands: parsed.commands,
+          access: resolved.access,
         });
         if ('error' in outcome) {
           return { ok: false, status: 403, body: { error: outcome.error } };
         }
+        if ('refusal' in outcome) return answerWholeBatch(outcome.refusal);
         if (!outcome.ok) return answerBatch(outcome);
         return {
           ok: true,
@@ -431,16 +487,26 @@ export function workItemRoutes(
       },
       { classifyRequestFailure: classifyCommand },
     ),
-    bind(undoProject, async ({ params, principal }) =>
-      answerUndo(await commands.undo(params.id, principal.id)),
-    ),
-    bind(redoProject, async ({ params, principal }) =>
-      answerUndo(await commands.redo(params.id, principal.id)),
-    ),
+    bind(undoProject, async ({ params, principal }): Promise<HttpReply<typeof undoProject>> => {
+      const resolved = await organizations.resolve(principal);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      return answerUndo(await commands.undoWithin(params.id, principal.id, resolved.access));
+    }),
+    bind(redoProject, async ({ params, principal }): Promise<HttpReply<typeof redoProject>> => {
+      const resolved = await organizations.resolve(principal);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      return answerUndo(await commands.redoWithin(params.id, principal.id, resolved.access));
+    }),
     bind(
       getStepReference,
-      async ({ params, query }): Promise<HttpReply<typeof getStepReference>> => {
-        const addresses = await workItems.readAddresses(params.id);
+      async ({ params, query, principal }): Promise<HttpReply<typeof getStepReference>> => {
+        // Proof: reading the addresses without resolving access made `refuses
+        // an unbound session and a removed member before any lookup` in
+        // `schedule-organization.controller.db.test.ts` answer 409 instead of
+        // 403; watched 2026-09-27.
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        const addresses = await workItems.readAddressesWithin(params.id, resolved.access);
         if (addresses === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         const outcome = await resolveAddressedStep(params.id, query, addresses, digest);
         if (outcome.kind === 'stale') {

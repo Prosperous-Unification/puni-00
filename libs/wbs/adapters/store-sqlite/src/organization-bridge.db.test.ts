@@ -19,6 +19,13 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 /** The activation marker, the folder stamped just below the bridge. */
 const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
+/** Stamped after the bridge, so every rollback below the bridge reverses it first. */
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 let dir: string;
 let path: string;
@@ -218,9 +225,12 @@ describe('the legacy bridge before activation', () => {
       "UPDATE tag SET name = 'moved' WHERE id = 't1'",
     ]);
     // The legacy side row still says `urgent 1`, so a new tag of that name cannot be mapped.
+    // The ownership freeze refuses the name before the unique index would.
     expect(() => {
       run(["INSERT INTO tag (id, name) VALUES ('t9', 'urgent 1')"]);
-    }).toThrow('UNIQUE constraint failed: tag_organization.organization_id, tag_organization.name');
+    }).toThrow(
+      'organization ownership is immutable: tag_organization already maps this root or name',
+    );
     expect(rows("SELECT id FROM tag WHERE id = 't9'")).toEqual([]);
   });
 
@@ -320,7 +330,21 @@ describe('the legacy bridge after activation', () => {
 describe('20260927190000_add_organization_bridge', () => {
   it('rolls back to no triggers, keeping mappings and legacy writes working', async () => {
     run([LEGACY, ...writeRoots('1')]);
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([ORGANIZATION_BRIDGE]);
+    expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([
+      '20261005110000_add_shared_people',
+      '20261001010000_add_browser_credential_revocations',
+      '20260929180000_add_project_rank',
+      '20260929100000_add_spaces',
+      '20260928200000_add_work_item_status_facts',
+      '20260928040000_add_email_challenge',
+      '20260928030000_add_delegation_use',
+      '20260928020000_add_email_verification',
+      '20260928010000_add_project_solution',
+      '20260927220000_add_organization_audit',
+      TYPED_DEPENDENCY,
+      ORGANIZATION_FROZEN,
+      ORGANIZATION_BRIDGE,
+    ]);
     expect(
       rows("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE '%_bridge'"),
     ).toEqual([]);

@@ -17,12 +17,20 @@ export function spanOfRow(
   // One `today` for both ends of one row, so a render that straddles midnight
   // cannot print a start off this year and a finish off the next.
   const today = new Date();
+  const { schedule } = row;
+  // An on-hold row has no schedule and no dates (`add-work-item-statuses`).
+  if (schedule === null) {
+    return {
+      start: printedDay(null, today, () => '—'),
+      finish: printedDay(null, today, () => '—'),
+    };
+  }
   return {
     start: printedDay(row.dates?.startsOn ?? null, today, () =>
-      showSchedule(row.schedule.earliestStart),
+      showSchedule(schedule.earliestStart),
     ),
     finish: printedDay(row.dates?.endsOn ?? null, today, () =>
-      showSchedule(row.schedule.earliestFinish),
+      showSchedule(schedule.earliestFinish),
     ),
   };
 }

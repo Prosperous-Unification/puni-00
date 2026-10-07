@@ -104,6 +104,18 @@ describe('infra-check.yml is unprivileged', () => {
     }
   });
 
+  // The rehearsal's schema rollback depends on backend migration stamps and on migrate-down.
+  // The PRs that added 20260927120000 and 20260927150000 never ran it; run 36296199037 on main did.
+  // Proof: before the two paths were added to infra-check.yml this test failed
+  // `Expected to contain: "apps/wbs/be-01/drizzle/**"`.
+  it('reruns the k3s rehearsal when backend migrations or their rollback change', () => {
+    for (const event of ['pull_request', 'push']) {
+      const paths = (infra.parsed.on[event] as { paths: string[] }).paths;
+      expect(paths, event).toContain('apps/wbs/be-01/drizzle/**');
+      expect(paths, event).toContain('libs/wbs/adapters/store-sqlite/src/migrate-down.ts');
+    }
+  });
+
   it('runs the fleet check and the k3s rehearsal through Nx', () => {
     expect(infra.text).toContain('bunx nx run tool-fleet:check');
     expect(infra.text).toContain('bunx nx run tool-deploy:test:k3s');

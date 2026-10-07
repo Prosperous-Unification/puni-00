@@ -1,4 +1,4 @@
-import { SETTABLE_STATUSES } from '@wbs/domain/progress';
+import type { SettableStatus } from '@wbs/domain/progress';
 import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import {
@@ -9,7 +9,15 @@ import {
   ModalTitle,
   ModalTrigger,
 } from '@/components/ui/modal';
-import type { Days, PriorityBandView, StepView } from '@/lib/wbs-api';
+import type {
+  Days,
+  PlanRead,
+  PriorityBandView,
+  StepView,
+  TypedDependencyEndpoint,
+  TypedDependencyType,
+  TypedDependencyView,
+} from '@/lib/wbs-api';
 
 import { ActionsMenu, type MenuAction } from './actions-menu';
 import { CellInput } from './cell-input';
@@ -27,13 +35,14 @@ import { type CellElement, cellKey } from './editable-grid';
 import { POINTS, showTrio } from './estimate-draft';
 import type { ServiceLabel, ServiceTeamLabel, TagLabel } from './gantt-geometry';
 import { renderName } from './inline-markdown';
-import { type CommitOutcome, flushCell } from './live-editing';
+import { type CommitOutcome, didLand, flushCell } from './live-editing';
 import { composeNameCell } from './name-notes';
 import { priorityBandStyleOf } from './priority-band-style';
 import { ReferenceSetSheet } from './reference-set-field';
 import { type PrintedDay, shortIsoDate } from './short-date';
-import { STATUS_LABEL } from './status-cell';
+import { statusActions } from './status-cell';
 import { cardIndentFor } from './table-frame';
+import { dependencyWords, endpointText, TypedDependencyEditor } from './typed-dependency-editor';
 import type { TreeRow } from './wbs-rows';
 import { rowWords } from './work-item-words';
 
@@ -159,6 +168,22 @@ export interface PlanCardsProps {
    * "what does this row wait for" as soon as one of them is edited.
    */
   waitsFor: (row: TreeRow) => readonly DependencyEntry[];
+  /** Explicit relationships are listed beside legacy waits in the phone sheet. */
+  typedWaitsFor?: (row: TreeRow) => readonly TypedDependencyView[];
+  dependencyRows?: readonly TreeRow[];
+  dependencyStepNodes?: NonNullable<PlanRead['stepNodes']>;
+  saveTypedDependency?: (
+    dependencyId: string,
+    predecessor: TypedDependencyEndpoint,
+    successor: TypedDependencyEndpoint,
+    type: TypedDependencyType,
+  ) => Promise<CommitOutcome>;
+  addTypedDependency?: (
+    predecessor: TypedDependencyEndpoint,
+    successor: TypedDependencyEndpoint,
+    type: TypedDependencyType,
+  ) => Promise<CommitOutcome>;
+  removeTypedDependency?: (dependencyId: string) => Promise<CommitOutcome>;
   /**
    * The rows this one may be made to wait for, narrowed by what was typed, each
    * carrying the refusal be-01 would answer with.
@@ -426,10 +451,10 @@ export interface CardRowActionHandlers {
   moveUnder: (rowId: string) => void;
   unfreeze: (rowId: string) => void;
   remove: (row: TreeRow) => void;
-  /** Opens the completion prompt over the row — `Mark done…`, the table's own gesture. */
-  markDone: (rowId: string) => void;
-  /** Sets a done row back to unknown, at once. */
-  setUnknown: (rowId: string) => void;
+  /** The table's own `chooseStatus`: Done and In progress ask first, the rest are sent at once. */
+  chooseStatus: (rowId: string, status: SettableStatus) => void;
+  /** The statuses the row's menu offers, the table's own {@link statusOffersOf}. */
+  statusOffers: (row: TreeRow) => SettableStatus[];
 }
 
 /**
@@ -442,15 +467,9 @@ const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuActi
   // The same list the table's ⋯ offers (`plan-columns/actions.tsx`), in the
   // same order: the status entries, Add child, Move under…, Duplicate, Unfreeze where it applies, and
   // Delete last in the destructive tint.
-  ...SETTABLE_STATUSES.filter((status) => status !== row.status).map((status) => ({
-    id: `set-${status}`,
-    label: `Set status to ${STATUS_LABEL[status]}`,
-    lead: { word: STATUS_LABEL[status], ...(status === 'done' ? { tone: 'done' as const } : {}) },
-    run: () => {
-      if (status === 'done') handlers.markDone(row.id);
-      else handlers.setUnknown(row.id);
-    },
-  })),
+  ...statusActions(handlers.statusOffers(row), (status) => {
+    handlers.chooseStatus(row.id, status);
+  }),
   {
     id: 'add-child',
     label: 'Add child',
@@ -537,6 +556,14 @@ const cardSlackOf = (
   row: TreeRow,
   showDay: (days: number) => string,
 ): { text: string; critical: boolean; hint: string } => {
+  // An on-hold row has no schedule (`add-work-item-statuses`), so no slack.
+  if (row.schedule === null) {
+    return {
+      text: '—',
+      critical: false,
+      hint: 'On hold: this work takes no part in the schedule.',
+    };
+  }
   if (row.schedule.critical) {
     return {
       text: 'critical',
@@ -1710,7 +1737,7 @@ function CardPriorityField({
   const paint = priorityBandStyleOf(bands, row.priority);
   const send = async (typed: string): Promise<void> => {
     const outcome = await setPriority(row, typed);
-    if (outcome === 'landed') setOpen(false);
+    if (didLand(outcome)) setOpen(false);
   };
   return (
     <Modal
@@ -1916,17 +1943,43 @@ function CardPriorityField({
 function CardDependsField({
   row,
   waits,
+  typedWaits,
+  dependencyRows,
+  dependencyStepNodes,
+  steps,
+  saveTypedDependency,
+  addTypedDependency,
+  removeTypedDependency,
   options,
   addDependency,
   dropDependency,
 }: {
   row: TreeRow;
   waits: readonly DependencyEntry[];
+  typedWaits: readonly TypedDependencyView[];
+  dependencyRows: readonly TreeRow[];
+  dependencyStepNodes?: NonNullable<PlanRead['stepNodes']>;
+  steps: readonly StepView[];
+  saveTypedDependency?: (
+    dependencyId: string,
+    predecessor: TypedDependencyEndpoint,
+    successor: TypedDependencyEndpoint,
+    type: TypedDependencyType,
+  ) => Promise<CommitOutcome>;
+  addTypedDependency?: (
+    predecessor: TypedDependencyEndpoint,
+    successor: TypedDependencyEndpoint,
+    type: TypedDependencyType,
+  ) => Promise<CommitOutcome>;
+  removeTypedDependency?: (dependencyId: string) => Promise<CommitOutcome>;
   options: (row: TreeRow, typed: string) => readonly PickerEntry[];
   addDependency: (row: TreeRow, predecessorId: string) => Promise<CommitOutcome>;
   dropDependency: (row: TreeRow, predecessorId: string) => Promise<CommitOutcome>;
 }) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<{ predecessorId: string; dependencyId?: string } | null>(
+    null,
+  );
   const triggerRef = useTriggerAboveSheet(open);
   // What has been typed into the search box, cleared on every open and after
   // every pick. Not a draft of a value — nothing here is held back and sent
@@ -1964,7 +2017,7 @@ function CardDependsField({
     setAdding((current) => withId(current, entry.id));
     void addDependency(row, entry.id).then((outcome) => {
       setAdding((current) => withoutId(current, entry.id));
-      if (outcome === 'landed') setTyped('');
+      if (didLand(outcome)) setTyped('');
     });
   };
 
@@ -1994,12 +2047,25 @@ function CardDependsField({
           data-hint="What this work item waits for. It cannot start until these have finished."
           className={`${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center text-left underline decoration-dotted underline-offset-2`}
         >
-          {waits.length === 0 ? (
+          {waits.length === 0 && typedWaits.length === 0 ? (
             // No `data-card-waits`: this row waits for nothing, and the
             // attribute is the waiting. What is drawn is the invitation.
             <span className="opacity-70">waits for…</span>
           ) : (
-            <span data-card-waits>waits for {waits.map((each) => each.number).join(', ')}</span>
+            <span data-card-waits>
+              waits for{' '}
+              {[
+                ...waits.map((each) => each.number),
+                ...typedWaits.map((dependency) => {
+                  const predecessor = dependencyRows.find(
+                    (candidate) => candidate.id === dependency.predecessor.workItemId,
+                  );
+                  if (predecessor === undefined)
+                    throw new Error(`Missing predecessor ${dependency.predecessor.workItemId}`);
+                  return predecessor.number;
+                }),
+              ].join(', ')}
+            </span>
           )}
         </button>
       </ModalTrigger>
@@ -2031,7 +2097,7 @@ function CardDependsField({
           </ModalDescription>
         </ModalHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-3">
-          {waits.length > 0 && (
+          {(waits.length > 0 || typedWaits.length > 0) && (
             // Bounded on purpose: the surface no longer scrolls, so a row
             // with many waits must not push the box or the candidate list
             // out of the clipped surface — past `max-h-56` the waits scroll
@@ -2044,6 +2110,77 @@ function CardDependsField({
               aria-label={`Waits for, on ${row.number}`}
               className="flex max-h-56 shrink-0 flex-col gap-1 overflow-y-auto"
             >
+              {typedWaits.map((dependency) => {
+                // Proof: injecting an absent dependencyStepNodes prop made `uses server
+                // step-node references for phone typed chips` fail with this missing-node
+                // error instead of presenting an invented code. Watched 2026-09-28.
+                if (
+                  dependencyStepNodes === undefined &&
+                  (dependency.predecessor.scope === 'node' || dependency.successor.scope === 'node')
+                )
+                  throw new Error('Missing dependency step nodes for card');
+                const words = dependencyWords(
+                  dependency,
+                  dependencyRows,
+                  steps,
+                  dependencyStepNodes,
+                );
+                if (removeTypedDependency === undefined || saveTypedDependency === undefined)
+                  throw new Error('Missing typed dependency card commands');
+                const wholeWait =
+                  dependency.type === 'FS' &&
+                  dependency.predecessor.scope === 'whole' &&
+                  dependency.successor.scope === 'whole';
+                const predecessorNumber = endpointText(
+                  dependency.predecessor,
+                  dependencyRows,
+                  steps,
+                  dependencyStepNodes,
+                );
+                return (
+                  <li
+                    key={dependency.id}
+                    data-card-wait={wholeWait ? predecessorNumber : undefined}
+                    className="typed-dependency-card-entry flex items-center justify-between gap-2 rounded-md border px-3"
+                  >
+                    <span>
+                      {words.chip} · {words.label}
+                    </span>
+                    <button
+                      type="button"
+                      className={`${TAP} rounded-md border px-3`}
+                      aria-label={`Edit ${words.label}`}
+                      onClick={() => {
+                        setEditing({
+                          predecessorId: dependency.predecessor.workItemId,
+                          dependencyId: dependency.id,
+                        });
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className={`${TAP} rounded-md border px-3`}
+                      data-card-wait-remove={wholeWait ? predecessorNumber : undefined}
+                      aria-label={
+                        wholeWait
+                          ? `Stop ${row.number} waiting for ${predecessorNumber}`
+                          : `Remove ${words.label}`
+                      }
+                      disabled={removing.has(dependency.id)}
+                      onClick={() => {
+                        setRemoving((current) => withId(current, dependency.id));
+                        void removeTypedDependency(dependency.id).then(() => {
+                          setRemoving((current) => withoutId(current, dependency.id));
+                        });
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                );
+              })}
               {waits.map((each) => (
                 <li
                   key={each.id}
@@ -2073,6 +2210,78 @@ function CardDependsField({
               ))}
             </ul>
           )}
+          {editing !== null &&
+            (() => {
+              const dependency = typedWaits.find(
+                (candidate) => candidate.id === editing.dependencyId,
+              );
+              // Proof: forcing this guard false made `refuses to recreate a phone edit
+              // target removed before Save` fail because the stale alert was absent;
+              // the editor exposed Add. Watched 2026-09-28.
+              if (editing.dependencyId !== undefined && dependency === undefined)
+                return (
+                  <p role="alert">
+                    This dependency was removed.{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditing(null);
+                      }}
+                    >
+                      Back to dependency picker
+                    </button>
+                  </p>
+                );
+              const predecessor = dependencyRows.find(
+                (candidate) => candidate.id === editing.predecessorId,
+              );
+              // Proof: deleting a pending phone Add predecessor made the
+              // mounted stale-Add regression throw Missing predecessor; watched 2026-09-28.
+              if (predecessor === undefined)
+                return (
+                  <p role="alert">
+                    This predecessor was removed.{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditing(null);
+                      }}
+                    >
+                      Back to dependency picker
+                    </button>
+                  </p>
+                );
+              if (
+                addTypedDependency === undefined ||
+                saveTypedDependency === undefined ||
+                removeTypedDependency === undefined
+              )
+                throw new Error('Missing typed dependency card commands');
+              return (
+                <TypedDependencyEditor
+                  // Proof: removing this key made `switches phone edit scope state when a second relationship is selected` keep Whole instead of Dev; watched 2026-09-28.
+                  key={editing.dependencyId ?? `add:${editing.predecessorId}`}
+                  predecessor={predecessor}
+                  successor={row}
+                  rows={dependencyRows}
+                  steps={steps}
+                  dependency={dependency}
+                  onCancel={() => {
+                    setEditing(null);
+                  }}
+                  onSave={(source, target, type) =>
+                    dependency === undefined
+                      ? addTypedDependency(source, target, type)
+                      : saveTypedDependency(dependency.id, source, target, type)
+                  }
+                  onRemove={
+                    dependency === undefined
+                      ? undefined
+                      : () => removeTypedDependency(dependency.id)
+                  }
+                />
+              );
+            })()}
           {/* `shrink-0`: the box is the control the whole fix is for, so it
               never gives height back to the flex column. */}
           <label className="flex shrink-0 flex-col gap-1 text-sm">
@@ -2118,6 +2327,16 @@ function CardDependsField({
             >
               {offered.map((entry) => (
                 <li key={entry.id}>
+                  <button
+                    type="button"
+                    className={`${TAP} rounded-md border px-3`}
+                    aria-label={`Customize ${entry.number} - ${entry.name}`}
+                    onClick={() => {
+                      setEditing({ predecessorId: entry.id });
+                    }}
+                  >
+                    ›
+                  </button>
                   <button
                     type="button"
                     data-card-depends-option={entry.number}
@@ -2374,6 +2593,12 @@ export function PlanCards({
   mentionOptions,
   assigneeOn,
   waitsFor,
+  typedWaitsFor,
+  dependencyRows,
+  dependencyStepNodes,
+  saveTypedDependency,
+  addTypedDependency,
+  removeTypedDependency,
   dependencyOptions,
   addDependency,
   dropDependency,
@@ -2759,6 +2984,13 @@ export function PlanCards({
               <CardDependsField
                 row={row}
                 waits={waits}
+                typedWaits={typedWaitsFor?.(row) ?? []}
+                dependencyRows={dependencyRows ?? rows.map((card) => card.row)}
+                dependencyStepNodes={dependencyStepNodes}
+                steps={steps}
+                saveTypedDependency={saveTypedDependency}
+                addTypedDependency={addTypedDependency}
+                removeTypedDependency={removeTypedDependency}
                 options={dependencyOptions}
                 addDependency={addDependency}
                 dropDependency={dropDependency}

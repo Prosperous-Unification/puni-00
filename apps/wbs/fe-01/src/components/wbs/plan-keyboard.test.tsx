@@ -623,7 +623,11 @@ describe('Tab moves between the fields, from every cell', () => {
     fireEvent.change(box, { target: { value: '010' } });
     fireEvent.keyDown(box, { key: 'Enter' });
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Stop 030 waiting for 010' })).toBeDefined();
+      expect(
+        screen.getByRole('button', {
+          name: /^Stop 030 waiting for 010/,
+        }),
+      ).toBeDefined();
     });
 
     // The chip sits before the input inside this one cell, so the browser's own
@@ -2214,7 +2218,7 @@ describe('the command chords', () => {
     await letTheLoopRun();
 
     expect(event.defaultPrevented).toBe(true);
-    expect(screen.queryByLabelText('Stop 020 waiting for 010')).toBeNull();
+    expect(screen.queryByLabelText(/^Stop 020 waiting for 010/)).toBeNull();
     // Nothing about the list moved either: same search, same highlight.
     expect(box).toHaveValue('010');
     expect(box.getAttribute('aria-activedescendant')).toBe(highlighted);

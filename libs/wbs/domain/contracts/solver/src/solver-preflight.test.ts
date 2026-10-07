@@ -1,3 +1,11 @@
+import {
+  chargedDays,
+  DEFAULT_ESTIMATE_RULE,
+  durationUnits,
+  MAX_ALLOWANCE_PERCENT,
+  MAX_ESTIMATE_DAYS,
+  type Slice,
+} from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { preflightSolverRequest } from './solver-preflight';
@@ -33,23 +41,25 @@ describe('preflightSolverRequest', () => {
         sliceOf({ durationUnits: 7, notBeforeUnits: 100 }),
       ],
       atZero,
+      [],
     );
     expect(preflight).toEqual({ ok: true, horizonUnits: 117 });
   });
 
   it('seeds the floor with zero, so a plan with no manual floors has a horizon', () => {
     // The common case: an unseeded max over an empty set has no value.
-    expect(preflightSolverRequest([sliceOf({ durationUnits: 3 })], atZero)).toEqual({
+    expect(preflightSolverRequest([sliceOf({ durationUnits: 3 })], atZero, [])).toEqual({
       ok: true,
       horizonUnits: 3,
     });
-    expect(preflightSolverRequest([], atZero)).toEqual({ ok: true, horizonUnits: 0 });
+    expect(preflightSolverRequest([], atZero, [])).toEqual({ ok: true, horizonUnits: 0 });
   });
 
   it('accepts a horizon exactly at the maximum', () => {
     const preflight = preflightSolverRequest(
       [sliceOf({ durationUnits: SOLVER_HORIZON_UNITS_MAX })],
       atZero,
+      [],
     );
     expect(preflight).toEqual({ ok: true, horizonUnits: SOLVER_HORIZON_UNITS_MAX });
   });
@@ -58,6 +68,7 @@ describe('preflightSolverRequest', () => {
     const preflight = preflightSolverRequest(
       [sliceOf({ durationUnits: SOLVER_HORIZON_UNITS_MAX }), sliceOf({ durationUnits: 1 })],
       atZero,
+      [],
     );
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
@@ -68,6 +79,7 @@ describe('preflightSolverRequest', () => {
     const preflight = preflightSolverRequest(
       [sliceOf({ durationUnits: 1, notBeforeUnits: SOLVER_HORIZON_UNITS_MAX })],
       atZero,
+      [],
     );
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
@@ -85,6 +97,7 @@ describe('preflightSolverRequest', () => {
         sliceOf({ durationUnits: 1 }),
       ],
       atZero,
+      [],
     );
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
@@ -99,6 +112,7 @@ describe('preflightSolverRequest', () => {
     const preflight = preflightSolverRequest(
       [sliceOf({ durationUnits: 1_000_000_000, priorityWeight: 10_000_000 })],
       atZero,
+      [],
     );
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
@@ -128,6 +142,7 @@ describe('preflightSolverRequest', () => {
         }),
       ],
       atZero,
+      [],
     );
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
@@ -148,6 +163,7 @@ describe('preflightSolverRequest', () => {
         }),
       ],
       atZero,
+      [],
     );
     expect(preflight).toEqual({ ok: true, horizonUnits: SOLVER_HORIZON_UNITS_MAX });
   });
@@ -159,6 +175,7 @@ describe('preflightSolverRequest', () => {
     const preflight = preflightSolverRequest(
       [sliceOf({ durationUnits: Number.MAX_SAFE_INTEGER, priorityWeight: 1_000_000 })],
       atZero,
+      [],
     );
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
@@ -169,7 +186,7 @@ describe('preflightSolverRequest', () => {
     // Nobody prioritised anything, which is most plans. The product is zero and
     // the objective bound is not in play.
     expect(
-      preflightSolverRequest([sliceOf({ durationUnits: SOLVER_HORIZON_UNITS_MAX })], atZero).ok,
+      preflightSolverRequest([sliceOf({ durationUnits: SOLVER_HORIZON_UNITS_MAX })], atZero, []).ok,
     ).toBe(true);
   });
 });
@@ -180,7 +197,7 @@ describe("preflightSolverRequest's MOVEMENT bound", () => {
   it('accepts a baseline anywhere on the axis', () => {
     // Horizon 100. Worst case is max(b, 100 - b) per slice — 70 and 100 — which
     // is nowhere near MAX_SAFE_INTEGER and must not be refused.
-    expect(preflightSolverRequest(two, { a: 30, b: 100 })).toEqual({
+    expect(preflightSolverRequest(two, { a: 30, b: 100 }, [])).toEqual({
       ok: true,
       horizonUnits: 100,
     });
@@ -190,7 +207,9 @@ describe("preflightSolverRequest's MOVEMENT bound", () => {
     // The key sets are equal by construction — one grouping produces slices,
     // baselineOffsets and fastHint — so a gap is this package's bug. Every
     // failure token here is a sentence a client shows somebody; this is not one.
-    expect(() => preflightSolverRequest(two, { a: 0 })).toThrow(/no baseline offset for slice b/);
+    expect(() => preflightSolverRequest(two, { a: 0 }, [])).toThrow(
+      /no baseline offset for slice b/,
+    );
   });
 
   it('cannot overflow below roughly four million slices, which is why no test spends one', () => {
@@ -203,5 +222,40 @@ describe("preflightSolverRequest's MOVEMENT bound", () => {
     const termsNeeded = Math.ceil(Number.MAX_SAFE_INTEGER / SOLVER_HORIZON_UNITS_MAX);
     expect(termsNeeded).toBeGreaterThan(4_000_000);
     expect(SOLVER_HORIZON_UNITS_MAX * 4_000_000).toBeLessThan(Number.MAX_SAFE_INTEGER);
+  });
+});
+
+describe('a charged estimate past the per-point bound', () => {
+  /**
+   * `MAX_ESTIMATE_DAYS` bounds each authored point, not a charged figure: a
+   * point at the bound under a 1000% step allowance is charged eleven times it.
+   * That slice is refused by this preflight as a plan-level `horizon-overflow`,
+   * the same modeled answer a plan of individually legal slices gets when they
+   * overflow together — never a wire value past the solver's axis.
+   */
+  it('is a modeled horizon-overflow refusal, not a request', () => {
+    const charged = chargedDays(
+      {
+        optimistic: MAX_ESTIMATE_DAYS,
+        realistic: MAX_ESTIMATE_DAYS,
+        pessimistic: MAX_ESTIMATE_DAYS,
+      },
+      DEFAULT_ESTIMATE_RULE,
+      MAX_ALLOWANCE_PERCENT,
+    );
+    const units = durationUnits({
+      workItemId: 'work',
+      stepId: 'qa',
+      days: charged,
+      personId: null,
+      width: 1,
+      poolIds: [],
+    } satisfies Slice);
+
+    const preflight = preflightSolverRequest([sliceOf({ durationUnits: units })], atZero, []);
+
+    expect(preflight.ok).toBe(false);
+    if (preflight.ok) throw new Error('unreachable');
+    expect(preflight.failure).toBe('horizon-overflow');
   });
 });

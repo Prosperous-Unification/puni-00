@@ -124,14 +124,27 @@
    */
   --highlight: oklch(0.905 0.147 96);
   /*
-   * The two statuses that are said in colour — on the status strip at a row's
-   * left edge, in the glyph of the Status cell, and (done only) as the tint
-   * across a done row. Unknown has no colour: it is the absence of a saying.
-   * Green for finished and amber for under way are the two readings nobody
-   * has to learn; neither is a shade the grid already uses for anything else.
+   * Each status's colour — on the status strip at a row's left edge, in the
+   * glyph of the Status cell, on a dependency line naming the row, and (done
+   * only) as the tint across a done row. Unknown has no colour: it is the
+   * absence of a saying (`STATUS_TOKEN` in `status-palette.ts`). Green for
+   * finished and amber for under way are the two readings nobody has to
+   * learn; draft and ready are the cool pair before work starts, on hold a
+   * quiet violet, blocked the destructive red, and blocked by proxy that red
+   * muted — muted in chroma and not lightness, since it is read off the graph
+   * rather than said about the row. Every token is glyph text as well as a
+   * strip, so every one clears 4.5:1 on the composited table surfaces,
+   * including bands, pointer lights and the done tint. `e2e/status.spec.ts`
+   * measures those surfaces in Chromium. The chart's done outline is
+   * `DONE_BAR_STROKE`, a hex of its own, and is not text.
    */
-  --status-done: oklch(0.6 0.16 148);
-  --status-in-progress: oklch(0.72 0.15 72);
+  --status-done: oklch(0.48 0.16 148);
+  --status-in-progress: oklch(0.49 0.13 72);
+  --status-draft: oklch(0.49 0.05 255);
+  --status-ready: oklch(0.48 0.11 215);
+  --status-on-hold: oklch(0.49 0.1 300);
+  --status-blocked: oklch(0.5 0.245 27.325);
+  --status-blocked-by-proxy: oklch(0.49 0.09 27);
 }
 
 .dark {
@@ -159,6 +172,11 @@
   --highlight: oklch(0.62 0.12 96);
   --status-done: oklch(0.72 0.15 148);
   --status-in-progress: oklch(0.8 0.14 78);
+  --status-draft: oklch(0.72 0.05 255);
+  --status-ready: oklch(0.74 0.11 215);
+  --status-on-hold: oklch(0.72 0.1 300);
+  --status-blocked: oklch(0.704 0.191 22.216);
+  --status-blocked-by-proxy: oklch(0.6 0.09 22);
 
   /*
    * **Nothing re-points a `--grid-*` token here, and that is a rule rather than
@@ -871,6 +889,36 @@
   [data-grid] tbody tr[data-row-status='in_progress'] td[data-column='drag'] {
     box-shadow:
       inset 3px 0 0 var(--status-in-progress),
+      inset -1px -1px 0 var(--border);
+  }
+
+  [data-grid] tbody tr[data-row-status='draft'] td[data-column='drag'] {
+    box-shadow:
+      inset 3px 0 0 var(--status-draft),
+      inset -1px -1px 0 var(--border);
+  }
+
+  [data-grid] tbody tr[data-row-status='ready'] td[data-column='drag'] {
+    box-shadow:
+      inset 3px 0 0 var(--status-ready),
+      inset -1px -1px 0 var(--border);
+  }
+
+  [data-grid] tbody tr[data-row-status='on_hold'] td[data-column='drag'] {
+    box-shadow:
+      inset 3px 0 0 var(--status-on-hold),
+      inset -1px -1px 0 var(--border);
+  }
+
+  [data-grid] tbody tr[data-row-status='blocked'] td[data-column='drag'] {
+    box-shadow:
+      inset 3px 0 0 var(--status-blocked),
+      inset -1px -1px 0 var(--border);
+  }
+
+  [data-grid] tbody tr[data-row-status='blocked_by_proxy'] td[data-column='drag'] {
+    box-shadow:
+      inset 3px 0 0 var(--status-blocked-by-proxy),
       inset -1px -1px 0 var(--border);
   }
 
@@ -1644,4 +1692,82 @@
 [data-grid] tbody tr[data-row-done='true'] [data-number] {
   text-decoration: line-through;
   color: var(--muted-foreground);
+}
+.typed-dependency-editor {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: 20;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(70vh, 600px);
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  white-space: normal;
+}
+.typed-dependency-customize::before {
+  content: '›';
+}
+.typed-dependency-editor label {
+  display: grid;
+  gap: 4px;
+  margin-block: 10px;
+}
+.typed-dependency-editor select {
+  width: 100%;
+  min-height: 44px;
+}
+.typed-dependency-editor > button {
+  min-height: 44px;
+}
+.typed-dependency-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.typed-dependency-actions button {
+  min-height: 44px;
+  padding-inline: 12px;
+}
+.typed-dependency-card-entry {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+.typed-dependency-card-entry button {
+  min-height: 44px;
+  padding-inline: 10px;
+}
+/* Proof: with the 640px cutoff, the compiled-sheet regression had no fixed
+ * editor rule at the card renderer's 767.98px/499.98px boundary; watched 2026-09-28. */
+@media (max-width: 767.98px), (max-height: 499.98px) {
+  .typed-dependency-editor {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    max-height: 80vh;
+    border-radius: 16px 16px 0 0;
+  }
+  .typed-dependency-actions button {
+    flex: 1;
+    min-height: 44px;
+  }
+  .typed-dependency-card-entry {
+    grid-template-columns: 1fr 1fr;
+    width: min(100vw - 24px, 360px);
+  }
+  .typed-dependency-card-entry span {
+    grid-column: 1 / -1;
+  }
+  .typed-dependency-card-entry button {
+    min-height: 44px;
+  }
 }

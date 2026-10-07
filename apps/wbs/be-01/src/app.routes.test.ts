@@ -1,28 +1,43 @@
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import {
+  completeAuth0Link,
   completeOidcLogin,
   httpShapes,
   logoutOidcSession,
   refreshOidcSession,
   type RequestPolicy,
+  startAuth0Link,
   startOidcLogin,
 } from '@wbs/contracts';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
+import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import type { AppOptions } from './app';
 import { buildApp, mountedEndpoints } from './app';
 import { bunPasswordHasher, joseTokenCodec } from './runtime/bun-runtime';
-import { AuthService } from './service/auth.service';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from './testing/auth-fixture';
 import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
 import { testCapacityService } from './testing/capacity-fixture';
 import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingJoinRequests,
+  refusingTestEmailDelivery,
+} from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingDomains,
+  refusingMemberships,
+} from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { inMemoryProjects, testProjectService } from './testing/project-fixture';
+import { refusingProjectRanks } from './testing/project-rank-fixture';
 import { testReplay } from './testing/replay-fixture';
 import { testSavedPlanService } from './testing/saved-plan-fixture';
 import { testStepService } from './testing/step-fixture';
@@ -31,6 +46,20 @@ import { testWrites } from './testing/writes-fixture';
 
 function options(): AppOptions {
   return {
+    organizations: legacyOrganizationAccess,
+    memberships: refusingMemberships,
+    domains: refusingDomains,
+    emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
+    spaces: inMemorySpaces(new Map()),
+    projectRanks: refusingProjectRanks,
+    emailDelivery: refusingTestEmailDelivery,
+    onboarding: {
+      discover: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
+      createOrganization: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
+      submitJoinRequest: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
+    },
     appOrigin: 'http://localhost',
     loginThrottle: testLoginThrottle(),
     clock: testClock,
@@ -108,15 +137,29 @@ const INTERNAL_SECRET = 'x'.repeat(32);
 const OIDC_SHAPES = new Set<(typeof httpShapes)[number]>([
   startOidcLogin,
   completeOidcLogin,
+  startAuth0Link,
+  completeAuth0Link,
   refreshOidcSession,
   logoutOidcSession,
 ]);
 const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
+  postApiAuthContext: { organizationId: ROUTE_ID },
+  postApiAuthLinkAuth0: { password: 'valid-password' },
   postApiAuthRegister: { username: 'route-probe', password: 'valid-password' },
   postApiAuthLogin: { username: 'route-probe', password: 'valid-password' },
+  postApiOnboardingOrganizations: { name: 'Reachable organization' },
+  postApiOrganizationActive: { organizationId: ROUTE_ID },
+  postApiOnboardingJoinRequests: { organizationId: ROUTE_ID },
+  postApiOrganizationDomainsChallenges: { domain: 'example.org' },
+  postApiOnboardingEmailChallenges: { email: 'test@example.org' },
+  postApiOnboardingEmailChallengesConfirm: { email: 'test@example.org', token: 'invalid' },
+  postApiOrganizationInvitations: { email: 'test@example.org', role: 'viewer' },
+  postApiOrganizationJoinRequestsByIdApprove: { role: 'viewer' },
+  postApiOnboardingInvitationsAccept: { token: 'invalid' },
   postApiSmokeEcho: { text: 'reachable' },
   postApiProjectsByIdSteps: { name: 'Reachable step' },
   patchApiProjectsByIdStepsByStepId: { name: 'Renamed step' },
+  patchApiOrganizationMembersByUserId: { role: 'member' },
   postApiProjects: { name: 'Reachable plan' },
   postApiProjectsImport: planDocumentFixture(),
   patchApiProjectsById: {
@@ -145,12 +188,20 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   },
   'patchApiProjectsByIdCalendar-markersByMarkerId': { name: 'Renamed route probe' },
   'postApiProjectsByIdSaved-plans': {},
+  postApiSpaces: { name: 'Route probe' },
+  patchApiSpacesById: { name: 'Renamed route probe' },
+  postApiSpacesByIdProjects: { projectId: ROUTE_ID },
+  postApiSpacesByIdProjectsByProjectIdMove: {},
+  postApiOrganizationProjectsByIdRank: {},
   'patchApiSaved-plansById': { name: 'Renamed snapshot' },
   postInternalForward: { message: { kind: 'route-probe' }, trace_id: 'route-probe' },
   postInternalResume: { resume_points: { subscription: -1 }, trace_id: 'route-probe' },
 };
 const REQUEST_QUERIES: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> = {
+  'getApiSpacesByIdRoll-ups': { projectIds: 'route-probe' },
   getApiAuthOktaCallback: { state: 'route-probe', error: 'access_denied' },
+  getApiPeopleByPersonIdLoad: { from: '2026-10-05', to: '2026-10-09' },
+  getApiPeopleLoad: { from: '2026-10-05', to: '2026-10-09' },
   getApiProjectsByIdExport: { format: 'json' },
   'getApiProjectsByIdSaved-plansCompare': { left: 'current', right: 'current' },
   'getApiProjectsByIdStep-references': { reference: '010.dev', revision: 'ar1:route-probe' },
@@ -166,12 +217,15 @@ const REQUEST_BOUNDARY_ERRORS = new Set([
   'insufficient_scope',
 ]);
 const PUBLIC_OPERATIONS = [
+  'getApiAuthLinkAuth0Callback',
   'getApiAuthLogin',
   'getApiAuthMe',
   'getApiAuthOktaCallback',
   'getHealth',
   'getMetrics',
   'postApiAuthLogin',
+  'postApiAuthContext',
+  'postApiAuthLinkAuth0',
   'postApiAuthLogout',
   'postApiAuthRefresh',
   'postApiAuthRegister',
@@ -179,7 +233,16 @@ const PUBLIC_OPERATIONS = [
 ] as const;
 const SIGNED_IN_OPERATIONS = [
   'getApiExternal-systems',
+  'getApiOnboarding',
+  'getApiOrganizationDomains',
+  'getApiOrganizationInvitations',
+  'getApiOrganizationJoinRequests',
+  'getApiOrganizationMembers',
+  'getApiOrganizationMemberships',
+  'getApiOrganizationProject-rank',
   'getApiPeople',
+  'getApiPeopleByPersonIdLoad',
+  'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
   'getApiProjectsByIdCalendar-markers',
@@ -190,20 +253,44 @@ const SIGNED_IN_OPERATIONS = [
   'getApiProjectsByIdWork-items',
   'getApiSaved-plansById',
   'getApiServices',
+  'getApiSpaces',
+  'getApiSpacesById',
+  'getApiSpacesByIdIn-progress',
+  'getApiSpacesByIdRoll-ups',
   'getApiTags',
   'getApiTeams',
   'getApiWork-item-types',
+  'postApiOrganizationActive',
 ] as const;
 const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
 const WRITE_SCOPE_OPERATIONS = [
+  'deleteApiOrganizationDomainsById',
+  'deleteApiOrganizationInvitationsById',
+  'deleteApiOrganizationMembersByUserId',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
   'deleteApiSaved-plansById',
+  'deleteApiSpacesById',
+  'deleteApiSpacesByIdProjectsByProjectId',
+  'patchApiOrganizationMembersByUserId',
   'patchApiProjectsById',
   'patchApiProjectsByIdCalendar-markersByMarkerId',
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
+  'patchApiSpacesById',
   'postApiDirectoryCommands',
+  'postApiOnboardingEmailChallenges',
+  'postApiOnboardingEmailChallengesConfirm',
+  'postApiOnboardingInvitationsAccept',
+  'postApiOnboardingJoinRequests',
+  'postApiOnboardingOrganizations',
+  'postApiOrganizationDomainsByIdRotate',
+  'postApiOrganizationDomainsByIdVerify',
+  'postApiOrganizationDomainsChallenges',
+  'postApiOrganizationInvitations',
+  'postApiOrganizationJoinRequestsByIdApprove',
+  'postApiOrganizationJoinRequestsByIdDeny',
+  'postApiOrganizationProjectsByIdRank',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -214,21 +301,50 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiProjectsByIdSteps',
   'postApiProjectsByIdUndo',
   'postApiProjectsImport',
+  'postApiSpaces',
+  'postApiSpacesByIdProjects',
+  'postApiSpacesByIdProjectsByProjectIdMove',
 ] as const;
 const INTERNAL_OPERATIONS = ['postInternalForward', 'postInternalResume'] as const;
-const ALWAYS_ORIGIN_OPERATIONS = ['postApiAuthLogin', 'postApiAuthRegister'] as const;
+const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
+const ALWAYS_ORIGIN_OPERATIONS = [
+  'deleteApiOrganizationInvitationsById',
+  'postApiAuthLogin',
+  'postApiAuthRegister',
+  'postApiOnboardingEmailChallenges',
+  'postApiOnboardingEmailChallengesConfirm',
+  'postApiOnboardingInvitationsAccept',
+  'postApiOnboardingJoinRequests',
+  'postApiOnboardingOrganizations',
+  'postApiOrganizationActive',
+  'postApiOrganizationInvitations',
+  'postApiOrganizationJoinRequestsByIdApprove',
+  'postApiOrganizationJoinRequestsByIdDeny',
+] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
+  'deleteApiOrganizationDomainsById',
+  'deleteApiOrganizationMembersByUserId',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
   'deleteApiSaved-plansById',
+  'deleteApiSpacesById',
+  'deleteApiSpacesByIdProjectsByProjectId',
   'getApiProjectsByIdHistory',
+  'patchApiOrganizationMembersByUserId',
   'patchApiProjectsById',
   'patchApiProjectsByIdCalendar-markersByMarkerId',
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
+  'patchApiSpacesById',
+  'postApiAuthContext',
+  'postApiAuthLinkAuth0',
   'postApiAuthLogout',
   'postApiAuthRefresh',
   'postApiDirectoryCommands',
+  'postApiOrganizationDomainsByIdRotate',
+  'postApiOrganizationDomainsByIdVerify',
+  'postApiOrganizationDomainsChallenges',
+  'postApiOrganizationProjectsByIdRank',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -240,13 +356,26 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiProjectsByIdUndo',
   'postApiProjectsImport',
   'postApiSmokeEcho',
+  'postApiSpaces',
+  'postApiSpacesByIdProjects',
+  'postApiSpacesByIdProjectsByProjectIdMove',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
+  'getApiAuthLinkAuth0Callback',
   'getApiAuthLogin',
   'getApiAuthMe',
   'getApiAuthOktaCallback',
   'getApiExternal-systems',
+  'getApiOnboarding',
+  'getApiOrganizationMemberships',
+  'getApiOrganizationDomains',
+  'getApiOrganizationInvitations',
+  'getApiOrganizationJoinRequests',
+  'getApiOrganizationMembers',
+  'getApiOrganizationProject-rank',
   'getApiPeople',
+  'getApiPeopleByPersonIdLoad',
+  'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
   'getApiProjectsByIdCalendar-markers',
@@ -257,6 +386,10 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiProjectsByIdWork-items',
   'getApiSaved-plansById',
   'getApiServices',
+  'getApiSpaces',
+  'getApiSpacesById',
+  'getApiSpacesByIdIn-progress',
+  'getApiSpacesByIdRoll-ups',
   'getApiTags',
   'getApiTeams',
   'getApiWork-item-types',
@@ -264,6 +397,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getMetrics',
   'getPlansBy-solutionBySlug',
   'postInternalForward',
+  'postInternalGatewayProjectAccess',
   'postInternalResume',
 ] as const;
 
@@ -348,6 +482,7 @@ function reachabilityOidcOptions(): NonNullable<AppOptions['oidc']> {
 
 function requestFor(shape: (typeof httpShapes)[number]): Request {
   const path = shape.path
+    .replace(':projectId', ROUTE_ID)
     .replace(':markerId', ROUTE_MARKER_ID)
     .replace(':stepId', ROUTE_ID)
     .replace(':slug', 'route-probe')
@@ -420,6 +555,8 @@ function expectedPolicies(operationId: string): RequestPolicy[] {
     policies.push({ kind: 'identity', require: 'write-scope' });
   if (includesOperation(INTERNAL_OPERATIONS, operationId))
     policies.push({ kind: 'identity', require: 'internal' });
+  if (includesOperation(GATEWAY_OPERATIONS, operationId))
+    policies.push({ kind: 'identity', require: 'gateway-delegation' });
   return policies;
 }
 
@@ -483,6 +620,7 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
     ...READ_SCOPE_OPERATIONS,
     ...WRITE_SCOPE_OPERATIONS,
     ...INTERNAL_OPERATIONS,
+    ...GATEWAY_OPERATIONS,
   ]) {
     const shape = httpShapes.find((candidate) => candidate.operationId === operationId);
     if (shape === undefined) throw new Error(`missing policy fixture: ${operationId}`);
@@ -513,6 +651,7 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
   expect(policyOperations('identity', 'read-scope')).toEqual([...READ_SCOPE_OPERATIONS]);
   expect(policyOperations('identity', 'write-scope')).toEqual([...WRITE_SCOPE_OPERATIONS]);
   expect(policyOperations('identity', 'internal')).toEqual([...INTERNAL_OPERATIONS]);
+  expect(policyOperations('identity', 'gateway-delegation')).toEqual([...GATEWAY_OPERATIONS]);
   expect(policyOperations('origin', 'always')).toEqual([...ALWAYS_ORIGIN_OPERATIONS]);
   expect(policyOperations('origin', 'always-unsafe-with-session-cookie')).toEqual([
     ...COOKIE_ORIGIN_OPERATIONS,
@@ -525,6 +664,7 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
       ...READ_SCOPE_OPERATIONS,
       ...WRITE_SCOPE_OPERATIONS,
       ...INTERNAL_OPERATIONS,
+      ...GATEWAY_OPERATIONS,
     ].sort(),
   ).toEqual(everyOperation);
   expect(
@@ -619,7 +759,11 @@ describe('shared HTTP shape reachability through the production app', () => {
           operationId: shape.operationId,
           boundaryError:
             refusal !== undefined && REQUEST_BOUNDARY_ERRORS.has(refusal) ? refusal : null,
-        }).toEqual({ operationId: shape.operationId, boundaryError: null });
+        }).toEqual({
+          operationId: shape.operationId,
+          boundaryError:
+            shape.operationId === 'postInternalGatewayProjectAccess' ? 'unauthenticated' : null,
+        });
         expect({ operationId: shape.operationId, reply }).not.toEqual({
           operationId: shape.operationId,
           reply: routerMiss,

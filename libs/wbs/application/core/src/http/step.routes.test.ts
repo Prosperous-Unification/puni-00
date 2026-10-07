@@ -1,11 +1,21 @@
+import { inMemoryStores } from '@wbs/store-memory/in-memory-source';
 import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { inMemorySteps, stepRow } from '@wbs/store-memory/step-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
-import { StepService } from '../service/step.service';
+import type {
+  BatchPrelude,
+  PlanCommandServices,
+} from '../module/plan-commands/plan-commands.feature';
+import { StepService } from '../module/step/step.resource';
+import type { EditAdmission } from '../ports/edit-admission';
+import { DependencyGraphGuard } from '../service/dependency-graph';
+import type { PlanCommand } from '../service/plan-command';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { EMPTY } from './endpoint';
+import { type RecoveryWriteBoundary, runRecoveryWrite } from './recovery-write';
 import { stepRoutes } from './step.routes';
 
 const principal = { id: 'owner', username: 'owner', scopes: ['read', 'write'] as const };
@@ -14,6 +24,131 @@ const request = {
   url: new URL('https://app.example/steps'),
   headers: new Headers(),
 };
+
+test('publishes a dependent recovery only after its unit of work commits', async () => {
+  const order: string[] = [];
+  let held: RecoveryWriteBoundary['announcements'] | null = null;
+  const boundary = {
+    uow: {
+      run: async (act: (scope: unknown) => Promise<{ value: { ok: boolean } }>) => {
+        const decision = await act({
+          stores: { projects: { admitEditInOrganization: () => Promise.resolve('recovery') } },
+        });
+        order.push('commit');
+        return decision.value;
+      },
+    },
+    batch: (_scope: unknown, broadcast: RecoveryWriteBoundary['announcements']) => {
+      held = broadcast;
+      return {};
+    },
+    announcements: {
+      publish: () => {
+        order.push('publish');
+        return Promise.resolve();
+      },
+      latestSeq: () => Promise.resolve(-1),
+    },
+  } as unknown as RecoveryWriteBoundary;
+  expect(
+    await runRecoveryWrite<{ ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }>(
+      boundary,
+      { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin' } },
+      'project',
+      'sam',
+      { step: 'add' },
+      async () => {
+        const broadcast = held;
+        if (broadcast === null) throw new Error('batch did not receive a broadcaster');
+        await broadcast.publish('project', { type: 'step_removed', stepId: 'step' });
+        order.push('write');
+        return { ok: true };
+      },
+      (reason) => ({ ok: false, reason }),
+    ),
+  ).toEqual({ ok: true });
+  expect(order).toEqual(['write', 'commit', 'publish']);
+});
+
+test('scoped step service cannot borrow a recovery grant for another project, actor, or settled unit', async () => {
+  const projects = inMemoryProjects();
+  await projects.createInOrganization(
+    projectRow({ id: 'granted', restricted: true }),
+    [],
+    { at: 1, by: 'owner' },
+    'org-a',
+  );
+  await projects.createInOrganization(
+    projectRow({ id: 'other', restricted: true }),
+    [],
+    { at: 1, by: 'owner' },
+    'org-a',
+  );
+  const stored = inMemorySteps([]);
+  const access = {
+    kind: 'scoped' as const,
+    scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin' as const },
+  };
+  let retained: StepService | undefined;
+  const boundary = {
+    uow: {
+      run: async (act: (scope: unknown) => Promise<{ value: { ok: boolean } }>) =>
+        (
+          await act({
+            stores: { projects: { admitEditInOrganization: () => Promise.resolve('recovery') } },
+          })
+        ).value,
+    },
+    batch: (
+      _scope: unknown,
+      broadcast: RecoveryWriteBoundary['announcements'],
+      admission: EditAdmission,
+    ) => {
+      const service = new StepService({
+        projects,
+        steps: stored,
+        broadcast,
+        clock: testClock,
+        dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects }),
+        recoveryAdmission: admission,
+      });
+      retained = service;
+      return { steps: service };
+    },
+    announcements: recordingBroadcaster(),
+  } as unknown as RecoveryWriteBoundary;
+  await runRecoveryWrite<{ ok: true } | { ok: false }>(
+    boundary,
+    access,
+    'granted',
+    'sam',
+    { step: 'add' },
+    async (services) => {
+      expect(
+        await services.steps.addWithin('other', 'sam', 'Wrong project', 0, undefined, access),
+      ).toEqual({ ok: false, reason: 'forbidden' });
+      expect(
+        await services.steps.addWithin(
+          'granted',
+          'other-actor',
+          'Wrong actor',
+          0,
+          undefined,
+          access,
+        ),
+      ).toEqual({ ok: false, reason: 'forbidden' });
+      return { ok: true as const };
+    },
+    () => ({ ok: false as const }),
+  );
+  if (retained === undefined) throw new Error('batch did not build a step service');
+  expect(await retained.addWithin('granted', 'sam', 'Expired', 0, undefined, access)).toEqual({
+    ok: false,
+    reason: 'forbidden',
+  });
+  expect(await stored.listByProject('granted')).toEqual([]);
+  expect(await stored.listByProject('other')).toEqual([]);
+});
 
 async function fixture(restricted = false) {
   const projects = inMemoryProjects();
@@ -25,8 +160,39 @@ async function fixture(restricted = false) {
   ]);
   const addWrite = spyOn(stored, 'add');
   const broadcast = recordingBroadcaster();
-  const service = new StepService({ clock: testClock, projects, steps: stored, broadcast });
-  return { projects, stored, addWrite, broadcast, service, endpoints: stepRoutes(service) };
+  const service = new StepService({
+    dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: projects }),
+    clock: testClock,
+    projects,
+    steps: stored,
+    broadcast,
+  });
+  const commandsRun: unknown[] = [];
+  // The fake runs the prelude over the fixture's own step service, as the
+  // runner runs it over the batch's graph; the batch itself only records.
+  const commands = {
+    runAfterWithin: async <R>(
+      projectId: string,
+      actorId: string,
+      prelude: BatchPrelude<R>,
+      batch: readonly PlanCommand[],
+    ) => {
+      // A partial graph: this prelude reads only `steps`.
+      const refused = await prelude({ steps: service } as unknown as PlanCommandServices);
+      if (refused !== null) return { ok: false as const, prelude: refused };
+      commandsRun.push({ projectId, actorId, batch });
+      return { ok: true as const, results: [], undoable: true, redoable: false };
+    },
+  };
+  return {
+    projects,
+    stored,
+    addWrite,
+    broadcast,
+    service,
+    commandsRun,
+    endpoints: stepRoutes(service, commands, legacyOrganizationAccess),
+  };
 }
 
 test('typed step bindings preserve the service value, actor and trimmed name', async () => {
@@ -65,7 +231,14 @@ test('typed step bindings preserve the service value, actor and trimmed name', a
     ok: true,
     status: 200,
     body: {
-      step: { id: 'step', projectId: 'project', name: 'Review', position: 10, code: 'design' },
+      step: {
+        id: 'step',
+        projectId: 'project',
+        name: 'Review',
+        position: 10,
+        code: 'design',
+        allowancePercent: 0,
+      },
     },
   });
   expect(broadcast.published.map((entry) => entry.event.type)).toEqual([
@@ -115,6 +288,7 @@ test('typed name bindings preserve every modeled service refusal without a statu
 test('typed removal carries every usage field and only literal true confirms cascade', async () => {
   const { projects, stored, broadcast } = await fixture();
   const service = new StepService({
+    dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: projects }),
     clock: testClock,
     projects,
     broadcast,
@@ -131,7 +305,11 @@ test('typed removal carries every usage field and only literal true confirms cas
         }),
     },
   });
-  const remove = stepRoutes(service)[2];
+  const remove = stepRoutes(
+    service,
+    { runAfterWithin: () => Promise.reject(new Error('a removal ran a command batch')) },
+    legacyOrganizationAccess,
+  )[2];
   for (const cascade of [undefined, '1', 'TRUE', 'false']) {
     const removeReply: unknown = await remove.handle({
       params: { id: 'project', stepId: 'step' },
@@ -214,4 +392,117 @@ test('typed removal preserves project refusals and unknown repository failures r
   } finally {
     lookup.mockRestore();
   }
+});
+
+test('adds a step with the allowance it names, and refuses one with three decimals', async () => {
+  const {
+    endpoints: [add],
+    stored,
+  } = await fixture();
+  const added = await add.handle({
+    params: { id: 'project' },
+    query: undefined,
+    body: { name: 'Review', allowancePercent: 12.5 },
+    principal,
+    request,
+  });
+  if (!added.ok) throw new Error('add refused');
+  expect(added.body.step.allowancePercent).toBe(12.5);
+  expect((await stored.findById(added.body.step.id))?.allowancePercent).toBe(12.5);
+
+  const defaulted = await add.handle({
+    params: { id: 'project' },
+    query: undefined,
+    body: { name: 'Ship' },
+    principal,
+    request,
+  });
+  if (!defaulted.ok) throw new Error('add refused');
+  expect(defaulted.body.step.allowancePercent).toBe(0);
+
+  const before = stored.rows.length;
+  // Proof: see the route's comment — without the refusal this stored the step.
+  expect(
+    await add.handle({
+      params: { id: 'project' },
+      query: undefined,
+      body: { name: 'Precise', allowancePercent: 12.345 },
+      principal,
+      request,
+    }),
+  ).toEqual({ ok: false, status: 422, body: { error: 'invalid_allowance' } });
+  expect(stored.rows).toHaveLength(before);
+});
+
+test('a patched allowance runs as the one journalled setStepAllowance command', async () => {
+  const {
+    endpoints: [, patch],
+    commandsRun,
+  } = await fixture();
+  const reply = await patch.handle({
+    params: { id: 'project', stepId: 'step' },
+    query: undefined,
+    body: { allowancePercent: 30 },
+    principal,
+    request,
+  });
+  expect(reply.ok).toBe(true);
+  expect(commandsRun).toEqual([
+    {
+      projectId: 'project',
+      actorId: 'owner',
+      batch: [{ kind: 'setStepAllowance', stepId: 'step', allowancePercent: 30 }],
+    },
+  ]);
+
+  for (const allowancePercent of [-1, 1000.01, 0.001]) {
+    expect(
+      await patch.handle({
+        params: { id: 'project', stepId: 'step' },
+        query: undefined,
+        body: { allowancePercent },
+        principal,
+        request,
+      }),
+    ).toEqual({ ok: false, status: 422, body: { error: 'invalid_allowance' } });
+  }
+  expect(
+    await patch.handle({
+      params: { id: 'project', stepId: 'step' },
+      query: undefined,
+      body: {},
+      principal,
+      request,
+    }),
+  ).toEqual({ ok: false, status: 422, body: { error: 'invalid_body' } });
+  expect(commandsRun).toHaveLength(1);
+});
+
+test('a rename sent with an allowance is the batch prelude, and its refusal runs no command', async () => {
+  const {
+    endpoints: [, patch],
+    commandsRun,
+    stored,
+  } = await fixture();
+  expect(
+    await patch.handle({
+      params: { id: 'project', stepId: 'step' },
+      query: undefined,
+      body: { name: 'QA', allowancePercent: 30 },
+      principal,
+      request,
+    }),
+  ).toEqual({ ok: false, status: 409, body: { error: 'taken' } });
+  expect(commandsRun).toEqual([]);
+
+  const renamed = await patch.handle({
+    params: { id: 'project', stepId: 'step' },
+    query: undefined,
+    body: { name: 'Review', allowancePercent: 30 },
+    principal,
+    request,
+  });
+  expect(renamed.ok).toBe(true);
+  expect((await stored.findById('step'))?.name).toBe('Review');
+  expect(commandsRun).toHaveLength(1);
 });

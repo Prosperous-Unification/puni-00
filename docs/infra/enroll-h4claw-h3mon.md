@@ -1,9 +1,11 @@
 # Enroll h4claw and h3mon
 
 The ordered operator commands that make h4claw the platform k3s server and join h3mon as its
-observability agent (Twilight Dash WBS 070.1, 070.2, 070.4, 070.5). **Nothing here has run
-against a real host.** Each step needs Dany's authorization of this exact procedure; the QEMU
-rehearsal and its limits are in
+observability agent (Twilight Dash WBS 070.1, 070.2, 070.4, 070.5). On 2026-09-27 step 2 ran, step 3
+ran without the provider snapshots (so no whole-host restore point exists), and step 4 bootstrapped
+h4claw but stopped before copying the join tokens; step 5 onward has not run. Each step needs
+Dany's authorization of this exact procedure; the real-host record, the QEMU rehearsal and its
+limits are in
 [the enroll-existing-hosts verification](../../openspec/changes/enroll-existing-hosts/verify.md).
 
 Placement is `infra/fleet/desired.yaml`; host variables are
@@ -48,7 +50,7 @@ h3mon's allocatable memory.
 | machine IDs                                                         | step 2's preflight fact, committed into `desired.yaml`                |
 | `puni-fleet` authorized keys                                        | Dany                                                                  |
 | k3s bootstrap credentials                                           | step 4, generated on h2puni with `openssl rand -hex 32` twice         |
-| platform Secrets and the hcloud token                               | step 7                                                                |
+| platform Secrets                                                    | step 7                                                                |
 | Hetzner server names, `HCLOUD_TOKEN`                                | Dany, for the snapshots in step 3                                     |
 | Flux deploy key, its `known_hosts`, SOPS age key, platform revision | `docs/infra/platform.md`; step 7                                      |
 | container names to preserve                                         | step 2's preflight fact (`containers`)                                |
@@ -168,25 +170,21 @@ ssh h4claw sudo k3s kubectl get node h3mon -o jsonpath='{.status.allocatable.mem
 
 ## 7. Flux and SOPS (070.5)
 
-**Blocked until two decisions exist.** The production graph installs the hcloud cloud
-controller and CSI driver (`infra/platform/storage/production`). They need a
-`kube-system/hcloud` Secret with an API token, kubelets started with an external cloud provider
-(the inventory still sets `puni_disable_cloud_controller: false`), and node names that match the
-Hetzner server names, which were not probed. Either change h3mon's and h4claw's node names and
-cloud-provider settings, or give this cluster a storage overlay without hcloud; that is the
-070.5/070.8 storage packet, not this procedure.
+Storage was decided on 2026-10-07: this cluster keeps node-local `puni-retain` volumes
+(`infra/platform/storage/production-existing-hosts`, k3s local-path with Retain), so no
+`kube-system/hcloud` Secret, external cloud provider or node rename is needed. Moving to hcloud
+volumes is the 070.8 storage packet, not this procedure.
 
-Once decided, create each Secret that
+The `target`, `controllers`, `storage`, `policy` and `secrets` stages need no operator Secret.
+`platform` and every later stage stay not Ready until each Secret that
 `infra/platform/secrets/platform-production/externally-provided.json` lists
 (`alertmanager-puni`, `elastic-s3-credentials`, `velero-credentials`, `velero-repo-credentials`,
-`registry-auth`, `registry-ca`) and `kube-system/hcloud`, from their SOPS files or by hand, and
-check each exists:
+`registry-auth`, `registry-ca`) exists, from its SOPS file or by hand. Check them with:
 
 ```sh
 ssh h4claw sudo k3s kubectl get secret -n observability alertmanager-puni elastic-s3-credentials
 ssh h4claw sudo k3s kubectl get secret -n puni-backup velero-credentials velero-repo-credentials
 ssh h4claw sudo k3s kubectl get secret -n puni-registry registry-auth registry-ca
-ssh h4claw sudo k3s kubectl get secret -n kube-system hcloud
 ```
 
 Place the read-only deploy key, its `known_hosts` and the SOPS age key on h4claw at mode `0600`

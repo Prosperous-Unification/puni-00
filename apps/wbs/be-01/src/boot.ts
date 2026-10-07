@@ -1,18 +1,36 @@
-import { buildOidcVerifier } from '@wbs/auth';
+import { buildOidcVerifier, oidcCredentialEvidence } from '@wbs/auth';
+import type { DelegationIssuer } from '@wbs/core';
+import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import type { Logger } from '@wbs/observability';
-import { openSqliteSource } from '@wbs/store-sqlite';
+import {
+  DomainClaimRepository,
+  EmailVerificationRepository,
+  InvitationRepository,
+  JoinRequestRepository,
+  NO_BOUND_ORGANIZATION,
+  OnboardingRepository,
+  openSqliteSource,
+  OrganizationRepository,
+  SpaceRepository,
+  SqliteOrganizationAccess,
+} from '@wbs/store-sqlite';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
 import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 import { DiBag } from 'di-bag';
 
 import { buildApp } from './app';
+import type { DelegationKeys } from './config';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { readDeployedCommit } from './deployed-commit';
 import { OPEN } from './repository/gate';
 import { probeSchema } from './repository/health-probe';
 import { runMigrations } from './repository/migrate';
 import { UserRepository } from './repository/user';
-import type { AuthenticatedUser } from './service/auth.service';
+import { REFUSE_DELEGATIONS } from './runtime/delegation';
+import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
+import { importDelegationKeys } from './runtime/delegation-keys';
+import { refusingEmailDelivery } from './runtime/email-delivery';
+import { organizationCredentialEvidence } from './runtime/organization-credential';
 import { type BeServices, buildServices, type OptimizerRuntime } from './services';
 
 export interface BootOptions {
@@ -23,6 +41,7 @@ export interface BootOptions {
   jwtKey: string;
   gwUrl: string;
   internalAuthSecret: string;
+  delegationKeys?: DelegationKeys;
   oidc?: OidcRouteOptions;
   localIdentity?: AuthenticatedUser;
   version?: string;
@@ -53,6 +72,8 @@ export interface BootOptions {
 
 export interface RunningBe {
   services: BeServices;
+  /** Remains refusing even when a matching delegation key pair is configured. */
+  delegationIssuer: DelegationIssuer;
   port: number;
   stop: () => Promise<void>;
 }
@@ -60,6 +81,10 @@ export interface RunningBe {
 interface BootDependencies {
   /** Opens the source whose lifetime this boot owns. */
   readonly openSource: typeof openSqliteSource;
+  /** Test seam for inspecting the production app composition before listening. */
+  readonly makeApp?: typeof buildApp;
+  /** Test seam for exercising boot without a host socket. */
+  readonly startListener?: (app: BuiltApp, port: number, ready: () => void) => void;
 }
 
 /** The opened source, named through the seam so a test double satisfies the same type. */
@@ -87,6 +112,9 @@ export async function bootBe01(
   opts: BootOptions,
   dependencies: BootDependencies = { openSource: openSqliteSource },
 ): Promise<RunningBe> {
+  // Keys are parsed even while production refuses delegation, so a broken
+  // configured pair cannot hide until a later activation.
+  if (opts.delegationKeys !== undefined) await importDelegationKeys(opts.delegationKeys);
   const state = { migrationsApplied: false };
   const bag = await DiBag.createBuilder()
     .withServices({
@@ -164,19 +192,43 @@ export async function bootBe01(
             factoryCtx,
           ): BuiltApp => {
             const db = source.db;
-            const app = buildApp({
+            const app = (dependencies.makeApp ?? buildApp)({
               appOrigin: opts.appOrigin,
               clock: services.clock,
               get migrationsApplied() {
                 return state.migrationsApplied;
               },
               auth: services.auth,
+              credentialEvidence: organizationCredentialEvidence(
+                services.auth,
+                opts.jwtKey,
+                opts.oidc === undefined
+                  ? undefined
+                  : oidcCredentialEvidence(opts.oidc.verifier, opts.oidc),
+              ),
               // Proof: constructing a second LoginThrottle here made
               // boot.db.test.ts receive HTTP 401 instead of 429 (0 pass, 1 fail,
               // 13 filtered).
               loginThrottle: services.loginThrottle,
               oidc: opts.oidc,
               projects: services.projects,
+              // Proof: wiring legacy access here instead made `refuses the
+              // project and directory lists after activation until a session
+              // binds an organization` in `boot.db.test.ts` receive 200 instead
+              // of 403; watched 2026-09-27.
+              organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION),
+              memberships: new OrganizationRepository(db, services.gate),
+              domains: new DomainClaimRepository(db, services.gate),
+              onboarding: new OnboardingRepository(db, services.gate),
+              emailVerification: new EmailVerificationRepository(db, services.gate),
+              invitations: new InvitationRepository(db, services.gate),
+              joinRequests: new JoinRequestRepository(db, services.gate),
+              spaces: new SpaceRepository(db, services.gate),
+              // Proof: replacing this bound service with the raw rank repository
+              // left the cold boot rank move without its second durable a2 event
+              // in boot.db.test.ts (R5 boot-rank-binding).
+              projectRanks: services.projectRanks,
+              emailDelivery: refusingEmailDelivery,
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,
               workItems: services.workItems,
@@ -197,12 +249,20 @@ export async function bootBe01(
                 // batch itself.
                 batch: services.batch,
                 announcements: services.announcements,
+                // Proof: omitting boot's delivery forwarding made the booted
+                // cold shared command return 500 and record no downstream row.
+                committedFanout: services.committedFanout,
               },
               // Read per call, not captured here: dev's deploy is a `git reset`
               // under live watchers, so this process outlives the commit it
               // started on.
               deployedCommit: () => readDeployedCommit(opts.commitDir),
               internalAuthSecret: opts.internalAuthSecret,
+              // Proof: replacing this with an accepting verifier failed
+              // `validates configured delegation keys before opening storage
+              // and keeps issuance inactive` at the production composition
+              // assertion (2026-09-28).
+              delegation: REFUSE_DELEGATIONS,
               version: opts.version,
             });
             // Pushed before `listen`, because from here on there is something
@@ -217,7 +277,10 @@ export async function bootBe01(
             // schema step and the identity write happen exactly where they did —
             // and a throw in either still leaves this factory, which is now what
             // releases the socket above.
-            app.listen(opts.port, () => {
+            const startListener =
+              dependencies.startListener ??
+              ((server: BuiltApp, port: number, ready: () => void) => server.listen(port, ready));
+            startListener(app, opts.port, () => {
               if (opts.migrateOnStartup !== true) {
                 opts.logger.info(
                   { port: opts.port },
@@ -282,6 +345,9 @@ export async function bootBe01(
 
   return {
     services,
+    // Proof (2026-09-28): replacing this binding with an accepting function
+    // failed boot.db.test.ts's configured-key issuer refusal assertion.
+    delegationIssuer: REFUSE_DELEGATION_ISSUANCE,
     port: app.server?.port ?? opts.port,
     /**
      * Releases in the reverse of the start order: the listener stops accepting,

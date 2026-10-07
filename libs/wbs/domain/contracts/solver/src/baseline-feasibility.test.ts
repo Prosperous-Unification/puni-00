@@ -51,6 +51,7 @@ const plan: SolverRequestPlan = {
   notBefore: new Map(),
   poolSizes: new Map(),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 
@@ -63,8 +64,9 @@ const requestOf = () => {
       plan.notBefore,
       plan.poolSizes,
       plan.reach,
+      [],
     ),
-    solverVersion: '0.1.0',
+    solverVersion: '0.2.0',
     budgetMs: 30_000,
   });
   if (!built.ok) throw new Error(`expected a request, got ${built.failure}: ${built.detail}`);
@@ -95,6 +97,65 @@ const asResponse = (offsets: Readonly<Record<string, number>>): SolverResponse =
 });
 
 describe('the quantised baseline as a solution the solver could publish', () => {
+  it('uses a feasible strengthened FF baseline as the wire hint', () => {
+    const ffPlan: SolverRequestPlan = {
+      rows: [
+        { id: 'A', parentId: null, position: 0, frozenNumber: null, priority: null },
+        { id: 'B', parentId: null, position: 1, frozenNumber: null, priority: null },
+      ],
+      edges: [],
+      slices: [
+        { workItemId: 'A', stepId: null, days: 0.03, personId: null, width: 1, poolIds: [] },
+        { workItemId: 'B', stepId: null, days: 0.021, personId: null, width: 1, poolIds: [] },
+      ],
+      notBefore: new Map(),
+      poolSizes: new Map(),
+      reach: 'whole-item',
+      deadlines: new Map(),
+      typed: [
+        {
+          id: 'ff',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+          type: 'FF',
+        },
+      ],
+    };
+    const baselineOffsets = quantisedFastBaseline(
+      ffPlan.rows,
+      ffPlan.edges,
+      ffPlan.slices,
+      ffPlan.notBefore,
+      ffPlan.poolSizes,
+      ffPlan.reach,
+      ffPlan.typed,
+    );
+    const built = buildSolverRequest(ffPlan, 'time', {
+      baselineOffsets,
+      solverVersion: '0.2.0',
+      budgetMs: 1_000,
+    });
+    if (!built.ok) throw new Error(built.detail);
+    const request = built.request;
+    const makespan = Math.max(
+      ...request.slices.map((slice) => baselineOffsets[slice.key] + slice.durationUnits),
+    );
+    const response: SolverResponse = {
+      wireVersion: SOLVER_WIRE_VERSION,
+      status: 'feasible',
+      offsets: baselineOffsets,
+      objectiveValues: {
+        makespan: { value: makespan, stageValue: null, bound: null, status: 'unknown' },
+        priority: { value: 0, stageValue: null, bound: null, status: 'unknown' },
+        movement: { value: 0, stageValue: null, bound: null, status: 'unknown' },
+      },
+    };
+    expect(request.fastHint).toEqual(baselineOffsets);
+    expect(revalidateSolverResult(request, response, ffPlan.slices)).toEqual({
+      ok: true,
+      published: true,
+    });
+  });
   it('passes the same re-validation a real solver answer has to pass', () => {
     const request = requestOf();
     expect(revalidateSolverResult(request, asResponse(request.baselineOffsets))).toEqual({
@@ -172,6 +233,7 @@ describe('the quantised baseline on a plan whose every constraint is live', () =
     notBefore: new Map([['P', 3]]),
     poolSizes: new Map([['team-x', 2]]),
     reach: 'whole-item',
+    typed: [],
     deadlines: new Map(),
   };
 
@@ -184,8 +246,9 @@ describe('the quantised baseline on a plan whose every constraint is live', () =
         richPlan.notBefore,
         richPlan.poolSizes,
         richPlan.reach,
+        [],
       ),
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: 30_000,
     });
     if (!built.ok) throw new Error(`expected a request, got ${built.failure}: ${built.detail}`);

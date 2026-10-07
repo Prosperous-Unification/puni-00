@@ -2,10 +2,10 @@ import { inMemoryCommandJournal } from '@wbs/store-memory/command-journal-fixtur
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
+import type { WorkItemService } from '../module/work-item/work-item.resource';
 import type { Project, ProjectStore } from '../ports/project-store';
 import { inMemoryServices } from '../testing/harness';
 import type { Days } from './roll-up';
-import type { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
 const DEV = 'step-dev';
@@ -26,7 +26,16 @@ beforeEach(async () => {
   });
   await projects.create(
     project,
-    [{ id: DEV, projectId: project.id, name: 'Dev', position: 10, code: 'dev' }],
+    [
+      {
+        id: DEV,
+        projectId: project.id,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+      },
+    ],
     {
       at: 1,
       by: OWNER,

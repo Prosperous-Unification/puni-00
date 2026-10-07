@@ -68,8 +68,12 @@ function mounted(
   const setBands = vi.fn<(bands: readonly PriorityBandView[]) => Promise<void>>(() =>
     Promise.resolve(),
   );
-  const addStep = vi.fn(() => Promise.resolve({ id: 'step-design', name: 'Design' }));
-  const renameStep = vi.fn(() => Promise.resolve({ id: 'step-qa', name: 'Review' }));
+  const addStep = vi.fn(() =>
+    Promise.resolve({ id: 'step-design', name: 'Design', allowancePercent: 0 }),
+  );
+  const renameStep = vi.fn(() =>
+    Promise.resolve({ id: 'step-qa', name: 'Review', allowancePercent: 0 }),
+  );
   const removeStep = vi.fn(() => Promise.resolve({ ok: true }));
   const onChanged = vi.fn(() => Promise.resolve());
   const setArithmetic = vi.fn(() => Promise.resolve());
@@ -87,8 +91,8 @@ function mounted(
     priorities: { bands: DEFAULT_PRIORITY_BANDS, setBands, onChanged },
     steps: {
       steps: [
-        { id: 'step-dev', name: 'Dev' },
-        { id: 'step-qa', name: 'QA' },
+        { id: 'step-dev', name: 'Dev', allowancePercent: 0 },
+        { id: 'step-qa', name: 'QA', allowancePercent: 0 },
       ],
       frameState: { hasAnyNotBefore: false, deepestDepth: 0, numberingFrozen: false },
       hiddenColumnIds: INITIAL_HIDDEN_COLUMNS,
@@ -101,6 +105,7 @@ function mounted(
       setDepReach: () => Promise.resolve(),
       addStep,
       renameStep,
+      setStepAllowance: () => Promise.resolve({ id: 'step-qa', name: 'QA', allowancePercent: 0 }),
       removeStep,
       onChanged,
     },
@@ -157,6 +162,20 @@ const escape = (): void => {
 };
 
 describe('one modal for the project’s five settings', () => {
+  itDom('does not open settings before the initial priority bands arrive', () => {
+    mounted({
+      priorities: {
+        bands: [],
+        setBands: () => Promise.resolve(),
+        onChanged: () => Promise.resolve(),
+      },
+    });
+
+    expect(trigger()).toBeDisabled();
+    open();
+    expect(screen.queryByRole('dialog', { name: 'Project settings' })).not.toBeInTheDocument();
+  });
+
   itDom('opens on one control and offers every section from its tab list', () => {
     mounted();
     open();
@@ -316,7 +335,7 @@ describe('closing over an edit', () => {
     );
     mounted({
       steps: {
-        steps: [{ id: 'step-qa', name: 'QA' }],
+        steps: [{ id: 'step-qa', name: 'QA', allowancePercent: 0 }],
         frameState: { hasAnyNotBefore: false, deepestDepth: 0, numberingFrozen: false },
         hiddenColumnIds: INITIAL_HIDDEN_COLUMNS,
         numberOf: () => null,
@@ -325,6 +344,7 @@ describe('closing over an edit', () => {
         setDepReach: () => Promise.resolve(),
         addStep: vi.fn(),
         renameStep: vi.fn(),
+        setStepAllowance: vi.fn(),
         removeStep,
         onChanged: vi.fn(() => Promise.resolve()),
       },

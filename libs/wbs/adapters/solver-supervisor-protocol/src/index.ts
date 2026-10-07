@@ -1,6 +1,14 @@
 /** Version shared by the backend client and host-owned solver supervisor. */
 export const SUPERVISOR_PROTOCOL_VERSION = 1;
 
+/**
+ * The solver wire versions a start frame may carry: v1 from a backend released
+ * before SS/FF typed dependencies, v2 after, and v3 with fixed person calendars. The host
+ * supervisor outlives either backend colour during a blue/green swap, so it
+ * admits all three and leaves exact schema validation to the solver image.
+ */
+export const SOLVER_REQUEST_WIRE_VERSIONS: readonly unknown[] = [1, 2, 3];
+
 export type SupervisorObjective = 'pri' | 'time';
 
 export interface SupervisorStartFrame {
@@ -141,7 +149,16 @@ export function decodeSupervisorStartFrame(
     context.maxMemoryLimitMb,
   );
   const request = asRecord(value['request'], 'request');
-  if (request['wireVersion'] !== 1) throw defect('request wireVersion is not 1');
+  // Proof: restoring the v1-only comparison made `accepts both solver wire
+  // versions a rolling deploy can send and refuses any other` and three other
+  // cases fail on `request wireVersion is not 1` (6 pass / 4 fail); the CI
+  // solver-image smoke failed the same way on a v2 request; watched 2026-09-28.
+  // Proof: the v1/v2-only list rejected the fixed-person-calendar production
+  // boundary test (0 pass / 1 fail), matching CI Solver image smoke on wire 3.
+  // Proof: admitting wire 4 made the rolling-deploy refusal test fail (0 pass / 1 fail).
+  if (!SOLVER_REQUEST_WIRE_VERSIONS.includes(request['wireVersion'])) {
+    throw defect(`request wireVersion ${JSON.stringify(request['wireVersion'])} is not supported`);
+  }
   if (request['objective'] !== objective) throw defect('request objective does not match frame');
 
   return {

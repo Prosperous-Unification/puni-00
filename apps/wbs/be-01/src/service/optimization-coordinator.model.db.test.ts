@@ -3,10 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { clockOf, type OptimizationVariantState } from '@wbs/core';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 import fc from 'fast-check';
 
+import type { ReservedSpawnRequest } from '../module/optimization/contract';
+import { OptimizationCoordinator } from '../module/optimization/optimization.feature';
+import { runSolverChildLifecycle } from '../module/optimization/solver-child-lifecycle';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
@@ -16,12 +20,10 @@ import { beginOptimizationDrain } from '../repository/optimization-drain';
 import { ProjectRepository } from '../repository/project';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { OptimizationCoordinator, type ReservedSpawnRequest } from './optimization-coordinator';
-import { ProjectService } from './project.service';
-import { runSolverChildLifecycle } from './solver-child-lifecycle';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-const CONTRACT = '7+0.1.0';
+const CONTRACT = '7+0.2.0';
 const BUDGET = 60_000;
 function sampledScheduler() {
   return fc.sample(fc.scheduler(), { seed: 20260927, numRuns: 1 })[0];
@@ -60,6 +62,7 @@ function inputAt(revision: number): ScheduleInput {
     notBefore: new Map([['w-1', revision]]),
     poolSizes: new Map(),
     reach: 'whole-item',
+    typed: [],
     deadlines: new Map(),
   };
 }
@@ -232,9 +235,9 @@ function coordinator(world: World, owner: Owner): OptimizationCoordinator {
   const db = world.connections[owner];
   const incarnation = world.incarnations[owner];
   return new OptimizationCoordinator({
-    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
     contractVersion: CONTRACT,
-    solverVersion: '0.1.0',
+    solverVersion: '0.2.0',
     budgetMs: BUDGET,
     ownerId: owner,
     now: () => world.now,
@@ -323,8 +326,8 @@ function coordinator(world: World, owner: Owner): OptimizationCoordinator {
       });
     },
     onChildError: (error) => world.errors.push(error),
-    pushRecorded: (...push) => {
-      if (incarnation === world.incarnations[owner]) world.pushes.push(push);
+    deliverCommitted: (events) => {
+      if (incarnation === world.incarnations[owner]) world.pushes.push(...events);
       return Promise.resolve();
     },
     sleep: () => Promise.resolve(),
@@ -632,7 +635,7 @@ class ReadPlan implements Command {
       model.queue.clear();
     }
     if (model.enabled) predictRead(model, world, this.owner, hash);
-    const read = world.coordinators[this.owner].readPlan({
+    const read = await world.coordinators[this.owner].readPlan({
       projectId: 'p-1',
       objective: 'pri',
       input,
@@ -732,7 +735,7 @@ class ExitChild implements Command {
         this.disposition === 'failed'
           ? ''
           : JSON.stringify({
-              wireVersion: 1,
+              wireVersion: 3,
               status: 'feasible',
               offsets: { 'w-1\u0000step-dev': 0 },
               objectiveValues: {
@@ -796,6 +799,10 @@ class Toggle implements Command {
   async run(model: Model, world: World): Promise<void> {
     note(this.enabled ? 'enable' : 'cancel');
     const service = new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(
+        world.connections.west,
+        new ProjectRepository(world.connections.west, OPEN),
+      ),
       projects: new ProjectRepository(world.connections.west, OPEN),
       broadcast: recordingBroadcaster(),
       optimizerAvailable: () => true,
@@ -953,7 +960,7 @@ class Retry implements Command {
   async run(model: Model, world: World): Promise<void> {
     note('retry');
     const expected = predictRetry(model, world, this.owner);
-    const decision = world.coordinators[this.owner].retry({
+    const decision = await world.coordinators[this.owner].retry({
       projectId: 'p-1',
       objective: 'pri',
       inputHash: scheduleInputHash(inputAt(model.revision)),
@@ -1064,7 +1071,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
   it('holds counted admissions while cancellation arrives before scheduled spawn answers', async () => {
     const world = createWorld(sampledScheduler());
     try {
-      world.coordinators.east.readPlan({
+      await world.coordinators.east.readPlan({
         projectId: 'p-1',
         objective: 'pri',
         input: inputAt(0),
@@ -1073,6 +1080,10 @@ describe('OptimizationCoordinator production SQLite model', () => {
       expect(world.attempts).toHaveLength(2);
       expect(world.attempts.every((attempt) => attempt.verdicts.length === 0)).toBe(true);
       const service = new ProjectService({
+        dependencyGraph: sqliteDependencyGraph(
+          world.connections.west,
+          new ProjectRepository(world.connections.west, OPEN),
+        ),
         projects: new ProjectRepository(world.connections.west, OPEN),
         broadcast: recordingBroadcaster(),
         optimizerAvailable: () => true,
@@ -1114,7 +1125,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
             expectedSlots.push({ project, generation: 1, objective, owner: 'east', token });
           else expectedQueue.push({ project, generation: 1, objective });
         }
-        const read = world.coordinators.east.readPlan({
+        const read = await world.coordinators.east.readPlan({
           projectId: project,
           objective: 'pri',
           input: inputAt(0),
@@ -1160,7 +1171,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
   it('keeps a matching queue head behind a crashed owner until its stored deadline', async () => {
     const world = createWorld(sampledScheduler());
     try {
-      world.coordinators.east.readPlan({
+      await world.coordinators.east.readPlan({
         projectId: 'p-1',
         objective: 'pri',
         input: inputAt(0),
@@ -1172,9 +1183,10 @@ describe('OptimizationCoordinator production SQLite model', () => {
       const repository = createOptimizationRepository(
         world.connections.west,
         new DrizzleEventLogStore(world.connections.west, OPEN),
+        OPEN,
       );
       expect(
-        repository.enqueueRequest({
+        await repository.enqueueRequest({
           projectId: 'p-1',
           contractVersion: CONTRACT,
           generation: original.generation,
@@ -1195,6 +1207,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
       const deadline = (original as Row & { admitted_deadline_at: number }).admitted_deadline_at;
       world.now = deadline;
       world.ticks.west();
+      await settle();
       expect(
         rows(world, 'solver_slot').some(
           (row) => row.owner_id === 'west' && row.objective === 'pri',

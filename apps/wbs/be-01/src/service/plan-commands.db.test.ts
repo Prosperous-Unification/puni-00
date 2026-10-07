@@ -3,12 +3,35 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Broadcaster } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
+import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
+import { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
+import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import {
+  createPlanCommandRunner,
+  type PlanCommandsSource,
+} from '@wbs/core/module/plan-commands/composition';
+import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
+import {
+  type AppliedCommand,
+  type BatchOutcome,
+  type BatchRefusal,
+} from '@wbs/core/module/plan-commands/plan-commands.feature';
+import { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { StepService } from '@wbs/core/module/step/step.resource';
+import {
+  WorkItemService,
+  type WorkItemServiceOptions,
+} from '@wbs/core/module/work-item/work-item.resource';
+import type { PlanCommand } from '@wbs/core/service/plan-command';
 import {
   DEFAULT_PRIORITY_BANDS,
   ORDINARY_BAND_RANK,
   type PriorityBand,
   priorityBandRankOf,
 } from '@wbs/domain';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, spyOn } from 'bun:test';
 
 import type { Step } from '../repository';
@@ -37,22 +60,8 @@ import { WorkItemRepository } from '../repository/work-item';
 import { buildStores } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { CalendarMarkerService } from './calendar-marker.service';
-import { CapacityService } from './capacity.service';
-import { DirectoryService } from './directory.service';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import type { PlanCommand } from './plan-command';
-import {
-  type AppliedCommand,
-  type BatchOutcome,
-  type BatchRefusal,
-  PlanCommandRunner,
-  type PlanCommandRunnerOptions,
-} from './plan-commands';
-import { PriorityBandService } from './priority-band.service';
-import { ProjectService } from './project.service';
-import { StepService } from './step.service';
-import { WorkItemService, type WorkItemServiceOptions } from './work-item.service';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -60,7 +69,7 @@ let dir: string;
 /** The raw handle, for the claims that are about a column rather than a row. */
 let db: Drizzle;
 let runner: PlanCommandRunner;
-let runnerOptions: PlanCommandRunnerOptions;
+let runnerOptions: PlanCommandsSource;
 let serviceOptions: WorkItemServiceOptions;
 let workItems: WorkItemService;
 let workItemStore: WorkItemRepository;
@@ -118,6 +127,7 @@ beforeEach(async () => {
   );
 
   serviceOptions = {
+    admission: CREATOR_ADMISSION,
     scheduler: fastScheduler,
     clock: testClock,
     workItems: workItemStore,
@@ -130,6 +140,7 @@ beforeEach(async () => {
     capacity: capacityStore,
     priorityBands: bandStore,
     dependencies: dependencyStore,
+    typedDependencies: new TypedDependencyRepository(db, OPEN),
     subtrees: new SubtreeRepository(db, OPEN),
     journal: journalStore,
     broadcast,
@@ -155,23 +166,27 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     capacity: new CapacityService({
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       projects: projectStore,
       capacity: capacityStore,
       broadcast: selectedBroadcast,
     }),
     priorityBands: new PriorityBandService({
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       projects: projectStore,
       bands: bandStore,
       broadcast: selectedBroadcast,
     }),
     projects: new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast: selectedBroadcast,
     }),
     steps: new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: new StepRepository(db, OPEN),
@@ -194,8 +209,9 @@ beforeEach(async () => {
     uow: sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN)),
     announcements: broadcast,
   };
-  runner = new PlanCommandRunner(runnerOptions);
+  runner = createPlanCommandRunner(runnerOptions);
   const created = await new ProjectService({
+    dependencyGraph: sqliteDependencyGraph(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
@@ -328,6 +344,40 @@ describe('a command batch', () => {
     expect(outcome).toEqual({ ok: false, at: 2, kind: 'setEstimate', reason: 'unknown_step' });
     expect(await names()).toEqual([]);
     expect(await journal()).toHaveLength(0);
+  });
+
+  it('leaves a step allowance unwritten when a later command is refused', async () => {
+    const qa = steps.find((step) => step.name === 'QA');
+    if (qa === undefined) throw new Error('no QA step');
+
+    const outcome = await run([
+      { kind: 'setStepAllowance', stepId: qa.id, allowancePercent: 30 },
+      { kind: 'setStepAllowance', stepId: 'no-such-step', allowancePercent: 10 },
+    ]);
+
+    expect(outcome).toEqual({ ok: false, at: 1, kind: 'setStepAllowance', reason: 'not_found' });
+    const held = (await projectStore.stepsOf(projectId)).find((step) => step.id === qa.id);
+    expect(held?.allowancePercent).toBe(0);
+    expect(await journal()).toHaveLength(0);
+  });
+
+  it('journals a batch that edits an allowance as one undo', async () => {
+    const qa = steps.find((step) => step.name === 'QA');
+    if (qa === undefined) throw new Error('no QA step');
+
+    applied(
+      await run([
+        { kind: 'setStepAllowance', stepId: qa.id, allowancePercent: 30 },
+        { kind: 'setStepAllowance', stepId: qa.id, allowancePercent: 50 },
+      ]),
+    );
+    expect(await journal()).toHaveLength(1);
+
+    expect((await runner.undo(projectId, ownerId)).ok).toBe(true);
+    const held = (await projectStore.stepsOf(projectId)).find((step) => step.id === qa.id);
+    // The second edit read the first's 30% as its before-state, so walking the
+    // batch back lands on the 0% it started from.
+    expect(held?.allowancePercent).toBe(0);
   });
 
   it('refuses a third command binding two types and rolls back the first two', async () => {
@@ -632,14 +682,14 @@ describe('a command batch', () => {
     };
     // The slow publisher replaces the public graph's work-item service, so the
     // postcommit push driven through `slowRunner` is held by construction.
-    const slowRunner = new PlanCommandRunner({
+    const slowRunner = createPlanCommandRunner({
       ...runnerOptions,
       publicServices: {
         ...runnerOptions.publicServices,
         workItems: new WorkItemService({ ...serviceOptions, broadcast: slow }),
       },
     });
-    const fastRunner = new PlanCommandRunner(runnerOptions);
+    const fastRunner = createPlanCommandRunner(runnerOptions);
 
     const batchA = { state: 'pending' as 'pending' | 'applied' };
     const first = slowRunner
@@ -683,7 +733,7 @@ describe('a command batch', () => {
       publish: () => held,
       latestSeq: () => Promise.resolve(0),
     };
-    const tagRunner = new PlanCommandRunner({
+    const tagRunner = createPlanCommandRunner({
       ...runnerOptions,
       // The batch's own graph over its collector, as always; what is slow is
       // where the collector drains **to**, which is after the turn is let go.
@@ -846,6 +896,7 @@ describe('the priority a create writes', () => {
     // failed on `Expected: 50 / Received: 200`. Watched 2026-08-29.
     const recut = applied(await run([{ kind: 'setPriorityBands', bands: RECUT }, add('w')]));
     const other = await new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast: recordingBroadcaster(),

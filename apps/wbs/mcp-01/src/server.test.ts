@@ -2,6 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
+import { httpShapes } from '@wbs/contracts';
 import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
@@ -91,17 +92,21 @@ async function connected(
   tools: readonly DerivedTool[],
   fetchImpl: FetchLike,
   options: {
-    readonly authInfo?: AuthInfo;
+    /** Defaults to a read/write caller; `null` sends no authentication at all. */
+    readonly authInfo?: AuthInfo | null;
     readonly reportUnexpectedToolFailure?: UnexpectedToolFailureReporter;
     readonly endSession?: (mcpSessionId: string) => void | Promise<void>;
     readonly refreshSession?: (mcpSessionId: string) => Promise<string>;
   } = {},
 ): Promise<{ client: Client }> {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  if (options.authInfo !== undefined) {
+  const authInfo =
+    options.authInfo === undefined
+      ? { token: 'token-abc', clientId: 'test-client', scopes: ['read', 'write'] }
+      : options.authInfo;
+  if (authInfo !== null) {
     const send = clientTransport.send.bind(clientTransport);
-    clientTransport.send = (message, sendOptions) =>
-      send(message, { ...sendOptions, authInfo: options.authInfo });
+    clientTransport.send = (message, sendOptions) => send(message, { ...sendOptions, authInfo });
   }
   const server = createServer({
     tools,
@@ -267,6 +272,81 @@ describe('the round trip over MCP', () => {
   });
 });
 
+describe('the MCP grant scope', () => {
+  const readOnly: AuthInfo = { token: 'upstream-with-write', clientId: 'c', scopes: ['read'] };
+
+  // Proof: on 2026-09-27, disabling the write-scope guard in createServer failed this test and the
+  // unauthenticated one below on `toContain('insufficient_scope')`.
+  it('refuses a write tool to a grant without wbs:write before be-01 is called', async () => {
+    const { client } = await connected([READ, WRITE], failingFetch, { authInfo: readOnly });
+
+    const toolResponse = await client.callTool({
+      name: 'patchApiWorkItemsById',
+      arguments: { id: 'w-1', name: 'Renamed' },
+    });
+
+    expect(toolResponse.isError).toBe(true);
+    const [content] = toolResponse.content as [{ type: string; text: string }];
+    expect(content.text).toContain('insufficient_scope');
+    expect(content.text).toContain('wbs:read wbs:write');
+  });
+
+  it('refuses a write tool when no authenticated caller reached the server', async () => {
+    const { client } = await connected([WRITE], failingFetch, { authInfo: null });
+
+    const toolResponse = await client.callTool({
+      name: 'patchApiWorkItemsById',
+      arguments: { id: 'w-1', name: 'Renamed' },
+    });
+
+    expect(toolResponse.isError).toBe(true);
+    expect(JSON.stringify(toolResponse.content)).toContain('insufficient_scope');
+  });
+
+  it('still reads with a read-only grant', async () => {
+    const seen: Seen[] = [];
+    const { client } = await connected([READ, WRITE], stub(seen, '[]'), { authInfo: readOnly });
+
+    const toolResponse = await client.callTool({
+      name: 'getApiProjectsByIdWorkItems',
+      arguments: { id: 'p-1' },
+    });
+
+    expect(toolResponse.isError).toBeUndefined();
+    expect(seen).toHaveLength(1);
+  });
+
+  it('refuses a read tool to a caller without wbs:read', async () => {
+    const { client } = await connected([READ], failingFetch, {
+      authInfo: { token: 'upstream-with-read', clientId: 'c', scopes: ['write'] },
+    });
+
+    const toolResponse = await client.callTool({
+      name: 'getApiProjectsByIdWorkItems',
+      arguments: { id: 'p-1' },
+    });
+
+    expect(toolResponse.isError).toBe(true);
+    expect(JSON.stringify(toolResponse.content)).toContain('does not include wbs:read');
+  });
+
+  it('marks every non-GET tool of the real document as needing be-01 write scope', () => {
+    const writes = toolsFromDocument(readDocument()).filter((tool) => tool.method !== 'get');
+    const writeScoped = new Set(
+      httpShapes
+        .filter((shape) =>
+          shape.policies.some(
+            (policy) => policy.kind === 'identity' && policy.require === 'write-scope',
+          ),
+        )
+        .map((shape) => `${shape.method.toLowerCase()} ${shape.path.replace(/:(\w+)/g, '{$1}')}`),
+    );
+
+    expect(writes.length).toBeGreaterThan(0);
+    for (const tool of writes) expect(writeScoped).toContain(`${tool.method} ${tool.path}`);
+  });
+});
+
 describe('a name that is not a tool', () => {
   it('is a protocol error naming what to call instead, not an empty result', async () => {
     const reported: unknown[] = [];
@@ -368,7 +448,7 @@ describe('a call that cannot be built', () => {
       authInfo: {
         token: 'caller-token',
         clientId: 'modeled-upstream-test',
-        scopes: [],
+        scopes: ['read'],
         extra: { mcpSessionId: 'session-1' },
       },
       reportUnexpectedToolFailure: (caught) => {

@@ -1,3 +1,5 @@
+import type { DelegationAudience, WbsScope } from '@wbs/contracts';
+
 import type { Clock } from '../../ports/clock';
 import type { OidcIdentityStore, UserStore } from '../../ports/user-store';
 import type { AuthService, AuthServiceOptions } from './authentication.feature';
@@ -41,3 +43,44 @@ export interface AuthenticationExports {
  * prefix.
  */
 export const AUTHENTICATION_LABEL = 'application.authentication';
+
+/** Shared fields from a trusted credential binding, including verified expiry. */
+interface CredentialSource {
+  readonly delegated: boolean;
+  /** Verified originating credential expiry, Unix milliseconds. */
+  readonly credentialExpiresAt: number;
+  readonly userId: string;
+  readonly organizationId: string;
+  readonly scopeCeiling: readonly WbsScope[];
+}
+
+/** Trusted upstream binding for a gateway or MCP delegation. */
+export interface VerifiedUpstreamSource extends CredentialSource {
+  readonly kind: 'verified-wbs-credential';
+  readonly client: string;
+  readonly grant: string;
+  readonly upstreamIssuer: string;
+  readonly upstreamSubject: string;
+}
+
+/** Native WBS session, verified without inventing an upstream identity. */
+export interface VerifiedFirstPartySource extends CredentialSource {
+  readonly kind: 'verified-first-party-credential';
+}
+
+/** A credential-bound source whose identity kind is explicit. */
+export type VerifiedDelegationSource = VerifiedUpstreamSource | VerifiedFirstPartySource;
+
+/** Resolves a WBS credential and its bindings at the trusted adapter boundary. */
+export type DelegationSourceResolver = (
+  credential: string,
+  organizationId?: string,
+) => Promise<VerifiedDelegationSource>;
+
+/** Issues only after resolving a credential; callers cannot supply source claims. */
+export type DelegationIssuer = (
+  credential: string,
+  audience: DelegationAudience,
+  scopes: readonly WbsScope[],
+  organizationId?: string,
+) => Promise<string>;

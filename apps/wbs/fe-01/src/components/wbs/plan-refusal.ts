@@ -16,6 +16,8 @@ function directoryReadCode(refusal: RefusalOf<'getApiPeople'>): string {
     case 'invalid_params':
     case 'invalid_body':
     case 'unauthenticated':
+    case 'no_active_organization':
+    case 'not_a_member':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -31,6 +33,9 @@ function projectCreateCode(refusal: RefusalOf<'postApiProjects'>): string {
     case 'insufficient_scope':
     case 'invalid_json':
     case 'invalid_body':
+    case 'no_active_organization':
+    case 'not_a_member':
+    case 'forbidden':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -46,6 +51,8 @@ function projectOpenCode(refusal: RefusalOf<'postApiProjectsByIdOpened'>): strin
     case 'insufficient_scope':
     case 'not_found':
     case 'invalid_body':
+    case 'no_active_organization':
+    case 'not_a_member':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -59,6 +66,8 @@ function projectReadCode(refusal: RefusalOf<'getApiProjectsById'>): string {
     case 'invalid_params':
     case 'unauthenticated':
     case 'not_found':
+    case 'no_active_organization':
+    case 'not_a_member':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -79,6 +88,10 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'bad_start_date':
     case 'bad_pert_weights':
     case 'optimizer_unavailable':
+    case 'solution_taken':
+    case 'dependency_cycle':
+    case 'no_active_organization':
+    case 'not_a_member':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -92,6 +105,8 @@ function treeReadCode(refusal: RefusalOf<'getApiProjectsByIdWork-items'>): strin
     case 'invalid_body':
     case 'invalid_json':
     case 'unauthenticated':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'not_found':
     case 'engine_unavailable':
       return refusal.error;
@@ -113,6 +128,8 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
     case 'not_found':
     case 'nothing_to_undo':
     case 'stale_undo':
+    case 'no_active_organization':
+    case 'not_a_member':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -128,6 +145,8 @@ function markerListCode(refusal: RefusalOf<'getApiProjectsByIdCalendar-markers'>
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'taken':
@@ -146,6 +165,8 @@ function markerWriteCode(refusal: RefusalOf<'postApiProjectsByIdCalendar-markers
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'taken':
@@ -168,6 +189,8 @@ function markerRemoveCode(
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'taken':
@@ -177,7 +200,9 @@ function markerRemoveCode(
   }
 }
 
-function stepWriteCode(refusal: RefusalOf<'postApiProjectsByIdSteps'>): string {
+function stepWriteCode(
+  refusal: RefusalOf<'postApiProjectsByIdSteps'> | RefusalOf<'patchApiProjectsByIdStepsByStepId'>,
+): string {
   switch (refusal.error) {
     case 'name_required':
     case 'invalid_query':
@@ -185,16 +210,22 @@ function stepWriteCode(refusal: RefusalOf<'postApiProjectsByIdSteps'>): string {
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'invalid_json':
     case 'taken':
     case 'invalid_body':
+    case 'invalid_allowance':
     case 'invalid_code':
     case 'reserved_code':
     case 'code_taken':
       // fe-01 sends no code yet, so the last three cannot arrive from the step
       // header; named so a caller that does send one reads the refusal.
+      return refusal.error;
+    case 'calendar_range':
+      // An allowance edit that would place the plan past the supported calendar.
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -208,10 +239,14 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'invalid_body':
     case 'in_use':
+    case 'referenced_by_dependency':
+    case 'dependency_cycle':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -243,6 +278,9 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'conflicting_step_address':
     case 'invalid_step_node_id':
     case 'unknown_step_node_encoding':
+    case 'invalid_typed_endpoint':
+    case 'type_must_be_text':
+    case 'dependencyId_must_be_text':
     case 'cannot_send_both_teamIds_and_serviceTeamId':
     case 'unknown_kind':
     case 'unknown_strategy':
@@ -329,6 +367,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'forbidden':
     case 'not_found':
     case 'unknown_step':
+    case 'unknown_dependency':
     case 'unknown_metric':
     case 'unknown_person':
     case 'unknown_team':
@@ -342,11 +381,23 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'engine_unavailable':
     case 'rolled_up':
     case 'ancestor':
+    case 'self_node':
+    case 'not_a_parent':
+    case 'node_on_parent':
+    case 'descendant_step_on_leaf':
+    case 'duplicate_dependency':
+    case 'unsupported_relationship_type':
     case 'too_large':
     case 'taken':
     case 'in_use':
     case 'calendar_range':
     case 'deadline_before_project_start':
+    case 'readiness_after_progress':
+    case 'cannot_hold_done':
+    case 'no_steps':
+    case 'no_active_organization':
+    case 'not_a_member':
+    case 'allowancePercent_must_be_0_to_1000_with_two_decimals':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -370,6 +421,8 @@ function optimizationRetryCode(refusal: RefusalOf<'postApiProjectsByIdOptimizati
     case 'insufficient_scope':
     case 'forbidden':
     case 'not_found':
+    case 'no_active_organization':
+    case 'not_a_member':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -521,6 +574,7 @@ export const PLAN_REFUSALS: RefusalWords = {
     // Reachable bare — the dependency **picker** takes one entry through `run`,
     // where the typed list composes its own sentence and keeps the word instead.
     cycle: 'That dependency could not be added: it would make a loop.',
+    dependency_cycle: 'That dependency would make a cycle between steps.',
     ancestor: 'That dependency could not be added: the row it names is already above this one.',
     // A move refused for the dependencies it would break, re-worded by
     // `translateMoveRefusal` because be-01 spells it with the two words above.
@@ -545,6 +599,17 @@ export const PLAN_REFUSALS: RefusalWords = {
     // why the sentence has to say what happened rather than name the code.
     has_children:
       'A row with work under it runs no people of its own — set People at once on the rows beneath it.',
+    // The three `setStatus` refusals (`add-work-item-statuses`). The menu and
+    // the Status cell never offer a status be-01 would refuse, so each is
+    // reachable only when the plan moved under an open menu — which is why each
+    // says what happened rather than naming the code.
+    // Proof: all three entries struck, and each `says why be-01 refused a
+    // status with <code>` failed on `expected [ Array(1) ] to include` its
+    // sentence — the toast carried the fallback instead; watched 2026-09-29.
+    readiness_after_progress:
+      'Draft and Ready say whether work can start, and a step of this row has already spoken — nothing was changed.',
+    cannot_hold_done: 'Finished work cannot be put on hold or blocked — nothing was changed.',
+    no_steps: 'This plan has no steps, so no row can be started or finished yet.',
     // {@link INVALID_REQUEST}'s three, worded from the one list that also decides
     // whether the plan is read again.
     ...Object.fromEntries([...INVALID_REQUEST].map((code) => [code, INVALID_REFUSAL])),

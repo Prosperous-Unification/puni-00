@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'bun:test';
 
-import { agree, isSettableStatus, isStepState, statusOf, UNKNOWN } from './progress';
+import {
+  agree,
+  foldStatuses,
+  HOLDS,
+  isHold,
+  isReadiness,
+  isSettableStatus,
+  isStepState,
+  leafStatusOf,
+  READINESSES,
+  SETTABLE_STATUSES,
+  statusOf,
+  UNKNOWN,
+} from './progress';
 
 describe('agree', () => {
   it('answers the status both readings hold', () => {
@@ -80,13 +93,104 @@ describe('isStepState', () => {
 });
 
 describe('isSettableStatus', () => {
-  it('admits the two statuses a row may be set to and nothing else', () => {
-    expect(isSettableStatus('unknown')).toBe(true);
-    expect(isSettableStatus('done')).toBe(true);
-    // A step's statement, never a row's: the row reads it off the fold and the
-    // cell shows it, but nobody sets it there — see `SETTABLE_STATUSES`.
-    expect(isSettableStatus('in_progress')).toBe(false);
+  it('admits the seven statuses a row may be set to, in menu order, and nothing else', () => {
+    expect(SETTABLE_STATUSES).toEqual([
+      'draft',
+      'ready',
+      'in_progress',
+      'on_hold',
+      'blocked',
+      'done',
+      'unknown',
+    ]);
+    for (const status of SETTABLE_STATUSES) expect(isSettableStatus(status)).toBe(true);
+    // Said by the dependency graph, never by anyone.
+    expect(isSettableStatus('blocked_by_proxy')).toBe(false);
     expect(isSettableStatus('not_started')).toBe(false);
     expect(isSettableStatus(null)).toBe(false);
+  });
+});
+
+describe('isReadiness and isHold', () => {
+  it('admit exactly their own closed sets', () => {
+    for (const readiness of READINESSES) expect(isReadiness(readiness)).toBe(true);
+    for (const hold of HOLDS) expect(isHold(hold)).toBe(true);
+    // A hold is not a readiness and neither is a status the steps own.
+    for (const other of [
+      'on_hold',
+      'blocked',
+      'done',
+      'unknown',
+      'blocked_by_proxy',
+      '',
+      null,
+      1,
+    ]) {
+      expect(isReadiness(other)).toBe(false);
+    }
+    for (const other of ['draft', 'ready', 'paused', 'done', 'blocked_by_proxy', '', null, 1]) {
+      expect(isHold(other)).toBe(false);
+    }
+  });
+});
+
+describe('leafStatusOf', () => {
+  it('reads unknown when nothing has been said', () => {
+    expect(leafStatusOf({ progress: UNKNOWN, hold: null, readiness: null })).toBe(UNKNOWN);
+  });
+
+  it('reads the readiness when neither the steps nor a hold have spoken', () => {
+    expect(leafStatusOf({ progress: UNKNOWN, hold: null, readiness: 'draft' })).toBe('draft');
+    expect(leafStatusOf({ progress: UNKNOWN, hold: null, readiness: 'ready' })).toBe('ready');
+  });
+
+  it('lets running work outrank readiness', () => {
+    expect(leafStatusOf({ progress: 'in_progress', hold: null, readiness: 'ready' })).toBe(
+      'in_progress',
+    );
+  });
+
+  it('lets a hold outrank running work, so resuming returns to it', () => {
+    expect(leafStatusOf({ progress: 'in_progress', hold: 'on_hold', readiness: null })).toBe(
+      'on_hold',
+    );
+    expect(leafStatusOf({ progress: UNKNOWN, hold: 'blocked', readiness: 'ready' })).toBe(
+      'blocked',
+    );
+  });
+
+  it('lets done outrank a hold', () => {
+    expect(leafStatusOf({ progress: 'done', hold: 'blocked', readiness: 'ready' })).toBe('done');
+  });
+});
+
+describe('foldStatuses', () => {
+  it('reads a parent with no children as unknown, never as vacuously done', () => {
+    expect(foldStatuses([])).toBe(UNKNOWN);
+  });
+
+  it('is done, on hold or blocked only when every child is', () => {
+    expect(foldStatuses(['done', 'done'])).toBe('done');
+    expect(foldStatuses(['on_hold', 'on_hold'])).toBe('on_hold');
+    expect(foldStatuses(['blocked', 'blocked'])).toBe('blocked');
+  });
+
+  it('is in progress when any child has started, whatever the others say', () => {
+    expect(foldStatuses(['done', 'on_hold'])).toBe('in_progress');
+    expect(foldStatuses(['in_progress', 'blocked', 'ready'])).toBe('in_progress');
+    expect(foldStatuses(['done', UNKNOWN])).toBe('in_progress');
+  });
+
+  it('is blocked by proxy when every child is stopped but not all the same way', () => {
+    expect(foldStatuses(['on_hold', 'blocked'])).toBe('blocked_by_proxy');
+    expect(foldStatuses(['blocked_by_proxy', 'on_hold'])).toBe('blocked_by_proxy');
+    expect(foldStatuses(['blocked_by_proxy'])).toBe('blocked_by_proxy');
+  });
+
+  it('reads the unstopped children otherwise: unknown, then draft, then ready', () => {
+    expect(foldStatuses(['on_hold', 'ready'])).toBe('ready');
+    expect(foldStatuses(['blocked_by_proxy', 'ready', 'draft'])).toBe('draft');
+    expect(foldStatuses(['ready', 'draft', UNKNOWN, 'blocked'])).toBe(UNKNOWN);
+    expect(foldStatuses(['ready', 'ready'])).toBe('ready');
   });
 });

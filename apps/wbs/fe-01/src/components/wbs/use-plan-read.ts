@@ -224,6 +224,7 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
 
   const workItems = useMemo(() => (tree === null ? [] : rowsOf(tree)), [tree]);
   const stepNodes = tree === null ? undefined : tree.value.stepNodes;
+  const typedDependencies = tree === null ? [] : (tree.value.typedDependencies ?? []);
 
   /** The project whose whole tree most recently completed a successful read. */
   const treeReadProject = useRef<string | null>(null);
@@ -394,6 +395,7 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
     activeProject,
     workItems,
     stepNodes,
+    typedDependencies,
     treeReadProject,
     chartRead,
     steps,
@@ -597,14 +599,15 @@ export function usePlanRead({
    * nothing.
    */
   const refreshOrMarkStale = useCallback(
-    (scope: PlanReadScope = 'all'): Promise<void> =>
-      project.reread(
+    async (scope: PlanReadScope = 'all'): Promise<void> => {
+      await project.reread(
         scope === 'tree'
           ? ['tree']
           : scope === 'tree-and-steps'
             ? ['tree', 'steps']
             : ALL_RESOURCES,
-      ),
+      );
+    },
     [project],
   );
 

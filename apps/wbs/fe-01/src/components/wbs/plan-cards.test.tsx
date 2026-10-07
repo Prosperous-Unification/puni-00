@@ -37,9 +37,12 @@ import type {
   StepView,
   TagView,
   TeamView,
+  TypedDependencyEndpoint,
+  TypedDependencyView,
   WorkItemView,
 } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
+import { fakeProjectApi as dependencyApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
@@ -51,7 +54,18 @@ import { isoToday } from './gantt-panel';
 import { refusedDraftFor, unsent } from './live-editing';
 import { type CardRowActionHandlers, PlanCards } from './plan-cards';
 import { shortIsoDate } from './short-date';
+import { statusOffersOf } from './status-offers';
 import type { TreeRow } from './wbs-rows';
+
+/** A silent row's status entries on the ⋯ menu, in the menu order. */
+const SILENT_ROW_STATUSES = [
+  'Set status to Draft',
+  'Set status to Ready',
+  'Set status to In progress',
+  'Set status to On hold',
+  'Set status to Blocked',
+  'Set status to Done',
+];
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -68,8 +82,8 @@ const PHONE = 390;
 /** The same phone's CSS height, and sideways the two swap places. */
 const PHONE_TALL = 844;
 
-const DEV: StepView = { id: 'step-dev', name: 'Dev' };
-const QA: StepView = { id: 'step-qa', name: 'QA' };
+const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
+const QA: StepView = { id: 'step-qa', name: 'QA', allowancePercent: 0 };
 
 /**
  * What this fake was asked for and does not do.
@@ -190,6 +204,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
   const rows: WorkItemView[] = [];
   const rowActionCalls: string[] = [];
   const edges: string[] = [];
+  const typedDependencies: TypedDependencyView[] = [];
   const stepList: StepView[] = [{ ...DEV }, { ...QA }];
   const people: PersonView[] = [{ id: 'p1', name: 'Kat', kind: 'person', teamIds: [] }];
   const teams: TeamView[] = [];
@@ -263,6 +278,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
             // The same two lists `steps` and `listPeople` answer with, on the read
             // that carried the slices: the chart is drawn from this payload alone.
             steps: stepList.map((step) => ({ ...step })),
+            typedDependencies: typedDependencies.map((dependency) => ({ ...dependency })),
             assignedPeople: people.map(({ id, name }) => ({ id, name })),
             // Present and empty, never absent: be-01 always sends it, so a fake that
             // left it out would let `teamsOnThePlan` be handed `undefined` here and
@@ -318,6 +334,9 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
           factStart: null,
           factEnd: null,
           status: 'unknown',
+          readiness: null,
+          hold: null,
+          progress: {},
           serviceTeamId: null,
           teamIds: [],
           assignees: {},
@@ -420,7 +439,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         return Promise.resolve();
       },
       addStep: (_projectId: string, name: string) => {
-        const step = { id: `step-${name.toLowerCase()}`, name };
+        const step = { id: `step-${name.toLowerCase()}`, name, allowancePercent: 0 };
         stepList.push(step);
         return Promise.resolve({ ...step });
       },
@@ -526,6 +545,24 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
           row.dependsOn = [...row.dependsOn, predecessorId];
         return Promise.resolve();
       },
+      addTypedDependency: (
+        _projectId: string,
+        predecessor: TypedDependencyEndpoint,
+        successor: TypedDependencyEndpoint,
+      ) => {
+        if (predecessor.scope !== 'whole' || successor.scope !== 'whole')
+          return Promise.reject(new Error('fake only models whole dependencies'));
+        edges.push(`add:${successor.workItemId}:${predecessor.workItemId}`);
+        typedDependencies.push({
+          id: `dependency-${String(typedDependencies.length + 1)}`,
+          predecessor,
+          successor,
+          type: 'FS',
+        });
+        return Promise.resolve();
+      },
+      updateTypedDependency: () => notImplemented('updateTypedDependency'),
+      removeTypedDependency: () => notImplemented('removeTypedDependency'),
       removeDependency: (id: string, predecessorId: string) => {
         edges.push(`drop:${id}:${predecessorId}`);
         const row = rows.find((each) => each.id === id);
@@ -583,6 +620,12 @@ afterEach(() => {
   cleanup();
   widthIs(LAPTOP);
 });
+
+/** A fixture row's schedule, which every fixture row has; null would be an on-hold row. */
+const scheduled = (row: { schedule: ScheduleView | null }): ScheduleView => {
+  if (row.schedule === null) throw new Error('fixture row has no schedule');
+  return row.schedule;
+};
 
 describe('the plan-card ProjectApi fake', () => {
   it('round trips whole team sets and retains the legacy scalar arm', async () => {
@@ -1970,7 +2013,7 @@ describe('what a card says about the schedule', () => {
     // same fields `wbs-table.tsx`'s Float column cell reads — a phone has no
     // second computation of what can slip.
     await aPlan((rows) => {
-      rows[0].schedule = { ...rows[0].schedule, float: 2.5, critical: false };
+      rows[0].schedule = { ...scheduled(rows[0]), float: 2.5, critical: false };
     });
 
     expect(slackOnCard()?.textContent).toBe('2.5d slack');
@@ -1982,7 +2025,7 @@ describe('what a card says about the schedule', () => {
 
   itDom('keeps the singular where a row can slip exactly one workday', async () => {
     await aPlan((rows) => {
-      rows[0].schedule = { ...rows[0].schedule, float: 1, critical: false };
+      rows[0].schedule = { ...scheduled(rows[0]), float: 1, critical: false };
     });
 
     expect(slackOnCard()?.getAttribute('data-fact')).toBe(
@@ -1995,7 +2038,7 @@ describe('what a card says about the schedule', () => {
     // card printing a bare `0` here would say the opposite of what the row
     // means.
     await aPlan((rows) => {
-      rows[0].schedule = { ...rows[0].schedule, float: 0, critical: true };
+      rows[0].schedule = { ...scheduled(rows[0]), float: 0, critical: true };
     });
 
     expect(slackOnCard()?.textContent).toBe('critical');
@@ -2416,14 +2459,14 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
       const items = screen.getAllByRole('menuitem');
       expect(items.map((item) => item.textContent)).toEqual([
-        'Set status to Done',
+        ...SILENT_ROW_STATUSES,
         'Add child',
         'Move under…',
         'Duplicate',
         'Unfreeze',
         'Delete',
       ]);
-      expect(items[5]).toHaveAttribute(
+      expect(items.at(-1)).toHaveAttribute(
         'data-fact',
         'Frozen — unfreeze this row before deleting it',
       );
@@ -2486,7 +2529,10 @@ function aTreeRow(overrides: Partial<TreeRow> = {}): TreeRow {
       deadline: null,
       factStart: null,
       factEnd: null,
+      readiness: null,
+      hold: null,
       status: 'unknown',
+      progress: {},
       priority: null,
       maxParallel: 1,
       teamIds: [],
@@ -2646,8 +2692,8 @@ const doNothingActions = (): CardRowActionHandlers => ({
   moveUnder: () => undefined,
   unfreeze: () => undefined,
   remove: () => undefined,
-  markDone: () => undefined,
-  setUnknown: () => undefined,
+  chooseStatus: () => undefined,
+  statusOffers: (row) => statusOffersOf(row, true),
 });
 
 describe('the ⋯ row-actions menu on a card', () => {
@@ -2662,7 +2708,7 @@ describe('the ⋯ row-actions menu on a card', () => {
     renderCards([aTreeRow()], doNothingActions());
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-      'Set status to Done',
+      ...SILENT_ROW_STATUSES,
       'Add child',
       'Move under…',
       'Duplicate',
@@ -2670,20 +2716,46 @@ describe('the ⋯ row-actions menu on a card', () => {
     ]);
   });
 
+  itDom('offers a held row every status but its own hold, as the table does', () => {
+    const chosen: string[] = [];
+    renderCards([aTreeRow({ status: 'on_hold', hold: 'on_hold' })], {
+      ...doNothingActions(),
+      chooseStatus: (_rowId, status) => {
+        chosen.push(status);
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    const statuses = screen
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent)
+      .filter((label) => label.startsWith('Set status'));
+    expect(statuses).toEqual([
+      'Set status to Draft',
+      'Set status to Ready',
+      'Set status to In progress',
+      'Set status to Blocked',
+      'Set status to Done',
+      'Set status to Unknown',
+    ]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Set status to Blocked' }));
+    expect(chosen).toEqual(['blocked']);
+  });
+
   itDom('adds Unfreeze, and refuses Delete with the table’s own sentence, on a frozen row', () => {
     renderCards([aTreeRow({ frozenNumber: '010' })], doNothingActions());
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
     const items = screen.getAllByRole('menuitem');
     expect(items.map((item) => item.textContent)).toEqual([
-      'Set status to Done',
+      ...SILENT_ROW_STATUSES,
       'Add child',
       'Move under…',
       'Duplicate',
       'Unfreeze',
       'Delete',
     ]);
-    expect(items[5]).toHaveAttribute('data-fact', 'Frozen — unfreeze this row before deleting it');
-    expect(items[5]).toHaveAttribute('aria-disabled', 'true');
+    const remove = items.at(-1);
+    expect(remove).toHaveAttribute('data-fact', 'Frozen — unfreeze this row before deleting it');
+    expect(remove).toHaveAttribute('aria-disabled', 'true');
   });
 
   itDom('does not delete a frozen row through the menu — the refusal actually refuses', () => {
@@ -3720,6 +3792,240 @@ describe('setting a card’s priority', () => {
 });
 
 describe('setting what a card waits for', () => {
+  itDom('shows FF wording and editing on a phone card', async () => {
+    const api = dependencyApi();
+    const source = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const target = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: source.id,
+      name: 'Sand',
+    });
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'whole', workItemId: source.id },
+      { scope: 'whole', workItemId: target.id },
+      'FF',
+    );
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    expect(screen.getByText(/010 FF.*Finish-to-finish/)).toBeDefined();
+    fireEvent.click(
+      screen.getByRole('button', { name: /Edit .*010 Strip.*020 Sand.*Finish-to-finish/ }),
+    );
+    expect(screen.getByLabelText('Relationship')).toHaveProperty('value', 'FF');
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeDefined();
+  });
+  itDom('adds one whole FS relationship from a phone search result', async () => {
+    const api = dependencyApi();
+    const predecessor = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip',
+    });
+    const successor = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: predecessor.id,
+      name: 'Sand',
+    });
+    const added = recordCalls(api, 'addTypedDependency');
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    fireEvent.click(screen.getByRole('button', { name: /^010/ }));
+    await waitFor(() => {
+      expect(added).toHaveLength(1);
+    });
+    expect(added[0]).toEqual([
+      'p1',
+      { scope: 'whole', workItemId: predecessor.id },
+      { scope: 'whole', workItemId: successor.id },
+      'FS',
+    ]);
+  });
+  itDom('shows a typed dependency with touch Edit and Remove in the phone sheet', async () => {
+    // Proof: without data-card-wait on the typed entry, this test failed on
+    // `expected null not to be null`; watched 2026-09-28.
+    const api = dependencyApi();
+    const predecessor = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip',
+    });
+    const successor = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: predecessor.id,
+      name: 'Sand',
+    });
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'whole', workItemId: predecessor.id },
+      { scope: 'whole', workItemId: successor.id },
+      'FS',
+    );
+    const removed = recordCalls(api, 'removeTypedDependency');
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    expect(screen.getByText(/010 FS ·/)).toBeDefined();
+    expect(
+      document.querySelector('[aria-label="Waits for, on 020"] [data-card-wait="010"]'),
+    ).not.toBeNull();
+    expect(document.querySelector('[data-card-wait-remove="010"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Edit .*010 Strip.*020 Sand/ }));
+    expect(screen.getByRole('dialog', { name: 'Customize dependency' })).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to dependency picker' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop 020 waiting for 010' }));
+    await waitFor(() => {
+      expect(removed).toHaveLength(1);
+    });
+  });
+  itDom('switches phone edit scope state when a second relationship is selected', async () => {
+    const api = dependencyApi();
+    const first = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const target = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: first.id,
+      name: 'Sand',
+    });
+    const second = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: target.id,
+      name: 'Paint',
+    });
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'whole', workItemId: first.id },
+      { scope: 'whole', workItemId: target.id },
+      'FS',
+    );
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'node', stepNodeId: `sn1.${second.id}.${DEV.id}` },
+      { scope: 'node', stepNodeId: `sn1.${target.id}.${QA.id}` },
+      'FS',
+    );
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    fireEvent.click(screen.getByRole('button', { name: /Edit .*010 Strip.*020 Sand/ }));
+    expect(screen.getByLabelText('Predecessor')).toHaveProperty('value', 'whole');
+    fireEvent.click(screen.getByRole('button', { name: /Edit .*030 Paint.*020 Sand/ }));
+    expect(screen.getByLabelText('Predecessor')).toHaveProperty('value', DEV.id);
+    expect(screen.getByLabelText('This work item')).toHaveProperty('value', QA.id);
+  });
+  itDom('uses server step-node references for phone typed chips', async () => {
+    const api = dependencyApi();
+    const source = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const target = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: source.id,
+      name: 'Sand',
+    });
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'node', stepNodeId: `sn1.${source.id}.${DEV.id}` },
+      { scope: 'node', stepNodeId: `sn1.${target.id}.${DEV.id}` },
+      'FS',
+    );
+    const readTree = api.tree.bind(api);
+    api.tree = async (projectId) => {
+      const plan = await readTree(projectId);
+      return {
+        ...plan,
+        stepNodes: plan.stepNodes?.map((node) => ({
+          ...node,
+          reference: `${node.workItemId === source.id ? '010' : '020'}.build`,
+        })),
+      };
+    };
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    expect(screen.getByText(/010\.build FS → build/)).toBeDefined();
+  });
+  itDom('refuses to recreate a phone edit target removed before Save', async () => {
+    const api = dependencyApi();
+    const source = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const target = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: source.id,
+      name: 'Sand',
+    });
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'whole', workItemId: source.id },
+      { scope: 'whole', workItemId: target.id },
+      'FS',
+    );
+    const original = (await api.tree('p1')).typedDependencies?.[0];
+    if (original === undefined) throw new Error('Missing fixture dependency');
+    const added = recordCalls(api, 'addTypedDependency');
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    fireEvent.click(screen.getByRole('button', { name: /Edit .*010 Strip.*020 Sand/ }));
+    await api.removeTypedDependency('p1', original.id);
+    const name = screen.getByLabelText('Name of 020');
+    fireEvent.change(name, { target: { value: 'Sand again' } });
+    fireEvent.blur(name);
+    await waitFor(() => {
+      expect(screen.getByText('This dependency was removed.')).toBeDefined();
+    });
+    expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
+    expect(added).toEqual([]);
+  });
+  itDom('shows a stale phone Add when its predecessor vanishes before Save', async () => {
+    const api = dependencyApi();
+    const source = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.createWorkItem('p1', { parentId: null, afterId: source.id, name: 'Sand' });
+    const readPlan = api.tree.bind(api);
+    let predecessorDeleted = false;
+    api.tree = async (projectId) => {
+      const plan = await readPlan(projectId);
+      return predecessorDeleted
+        ? { ...plan, workItems: plan.workItems.filter((row) => row.id !== source.id) }
+        : plan;
+    };
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    fireEvent.click(screen.getByRole('button', { name: 'Customize 010 - Strip' }));
+    predecessorDeleted = true;
+    const name = screen.getByLabelText('Name of 020');
+    fireEvent.change(name, { target: { value: 'Sand again' } });
+    fireEvent.blur(name);
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('predecessor was removed'),
+    );
+    expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
+  });
+  itDom('opens phone Customize as a bottom sheet without writing', async () => {
+    const api = dependencyApi();
+    const predecessor = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip',
+    });
+    await api.createWorkItem('p1', { parentId: null, afterId: predecessor.id, name: 'Sand' });
+    const added = recordCalls(api, 'addTypedDependency');
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    fireEvent.click(screen.getByRole('button', { name: 'Customize 010 - Strip' }));
+    expect(screen.getByRole('dialog', { name: 'Customize dependency' }).className).toContain(
+      'typed-dependency-editor',
+    );
+    expect(added).toEqual([]);
+  });
   /**
    * A phone plan of `howMany` rows, the priority sheet's own shape: the request
    * a tap made is the subject, and `edges` is where the fake records it.
@@ -3729,10 +4035,12 @@ describe('setting what a card waits for', () => {
     arrange: (rows: WorkItemView[]) => void = () => {
       // A plan whose rows wait for nothing, which is what a new one is.
     },
+    configure: (api: ReturnType<typeof fakeApi>) => void = () => undefined,
   ): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi();
     for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
+    configure(api);
     widthIs(PHONE);
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
@@ -3795,7 +4103,7 @@ describe('setting what a card waits for', () => {
     await openTheSheetOn('030');
     fireEvent.click(screen.getByRole('button', { name: /^010/ }));
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: /^010/ })).toBeNull();
+      expect(api.edges).toEqual([`add:${api.rows[2]?.id ?? ''}:${api.rows[0]?.id ?? ''}`]);
     });
     fireEvent.click(screen.getByRole('button', { name: /^020/ }));
 
@@ -3868,18 +4176,25 @@ describe('setting what a card waits for', () => {
       // The pending-option defect `wbs-dependency-sheet-pending-option-repeats`:
       // a tap that has not landed must not be offered for a second tap, because
       // two taps in that window sent two identical POSTs.
-      const api = await aPhonePlan(3);
       let release!: () => void;
-      const realAdd = api.addDependency.bind(api);
       const calls: string[] = [];
-      api.addDependency = (id, predecessorId) => {
-        calls.push(`add:${id}:${predecessorId}`);
-        return new Promise<void>((resolve) => {
-          release = () => {
-            resolve();
+      await aPhonePlan(
+        3,
+        () => undefined,
+        (configured) => {
+          const realAdd = configured.addTypedDependency.bind(configured);
+          configured.addTypedDependency = (projectId, predecessor, successor, type) => {
+            calls.push(
+              `add:${successor.scope === 'whole' ? successor.workItemId : ''}:${predecessor.scope === 'whole' ? predecessor.workItemId : ''}`,
+            );
+            return new Promise<void>((resolve) => {
+              release = () => {
+                resolve();
+              };
+            }).then(() => realAdd(projectId, predecessor, successor, type));
           };
-        }).then(() => realAdd(id, predecessorId));
-      };
+        },
+      );
 
       await openTheSheetOn('030');
       const option = (): HTMLElement => screen.getByRole('button', { name: /^010/ });
@@ -3907,12 +4222,17 @@ describe('setting what a card waits for', () => {
     // The refused peer-race arm: the tap looked valid, be-01 refused it, and
     // the row must come back on offer — not stay locked under the reader's
     // thumb. The toast is `run`'s own sentence, preserved not replaced.
-    const api = await aPhonePlan(2);
     let rejectNow!: (error: unknown) => void;
-    api.addDependency = () =>
-      new Promise<void>((_, reject) => {
-        rejectNow = reject;
-      });
+    const api = await aPhonePlan(
+      2,
+      () => undefined,
+      (configured) => {
+        configured.addTypedDependency = () =>
+          new Promise<void>((_, reject) => {
+            rejectNow = reject;
+          });
+      },
+    );
 
     await openTheSheetOn('020');
     const option = (): HTMLElement => screen.getByRole('button', { name: /^010/ });

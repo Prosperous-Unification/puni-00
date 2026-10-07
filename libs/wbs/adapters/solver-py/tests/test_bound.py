@@ -60,6 +60,7 @@ import sys
 import unittest
 from pathlib import Path
 from typing import Any, Mapping
+from unittest import mock
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
@@ -178,6 +179,50 @@ class TheGuardOnAnUnplaceableBaseline(unittest.TestCase):
 
     def test_no_bound_is_installed(self) -> None:
         self.assertIsNone(baseline_bound(self.request))
+
+    def test_ff_weight_makes_equal_start_baseline_infeasible(self) -> None:
+        request = a_request(
+            [a_slice("a", duration=2), a_slice("b", duration=2)],
+            edges=[{"predecessorKey": "a", "successorKey": "b", "type": "FF", "startWeightUnits": 1}],
+            horizon=5,
+            baseline={"a": 0, "b": 0},
+        )
+        validate_against_schema(request)
+        check_cross_field(request)
+        self.assertFalse(baseline_is_feasible(request))
+        self.assertIsNone(baseline_bound(request))
+
+    def test_a_deadline_that_baseline_misses_prevents_the_bound(self) -> None:
+        request = a_request(
+            [a_slice("a", duration=2, deadline=48)],
+            horizon=50,
+            baseline={"a": 47},
+        )
+        validate_against_schema(request)
+        check_cross_field(request)
+        self.assertFalse(baseline_is_feasible(request))
+        self.assertIsNone(baseline_bound(request))
+
+    def test_an_infeasible_fast_baseline_is_not_sent_as_a_hint(self) -> None:
+        request = a_request(
+            [a_slice("a", duration=2), a_slice("b", duration=2)],
+            edges=[{"predecessorKey": "a", "successorKey": "b", "type": "FF", "startWeightUnits": 1}],
+            horizon=5,
+            baseline={"a": 0, "b": 0},
+        )
+        observed_hints: list[int] = []
+        original_solve = cp_model.CpSolver.solve
+
+        def capture_hint(solver: cp_model.CpSolver, model: cp_model.CpModel) -> int:
+            observed_hints.append(len(model.Proto().solution_hint.vars))
+            return original_solve(solver, model)
+
+        with mock.patch.object(cp_model.CpSolver, "solve", capture_hint):
+            response = solve_request(request, SolverConfig(num_search_workers=1))
+
+        self.assertEqual(response["status"], "feasible")
+        self.assertTrue(observed_hints)
+        self.assertEqual(observed_hints, [0] * len(observed_hints))
 
     def test_the_run_still_answers_with_a_schedule(self) -> None:
         # The whole point. Unconditionally bounding this request returns

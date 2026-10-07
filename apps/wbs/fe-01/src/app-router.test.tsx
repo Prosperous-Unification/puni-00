@@ -1,6 +1,6 @@
 import { createMemoryHistory } from '@tanstack/react-router';
 import { cleanup, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
@@ -9,6 +9,7 @@ import { installProjectRuntime } from '@/runtime/project-runtime';
 import { installSessionRuntime, type SessionRuntime } from '@/runtime/session-runtime';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { refusingApi } from '@/testing/refusing-api';
+import { answerJson, stubServer } from '@/testing/stub-server';
 
 import { AppRouter } from './app-router';
 
@@ -103,6 +104,7 @@ const projectShowing = () => screen.queryByRole('combobox', { name: 'Project' })
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 
 describe('the signed-in region, routed', () => {
@@ -122,6 +124,80 @@ describe('the signed-in region, routed', () => {
       expect(directoryShowing()).toBe(true);
     });
     expect(projectShowing()).toBe(false);
+  });
+
+  itDom('draws the spaces list at /spaces', async () => {
+    const sent = stubServer({
+      'GET /api/spaces': [() => answerJson(200, { spaces: [], writable: false })],
+    });
+    regionAt('/spaces');
+
+    expect(await screen.findByText('No spaces yet.')).toBeDefined();
+    expect(sent.map((call) => call.route)).toContain('GET /api/spaces');
+    expect(projectShowing()).toBe(false);
+  });
+
+  itDom('draws one space at /spaces/:spaceId', async () => {
+    const sent = stubServer({
+      'GET /api/spaces/s': [
+        () =>
+          answerJson(200, {
+            space: {
+              id: 's',
+              name: 'Q3',
+              virtual: false,
+              projectCount: 0,
+              revision: 1,
+              createdById: 'u1',
+              createdAt: 1,
+            },
+            writable: false,
+            rows: [],
+          }),
+      ],
+      'GET /api/spaces/s/roll-ups': [() => answerJson(200, { rollUps: {} })],
+    });
+    regionAt('/spaces/s');
+
+    expect(await screen.findByRole('heading', { name: 'Q3' })).toBeDefined();
+    expect(await screen.findByText('No projects in this space yet.')).toBeDefined();
+    expect(sent.map((call) => call.route)).toContain('GET /api/spaces/s');
+    expect(projectShowing()).toBe(false);
+  });
+
+  itDom('draws a person’s load at /people/:personId/load, reading that person', async () => {
+    const sent = stubServer({
+      'GET /api/people/pe-a/load': [
+        () =>
+          answerJson(200, {
+            person: { id: 'pe-a', name: 'Ana' },
+            projects: [],
+            overlaps: [],
+            undated: [],
+            unavailable: [],
+          }),
+      ],
+    });
+    regionAt('/people/pe-a/load');
+
+    expect(await screen.findByText('Nothing booked in these weeks.')).toBeDefined();
+    expect(sent.map((call) => call.route)).toContain('GET /api/people/pe-a/load');
+    expect(projectShowing()).toBe(false);
+  });
+
+  itDom('draws organization administration at /organization', async () => {
+    stubServer({
+      'GET /api/organization/invitations': [() => answerJson(200, { invitations: [] })],
+      'GET /api/organization/join-requests': [() => answerJson(200, { requests: [] })],
+      'GET /api/organization/domains': [() => answerJson(200, { domains: [] })],
+      'GET /api/organization/members': [() => answerJson(200, { members: [] })],
+    });
+    regionAt('/organization');
+
+    expect(await screen.findByRole('heading', { name: 'Organization' })).toBeDefined();
+    expect(await screen.findByText('No invitations yet.')).toBeDefined();
+    expect(projectShowing()).toBe(false);
+    expect(directoryShowing()).toBe(false);
   });
 
   /**

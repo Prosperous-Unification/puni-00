@@ -1,5 +1,5 @@
 import { type Cell as TableCell, flexRender, type Header, useTable } from '@tanstack/react-table';
-import type { WorkItemStatus } from '@wbs/domain/progress';
+import type { SettableStatus, WorkItemStatus } from '@wbs/domain/progress';
 import { parseStepNodeId } from '@wbs/domain/step-node';
 import {
   type ChangeEventHandler,
@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button';
 import { type CellCards, createCellCards, useCardOpenOn } from './cell-card-store';
 import type { CellRef } from './cell-navigation';
 import { type ColumnHintState, hintFor } from './column-hints';
-import { CompletionPrompt } from './completion-prompt';
+import { CompletionPrompt, type PromptedStatus } from './completion-prompt';
 import { createDepLights, type DepLights } from './dep-light-store';
 import { type DropZone, planMove, zoneFor } from './drag-drop';
 import { cellIn, cellKey, type CellLanding, cellRefOf, focusCellAt } from './editable-grid';
@@ -29,6 +29,7 @@ import { ExternalRefsModal } from './external-refs-modal';
 import { GanttFaultBoundary } from './gantt-fault';
 import { appliedGanttHeight, DAY_PX, GanttPanel, isoToday } from './gantt-panel';
 import { KeyboardCheatSheet } from './keyboard-cheat-sheet';
+import { didLand } from './live-editing';
 import { logicalGrid } from './logical-grid';
 import { formatDestination, moveUnderCandidates, MoveUnderPicker } from './move-under-picker';
 import { OptimizationCue } from './optimization-cue';
@@ -54,6 +55,7 @@ import { PlanToolbar } from './plan-toolbar';
 import { PlanToolbarSheet } from './plan-toolbar-sheet';
 import { createPointedRows, type PointedRows } from './pointed-row-store';
 import { rememberGanttDayPx, rememberGanttLabels } from './remembered-layout';
+import { statusOffersOf, type StatusRow } from './status-offers';
 import {
   CELL,
   FLEXIBLE_CAP,
@@ -636,6 +638,7 @@ export function WbsTable({
     workItems,
     treeReadProject,
     stepNodes,
+    typedDependencies,
     chartRead,
     steps,
     treeMayBeStale,
@@ -765,11 +768,15 @@ export function WbsTable({
    */
   const [refsEditing, setRefsEditing] = useState<string | null>(null);
   /**
-   * The row the completion prompt is open over, by id, for `refsEditing`'s
-   * reason: the prompt reads the row's held fact end off the current tree, and
-   * a row deleted while it asks is a prompt that is simply not there.
+   * The row the completion prompt is open over, by id, and the status it asks
+   * about, for `refsEditing`'s reason: the prompt reads the row's held fact
+   * days off the current tree, and a row deleted while it asks is a prompt
+   * that is simply not there.
    */
-  const [completionFor, setCompletionFor] = useState<string | null>(null);
+  const [completionFor, setCompletionFor] = useState<{
+    rowId: string;
+    status: PromptedStatus;
+  } | null>(null);
   /** The row the Move under… picker is open over, by id, for `completionFor`'s reason. */
   const [moveUnderFor, setMoveUnderFor] = useState<string | null>(null);
   const { dragging, setDragging, dropHint, setDropHint } = usePlanDragState();
@@ -789,6 +796,7 @@ export function WbsTable({
     rowId: string;
     typed: string;
     highlightId: string | null;
+    stepId?: string;
   } | null>(null);
   /**
    * Which rows a hovered or focused **Depends on** cell lights — the pointer's
@@ -1008,10 +1016,11 @@ export function WbsTable({
     () => (refsEditing === null ? null : (flat.find((row) => row.id === refsEditing) ?? null)),
     [flat, refsEditing],
   );
-  const completionRow = useMemo(
-    () => (completionFor === null ? null : (flat.find((row) => row.id === completionFor) ?? null)),
-    [flat, completionFor],
-  );
+  const completion = useMemo(() => {
+    if (completionFor === null) return null;
+    const row = flat.find((each) => each.id === completionFor.rowId);
+    return row === undefined ? null : { row, status: completionFor.status };
+  }, [flat, completionFor]);
   /**
    * The `Move under …` cue for a middle zone the drop would be taken in, and
    * nothing for an edge, a refused target or no drag. Indented one level past
@@ -1104,8 +1113,8 @@ export function WbsTable({
    */
   const arrangeBySchedule = useCallback(() => {
     void run((write) => write.perform(['tree'], () => commands.arrangeBySchedule())).then(
-      (landed) => {
-        if (landed === 'landed') pushToast({ kind: 'info', text: 'Arranged by schedule.' });
+      (outcome) => {
+        if (didLand(outcome)) pushToast({ kind: 'info', text: 'Arranged by schedule.' });
       },
     );
   }, [commands, pushToast, run]);
@@ -1209,6 +1218,7 @@ export function WbsTable({
     outdent,
     indent,
     drafts,
+    typedDependencies,
     removeEmptyRow,
     busy,
     pushToast,
@@ -1236,6 +1246,7 @@ export function WbsTable({
       setDepPicker,
       run,
       steps,
+      typedDependencies,
     });
   const {
     estimateValue,
@@ -1280,17 +1291,44 @@ export function WbsTable({
     async (
       id: string,
       started: string,
-      finished: string,
+      finished: string | null,
       held: { factStart: string | null; factEnd: string | null },
     ): Promise<void> => {
-      const outcome = await setStatus(id, 'done', finished, started);
-      if (outcome !== 'landed') return;
+      // `In progress` asks for the start alone and sends it as the day of the
+      // act as well, which is the day be-01 fills an empty fact start with.
+      const outcome =
+        finished === null
+          ? await setStatus(id, 'in_progress', started, started)
+          : await setStatus(id, 'done', finished, started);
+      if (!didLand(outcome)) return;
       // `setStatus` fills the two facts only where the row held none, so a held
       // day the reader changed in the prompt follows as a patch of its own.
-      if (held.factEnd !== null && held.factEnd !== finished) setFactEnd(id, finished);
+      if (finished !== null && held.factEnd !== null && held.factEnd !== finished) {
+        setFactEnd(id, finished);
+      }
       if (held.factStart !== null && held.factStart !== started) setFactStart(id, started);
     },
     [setFactEnd, setFactStart, setStatus],
+  );
+  /**
+   * What choosing a status does, from the Status cell, the ⋯ menu or a card:
+   * `Done` and `In progress` open the completion prompt and nothing is sent
+   * until it is confirmed; every other status is sent at once.
+   */
+  const chooseStatus = useCallback(
+    (rowId: string, status: SettableStatus): void => {
+      if (status === 'done' || status === 'in_progress') {
+        setCompletionFor({ rowId, status });
+        return;
+      }
+      void setStatus(rowId, status, isoToday(new Date()));
+    },
+    [setStatus],
+  );
+  const hasSteps = steps.length > 0;
+  const statusOffers = useCallback(
+    (row: StatusRow): SettableStatus[] => statusOffersOf(row, hasSteps),
+    [hasSteps],
   );
   const {
     setTeamOf,
@@ -1388,6 +1426,10 @@ export function WbsTable({
       nodesByStep.set(node.stepId, node);
       nodesByRow?.set(node.workItemId, nodesByStep);
     }
+    const dependencyStepIdsByRow =
+      nodesByRow === null
+        ? null
+        : new Map([...nodesByRow].map(([rowId, nodes]) => [rowId, [...nodes.keys()]]));
     const rows = attachRowReadings(workItems, (row) => {
       if (nodesByRow !== null && !row.rolledUp) {
         for (const step of steps) {
@@ -1437,8 +1479,23 @@ export function WbsTable({
         assigneeEntries,
         busy,
         dependencies: dependenciesOf(row.dependsOn),
+        typedDependencies: typedDependencies.filter(
+          (dependency) => dependency.successor.workItemId === row.id,
+        ),
+        dependencyRows: flat,
+        dependencySteps: steps,
+        dependencyStepNodes: stepNodes ?? null,
+        dependencyStepIdsByRow,
         dependencyEntries:
-          dependencyPicker === null ? [] : depEntriesFor(row, dependencyPicker.typed),
+          dependencyPicker === null
+            ? []
+            : depEntriesFor(
+                {
+                  id: row.id,
+                  dependsOn: row.dependsOn,
+                },
+                dependencyPicker.typed,
+              ),
         dependencyPicker,
         editingDeadline: editingDeadline === row.id,
         editingFactEnd: editingFactEnd === row.id,
@@ -1480,6 +1537,7 @@ export function WbsTable({
     editingFactStart,
     editingNotBefore,
     effectiveServiceLabelOf,
+    flat,
     effectiveTagLabelOf,
     effectiveTeamLabelOf,
     estimateValue,
@@ -1503,6 +1561,7 @@ export function WbsTable({
     workItems,
     workItemTypes,
     stepNodes,
+    typedDependencies,
   ]);
 
   /**
@@ -1541,6 +1600,15 @@ export function WbsTable({
     setDropHint,
     dependOn,
     setDepPicker,
+    openStepDependency: (rowId: string, stepId: string) => {
+      const box = gridElement.current?.querySelector<HTMLInputElement>(
+        `[data-depends-input="${rowId}"]`,
+      );
+      if (box === undefined || box === null)
+        throw new Error(`Missing dependency cell for ${rowId}`);
+      box.focus();
+      setDepPicker({ rowId, typed: '', highlightId: null, stepId });
+    },
     depLights,
     setOpenMenuRowId,
     depEntriesFor,
@@ -1565,7 +1633,8 @@ export function WbsTable({
     setFactStart,
     setFactEnd,
     setStatus,
-    openCompletionPrompt: setCompletionFor,
+    chooseStatus,
+    statusOffers,
     openFactStart,
     closeFactStart,
     openFactEnd,
@@ -1587,13 +1656,25 @@ export function WbsTable({
   const live = useRef(liveNow);
   live.current = liveNow;
 
+  // Keyed on the rule's values, not on the read's object identities: every
+  // tree read hands over a fresh `pertWeights`, and a new rule each read would
+  // rebuild every cell — the focus fault the proof below describes.
+  const { optimistic, realistic, pessimistic } = chartRead.pertWeights;
+  const rule = useMemo(
+    () => ({
+      method: estimateMethod,
+      pertWeights: { optimistic, realistic, pessimistic },
+      rounding: chartRead.estimateRounding,
+    }),
+    [estimateMethod, optimistic, realistic, pessimistic, chartRead.estimateRounding],
+  );
   const columns = useMemo(
-    () => createPlanColumns(steps, unfoldedSteps, hiddenColumnIds, live),
+    () => createPlanColumns(steps, unfoldedSteps, hiddenColumnIds, live, rule),
     // PlanLiveValues declares the structural inputs allowed to replace cells.
     // Proof: adding workItems here failed plan-read-and-write.test.tsx’s
     // `does not take the focus or the half-typed value` at the focus assertion:
     // activeElement was body instead of the Name cell (2026-09-06).
-    [steps, unfoldedSteps, hiddenColumnIds],
+    [steps, unfoldedSteps, hiddenColumnIds, rule],
   );
 
   const table = useTable({
@@ -1701,6 +1782,9 @@ export function WbsTable({
     const dependsOnOf = new Map(flat.map((row) => [row.id, row.dependsOn]));
     depLights.setDependsOnOf((rowId) => dependsOnOf.get(rowId));
   }, [depLights, flat]);
+  useEffect(() => {
+    depLights.setTypedDependencies(typedDependencies);
+  }, [depLights, typedDependencies]);
 
   /**
    * The Gantt panel's report line into the store — stable so the chart's
@@ -1715,6 +1799,8 @@ export function WbsTable({
   );
   const { dependsCellHoverProps, startCellProps } = createPlanCellProps({
     dependenciesOf,
+    hasTypedDependencies: (rowId) =>
+      typedDependencies.some((dependency) => dependency.successor.workItemId === rowId),
     depLights,
     depPicker,
     cellCards,
@@ -1731,6 +1817,7 @@ export function WbsTable({
     teams,
     priorityBands,
     startFloor,
+    typedDependencies,
   });
   const pickGanttDayPx = useCallback<NonNullable<ComponentProps<typeof GanttPanel>['onPickDayPx']>>(
     (picked) => {
@@ -2448,6 +2535,30 @@ export function WbsTable({
               mentionOptions={mentionOptions}
               assigneeOn={assigneeOn}
               waitsFor={waitsFor}
+              typedWaitsFor={(row) =>
+                typedDependencies.filter((dependency) => dependency.successor.workItemId === row.id)
+              }
+              dependencyRows={flat}
+              dependencyStepNodes={stepNodes}
+              saveTypedDependency={(dependencyId, predecessor, successor, type) =>
+                run((write) =>
+                  write.perform(['tree'], () =>
+                    commands.updateTypedDependency(dependencyId, predecessor, successor, type),
+                  ),
+                )
+              }
+              addTypedDependency={(predecessor, successor, type) =>
+                run((write) =>
+                  write.perform(['tree'], () =>
+                    commands.addTypedDependency(predecessor, successor, type),
+                  ),
+                )
+              }
+              removeTypedDependency={(dependencyId) =>
+                run((write) =>
+                  write.perform(['tree'], () => commands.removeTypedDependency(dependencyId)),
+                )
+              }
               // The Depends cell's own picker rule and its own two writers, handed
               // to the face that had neither. `depEntriesFor` is `pickerEntries`,
               // which is a *ported copy of be-01's judgement* about which edges are
@@ -2570,10 +2681,8 @@ export function WbsTable({
                 remove: (row) => {
                   void deleteRow(row);
                 },
-                markDone: setCompletionFor,
-                setUnknown: (rowId) => {
-                  void setStatus(rowId, 'unknown', isoToday(new Date()));
-                },
+                chooseStatus,
+                statusOffers,
               }}
             />
           ) : (
@@ -2933,6 +3042,8 @@ export function WbsTable({
         <GanttFaultBoundary generation={chartRead.generation}>
           <GanttPanel
             plan={ganttPlan}
+            typedDependencies={typedDependencies}
+            depLights={depLights}
             startDate={startDate}
             scheduleError={scheduleError}
             generation={chartRead.generation}
@@ -3030,21 +3141,22 @@ export function WbsTable({
           }}
         />
       )}
-      {completionRow !== null && (
+      {completion !== null && (
         <CompletionPrompt
-          number={completionRow.number}
-          heldFactStart={completionRow.factStart}
-          heldFactEnd={completionRow.factEnd}
-          forecast={completionRow.dates}
+          status={completion.status}
+          number={completion.row.number}
+          heldFactStart={completion.row.factStart}
+          heldFactEnd={completion.row.factEnd}
+          forecast={completion.row.dates}
           today={isoToday(new Date())}
           onOpenChange={(open) => {
             if (!open) setCompletionFor(null);
           }}
           onConfirm={(started, finished) => {
             setCompletionFor(null);
-            void confirmCompletion(completionRow.id, started, finished, {
-              factStart: completionRow.factStart,
-              factEnd: completionRow.factEnd,
+            void confirmCompletion(completion.row.id, started, finished, {
+              factStart: completion.row.factStart,
+              factEnd: completion.row.factEnd,
             });
           }}
           onClosed={() => {
@@ -3052,7 +3164,7 @@ export function WbsTable({
             // a modeled state, not a fault: the row was deleted, or the column
             // hidden, while the prompt was open, and there is nothing to land on.
             const asked = gridElement.current?.querySelector<HTMLElement>(
-              `[data-cell="${cellKey(completionRow.id, 'status')}"]`,
+              `[data-cell="${cellKey(completion.row.id, 'status')}"]`,
             );
             asked?.focus();
           }}

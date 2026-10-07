@@ -2,6 +2,7 @@ import { type Type, type } from 'arktype';
 
 import { PLAN_COMMAND_KINDS } from '../commands/definitions';
 import { defineEndpointShape } from './endpoint-shape';
+import { organizationRefusal } from './organization-refusal';
 import { planCommandsBody } from './plan-command-shapes';
 import type { ParserRefusalCode } from './refusal';
 import { engineUnavailableRefusal } from './scheduler-shapes';
@@ -156,6 +157,17 @@ const parserArms = {
   }),
   unknown_step_node_encoding: type({
     error: "'unknown_step_node_encoding'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  invalid_typed_endpoint: type({
+    error: "'invalid_typed_endpoint'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  type_must_be_text: type({ error: "'type_must_be_text'", at: 'number', kind: commandKindsType }),
+  dependencyId_must_be_text: type({
+    error: "'dependencyId_must_be_text'",
     at: 'number',
     kind: commandKindsType,
   }),
@@ -386,6 +398,11 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
+  allowancePercent_must_be_0_to_1000_with_two_decimals: type({
+    error: "'allowancePercent_must_be_0_to_1000_with_two_decimals'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
 } satisfies Record<ParserRefusalCode, Type>;
 /** Validates the finite legacy parser vocabulary before any string becomes a wire refusal. */
 // Proof: removing forbidden context fields admitted at:text,400 instead of500 in the mounted parser-refusal case.
@@ -468,8 +485,19 @@ const writeRefusals = [
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
   },
 ] as const;
+/**
+ * A batch refused whole, before any command: the caller's organization does
+ * not own the project (the same 404 as an absent one) or its role may not
+ * write there. Answered only after organization activation.
+ */
+const scopedBatchRefusals = [
+  organizationRefusal,
+  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+] as const;
 const batchRefusals = [
   ...writeRefusals,
+  ...scopedBatchRefusals,
   { status: 400, schema: commandParserRefusal },
   {
     status: 400,
@@ -497,6 +525,7 @@ const batchRefusals = [
       type.or(
         type({ ...context, error: "'not_found'" }),
         type({ ...context, error: "'unknown_step'" }),
+        type({ ...context, error: "'unknown_dependency'" }),
         type({ ...context, error: "'unknown_metric'" }),
         type({ ...context, error: "'unknown_person'" }),
         type({ ...context, error: "'unknown_team'" }),
@@ -523,17 +552,35 @@ const batchRefusals = [
         type({ ...context, error: "'engine_unavailable'" }),
         type({ ...context, error: "'rolled_up'" }),
         type({ ...context, error: "'ancestor'" }),
+        // A typed dependency whose endpoints resolve a step node onto itself.
+        type({ ...context, error: "'self_node'" }),
+        type({ ...context, error: "'not_a_parent'" }),
+        type({ ...context, error: "'duplicate_dependency'" }),
         type({ ...context, error: "'too_large'" }),
+        // `setStatus` refusals (`add-work-item-statuses`).
+        type({ ...context, error: "'readiness_after_progress'" }),
+        type({ ...context, error: "'cannot_hold_done'" }),
+        type({ ...context, error: "'no_steps'" }),
       ),
     ),
   },
   { status: 409, schema: responseSchema(type({ ...context, error: "'taken'", name: 'string' })) },
   { status: 409, schema: responseSchema(type({ ...context, error: "'in_use'", usage })) },
   {
+    status: 409,
+    schema: responseSchema(
+      type.or(
+        type({ ...context, error: "'node_on_parent'", dependencyIds: 'string[]' }),
+        type({ ...context, error: "'descendant_step_on_leaf'", dependencyIds: 'string[]' }),
+      ),
+    ),
+  },
+  {
     status: 422,
     schema: responseSchema(
       type.or(
         type({ ...context, error: "'calendar_range'" }),
+        type({ ...context, error: "'unsupported_relationship_type'" }),
         type({
           ...context,
           error: "'deadline_before_project_start'",
@@ -587,6 +634,7 @@ export const getWorkItems = defineEndpointShape({
   refusals: [
     ...genericRefusals,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+    organizationRefusal,
     engineUnavailableRefusal,
   ],
   document: { summary: 'Read the project work-item tree.' },
@@ -612,6 +660,7 @@ export const getStepReference = defineEndpointShape({
   refusals: [
     ...genericRefusals,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+    organizationRefusal,
     {
       status: 409,
       schema: responseSchema(
@@ -674,6 +723,7 @@ const undoResponses = [
 ] as const;
 const undoRefusals = [
   ...writeRefusals,
+  organizationRefusal,
   { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   {

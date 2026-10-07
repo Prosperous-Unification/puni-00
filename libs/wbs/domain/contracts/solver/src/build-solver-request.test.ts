@@ -68,6 +68,7 @@ const planOf = (over: Partial<SolverRequestPlan> = {}): SolverRequestPlan => ({
   notBefore: new Map([['P', 3]]),
   poolSizes: new Map([['team-x', 2]]),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
   ...over,
 });
@@ -87,11 +88,12 @@ const baselineOf = (plan: SolverRequestPlan) =>
     plan.notBefore,
     plan.poolSizes,
     plan.reach,
+    [],
   );
 
 const spawnOf = (plan: SolverRequestPlan, over: Partial<SolverSpawn> = {}): SolverSpawn => ({
   baselineOffsets: baselineOf(plan),
-  solverVersion: '0.1.0',
+  solverVersion: '0.2.0',
   budgetMs: 30_000,
   ...over,
 });
@@ -104,6 +106,16 @@ const requestOf = (plan: SolverRequestPlan, spawn: SolverSpawn = spawnOf(plan)) 
 };
 
 describe('buildSolverRequest', () => {
+  it('carries a plan whose people are booked elsewhere on wire 3', () => {
+    const plan = planOf({
+      elsewhere: new Map([
+        ['ann', [{ start: 0, end: 5, projectId: 'platform', workItemId: 'x1' }]],
+      ]),
+    });
+    expect(requestOf(plan).elsewhere).toEqual({ ann: [[0, 240]] });
+    expect(requestOf(planOf({ elsewhere: new Map() })).elsewhere).toEqual({});
+  });
+
   it('fills every member the schema requires, and no other', () => {
     // The schema's `required` lists all thirteen and the branch is
     // `additionalProperties: false`, so a missing one and an invented one are
@@ -115,10 +127,10 @@ describe('buildSolverRequest', () => {
     const request = requestOf(planOf());
     expect(request.wireVersion).toBe(SOLVER_WIRE_VERSION);
     expect(request.quantum).toBe(SOLVER_QUANTUM);
-    expect(request.solverVersion).toBe('0.1.0');
+    expect(request.solverVersion).toBe('0.2.0');
     // The solver's version alone would describe none of the durations, the leaf
     // expansion or the baseline — all of which Bun produced.
-    expect(request.contractVersion).toBe(`${String(SCHEDULER_CONTRACT_VERSION)}+0.1.0`);
+    expect(request.contractVersion).toBe(`${String(SCHEDULER_CONTRACT_VERSION)}+0.2.0`);
   });
 
   it('projects the slices, the graph and only the pools the request names', () => {
@@ -130,8 +142,8 @@ describe('buildSolverRequest', () => {
     ]);
     // The chain first, then the join: A's LAST slice to B's FIRST, whole-item.
     expect(request.edges).toEqual([
-      { predecessorKey: sliceKey('A', 'design'), successorKey: sliceKey('A', 'dev') },
-      { predecessorKey: sliceKey('A', 'dev'), successorKey: sliceKey('B', 'dev') },
+      { predecessorKey: sliceKey('A', 'design'), successorKey: sliceKey('A', 'dev'), type: 'FS' },
+      { predecessorKey: sliceKey('A', 'dev'), successorKey: sliceKey('B', 'dev'), type: 'FS' },
     ]);
     expect(request.pools).toEqual({ 'team-x': 2 });
     // `team-y` is sized in the project and named by no slice, so it stays out:
@@ -166,6 +178,50 @@ describe('buildSolverRequest', () => {
     );
   });
 
+  it('keeps a weighted FF fallback and each finish inside the request horizon', () => {
+    const typed = [
+      {
+        id: 'ff',
+        predecessor: { scope: 'whole' as const, workItemId: 'A' },
+        successor: { scope: 'whole' as const, workItemId: 'B' },
+        type: 'FF' as const,
+      },
+    ];
+    const plan = planOf({
+      rows: [rowOf('A', null, null), rowOf('B', null, null)],
+      edges: [],
+      slices: [sliceOf('A', null, 1 / 48 + 1e-12), sliceOf('B', null, 0)],
+      notBefore: new Map(),
+      poolSizes: new Map(),
+      typed,
+    });
+    const baselineOffsets = quantisedFastBaseline(
+      plan.rows,
+      plan.edges,
+      plan.slices,
+      plan.notBefore,
+      plan.poolSizes,
+      plan.reach,
+      typed,
+    );
+    const request = requestOf(plan, spawnOf(plan, { baselineOffsets }));
+    expect(request.edges).toEqual([
+      {
+        predecessorKey: sliceKey('A', null),
+        successorKey: sliceKey('B', null),
+        type: 'FF',
+        startWeightUnits: 2,
+      },
+    ]);
+    expect(request.baselineOffsets[sliceKey('B', null)]).toBe(2);
+    expect(request.horizonUnits).toBe(2);
+    for (const slice of request.slices) {
+      expect(request.baselineOffsets[slice.key] + slice.durationUnits).toBeLessThanOrEqual(
+        request.horizonUnits,
+      );
+    }
+  });
+
   it('changes exactly one field between the two objectives', () => {
     // PRI and Time are two runs over one canonical input. Anything else that
     // differed would be two plans being compared rather than two objectives.
@@ -194,7 +250,7 @@ describe('buildSolverRequest', () => {
     const plan = planOf({ rows: [rowOf('A', null, null)], edges: [], slices: [long] });
     const built = buildSolverRequest(plan, 'pri', {
       baselineOffsets: { [sliceKey('A', 'design')]: 0 },
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: 30_000,
     });
     expect(built.ok).toBe(false);
@@ -222,7 +278,7 @@ describe('buildSolverRequest', () => {
     expect(() =>
       buildSolverRequest(plan, 'pri', {
         baselineOffsets: {},
-        solverVersion: '0.1.0',
+        solverVersion: '0.2.0',
         budgetMs: 30_000,
       }),
     ).toThrow('slice for P, which is not a leaf of this project');
@@ -325,7 +381,7 @@ describe('buildSolverRequest', () => {
     expect(() =>
       buildSolverRequest(plan, 'pri', {
         baselineOffsets: {},
-        solverVersion: '0.1.0',
+        solverVersion: '0.2.0',
         budgetMs: 30_000,
       }),
     ).toThrow('no slices');

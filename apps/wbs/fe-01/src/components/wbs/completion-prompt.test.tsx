@@ -18,10 +18,11 @@ afterEach(cleanup);
 const FORECAST = { startsOn: '2026-09-01', endsOn: '2026-09-10' };
 
 function prompt(overrides: Partial<CompletionPromptProps> = {}) {
-  const onConfirm = vi.fn<(started: string, finished: string) => void>();
+  const onConfirm = vi.fn<(started: string, finished: string | null) => void>();
   const onOpenChange = vi.fn<(open: boolean) => void>();
   render(
     <CompletionPrompt
+      status="done"
       number="010"
       heldFactStart={null}
       heldFactEnd={null}

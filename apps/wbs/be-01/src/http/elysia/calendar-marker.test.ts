@@ -1,9 +1,10 @@
 import { createCalendarMarker, removeCalendarMarker, updateCalendarMarker } from '@wbs/contracts';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 
 import { bunPasswordHasher, joseTokenCodec } from '../../runtime/bun-runtime';
-import { AuthService } from '../../service/auth.service';
+import { REFUSE_DELEGATIONS } from '../../runtime/delegation';
 import { inMemoryUsers, TEST_JWT_KEY } from '../../testing/auth-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { bind } from '../endpoint';
@@ -31,7 +32,7 @@ test('marker refusal bindings reject malformed known fields while preserving bar
           mountEndpoints([endpoint], {
             appOrigin: 'https://app.example',
             reportUnexpectedFailure: () => undefined,
-            resolveIdentity: identityResolver(auth, 'internal-test-secret'),
+            resolveIdentity: identityResolver(auth, 'internal-test-secret', REFUSE_DELEGATIONS),
           }),
         );
         const response = await app.handle(

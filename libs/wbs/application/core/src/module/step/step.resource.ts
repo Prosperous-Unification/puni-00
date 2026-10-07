@@ -1,13 +1,24 @@
-import { canEditProject, isReservedStepCode, isStepCode, stepIsInUse } from '@wbs/domain';
+import { type AllowancePercent, isReservedStepCode, isStepCode, stepIsInUse } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
+import type { EditAdmission } from '../../ports/edit-admission';
+import type { BeforeStepRemoval } from '../../ports/fanout-capture-store';
+import {
+  findProjectWithin,
+  LEGACY_ACCESS,
+  mayEditProjectWithin,
+  type ResourceAccess,
+} from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectStore } from '../../ports/project-store';
+import type { Project, ProjectStore } from '../../ports/project-store';
 import type { Step, StepStore, StepUsageRows } from '../../ports/step-store';
 import { type AssumedAssigneeFlip, assumedAssigneeFlips } from '../../service/assumed-assignee';
 import { cleanName } from '../../service/clean-name';
+import type { DependencyGraphGuard } from '../../service/dependency-graph';
 
 export interface StepServiceOptions {
+  /** A unit-of-work grant used only for scoped recovery. */
+  recoveryAdmission?: EditAdmission;
   projects: ProjectStore;
   steps: StepStore;
   /**
@@ -19,6 +30,24 @@ export interface StepServiceOptions {
   broadcast: Broadcaster;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock: Clock;
+  /**
+   * The typed dependencies naming a step, and the combined step-node graph a
+   * removal is checked against. Required: removing a step moves every whole
+   * endpoint and legacy anchor on it, and one removed under a typed endpoint
+   * would leave a relationship naming nothing.
+   *
+   * Adding a step asks nothing of it. A new step is appended last to every
+   * leaf and no endpoint can name it yet, so the only edge into each new node
+   * is the workflow edge from that leaf's old last node. Every edge that left
+   * the old last node — a whole predecessor, a legacy link reached there —
+   * now leaves the new node instead, one workflow edge later, so contracting
+   * the new node onto the old last one gives back the graph before the add: a
+   * cycle after it was a cycle before it. A stepless project's first step
+   * replaces each leaf's boundary node one for one, which changes no edge.
+   */
+  dependencyGraph: Pick<DependencyGraphGuard, 'findCycle' | 'findStepReferences'>;
+  /** Trusted scoped recovery observation seam, after removal preflights. */
+  beforeRemove?: BeforeStepRemoval;
 }
 
 /** Why a step could not be added or renamed. All four are states, not faults. */
@@ -87,7 +116,16 @@ export interface StepInUse {
 export type RemoveStepOutcome =
   | { ok: true }
   | { ok: false; reason: 'not_found' | 'forbidden' }
-  | { ok: false; reason: 'in_use'; inUse: StepInUse };
+  | { ok: false; reason: 'in_use'; inUse: StepInUse }
+  /**
+   * A typed dependency names this step through a node or descendant-step
+   * endpoint. Refused whatever `cascade` says: the relationship has to be
+   * removed or reassigned first, and a cascade that deleted it would be a
+   * relationship somebody drew disappearing as a side effect.
+   */
+  | { ok: false; reason: 'referenced_by_dependency'; dependencyIds: string[] }
+  /** Removing it would move a dynamic legacy anchor into a step-node cycle. */
+  | { ok: false; reason: 'dependency_cycle' };
 
 /**
  * One usage reading as the refusal reports it: the step's own rows counted, and
@@ -132,7 +170,9 @@ export class StepService {
   }
 
   /**
-   * Adds a step with the code the caller chose, or with one suggested from its
+   * Adds a step with `allowancePercent` as its estimate allowance (zero when the
+   * caller named none, which the route decides; validated at the request
+   * boundary) and with the code the caller chose, or one suggested from its
    * name when `code` is absent.
    *
    * A chosen code is checked before the project is read: `invalid_code` when it
@@ -146,7 +186,25 @@ export class StepService {
    * `refuses a code outside the grammar, and one the project already holds`
    * failed the same way, the step written as `Design`. Both watched 2026-09-27.
    */
-  async add(projectId: string, actorId: string, name: string, code?: string): Promise<StepOutcome> {
+  add(
+    projectId: string,
+    actorId: string,
+    name: string,
+    allowancePercent: AllowancePercent,
+    code?: string,
+  ): Promise<StepOutcome> {
+    return this.addWithin(projectId, actorId, name, allowancePercent, code, LEGACY_ACCESS);
+  }
+
+  /** {@link add} through the caller's access: a foreign project is `not_found`. */
+  async addWithin(
+    projectId: string,
+    actorId: string,
+    name: string,
+    allowancePercent: AllowancePercent,
+    code: string | undefined,
+    access: ResourceAccess,
+  ): Promise<StepOutcome> {
     const clean = cleanName(name);
     // Before the project is read: a step called nothing would sit in every
     // header and every estimate row with no way to tell it from the next one.
@@ -155,14 +213,14 @@ export class StepService {
     if (code !== undefined && isReservedStepCode(code)) {
       return { ok: false, reason: 'reserved_code' };
     }
-    const project = await this.opts.projects.findById(projectId);
+    const project = await findProjectWithin(this.opts.projects, projectId, access);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!this.mayWrite(project, actorId, access)) return { ok: false, reason: 'forbidden' };
 
     const written = await this.opts.steps.add(
       code === undefined
-        ? { id: this.clock.newId(), projectId, name: clean }
-        : { id: this.clock.newId(), projectId, name: clean, code },
+        ? { id: this.clock.newId(), projectId, name: clean, allowancePercent }
+        : { id: this.clock.newId(), projectId, name: clean, allowancePercent, code },
       this.clock.stampFor(actorId),
     );
     if (!written.ok) return { ok: false, reason: written.reason };
@@ -170,18 +228,29 @@ export class StepService {
     return { ok: true, value: written.step };
   }
 
-  async rename(
+  rename(projectId: string, stepId: string, actorId: string, name: string): Promise<StepOutcome> {
+    return this.renameWithin(projectId, stepId, actorId, name, LEGACY_ACCESS);
+  }
+
+  /** {@link rename} through the caller's access. */
+  async renameWithin(
     projectId: string,
     stepId: string,
     actorId: string,
     name: string,
+    access: ResourceAccess,
   ): Promise<StepOutcome> {
     const clean = cleanName(name);
     if (clean === null) return { ok: false, reason: 'name_required' };
-    const gate = await this.gate(projectId, stepId, actorId);
+    const gate = await this.gate(projectId, stepId, actorId, access);
     if (!gate.ok) return gate;
 
-    const written = await this.opts.steps.rename(stepId, clean, this.clock.stampFor(actorId));
+    const written = await this.opts.steps.rename(
+      projectId,
+      stepId,
+      clean,
+      this.clock.stampFor(actorId),
+    );
     if (!written.ok) return { ok: false, reason: written.reason };
     await this.opts.broadcast.publish(projectId, { type: 'step_renamed', step: written.step });
     return { ok: true, value: written.step };
@@ -215,21 +284,51 @@ export class StepService {
    * `not_found` branch below made to publish anyway, `refuses the loser of two
    * removals, bumping and announcing nothing` sees a phantom event (2026-08-09).
    */
-  async remove(
+  remove(
     projectId: string,
     stepId: string,
     actorId: string,
     cascade: boolean,
   ): Promise<RemoveStepOutcome> {
-    const gate = await this.gate(projectId, stepId, actorId);
+    return this.removeWithin(projectId, stepId, actorId, cascade, LEGACY_ACCESS);
+  }
+
+  /** {@link remove} through the caller's access. */
+  async removeWithin(
+    projectId: string,
+    stepId: string,
+    actorId: string,
+    cascade: boolean,
+    access: ResourceAccess,
+  ): Promise<RemoveStepOutcome> {
+    const gate = await this.gate(projectId, stepId, actorId, access);
     if (!gate.ok)
       return { ok: false, reason: gate.reason === 'forbidden' ? 'forbidden' : 'not_found' };
 
+    // Proof: this refusal skipped made the mounted `refuses removing a step a
+    // typed dependency names` fail on `Expected: 409, Received: 500` — the
+    // step's foreign key refused the delete underneath; watched 2026-09-27.
+    const dependencyIds = await this.opts.dependencyGraph.findStepReferences(projectId, stepId);
+    if (dependencyIds.length > 0) {
+      return { ok: false, reason: 'referenced_by_dependency', dependencyIds };
+    }
+    // Proof: this check skipped made the mounted `refuses removing a step that
+    // moves a legacy anchor into a cycle` fail on `Expected: 409, Received:
+    // 204`; watched 2026-09-27.
+    if (
+      (await this.opts.dependencyGraph.findCycle(projectId, { withoutStepId: stepId })) !== null
+    ) {
+      return { ok: false, reason: 'dependency_cycle' };
+    }
     if (!cascade) {
       const seen = inUseFrom(await this.opts.steps.usageOf(projectId, stepId), stepId);
       if (stepIsInUse(seen)) {
         return { ok: false, reason: 'in_use', inUse: seen };
       }
+    }
+    if (this.opts.beforeRemove !== undefined) {
+      const observed = await this.opts.beforeRemove(projectId, actorId, access);
+      if (!observed.ok) return observed;
     }
     const removed = await this.opts.steps.remove(
       projectId,
@@ -248,7 +347,36 @@ export class StepService {
   }
 
   /**
+   * The step as it is now, when it is this project's and the caller may edit
+   * or recover it. The allowance command makes the final write decision.
+   */
+  find(projectId: string, stepId: string, actorId: string): Promise<StepOutcome> {
+    return this.findWithin(projectId, stepId, actorId, LEGACY_ACCESS);
+  }
+
+  /**
+   * {@link find} through the caller's access: a foreign project, or a step of
+   * another project, is `not_found`. The allowance route uses this read before
+   * its command. A scoped super-admin may pass this lookup for a restricted
+   * project; the command still reclassifies and audits its write inside its
+   * own transaction.
+   */
+  async findWithin(
+    projectId: string,
+    stepId: string,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<StepOutcome> {
+    const gate = await this.gate(projectId, stepId, actorId, access, true);
+    if (!gate.ok) return gate;
+    const found = await this.opts.steps.findById(stepId);
+    if (found === null) return { ok: false, reason: 'not_found' };
+    return { ok: true, value: found };
+  }
+
+  /**
    * The project this step belongs to, and whether the caller may write to it.
+   * `recoveryLookup` admits only the precommand read; it grants no write.
    *
    * A step of another project is `not_found` rather than `forbidden`: it is not
    * this project's step, and saying "you may not" would tell the caller it is.
@@ -261,12 +389,39 @@ export class StepService {
     projectId: string,
     stepId: string,
     actorId: string,
+    access: ResourceAccess,
+    recoveryLookup = false,
   ): Promise<{ ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }> {
-    const project = await this.opts.projects.findById(projectId);
+    // Proof: finding the project unscoped here, and separately in `addWithin`,
+    // failed `answers 404 alike for a foreign and an absent project on every
+    // step and marker route` in `step-marker-organization.controller.db.test.ts`;
+    // watched 2026-09-27.
+    const project = await findProjectWithin(this.opts.projects, projectId, access);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (
+      !this.mayWrite(project, actorId, access) &&
+      // Proof: disabling this read-only lookup exception made the mounted
+      // allowance recovery answer 403 instead of 200; watched 2026-09-28.
+      !(
+        recoveryLookup &&
+        access.kind === 'scoped' &&
+        access.scope.userId === actorId &&
+        access.scope.role === 'super_admin'
+      )
+    )
+      return { ok: false, reason: 'forbidden' };
     const step = await this.opts.steps.findById(stepId);
     if (step?.projectId !== projectId) return { ok: false, reason: 'not_found' };
     return { ok: true };
+  }
+
+  /** A scoped recovery uses only the admission this graph's unit of work granted. */
+  private mayWrite(project: Project, actorId: string, access: ResourceAccess): boolean {
+    return (
+      mayEditProjectWithin(project, actorId, access) ||
+      // Proof: disabling this grant made the mounted step recovery answer 403
+      // instead of 200 (0 pass, 1 fail); watched 2026-09-28.
+      (access.kind === 'scoped' && this.opts.recoveryAdmission?.admits(project, actorId) === true)
+    );
   }
 }

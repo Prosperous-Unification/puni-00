@@ -5,15 +5,16 @@ import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture'
 import { inMemoryEventLog } from '@wbs/store-memory/replay-fixture';
 import { describe, expect, test } from 'bun:test';
 
+import { retentionSweep } from '../module/bounded-replay-sweep/bounded-replay-sweep.feature';
 import { EventLogService } from '../module/event-log/event-log.resource';
+import { createPlanCommandRunner } from '../module/plan-commands/composition';
+import { runCommandBatch, runCommandBatchAfter } from '../module/plan-commands/run-command-batch';
 import { PlanEventService } from '../module/plan-event/plan-event.resource';
-import { PlanCommandRunner } from '../service/plan-commands';
+import { replay } from '../module/realtime/realtime.feature';
+import { savePlan } from '../module/saved-plans/save-plan';
+import { LEGACY_ACCESS } from '../ports/organization-access';
 import { inMemoryServices } from '../testing/harness';
 import { batchServices, testWrites } from '../testing/writes-fixture';
-import { replay } from './replay';
-import { retentionSweep } from './retention-sweep';
-import { runCommandBatch } from './run-command-batch';
-import { savePlan } from './save-plan';
 
 const writer: AuthenticatedUser = { id: 'owner', username: 'Ada', scopes: ['read', 'write'] };
 const reader: AuthenticatedUser = { ...writer, scopes: ['read'] };
@@ -23,13 +24,13 @@ describe('runCommandBatch', () => {
     const mutations: string[] = [];
     const outcome = await runCommandBatch(
       {
-        run: () => {
+        runWithin: () => {
           mutations.push('mutated');
           return Promise.resolve({ ok: true, results: [], undoable: false, redoable: false });
         },
-        runDirectory: () => Promise.reject(new Error('directory runner must not be called')),
+        runDirectoryWithin: () => Promise.reject(new Error('directory runner must not be called')),
       },
-      { projectId: 'p1', actor: reader, commands: [] },
+      { projectId: 'p1', actor: reader, commands: [], access: LEGACY_ACCESS },
     );
     // Proof: deleting the write-scope branch returned ok:true here instead of this refusal.
     expect(outcome).toEqual({ ok: false, error: 'insufficient_scope' });
@@ -45,7 +46,7 @@ describe('runCommandBatch', () => {
     });
     const plan = inMemoryServices({ projects });
     const writes = testWrites(undefined, batchServices(plan));
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       batchServices: writes.batch,
       publicServices: batchServices(plan),
       uow: writes.uow,
@@ -63,6 +64,7 @@ describe('runCommandBatch', () => {
       await runCommandBatch(runner, {
         projectId: 'p1',
         actor: absent,
+        access: LEGACY_ACCESS,
         commands: [
           {
             kind: 'createWorkItem',
@@ -79,6 +81,30 @@ describe('runCommandBatch', () => {
   });
 });
 
+describe('runCommandBatchAfter', () => {
+  test('refuses a read-only actor before the prelude or the runner can write', async () => {
+    const writes: string[] = [];
+    const outcome = await runCommandBatchAfter(
+      {
+        runAfterWithin: async (_projectId, _actorId, prelude) => {
+          writes.push('ran');
+          await prelude({} as never);
+          return { ok: true, results: [], undoable: false, redoable: false };
+        },
+      },
+      { projectId: 'p1', actor: reader, commands: [], access: LEGACY_ACCESS },
+      () => {
+        writes.push('renamed');
+        return Promise.resolve(null);
+      },
+    );
+    // Proof: deleting the write-scope branch returned ok:true here, with
+    // `ran` and `renamed` written; watched 2026-09-28.
+    expect(outcome).toEqual({ ok: false, error: 'insufficient_scope' });
+    expect(writes).toEqual([]);
+  });
+});
+
 describe('savePlan', () => {
   function graph(
     project: { ownerId: string; restricted: boolean } | null,
@@ -88,7 +114,7 @@ describe('savePlan', () => {
     return {
       effects,
       value: {
-        projects: { read: () => Promise.resolve(project === null ? null : { project }) },
+        projects: { readWithin: () => Promise.resolve(project === null ? null : { project }) },
         plans: {
           save: () => {
             effects.push('save');
@@ -118,7 +144,12 @@ describe('savePlan', () => {
       const fixture = graph(project, 'saved');
       // Proof: deleting the owner check returned outcome:saved for the wrong-owner row.
       expect(
-        await savePlan(fixture.value as never, { projectId: 'p1', actor, name: 'Baseline' }),
+        await savePlan(fixture.value as never, {
+          projectId: 'p1',
+          actor,
+          name: 'Baseline',
+          access: LEGACY_ACCESS,
+        }),
       ).toEqual({
         outcome: error,
       });
@@ -129,12 +160,20 @@ describe('savePlan', () => {
   test('publishes exactly once after success and never for quota or busy refusals', async () => {
     for (const stored of ['refused', 'snapshot_busy'] as const) {
       const fixture = graph({ ownerId: 'owner', restricted: true }, stored);
-      await savePlan(fixture.value as never, { projectId: 'p1', actor: writer });
+      await savePlan(fixture.value as never, {
+        projectId: 'p1',
+        actor: writer,
+        access: LEGACY_ACCESS,
+      });
       // Proof: publishing before save produced ["publish", "save"] for the quota refusal.
       expect(fixture.effects).toEqual(['save']);
     }
     const fixture = graph({ ownerId: 'owner', restricted: true }, 'saved');
-    await savePlan(fixture.value as never, { projectId: 'p1', actor: writer });
+    await savePlan(fixture.value as never, {
+      projectId: 'p1',
+      actor: writer,
+      access: LEGACY_ACCESS,
+    });
     expect(fixture.effects).toEqual(['save', 'publish']);
   });
 });

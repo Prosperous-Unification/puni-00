@@ -60,24 +60,63 @@ export interface MemoryProjectTables {
   readonly projects: Map<string, Project>;
   readonly steps: Map<string, Step[]>;
   readonly opened: Map<string, number>;
+  /** Each step's allowance revision; a step never written is at 0, as the column default. */
+  readonly allowanceRevisions: Map<string, number>;
+  /** Which organization owns each project, as `project_organization` holds it. */
+  readonly owning: Map<string, string>;
 }
 
 export function memoryProjectTables(): MemoryProjectTables {
-  return { projects: new Map(), steps: new Map(), opened: new Map() };
+  return {
+    projects: new Map(),
+    steps: new Map(),
+    opened: new Map(),
+    allowanceRevisions: new Map(),
+    owning: new Map(),
+  };
 }
 
 export function inMemoryProjects(
   owners: UserStore = inMemoryUsers(),
   tables: MemoryProjectTables = memoryProjectTables(),
 ): ProjectStore {
-  const { projects, steps, opened } = tables;
+  const { projects, steps, opened, allowanceRevisions, owning } = tables;
   /** One moment per `userId::projectId`, exactly as the primary key holds it. */
   /**
    * Every stamp this store was handed, in call order, so a service test can
    * assert who wrote and when without a database to read audit columns from.
    */
 
-  return {
+  const store: ProjectStore = {
+    async createInOrganization(project, starting, stamp, organizationId) {
+      const written = await store.create(project, starting, stamp);
+      owning.set(written.id, organizationId);
+      return written;
+    },
+    // No dependent rows live in this store, so nothing it holds can cross.
+    findCrossReferences: () => Promise.resolve([]),
+    // Organization-authorized edits exist only over SQLite, where the
+    // membership they recheck and the audit table live; scoped access never
+    // arises over this store.
+    editInOrganization() {
+      return Promise.reject(new Error('the in-memory project store has no organization edits'));
+    },
+    admitEditInOrganization() {
+      return Promise.reject(new Error('the in-memory project store has no organization edits'));
+    },
+    findInOrganization(id, organizationId) {
+      return owning.get(id) === organizationId ? store.findById(id) : Promise.resolve(null);
+    },
+    async recordOpenInOrganization(projectId, stamp, organizationId) {
+      if (owning.get(projectId) !== organizationId) return false;
+      await store.recordOpen(projectId, stamp);
+      return true;
+    },
+    async listForInOrganization(userId, organizationId) {
+      return (await store.listFor(userId)).filter(
+        (project) => owning.get(project.id) === organizationId,
+      );
+    },
     create(project, starting, _stamp) {
       const names = new Set(starting.map((r) => r.name));
       if (names.size !== starting.length) {
@@ -99,6 +138,15 @@ export function inMemoryProjects(
     findById(id) {
       const found = projects.get(id);
       return Promise.resolve(found === undefined ? null : structuredClone(found));
+    },
+    // Organization and slug together, as SQLite filters them: another
+    // organization's project holding the slug must not hide this one's.
+    findBySolutionSlugInOrganization(slug, organizationId) {
+      for (const project of projects.values()) {
+        if (project.solutionRef?.slug === slug && owning.get(project.id) === organizationId)
+          return Promise.resolve(project);
+      }
+      return Promise.resolve(null);
     },
     findBySolutionSlug(slug) {
       for (const project of projects.values()) {
@@ -167,6 +215,25 @@ export function inMemoryProjects(
       projects.set(id, updated);
       return Promise.resolve(updated);
     },
+    setStepAllowance(projectId, stepId, allowancePercent, _stamp) {
+      const found = (steps.get(projectId) ?? []).find((each) => each.id === stepId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      const previousPercent = found.allowancePercent;
+      found.allowancePercent = allowancePercent;
+      const revision = (allowanceRevisions.get(stepId) ?? 0) + 1;
+      allowanceRevisions.set(stepId, revision);
+      return Promise.resolve({ ok: true, step: structuredClone(found), previousPercent, revision });
+    },
+    stepAllowanceRevisions(projectId) {
+      return Promise.resolve(
+        new Map(
+          (steps.get(projectId) ?? []).map((each) => [
+            each.id,
+            allowanceRevisions.get(each.id) ?? 0,
+          ]),
+        ),
+      );
+    },
     stepsOf(projectId) {
       // In step order, as production reads them — see `inMemorySteps` for what
       // an unordered read would let a test believe.
@@ -177,4 +244,5 @@ export function inMemoryProjects(
       );
     },
   };
+  return store;
 }

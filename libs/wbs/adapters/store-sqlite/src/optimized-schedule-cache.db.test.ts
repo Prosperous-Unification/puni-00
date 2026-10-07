@@ -90,11 +90,19 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
- * The newest: the legacy bridge triggers, stamped after
+ * The legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 /** The one below it, which is where every rollback here stops. */
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
@@ -134,6 +142,7 @@ const ADDED_TABLES = [
 // add: the two the saved-plan migrations above the target add, and
 // `calendar_marker`, which landed above all of them on 2026-09-05.
 const ALSO_ROLLED_BACK = [
+  'typed_dependency',
   'saved_plan',
   'saved_plan_body',
   'calendar_marker',
@@ -148,6 +157,12 @@ const ALSO_ROLLED_BACK = [
   'person_organization',
   'project_organization',
   'saved_plan_organization',
+  'organization_audit',
+  'project_solution',
+  'delegation_use',
+  'space',
+  'space_project',
+  'project_rank',
   'service_organization',
   'service_team_organization',
   'tag_organization',
@@ -331,8 +346,21 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -358,7 +386,10 @@ describe('the optimizer migration', () => {
       expect(rolledBack).toEqual(
         migrated.filter(
           (name) =>
-            !ADDED_TABLES.includes(name as never) && !ALSO_ROLLED_BACK.includes(name as never),
+            name !== 'browser_credential_revocations' &&
+            name !== 'email_challenge' &&
+            !ADDED_TABLES.includes(name as never) &&
+            !ALSO_ROLLED_BACK.includes(name as never),
         ),
       );
     } finally {

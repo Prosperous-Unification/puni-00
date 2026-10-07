@@ -2,6 +2,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CREATOR_ADMISSION } from '@wbs/core';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { StepService } from '@wbs/core/module/step/step.resource';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Step, WorkItem, WriteStamp } from '../repository';
@@ -23,12 +27,11 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import { ProjectService } from './project.service';
-import { StepService } from './step.service';
 
 /**
  * The revision battery: every mutation the API offers, and exactly which
@@ -105,17 +108,20 @@ beforeEach(async () => {
   );
 
   projects = new ProjectService({
+    dependencyGraph: sqliteDependencyGraph(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
   });
   stepService = new StepService({
+    dependencyGraph: sqliteDependencyGraph(db, projectStore),
     clock: testClock,
     projects: projectStore,
     steps: new StepRepository(db, OPEN),
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
+    admission: CREATOR_ADMISSION,
     scheduler: fastScheduler,
     clock: testClock,
     workItems: workItemStore,
@@ -128,6 +134,7 @@ beforeEach(async () => {
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),
     dependencies,
+    typedDependencies: new TypedDependencyRepository(db, OPEN),
     subtrees: new SubtreeRepository(db, OPEN),
     journal: inMemoryCommandJournal(),
     broadcast: recordingBroadcaster(),
@@ -541,7 +548,7 @@ describe('what a step write moves', () => {
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
     const estimated = await revisionOf(strip);
 
-    const added = await stepService.add(projectId, ownerId, 'Design');
+    const added = await stepService.add(projectId, ownerId, 'Design', 0);
     if (!added.ok) throw new Error(`add refused: ${added.reason}`);
     expect(await projectRevision()).toBe(1);
 

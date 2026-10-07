@@ -7,7 +7,6 @@ import {
   clockOf,
   createWorkingPlan,
   type Decision,
-  PlanCommandRunner,
   type PlanTransactionalStores,
   type Project,
   type Scope,
@@ -16,6 +15,8 @@ import {
   type UnitOfWork,
   type WriteStamp,
 } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
+import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
@@ -68,7 +69,16 @@ async function sqliteEstimateRunner(name: string) {
   );
   await source.stores.projects.create(
     projectRow({ id: PROJECT, ownerId: OWNER, name }),
-    [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+    [
+      {
+        id: 'step',
+        projectId: PROJECT,
+        name: 'Step',
+        position: 10,
+        code: 'step',
+        allowancePercent: 0,
+      },
+    ],
     STAMP,
   );
   await source.stores.workItems.insert(workItemRow({ id: ROW, projectId: PROJECT }), [], STAMP);
@@ -78,16 +88,22 @@ async function sqliteEstimateRunner(name: string) {
   );
   const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
   const publicGraph = servicesOver(source.stores, {
+    admission: CREATOR_ADMISSION,
     clock,
     broadcast: silentBroadcaster,
     scheduler: fastScheduler,
   });
-  const runner = new PlanCommandRunner({
+  const runner = createPlanCommandRunner({
     uow: source.uow,
     announcements: silentBroadcaster,
     publicServices: publicGraph,
     batchServices: (scope, broadcast) =>
-      servicesOver(scope.stores, { clock, broadcast, scheduler: fastScheduler }),
+      servicesOver(scope.stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      }),
   });
   return {
     source,
@@ -206,6 +222,7 @@ it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh
       name: id,
       code: id === 'step-A' ? 'step-a' : 'step-a-2',
       position: 10,
+      allowancePercent: 0,
     }));
     await source.stores.projects.create(project, steps, STAMP);
     await source.stores.workItems.insert(workItemRow({ id: ROW, projectId: PROJECT }), [], STAMP);
@@ -279,7 +296,16 @@ it('keeps SQLite dependency order authoritative after a WorkingPlan add', async 
     );
     await source.stores.projects.create(
       projectRow({ id: PROJECT, ownerId: OWNER }),
-      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+      [
+        {
+          id: 'step',
+          projectId: PROJECT,
+          name: 'Step',
+          position: 10,
+          code: 'step',
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     for (const id of ['a', 'b', 'c', 'd', 'e']) {
@@ -327,7 +353,16 @@ it('advances SQLite assignment and directory cascades before the next runner com
     );
     await source.stores.projects.create(
       projectRow({ id: PROJECT, ownerId: OWNER }),
-      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+      [
+        {
+          id: 'step',
+          projectId: PROJECT,
+          name: 'Step',
+          position: 10,
+          code: 'step',
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     await source.stores.workItems.insert(
@@ -344,7 +379,12 @@ it('advances SQLite assignment and directory cascades before the next runner com
 
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, silentBroadcaster);
     const assignmentObservations: { retained: number | undefined; stored: number | undefined }[] =
       [];
@@ -352,7 +392,7 @@ it('advances SQLite assignment and directory cascades before the next runner com
     let retainedAfterRemoval: { revision: number; teamIds: readonly string[] } | undefined;
     let storedAfterRemoval: { revision: number; teamIds: readonly string[] } | undefined;
     const admitted = captureAdmittedStores(source.uow);
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -484,7 +524,16 @@ it('rolls back a successful directory write when its retained reload fails', asy
     );
     await source.stores.projects.create(
       projectRow({ id: PROJECT, ownerId: OWNER }),
-      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+      [
+        {
+          id: 'step',
+          projectId: PROJECT,
+          name: 'Step',
+          position: 10,
+          code: 'step',
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     await source.stores.workItems.insert(
@@ -532,9 +581,14 @@ it('rolls back a successful directory write when its retained reload fails', asy
     };
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, silentBroadcaster);
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: failingUow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -574,7 +628,16 @@ it('places every new subtree row and value group in SQLite authoritative order',
     );
     await source.stores.projects.create(
       projectRow({ id: PROJECT, ownerId: OWNER }),
-      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+      [
+        {
+          id: 'step',
+          projectId: PROJECT,
+          name: 'Step',
+          position: 10,
+          code: 'step',
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     for (const id of ['m-existing', 'z-existing']) {
@@ -727,7 +790,14 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
     );
     const project: Project = projectRow({ id: PROJECT, ownerId: OWNER });
     const steps: Step[] = [
-      { id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' },
+      {
+        id: 'step',
+        projectId: PROJECT,
+        name: 'Step',
+        position: 10,
+        code: 'step',
+        allowancePercent: 0,
+      },
     ];
     await source.stores.projects.create(project, steps, STAMP);
     for (const id of ['z-existing', 'm-unaffected']) {
@@ -765,10 +835,15 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
       },
     });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, silentBroadcaster);
     const admitted = captureAdmittedStores(source.uow);
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -867,7 +942,16 @@ it('refreshes a dependency survivor before the next runner command and preserves
     );
     await source.stores.projects.create(
       projectRow({ id: PROJECT, ownerId: OWNER }),
-      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+      [
+        {
+          id: 'step',
+          projectId: PROJECT,
+          name: 'Step',
+          position: 10,
+          code: 'step',
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     for (const id of ['doomed', 'survivor']) {
@@ -889,13 +973,18 @@ it('refreshes a dependency survivor before the next runner command and preserves
 
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, silentBroadcaster);
     let retainedBeforeNext: number | undefined;
     let authoritativeBeforeNext: number | undefined;
     let observeDependencyRemoval = true;
     const admitted = captureAdmittedStores(source.uow);
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -969,7 +1058,16 @@ it('keeps every SQLite value group in source order after runner sets populate an
     );
     await source.stores.projects.create(
       projectRow({ id: PROJECT, ownerId: OWNER }),
-      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+      [
+        {
+          id: 'step',
+          projectId: PROJECT,
+          name: 'Step',
+          position: 10,
+          code: 'step',
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     for (const id of ['z-existing', 'a-earlier']) {
@@ -996,11 +1094,16 @@ it('keeps every SQLite value group in source order after runner sets populate an
 
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, silentBroadcaster);
     let observations = 0;
     const admitted = captureAdmittedStores(source.uow);
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,

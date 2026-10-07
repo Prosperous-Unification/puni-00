@@ -1,6 +1,8 @@
 import type { PlanCommandKind } from '@wbs/contracts';
 import { commandDefinitions } from '@wbs/contracts';
+import type { DependencyEndpoint } from '@wbs/domain';
 
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
 import type {
   AppliedBase,
@@ -19,6 +21,16 @@ export type CommandBindings = {
     context: CommandContext,
   ) => Promise<AppliedFor<K>>;
 };
+
+function bindTypedEndpoint(
+  endpoint: CommandFor<'addTypedDependency'>['predecessor'],
+  context: CommandContext,
+): DependencyEndpoint {
+  const workItemId = context.required(endpoint.workItemId, endpoint.workItemRef);
+  return endpoint.scope === 'whole'
+    ? { scope: 'whole', workItemId }
+    : { scope: endpoint.scope, workItemId, stepId: endpoint.stepId };
+}
 
 /** Stops one binding while retaining the command position and typed refusal. */
 export class CommandRefused extends Error {
@@ -42,6 +54,8 @@ export class CommandContext {
     readonly index: number,
     private readonly kind: PlanCommandKind,
     private readonly refs: Map<string, string>,
+    /** The caller's organization access; directory commands write through it. */
+    readonly access: ResourceAccess,
   ) {
     // Proof: removing registry-scope admission let a directory batch unfreeze a real plan row
     // and commit its preceding tag instead of refusing `project_required` at index 1.
@@ -108,6 +122,16 @@ export class CommandContext {
   }
 
   private refuseOutcome(outcome: ServiceRefusal): never {
+    if (outcome.reason === 'descendant_step_on_leaf' || outcome.reason === 'node_on_parent') {
+      // Proof: bypassing this guard made the command-boundary negative throw
+      // CommandRefused instead of naming absent relationship ids; watched 2026-09-27.
+      if (outcome.dependencyIds === undefined)
+        throw new Error('Endpoint refusal requires relationship ids');
+      return this.refuse({
+        reason: outcome.reason,
+        detail: { dependencyIds: outcome.dependencyIds },
+      });
+    }
     if (outcome.reason === 'taken') {
       return this.refuse({ reason: 'taken', detail: { name: outcome.name } });
     }
@@ -359,6 +383,8 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       return { ...context.plain(), kind: command.kind };
     },
     addDependency: async (command, context) => {
+      // Proof: routing this legacy command to addTypedDependency made `keeps legacy
+      // addDependency semantics and stores no typed row` receive 404 instead of 200; watched 2026-09-27.
       context.value(
         await workItems.addDependency(
           context.required(command.workItemId, command.workItemRef),
@@ -374,6 +400,41 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.required(command.workItemId, command.workItemRef),
           context.actorId,
           context.required(command.predecessorId, command.predecessorRef),
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    addTypedDependency: async (command, context) => {
+      const id = context.value(
+        await workItems.addTypedDependency(context.requireProjectId(), context.actorId, {
+          predecessor: bindTypedEndpoint(command.predecessor, context),
+          successor: bindTypedEndpoint(command.successor, context),
+          type: command.type,
+        }),
+      );
+      return { ...context.mint(undefined, id), kind: command.kind };
+    },
+    updateTypedDependency: async (command, context) => {
+      context.value(
+        await workItems.updateTypedDependency(
+          context.requireProjectId(),
+          context.actorId,
+          command.dependencyId,
+          {
+            predecessor: bindTypedEndpoint(command.predecessor, context),
+            successor: bindTypedEndpoint(command.successor, context),
+            type: command.type,
+          },
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    removeTypedDependency: async (command, context) => {
+      context.value(
+        await workItems.removeTypedDependency(
+          context.requireProjectId(),
+          context.actorId,
+          command.dependencyId,
         ),
       );
       return { ...context.plain(), kind: command.kind };
@@ -410,6 +471,17 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       );
       return { ...context.plain(), kind: command.kind };
     },
+    setStepAllowance: async (command, context) => {
+      context.value(
+        await workItems.setStepAllowance(
+          context.requireProjectId(),
+          context.actorId,
+          command.stepId,
+          command.allowancePercent,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
     setPriorityBands: async (command, context) => {
       context.value(
         await priorityBands.set(context.requireProjectId(), context.actorId, command.bands),
@@ -418,9 +490,10 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
     },
     createTeam: async (command, context) => {
       context.assertRefAvailable(command.ref);
-      const team = context.requireValue(await directory.addTeam(context.actorId, command.name), {
-        reason: 'name_required',
-      });
+      const team = context.requireValue(
+        await directory.addWithin('teams', context.actorId, command.name, context.access),
+        { reason: 'name_required' },
+      );
       return {
         ...context.mint(command.ref, team.id),
         kind: command.kind,
@@ -429,20 +502,23 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
     },
     patchTeam: async (command, context) => {
       const team = context.value(
-        await directory.patchTeam(
+        await directory.patchTeamWithin(
           context.required(command.teamId, command.teamRef),
           context.actorId,
           command.patch,
+          context.access,
         ),
       );
       return { ...context.plain(), kind: command.kind, entity: team };
     },
     deleteTeam: async (command, context) => {
       context.accept(
-        await directory.removeTeam(
+        await directory.removeWithin(
+          'teams',
           context.required(command.teamId, command.teamRef),
           context.actorId,
           command.cascade ?? false,
+          context.access,
         ),
       );
       return { ...context.plain(), kind: command.kind };
@@ -450,10 +526,11 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
     createPerson: async (command, context) => {
       context.assertRefAvailable(command.ref);
       const person = context.value(
-        await directory.addPerson(
+        await directory.addPersonWithin(
           context.actorId,
           command.name,
           context.ids(command.teamIds, command.teamRefs),
+          context.access,
         ),
       );
       return {
@@ -464,29 +541,34 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
     },
     patchPerson: async (command, context) => {
       const person = context.value(
-        await directory.patchPerson(
+        await directory.patchPersonWithin(
           context.required(command.personId, command.personRef),
           context.actorId,
           command.patch,
+          context.access,
         ),
       );
       return { ...context.plain(), kind: command.kind, entity: person };
     },
     deletePerson: async (command, context) => {
       context.accept(
-        await directory.removePerson(
+        await directory.removeWithin(
+          'people',
           context.required(command.personId, command.personRef),
           context.actorId,
           command.cascade ?? false,
+          context.access,
         ),
       );
       return { ...context.plain(), kind: command.kind };
     },
     createTag: (command, context) =>
-      createDirectoryEntry(context, command, (actorId, name) => directory.addTag(actorId, name)),
+      createDirectoryEntry(context, command, (actorId, name) =>
+        directory.addWithin('tags', actorId, name, context.access),
+      ),
     patchTag: (command, context) =>
       patchDirectoryEntry(context, command, command.tagId, command.tagRef, (id, actorId, name) =>
-        directory.renameTag(id, actorId, name),
+        directory.renameWithin('tags', id, actorId, name, context.access),
       ),
     deleteTag: (command, context) =>
       deleteDirectoryEntry(
@@ -494,15 +576,16 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         command,
         command.tagId,
         command.tagRef,
-        (id, actorId, cascade) => directory.removeTag(id, actorId, cascade),
+        (id, actorId, cascade) =>
+          directory.removeWithin('tags', id, actorId, cascade, context.access),
       ),
     createWorkItemType: (command, context) =>
       createDirectoryEntry(context, command, (actorId, name) =>
-        directory.addWorkItemType(actorId, name),
+        directory.addWithin('workItemTypes', actorId, name, context.access),
       ),
     patchWorkItemType: (command, context) =>
       patchDirectoryEntry(context, command, command.typeId, command.typeRef, (id, actorId, name) =>
-        directory.renameWorkItemType(id, actorId, name),
+        directory.renameWithin('workItemTypes', id, actorId, name, context.access),
       ),
     deleteWorkItemType: (command, context) =>
       deleteDirectoryEntry(
@@ -510,11 +593,12 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         command,
         command.typeId,
         command.typeRef,
-        (id, actorId, cascade) => directory.removeWorkItemType(id, actorId, cascade),
+        (id, actorId, cascade) =>
+          directory.removeWithin('workItemTypes', id, actorId, cascade, context.access),
       ),
     createService: (command, context) =>
       createDirectoryEntry(context, command, (actorId, name) =>
-        directory.addService(actorId, name),
+        directory.addWithin('services', actorId, name, context.access),
       ),
     patchService: (command, context) =>
       patchDirectoryEntry(
@@ -522,7 +606,8 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         command,
         command.serviceId,
         command.serviceRef,
-        (id, actorId, name) => directory.renameService(id, actorId, name),
+        (id, actorId, name) =>
+          directory.renameWithin('services', id, actorId, name, context.access),
       ),
     deleteService: (command, context) =>
       deleteDirectoryEntry(
@@ -530,7 +615,8 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         command,
         command.serviceId,
         command.serviceRef,
-        (id, actorId, cascade) => directory.removeService(id, actorId, cascade),
+        (id, actorId, cascade) =>
+          directory.removeWithin('services', id, actorId, cascade, context.access),
       ),
   };
 }

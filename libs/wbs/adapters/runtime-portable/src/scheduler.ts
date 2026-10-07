@@ -1,33 +1,61 @@
 import type {
+  CapturedScheduleAsk,
   FastScheduler,
+  LiveScheduleAsk,
   OptimizedScheduleAdapter,
   OptimizedScheduleAsk,
   OptimizedScheduleRead,
   ScheduleAsk,
   Scheduler,
+  ScheduleRead,
 } from '@wbs/core';
-import { SOLVER_OBJECTIVES } from '@wbs/domain';
+import { type Elsewhere, SOLVER_OBJECTIVES } from '@wbs/domain';
+
+/** A canonical input with no bookings elsewhere states none. */
+const NOWHERE: Elsewhere = new Map();
 
 /** Builds the synchronous scheduler view over installed runtime adapters. */
 export function createScheduler(
   fast: FastScheduler,
   optimized?: OptimizedScheduleAdapter,
 ): Scheduler {
+  function read(ask: CapturedScheduleAsk): ScheduleRead;
+  function read(ask: LiveScheduleAsk): Promise<ScheduleRead>;
+  function read(ask: ScheduleAsk): ScheduleRead | Promise<ScheduleRead> {
+    return ask.mode === 'capture'
+      ? readSchedule(fast, optimized, ask)
+      : readSchedule(fast, optimized, ask);
+  }
   return {
     supports: (engine) => engine === 'fast' || optimized !== undefined,
-    read: (ask) => readSchedule(fast, optimized, ask),
+    read,
   };
 }
 
 function readSchedule(
   fast: FastScheduler,
   optimized: OptimizedScheduleAdapter | undefined,
+  ask: CapturedScheduleAsk,
+): ScheduleRead;
+function readSchedule(
+  fast: FastScheduler,
+  optimized: OptimizedScheduleAdapter | undefined,
+  ask: LiveScheduleAsk,
+): Promise<ScheduleRead>;
+function readSchedule(
+  fast: FastScheduler,
+  optimized: OptimizedScheduleAdapter | undefined,
   ask: ScheduleAsk,
-): ReturnType<Scheduler['read']> {
+): ScheduleRead | Promise<ScheduleRead> {
   // Proof: removing this guard returned a scheduled Fast plan instead of
   // engine_unavailable in scheduler.test.ts; Fast ran before the assertion.
   if (ask.enabled && ask.engine === 'optimized' && optimized === undefined) {
-    return { kind: 'engine_unavailable', error: 'engine_unavailable', engine: 'optimized' };
+    const unavailable = {
+      kind: 'engine_unavailable' as const,
+      error: 'engine_unavailable' as const,
+      engine: 'optimized' as const,
+    };
+    return ask.mode === 'live' ? Promise.resolve(unavailable) : unavailable;
   }
 
   const fastSchedule = fast(
@@ -40,9 +68,16 @@ function readSchedule(
     // Proof: dropping this seventh argument removed the literal
     // Map { "leaf" => 9 } from both recorded Fast calls in scheduler.test.ts.
     ask.input.deadlines,
+    // The eighth: typed dependencies, resolved beside the legacy edges.
+    ask.input.typed,
+    // The ninth: bookings elsewhere, absent for every plan nothing outranks.
+    // Proof: `NOWHERE` here made `hands the bookings elsewhere to Fast` in
+    // scheduler.test.ts see an empty map; watched 2026-09-29.
+    ask.input.elsewhere ?? NOWHERE,
   );
   if (optimized === undefined) {
-    return { kind: 'scheduled', fast: fastSchedule, optimization: null };
+    const scheduled = { kind: 'scheduled' as const, fast: fastSchedule, optimization: null };
+    return ask.mode === 'live' ? Promise.resolve(scheduled) : scheduled;
   }
 
   const optimizationAsk: OptimizedScheduleAsk = {
@@ -51,10 +86,14 @@ function readSchedule(
     input: ask.input,
     enabled: ask.enabled,
   };
-  const optimization =
-    ask.mode === 'live'
-      ? optimized.readLive(optimizationAsk)
-      : optimized.readCaptured(optimizationAsk);
+  if (ask.mode === 'live')
+    return optimized.readLive(optimizationAsk).then((optimization) => {
+      // Proof: omitting this live guard accepted a ready PRI variant with no
+      // schedule in the malformed optimized-reader test.
+      assertReadySchedules(optimization);
+      return { kind: 'scheduled' as const, fast: fastSchedule, optimization };
+    });
+  const optimization = optimized.readCaptured(optimizationAsk);
   // Proof: removing this check let a ready PRI variant with a null schedule
   // return `kind: scheduled` in scheduler.test.ts instead of throwing.
   assertReadySchedules(optimization);

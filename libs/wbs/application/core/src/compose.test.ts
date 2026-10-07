@@ -13,15 +13,17 @@ import {
   type SharedComposition,
   type WritingServices,
 } from './compose';
+import { createPlanCommandRunner } from './module/plan-commands/composition';
+import { replay } from './module/realtime/realtime.feature';
+import { savePlan } from './module/saved-plans/save-plan';
 import { clockOf } from './ports/clock';
+import { CREATOR_ADMISSION, type EditAdmission } from './ports/edit-admission';
+import { LEGACY_ACCESS } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
 import type { Scope } from './ports/unit-of-work';
 import type { Decision } from './ports/unit-of-work';
-import { PlanCommandRunner } from './service/plan-commands';
 import { recordingBroadcaster } from './testing/broadcast-fixture';
 import { fastScheduler } from './testing/scheduler-fixture';
-import { replay } from './use-cases/replay';
-import { savePlan } from './use-cases/save-plan';
 
 function signal(): { readonly promise: Promise<void>; readonly resolve: () => void } {
   let resolve = (): void => {
@@ -115,6 +117,73 @@ function fixture() {
     },
   };
 }
+
+test('stored outcome and downstream recipient retain their sequences while reaction precedes held outcome transport', async () => {
+  const given = fixture();
+  const transport = signal();
+  const changed: string[] = [];
+  const pushed: unknown[] = [];
+  const graph = composeServices({
+    source: given.source,
+    shared: fixtureShared,
+    runtime: {
+      ...given.runtime,
+      onPlanChanged: (projectId) => changed.push(projectId),
+      push: {
+        push: async (payload) => {
+          pushed.push(payload);
+          await transport.promise;
+          return { delivered: 1 };
+        },
+      },
+    },
+  });
+  const event = {
+    type: 'elsewhere_changed' as const,
+    projectId: 'recipient',
+    causeProjectId: 'cause',
+  };
+  const outcome = {
+    type: 'schedule_optimization_failed' as const,
+    projectId: 'origin',
+    generation: 1,
+    inputHash: 'captured-input',
+    objective: 'pri' as const,
+    contractVersion: '7+0.2.0',
+    budgetMs: 60_000,
+    failureReason: 'internal-error' as const,
+  };
+  const recordedOutcome = await given.source.stores.eventLog.recordEvent(
+    'project:origin',
+    outcome,
+    1_000,
+  );
+  const recorded = await given.source.stores.eventLog.recordEvent(
+    'project:recipient',
+    event,
+    1_000,
+  );
+  const delivering = graph.committedFanout.deliverCommitted([
+    { projectId: 'origin', event: outcome, recorded: recordedOutcome },
+    { projectId: 'recipient', event, recorded },
+  ]);
+  expect(changed).toEqual(['recipient']);
+  const secondWriter = await given.source.uow.run(() =>
+    Promise.resolve({ commit: true as const, value: 'entered' }),
+  );
+  expect(secondWriter).toBe('entered');
+  expect(pushed).toEqual([
+    { subscription: 'project:origin', seq: recordedOutcome.seq, message: outcome },
+  ]);
+  transport.resolve();
+  await delivering;
+  expect(pushed).toEqual([
+    { subscription: 'project:origin', seq: recordedOutcome.seq, message: outcome },
+    { subscription: 'project:recipient', seq: recorded.seq, message: event },
+  ]);
+  expect(await given.source.stores.eventLog.latestSeq('project:origin')).toBe(recordedOutcome.seq);
+  expect(await given.source.stores.eventLog.latestSeq('project:recipient')).toBe(recorded.seq);
+});
 
 function runtimeOf(services: WritingServices): {
   readonly clock: unknown;
@@ -280,12 +349,18 @@ describe('composeServices', () => {
     const foreign = { id: 'other', username: 'other', scopes: ['write'] as const };
     const owner = { id: 'owner', username: 'owner', scopes: ['write'] as const };
     expect(
-      await savePlan(graph, { projectId: project.project.id, actor: foreign, name: 'Denied' }),
+      await savePlan(graph, {
+        projectId: project.project.id,
+        actor: foreign,
+        name: 'Denied',
+        access: LEGACY_ACCESS,
+      }),
     ).toEqual({ outcome: 'forbidden' });
     const saved = await savePlan(graph, {
       projectId: project.project.id,
       actor: owner,
       name: 'Baseline',
+      access: LEGACY_ACCESS,
     });
     expect(saved.outcome).toBe('saved');
     if (saved.outcome !== 'saved') return;
@@ -364,15 +439,15 @@ describe('composeServices', () => {
         return act(scope);
       });
     const observedGraph = graph as typeof graph & {
-      batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
+      batch: (scope: Scope, broadcast: Broadcaster, admission: EditAdmission) => WritingServices;
     };
-    observedGraph.batch = (scope: Scope, broadcast: Broadcaster) => {
+    observedGraph.batch = (scope: Scope, broadcast: Broadcaster, admission: EditAdmission) => {
       broadcasts.push(broadcast);
-      const services = originalBatch(scope, broadcast);
+      const services = originalBatch(scope, broadcast, admission);
       graphs.push(services);
       return services;
     };
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       batchServices: observedGraph.batch,
       publicServices: graph,
       uow: graph.uow,
@@ -449,6 +524,7 @@ describe('servicesOver', () => {
   }> {
     let next = 0;
     const shared: ServicesOverOptions = {
+      admission: CREATOR_ADMISSION,
       clock: clockOf({ now: () => 1_000, newId: () => `id-${String(++next)}` }),
       broadcast: recordingBroadcaster(),
       scheduler: fastScheduler,
@@ -489,10 +565,62 @@ describe('servicesOver', () => {
     expect(await second.priorityBands.listFor(PROJECT)).toEqual([...DEFAULT_PRIORITY_BANDS]);
   });
 
+  // Proof: forwarding `CREATOR_ADMISSION` instead of `shared.admission` to
+  // the Capacity, Priority band or Work item installer in `servicesOver`,
+  // one at a time, made this test fail each time (0 pass, 1 fail, run alone
+  // with `-t`): that service's write answered `ok: true`; watched 2026-09-28.
+  test('hands its admission to every gated writing service it installs', async () => {
+    const broadcast = recordingBroadcaster();
+    const graph = await scopeOver({
+      admission: { admits: () => false },
+      clock: clockOf({ now: () => 1_000, newId: () => 'unused' }),
+      broadcast,
+      scheduler: fastScheduler,
+    });
+
+    expect(await graph.capacity.set(PROJECT, OWNER, TEAM, 3)).toEqual({
+      ok: false,
+      reason: 'forbidden',
+    });
+    expect(await graph.priorityBands.set(PROJECT, OWNER, [...DEFAULT_PRIORITY_BANDS])).toEqual({
+      ok: false,
+      reason: 'forbidden',
+    });
+    expect(
+      await graph.workItems.create(PROJECT, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Scope',
+      }),
+    ).toEqual({ ok: false, reason: 'forbidden' });
+    expect(await graph.capacity.listFor(PROJECT)).toEqual([]);
+    expect(await graph.priorityBands.listFor(PROJECT)).toEqual([...DEFAULT_PRIORITY_BANDS]);
+    expect(broadcast.published).toEqual([]);
+  });
+
+  // Proof: defaulting `shared.admission ?? CREATOR_ADMISSION` in
+  // `servicesOver` made this test fail (0 pass, 1 fail, run alone with `-t`):
+  // the write resolved instead of rejecting; watched 2026-09-28.
+  test('fails closed on a write through a graph built without an admission', async () => {
+    // @ts-expect-error a graph without an admission does not compile
+    const shared: ServicesOverOptions = {
+      clock: clockOf({ now: () => 1_000, newId: () => 'unused' }),
+      broadcast: recordingBroadcaster(),
+      scheduler: fastScheduler,
+    };
+    const graph = await scopeOver(shared);
+
+    const failure = await graph.capacity.set(PROJECT, OWNER, TEAM, 3).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(TypeError);
+  });
+
   test("installs Step per supplied scope, over that scope's own stores", async () => {
     const { first, second } = await twoScopes();
 
-    const added = await first.steps.add(PROJECT, OWNER, 'Review');
+    const added = await first.steps.add(PROJECT, OWNER, 'Review', 0);
     if (!added.ok) throw new Error(`the first scope refused the step: ${added.reason}`);
     // Proof (2026-09-24): memoizing one `installStep(...)` result in a module-level `let` and
     // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone

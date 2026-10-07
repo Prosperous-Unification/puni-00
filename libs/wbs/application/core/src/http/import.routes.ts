@@ -1,14 +1,17 @@
 import { importProject } from '@wbs/contracts';
 
-import type { ImportOutcome, ImportService } from '../service/import.service';
-import { classifyPlanDocument } from '../service/plan-document';
+import { classifyPlanDocument } from '../module/plan-document/plan-document.resource';
+import type { ImportOutcome, ImportService } from '../module/plan-import/plan-import.feature';
+import type { OrganizationAccess } from '../ports/organization-access';
 import { bind, type HttpReply, type RequestFailure } from './endpoint';
+import { organizationRefusal } from './organization-refusal';
 
 type PlanImporter = Pick<ImportService, 'import'>;
 type ImportReply = HttpReply<typeof importProject>;
 type ImportRefusalReply = Extract<ImportReply, { ok: false }>;
 
 function refusal(outcome: Extract<ImportOutcome, { ok: false }>): ImportRefusalReply {
+  if (outcome.code === 'forbidden') return { ok: false, status: 403, body: { error: 'forbidden' } };
   if (outcome.code === 'engine_unavailable' || outcome.code === 'source_refused') {
     return {
       ok: false,
@@ -42,7 +45,15 @@ async function classifyFailure(failure: RequestFailure): Promise<ImportRefusalRe
 }
 
 /** Binds the archival request classifier to the atomic import service. */
-export function importRoutes(imports: PlanImporter) {
+/**
+ * Imports resolve organization access before reading the document's
+ * directory, so an unbound or removed caller learns nothing.
+ * Proof: skipping the resolution made `refuses an unbound session and a
+ * removed member before any import` in
+ * `import-export-organization.controller.db.test.ts` answer 500 instead of
+ * 403; watched 2026-09-27.
+ */
+export function importRoutes(imports: PlanImporter, organizations: OrganizationAccess) {
   return [
     bind(
       importProject,
@@ -54,7 +65,9 @@ export function importRoutes(imports: PlanImporter) {
             status: 400,
             body: { error: classified.code, path: classified.path, detail: null },
           };
-        const outcome = await imports.import(classified.value, principal.id);
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        const outcome = await imports.import(classified.value, principal.id, resolved.access);
         if (!outcome.ok) return refusal(outcome);
         return {
           ok: true,

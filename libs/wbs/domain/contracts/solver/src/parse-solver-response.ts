@@ -56,7 +56,7 @@ const unknownKeys = (value: Record<string, unknown>, allowed: readonly string[])
 
 /**
  * The structural half, written against the constants `wire-types.test.ts` pins
- * to `solver-wire.v1.json`. It is deliberately hand-written rather than driven
+ * to `solver-wire.v3.json`. It is deliberately hand-written rather than driven
  * by a JSON Schema validator, and the golden corpus is what stops that from
  * drifting: `parse-solver-response.test.ts` runs every response fixture through
  * this function and fails if it accepts one the schema rejects or rejects one

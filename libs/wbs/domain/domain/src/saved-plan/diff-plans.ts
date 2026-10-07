@@ -126,6 +126,7 @@ const ROW_KEYS: Readonly<Record<string, readonly string[] | undefined>> = {
   stepValues: ['workItemId', 'stepId'],
   measures: ['workItemId', 'stepId', 'metric'],
   dependencies: ['predecessorId', 'successorId'],
+  typedDependencies: ['id'],
   assignments: ['workItemId', 'stepId', 'personId'],
   people: ['id'],
   teams: ['id'],
@@ -164,8 +165,11 @@ const FIELD_CATEGORIES: Readonly<
     serviceId: 'service-assignment',
     startNoEarlierThan: 'start-no-earlier-than',
     startNoEarlierThanReason: 'start-no-earlier-than',
+    // A planner's statement about where the work stands, beside the steps'.
+    readiness: 'progress',
+    hold: 'progress',
   },
-  steps: { name: 'renamed', position: 'reordered' },
+  steps: { name: 'renamed', position: 'reordered', allowancePercent: 'estimates' },
   stepValues: {
     optimistic: 'uncertainty',
     realistic: 'uncertainty',
@@ -187,6 +191,7 @@ const COLLECTION_CATEGORIES: Readonly<Record<string, PlanDiffCategory | undefine
   project: 'settings',
   measures: 'measures',
   dependencies: 'dependencies',
+  typedDependencies: 'dependencies',
   assignments: 'ownership',
   personTeams: 'ownership',
   teamServices: 'ownership',

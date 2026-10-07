@@ -15,6 +15,14 @@ const scheduled = type({
 const triple = type({ optimistic: 'number', realistic: 'number', pessimistic: 'number' });
 const numbers = type({ '[string]': 'number' });
 const named = type({ id: 'string', name: 'string' });
+const typedEndpoint = type({
+  scope: "'whole' | 'node' | 'descendant-step'",
+  workItemId: 'string',
+  'stepId?': 'string',
+  // Proof: widening this to unknown made `tree boundary refuses missing core producer
+  // fields while allowing additive metadata` accept a numeric node ID; watched 2026-09-27.
+  'stepNodeId?': 'string',
+});
 const numberedWorkItem = type({
   id: 'string',
   projectId: 'string',
@@ -29,6 +37,8 @@ const numberedWorkItem = type({
   deadline: 'string | null',
   factStart: 'string | null',
   factEnd: 'string | null',
+  readiness: "'draft' | 'ready' | null",
+  hold: "'on_hold' | 'blocked' | null",
   priority: 'number | null',
   serviceTeamId: 'string | null',
   serviceId: 'string | null',
@@ -48,12 +58,13 @@ const numberedWorkItem = type({
   rolledUp: 'boolean',
   actuals: numbers,
   progress: type({ '[string]': "'in_progress' | 'done'" }),
-  status: "'unknown' | 'in_progress' | 'done'",
+  status:
+    "'unknown' | 'draft' | 'ready' | 'in_progress' | 'blocked_by_proxy' | 'on_hold' | 'blocked' | 'done'",
   measures: type({ '[string]': numbers }),
   dependsOn: 'string[]',
   finalDays: numbers,
   finalTotal: 'number',
-  schedule: scheduled,
+  schedule: scheduled.or('null'),
   dates: type({ startsOn: 'string', endsOn: 'string' }).or('null'),
   assignees: type({ '[string]': 'string' }),
   doesEveryStep: 'string | null',
@@ -64,10 +75,12 @@ const slice = scheduled.and({
   stepId: 'string | null',
   personId: 'string | null',
   boundBy:
-    "'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'capacity' | 'optimizer'",
+    "'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'elsewhere' | 'capacity' | 'optimizer'",
   resourcePredecessorId: 'string | null',
   capacityPredecessorIds: 'string[]',
   capacityTeamId: 'string | null',
+  // Present exactly when `boundBy` is `'elsewhere'` (`share-people-across-projects`).
+  'elsewhereHolder?': type({ projectId: 'string', workItemId: 'string' }),
   // Proof: widening lateBy admitted text,200 instead of500 in the mounted tree case.
   width: 'number',
   effort: 'number',
@@ -126,6 +139,12 @@ const optimization = type({
  */
 export const workItemTree = type({
   workItems: numberedWorkItem.array(),
+  'typedDependencies?': type({
+    id: 'string',
+    predecessor: typedEndpoint,
+    successor: typedEndpoint,
+    type: 'string',
+  }).array(),
   seq: 'number',
   scheduleError: "'calendar_range' | 'cycle' | null",
   waitingForPerson: 'number',

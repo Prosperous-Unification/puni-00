@@ -2,10 +2,10 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { Database } from 'bun:sqlite';
+import { Database, SQLiteError } from 'bun:sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import { type FamilyInput, McpSessionStore } from './session-store';
+import { type FamilyInput, McpSessionStore, switchToWal } from './session-store';
 import {
   MCP_STORE_MIGRATIONS,
   migrateMcpStore,
@@ -297,9 +297,13 @@ describe('MCP store migrations', () => {
       Bun.spawn(['bun', script, path], { stdout: 'pipe', stderr: 'pipe' }),
     );
     const outputs = await Promise.all(starts.map((start) => new Response(start.stdout).text()));
-    expect(outputs.some((output) => output.startsWith('opened'))).toBeTrue();
-    for (const output of outputs)
-      expect(output).toMatch(/^opened|^refused.*(exists but is empty|database is locked)/);
+    // The rival of the start that created the file may refuse it as empty, but the creator must
+    // open. `database is locked` is no longer an accepted refusal: it was the WAL switch refusing
+    // the creator, which then left both starts refused and the store an empty file (switchToWal).
+    expect(outputs, outputs.join('\n')).toSatisfy((all) =>
+      all.some((output) => output.startsWith('opened')),
+    );
+    for (const output of outputs) expect(output).toMatch(/^opened|^refused.*exists but is empty/);
     new McpSessionStore(path, [KEY]).close();
     expect(ledger(path)).toEqual([BASELINE, BINDING]);
   });
@@ -410,6 +414,140 @@ describe('MCP store migrations', () => {
     expect(withDb(path, (db) => db.query('SELECT COUNT(*) AS n FROM sqlite_master').get())).toEqual(
       { n: 0 },
     );
+  });
+});
+
+describe('switchToWal', () => {
+  /** A rival start inside its migration: it holds the write lock on a store not yet in WAL. */
+  function rivalHoldingTheWriteLock(lockMode: 'IMMEDIATE' | 'EXCLUSIVE' = 'IMMEDIATE'): {
+    path: string;
+    rival: Database;
+  } {
+    const path = storePath();
+    writeFileSync(path, '');
+    const rival = new Database(path, { strict: true });
+    rival.run(`BEGIN ${lockMode}`);
+    return { path, rival };
+  }
+
+  function starting(path: string): Database {
+    const db = new Database(path, { create: false, readwrite: true, strict: true });
+    db.run('PRAGMA busy_timeout = 5000');
+    return db;
+  }
+
+  it('waits out a rival that holds the write lock, which busy_timeout does not', () => {
+    const { path, rival } = rivalHoldingTheWriteLock();
+    const db = starting(path);
+    try {
+      // The mechanism itself: the plain pragma is refused at once despite busy_timeout.
+      expect(() => db.run('PRAGMA journal_mode = WAL')).toThrow(/database is locked/);
+      const pauses: number[] = [];
+      // Proof: 2026-09-29, with the retry removed (a single attempt) this threw `database is
+      // locked`; under 24 CPU hogs the two-process start then ended with both starts refused.
+      switchToWal(db, (ms) => {
+        pauses.push(ms);
+        rival.run('COMMIT');
+      });
+      expect(pauses).toEqual([50]);
+      expect(db.query('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' });
+      expect(db.query('PRAGMA busy_timeout').get()).toEqual({ timeout: 5000 });
+    } finally {
+      db.close();
+      rival.close();
+    }
+  });
+
+  it('gives up with the lock error after 100 refused attempts', () => {
+    const { path, rival } = rivalHoldingTheWriteLock();
+    const db = starting(path);
+    try {
+      let pauses = 0;
+      expect(() => {
+        switchToWal(db, () => {
+          pauses += 1;
+        });
+      }).toThrow(/database is locked/);
+      expect(pauses).toBe(99);
+    } finally {
+      db.close();
+      rival.run('ROLLBACK');
+      rival.close();
+    }
+  });
+
+  it('bounds an exclusive rival and restores the caller busy timeout', () => {
+    const { path, rival } = rivalHoldingTheWriteLock('EXCLUSIVE');
+    const db = starting(path);
+    db.run('PRAGMA busy_timeout = 20');
+    try {
+      let pauses = 0;
+      const started = performance.now();
+      // Proof: with the busy handler left at 20 ms, 100 attempts took about 2 s;
+      // turning it off only for the switch keeps the wait inside the 99 pauses.
+      expect(() => {
+        switchToWal(db, () => {
+          pauses += 1;
+        });
+      }).toThrow(/database is locked/);
+      expect(performance.now() - started).toBeLessThan(1_000);
+      expect(pauses).toBe(99);
+      expect(db.query('PRAGMA busy_timeout').get()).toEqual({ timeout: 20 });
+    } finally {
+      db.close();
+      rival.run('ROLLBACK');
+      rival.close();
+    }
+  });
+
+  it('refuses a closed connection before any WAL attempt', () => {
+    const db = new Database(':memory:');
+    db.close();
+    let pauses = 0;
+    expect(() => {
+      switchToWal(db, () => {
+        pauses += 1;
+      });
+    }).toThrow();
+    expect(pauses).toBe(0);
+  });
+
+  it('does not retry SQLITE_READONLY and restores the caller busy timeout', () => {
+    const path = storePath();
+    const writer = new Database(path, { create: true });
+    writer.run('CREATE TABLE readonly_probe (id INTEGER)');
+    writer.close();
+    const db = new Database(path, { readonly: true });
+    db.run('PRAGMA busy_timeout = 1234');
+    try {
+      let pauses = 0;
+      let refusal: unknown = null;
+      try {
+        switchToWal(db, () => {
+          pauses += 1;
+        });
+      } catch (cause) {
+        refusal = cause;
+      }
+      if (!(refusal instanceof SQLiteError)) throw new Error('WAL did not refuse with SQLiteError');
+      expect(refusal.code).toBe('SQLITE_READONLY');
+      expect(pauses).toBe(0);
+      expect(db.query('PRAGMA busy_timeout').get()).toEqual({ timeout: 1234 });
+    } finally {
+      db.close();
+    }
+  });
+
+  it('refuses an absent busy-timeout reading before changing the connection', () => {
+    const unreadable = {
+      query: () => ({ get: () => null }),
+      run: () => {
+        throw new Error('changed the connection before validating the timeout');
+      },
+    } as unknown as Database;
+    expect(() => {
+      switchToWal(unreadable);
+    }).toThrow('SQLite did not report a valid busy timeout before the WAL switch');
   });
 });
 

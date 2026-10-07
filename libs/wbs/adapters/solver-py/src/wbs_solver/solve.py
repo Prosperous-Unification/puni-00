@@ -54,12 +54,12 @@ from ortools.sat.python import cp_model
 
 from .model import MAKESPAN, MOVEMENT, PRIORITY, TERMS, build_model, stage_order
 
-WIRE_VERSION = 1
+WIRE_VERSION = 3
 
 # Response-level statuses. A RUN-OUTCOME vocabulary of exactly three values, and
 # a different question from the per-term status: this one says whether a
 # schedule is being returned at all. `optimal` is deliberately absent — see
-# solver-wire.v1.json's response `$comment`.
+# solver-wire.v3.json's response `$comment`.
 STATUS_FEASIBLE = "feasible"
 STATUS_UNKNOWN = "unknown"
 STATUS_INFEASIBLE = "infeasible"
@@ -82,7 +82,7 @@ ROW_STOP_PLAN_INFEASIBLE = "stop-plan-infeasible"  # INFEASIBLE, k = 1
 ROW_STOP_INVALID = "stop-invalid"  # INFEASIBLE, k > 1
 # TASK-310. Not a matrix row and deliberately not folded into the one above.
 # The three artifacts that name a disposition — spec.md's staged-lexicographic
-# requirement, design.md's `INFEASIBLE, k > 1` row and solver-wire.v1.json's
+# requirement, design.md's `INFEASIBLE, k > 1` row and solver-wire.v3.json's
 # response `$comment` — all argue from the *staging*: every constraint a later
 # stage adds is satisfied by the previous incumbent, so the run answered and
 # the answer cannot be carried. None of them says anything about a status the
@@ -153,7 +153,7 @@ class ModelInvalid(SolveFailed):
 class SolverConfig:
     """Per-process solver settings, which are deliberately not on the wire.
 
-    `solver-wire.v1.json` is closed (`additionalProperties: false`) and carries
+    `solver-wire.v3.json` is closed (`additionalProperties: false`) and carries
     no search-worker, seed or determinism field, and its own `$comment` records
     the precedent: the lifecycle wrapper's `childDeadlineAt` and `attemptToken`
     are *process* arguments rather than message fields. These are the same kind
@@ -293,7 +293,7 @@ def baseline_bound(request: Mapping[str, Any]) -> tuple[str, int] | None:
     5.9's *other* half — the solution hint — already delivers the baseline as the
     first incumbent. So the bound is not what makes the common case good; it is
     what makes the guarantee hold in the case CP-SAT does not promise to avoid.
-    `model.py`'s hint case says it in as many words: a hint is advice.
+    The model treats hints as advice; they do not constrain feasibility.
     """
     primary = stage_order(str(request["objective"]))[0]
     if not baseline_is_feasible(request):
@@ -369,9 +369,10 @@ def solve_request(
     incumbent: dict[str, int] | None = None
     carry_ms = 0.0
 
-    # 5.9's second half. The hint is in `build_model`; this is the bound, and it
-    # is here because it constrains stage 1's *term*, which does not exist until
-    # `build_model` has returned.
+    # 5.9's bound and hint are both installed only after the baseline has been
+    # proved feasible against the full model, including typed edges and
+    # deadlines. The bound constrains stage 1's term, which does not exist
+    # until `build_model` has returned.
     #
     # WHAT IT GUARANTEES, EXACTLY: no placement worse than the quantised baseline
     # on stage 1's term is a solution of this model. That is a statement about
@@ -389,6 +390,13 @@ def solve_request(
     if bound is not None:
         bounded_term, bound_value = bound
         built.model.add(built.terms[bounded_term] <= bound_value)
+        # Proof: moving the hint outside this feasible-bound branch made
+        # test_an_infeasible_fast_baseline_is_not_sent_as_a_hint observe
+        # [0, 2, 2, 2] hint variables instead of [0, 0, 0, 0]
+        # (2026-09-28 unittest failure).
+        if request["fastHint"] == request["baselineOffsets"]:
+            for key, start in built.starts.items():
+                built.model.add_hint(start, int(request["fastHint"][key]))
 
     for index, term_name in enumerate(order):
         stage = index + 1

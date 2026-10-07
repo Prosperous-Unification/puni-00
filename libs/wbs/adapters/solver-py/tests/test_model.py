@@ -87,9 +87,8 @@ def a_request(
 ) -> dict[str, Any]:
     """A schema-valid request around a hand-built slice set.
 
-    `horizonUnits` defaults to the serial bound the builder computes,
-    `max(0, ...notBefore) + Σ duration`, so the default instance can always
-    serialise everything and no case is accidentally horizon-bound.
+    `horizonUnits` defaults to the unweighted serial bound. A test with an FF
+    weight exceeding predecessor duration supplies its horizon explicitly.
     `baselineOffsets` defaults to all-zero, which makes MOVEMENT equal to Σ start
     and keeps the movement cases readable.
     """
@@ -100,9 +99,9 @@ def a_request(
         )
     offsets = dict(baseline) if baseline is not None else {key: 0 for key in keys}
     return {
-        "wireVersion": 1,
-        "contractVersion": "11+0.1.3",
-        "solverVersion": "0.1.3",
+        "wireVersion": 3,
+        "contractVersion": "15+0.2.0",
+        "solverVersion": "0.2.0",
         "objective": objective,
         "budgetMs": 30000,
         "stageBudgetSplit": [0.6, 0.25, 0.15],
@@ -111,6 +110,7 @@ def a_request(
         "slices": [dict(s) for s in slices],
         "edges": [dict(e) for e in edges],
         "pools": dict(pools or {}),
+        "elsewhere": {},
         "baselineOffsets": dict(offsets),
         # The wire carries two copies of one value; the builder invariant is
         # that they are equal, so a test that made them differ would be testing
@@ -120,7 +120,7 @@ def a_request(
 
 
 def an_edge(predecessor: str, successor: str) -> dict[str, str]:
-    return {"predecessorKey": predecessor, "successorKey": successor}
+    return {"predecessorKey": predecessor, "successorKey": successor, "type": "FS"}
 
 
 def _solver() -> cp_model.CpSolver:
@@ -199,6 +199,14 @@ class HandBuiltInstancesAreRealRequests(unittest.TestCase):
             "two free slices": TWO_FREE,
             "an edge": a_request(
                 [a_slice("a"), a_slice("b")], edges=[an_edge("a", "b")]
+            ),
+            "an SS edge": a_request(
+                [a_slice("a"), a_slice("b")],
+                edges=[{"predecessorKey": "a", "successorKey": "b", "type": "SS"}],
+            ),
+            "an FF edge": a_request(
+                [a_slice("a", duration=2), a_slice("b", duration=2)],
+                edges=[{"predecessorKey": "a", "successorKey": "b", "type": "FF", "startWeightUnits": 1}],
             ),
             "a pool": a_request(
                 [a_slice("a", pools=["t"]), a_slice("b", pools=["t"])], pools={"t": 1}
@@ -371,6 +379,63 @@ class EdgeClause(unittest.TestCase):
         )
         self.assertEqual(terms_at(request, {"a": 0, "b": 10})[MAKESPAN], 20)
 
+    def test_ss_allows_concurrent_finishes_but_orders_starts(self) -> None:
+        request = a_request(
+            [a_slice("a", duration=10), a_slice("b", duration=2)],
+            edges=[{"predecessorKey": "a", "successorKey": "b", "type": "SS"}],
+            horizon=20,
+        )
+        self.assertEqual(terms_at(request, {"a": 0, "b": 0})[MAKESPAN], 10)
+        built = build_model(request)
+        built.model.add(built.starts["a"] == 1)
+        built.model.add(built.starts["b"] == 0)
+        self.assertEqual(_solver().solve(built.model), cp_model.INFEASIBLE)
+
+    def test_ss_from_zero_duration_predecessor_still_orders_starts(self) -> None:
+        request = a_request(
+            [a_slice("a", duration=0, work_item_is_milestone=True), a_slice("b", duration=2)],
+            edges=[{"predecessorKey": "a", "successorKey": "b", "type": "SS"}],
+            horizon=5,
+        )
+        self.assertEqual(terms_at(request, {"a": 1, "b": 1})[MAKESPAN], 3)
+        built = build_model(request)
+        built.model.add(built.starts["a"] == 1)
+        built.model.add(built.starts["b"] == 0)
+        self.assertEqual(_solver().solve(built.model), cp_model.INFEASIBLE)
+
+    def test_ff_requires_weight_even_when_rounded_finishes_tie(self) -> None:
+        # Real durations .030/.021 days each round to two units, but W_FF is 1.
+        request = a_request(
+            [a_slice("a", duration=2), a_slice("b", duration=2)],
+            edges=[{"predecessorKey": "a", "successorKey": "b", "type": "FF", "startWeightUnits": 1}],
+            horizon=5,
+        )
+        built = build_model(request)
+        built.model.add(built.starts["a"] == 0)
+        built.model.add(built.starts["b"] == 0)
+        self.assertEqual(_solver().solve(built.model), cp_model.INFEASIBLE)
+        self.assertEqual(terms_at(request, {"a": 0, "b": 1})[MAKESPAN], 3)
+
+    def test_ff_negative_weight_allows_successor_to_start_earlier(self) -> None:
+        request = a_request(
+            [a_slice("a", duration=2), a_slice("b", duration=5)],
+            edges=[{"predecessorKey": "a", "successorKey": "b", "type": "FF", "startWeightUnits": -3}],
+            horizon=8,
+        )
+        self.assertEqual(terms_at(request, {"a": 3, "b": 0})[MAKESPAN], 5)
+
+    def test_ff_to_zero_duration_successor_orders_its_start(self) -> None:
+        request = a_request(
+            [a_slice("a", duration=2), a_slice("b", duration=0, work_item_is_milestone=True)],
+            edges=[{"predecessorKey": "a", "successorKey": "b", "type": "FF", "startWeightUnits": 2}],
+            horizon=5,
+        )
+        self.assertEqual(terms_at(request, {"a": 0, "b": 2})[MAKESPAN], 2)
+        built = build_model(request)
+        built.model.add(built.starts["a"] == 0)
+        built.model.add(built.starts["b"] == 1)
+        self.assertEqual(_solver().solve(built.model), cp_model.INFEASIBLE)
+
 
 class FloorAndHorizonClauses(unittest.TestCase):
     """Clauses 1 and 2, both folded into the start variable's own domain."""
@@ -463,6 +528,7 @@ class DeadlineClause(unittest.TestCase):
                     edges=[{
                         "predecessorKey": "work\x00dev",
                         "successorKey": "work\x00qa",
+                        "type": "FS",
                     }],
                 )
                 self.assertEqual(status_of(request), cp_model.OPTIMAL)
@@ -482,6 +548,7 @@ class DeadlineClause(unittest.TestCase):
             edges=[{
                 "predecessorKey": "work\x00dev",
                 "successorKey": "work\x00qa",
+                "type": "FS",
             }],
         )
         self.assertEqual(status_of(request), cp_model.INFEASIBLE)
@@ -743,12 +810,10 @@ class ZeroDurationSlices(unittest.TestCase):
 
 
 class TheHint(unittest.TestCase):
-    """5.9's hint half. A hint is advice and never an answer."""
+    """The model does not depend on Fast's proposed placement."""
 
     def test_an_unsatisfiable_hint_does_not_make_the_model_infeasible(self) -> None:
-        """`fastHint` is the quantised Fast baseline and is feasible by
-        construction, but nothing in this model may *depend* on that: a hint
-        CP-SAT cannot use must cost search time and never correctness."""
+        """An unplaceable baseline still leaves the model's real solution."""
         request = a_request(
             [a_slice("a", duration=10, not_before=5)], horizon=40, baseline={"a": 0}
         )

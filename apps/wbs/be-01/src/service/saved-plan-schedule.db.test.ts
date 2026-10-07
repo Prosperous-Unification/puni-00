@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { captureAndSchedulePlan, schedulePlanInput } from '@wbs/core/service/saved-plan-schedule';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from '../repository/capacity';
@@ -17,7 +18,6 @@ import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { projectRow } from '../testing/project-fixture';
-import { captureAndSchedulePlan, schedulePlanInput } from './saved-plan-schedule';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -67,7 +67,16 @@ describe('scheduling a captured plan', () => {
     );
     await new ProjectRepository(db, OPEN).create(
       projectRow({ id: 'p1', name: 'plan', ownerId: 'owner', estimateMethod: 'realistic' }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);
@@ -97,6 +106,8 @@ describe('scheduling a captured plan', () => {
           deadline: null,
           factStart: null,
           factEnd: null,
+          readiness: null,
+          hold: null,
           revision: 0,
         },
         [],

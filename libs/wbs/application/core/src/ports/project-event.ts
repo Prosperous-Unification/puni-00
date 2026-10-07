@@ -23,10 +23,14 @@ import type { Step } from './step-store';
  * has not read yet.
  */
 export type ProjectEvent =
+  /** Another ranked project changed the shared-person bookings this project consumes. */
+  | { type: 'elsewhere_changed'; projectId: string; causeProjectId: string }
   | { type: 'tree_replaced'; workItems: NumberedWorkItem[] }
   | { type: 'plan_unavailable'; error: 'engine_unavailable'; engine: 'optimized' }
   | { type: 'step_added'; step: Step }
   | { type: 'step_renamed'; step: Step }
+  /** A step's estimate allowance changed, so every charged figure for it may have. */
+  | { type: 'step_updated'; step: Step }
   | { type: 'step_removed'; stepId: string }
   /**
    * Something in the global directory that this project reads has changed — a

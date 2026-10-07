@@ -2,6 +2,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CREATOR_ADMISSION } from '@wbs/core';
+import { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
+import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { StepService } from '@wbs/core/module/step/step.resource';
+import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { AuthService } from '@wbs/core/service/auth.service';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -21,21 +29,30 @@ import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { AuthService } from '../service/auth.service';
-import { CapacityService } from '../service/capacity.service';
-import { DirectoryService } from '../service/directory.service';
 import { fastScheduler } from '../service/optimizer-wiring';
-import { ProjectService } from '../service/project.service';
-import { StepService } from '../service/step.service';
-import { WorkItemService } from '../service/work-item.service';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingJoinRequests,
+  refusingTestEmailDelivery,
+} from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { refusingOnboarding } from '../testing/onboarding-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingDomains,
+  refusingMemberships,
+} from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
+import { refusingSpaces } from '../testing/space-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 const TEST_JWT_KEY = 'k'.repeat(32);
@@ -62,6 +79,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
   let capacityStore: CapacityRepository;
   let directoryStore: DirectoryRepository;
   let projectStore: ProjectRepository;
+  let db: ReturnType<typeof openDrizzle>;
   let broadcast: RecordingBroadcaster;
   let token: string;
   let ownerId: string;
@@ -70,7 +88,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-capacity-http-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
-    const db = openDrizzle(path);
+    db = openDrizzle(path);
 
     projectStore = new ProjectRepository(db, OPEN);
     directoryStore = new DirectoryRepository(db, OPEN);
@@ -86,12 +104,14 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
 
     const writing = {
       projects: new ProjectService({
+        dependencyGraph: sqliteDependencyGraph(db, projectStore),
         clock: testClock,
         projects: projectStore,
         broadcast: recordingBroadcaster(),
       }),
       directory: new DirectoryService({ clock: testClock, directory: directoryStore, broadcast }),
       capacity: new CapacityService({
+        admission: CREATOR_ADMISSION,
         clock: testClock,
         projects: projectStore,
         capacity: capacityStore,
@@ -100,12 +120,14 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       priorityBands: testPriorityBandService(),
       calendarMarkers: testCalendarMarkerService(),
       steps: new StepService({
+        dependencyGraph: sqliteDependencyGraph(db, projectStore),
         clock: testClock,
         projects: projectStore,
         steps: new StepRepository(db, OPEN),
         broadcast,
       }),
       workItems: new WorkItemService({
+        admission: CREATOR_ADMISSION,
         scheduler: fastScheduler,
         clock: testClock,
         workItems,
@@ -115,6 +137,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
         measures: new StepMeasureRepository(db, OPEN),
         progress: new StepProgressRepository(db, OPEN),
         dependencies: new DependencyRepository(db, OPEN),
+        typedDependencies: new TypedDependencyRepository(db, OPEN),
         directory: directoryStore,
         capacity: capacityStore,
         priorityBands: inMemoryPriorityBands(),
@@ -124,6 +147,16 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       }),
     };
     app = buildApp({
+      organizations: legacyOrganizationAccess,
+      memberships: refusingMemberships,
+      domains: refusingDomains,
+      emailVerification: refusingEmailVerification,
+      invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
+      spaces: refusingSpaces,
+      projectRanks: refusingProjectRanks,
+      emailDelivery: refusingTestEmailDelivery,
+      onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       ...writing,
@@ -193,6 +226,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
   /** A project of `ownerId`'s, and a team, both real rows. */
   async function plan(name = 'Rewire the shed'): Promise<string> {
     const created = await new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast: recordingBroadcaster(),
@@ -319,6 +353,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     const projectId = await plan();
     const platform = await team('Platform');
     await new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast: recordingBroadcaster(),

@@ -1,6 +1,6 @@
 # Authentication
 
-<!-- module-index {"schemaVersion":1,"moduleId":"module.application.authentication","memberships":[{"kind":"path","path":"account.resource.test.ts"},{"kind":"path","path":"account.resource.ts"},{"kind":"path","path":"authentication.feature.ts"},{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"login-throttle.test.ts"},{"kind":"path","path":"login-throttle.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading compose.ts and index.ts."},{"section":"invariants","reason":"The commit-then-issue and fail-closed-verifier invariants are documented on AuthService and LoginThrottle; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/auth.service.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/login-throttle.ts"}],"knowledgeLimit":"Only the composition root, the core barrel and the two compatibility shims are declared; the be-01 app-layer shims (apps/wbs/be-01/src/service/auth.service.ts, .../login-throttle.ts) and their own downstream consumers deep-import through @wbs/core and are not tracked here."}} -->
+<!-- module-index {"schemaVersion":1,"moduleId":"module.application.authentication","memberships":[{"kind":"path","path":"account.resource.test.ts"},{"kind":"path","path":"account.resource.ts"},{"kind":"path","path":"authentication.feature.ts"},{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"login-throttle.test.ts"},{"kind":"path","path":"login-throttle.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading compose.ts and index.ts."},{"section":"invariants","reason":"The commit-then-issue and fail-closed-verifier invariants are documented on AuthService and LoginThrottle; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/be-01/src/app.ts"},{"kind":"path","path":"apps/wbs/be-01/src/controller/auth-oidc-endpoints.ts"},{"kind":"path","path":"apps/wbs/be-01/src/controller/auth-password-endpoints.ts"},{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/auth.service.ts"}],"knowledgeLimit":"The composition root, the core barrel, the AuthService compatibility adapter and the three be-01 files that import login-throttle.ts are declared; be-01 tests that import it directly are not tracked here."}} -->
 
 The fifth sealed DI Bag module in the core, following Plan history's, Bounded replay sweep's,
 Realtime's and Plan import's pattern: `module.ts` seals the graph, `check.ts` is the only place
@@ -25,9 +25,11 @@ The applicable check is the `wbs-core:test` target declared in
 ## Consumers
 
 `libs/wbs/application/core/src/compose.ts` installs the module;
-`libs/wbs/application/core/src/index.ts`, `libs/wbs/application/core/src/service/auth.service.ts`
-and `libs/wbs/application/core/src/service/login-throttle.ts` keep the former `@wbs/core`
-deep-import names.
+`libs/wbs/application/core/src/index.ts` re-exports its files from the `@wbs/core` barrel;
+`libs/wbs/application/core/src/service/auth.service.ts` remains the compatibility adapter for direct
+store-based construction; `apps/wbs/be-01/src/app.ts`,
+`apps/wbs/be-01/src/controller/auth-oidc-endpoints.ts` and
+`apps/wbs/be-01/src/controller/auth-password-endpoints.ts` import `login-throttle.ts` directly.
 
 ## Wiki registration
 

@@ -1,10 +1,14 @@
 import type {
   AssignmentWritten,
+  DirectoryCatalog,
+  DirectoryCatalogRows,
   DirectoryRemoved,
   DirectoryStore,
   DirectoryUsageRows,
   ExternalRef,
   ExternalSystem,
+  NamedCatalog,
+  OrganizationRenamed,
   PersonAdded,
   PersonInsert,
   PersonPatch,
@@ -22,7 +26,7 @@ import type {
   WorkItemTypeWritten,
   WriteStamp,
 } from '@wbs/core';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -32,14 +36,19 @@ import { bumpWorkItems } from './revision';
 import {
   assignment,
   externalSystem,
+  externalSystemOrganization,
   person,
+  personOrganization,
   personTeam,
   project,
   projectTeamCapacity,
   service,
+  serviceOrganization,
   serviceTeam,
+  serviceTeamOrganization,
   step,
   tag,
+  tagOrganization,
   teamService,
   workItem,
   workItemExternalRef,
@@ -47,6 +56,7 @@ import {
   workItemTag,
   workItemTeam,
   workItemType,
+  workItemTypeOrganization,
   workItemWorkItemType,
 } from './schema';
 import { writingStep } from './step-reference';
@@ -264,6 +274,23 @@ function usageRowsIn(
   };
 }
 
+/**
+ * Each catalog's root table and ownership side table, by name. Written out
+ * rather than derived: the organization-local writes address them as raw SQL,
+ * because the six side tables share a shape drizzle cannot express as one
+ * parameter type.
+ */
+const CATALOG_TABLES: Readonly<
+  Record<DirectoryCatalog, { readonly root: string; readonly side: string }>
+> = {
+  people: { root: 'person', side: 'person_organization' },
+  teams: { root: 'service_team', side: 'service_team_organization' },
+  services: { root: 'service', side: 'service_organization' },
+  tags: { root: 'tag', side: 'tag_organization' },
+  workItemTypes: { root: 'work_item_type', side: 'work_item_type_organization' },
+  externalSystems: { root: 'external_system', side: 'external_system_organization' },
+};
+
 /** The projects holding a work item this removal would touch, with no duplicates. */
 function projectsOf(rows: readonly { projectId: string }[]): string[] {
   return [...new Set(rows.map((each) => each.projectId))];
@@ -288,6 +315,171 @@ export class DirectoryRepository implements DirectoryStore {
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
   ) {}
+
+  inspectMissingOwnership(catalog: NamedCatalog, resourceId: string): Promise<void> {
+    const { root, side } = CATALOG_TABLES[catalog];
+    const present = this.db
+      .all<{ id: string }>(sql`SELECT id FROM ${sql.raw(root)} WHERE id = ${resourceId}`)
+      .at(0);
+    if (present === undefined) return Promise.resolve();
+    const owners = this.db.all<{ organization_id: string }>(
+      sql`SELECT organization_id FROM ${sql.raw(side)} WHERE resource_id = ${resourceId}`,
+    );
+    // Proof: coercing this missing-map branch to absence made a present scoped
+    // orphan answer not_found instead of throwing in the standalone DB test.
+    if (owners.length === 0) throw new Error(`present ${catalog} directory row lacks ownership`);
+    if (owners.length !== 1)
+      throw new Error(`present ${catalog} directory row has conflicting ownership`);
+    return Promise.resolve();
+  }
+
+  /**
+   * One organization's catalog, read from its ownership side table: the side
+   * row is both the ownership and the organization-local display name, so the
+   * legacy root name is never read here. Ordered by that name; SQLite already
+   * answers in that order from the `(organization_id, name)` unique index, and
+   * the explicit ORDER BY keeps the order independent of the plan.
+   *
+   * Proof: each of the six organization predicates removed alone, and the tags
+   * read switched to the root table, failed `lists only the organization's own
+   * entries under their local names` in
+   * `directory-organization.controller.db.test.ts`; watched 2026-09-27.
+   */
+  listInOrganization<C extends DirectoryCatalog>(
+    catalog: C,
+    organizationId: string,
+  ): Promise<DirectoryCatalogRows[C]> {
+    const readers: { [K in DirectoryCatalog]: () => Promise<DirectoryCatalogRows[K]> } = {
+      people: () => this.listPeopleIn(organizationId),
+      teams: () => this.listTeamsIn(organizationId),
+      services: () => this.listNamedIn('services', organizationId),
+      tags: () => this.listNamedIn('tags', organizationId),
+      workItemTypes: () => this.listNamedIn('workItemTypes', organizationId),
+      externalSystems: () => this.listNamedIn('externalSystems', organizationId),
+    };
+    return readers[catalog]();
+  }
+
+  // One query per side table rather than one generic over them: the six side
+  // tables share a shape drizzle cannot express as one parameter type.
+  private listNamedIn(
+    catalog: 'services' | 'tags' | 'workItemTypes' | 'externalSystems' | 'teams',
+    organizationId: string,
+  ): Promise<{ id: string; name: string }[]> {
+    switch (catalog) {
+      case 'services':
+        return this.db
+          .select({ id: serviceOrganization.resourceId, name: serviceOrganization.name })
+          .from(serviceOrganization)
+          .where(eq(serviceOrganization.organizationId, organizationId))
+          .orderBy(asc(serviceOrganization.name));
+      case 'tags':
+        return this.db
+          .select({ id: tagOrganization.resourceId, name: tagOrganization.name })
+          .from(tagOrganization)
+          .where(eq(tagOrganization.organizationId, organizationId))
+          .orderBy(asc(tagOrganization.name));
+      case 'workItemTypes':
+        return this.db
+          .select({ id: workItemTypeOrganization.resourceId, name: workItemTypeOrganization.name })
+          .from(workItemTypeOrganization)
+          .where(eq(workItemTypeOrganization.organizationId, organizationId))
+          .orderBy(asc(workItemTypeOrganization.name));
+      case 'externalSystems':
+        return this.db
+          .select({
+            id: externalSystemOrganization.resourceId,
+            name: externalSystemOrganization.name,
+          })
+          .from(externalSystemOrganization)
+          .where(eq(externalSystemOrganization.organizationId, organizationId))
+          .orderBy(asc(externalSystemOrganization.name));
+      case 'teams':
+        return this.db
+          .select({ id: serviceTeamOrganization.resourceId, name: serviceTeamOrganization.name })
+          .from(serviceTeamOrganization)
+          .where(eq(serviceTeamOrganization.organizationId, organizationId))
+          .orderBy(asc(serviceTeamOrganization.name));
+    }
+  }
+
+  /**
+   * @throws when a team owns a service of another organization.
+   *
+   * Proof: skipping the owner comparison made `refuses a team-service link
+   * that crosses organizations` in `directory-organization.controller.db.test.ts`
+   * answer 200 instead of 500, and an inner join on the service's owner made
+   * `refuses a team-service link whose service has no owner` answer 200;
+   * watched 2026-09-27.
+   */
+  private async listTeamsIn(organizationId: string): Promise<TeamWithServices[]> {
+    const teams = await this.listNamedIn('teams', organizationId);
+    const links = await this.db
+      .select({
+        teamId: teamService.teamId,
+        serviceId: teamService.serviceId,
+        serviceOwner: serviceOrganization.organizationId,
+      })
+      .from(teamService)
+      .innerJoin(
+        serviceTeamOrganization,
+        eq(serviceTeamOrganization.resourceId, teamService.teamId),
+      )
+      .leftJoin(serviceOrganization, eq(serviceOrganization.resourceId, teamService.serviceId))
+      .where(eq(serviceTeamOrganization.organizationId, organizationId))
+      .orderBy(asc(teamService.serviceId));
+    const servicesOf = new Map<string, string[]>();
+    for (const link of links) {
+      if (link.serviceOwner !== organizationId) {
+        throw new Error(`a team of organization "${organizationId}" owns a foreign service`);
+      }
+      servicesOf.set(link.teamId, [...(servicesOf.get(link.teamId) ?? []), link.serviceId]);
+    }
+    return teams.map((each) => ({ ...each, serviceIds: servicesOf.get(each.id) ?? [] }));
+  }
+
+  /**
+   * @throws when a person belongs to a team of another organization.
+   *
+   * Proof: skipping the owner comparison made `refuses a membership that
+   * crosses organizations` in `directory-organization.controller.db.test.ts`
+   * answer 200 instead of 500, and an inner join on the team's owner made
+   * `refuses a membership whose team has no owner` answer 200; watched
+   * 2026-09-27.
+   */
+  private async listPeopleIn(organizationId: string): Promise<PersonWithTeams[]> {
+    const people = await this.db
+      .select({
+        id: personOrganization.resourceId,
+        name: personOrganization.name,
+        kind: person.kind,
+      })
+      .from(personOrganization)
+      .innerJoin(person, eq(person.id, personOrganization.resourceId))
+      .where(eq(personOrganization.organizationId, organizationId))
+      .orderBy(asc(personOrganization.name));
+    const memberships = await this.db
+      .select({
+        personId: personTeam.personId,
+        serviceTeamId: personTeam.serviceTeamId,
+        teamOwner: serviceTeamOrganization.organizationId,
+      })
+      .from(personTeam)
+      .innerJoin(personOrganization, eq(personOrganization.resourceId, personTeam.personId))
+      .leftJoin(
+        serviceTeamOrganization,
+        eq(serviceTeamOrganization.resourceId, personTeam.serviceTeamId),
+      )
+      .where(eq(personOrganization.organizationId, organizationId));
+    const teamsOf = new Map<string, string[]>();
+    for (const row of memberships) {
+      if (row.teamOwner !== organizationId) {
+        throw new Error(`a person of organization "${organizationId}" belongs to a foreign team`);
+      }
+      teamsOf.set(row.personId, [...(teamsOf.get(row.personId) ?? []), row.serviceTeamId]);
+    }
+    return people.map((each) => ({ ...each, teamIds: teamsOf.get(each.id) ?? [] }));
+  }
 
   /**
    * Every team, by name.
@@ -342,6 +534,170 @@ export class DirectoryRepository implements DirectoryStore {
       if (found === undefined) throw new Error(`team vanished after insert: ${toAdd.name}`);
       return found;
     });
+  }
+
+  async mapInOrganization(
+    catalog: DirectoryCatalog,
+    resourceId: string,
+    organizationId: string,
+    name: string,
+  ): Promise<void> {
+    await this.gate.enter(async () => {
+      await Promise.resolve();
+      const { side } = CATALOG_TABLES[catalog];
+      this.db.run(
+        sql`INSERT INTO ${sql.raw(side)} (resource_id, organization_id, name) VALUES (${resourceId}, ${organizationId}, ${name})`,
+      );
+    });
+  }
+
+  /**
+   * Proof, each watched 2026-09-27 in
+   * `directory-command-organization.controller.db.test.ts`:
+   * - Finding the entry by resource id alone made `answers a foreign entry
+   *   exactly as an absent one, changing nothing` answer 200 and rename B's
+   *   tag.
+   * - Skipping the name check made `renames only the organization-local
+   *   name, refusing one another entry holds` answer 500, from the freeze
+   *   trigger, instead of 409.
+   * - Skipping the foreign-project check made `fails closed on a directory
+   *   entry a foreign project names` answer the rename with 200 instead of
+   *   500.
+   */
+  async renameInOrganization(
+    catalog: NamedCatalog,
+    resourceId: string,
+    organizationId: string,
+    name: string,
+    stamp: WriteStamp,
+  ): Promise<OrganizationRenamed> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      const { root, side } = CATALOG_TABLES[catalog];
+      return this.db.transaction((tx) => {
+        const held = tx.get<{ id: string } | undefined>(
+          sql`SELECT resource_id AS id FROM ${sql.raw(side)} WHERE resource_id = ${resourceId} AND organization_id = ${organizationId}`,
+        );
+        if (held === undefined) return { ok: false, reason: 'not_found' };
+        const clash = tx.get<{ id: string } | undefined>(
+          sql`SELECT resource_id AS id FROM ${sql.raw(side)} WHERE organization_id = ${organizationId} AND name = ${name} AND resource_id != ${resourceId}`,
+        );
+        if (clash !== undefined) return { ok: false, reason: 'taken' };
+        tx.run(sql`UPDATE ${sql.raw(side)} SET name = ${name} WHERE resource_id = ${resourceId}`);
+        tx.run(
+          sql`UPDATE ${sql.raw(root)} SET updated_at = ${auditOnUpdate(stamp).updatedAt} WHERE id = ${resourceId}`,
+        );
+        const touched: Record<NamedCatalog, () => string[]> = {
+          people: () => this.projectsAssigning(tx, resourceId),
+          teams: () => this.projectsLabelled(tx, resourceId),
+          services: () => this.projectsServiced(tx, resourceId),
+          tags: () => this.projectsTagged(tx, resourceId),
+          workItemTypes: () => this.projectsTyped(tx, resourceId),
+        };
+        const projectIds = touched[catalog]();
+        const outside = this.projectsOutsideIn(tx, projectIds, organizationId);
+        if (outside.length > 0) {
+          throw new Error(
+            `${catalog} entry "${resourceId}" of organization "${organizationId}" is named by a foreign project`,
+          );
+        }
+        return { ok: true, projectIds };
+      });
+    });
+  }
+
+  /**
+   * Proof, each arm disabled alone, watched 2026-09-27 against `fails closed on
+   * an entry another organization reaches, whatever the write` in
+   * `directory-command-organization.controller.db.test.ts` (200 instead of
+   * 500):
+   * - Failed alone: the assignment, capacity, a team's foreign member, a
+   *   service's foreign owning team, and both scalar label arms.
+   * - Failed only together with `renameInOrganization`'s foreign-project
+   *   check, which also guards those renames: the work item team, service, tag
+   *   and type label arms.
+   * - Not observable alone: a person in a foreign team and a team owning a
+   *   foreign service. `listInOrganization` already throws on such a link
+   *   before any scoped write reads its target.
+   */
+  async foreignReferencesTo(
+    catalog: NamedCatalog,
+    resourceId: string,
+    organizationId: string,
+  ): Promise<string[]> {
+    await Promise.resolve();
+    const id = resourceId;
+    const o = organizationId;
+    const foreignProject = (column: string) =>
+      sql.raw(`(SELECT organization_id FROM project_organization WHERE resource_id = ${column})`);
+    const foreignOwner = (side: string, column: string) =>
+      sql.raw(`(SELECT organization_id FROM ${side} WHERE resource_id = ${column})`);
+    const labelled = (relation: string, table: string, column: string) => sql`
+      SELECT ${relation} || ':' || l.work_item_id AS ref FROM ${sql.raw(table)} AS l
+        JOIN work_item AS w ON w.id = l.work_item_id
+        WHERE l.${sql.raw(column)} = ${id} AND ${foreignProject('w.project_id')} IS NOT ${o}`;
+    const scalar = (relation: string, column: string) => sql`
+      SELECT ${relation} || ':' || w.id AS ref FROM work_item AS w
+        WHERE w.${sql.raw(column)} = ${id} AND ${foreignProject('w.project_id')} IS NOT ${o}`;
+    const arms: Record<NamedCatalog, SQL[]> = {
+      people: [
+        // The step's project too: an assignment on another organization's step
+        // is reached from there even when the work item is this one's.
+        // Proof: dropping the step clause made the same test answer 200,
+        // deleting A's assignment on B's step; watched 2026-09-27.
+        sql`SELECT 'assignment:' || l.work_item_id AS ref FROM assignment AS l
+          JOIN work_item AS w ON w.id = l.work_item_id JOIN step AS st ON st.id = l.step_id
+          WHERE l.person_id = ${id} AND (${foreignProject('w.project_id')} IS NOT ${o}
+            OR ${foreignProject('st.project_id')} IS NOT ${o})`,
+        sql`SELECT 'person_team:' || m.service_team_id AS ref FROM person_team AS m
+          WHERE m.person_id = ${id} AND ${foreignOwner('service_team_organization', 'm.service_team_id')} IS NOT ${o}`,
+      ],
+      teams: [
+        labelled('work_item_team', 'work_item_team', 'team_id'),
+        scalar('work_item_service_team', 'service_team_id'),
+        sql`SELECT 'project_team_capacity:' || c.project_id AS ref FROM project_team_capacity AS c
+          WHERE c.service_team_id = ${id} AND ${foreignProject('c.project_id')} IS NOT ${o}`,
+        sql`SELECT 'person_team:' || m.person_id AS ref FROM person_team AS m
+          WHERE m.service_team_id = ${id} AND ${foreignOwner('person_organization', 'm.person_id')} IS NOT ${o}`,
+        sql`SELECT 'team_service:' || t.service_id AS ref FROM team_service AS t
+          WHERE t.team_id = ${id} AND ${foreignOwner('service_organization', 't.service_id')} IS NOT ${o}`,
+      ],
+      services: [
+        labelled('work_item_service', 'work_item_service', 'service_id'),
+        scalar('work_item_service_id', 'service_id'),
+        sql`SELECT 'team_service:' || t.team_id AS ref FROM team_service AS t
+          WHERE t.service_id = ${id} AND ${foreignOwner('service_team_organization', 't.team_id')} IS NOT ${o}`,
+      ],
+      tags: [labelled('work_item_tag', 'work_item_tag', 'tag_id')],
+      workItemTypes: [labelled('work_item_type', 'work_item_work_item_type', 'type_id')],
+    };
+    return this.db
+      .all<{ ref: string }>(sql.join(arms[catalog], sql` UNION ALL `))
+      .map((row) => row.ref);
+  }
+
+  async projectsOutside(projectIds: readonly string[], organizationId: string): Promise<string[]> {
+    await Promise.resolve();
+    return this.projectsOutsideIn(this.db, projectIds, organizationId);
+  }
+
+  private projectsOutsideIn(
+    reader: Pick<SQLiteBunDatabase, 'all'>,
+    projectIds: readonly string[],
+    organizationId: string,
+  ): string[] {
+    if (projectIds.length === 0) return [];
+    const owned = new Set(
+      reader
+        .all<{ id: string }>(
+          sql`SELECT resource_id AS id FROM project_organization WHERE organization_id = ${organizationId} AND resource_id IN (${sql.join(
+            projectIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})`,
+        )
+        .map((row) => row.id),
+    );
+    return projectIds.filter((id) => !owned.has(id));
   }
 
   /** Every tag in the global directory, by name — {@link DirectoryStore.listTeams}' shape. */

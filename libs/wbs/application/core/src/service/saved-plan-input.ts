@@ -9,7 +9,7 @@ import {
 import type { PlanInputReads } from '../ports/saved-plan-capture-store';
 
 /**
- * Fold one capture's seventeen reads into the nineteen collections
+ * Fold one capture's eighteen reads into the twenty collections
  * `canonicalisePlanInput` folds again into the body.
  *
  * Two steps rather than one, and the seam is deliberate: this one knows the
@@ -93,13 +93,26 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
       serviceId: row.serviceId,
       startNoEarlierThan: row.startNoEarlierThan,
       startNoEarlierThanReason: row.startNoEarlierThanReason,
+      readiness: row.readiness,
+      hold: row.hold,
       // `factStart` and `factEnd` are deliberately not captured, for the ref
       // name's reason above: a fact moves no date, orders no queue and is read by
       // nothing in `libs/wbs/domain/domain`, so a snapshot that carried one would compare
       // two schedules by a record neither of them was computed from. A compare of
       // planned against happened is a different surface (ADR 0024).
     })),
-    steps: reads.steps.map((row) => ({ id: row.id, name: row.name, position: row.position })),
+    steps: reads.steps.map((row) => ({
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      position: row.position,
+      // History, never the live policy: a saved plan reads the allowance it
+      // was captured with.
+      // Proof: with this read as 0, `keeps the allowance it was saved with when
+      // the live step changes later` failed on `Expected: 30, Received: 0`
+      // (2026-09-27).
+      allowancePercent: row.allowancePercent,
+    })),
     stepValues: stepValuesOf(reads, rule),
     measures: reads.measures.map((row) => ({
       workItemId: row.workItemId,
@@ -110,6 +123,12 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
     dependencies: reads.dependencies.map((row) => ({
       predecessorId: row.predecessorId,
       successorId: row.successorId,
+    })),
+    typedDependencies: reads.typedDependencies.map(({ id, predecessor, successor, type }) => ({
+      id,
+      predecessor,
+      successor,
+      type,
     })),
     assignments: reads.assignments.map((row) => ({
       workItemId: row.workItemId,

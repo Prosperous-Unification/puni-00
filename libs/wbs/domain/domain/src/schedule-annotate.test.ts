@@ -76,6 +76,8 @@ describe('the optimized materialiser is Fast with its starts pinned', () => {
         notBefore,
         poolSizes,
         reach,
+        new Map(),
+        [],
         startsOf(fast),
       );
 
@@ -105,7 +107,7 @@ describe('a pinned start the plan refuses', () => {
     pinned.set(sliceKey('b', null), 1);
 
     expect(() =>
-      schedule(rows, chain, slices, new Map(), new Map(), 'whole-item', new Map(), pinned),
+      schedule(rows, chain, slices, new Map(), new Map(), 'whole-item', new Map(), [], pinned),
     ).toThrow(ScheduleInvalidOptimizedStartError);
   });
 
@@ -123,7 +125,7 @@ describe('a pinned start the plan refuses', () => {
     ]);
 
     expect(() =>
-      schedule(rows, [], pooled, new Map(), sizes, 'whole-item', new Map(), pinned),
+      schedule(rows, [], pooled, new Map(), sizes, 'whole-item', new Map(), [], pinned),
     ).toThrow(ScheduleInvalidOptimizedStartError);
   });
 
@@ -131,7 +133,7 @@ describe('a pinned start the plan refuses', () => {
     const pinned = new Map([[sliceKey('a', null), 0]]);
 
     expect(() =>
-      schedule(rows, chain, slices, new Map(), new Map(), 'whole-item', new Map(), pinned),
+      schedule(rows, chain, slices, new Map(), new Map(), 'whole-item', new Map(), [], pinned),
     ).toThrow(ScheduleInvalidOptimizedStartError);
   });
 });
@@ -143,7 +145,17 @@ describe("a start no floor of the plan explains is the optimizer's", () => {
     const sizes: PoolSizes = new Map([['team', 1]]);
     const pinned = new Map([[sliceKey('a', null), 5]]);
 
-    const produced = schedule(rows, [], slices, new Map(), sizes, 'whole-item', new Map(), pinned);
+    const produced = schedule(
+      rows,
+      [],
+      slices,
+      new Map(),
+      sizes,
+      'whole-item',
+      new Map(),
+      [],
+      pinned,
+    );
     const only = produced.slices.get(sliceKey('a', null));
 
     expect(only?.earliestStart).toBe(5);
@@ -188,6 +200,7 @@ describe('the two rules the corpus cannot see, because it pins Fast onto Fast', 
       new Map(),
       'whole-item',
       new Map(),
+      [],
       pinned,
     );
 
@@ -216,7 +229,17 @@ describe('the two rules the corpus cannot see, because it pins Fast onto Fast', 
       [sliceKey('b', null), 3],
     ]);
 
-    const produced = schedule(rows, [], pooled, new Map(), sizes, 'whole-item', new Map(), pinned);
+    const produced = schedule(
+      rows,
+      [],
+      pooled,
+      new Map(),
+      sizes,
+      'whole-item',
+      new Map(),
+      [],
+      pinned,
+    );
     const idled = produced.slices.get(sliceKey('b', null));
 
     expect(idled?.earliestStart).toBe(3);
@@ -278,7 +301,17 @@ describe('a pinned start the pool releases a ulp later', () => {
     expect(RELEASE).toBeGreaterThan(PINNED_B);
     expect(RELEASE - PINNED_B).toBeLessThan(1e-15);
 
-    const produced = schedule(rows, [], pooled, new Map(), sizes, 'whole-item', new Map(), pinned);
+    const produced = schedule(
+      rows,
+      [],
+      pooled,
+      new Map(),
+      sizes,
+      'whole-item',
+      new Map(),
+      [],
+      pinned,
+    );
     const abutting = produced.slices.get(sliceKey('b', null));
 
     // **The pool's double wins, not the pin's** — the same rule the floor
@@ -307,7 +340,7 @@ describe('a pinned start the pool releases a ulp later', () => {
     ]);
 
     expect(() =>
-      schedule(rows, [], pooled, new Map(), sizes, 'whole-item', new Map(), pinned),
+      schedule(rows, [], pooled, new Map(), sizes, 'whole-item', new Map(), [], pinned),
     ).toThrow(ScheduleInvalidOptimizedStartError);
   });
 });

@@ -50,7 +50,7 @@ const VOCABULARY: DirectoryRead = {
   externalSystems: [],
   people: [],
 };
-const STEPS: readonly StepView[] = [{ id: 's1', name: 'Build' }];
+const STEPS: readonly StepView[] = [{ id: 's1', name: 'Build', allowancePercent: 0 }];
 /**
  * Empty, and that is enough: these cases are about **which** payload a delivery
  * carries and about the identity of the object it carries, never about what is
@@ -384,6 +384,34 @@ describe('one project’s reading', () => {
     void reading.rereadResources(['markers']);
     expect(fake.asked.filter((call) => call === 'initialize')).toHaveLength(2);
     expect(fake.invalidations).toHaveLength(1);
+  });
+
+  it('reports when the covering read failed', async () => {
+    const fake = fakeOwner();
+    fake.show(ANCHORED_SNAPSHOT);
+    fake.owner.invalidate = () =>
+      Promise.resolve({
+        status: 'failed',
+        failures: [{ resource: 'tree', cause: new Error('offline') }],
+      });
+    const reading = createPlanReading(portsOver(fake.owner).ports);
+
+    expect(await reading.rereadResources(['tree'])).toBe(false);
+  });
+
+  it('reports a failed resynchronization used instead of invalidation', async () => {
+    const fake = fakeOwner();
+    fake.show(snapshotOf({ staleResources: ['tree'] }));
+    const reading = createPlanReading(portsOver(fake.owner).ports);
+
+    const reread = reading.rereadResources(['tree']);
+    fake.firstRead({
+      status: 'failed',
+      failures: [{ resource: 'tree', cause: new Error('offline') }],
+    });
+
+    expect(await reread).toBe(false);
+    expect(fake.invalidations).toEqual([]);
   });
 
   it('exposes the store contract over its own owner', () => {

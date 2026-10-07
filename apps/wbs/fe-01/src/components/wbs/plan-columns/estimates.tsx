@@ -1,3 +1,4 @@
+import type { EstimateRule } from '@wbs/domain/estimate';
 import { useState } from 'react';
 
 import { type StepView } from '@/lib/wbs-api';
@@ -51,10 +52,12 @@ export function createEstimatesColumns({
   steps,
   unfoldedSteps,
   live,
+  rule,
 }: {
   steps: StepView[];
   unfoldedSteps: readonly string[];
   live: PlanLive;
+  rule: EstimateRule;
 }) {
   return steps.flatMap((step) => {
     const unfolded = unfoldedSteps.includes(step.id);
@@ -101,7 +104,9 @@ export function createEstimatesColumns({
               whiteSpace: 'nowrap',
             }}
           >
-            {step.name} {unfolded ? '▾' : '▸'}
+            {step.name}
+            {step.allowancePercent === 0 ? '' : ` +${String(step.allowancePercent)}%`}{' '}
+            {unfolded ? '▾' : '▸'}
           </button>
         ),
         cell: ({ row }) => {
@@ -702,6 +707,9 @@ export function createEstimatesColumns({
                   stepName={step.name}
                   projectId={live.current.projectId}
                   stepNode={readStepNode(row.original, step.id)}
+                  onAddDependency={() => {
+                    live.current.openStepDependency(row.original.id, step.id);
+                  }}
                   onPointerArrives={() => {
                     live.current.cellCards.arriveOnCard();
                   }}
@@ -750,6 +758,12 @@ export function createEstimatesColumns({
                   // same local: a card that computed its own would be a
                   // second opinion about one number, one element away.
                   final={final}
+                  // A leaf's own trio only: a parent's is a sum of trios, and
+                  // its charged figure is the sum of its leaves' charges, not
+                  // the allowance applied to that sum.
+                  estimate={row.original.rolledUp ? undefined : row.original.estimates[step.id]}
+                  allowancePercent={step.allowancePercent}
+                  rule={rule}
                   doing={doing}
                   problem={problem}
                 />

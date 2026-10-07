@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { SavedPlanHoldingRow, SavedPlanStore } from '@wbs/core';
+import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
+import type { SavedPlanQuota } from '@wbs/core/service/saved-plan-quota';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from '../repository/capacity';
@@ -21,8 +23,6 @@ import { WorkItemRepository } from '../repository/work-item';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { projectRow } from '../testing/project-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import { SavedPlanService } from './saved-plan.service';
-import type { SavedPlanQuota } from './saved-plan-quota';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -59,6 +59,8 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
     deadline: null,
     factStart: null,
     factEnd: null,
+    readiness: null,
+    hold: null,
     revision: 0,
   });
 
@@ -80,7 +82,16 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);

@@ -87,6 +87,7 @@ const PARSE_DISPOSITIONS: Readonly<Record<SolverParseFailure, SolverFailureReaso
  * through. Read `REVALIDATION_DISPOSITIONS` before assuming it generalises.
  */
 const PREFLIGHT_DISPOSITIONS: Readonly<Record<SolverPreflightFailure, SolverFailureReason>> = {
+  'incompatible-solver': 'internal-error',
   'horizon-overflow': 'horizon-overflow',
   'objective-overflow': 'objective-overflow',
 };
@@ -161,7 +162,7 @@ export const SOLVER_EXIT_CODES = {
  *
  * `solveFailed` is `invalid-output`, and that mapping is a requirement rather
  * than a preference. A **later-stage** `INFEASIBLE` is the one solver outcome
- * with no encoding on the wire (`solver-wire.v1.json`, the response
+ * with no encoding on the wire (`solver-wire.v3.json`, the response
  * `$comment`), so the entrypoint "SHALL exit non-zero without emitting a
  * response, and the coordinator SHALL record that run as `invalid-output`"
  * (`openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/

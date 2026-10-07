@@ -3,19 +3,22 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
+import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
+import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { DiBagDisposalError } from 'di-bag';
-import { errors } from 'jose';
+import { errors, exportPKCS8, exportSPKI, generateKeyPair, SignJWT } from 'jose';
 
+import { buildApp } from './app';
 import { bootBe01, type RunningBe } from './boot';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { openDatabase, openDrizzle } from './repository/db';
 import type { WriteCoordinator } from './repository/gate';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration, readGeneration } from './repository/optimization-generation';
-import type { AuthenticatedUser } from './service/auth.service';
+import { DELEGATION_TOKEN_TYPE, REFUSE_DELEGATIONS } from './runtime/delegation';
 
 /**
  * What `/health` answers, as this suite reads it.
@@ -47,6 +50,148 @@ function tempDir(prefix: string): string {
   dirs.push(dir);
   return dir;
 }
+
+it('boots committed fan-out into cold scoped commands and rank moves', async () => {
+  const dbPath = await openSpaceDatabase(tempDir('wbs-boot-fanout-'));
+  const seed = openDatabase(dbPath);
+  try {
+    seed.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
+    seed.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    seed.run(
+      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+    );
+    seed.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
+    seed.run(
+      "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
+    );
+    seed.run(
+      "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES ('a1', 'org-a', 10, 1, 'ada'), ('a2', 'org-a', 20, 1, 'ada')",
+    );
+    for (const projectId of ['a1', 'a2']) {
+      seed.run(
+        `UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = '${projectId}'`,
+      );
+      seed.run(
+        `INSERT INTO work_item (id, project_id, position, name) VALUES ('${projectId}', '${projectId}', 10, '${projectId}')`,
+      );
+      seed.run(
+        `INSERT INTO step (id, project_id, name, position) VALUES ('${projectId}-step', '${projectId}', '${projectId}-step', 10)`,
+      );
+      seed.run(
+        `INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('${projectId}', '${projectId}-step', 1, 1, 1)`,
+      );
+      seed.run(
+        `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('${projectId}', '${projectId}-step', 'ana')`,
+      );
+    }
+  } finally {
+    seed.close();
+  }
+  let mounted: ReturnType<typeof buildApp> | undefined;
+  running = await bootBe01(
+    {
+      appOrigin: 'http://localhost',
+      dbPath,
+      port: 0,
+      logger: createLogger({ service: 'be-01' }),
+      jwtKey: 'k'.repeat(32),
+      gwUrl: 'http://gw.invalid',
+      internalAuthSecret: 's'.repeat(32),
+      localIdentity: { id: 'ada', username: 'ada', scopes: ['read', 'write'] },
+    },
+    {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        const app = buildApp({
+          ...options,
+          organizations: {
+            resolve: () =>
+              Promise.resolve({
+                ok: true,
+                access: {
+                  kind: 'scoped',
+                  scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' },
+                },
+              }),
+          },
+        });
+        app.stop = () => Promise.resolve(app);
+        mounted = app;
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    },
+  );
+  if (mounted === undefined) throw new Error('boot did not compose an app');
+  const answer = await mounted.handle(
+    new Request('http://localhost/api/projects/a1/commands', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        commands: [
+          {
+            kind: 'setEstimate',
+            workItemId: 'a1',
+            stepId: 'a1-step',
+            days: { optimistic: 3, realistic: 3, pessimistic: 3 },
+          },
+        ],
+      }),
+    }),
+  );
+  expect(answer.status).toBe(200);
+  const commandReadback = openDatabase(dbPath);
+  try {
+    expect(
+      commandReadback
+        .query<{ message: string }, [string]>(
+          'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+        )
+        .all('project:a2')
+        .map(({ message }) => JSON.parse(message) as unknown),
+    ).toEqual([{ type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' }]);
+  } finally {
+    commandReadback.close();
+  }
+  const rank = await mounted.handle(
+    new Request('http://localhost/api/organization/projects/a2/rank', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ afterProjectId: null }),
+    }),
+  );
+  expect(rank.status).toBe(200);
+  const readback = openDatabase(dbPath);
+  try {
+    expect(
+      readback
+        .query<{ message: string }, [string]>(
+          'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+        )
+        .all('project:a2')
+        .map(({ message }) => JSON.parse(message) as unknown),
+    ).toEqual([
+      { type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' },
+      { type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' },
+    ]);
+    const upstreamEvents = readback
+      .query<{ message: string }, [string]>(
+        'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+      )
+      .all('project:a1')
+      .map(({ message }) => JSON.parse(message) as unknown);
+    expect(upstreamEvents).toHaveLength(2);
+    expect(upstreamEvents.at(-1)).toEqual({
+      type: 'elsewhere_changed',
+      projectId: 'a1',
+      causeProjectId: 'a2',
+    });
+  } finally {
+    readback.close();
+  }
+});
 
 /**
  * `commitDir` defaults to a directory with no repository above it, so `/health`
@@ -157,6 +302,102 @@ function bootOptions(dbPath: string, port: number) {
 }
 
 describe('bootBe01', () => {
+  it('validates configured delegation keys before opening storage and keeps issuance inactive', async () => {
+    const dir = tempDir('wbs-delegation-boot-');
+    const dbPath = join(dir, 'test.db');
+    let invalidKeyFailure: unknown;
+    try {
+      await bootBe01(
+        {
+          ...bootOptions(dbPath, 0),
+          delegationKeys: { signingKey: 'bad', verifyKey: 'bad' },
+        },
+        {
+          openSource: () => {
+            throw new Error('source opened before key validation');
+          },
+        },
+      );
+    } catch (failure) {
+      invalidKeyFailure = failure;
+    }
+    expect(reasons(invalidKeyFailure)).toContain('delegation keys must be PKCS#8 and SPKI PEM');
+
+    const keys = await generateKeyPair('RS256', { extractable: true });
+    const configured = {
+      ...bootOptions(dbPath, 0),
+      delegationKeys: {
+        signingKey: await exportPKCS8(keys.privateKey),
+        verifyKey: await exportSPKI(keys.publicKey),
+      },
+    };
+    let validKeyFailure: unknown;
+    try {
+      await bootBe01(configured, {
+        openSource: () => {
+          throw new Error('source reached after valid key validation');
+        },
+      });
+    } catch (failure) {
+      validKeyFailure = failure;
+    }
+    expect(reasons(validKeyFailure)).toContain('source reached after valid key validation');
+    runMigrations(dbPath, FOLDER);
+    let mounted: ReturnType<typeof buildApp> | undefined;
+    running = await bootBe01(configured, {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        // Proof: replacing this production binding with a live verifier or
+        // omitting it failed this configured-key composition assertion
+        // (2026-09-28).
+        expect(options.delegation).toBe(REFUSE_DELEGATIONS);
+        const app = buildApp(options);
+        // The test listener opens no socket, so its matching test disposer
+        // does not ask Elysia to stop a server that never started.
+        app.stop = () => Promise.resolve(app);
+        mounted = app;
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    });
+    if (mounted === undefined) throw new Error('boot did not compose an app');
+    const signed = await new SignJWT({
+      org: 'org-a',
+      client: 'client',
+      grant: 'family',
+      scope: 'read',
+      upstream_iss: 'issuer',
+      upstream_sub: 'subject',
+    })
+      .setProtectedHeader({ alg: 'RS256', typ: DELEGATION_TOKEN_TYPE })
+      .setIssuer('wbs')
+      .setSubject('ada')
+      .setAudience('wbs-be-01/via-mcp-01')
+      .setIssuedAt()
+      .setExpirationTime('2m')
+      .setJti(crypto.randomUUID())
+      .sign(keys.privateKey);
+    expect(
+      (
+        await mounted.handle(
+          new Request('http://localhost/api/projects', {
+            headers: { authorization: `Bearer ${signed}` },
+          }),
+        )
+      ).status,
+    ).toBe(401);
+    // Proof (2026-09-28): replacing boot's returned issuer with an accepting
+    // function made this test receive no `inactive` refusal.
+    let issuanceFailure: unknown;
+    try {
+      await running.delegationIssuer('verified-credential', 'wbs-be-01/via-gw-01', ['read']);
+    } catch (failure) {
+      issuanceFailure = failure;
+    }
+    expect(reasons(issuanceFailure)).toContain('inactive');
+  });
   it('reconciles an abandoned optimizer drain before reporting healthy', async () => {
     const dir = tempDir('wbs-optimizer-reconcile-');
     const dbPath = join(dir, 'test.db');
@@ -176,7 +417,7 @@ describe('bootBe01', () => {
       raw.close();
     }
     const observer = openDrizzle(dbPath);
-    const contractVersion = '7+0.1.0';
+    const contractVersion = '7+0.2.0';
     allocateGeneration(observer, 'p-1', contractVersion, 'abandoned', 1);
     const state = openDatabase(dbPath);
     try {
@@ -197,7 +438,7 @@ describe('bootBe01', () => {
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       optimizer: {
-        solverVersion: '0.1.0',
+        solverVersion: '0.2.0',
         budgetMs: 60_000,
         spawn: () => {
           throw new Error('startup reconciliation must not spawn');
@@ -235,7 +476,7 @@ describe('bootBe01', () => {
       migrateOnStartup: true,
       migrationsFolder: FOLDER,
       optimizer: {
-        solverVersion: '0.1.0',
+        solverVersion: '0.2.0',
         budgetMs: 60_000,
         spawn: () => {
           throw new Error('the settings write must not spawn');
@@ -283,6 +524,80 @@ describe('bootBe01', () => {
     const created = await running.services.projects.create('Local plan', 'local-dev');
 
     expect(created.project.ownerId).toBe('local-dev');
+  });
+
+  it('refuses the project and directory lists after activation until a session binds an organization', async () => {
+    const dir = tempDir('wbs-organization-boot-');
+    const dbPath = join(dir, 'test.db');
+    let productionAccess: Parameters<typeof buildApp>[0]['organizations'] | undefined;
+    running = await bootBe01(
+      {
+        appOrigin: 'http://localhost',
+        dbPath,
+        port: 0,
+        logger: createLogger({ service: 'be-01' }),
+        jwtKey: 'k'.repeat(32),
+        gwUrl: 'http://gw.invalid',
+        internalAuthSecret: 's'.repeat(32),
+        localIdentity: { id: 'local-dev', username: 'local-dev', scopes: ['read', 'write'] },
+        migrateOnStartup: true,
+        migrationsFolder: FOLDER,
+      },
+      {
+        openSource: openSqliteSource,
+        makeApp: (options) => {
+          productionAccess = options.organizations;
+          expect(options.credentialEvidence).toBeDefined();
+          expect(options.organizationSelection).toBeUndefined();
+          return buildApp(options);
+        },
+      },
+    );
+    const projects = `http://localhost:${String(running.port)}/api/projects`;
+    let listed: Response | undefined;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      listed = await fetch(projects);
+      if (listed.status === 200) break;
+      await Bun.sleep(10);
+    }
+    expect(listed?.status).toBe(200);
+    const marker = openDatabase(dbPath);
+    try {
+      marker.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+    } finally {
+      marker.close();
+    }
+
+    if (productionAccess === undefined) throw new Error('boot did not mount organization access');
+    // Proof: replacing NO_BOUND_ORGANIZATION with principal.organizationBinding
+    // made this production composition answer not_a_member for the injected
+    // org-a claim instead of no_active_organization (0 pass, 1 fail).
+    expect(
+      await productionAccess.resolve({
+        id: 'local-dev',
+        organizationBinding: {
+          credential: {
+            kind: 'native',
+            userId: 'local-dev',
+            digest: 'a'.repeat(64),
+            expiresAt: Date.now() + 60_000,
+          },
+          cookie: 'org-a',
+        },
+      }),
+    ).toEqual({ ok: false, refusal: 'no_active_organization' });
+
+    for (const path of ['/api/projects', '/api/tags', '/api/people']) {
+      const refused = await fetch(`http://localhost:${String(running.port)}${path}`);
+
+      expect({ path, status: refused.status, body: (await refused.json()) as unknown }).toEqual({
+        path,
+        status: 403,
+        body: { error: 'no_active_organization' },
+      });
+    }
   });
 
   it('codes the steps an older writer left uncoded once it has migrated', async () => {
@@ -373,7 +688,7 @@ describe('bootBe01', () => {
         gwUrl: 'http://gw.invalid',
         internalAuthSecret: 's'.repeat(32),
         optimizer: {
-          solverVersion: '0.1.0',
+          solverVersion: '0.2.0',
           budgetMs: 60_000,
           spawn: () => {
             throw new Error('shutdown ordering must not spawn');
@@ -513,7 +828,7 @@ describe('bootBe01', () => {
       {
         ...bootOptions(dbPath, 0),
         optimizer: {
-          solverVersion: '0.1.0',
+          solverVersion: '0.2.0',
           budgetMs: 60_000,
           spawn: () => {
             throw new Error('this case must not spawn');

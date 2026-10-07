@@ -19,7 +19,15 @@ export interface ForecastSpan {
   endsOn: IsoDate;
 }
 
+/** The two statuses whose days are asked about before they are written. */
+export type PromptedStatus = 'done' | 'in_progress';
+
 export interface CompletionPromptProps {
+  /**
+   * What is being set: `done` asks for both days; `in_progress` asks for
+   * `Started on` only, since starting work records no finish.
+   */
+  status: PromptedStatus;
   /** The row's number, so the surface says which work item is being finished. */
   number: string;
   /** The fact start the row already holds, or `null`. Offered when held. */
@@ -30,8 +38,11 @@ export interface CompletionPromptProps {
   forecast: ForecastSpan | null;
   /** The reader's own calendar day — never UTC's, `use-plan-fields.ts`'s rule. */
   today: IsoDate;
-  /** Both days in the fields, once, on `Mark done` or Enter. Never with a non-date. */
-  onConfirm: (started: IsoDate, finished: IsoDate) => void;
+  /**
+   * The days in the fields, once, on the confirm button or Enter. Never with a
+   * non-date; `finished` is null when {@link status} is `in_progress`.
+   */
+  onConfirm: (started: IsoDate, finished: IsoDate | null) => void;
   /** `false` on Cancel, Escape or a click outside — the prompt is dismissed and nothing was sent. */
   onOpenChange: (open: boolean) => void;
   /**
@@ -126,6 +137,7 @@ export function dayNote(
  * keyboard held back, and the return of focus through {@link onClosed}.
  */
 export function CompletionPrompt({
+  status,
   number,
   heldFactStart,
   heldFactEnd,
@@ -137,14 +149,16 @@ export function CompletionPrompt({
 }: CompletionPromptProps) {
   const [started, setStarted] = useState<string>(defaultFactStart(heldFactStart, forecast, today));
   const [finished, setFinished] = useState<string>(defaultFactEnd(heldFactEnd, forecast, today));
-  const valid = isIsoDate(started) && isIsoDate(finished);
+  const asksFinish = status === 'done';
+  const word = asksFinish ? 'Done' : 'In progress';
+  const valid = isIsoDate(started) && (!asksFinish || isIsoDate(finished));
   const submit = (): void => {
     // Proof: this guard removed and the button's `disabled` with it, and
     // `holds Mark done back while a day is not a date` fails on `expected
     // false to be true` at the button, before the forced submit could confirm
     // `''`; watched 2026-09-13.
     if (!valid) return;
-    onConfirm(started, finished);
+    onConfirm(started, asksFinish ? finished : null);
   };
   const startId = `completion-start-${number}`;
   const endId = `completion-end-${number}`;
@@ -161,11 +175,12 @@ export function CompletionPrompt({
       >
         <ModalHeader>
           <ModalTitle>
-            Set {number} to {withLeadWord('Done', { word: 'Done', tone: 'done' })}
+            Set {number} to {withLeadWord(word, asksFinish ? { word, tone: 'done' } : { word })}
           </ModalTitle>
           <ModalDescription>
-            Every step of {number} will say done. The two days below become its Fact start and Fact
-            end — the span its bar is drawn over, whatever the estimate says.
+            {asksFinish
+              ? `Every step of ${number} will say done. The two days below become its Fact start and Fact end — the span its bar is drawn over, whatever the estimate says.`
+              : `A step of ${number} will say in progress, and any hold on it is lifted. The day below becomes its Fact start where it holds none.`}
           </ModalDescription>
         </ModalHeader>
         <form
@@ -196,27 +211,29 @@ export function CompletionPrompt({
               {dayNote(started, heldFactStart, forecast?.startsOn ?? null, today, 'start')}
             </span>
           </div>
-          <div className="flex flex-col gap-1 text-sm">
-            <label htmlFor={endId}>Finished on</label>
-            <input
-              id={endId}
-              type="date"
-              name="finished"
-              aria-describedby={`${endId}-note`}
-              className="border-input bg-background h-9 rounded-md border px-2 text-sm"
-              value={finished}
-              onChange={(event) => {
-                setFinished(event.currentTarget.value);
-              }}
-            />
-            <span
-              id={`${endId}-note`}
-              className="text-muted-foreground text-xs"
-              data-day-note="finished"
-            >
-              {dayNote(finished, heldFactEnd, forecast?.endsOn ?? null, today, 'end')}
-            </span>
-          </div>
+          {asksFinish && (
+            <div className="flex flex-col gap-1 text-sm">
+              <label htmlFor={endId}>Finished on</label>
+              <input
+                id={endId}
+                type="date"
+                name="finished"
+                aria-describedby={`${endId}-note`}
+                className="border-input bg-background h-9 rounded-md border px-2 text-sm"
+                value={finished}
+                onChange={(event) => {
+                  setFinished(event.currentTarget.value);
+                }}
+              />
+              <span
+                id={`${endId}-note`}
+                className="text-muted-foreground text-xs"
+                data-day-note="finished"
+              >
+                {dayNote(finished, heldFactEnd, forecast?.endsOn ?? null, today, 'end')}
+              </span>
+            </div>
+          )}
           <ModalFooter>
             <ModalClose asChild>
               <Button type="button" variant="outline">
@@ -224,7 +241,7 @@ export function CompletionPrompt({
               </Button>
             </ModalClose>
             <Button type="submit" disabled={!valid}>
-              Set to Done
+              Set to {word}
             </Button>
           </ModalFooter>
         </form>

@@ -11,6 +11,7 @@ import {
   type CaptureDirectoryChange,
   type CaseFixture,
   type CaseId,
+  changeSavedPlanCaptureTypedDependencies,
   createFaultControl,
   defineFault,
   DEPENDENCY_SURVIVOR_IDS,
@@ -59,7 +60,8 @@ import type {
   WriteStamp,
 } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { DEFAULT_ESTIMATE_RULE } from '@wbs/domain';
+import { DEFAULT_ESTIMATE_RULE, schedule } from '@wbs/domain';
+import { createScheduler } from '@wbs/runtime-portable';
 import { describe, expect, it } from 'bun:test';
 import { asc, eq, sql } from 'drizzle-orm';
 
@@ -163,6 +165,7 @@ function readersOf(source: SqliteSource): SourceReaders {
     measures: source.stores.measures,
     progress: source.stores.progress,
     dependencies: source.stores.dependencies,
+    typedDependencies: source.stores.typedDependencies,
     directory: source.stores.directory,
     journal: source.stores.journal,
     planEvents: source.stores.planEvents,
@@ -221,6 +224,7 @@ async function seedSqliteSource(
           name: stepIndex === 0 ? 'Dev' : 'QA',
           code: stepIndex === 0 ? 'dev' : 'qa',
           position: (stepIndex + 1) * 10,
+          allowancePercent: 0,
         })),
         stamp,
       );
@@ -470,7 +474,13 @@ async function openSqliteSavedPlanCaptureCase(
             firstRead: { entered, release },
             changeDirectory: () => changeSqliteCaptureDirectory(source),
           }
-        : { kind: 'ordinary' },
+        : caseId === 'savedPlanCapture.readPlanInput:detached'
+          ? {
+              kind: 'capture-typed-change',
+              changeTypedDependencies: () =>
+                changeSavedPlanCaptureTypedDependencies(source.stores, DETERMINISTIC_SEED),
+            }
+          : { kind: 'ordinary' },
     close: async () => {
       release();
       await closeSqliteResources(source, directory);
@@ -653,6 +663,7 @@ async function seedProgressStep(source: SqliteSource): Promise<void> {
       id: PROGRESS_SENTINEL_STEP_ID,
       projectId: DETERMINISTIC_SEED.projectIds[0],
       name: 'Review',
+      allowancePercent: 0,
     },
     DETERMINISTIC_SEED.stamps[0],
   );
@@ -703,7 +714,45 @@ async function seedSubtreeRecords(source: SqliteSource): Promise<void> {
 }
 
 const openers: ExistingStoreOpeners = {
+  livePlans: async (caseId) => {
+    const { source, directory } = await seedSqliteSource();
+    const configured = source.bindLivePlans({
+      schedulerOf: () =>
+        createScheduler((rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
+          schedule(
+            rows,
+            edges,
+            slices,
+            floors,
+            pools,
+            reach,
+            deadlines,
+            typed,
+            undefined,
+            elsewhere,
+          ),
+        ),
+    });
+    return sqliteFixture(
+      withStores(source, { livePlans: configured.stores.livePlans }),
+      directory,
+      'livePlans',
+      caseId,
+    );
+  },
   projects: (caseId) => openSqliteCase('projects', caseId),
+  projectRanks: async (caseId) => {
+    const { source, directory } = await seedSqliteSource();
+    source.db.run(
+      sql`INSERT INTO organization (id, name, created_at) VALUES ('rank-conformance-org', 'Rank', 1)`,
+    );
+    for (const projectId of DETERMINISTIC_SEED.projectIds) {
+      source.db.run(
+        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'rank-conformance-org')`,
+      );
+    }
+    return sqliteFixture(source, directory, 'projectRanks', caseId);
+  },
   users: (caseId) => openSqliteCase('users', caseId),
   capacity: (caseId) => openSqliteCase('capacity', caseId),
   priorityBands: (caseId) => openSqliteCase('priorityBands', caseId),
@@ -715,6 +764,7 @@ const openers: ExistingStoreOpeners = {
   measures: (caseId) => openSqliteCase('measures', caseId),
   progress: (caseId) => openSqliteCase('progress', caseId),
   dependencies: (caseId) => openSqliteCase('dependencies', caseId),
+  typedDependencies: (caseId) => openSqliteCase('typedDependencies', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
   eventLog: (caseId) => openSqliteCase('eventLog', caseId),
   planEvents: (caseId) => openSqliteCase('planEvents', caseId),
@@ -731,7 +781,25 @@ const declaration: SourceDeclaration = {
   revision: sourceRevision(),
   historyAdmission: 'immediate-busy',
   capabilities: {
+    livePlans: {
+      kind: 'offered',
+      gaps: [],
+      open: (caseId) => {
+        if (caseId !== 'livePlans.read:legacy-and-absence' || openers.livePlans === undefined)
+          throw new Error('unexpected live plan case');
+        return openers.livePlans(caseId);
+      },
+    },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
+    projectRanks: {
+      kind: 'offered',
+      gaps: [],
+      open: (caseId) => {
+        if (caseId !== 'projectRanks.orderIn:scoped-move' || openers.projectRanks === undefined)
+          throw new Error('unexpected project rank case');
+        return openers.projectRanks(caseId);
+      },
+    },
     users: { kind: 'offered', gaps: [], open: openers.users },
     capacity: { kind: 'offered', gaps: [], open: openers.capacity },
     priorityBands: { kind: 'offered', gaps: [], open: openers.priorityBands },
@@ -743,6 +811,7 @@ const declaration: SourceDeclaration = {
     measures: { kind: 'offered', gaps: [], open: openers.measures },
     progress: { kind: 'offered', gaps: [], open: openers.progress },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
+    typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
     eventLog: { kind: 'offered', gaps: [], open: openers.eventLog },
     planEvents: { kind: 'offered', gaps: [], open: openers.planEvents },
@@ -828,6 +897,7 @@ function emptyMissingCapture(): PlanInputReads {
     progress: [],
     measures: [],
     dependencies: [],
+    typedDependencies: [],
     assignments: [],
     capacity: new Map(),
     priorityBands: [],
@@ -2220,7 +2290,7 @@ function createSeedFailureFault(observeReach: (reached: boolean) => void) {
           (create) => async (project, steps, stamp) => {
             await create(project, steps, stamp);
             await decorated.stores.steps.add(
-              { id: 'probe-step', projectId: project.id, name: 'Setup step' },
+              { id: 'probe-step', projectId: project.id, name: 'Setup step', allowancePercent: 0 },
               stamp,
             );
             observeReach(control.reached());
@@ -2259,8 +2329,8 @@ const renameFault = defineFault({
       steps: replaceMethod(
         source.stores.steps,
         'rename',
-        (rename) => (stepId, name, stamp) =>
-          rename(stepId, control.reach('steps.rename') ? 'faulted rename' : name, stamp),
+        (rename) => (projectId, stepId, name, stamp) =>
+          rename(projectId, stepId, control.reach('steps.rename') ? 'faulted rename' : name, stamp),
       ),
     });
   },
@@ -4598,7 +4668,14 @@ async function proveFault(
           journalAppender: source.stores.journal,
           seed: DETERMINISTIC_SEED,
           readers: readersOf(source),
-          scenario: { kind: 'ordinary' },
+          scenario:
+            caseId === 'savedPlanCapture.readPlanInput:detached'
+              ? {
+                  kind: 'capture-typed-change',
+                  changeTypedDependencies: () =>
+                    changeSavedPlanCaptureTypedDependencies(source.stores, DETERMINISTIC_SEED),
+                }
+              : { kind: 'ordinary' },
           close: () => closeSqliteResources(source, directory),
         });
       };
@@ -4615,6 +4692,7 @@ async function proveFault(
         measures: (caseId) => takeFixture('measures', caseId),
         progress: (caseId) => takeFixture('progress', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
+        typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
         planEvents: (caseId) => takeFixture('planEvents', caseId),
@@ -5632,6 +5710,7 @@ describe('SQLite existing source conformance', () => {
 +         "factEnd": null,
 +         "factStart": null,
 +         "frozenNumber": "030",
++         "hold": null,
 +         "id": "subtree-copy-root",
 +         "maxParallel": 2,
 +         "name": "Copied root",
@@ -5640,6 +5719,7 @@ describe('SQLite existing source conformance', () => {
 +         "position": 20,
 +         "priority": 2,
 +         "projectId": "project-a",
++         "readiness": null,
 +         "revision": 0,
 +         "serviceId": "service-a",
 +         "serviceIds": [],
@@ -6322,6 +6402,7 @@ describe('SQLite existing source conformance', () => {
     expect(cleanupProof.failure).toContain(
       'cleanup failed: injected SQLite capture cleanup failure after assertion',
     );
+    // Eighteen capture reads per exercise moved this case beyond Bun's five-second default.
   });
 
   it('Task 6.5 settles independent SQLite history writes without waiting', async () => {
@@ -7227,6 +7308,8 @@ describe('SQLite existing source conformance', () => {
     deadline: null,
     factStart: null,
     factEnd: null,
+    readiness: null,
+    hold: null,
     priority: null,
     serviceTeamId: "team-a",
     serviceId: null,

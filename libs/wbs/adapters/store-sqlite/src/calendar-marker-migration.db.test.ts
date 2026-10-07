@@ -68,10 +68,15 @@ const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
  */
 const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 /**
- * The newest: the legacy bridge triggers, stamped after
+ * The legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 /** The tables {@link ORGANIZATION_RECORDS} adds, which the same rollback takes. */
 const ORGANIZATION_TABLES = [
   'organization_activation',
@@ -79,6 +84,12 @@ const ORGANIZATION_TABLES = [
   'person_organization',
   'project_organization',
   'saved_plan_organization',
+  'organization_audit',
+  'project_solution',
+  'delegation_use',
+  'space',
+  'space_project',
+  'project_rank',
   'service_organization',
   'service_team_organization',
   'tag_organization',
@@ -96,6 +107,9 @@ const ORGANIZATION_TABLES = [
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -226,8 +240,21 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20261005110000_add_shared_people',
+      '20261001010000_add_browser_credential_revocations',
+      '20260929180000_add_project_rank',
+      '20260929100000_add_spaces',
+      '20260928200000_add_work_item_status_facts',
+      '20260928040000_add_email_challenge',
+      '20260928030000_add_delegation_use',
+      '20260928020000_add_email_verification',
+      '20260928010000_add_project_solution',
+      '20260927220000_add_organization_audit',
+      TYPED_DEPENDENCY,
+      ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
+      STEP_ALLOWANCE,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
@@ -242,7 +269,14 @@ describe('20260905090000_add_calendar_marker', () => {
     // Nothing else moved: the forward migration is additive, so its reversal
     // owes the rest of the schema byte-for-byte.
     expect(afterRollback).toEqual(
-      withTable.filter((n) => n !== 'calendar_marker' && !ORGANIZATION_TABLES.includes(n)),
+      withTable.filter(
+        (n) =>
+          n !== 'calendar_marker' &&
+          n !== 'browser_credential_revocations' &&
+          n !== 'email_challenge' &&
+          n !== 'typed_dependency' &&
+          !ORGANIZATION_TABLES.includes(n),
+      ),
     );
   });
 

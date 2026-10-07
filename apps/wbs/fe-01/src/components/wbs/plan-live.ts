@@ -12,6 +12,7 @@ import { type DropHint } from './drag-drop';
 import { type CellElement } from './editable-grid';
 import type { FocusIntent } from './live-editing';
 import { type CommitOutcome } from './live-editing';
+import type { StatusRow } from './status-offers';
 import type { Toast } from './toasts';
 import { type TreeRow } from './wbs-rows';
 
@@ -43,8 +44,14 @@ export interface PlanLiveValues {
   setDropHint: React.Dispatch<React.SetStateAction<DropHint | null>>;
   dependOn: (successorId: string, typed: string) => void;
   setDepPicker: React.Dispatch<
-    React.SetStateAction<{ rowId: string; typed: string; highlightId: string | null } | null>
+    React.SetStateAction<{
+      rowId: string;
+      typed: string;
+      highlightId: string | null;
+      stepId?: string;
+    } | null>
   >;
+  openStepDependency: (rowId: string, stepId: string) => void;
   depLights: DepLights;
   setOpenMenuRowId: React.Dispatch<React.SetStateAction<string | null>>;
   depEntriesFor: (
@@ -89,14 +96,10 @@ export interface PlanLiveValues {
   setFactStart: (id: string, day: string | null) => void;
   setFactEnd: (id: string, day: string | null) => void;
   /**
-   * Sets the row's status as one act: `done` writes every step and fills an
-   * empty fact end with the reader's day, `unknown` takes every statement back.
-   * `in_progress` is not offered here — it is a step's statement.
-   */
-  /**
-   * Sets the row's status as one act, on the day given. `done` reaches this
-   * only through the completion prompt, which is where the day comes from;
-   * `unknown` sends the reader's day and be-01 ignores it.
+   * Sets the row's status as one act, on the day given. `done` and
+   * `in_progress` reach this only through the completion prompt, which is where
+   * the days come from; every other status sends the reader's day, which be-01
+   * reads only for those two.
    */
   setStatus: (
     id: string,
@@ -104,8 +107,14 @@ export interface PlanLiveValues {
     on: IsoDate,
     factStart?: IsoDate,
   ) => Promise<CommitOutcome>;
-  /** Opens the completion prompt over a row: `Done` is asked about before it is written. */
-  openCompletionPrompt: (rowId: string) => void;
+  /**
+   * What choosing a status on a row does: `Done` and `In progress` open the
+   * completion prompt, which asks for their days before anything is written;
+   * every other status is sent at once.
+   */
+  chooseStatus: (rowId: string, status: SettableStatus) => void;
+  /** The statuses a row's menu and Status cell offer ({@link statusOffersOf}). */
+  statusOffers: (row: StatusRow) => SettableStatus[];
   setPriority: (id: string, typed: string) => Promise<CommitOutcome>;
   setParallelism: (id: string, typed: string) => Promise<CommitOutcome>;
   openNotBefore: (rowId: string) => void;

@@ -2,7 +2,7 @@ import type * as React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
-import type { StepView } from '@/lib/wbs-api';
+import type { StepView, TypedDependencyView } from '@/lib/wbs-api';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
 import type { BusyWrites } from '@/modules/plan-writer/busy-store';
 
@@ -32,6 +32,7 @@ export function usePlanDependencies({
   setDepPicker,
   run,
   steps,
+  typedDependencies,
 }: {
   flat: TreeRow[];
   pushToast: (toast: Toast) => void;
@@ -50,10 +51,16 @@ export function usePlanDependencies({
   isCurrent: () => boolean;
   refreshOrMarkStale: (scope?: PlanReadScope) => Promise<void>;
   setDepPicker: React.Dispatch<
-    React.SetStateAction<{ rowId: string; typed: string; highlightId: string | null } | null>
+    React.SetStateAction<{
+      rowId: string;
+      typed: string;
+      highlightId: string | null;
+      stepId?: string;
+    } | null>
   >;
   run: RunPlanWrite;
   steps: StepView[];
+  typedDependencies: readonly TypedDependencyView[];
 }) {
   /**
    * The callbacks the cells use, read through a ref rather than closed over.
@@ -197,7 +204,16 @@ export function usePlanDependencies({
    */
   const depEntriesFor = useCallback(
     (forRow: { id: string; dependsOn: readonly string[] }, typed: string) =>
-      pickerEntries(flat, forRow, typed),
+      pickerEntries(
+        flat,
+        {
+          id: forRow.id,
+          // Typed links can connect a different endpoint pair on this same row pair.
+          // Keep the row available for Customize; the command boundary checks exact endpoints.
+          dependsOn: forRow.dependsOn,
+        },
+        typed,
+      ),
     [flat],
   );
 
@@ -211,14 +227,37 @@ export function usePlanDependencies({
    */
   const pickDependency = useCallback(
     (successorId: string, predecessorId: string): Promise<CommitOutcome> => {
+      // Proof: forcing this exact-pair guard false made `refuses an exact Whole FS
+      // duplicate while leaving Customize available` fail because the refusal
+      // announcement never appeared. Watched 2026-09-28.
+      if (
+        // Proof: bypassing this legacy duplicate guard made `offers Customize on an existing legacy predecessor and refuses its default duplicate` lose its refusal announcement; watched 2026-09-28.
+        flat.find((row) => row.id === successorId)?.dependsOn.includes(predecessorId) ||
+        typedDependencies.some(
+          (dependency) =>
+            dependency.type === 'FS' &&
+            dependency.predecessor.scope === 'whole' &&
+            dependency.predecessor.workItemId === predecessorId &&
+            dependency.successor.scope === 'whole' &&
+            dependency.successor.workItemId === successorId,
+        )
+      )
+        return Promise.resolve('refused');
       setDepPicker((current) =>
         current === null ? null : { ...current, typed: '', highlightId: null },
       );
       return run((write) =>
-        write.perform(['tree'], () => commands.addDependency(successorId, predecessorId)),
+        write.perform(['tree'], () =>
+          commands.addTypedDependency(
+            { scope: 'whole', workItemId: predecessorId },
+            { scope: 'whole', workItemId: successorId },
+            // Proof: changing this one-click default to FF made `commits one whole FS relationship when a search result is clicked` fail on the recorded fourth command argument; watched 2026-09-28.
+            'FS',
+          ),
+        ),
       );
     },
-    [commands, run, setDepPicker],
+    [commands, flat, run, setDepPicker, typedDependencies],
   );
 
   /** Moves the picker highlight by `delta` over `entryIds`, clamped. */

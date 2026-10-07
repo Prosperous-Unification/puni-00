@@ -3,16 +3,17 @@ import type { WorkItemService, WorkItemServiceOptions } from './work-item.resour
 /**
  * What a host must supply to install {@link workItemModule}.
  *
- * Exactly {@link WorkItemServiceOptions}, unchanged by the move: the twelve
+ * Exactly {@link WorkItemServiceOptions}: the thirteen
  * stores of the one scope being installed over, the broadcaster, the
- * scheduler and the clock. `servicesOver` supplies the stores of each admitted
+ * edit admission, the scheduler and the clock. `servicesOver` supplies the stores of each admitted
  * scope, so one installation never outlives the scope it was built over.
  *
  * **No K6 debt; K4 support and K2 debt disclosed.** Work item is a resource:
- * it imports the domain library, twelve repository ports — `WorkItemStore`,
+ * it imports the domain library, thirteen repository ports — `WorkItemStore`,
  * `ProjectStore`, `EstimateStore`, `ActualStore`, `MeasureStore`,
  * `StepProgressStore`, `DirectoryStore`, `CapacityStore`, `PriorityBandStore`,
- * `DependencyStore`, `SubtreeStore` and `CommandJournalStore` — and no other
+ * `DependencyStore`, `TypedDependencyStore`, `SubtreeStore` and
+ * `CommandJournalStore` — and no other
  * resource. It still imports five support files from `service/`,
  * `assumed-assignee.ts`, `compensating.ts`, `dependency.ts`,
  * `numbered-work-item.ts` and `roll-up.ts`, which the backend module map moves

@@ -295,11 +295,19 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
- * The newest: the legacy bridge triggers, stamped after
+ * The legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 // `step` since 20260831120000_rename_role_to_step. Every raw statement in this
@@ -404,8 +412,21 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -747,8 +768,21 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1228,8 +1262,21 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1476,8 +1523,21 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1776,8 +1836,21 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -2014,8 +2087,21 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -2296,8 +2382,21 @@ describe('the step progress migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -2562,8 +2661,21 @@ describe('the not-before reason migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -2819,8 +2931,21 @@ describe('the tag migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -3181,8 +3306,21 @@ describe('the service migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -3335,8 +3473,21 @@ describe('the work-item-service migration', () => {
   function atTheColumnOnly(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
+      '20261005110000_add_shared_people',
+      '20261001010000_add_browser_credential_revocations',
+      '20260929180000_add_project_rank',
+      '20260929100000_add_spaces',
+      '20260928200000_add_work_item_status_facts',
+      '20260928040000_add_email_challenge',
+      '20260928030000_add_delegation_use',
+      '20260928020000_add_email_verification',
+      '20260928010000_add_project_solution',
+      '20260927220000_add_organization_audit',
+      TYPED_DEPENDENCY,
+      ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
+      STEP_ALLOWANCE,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
@@ -3500,8 +3651,21 @@ describe('the work-item-service migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -3798,8 +3962,21 @@ describe('the step measure migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -3895,8 +4072,21 @@ describe('the person kind migration', () => {
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
+      '20261005110000_add_shared_people',
+      '20261001010000_add_browser_credential_revocations',
+      '20260929180000_add_project_rank',
+      '20260929100000_add_spaces',
+      '20260928200000_add_work_item_status_facts',
+      '20260928040000_add_email_challenge',
+      '20260928030000_add_delegation_use',
+      '20260928020000_add_email_verification',
+      '20260928010000_add_project_solution',
+      '20260927220000_add_organization_audit',
+      TYPED_DEPENDENCY,
+      ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
+      STEP_ALLOWANCE,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
@@ -4132,8 +4322,21 @@ describe('the person kind migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -4276,6 +4479,159 @@ describe('the role -> step rename', () => {
       } finally {
         sqlite.close();
       }
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the step allowance migration', () => {
+  /** A project with one step, written the way the outgoing release writes it: no allowance. */
+  function seededBeforeAllowances(dbPath: string): void {
+    const db = openDatabase(dbPath);
+    try {
+      db.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+      );
+      db.run(
+        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+          " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+      );
+      db.run("INSERT INTO step (id, project_id, name, position) VALUES ('qa', 'p', 'QA', 10)");
+    } finally {
+      db.close();
+    }
+  }
+
+  function allowanceOf(dbPath: string, stepId: string): number | undefined {
+    const db = openDatabase(dbPath);
+    try {
+      return (
+        db
+          .query<{ allowance_bps: number }, [string]>('SELECT allowance_bps FROM step WHERE id = ?')
+          .get(stepId) ?? undefined
+      )?.allowance_bps;
+    } finally {
+      db.close();
+    }
+  }
+
+  function stepColumns(dbPath: string): string[] {
+    const db = openDatabase(dbPath);
+    try {
+      return db
+        .query<{ name: string }, []>('PRAGMA table_info(step)')
+        .all()
+        .map((column) => column.name);
+    } finally {
+      db.close();
+    }
+  }
+
+  it('reads an existing step at no allowance, and lets the outgoing release keep inserting', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
+        ORGANIZATION_BRIDGE,
+        ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
+      ]);
+      seededBeforeAllowances(db.path);
+
+      runMigrations(db.path, FOLDER);
+
+      expect(allowanceOf(db.path, 'qa')).toBe(0);
+      const sqlite = openDatabase(db.path);
+      try {
+        // The outgoing release's three-column insert, mid-swap.
+        sqlite.run(
+          "INSERT INTO step (id, project_id, name, position) VALUES ('dev', 'p', 'Dev', 20)",
+        );
+        expect(() => sqlite.run("UPDATE step SET allowance_bps = -1 WHERE id = 'dev'")).toThrow(
+          'CHECK constraint failed',
+        );
+        expect(() => sqlite.run("UPDATE step SET allowance_bps = 12.5 WHERE id = 'dev'")).toThrow(
+          'CHECK constraint failed',
+        );
+      } finally {
+        sqlite.close();
+      }
+      expect(allowanceOf(db.path, 'dev')).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('rolls back while every allowance is zero, and re-applies onto the result', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seededBeforeAllowances(db.path);
+
+      expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
+        ORGANIZATION_BRIDGE,
+        ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
+      ]);
+      expect(stepColumns(db.path)).not.toContain('allowance_bps');
+      expect(stepColumns(db.path)).not.toContain('allowance_revision');
+      expect(tables(db.path)).not.toContain('step_allowance_rollback_guard');
+
+      runMigrations(db.path, FOLDER);
+      expect(allowanceOf(db.path, 'qa')).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * A rollback would silently re-charge `QA +30%` at base days, so it refuses.
+   *
+   * Proof: with the guard's INSERT removed from `down.sql`, this rollback
+   * returned `[STEP_ALLOWANCE]` and dropped the column (2026-09-27).
+   */
+  it('refuses to roll back while a step carries a nonzero allowance', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seededBeforeAllowances(db.path);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run("UPDATE step SET allowance_bps = 3000 WHERE id = 'qa'");
+      } finally {
+        sqlite.close();
+      }
+
+      expect(() => rollbackTo(db.path, FOLDER, STEP_CODE)).toThrow(
+        'CHECK constraint failed: step_allowance_rollback_guard',
+      );
+      expect(allowanceOf(db.path, 'qa')).toBe(3000);
+      expect(stepColumns(db.path)).toContain('allowance_bps');
     } finally {
       db.cleanup();
     }

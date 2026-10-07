@@ -1,9 +1,10 @@
-import type { PlanDocumentRequest } from '@wbs/contracts';
+import type { PlanDocumentImport } from '@wbs/contracts';
 
-/** A small, fully referenced version-1 document for import-boundary tests. */
-export function planDocumentFixture(): PlanDocumentRequest {
+/** A small, fully referenced current-version document for import-boundary tests. */
+export function planDocumentFixture(): PlanDocumentImport {
   return {
-    document: { format: 'wbs-plan', version: 1, exportedAt: '2026-09-13T12:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 3, exportedAt: '2026-09-13T12:30:00.000Z' },
+    typedDependencies: [],
     settings: {
       name: ' Portable plan ',
       restricted: false,
@@ -47,6 +48,8 @@ export function planDocumentFixture(): PlanDocumentRequest {
         deadline: '2026-09-18',
         factStart: null,
         factEnd: null,
+        readiness: null,
+        hold: null,
         priority: 2,
         serviceTeamId: 'team-1',
         serviceId: 'service-1',
@@ -72,8 +75,10 @@ export function planDocumentFixture(): PlanDocumentRequest {
       },
     ],
     steps: [
-      { id: 'step-1', name: ' Build ', position: 10 },
-      { id: 'step-2', name: 'QA', position: 20 },
+      // `impl`, not the `build` a suggestion would give, so a round trip shows
+      // the file's own code was kept.
+      { id: 'step-1', name: ' Build ', position: 10, allowancePercent: 0, code: 'impl' },
+      { id: 'step-2', name: 'QA', position: 20, allowancePercent: 30, code: 'qa' },
     ],
   };
 }

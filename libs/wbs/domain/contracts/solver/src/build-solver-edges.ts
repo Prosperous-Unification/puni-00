@@ -1,4 +1,5 @@
 import {
+  type AuthoredDependencies,
   type DependencyReach,
   type LeafEdge,
   resolveStepNodeGraph,
@@ -6,6 +7,7 @@ import {
   sliceKey,
 } from '@wbs/domain';
 
+import { ffStartWeightUnits } from './solver-units';
 import type { SolverEdge } from './wire-types';
 
 /**
@@ -14,9 +16,8 @@ import type { SolverEdge } from './wire-types';
  *
  * **This function derives nothing.** Both rules live in `@wbs/domain`'s
  * `resolveStepNodeGraph`, which `schedule()` itself calls: each leaf's intra-item
- * step chain, and the join from the predecessor's **reached** slice to the
- * successor's **first** slice plain. What is left here is the conversion the schema's own
- * `$defs/edge` comment calls "real work rather than a rename": the domain names
+ * step chain, legacy FS joins, and typed joins whose source/sink boundaries
+ * depend on FS, SS or FF. What is left here is the conversion: the domain names
  * an edge's ends by leaf and position, and the wire names them by `sliceKey`,
  * because Python receives no work item ids and no tree.
  *
@@ -36,6 +37,13 @@ export function buildSolverEdges(
   slicesOf: (leafId: string) => readonly Slice[],
   leafEdges: readonly LeafEdge[],
   reach: DependencyReach,
+  /**
+   * The typed dependencies and the tree they resolve against. Required, with
+   * no empty default: a request built without them would hand the solver a
+   * plan missing constraints Fast honours, and the two would disagree about
+   * which schedules are legal.
+   */
+  authored: AuthoredDependencies,
 ): readonly SolverEdge[] {
   /**
    * One end, keyed.
@@ -65,8 +73,19 @@ export function buildSolverEdges(
     return sliceKey(slice.workItemId, slice.stepId);
   };
 
-  return resolveStepNodeGraph(leafIds, slicesOf, leafEdges, reach).edges.map((edge) => ({
-    predecessorKey: keyOf(edge.predecessor.leafId, edge.predecessor.at),
-    successorKey: keyOf(edge.successor.leafId, edge.successor.at),
-  }));
+  return resolveStepNodeGraph(leafIds, slicesOf, leafEdges, reach, authored).edges.map((edge) => {
+    const predecessorKey = keyOf(edge.predecessor.leafId, edge.predecessor.at);
+    const successorKey = keyOf(edge.successor.leafId, edge.successor.at);
+    if (edge.type === 'FF') {
+      const predecessor = slicesOf(edge.predecessor.leafId)[edge.predecessor.at];
+      const successor = slicesOf(edge.successor.leafId)[edge.successor.at];
+      return {
+        predecessorKey,
+        successorKey,
+        type: 'FF',
+        startWeightUnits: ffStartWeightUnits(predecessor, successor),
+      };
+    }
+    return { predecessorKey, successorKey, type: edge.type };
+  });
 }

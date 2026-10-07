@@ -12,9 +12,11 @@ import type { Gap, SourceDeclaration } from './source-declaration';
 
 /** The implemented source-family cases, independently enumerated from the manifest. */
 export const SOURCE_CONFORMANCE_CASES = [
+  'livePlans.read:legacy-and-absence',
   'projects.create:steps',
   'projects.update:scope',
   'projects.recordOpen:reader-order',
+  'projectRanks.orderIn:scoped-move',
   'users.create:unique-name',
   'users.find:identity',
   'users.resolveOidcIdentity:issuer-subject',
@@ -66,6 +68,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'dependencies.add:idempotent-pair',
   'dependencies.remove:pair',
   'dependencies.removeAllFor:touching-set',
+  'typedDependencies.write:identity-and-bulk',
   'directory.addTag',
   'directory.assign:unknown_person',
   'directory.assign:scope-replace-clear',

@@ -1,31 +1,44 @@
+import { CREATOR_ADMISSION, type OptimizedScheduleAdapter } from '@wbs/core';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { builtByNonOwner, MAX_ESTIMATE_DAYS, type Schedule, schedule } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
-import type {
-  OptimizationVariantState,
-  OptimizedScheduleReader,
-} from '../service/optimized-schedule-reader';
+import type { OptimizationVariantState } from '../module/optimization/optimized-schedule-reader';
 import { optimizerWiring } from '../service/optimizer-wiring';
-import { ProjectService } from '../service/project.service';
-import { WorkItemService } from '../service/work-item.service';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingJoinRequests,
+  refusingTestEmailDelivery,
+} from '../testing/email-verification-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { refusingOnboarding } from '../testing/onboarding-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingDomains,
+  refusingMemberships,
+} from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects, memoryProjectTables } from '../testing/project-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
+import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
-function buildHarness(optimized?: OptimizedScheduleReader) {
+function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
   const users = inMemoryUsers();
   const projectTables = memoryProjectTables();
   const plan = inMemoryServices({ projects: inMemoryProjects(users, projectTables) });
@@ -34,6 +47,7 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
   const capacity = testCapacityService();
   const priorityBands = testPriorityBandService();
   const projects = new ProjectService({
+    dependencyGraph: new DependencyGraphGuard(plan.stores),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
@@ -44,16 +58,21 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
   const workItems =
     optimized === undefined
       ? new WorkItemService({
+          admission: CREATOR_ADMISSION,
           clock: testClock,
           ...plan.stores,
           broadcast: plan.broadcast,
           scheduler: plan.scheduler,
         })
       : new WorkItemService({
+          admission: CREATOR_ADMISSION,
           clock: testClock,
           ...plan.stores,
           broadcast: plan.broadcast,
-          scheduler: optimizerWiring({ readLive: optimized, readCaptured: optimized }).scheduler,
+          scheduler: optimizerWiring({
+            readLive: (ask) => Promise.resolve(optimized(ask)),
+            readCaptured: optimized,
+          }).scheduler,
         });
   // The batch writes through the **same** services the routes do: on the
   // in-memory fixtures there is one set of stores and no turn to hold, so the
@@ -69,6 +88,16 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
     calendarMarkers,
   });
   const app = buildApp({
+    organizations: legacyOrganizationAccess,
+    memberships: refusingMemberships,
+    domains: refusingDomains,
+    emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
+    spaces: refusingSpaces,
+    projectRanks: refusingProjectRanks,
+    emailDelivery: refusingTestEmailDelivery,
+    onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
     clock: testClock,
     appOrigin: 'http://localhost',
@@ -144,7 +173,7 @@ type Send = (
   init?: { method?: string; body?: string },
 ) => Promise<Response>;
 
-async function setup(optimized?: OptimizedScheduleReader) {
+async function setup(optimized?: OptimizedScheduleAdapter['readCaptured']) {
   const {
     register,
     send,
@@ -285,9 +314,17 @@ describe('work item routes', () => {
       name: 'Review',
       code: 'review',
       position: 3000,
+      allowancePercent: 0,
     });
     const uncodedId = crypto.randomUUID();
-    seeded.push({ id: uncodedId, projectId, name: 'Legacy', code: null, position: 4000 });
+    seeded.push({
+      id: uncodedId,
+      projectId,
+      name: 'Legacy',
+      code: null,
+      position: 4000,
+      allowancePercent: 0,
+    });
     const firstId = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
     const parentId = await addWorkItem(send, token, projectId, {
       parentId: null,
@@ -720,7 +757,7 @@ describe('work item routes', () => {
     type Variants = Readonly<Record<'pri' | 'time', OptimizationVariantState>>;
     let variants: Variants = { pri: { state: 'pending' }, time: { state: 'pending' } };
     let serve = false;
-    const optimized: OptimizedScheduleReader = (ask) => {
+    const optimized: OptimizedScheduleAdapter['readCaptured'] = (ask) => {
       const empty = ask.input.slices.length === 0;
       const fast = schedule(
         ask.input.rows,
@@ -3648,18 +3685,17 @@ describe('setting a row’s status as one act', () => {
     });
   });
 
-  it('refuses a status outside unknown and done, in_progress and not_started included', async () => {
-    // The shape guards the keys and this guards the value (`AGENTS.md`): the
-    // ArkType arm names `'unknown' | 'done'`, but a mistyped value reaches the
-    // parser, and `parseStatus` is what answers it.
+  it('refuses a status nobody may set, blocked_by_proxy and not_started included', async () => {
+    // The shape guards the keys and this guards the value (`AGENTS.md`): a
+    // mistyped value reaches the parser, and `parseStatus` is what answers it.
     //
-    // Proof: `parseStatus` replaced by a cast, and `in_progress` answers 200 —
-    // a row-level statement the vocabulary reserves for a step, written on
-    // every step of the row; watched 2026-09-12.
+    // Proof: `parseStatus` replaced by a cast, and `blocked_by_proxy` was
+    // answered `invalid_body` without its `at` and `kind` — the command's own
+    // refusal lost to a later shape check; watched 2026-09-29.
     const { token, send, projectId } = await setup();
     const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
 
-    for (const status of ['in_progress', 'not_started', 'finished', 7, null]) {
+    for (const status of ['blocked_by_proxy', 'not_started', 'finished', 7, null]) {
       const res = await command(send, token, projectId, {
         kind: 'setStatus',
         workItemId: strip,

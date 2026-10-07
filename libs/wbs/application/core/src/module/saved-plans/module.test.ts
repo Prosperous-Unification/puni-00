@@ -4,6 +4,8 @@ import { DiBag } from 'di-bag';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Digest } from '../../ports/runtime';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
@@ -27,6 +29,7 @@ async function seeded() {
   let next = 0;
   const clock = clockOf({ now: () => STAMP_AT, newId: () => `id-${String(++next)}` });
   const { projects } = servicesOver(source.stores, {
+    admission: CREATOR_ADMISSION,
     clock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
@@ -57,6 +60,7 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     scheduler: DiBag.createProvider(() => fastScheduler, { factoryReturnKind: 'sync-value' }),
+    captureSharedPlan: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     newId: DiBag.createProvider(() => () => 'id', { factoryReturnKind: 'sync-value' }),
     now: DiBag.createProvider(() => () => STAMP_AT / 1_000, { factoryReturnKind: 'sync-value' }),
   };
@@ -95,6 +99,46 @@ describe('the Saved plans module', () => {
     expect(await savedPlans.read(saved.record.id)).toHaveProperty('outcome', 'read');
   });
 
+  it('refuses installed shared save and current before capture without admitted access', async () => {
+    const { projectId, requirements } = await seeded();
+    let sharedReads = 0;
+    let localReads = 0;
+    const savedPlans = installSavedPlans({
+      ...requirements,
+      capture: {
+        readPlanInput: async (id) => {
+          localReads += 1;
+          return requirements.capture.readPlanInput(id);
+        },
+      },
+      captureSharedPlan: () => {
+        sharedReads += 1;
+        return Promise.resolve({ kind: 'isolated' as const });
+      },
+    }).savedPlans;
+    const savedFailure = await savedPlans
+      .save({ projectId, createdBy: owner.username, createdById: owner.id })
+      .then(
+        () => null,
+        (failure: unknown) => failure,
+      );
+    const currentFailure = await savedPlans.projectCurrentPlan(projectId).then(
+      () => null,
+      (failure: unknown) => failure,
+    );
+    expect(sharedReads).toBe(0);
+    expect(localReads).toBe(0);
+    expect(await requirements.plans.listOf(projectId)).toEqual([]);
+    expect(savedFailure).toBeInstanceOf(Error);
+    expect(currentFailure).toBeInstanceOf(Error);
+    expect((savedFailure as Error).message).toBe(
+      'installed shared saved-plan capture requires admitted human access',
+    );
+    expect((currentFailure as Error).message).toBe(
+      'installed shared saved-plan capture requires admitted human access',
+    );
+  });
+
   it('passes a supplied quota through to the installed feature', async () => {
     const { projectId, requirements } = await seeded();
     const { savedPlans } = installSavedPlans({
@@ -118,7 +162,7 @@ describe('the Saved plans module', () => {
 
     const outcome = await savePlan(
       { projects, plans: savedPlans, announcements },
-      { projectId, actor: owner, name: 'Announced' },
+      { projectId, actor: owner, name: 'Announced', access: LEGACY_ACCESS },
     );
 
     expect(outcome).toHaveProperty('outcome', 'saved');
@@ -179,5 +223,52 @@ describe('the Saved plans module', () => {
     expect(() => host.resolve('savedPlans')).toThrow(
       `Cannot resolve "${SAVED_PLANS_LABEL}/savedPlanOptions": dependency "quota" is not registered. Resolution path: savedPlans -> ${SAVED_PLANS_LABEL}/savedPlanOptions -> quota.`,
     );
+  });
+});
+
+describe('a saved plan and step allowances', () => {
+  it('keeps the allowance it was saved with when the live step changes later', async () => {
+    const source = openMemorySource();
+    let next = 0;
+    const clock = clockOf({ now: () => STAMP_AT, newId: () => `id-${String(++next)}` });
+    const { projects } = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
+      clock,
+      broadcast: recordingBroadcaster(),
+      scheduler: fastScheduler,
+    });
+    const created = await projects.create('Plan', owner.id);
+    const qa = created.steps.find((step) => step.name === 'QA');
+    if (qa === undefined) throw new Error('no QA step');
+    const stamp = { at: STAMP_AT, by: owner.id };
+    await source.stores.projects.setStepAllowance(created.project.id, qa.id, 30, stamp);
+    const { savedPlans } = installSavedPlans({
+      digest: lengthDigest,
+      capture: source.history.savedPlanCapture,
+      plans: source.history.savedPlans,
+      scheduler: fastScheduler,
+      newId: () => clock.newId(),
+      now: () => Math.floor(clock.now() / 1_000),
+    });
+    const saved = await savedPlans.save({
+      projectId: created.project.id,
+      name: 'Baseline',
+      createdBy: owner.username,
+      createdById: owner.id,
+    });
+    if (saved.outcome !== 'saved') throw new Error(`save answered ${saved.outcome}`);
+
+    await source.stores.projects.setStepAllowance(created.project.id, qa.id, 50, stamp);
+    await source.stores.steps.rename(created.project.id, qa.id, 'Renamed QA', stamp);
+
+    const read = await savedPlans.read(saved.record.id);
+    if (read.outcome !== 'read') throw new Error(`read answered ${read.outcome}`);
+    const body = JSON.parse(read.plan.input.bytes) as {
+      steps: { id: string; code: string | null; name: string; allowancePercent: number }[];
+    };
+    expect(read.plan.input.schemaVersion).toBe(4);
+    expect(body.steps.find((step) => step.id === qa.id)?.allowancePercent).toBe(30);
+    expect(body.steps.find((step) => step.id === qa.id)?.code).toBe(qa.code);
+    expect(body.steps.find((step) => step.id === qa.id)?.name).toBe(qa.name);
   });
 });

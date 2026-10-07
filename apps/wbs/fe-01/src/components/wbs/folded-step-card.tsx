@@ -1,11 +1,19 @@
+import { beforeRoundingDays, combinedDays, type EstimateRule } from '@wbs/domain/estimate';
 import type { KeyboardEvent } from 'react';
 
-import type { PlanRead } from '@/lib/wbs-api';
+import type { Days, PlanRead } from '@/lib/wbs-api';
 
 import type { Point } from './estimate-draft';
 import { HoverCard } from './hover-card';
 import type { CardAssignee } from './plan-cards';
 import type { Toast } from './toasts';
+
+/**
+ * A figure the charge is audited by, to four decimals rather than the table's
+ * one: `2.0002` before rounding is why a +0.01% allowance charges 3 days, and
+ * `2` would hide it.
+ */
+const auditDays = (days: number): string => String(Math.round(days * 10_000) / 10_000);
 
 /** One of the three points, as the row holds it: `''` where nobody typed one. */
 export interface FoldedStepPoint {
@@ -31,6 +39,7 @@ export interface FoldedStepCardProps {
   stepNode: NonNullable<PlanRead['stepNodes']>[number] | null;
   /** Returns keyboard focus from the card actions to their folded step cell. */
   onExitActions: () => void;
+  onAddDependency?: () => void;
   /** Keeps a hover-opened card while the pointer arrives from its cell. */
   onPointerArrives: () => void;
   pushToast: (toast: Toast) => void;
@@ -47,6 +56,9 @@ export interface FoldedStepCardProps {
   points: readonly FoldedStepPoint[];
   /** The figure the folded cell shows — `''` where there is nothing to show. */
   final: string;
+  estimate?: Days;
+  allowancePercent: number;
+  rule: EstimateRule;
   doing: CardAssignee | null;
   /**
    * The cell's complaint, where it holds one — a typed trio that saves
@@ -85,12 +97,16 @@ export function FoldedStepCard({
   projectId,
   stepNode,
   onExitActions,
+  onAddDependency,
   onPointerArrives,
   pushToast,
   number,
   id,
   points,
   final,
+  estimate,
+  allowancePercent,
+  rule,
   doing,
   problem,
 }: FoldedStepCardProps) {
@@ -174,6 +190,11 @@ export function FoldedStepCard({
           </button>
         </div>
       )}
+      {onAddDependency !== undefined && (
+        <button type="button" onKeyDown={onActionKeyDown} onClick={onAddDependency}>
+          Add dependency from {stepName}
+        </button>
+      )}
       {/*
         Said in words, not as `2/3/8`: the shorthand is what an estimator types
         into the cell, and a card is read by whoever is looking at the plan.
@@ -183,7 +204,18 @@ export function FoldedStepCard({
           ? points.map((each) => `${each.point} ${each.days === '' ? '—' : each.days}`).join(' · ')
           : 'No estimate yet'}
       </div>
-      {final !== '' && <div>Final {final} days</div>}
+      {estimate !== undefined && allowancePercent !== 0 ? (
+        <>
+          <div>Base estimate {auditDays(combinedDays(estimate, rule))} days</div>
+          <div>Allowance +{String(allowancePercent)}%</div>
+          <div>
+            Before rounding {auditDays(beforeRoundingDays(estimate, rule, allowancePercent))} days
+          </div>
+          <div>Charged {final} days</div>
+        </>
+      ) : (
+        final !== '' && <div>Final {final} days</div>
+      )}
       {doing !== null && (
         <div>
           {doing.name}

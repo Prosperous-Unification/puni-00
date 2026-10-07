@@ -4,9 +4,19 @@ import { project } from './project-response';
 import { requestSchema, responseSchema } from './schema-shape';
 import { workItemTree } from './work-item-response';
 
+/**
+ * The plan document version this release writes.
+ *
+ * `6` carries each leaf's readiness and hold (`add-work-item-statuses`); `5`
+ * extends typed dependencies to SS/FF; `4` added FS separately from
+ * legacy `dependsOn`; `3` added step codes and `2` step allowances. The
+ * classifier converts earlier versions explicitly.
+ */
+export const PLAN_DOCUMENT_VERSION = 6;
+
 const planHeader = type({
   format: "'wbs-plan'",
-  version: '1',
+  version: '6',
   exportedAt: 'string',
 });
 
@@ -18,7 +28,13 @@ const planSettings = type({
   pertWeights: { optimistic: 'number', realistic: 'number', pessimistic: 'number' },
   estimateRounding: "'exact' | 'floor' | 'round' | 'ceil'",
   startDate: 'string | null',
-  solutionRef: type({ slug: 'string', url: 'string' }).or('null'),
+  // Non-empty, as a PATCH requires: a scoped import stores the link under
+  // `project_solution`'s length checks.
+  // Proof: accepting empty strings made `refuses an empty solution slug or url
+  // as input, importing nothing` in
+  // `import-export-organization.controller.db.test.ts` answer 500 instead of
+  // 400; watched 2026-09-28.
+  solutionRef: type({ slug: 'string > 0', url: 'string > 0' }).or('null'),
   optimizationEnabled: 'boolean',
   scheduleEngine: "'fast' | 'optimized'",
   scheduleObjective: "'pri' | 'time'",
@@ -46,11 +62,47 @@ const authoredMarker = type({
   color: 'string | null',
 });
 
+const documentEndpoint = type({ scope: "'whole'", workItem: 'string' })
+  .or({ scope: "'node'", workItem: 'string', step: 'string' })
+  .or({ scope: "'descendant-step'", workItem: 'string', step: 'string' });
+
+export const documentTypedDependency = type({
+  id: 'string',
+  predecessor: documentEndpoint,
+  successor: documentEndpoint,
+  // Proof: making type optional let the mounted v5 import accept a missing
+  // type with HTTP 204 instead of refusing it with 400 (2026-09-28).
+  type: "'FS' | 'SS' | 'FF'",
+});
+export const documentTypedDependencyRequest = requestSchema(documentTypedDependency);
+export type DocumentTypedDependency = (typeof documentTypedDependency)['infer'];
+
+/** Version 4's converter accepts only the relationship type that release wrote. */
+export const documentV4TypedDependencyRequest = requestSchema(
+  documentTypedDependency.and({ type: "'FS'" }),
+);
+
 /**
- * Version 1 keeps the complete established export and adds every authored value
- * needed to interpret its file-local references during a restore.
+ * Version 5 keeps the established export and carries all typed relationships with
+ * file-local work-item and step references, distinct from legacy links.
+ *
+ * A step's `code` is optional and nullable on the work-item read (an older
+ * be-01, an uncoded step); here it is a required string, because the export
+ * refuses an uncoded project rather than write a file without its codes.
+ * `stepNodes` spells each leaf's step node beside the structured work-item and
+ * step IDs the estimates, facts and assignments are keyed by — `010.dev` for
+ * `sn1.<work item>.<step>` — for a reader of the file. It is derived, so import
+ * drops it and the new project's nodes follow its own IDs.
  */
-export const planDocument = workItemTree.and({
+export const planDocument = workItemTree.omit('typedDependencies').and({
+  typedDependencies: documentTypedDependency.array(),
+  steps: type({ code: 'string' }).array(),
+  stepNodes: type({
+    id: 'string',
+    workItemId: 'string',
+    stepId: 'string',
+    reference: 'string',
+  }).array(),
   project,
   document: planHeader,
   settings: planSettings,
@@ -85,6 +137,10 @@ const authoredWorkItem = type({
   deadline: 'string | null',
   factStart: 'string | null',
   factEnd: 'string | null',
+  // Opaque until the version is read: versions 1–5 carry neither, and version
+  // 6 must state both — see `classifyPlanDocument`.
+  'readiness?': 'unknown',
+  'hold?': 'unknown',
   // Proof: loosening this to unknown made the mounted document boundary accept
   // "high" at workItems[3].priority with 204 instead of 400 invalid_body.
   priority: 'number | null',
@@ -106,7 +162,7 @@ const authoredWorkItem = type({
 
 /**
  * The archival request projection admits old additive/read-only fields and
- * returns only writable version-1 content. Step-value maps stay opaque until
+ * returns only writable content. Step-value maps stay opaque until
  * hierarchy validation determines which rows are leaves.
  */
 const writablePlanDocument = type({
@@ -117,7 +173,19 @@ const writablePlanDocument = type({
   calendarMarkers: authoredMarker.array(),
   directory,
   workItems: authoredWorkItem.array(),
-  steps: type({ id: 'string', name: 'string', position: 'number' }).array(),
+  // Optional structurally because version 1 has no allowance and versions 1
+  // and 2 carry no code the import keeps; the version decides what each field
+  // must be — see `classifyPlanDocument`. `code` stays `unknown` here so an
+  // earlier-version file is read exactly as before codes existed, whatever it
+  // held under that key (a version-2 export writes the read's `code: null`).
+  steps: type({
+    id: 'string',
+    name: 'string',
+    position: 'number',
+    'allowancePercent?': 'number',
+    'code?': 'unknown',
+  }).array(),
+  'typedDependencies?': 'unknown',
 });
 
 export const planDocumentRequest = requestSchema(writablePlanDocument, {
@@ -125,3 +193,26 @@ export const planDocumentRequest = requestSchema(writablePlanDocument, {
 });
 
 export type PlanDocumentRequest = (typeof writablePlanDocument)['infer'];
+
+/**
+ * A writable plan document once its version has been read: every step carries
+ * the allowance it is imported with — the file's own from version 2, zero at
+ * version 1 — and the code the file gives it from version 3, or `null` for an
+ * earlier version. Versions 1–3 carry an empty typed set after conversion;
+ * version 4 converts its FS-only typed set explicitly.
+ */
+export type PlanDocumentImport = Omit<
+  PlanDocumentRequest,
+  'steps' | 'typedDependencies' | 'workItems'
+> & {
+  typedDependencies: DocumentTypedDependency[];
+  /** Readiness and hold as the file states them from version 6, null before. */
+  workItems: (Omit<PlanDocumentRequest['workItems'][number], 'readiness' | 'hold'> & {
+    readiness: 'draft' | 'ready' | null;
+    hold: 'on_hold' | 'blocked' | null;
+  })[];
+  steps: (Omit<PlanDocumentRequest['steps'][number], 'allowancePercent' | 'code'> & {
+    allowancePercent: number;
+    code: string | null;
+  })[];
+};

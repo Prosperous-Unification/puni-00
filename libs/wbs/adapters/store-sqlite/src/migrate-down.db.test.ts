@@ -304,11 +304,19 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
- * The newest: the legacy bridge triggers, stamped after
+ * The legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -642,8 +650,21 @@ describe('readMigrationFolders', () => {
       ORGANIZATION_RECORDS,
       ORGANIZATION_OWNERSHIP,
       STEP_CODE,
+      STEP_ALLOWANCE,
       ORGANIZATION_ACTIVATION,
       ORGANIZATION_BRIDGE,
+      ORGANIZATION_FROZEN,
+      TYPED_DEPENDENCY,
+      '20260927220000_add_organization_audit',
+      '20260928010000_add_project_solution',
+      '20260928020000_add_email_verification',
+      '20260928030000_add_delegation_use',
+      '20260928040000_add_email_challenge',
+      '20260928200000_add_work_item_status_facts',
+      '20260929100000_add_spaces',
+      '20260929180000_add_project_rank',
+      '20261001010000_add_browser_credential_revocations',
+      '20261005110000_add_shared_people',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -764,15 +785,41 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_RECORDS,
         ORGANIZATION_OWNERSHIP,
         STEP_CODE,
+        STEP_ALLOWANCE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_BRIDGE,
+        ORGANIZATION_FROZEN,
+        TYPED_DEPENDENCY,
+        '20260927220000_add_organization_audit',
+        '20260928010000_add_project_solution',
+        '20260928020000_add_email_verification',
+        '20260928030000_add_delegation_use',
+        '20260928040000_add_email_challenge',
+        '20260928200000_add_work_item_status_facts',
+        '20260929100000_add_spaces',
+        '20260929180000_add_project_rank',
+        '20261001010000_add_browser_credential_revocations',
+        '20261005110000_add_shared_people',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -889,8 +936,21 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_RECORDS,
         ORGANIZATION_OWNERSHIP,
         STEP_CODE,
+        STEP_ALLOWANCE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_BRIDGE,
+        ORGANIZATION_FROZEN,
+        TYPED_DEPENDENCY,
+        '20260927220000_add_organization_audit',
+        '20260928010000_add_project_solution',
+        '20260928020000_add_email_verification',
+        '20260928030000_add_delegation_use',
+        '20260928040000_add_email_challenge',
+        '20260928200000_add_work_item_status_facts',
+        '20260929100000_add_spaces',
+        '20260929180000_add_project_rank',
+        '20261001010000_add_browser_credential_revocations',
+        '20261005110000_add_shared_people',
       ]);
     } finally {
       db.cleanup();
@@ -961,8 +1021,21 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1055,8 +1128,21 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1134,8 +1220,21 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20261005110000_add_shared_people',
+        '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
+        '20260929100000_add_spaces',
+        '20260928200000_add_work_item_status_facts',
+        '20260928040000_add_email_challenge',
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        '20260928010000_add_project_solution',
+        '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
