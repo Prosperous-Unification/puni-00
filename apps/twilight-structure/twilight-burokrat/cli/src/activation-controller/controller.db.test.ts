@@ -4,6 +4,7 @@ import {
   closeSync,
   constants,
   existsSync,
+  fstatSync,
   linkSync,
   mkdirSync,
   mkdtempSync,
@@ -8730,7 +8731,10 @@ function selectedStageFixture(
   overrides: Partial<
     Pick<
       ActivationControllerOptions,
-      'resolveCandidateTree' | 'resolveExecutableTree' | 'stageDiagnostics'
+      | 'resolveCandidateSnapshot'
+      | 'resolveCandidateTree'
+      | 'resolveExecutableTree'
+      | 'stageDiagnostics'
     >
   > = {},
   profileChanges: Record<string, unknown> = {},
@@ -8738,6 +8742,7 @@ function selectedStageFixture(
     { path: 'main.txt', type: 'file', mode: 420, size: 4, sha256: hashBytes('main') },
   ],
   sourceRoot?: string,
+  runtimeIdentity?: string,
 ) {
   const executableTreeBytes = serializeCanonical({
     schemaVersion: 1,
@@ -8781,7 +8786,7 @@ function selectedStageFixture(
     '.',
     profileChanges,
     '.',
-    { executableTreeIdentity: hashBytes(executableTreeBytes) },
+    { executableTreeIdentity: runtimeIdentity ?? hashBytes(executableTreeBytes) },
   );
   writeFileSync(join(sourceRoot ?? selected.snapshotRoot, 'main.txt'), 'main', { mode: 0o644 });
   return {
@@ -8793,6 +8798,107 @@ function selectedStageFixture(
     executableTreeBytes,
   };
 }
+
+function selectedAlteredCandidateFixture(fault: 'noncanonical' | 'digest' | 'request' | 'head') {
+  const sourceRoot = mkdtempSync(join(tmpdir(), 'activation-candidate-identity-'));
+  scratch.push(sourceRoot);
+  const manifest = (request: ActivationRequest) => {
+    const bytes = serializeCanonical({
+      schemaVersion: 1,
+      kind: 'candidate-snapshot',
+      requestIdentity: fault === 'request' ? 'f'.repeat(64) : request.requestIdentity,
+      headSha: fault === 'head' ? 'f'.repeat(40) : request.headSha,
+      entries: [{ path: 'main.txt', type: 'file', mode: 420, size: 4, sha256: hashBytes('main') }],
+    });
+    return fault === 'noncanonical' ? ` ${bytes}` : bytes;
+  };
+  return selectedStageFixture(
+    {
+      resolveCandidateSnapshot: (request) =>
+        Promise.resolve({
+          schemaVersion: 1,
+          kind: 'candidate-snapshot',
+          requestIdentity: request.requestIdentity,
+          headSha: request.headSha,
+          snapshotIdentity:
+            fault === 'digest' ? hashBytes('wrong tree') : hashBytes(manifest(request)),
+          root: sourceRoot,
+        }),
+      resolveCandidateTree: (request) =>
+        Promise.resolve({ bytes: manifest(request), root: sourceRoot }),
+    },
+    {},
+    undefined,
+    sourceRoot,
+  );
+}
+
+test.each([
+  ['noncanonical', 'check candidate tree malformed'],
+  ['digest', 'check candidate tree differs from frozen identity'],
+  ['request', 'check candidate tree differs from current request'],
+  ['head', 'check candidate tree differs from current request'],
+] as const)('selected check refuses %s candidate tree binding', async (fault, phrase) => {
+  const selected = selectedAlteredCandidateFixture(fault);
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)), phrase);
+    expect(readdirSync(selected.stageBase)).toEqual([]);
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check refuses runtime tree bytes under a different frozen identity', async () => {
+  const selected = selectedStageFixture(
+    {},
+    {},
+    undefined,
+    undefined,
+    hashBytes('wrong runtime tree'),
+  );
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check runtime tree differs from frozen identity',
+    );
+    expect(readdirSync(selected.stageBase)).toEqual([]);
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('selected check refuses noncanonical runtime tree bytes even under their frozen digest', async () => {
+  const canonical = serializeCanonical({
+    schemaVersion: 1,
+    kind: 'executable-tree',
+    entries: [{ path: 'bun', type: 'file', mode: 493, size: 7, sha256: hashBytes('runtime') }],
+  });
+  const altered = ` ${canonical}`;
+  const selected = selectedStageFixture(
+    {
+      resolveExecutableTree: () => Promise.resolve({ bytes: altered, root: selected.runtimeRoot }),
+    },
+    {},
+    undefined,
+    undefined,
+    hashBytes(altered),
+  );
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    await rejectsWith(
+      selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
+      'check runtime tree malformed',
+    );
+    expect(readdirSync(selected.stageBase)).toEqual([]);
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
+  } finally {
+    selected.controller.close();
+  }
+});
 
 test('selected check stages only bytes from trusted complete-tree manifests', async () => {
   const selected = selectedStageFixture();
@@ -9114,6 +9220,7 @@ test('selected check copies from the opened leaf rather than reopening its repla
 });
 
 test('selected check refuses a closed and reused source descriptor', async () => {
+  let reusedDescriptor: number | undefined;
   const selected = selectedStageFixture({
     stageDiagnostics: {
       afterFileOpened: (kind, path, descriptor) => {
@@ -9125,7 +9232,8 @@ test('selected check refuses a closed and reused source descriptor', async () =>
         const original = statSync(join(selected.snapshotRoot, 'main.txt'));
         utimesSync(replacement, original.atime, original.mtime);
         closeSync(descriptor);
-        expect(openSync(replacement, constants.O_RDONLY)).toBe(descriptor);
+        reusedDescriptor = openSync(replacement, constants.O_RDONLY);
+        expect(reusedDescriptor).toBe(descriptor);
       },
     },
   });
@@ -9134,7 +9242,48 @@ test('selected check refuses a closed and reused source descriptor', async () =>
       selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
       'check candidate tree source differs from manifest',
     );
+    if (reusedDescriptor === undefined) throw new Error('reused descriptor absent');
+    expect(fstatSync(reusedDescriptor).isFile()).toBe(true);
     expect(readdirSync(selected.stageBase)).toEqual([]);
+  } finally {
+    if (reusedDescriptor !== undefined) closeSync(reusedDescriptor);
+    selected.controller.close();
+  }
+});
+
+test('selected check closes remaining owned descriptors after a leaf descriptor was closed', async () => {
+  const selected = selectedStageFixture({
+    stageDiagnostics: {
+      afterFileOpened: (kind, path, descriptor) => {
+        if (kind === 'candidate' && path === 'main.txt') closeSync(descriptor);
+      },
+    },
+  });
+  try {
+    const before = checkDispatchRows(selected.source.databasePath);
+    const descriptorsBefore = readdirSync('/proc/self/fd').length;
+    let refusal: unknown;
+    try {
+      await selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64));
+    } catch (cause) {
+      refusal = cause;
+    }
+    expect(refusal).toBeInstanceOf(AggregateError);
+    if (refusal instanceof AggregateError) {
+      expect(refusal.message).toContain('check candidate tree source differs from manifest');
+      expect(refusal.errors).toHaveLength(2);
+      const originalFailure: unknown = refusal.errors[0];
+      const cleanupFailure: unknown = refusal.errors[1];
+      expect(originalFailure).toBeInstanceOf(Error);
+      expect(cleanupFailure).toBeInstanceOf(Error);
+      if (originalFailure instanceof Error)
+        expect(originalFailure.message).toContain('check candidate tree source differs');
+      if (cleanupFailure instanceof Error)
+        expect(cleanupFailure.message).toContain('check tree descriptor cleanup failed');
+    }
+    expect(readdirSync('/proc/self/fd').length).toBe(descriptorsBefore);
+    expect(readdirSync(selected.stageBase)).toEqual([]);
+    expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
   } finally {
     selected.controller.close();
   }

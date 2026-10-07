@@ -1610,3 +1610,50 @@ failures (`/tmp/activation-b1-final-{strict,all}.json`). An initial
 and is excluded. Changed-path Prettier and `git diff --check` passed
 (`/tmp/activation-b1-final-{format,diff}.log`); normal-hook result belongs to
 the local commit. No host gate or CI was run for this unpublished B1 slice.
+
+### B1 exact-review correction after `aaba6a146`
+
+Astra reproduced that closing a candidate leaf descriptor without reusing its
+number caused the old cleanup loop to throw `EBADF` at its first close, masking
+the source refusal and leaking three retained ancestor descriptors. The mounted
+test failed on that original byte sequence
+(`/tmp/activation-b1-fd-cleanup-red.log`, 0/1, exit 1). Cleanup now records
+the dev/inode of each opened descriptor, attempts every owned close once,
+refuses to close a number reused for a different inode, and reports both the
+original source failure and any cleanup failures in an `AggregateError`. The
+restored close-without-reuse and close-with-reuse tests passed 2/2, 13
+assertions (`/tmp/activation-b1-fd-cleanup-green3.log`). They assert complete
+stage cleanup, full dispatch-state preservation, baseline FD count after the
+closed leaf, and that the unrelated reused descriptor remains open. Independently
+replacing cleanup with a first-error-aborting loop or omitting reused-FD
+ownership comparison failed the mounted tests and passed after restoration
+(`/tmp/activation-b1-r5-{cleanup_continue,cleanup_reuse}-{red,green}.log`, RED
+exit 1, GREEN exit 0). No closed number is blindly retried.
+
+The exact-review R5 gap was filled with canonical, digest, request and head
+fixtures whose trusted selected snapshot identities were recomputed from the
+altered bytes where applicable. Candidate and runtime noncanonical bytes each
+refuse even when their frozen digest matches the raw bytes; candidate and
+runtime canonical bytes each refuse under a different schema-valid frozen
+digest; candidate request and head substitutions each refuse with otherwise
+matching source contents and manifest digest. Baseline mounted cases passed
+6/6 (`/tmp/activation-b1-identity-green1.log` plus
+`/tmp/activation-b1-runtime-canonical-green.log`). Independently omitting each
+canonical, digest, request or head join failed its named test, then passed
+after source restoration (`/tmp/activation-b1-r5-{candidate_canonical,runtime_canonical,candidate_digest,runtime_digest,candidate_request,candidate_head}-{red,green}.log`, each RED exit 1, GREEN exit 0). The old wrong-file-hash fixture was not used
+as proof for the frozen digest join.
+
+After the correction and typed AggregateError test assertions, the fresh
+four-file Bun suite passed **428/428**, 1,820 assertions, exit 0
+(`/tmp/activation-b1-fix-final2-four.log`). Declared Nx
+`twilight-burokrat:lint:source` and `:typecheck` each printed explicit success,
+exit 0 (`/tmp/activation-b1-fix-final2-{lint,type}.log`). The first lint
+attempt exposed two unsafe member accesses in the test's AggregateError
+inspection; those were replaced by `unknown` plus `instanceof Error`, then
+the declared target passed. Declared Nx `twilight-burokrat:build` also printed
+explicit success, exit 0 (`/tmp/activation-b1-fix-final2-build.log`). Pinned
+OpenSpec strict passed 1/1 and all passed 143/143, zero failures
+(`/tmp/activation-b1-fix-final2-{strict,all}.json`). Changed-path Prettier
+and `git diff --check` passed
+(`/tmp/activation-b1-fix-final2-{format,diff}.log`). Normal-hook result belongs
+to the local correction commit. Host gate and CI remain unrun.

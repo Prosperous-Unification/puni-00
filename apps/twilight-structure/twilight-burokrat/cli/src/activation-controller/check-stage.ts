@@ -57,6 +57,18 @@ interface Tree {
   readonly entries: readonly Entry[];
 }
 
+interface OwnedDescriptor {
+  readonly descriptor: number;
+  readonly device: number;
+  readonly inode: number;
+}
+
+function rememberDescriptor(descriptors: OwnedDescriptor[], descriptor: number): number {
+  const stat = fstatSync(descriptor);
+  descriptors.push({ descriptor, device: stat.dev, inode: stat.ino });
+  return descriptor;
+}
+
 /** Trusted diagnostic events used to make descriptor races deterministic in mounted tests. */
 export interface StageDiagnostics {
   readonly afterDirectoryOpened?: (
@@ -136,14 +148,20 @@ function decodeTree(
       kind === 'candidate'
         ? parseOrThrow(CandidateTree, decoded)
         : parseOrThrow(ExecutableTree, decoded);
+    // Proof: independently omitting this equality admitted noncanonical
+    // candidate and runtime bytes whose frozen digests matched those bytes.
     if (serializeCanonical(tree) !== bytes) throw new Error('noncanonical tree manifest');
   } catch (cause) {
     throw new Error(`check ${kind} tree malformed`, { cause });
   }
+  // Proof: independently omitting the digest comparison staged candidate
+  // and runtime bytes under distinct schema-valid frozen identities.
   if (!Sha256.test(identity) || hashBytes(bytes) !== identity)
     throw new Error(`check ${kind} tree differs from frozen identity`);
   if (kind === 'candidate') {
     const candidate = parseOrThrow(CandidateTree, tree);
+    // Proof: independently omitting request or head comparison staged a
+    // recomputed manifest for another request or another commit.
     if (
       candidate.requestIdentity !== request.requestIdentity ||
       candidate.headSha !== request.headSha
@@ -191,20 +209,21 @@ function openChild(parent: number, basename: string, directory: boolean): number
 
 function openRoot(
   root: string,
-  descriptors: number[],
+  descriptors: OwnedDescriptor[],
   kind: 'candidate' | 'runtime',
   diagnostics: StageDiagnostics | undefined,
 ): number {
   if (!isAbsolute(root) || resolve(root) !== root) throw new Error('check tree root malformed');
-  let parent = openSync('/', constants.O_RDONLY | constants.O_DIRECTORY | O_CLOEXEC);
-  descriptors.push(parent);
+  let parent = rememberDescriptor(
+    descriptors,
+    openSync('/', constants.O_RDONLY | constants.O_DIRECTORY | O_CLOEXEC),
+  );
   let ancestorPath = '';
   for (const basename of root.split('/').filter(Boolean)) {
     if (basename === '.' || basename === '..' || basename.includes('\\') || basename.includes('\0'))
       throw new Error('check tree root malformed');
     // Proof: reopening a renamed ancestor by pathname staged its replacement sentinel.
-    parent = openChild(parent, basename, true);
-    descriptors.push(parent);
+    parent = rememberDescriptor(descriptors, openChild(parent, basename, true));
     ancestorPath = `${ancestorPath}/${basename}`;
     diagnostics?.afterDirectoryOpened?.(kind, ancestorPath, parent);
   }
@@ -289,7 +308,7 @@ function stageTree(
   kind: 'candidate' | 'runtime',
   diagnostics: StageDiagnostics | undefined,
 ): void {
-  const descriptors: number[] = [];
+  const descriptors: OwnedDescriptor[] = [];
   const opened = new Map<string, number>();
   const expected = new Map<string, Set<string>>([['', new Set()]]);
   for (const entry of tree.entries) {
@@ -298,6 +317,7 @@ function stageTree(
     expected.get(parent)?.add(components.at(-1) ?? '');
     if (entry.type === 'directory') expected.set(entry.path, new Set());
   }
+  let failure: Error | undefined;
   try {
     const root = openRoot(sourceRoot, descriptors, kind, diagnostics);
     opened.set('', root);
@@ -319,7 +339,7 @@ function stageTree(
       } catch (cause) {
         refuseSource(kind, cause);
       }
-      descriptors.push(descriptor);
+      rememberDescriptor(descriptors, descriptor);
       if (entry.type === 'directory') {
         const stat = fstatSync(descriptor);
         if (!stat.isDirectory() || (stat.mode & 0o777) !== entry.mode) refuseSource(kind);
@@ -336,12 +356,34 @@ function stageTree(
     }
     diagnostics?.afterTreeCopied?.(kind, destinationRoot);
   } catch (cause) {
-    if (cause instanceof Error && cause.message.includes('source differs from manifest'))
-      throw cause;
-    refuseSource(kind, cause);
-  } finally {
-    for (const descriptor of descriptors.reverse()) closeSync(descriptor);
+    failure =
+      cause instanceof Error && cause.message.includes('source differs from manifest')
+        ? cause
+        : new Error(`check ${kind} tree source differs from manifest`, { cause });
   }
+  const cleanupFailures: Error[] = [];
+  // Proof: removing per-descriptor failure isolation leaked the mounted ancestor
+  // descriptors after a diagnostic closed one leaf descriptor without reuse.
+  for (const owned of descriptors.reverse()) {
+    try {
+      const current = fstatSync(owned.descriptor);
+      // Proof: omitting ownership comparison closed a reused descriptor owned
+      // by the mounted diagnostic rather than leaving that file open.
+      if (current.dev !== owned.device || current.ino !== owned.inode) {
+        cleanupFailures.push(new Error('check tree descriptor ownership changed'));
+        continue;
+      }
+      closeSync(owned.descriptor);
+    } catch (cause) {
+      cleanupFailures.push(new Error('check tree descriptor cleanup failed', { cause }));
+    }
+  }
+  if (cleanupFailures.length > 0)
+    throw new AggregateError(
+      failure === undefined ? cleanupFailures : [failure, ...cleanupFailures],
+      `${failure?.message ?? 'check tree'}; descriptor cleanup failed`,
+    );
+  if (failure !== undefined) throw failure;
 }
 
 function verifyStagedTree(tree: Tree, root: string): void {
