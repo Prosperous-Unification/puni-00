@@ -851,8 +851,8 @@ key through a fake authenticated port, and increments a bounded attempt before
 awaiting a send. An unavailable or malformed query cannot authorize a send.
 An accepted remote fact is retained separately from acknowledgement; a stale
 worker may retain that fact but only the current evaluating lease can
-acknowledge it. The fake provider enforces the owner epoch and immutable target
-and payload at acceptance. This is a local port contract, not evidence that a
+acknowledge it. The takeover fake checks owner epoch and payload digest at
+acceptance; the mounted source checks target binding separately. This is a local port contract, not evidence that a
 live provider implements it. No endpoint or live credential is installed.
 
 Mounted cases cover accepted-query reconciliation after a lost send response
@@ -919,3 +919,57 @@ and all passed 143/143 with zero failures
 and `git diff --check` passed on final bytes. Normal-hook result is recorded
 with the local commit. Canonical host gate, CI, real provider dispatch, and
 trusted activation were not run.
+
+### Recovery canonical binding correction after exact `92f50e30` review (2026-10-07)
+
+Independent review reproduced a functional P2: changing the stored dispatch
+payload's request head to `8×40` and recomputing its digest still reached a
+query and send under the original effect
+(`/tmp/activation-92f50e-astra-payload-repro.log`). The mounted correction
+case first failed at the expected canonical-reservation refusal. Reservation
+and recovery now share one derivation of the deterministic effect key and
+canonical payload from the persisted request, frozen plan/pair, registered
+invocation and pinned bootstrap. Recovery independently compares the stored
+effect key, payload bytes and phase identities to those derived bytes. It
+retains the separate stored payload-digest check, so a digest-only change also
+refuses. A coherently renamed effect fixture validates the key comparison.
+
+The review also found that the 22 earlier watched faults did not exercise the
+new recovery preflight, acknowledgement and fact effect/request joins. The
+additional mounted fixtures compare the complete request, obligations,
+registration, reservation, progress and fact rows on preflight refusal, and
+assert zero provider queries. Their accepted source omissions and restored
+GREEN runs are `/tmp/activation-dispatch-r5-<fault>-{red,green}.log`:
+
+| Fault                                                        | Observed RED                                                                                                                    |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `canonical_payload`, `canonical_effect`                      | Coherently changed head or renamed effect reached send.                                                                         |
+| `preflight_request`, `preflight_current`, `preflight_stage`  | Foreign stored request, noncurrent request or failed stage reached send.                                                        |
+| `preflight_lease`, `preflight_authority`, `preflight_target` | Changed epoch, authority row or reviewer target reached send.                                                                   |
+| `preflight_payload_digest`                                   | Changed digest with original canonical payload reached send.                                                                    |
+| `fact_effect`, `fact_request`                                | Foreign accepted fact was retained before a later acknowledgement refusal; this proves retention boundary, not authority grant. |
+| `ack_version`, `ack_owner`                                   | A changed progress version or owner was acknowledged.                                                                           |
+| `ack_current`, `ack_lease`                                   | Omission changed a retained-fact, nonacknowledged outcome to a later current-owner exception; authority was not granted.        |
+| `ack_authority`                                              | Removing post-await current/authority revalidation acknowledged after stored bootstrap authority changed.                       |
+
+The first request and payload-digest preflight faults were masked by later
+guards and are disqualified. Corrected fixtures changed the persisted
+reservation request identity and digest independently; each then reached
+send only with its named guard omitted. All prior 22 rows remain valid. The
+current loop reconciles a remote fact after a lost response while its request
+remains current/evaluating, and permits an in-flight stale worker to retain an
+already returned fact. It has no later query entry point for an orphaned
+failed/superseded effect after restart; that broader reconciliation owner
+remains open under 1.2/3.3. No live provider acceptance is inferred.
+
+On the corrected formatted bytes, the literal four-file Bun command above
+passed 194/194, 768 assertions, exit 0
+(`/tmp/activation-recovery-p2-final-four.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck`, and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-recovery-p2-final-{lint,type,build}.log`). Pinned OpenSpec
+strict passed 1/1 and all passed 143/143 with zero failures
+(`/tmp/activation-recovery-p2-final-{strict,all}.json`). Changed-path
+Prettier and `git diff --check` passed. Normal-hook result is recorded with
+the local correction commit. CI, canonical host gate, live provider, and
+trusted activation remain unrun.

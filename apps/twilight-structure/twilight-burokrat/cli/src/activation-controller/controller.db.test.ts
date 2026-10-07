@@ -1906,6 +1906,27 @@ function reservedDispatchFixture(
   };
 }
 
+function dispatchState(database: Database) {
+  return {
+    requests: database.query('SELECT * FROM activation_request ORDER BY request_identity').all(),
+    obligations: database
+      .query('SELECT * FROM activation_obligation ORDER BY obligation_identity')
+      .all(),
+    registrations: database
+      .query('SELECT * FROM activation_review_attempt ORDER BY invocation_id')
+      .all(),
+    reservations: database
+      .query('SELECT * FROM activation_review_dispatch ORDER BY effect_key')
+      .all(),
+    progress: database
+      .query('SELECT * FROM activation_review_dispatch_progress ORDER BY effect_key')
+      .all(),
+    facts: database
+      .query('SELECT * FROM activation_review_dispatch_fact ORDER BY effect_key')
+      .all(),
+  };
+}
+
 test('dispatch query distinguishes authenticated absence from unreadable and malformed observations', async () => {
   const unavailable = reservedDispatchFixture();
   try {
@@ -2009,16 +2030,24 @@ test('reopened recovery reconciles an accepted send without a blind resend', asy
   }
 });
 
-test('foreign remote fact cannot acknowledge the reserved dispatch', async () => {
-  for (const changed of ['target', 'payload', 'invocation'] as const) {
+test.each(['effect', 'request', 'target', 'payload', 'invocation'] as const)(
+  'foreign remote fact %s cannot acknowledge the reserved dispatch',
+  async (changed) => {
     const fixture = reservedDispatchFixture();
     try {
       const observed =
-        changed === 'target'
-          ? { ...fixture.observed, target: { ...fixture.observed.target, providerId: 'foreign' } }
-          : changed === 'payload'
-            ? { ...fixture.observed, payloadDigest: 'f'.repeat(64) }
-            : { ...fixture.observed, invocationId: 'foreign' };
+        changed === 'effect'
+          ? { ...fixture.observed, effectKey: 'f'.repeat(64) }
+          : changed === 'request'
+            ? { ...fixture.observed, requestIdentity: 'f'.repeat(64) }
+            : changed === 'target'
+              ? {
+                  ...fixture.observed,
+                  target: { ...fixture.observed.target, providerId: 'foreign' },
+                }
+              : changed === 'payload'
+                ? { ...fixture.observed, payloadDigest: 'f'.repeat(64) }
+                : { ...fixture.observed, invocationId: 'foreign' };
       await rejectedWith(
         fixture.controller.recoverReviewDispatch(fixture.lease, fixture.reservation.effectKey, {
           query: () => Promise.resolve({ kind: 'accepted' as const, observed }),
@@ -2039,8 +2068,8 @@ test('foreign remote fact cannot acknowledge the reserved dispatch', async () =>
     } finally {
       fixture.close();
     }
-  }
-});
+  },
+);
 
 test('dispatch exhaustion bars new sends but still reconciles an earlier remote acceptance', async () => {
   const fixture = reservedDispatchFixture({ maxDispatchAttempts: 1 });
@@ -2600,6 +2629,214 @@ test('dispatch recovery refuses changed frozen plan or registered invocation bef
     }
   }
 });
+
+test('dispatch recovery refuses coherently changed canonical payload before provider work', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    const payload = JSON.parse(fixture.reservation.payloadBytes) as {
+      request: { headSha: string };
+    };
+    const altered = serializeCanonical({
+      ...payload,
+      request: { ...payload.request, headSha: '8'.repeat(40) },
+    });
+    fixture.database
+      .query(
+        `UPDATE activation_review_dispatch
+      SET payload_bytes = ?, payload_digest = ? WHERE effect_key = ?`,
+      )
+      .run(altered, hashBytes(altered), fixture.reservation.effectKey);
+    let queries = 0;
+    await rejectedWith(
+      fixture.controller.recoverReviewDispatch(fixture.lease, fixture.reservation.effectKey, {
+        query: () => {
+          queries += 1;
+          return Promise.resolve({ kind: 'absent' as const });
+        },
+        send: () => {
+          throw new Error('changed canonical payload must not send');
+        },
+      }),
+      'review dispatch canonical reservation changed',
+    );
+    expect(queries).toBe(0);
+    expect(
+      fixture.database
+        .query('SELECT state, dispatch_attempts FROM activation_review_dispatch_progress')
+        .get(),
+    ).toEqual({ state: 'reserved', dispatch_attempts: 0 });
+  } finally {
+    fixture.close();
+  }
+});
+
+test('dispatch recovery refuses a coherently renamed effect key before provider work', async () => {
+  const fixture = reservedDispatchFixture();
+  try {
+    const changedKey = '8'.repeat(64);
+    fixture.database.run('PRAGMA foreign_keys = OFF');
+    fixture.database
+      .query('UPDATE activation_review_dispatch SET effect_key = ? WHERE effect_key = ?')
+      .run(changedKey, fixture.reservation.effectKey);
+    fixture.database
+      .query('UPDATE activation_review_dispatch_progress SET effect_key = ? WHERE effect_key = ?')
+      .run(changedKey, fixture.reservation.effectKey);
+    fixture.database.run('PRAGMA foreign_keys = ON');
+    let queries = 0;
+    await rejectedWith(
+      fixture.controller.recoverReviewDispatch(fixture.lease, changedKey, {
+        query: () => {
+          queries += 1;
+          return Promise.resolve({ kind: 'absent' as const });
+        },
+        send: () => {
+          throw new Error('renamed effect must not send');
+        },
+      }),
+      'review dispatch canonical reservation changed',
+    );
+    expect(queries).toBe(0);
+    expect(
+      fixture.database.query('SELECT state FROM activation_review_dispatch_progress').get(),
+    ).toEqual({ state: 'reserved' });
+  } finally {
+    fixture.close();
+  }
+});
+
+test.each([
+  'request',
+  'current',
+  'stage',
+  'lease',
+  'authority',
+  'target',
+  'payload-digest',
+] as const)('recovery %s preflight refuses before provider work', async (condition) => {
+  const fixture = reservedDispatchFixture();
+  try {
+    if (condition === 'request') {
+      fixture.database.run('PRAGMA foreign_keys = OFF');
+      fixture.database
+        .query('UPDATE activation_review_dispatch SET request_identity = ? WHERE effect_key = ?')
+        .run('f'.repeat(64), fixture.reservation.effectKey);
+      fixture.database.run('PRAGMA foreign_keys = ON');
+    } else if (condition === 'current') {
+      fixture.database
+        .query('UPDATE activation_request SET current = 0 WHERE request_identity = ?')
+        .run(fixture.request.requestIdentity);
+    } else if (condition === 'stage') {
+      fixture.database
+        .query("UPDATE activation_request SET stage = 'failed' WHERE request_identity = ?")
+        .run(fixture.request.requestIdentity);
+    } else if (condition === 'lease') {
+      fixture.database
+        .query(
+          'UPDATE activation_request SET lease_epoch = lease_epoch + 1 WHERE request_identity = ?',
+        )
+        .run(fixture.request.requestIdentity);
+    } else if (condition === 'authority') {
+      fixture.database
+        .query('UPDATE activation_request SET bootstrap_identity = ? WHERE request_identity = ?')
+        .run('f'.repeat(64), fixture.request.requestIdentity);
+    } else if (condition === 'target') {
+      fixture.database
+        .query('UPDATE activation_review_dispatch SET target_bytes = ? WHERE effect_key = ?')
+        .run(
+          serializeCanonical({ ...fixture.reservation.target, providerId: 'foreign' }),
+          fixture.reservation.effectKey,
+        );
+    } else {
+      fixture.database
+        .query('UPDATE activation_review_dispatch SET payload_digest = ? WHERE effect_key = ?')
+        .run('f'.repeat(64), fixture.reservation.effectKey);
+    }
+    const before = dispatchState(fixture.database);
+    let queries = 0;
+    const message = {
+      request: 'review dispatch request changed',
+      current: 'review dispatch request no longer current evaluating',
+      stage: 'review dispatch request no longer current evaluating',
+      lease: 'review dispatch lease changed',
+      authority: 'review dispatch authority changed',
+      target: 'review dispatch target changed',
+      'payload-digest': 'review dispatch payload digest changed',
+    }[condition];
+    await rejectedWith(
+      fixture.controller.recoverReviewDispatch(fixture.lease, fixture.reservation.effectKey, {
+        query: () => {
+          queries += 1;
+          return Promise.resolve({ kind: 'absent' as const });
+        },
+        send: () => {
+          throw new Error('invalid recovery preflight must not send');
+        },
+      }),
+      message,
+    );
+    expect(queries).toBe(0);
+    expect(dispatchState(fixture.database)).toEqual(before);
+  } finally {
+    fixture.close();
+  }
+});
+
+test.each(['version', 'owner', 'current', 'lease', 'authority'] as const)(
+  'acknowledgement %s fence retains fact without granting stale progress',
+  async (changed) => {
+    const fixture = reservedDispatchFixture();
+    try {
+      let releaseQuery:
+        ((value: { kind: 'accepted'; observed: typeof fixture.observed }) => void) | undefined;
+      const query = new Promise<{ kind: 'accepted'; observed: typeof fixture.observed }>(
+        (resolve) => {
+          releaseQuery = resolve;
+        },
+      );
+      const pending = fixture.controller.recoverReviewDispatch(
+        fixture.lease,
+        fixture.reservation.effectKey,
+        {
+          query: () => query,
+          send: () => {
+            throw new Error('accepted fact must not send');
+          },
+        },
+      );
+      if (changed === 'version') {
+        fixture.database
+          .query('UPDATE activation_review_dispatch_progress SET version = version + 1')
+          .run();
+      } else if (changed === 'owner') {
+        fixture.database
+          .query('UPDATE activation_review_dispatch_progress SET owner_id = ?')
+          .run('worker.other');
+      } else if (changed === 'current') {
+        fixture.database.query('UPDATE activation_request SET current = 0').run();
+      } else if (changed === 'lease') {
+        fixture.database.query('UPDATE activation_request SET lease_epoch = lease_epoch + 1').run();
+      } else {
+        fixture.database
+          .query('UPDATE activation_request SET bootstrap_identity = ?')
+          .run('f'.repeat(64));
+      }
+      releaseQuery?.({ kind: 'accepted', observed: fixture.observed });
+      if (changed === 'authority') {
+        await rejectedWith(pending, 'review dispatch authority changed');
+      } else {
+        expect((await pending).state).toBe('dispatching');
+      }
+      expect(
+        fixture.database.query('SELECT * FROM activation_review_dispatch_fact').all(),
+      ).toHaveLength(1);
+      expect(
+        fixture.database.query('SELECT state FROM activation_review_dispatch_progress').get(),
+      ).toEqual({ state: 'dispatching' });
+    } finally {
+      fixture.close();
+    }
+  },
+);
 
 test('remote fact replay refuses conflicting accepted bytes before acknowledgement', async () => {
   const fixture = reservedDispatchFixture();

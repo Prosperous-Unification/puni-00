@@ -279,6 +279,48 @@ const DispatchSend = type({ kind: "'uncertain'" })
   .onUndeclaredKey('reject')
   .or(type({ kind: "'accepted'", observed: DispatchObservation }).onUndeclaredKey('reject'));
 
+function deriveDispatchIdentity(
+  request: ActivationRequest,
+  planIdentity: string,
+  registration: Pick<ReviewDispatchInput, 'reviewId' | 'attempt' | 'invocationId'>,
+  cold: typeof StoredObligation.infer,
+  informed: typeof StoredObligation.infer,
+  bootstrap: ReturnType<typeof readBootstrapConfiguration>,
+  authorityIdentity: string,
+) {
+  const target = {
+    kind: 'reviewer' as const,
+    providerId: bootstrap.reviewer.providerId,
+    executorId: bootstrap.reviewer.executorId,
+  };
+  const targetBytes = serializeCanonical(target);
+  const payloadBytes = serializeCanonical({
+    request,
+    planIdentity,
+    reviewId: registration.reviewId,
+    attempt: registration.attempt,
+    invocationId: registration.invocationId,
+    coldObligationIdentity: cold.obligation_identity,
+    informedObligationIdentity: informed.obligation_identity,
+    authorityIdentity,
+    target,
+    protocolIdentity: bootstrap.reviewer.protocolIdentity,
+    promptIdentity: bootstrap.reviewer.promptIdentity,
+  });
+  return {
+    target,
+    targetBytes,
+    payloadBytes,
+    payloadDigest: hashBytes(payloadBytes),
+    effectKey: hashCanonical({
+      kind: 'review-dispatch',
+      requestIdentity: request.requestIdentity,
+      reviewId: registration.reviewId,
+      attempt: registration.attempt,
+    }),
+  };
+}
+
 export interface ReviewAttemptRegistration {
   readonly requestIdentity: string;
   readonly reviewId: string;
@@ -1443,32 +1485,16 @@ export class ActivationController {
         informed.protocol_identity !== bootstrap.reviewer.protocolIdentity
       )
         throw new Error('review dispatch protocol differs from pinned reviewer');
-      const target = {
-        kind: 'reviewer' as const,
-        providerId: bootstrap.reviewer.providerId,
-        executorId: bootstrap.reviewer.executorId,
-      };
-      const targetBytes = serializeCanonical(target);
-      const payloadBytes = serializeCanonical({
-        request,
-        planIdentity: row.evaluation_plan_identity,
-        reviewId: reservation.reviewId,
-        attempt: reservation.attempt,
-        invocationId: reservation.invocationId,
-        coldObligationIdentity: cold.obligation_identity,
-        informedObligationIdentity: informed.obligation_identity,
-        authorityIdentity: this.options.pin.identity,
-        target,
-        protocolIdentity: bootstrap.reviewer.protocolIdentity,
-        promptIdentity: bootstrap.reviewer.promptIdentity,
-      });
-      const payloadDigest = hashBytes(payloadBytes);
-      const effectKey = hashCanonical({
-        kind: 'review-dispatch',
-        requestIdentity: request.requestIdentity,
-        reviewId: reservation.reviewId,
-        attempt: reservation.attempt,
-      });
+      const { target, targetBytes, payloadBytes, payloadDigest, effectKey } =
+        deriveDispatchIdentity(
+          request,
+          row.evaluation_plan_identity,
+          reservation,
+          cold,
+          informed,
+          bootstrap,
+          this.options.pin.identity,
+        );
       const existing: unknown = this.#database
         .query('SELECT * FROM activation_review_dispatch WHERE effect_key = ?')
         .get(effectKey);
@@ -1564,6 +1590,7 @@ export class ActivationController {
     // schema validation for malformed progress likewise reached the send path.
     if (rawProgress === null) throw new Error('review dispatch progress absent');
     const progress = parseOrThrow(StoredDispatchProgress, rawProgress);
+    // Proof: changing only the persisted digest reached send when this check was omitted.
     if (hashBytes(stored.payload_bytes) !== stored.payload_digest)
       throw new Error('review dispatch payload digest changed');
     const target = parseOrThrow(LogicalReviewTarget, JSON.parse(stored.target_bytes));
@@ -1582,9 +1609,11 @@ export class ActivationController {
 
   #currentDispatchIn(lease: RequestLease, effectKey: string): DispatchRows {
     const rows = this.#dispatchRowsIn(effectKey);
+    // Proof: changing only the stored request identity reached send when this join was omitted.
     if (rows.stored.request_identity !== lease.requestIdentity)
       throw new Error('review dispatch request changed');
     const request = readRow(this.#database, lease.requestIdentity);
+    // Proof: independent current and stage omissions each sent a noncurrent request.
     if (request?.current !== 1 || request.stage !== 'evaluating')
       throw new Error('review dispatch request no longer current evaluating');
     const selected = storedRequest(request).request;
@@ -1626,6 +1655,7 @@ export class ActivationController {
     )
       throw new Error('review dispatch generation changed');
     const now = nowFrom(this.options.clock);
+    // Proof: omitting the epoch check sent after the persisted lease advanced.
     if (
       request.lease_epoch !== lease.leaseEpoch ||
       request.lease_owner !== lease.workerId ||
@@ -1634,19 +1664,55 @@ export class ActivationController {
     )
       throw new Error('review dispatch lease changed');
     const bootstrap = readBootstrapConfiguration(this.options.bootstrapPath, this.options.pin);
+    // Proof: omitting the stored pin comparison sent under a foreign authority row.
     if (
       request.bootstrap_identity !== this.options.pin.identity ||
       rows.stored.authority_identity !== this.options.pin.identity ||
-      storedRequest(request).request.authorityIdentity !== this.options.pin.identity
+      selected.authorityIdentity !== this.options.pin.identity
     )
       throw new Error('review dispatch authority changed');
-    const expectedTarget = serializeCanonical({
-      kind: 'reviewer',
-      providerId: bootstrap.reviewer.providerId,
-      executorId: bootstrap.reviewer.executorId,
-    });
-    if (rows.stored.target_bytes !== expectedTarget)
+    const phases = obligations.filter(
+      (entry) => entry.kind === 'audit' && entry.review_id === rows.stored.review_id,
+    );
+    const cold = phases.find((phase) => phase.phase === 'cold');
+    const informed = phases.find((phase) => phase.phase === 'informed');
+    if (
+      phases.length !== 2 ||
+      cold === undefined ||
+      informed === undefined ||
+      cold.attempt !== rows.stored.attempt ||
+      informed.attempt !== rows.stored.attempt ||
+      cold.executor_id !== bootstrap.reviewer.executorId ||
+      informed.executor_id !== bootstrap.reviewer.executorId ||
+      cold.protocol_identity !== bootstrap.reviewer.protocolIdentity ||
+      informed.protocol_identity !== bootstrap.reviewer.protocolIdentity
+    )
+      throw new Error('review dispatch frozen pair differs from authority');
+    const expected = deriveDispatchIdentity(
+      selected,
+      rows.stored.plan_identity,
+      {
+        reviewId: rows.stored.review_id,
+        attempt: rows.stored.attempt,
+        invocationId: rows.stored.invocation_id,
+      },
+      cold,
+      informed,
+      bootstrap,
+      this.options.pin.identity,
+    );
+    // Proof: omitting this check sent a persisted foreign reviewer target.
+    if (rows.stored.target_bytes !== expected.targetBytes)
       throw new Error('review dispatch target changed');
+    // Proof: independent canonical-payload and deterministic-effect omissions sent
+    // a changed head or renamed effect under the original frozen request.
+    if (
+      rows.stored.effect_key !== expected.effectKey ||
+      rows.stored.payload_bytes !== expected.payloadBytes ||
+      rows.stored.cold_obligation_identity !== cold.obligation_identity ||
+      rows.stored.informed_obligation_identity !== informed.obligation_identity
+    )
+      throw new Error('review dispatch canonical reservation changed');
     return rows;
   }
 
@@ -1720,8 +1786,8 @@ export class ActivationController {
     observed: ReviewDispatchObservation,
   ): void {
     const fact = parseOrThrow(DispatchObservation, observed);
-    // Proof: independently omitting target, payload or invocation comparison retained a
-    // foreign accepted fact and let the mounted recovery advance beyond its refusal.
+    // Proof: independently omitting effect, request, target, payload or invocation
+    // comparison retained the corresponding foreign fact before the later ack refused.
     if (
       fact.effectKey !== stored.effect_key ||
       fact.requestIdentity !== stored.request_identity ||
@@ -1774,6 +1840,8 @@ export class ActivationController {
         throw new Error('review dispatch remote fact absent');
       if (rows.progress.state === 'acknowledged') return this.#dispatchProgressIn(effectKey);
       const request = readRow(this.#database, lease.requestIdentity);
+      // Proof: omitting progress version or owner granted stale acknowledgement;
+      // omitting current or lease changed the modeled retained-fact outcome to a throw.
       if (
         request?.current !== 1 ||
         request.stage !== 'evaluating' ||
@@ -1786,6 +1854,8 @@ export class ActivationController {
         rows.progress.owner_id !== lease.workerId
       )
         return this.#dispatchProgressIn(effectKey);
+      // Proof: omitting the post-await current/authority recheck acknowledged a
+      // remote fact after the persisted bootstrap authority changed.
       this.#currentDispatchIn(lease, effectKey);
       this.#database
         .query(
