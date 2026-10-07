@@ -2200,7 +2200,7 @@ export class ActivationController {
           'UPDATE activation_check_dispatch_progress SET dispatch_attempts = dispatch_attempts + 1, version = version + 1 WHERE effect_key = ?',
         )
         .run(effectKey);
-      // Proof: moving this durable increment after send let the fake receiver accept an uncounted execution.
+      // Proof: moving this durable increment after send failed the mounted pre-await dispatch-attempt assertion (0 instead of 1).
       return { kind: 'send' as const, version: this.#checkRowsIn(effectKey).progress.version };
     });
     if (permission.kind === 'exhausted') return permission.progress;

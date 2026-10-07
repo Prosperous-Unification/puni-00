@@ -1389,6 +1389,48 @@ installed worker or external authentication. Final-byte suite, Nx, OpenSpec,
 format/diff and hook receipts follow in the local checkpoint. Host gate and CI
 remain unrun.
 
+### Fake receiver lease-expiry correction after `f5f029d94` review
+
+Astra reproduced a held fake send that began under lease expiry 1100, then
+advanced the controller clock to exactly 1100 without takeover. The fake
+receiver accepted one new execution before the controller refused current
+acknowledgement. The first new mounted fixture had no manifest resolver and is
+disqualified (`/tmp/activation-22-check-expiry-first-red.log`). With that
+fixture corrected, the pre-fix test failed at the intended `sends: 0`
+assertion because the fake accepted one execution
+(`/tmp/activation-22-check-expiry-valid-red.log`). The fake now rereads the
+persisted lease expiry at its acceptance point using an injected authoritative
+clock; it refuses missing expiry or `now >= expiry`. Focused exact-expiry and
+missing-expiry fixtures passed 2/2
+(`/tmp/activation-22-check-expiry-two-green.log`). The previously accepted
+before-expiry effect still retains its fact after a late response; this is
+separate from initiating a new execution after expiry.
+
+Removing only the combined receiver expiry predicate made the mounted
+equality/missing fixtures RED; restoring exact test source made them pass 2/2
+(`/tmp/activation-22-check-expiry-composite-{omission-red,restored-green}.log`).
+The independent source-order claim at the durable attempt increment was also
+corrected: the original `attempt_increment` fault proves a missing count with
+an always-uncertain send, not an accepted uncounted execution. A distinct
+mutation moved that increment after the held send await; the pre-await
+`dispatch_attempts: 1` assertion observed 0 (RED), and restoring source made
+the same test GREEN
+(`/tmp/activation-22-check-increment-{moved-red,restored-green}.log`).
+The adjacent Proof now names that precise observation. Final-byte scoped
+checks and normal hooks follow in the local correction commit; host gate, CI,
+real worker and external authentication remain unrun.
+
+On corrected, formatted bytes, the literal four-file Bun command passed
+**320/320**, 1,399 assertions, exit 0
+(`/tmp/activation-22-check-expiry-final-four.log`). Declared Nx
+`twilight-burokrat:lint:source`, `:typecheck` and `:build` each printed
+`Successfully ran target`, exit 0
+(`/tmp/activation-22-check-expiry-final-{lint,type,build}.log`). Pinned
+OpenSpec strict passed 1/1 and all passed 143/143
+(`/tmp/activation-22-check-expiry-final-{strict,all}.json`). Changed-path
+Prettier check and `git diff --check` passed; normal-hook receipt belongs to
+the local correction commit.
+
 On corrected, formatted source/test bytes, the literal four-file Bun command
 passed **318/318**, 1,394 assertions, exit 0
 (`/tmp/activation-22-check-recovery-final2-four.log`). Declared Nx

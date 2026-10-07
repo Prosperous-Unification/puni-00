@@ -7036,6 +7036,88 @@ test('fake check receiver fences takeover between local send intent and acceptan
   }
 });
 
+test('fake check receiver refuses new acceptance at exact lease expiry without takeover', async () => {
+  let now = 1000;
+  const selected = selectedCheckFixture(
+    () => Promise.resolve(selected.bytes),
+    undefined,
+    undefined,
+    () => now,
+  );
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      { invocationId: 'check.invocation.1', deadlineAt: 2000, maxDispatchAttempts: 3 },
+    );
+    let releaseSend: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseSend = resolve;
+    });
+    const receiver = fakeCheckReceiver(
+      selected.source.databasePath,
+      selected.source.pin.identity,
+      undefined,
+      () => gate,
+      () => now,
+    );
+    const pending = selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      receiver.port,
+    );
+    await Promise.resolve();
+    expect(checkDispatchRows(selected.source.databasePath).progress).toEqual(
+      expect.arrayContaining([expect.objectContaining({ dispatch_attempts: 1 })]) as unknown[],
+    );
+    now = 1100;
+    releaseSend?.();
+    await pending;
+    expect(receiver.counts()).toEqual({ queries: 1, sends: 0 });
+    expect(checkDispatchRows(selected.source.databasePath).facts).toEqual([]);
+  } finally {
+    selected.controller.close();
+  }
+});
+
+test('fake check receiver refuses new acceptance when lease expiry becomes missing', async () => {
+  const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
+  const database = new Database(selected.source.databasePath);
+  try {
+    const reservation = await selected.controller.reserveCheckDispatch(
+      selected.lease,
+      'a'.repeat(64),
+      { invocationId: 'check.invocation.1', deadlineAt: 2000, maxDispatchAttempts: 3 },
+    );
+    let releaseSend: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseSend = resolve;
+    });
+    const receiver = fakeCheckReceiver(
+      selected.source.databasePath,
+      selected.source.pin.identity,
+      undefined,
+      () => gate,
+    );
+    const pending = selected.controller.recoverCheckDispatch(
+      selected.lease,
+      reservation.effectKey,
+      receiver.port,
+    );
+    await Promise.resolve();
+    database
+      .query('UPDATE activation_request SET lease_expires_at = NULL WHERE request_identity = ?')
+      .run(selected.request.requestIdentity);
+    releaseSend?.();
+    await pending;
+    expect(receiver.counts()).toEqual({ queries: 1, sends: 0 });
+    expect(checkDispatchRows(selected.source.databasePath).facts).toEqual([]);
+  } finally {
+    database.close();
+    selected.controller.close();
+  }
+});
+
 test('fake check receiver fences same-owner progress-version movement before acceptance', async () => {
   const selected = selectedCheckFixture(() => Promise.resolve(selected.bytes));
   try {
@@ -7442,6 +7524,7 @@ function fakeCheckReceiver(
     sandboxProfileIdentity: '7'.repeat(64),
   },
   beforeAcceptance?: () => Promise<void>,
+  clock: () => number = () => 1000,
 ) {
   const accepted = new Map<string, CheckDispatchObservation>();
   let queries = 0;
@@ -7462,11 +7545,12 @@ function fakeCheckReceiver(
       try {
         const request = database
           .query(
-            'SELECT lease_owner, lease_epoch, bootstrap_identity, current, stage FROM activation_request WHERE request_identity = ?',
+            'SELECT lease_owner, lease_epoch, lease_expires_at, bootstrap_identity, current, stage FROM activation_request WHERE request_identity = ?',
           )
           .get(reservation.requestIdentity) as {
           lease_owner: string;
           lease_epoch: number;
+          lease_expires_at: number | null;
           bootstrap_identity: string;
           current: number;
           stage: string;
@@ -7499,6 +7583,8 @@ function fakeCheckReceiver(
         if (
           request.lease_owner !== fence.workerId ||
           request.lease_epoch !== fence.leaseEpoch ||
+          // Proof: omitting the expiry predicate accepted a new fake execution at equality.
+          !(request.lease_expires_at !== null && clock() < request.lease_expires_at) ||
           request.bootstrap_identity !== authorityIdentity ||
           request.current !== 1 ||
           request.stage !== 'evaluating' ||
