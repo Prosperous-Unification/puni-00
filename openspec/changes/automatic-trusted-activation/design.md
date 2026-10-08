@@ -442,6 +442,167 @@ join atomically. Independent completions must not invalidate one another merely 
 the other incremented the request version. Compare the current transactional request version
 and the completion's own attempt, not an obsolete global version captured at dispatch.
 
+### Selected external review provider and attested journal
+
+Task 2.1 selects GitHub Actions custom artifact attestations as the external journal
+envelope. Anthropic Messages API is the recommended review execution backend, subject to
+administrator-supplied model access and immutable execution pins. A separately administered
+control repository runs the trusted review program. Candidate authors cannot change that
+program, its signing authority, journal retention, model credentials or bootstrap pins.
+The observation service remains read-only; this selection does not install an evaluator,
+dispatch a review, close parent tasks 1.1/1.2, complete 2.1 or unblock WBS 030.6.
+
+#### Protected provider descriptor
+
+Introduce a strict, versioned provider descriptor whose canonical digest is bound by an
+explicitly versioned bootstrap transition. Existing bootstrap v1 has no transport authority;
+retain its historical records, but refuse real provider dispatch/verification until trusted
+configuration supplies the new descriptor and its independently installed bootstrap pin.
+Do not infer missing fields from names, current repository settings, environment credentials,
+a singleton workflow, provider responses or local-cooperative journals. Authority changes
+produce a new pin/generation under the existing supersession rules.
+
+The external administrator must supply and verify all of the following before installation:
+
+- Control organization/owner and repository immutable IDs, repository locator, numeric
+  workflow ID, qualified workflow path, protected dispatch branch/tag, exact workflow source
+  commit and signer digest, and pinned review-program/action/runtime identities.
+- GitHub API origin/version, issuer `https://token.actions.githubusercontent.com`, signer
+  identity, trusted Sigstore root/verifier identities, accepted runner policy, custom predicate
+  type/version, signed application receipt audience and signing OIDC audience.
+- Journal issuer/provider/executor IDs, authenticated registration service origin and identity,
+  exact retrieval origins/redirect policy, immutable journal retention policy and access policy.
+- Approved Anthropic origin/API version, exact model identifier, protocol/prompt/tool-policy
+  digests, model entitlement and credential reference. No model alias or sample configuration
+  silently supplies a production pin; mutable model identity cannot satisfy an immutable pin.
+- Verified GitHub artifact-attestation plan entitlement and control-repository visibility.
+  Private/internal repository attestations require GitHub Enterprise Cloud; public-repository
+  availability does not authorize exposing private candidate evidence. Missing entitlement
+  leaves 2.1 blocked pending explicit selection/design of an HTTPS broker, with no fallback.
+
+OIDC signing audience and application receipt audience are different controls. Verify the
+former in the protected credential-issuance setup; require the latter in the signed custom
+predicate. Do not claim the original token audience is verified from a certificate that
+does not carry it. Workflow IDs and repository IDs must be joined through authenticated
+provider metadata where the signing certificate does not expose them. Missing authenticated
+joins refuse. Reusable-workflow claims are required only for a descriptor selecting that
+route; ordinary workflow certificates cannot be assigned claims they do not contain.
+
+#### Endpoint and execution contract
+
+The selected GitHub adapter uses `https://api.github.com` with an explicitly pinned API
+version. Dispatch calls `POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches`
+with the configured protected branch/tag `ref` and exact reserved effect/payload locator and
+digest. A raw commit SHA is not assumed to be a supported dispatch ref. Verify the resolved
+workflow/source digest before protected acceptance and signing; changing the ref cannot
+authorize a new program. Decode the selected API version's response strictly: the documented
+2026-03-10 response includes `workflow_run_id`, `run_url` and `html_url`. A dispatch response
+proves transport acknowledgement only, never invocation acceptance or completed review.
+The dispatch identity has Actions write only on the control repository; it has no candidate
+publication/merge authority. The protected signing job alone receives the selected pinned
+attestation action's required OIDC/attestation permissions. Candidate code never runs with
+either identity. [Dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event)
+and [custom attestation action](https://github.com/actions/attest) define the transport.
+
+The trusted executor calls `POST https://api.anthropic.com/v1/messages` with the configured
+API version, approved exact model and protocol-derived requests. A separately provisioned
+credential is supplied only to this executor, never candidate input, logs, receipts or the
+observation service. API response/request IDs are execution metadata, not review authority.
+The harness must observe required reads through bounded read-only tools, retain raw responses
+and actual usage/timing, and enforce cold acknowledgement before informed context. It must
+not execute candidate scripts, arbitrary model-selected shell commands or the existing ACP
+prototype's permissive tool policy with credentials. Persist cold evidence before advancing;
+an interrupted/uncertain model call cannot be relabeled as an observed successful invocation.
+Retry only classified transient work under the frozen bounded attempt policy; transport
+ambiguity does not allocate a new invocation or overwrite prior evidence.
+[Messages API](https://platform.claude.com/docs/en/api/overview) supplies model execution,
+not an authenticated implementation of this repository's review protocol.
+
+#### Attestation mapping into the existing receipt owner
+
+The attested subject is the digest of a canonical immutable journal manifest. Exact submission
+bytes are the canonical unsigned phase payload, excluding its enclosing attestation/manifest
+locator to avoid circular digests; obtain that locator through the authenticated registration.
+The manifest binds these phase bytes, frozen request/payload bytes and all referenced evidence
+artifacts by digest. A versioned custom predicate joins `effectKey`, payload/request identity,
+review/obligation/shared attempt/phase/invocation, executor, protocol/prompt/model/program,
+provider descriptor, issuer/audience and journal ID. Bind control repository/workflow source
+identity and run ID/attempt as execution metadata; they do not replace canonical candidate
+identity or the registered invocation. The signer may attest only bytes emitted by the
+authorized harness, not arbitrary candidate-supplied passed files.
+
+For the selected organization-owned route, look up bundles through
+`GET /orgs/{org}/attestations/{subject_digest}` and join returned repository IDs to the pin.
+Retain the exact bundle and subject bytes. Fetch referenced artifacts only through pinned
+origins with bounded bytes/time/pagination/redirects; never forward credentials to an
+unapproved redirect origin. A bundle URL or Actions artifact name is not authority.
+Verify signature/chain/trusted root, issuer, signer workflow/digest and predicate type using
+a pinned verifier, then strictly validate the custom predicate and all manifest digest joins.
+A successful verifier exit without semantic binding is insufficient. The selected verifier
+may use `gh attestation verify` with protected arguments and structured output; no receipt
+supplies CLI switches or trust roots. [Attestation lookup](https://docs.github.com/en/rest/orgs/attestations)
+and [verification controls](https://cli.github.com/manual/gh_attestation_verify) govern this boundary.
+
+Mount this authentication behind the existing `verifyReview(ReviewSubmission)` port. Obtain
+`ReviewExpectation` from protected selection/registration, not the submission. Return
+`VerifiedCompleteReview` or `VerifiedColdTerminal` using the existing protocol decoders:
+
+- Copy only authenticated matching expectation fields into `ReviewBinding`; set
+  `exactSubmissionDigest` to the hash of the exact submitted bytes and authenticate that hash.
+- Compute `sourceEvidenceDigest` with the existing canonical source projection:
+  `{ evidence, cold, informed, findings, status }` for complete review, or `{ cold, terminal }`
+  for cold-only failed/skipped evidence. The manifest/bundle digest is a separate binding;
+  it cannot replace this source digest. Authenticate the projection and every raw reference.
+- Preserve actual `ReviewEvidence`, `ColdHarnessOutput`, `InformedHarnessOutput`, findings
+  and outcomes. Both phase records join the same registered invocation and exact cold
+  artifact. A cold-only terminal can satisfy no informed obligation and can never pass.
+- Let existing `recordReceipt` revalidate current authority, registration and own attempt
+  after the verifier await, then atomically retain/join evidence. No SQLite transaction spans
+  transport/verification; authenticated stale facts remain history, not current approval.
+
+#### Durable registration and uncertainty
+
+Before dispatch, persist the existing `ReviewDispatchReservation` and invocation registration.
+A protected durable provider registry must atomically accept each `effectKey` against its exact
+request, target, payload digest and invocation, while validating current authority and live
+owner/lease epoch/expiry. The controller exposes authenticated acceptance to that registry;
+caller-supplied epochs alone are not authority. Reject conflicting bytes/target/invocation.
+A duplicate workflow run must query this registry before any model call and cannot acquire
+a second execution. GitHub workflow concurrency and workflow-run listings alone do not
+implement idempotency. The registry is an explicit bootstrap dependency, not an assumed
+GitHub API feature or an ephemeral Actions cache.
+
+Implement `ReviewDispatchPort.query` as an authenticated exact-effect lookup returning
+`absent | unavailable | accepted { observed }`; `send` returns `uncertain | accepted`.
+The selected registry contract uses authenticated `GET /v1/review-effects/{effectKey}` and
+`POST /v1/review-effects/{effectKey}/accept` at its externally pinned HTTPS origin. Acceptance
+submits the frozen reservation, invocation and ownership fence; the receiver joins them to
+authoritative current state in its atomic acceptance operation. An authenticated 200 returns
+the immutable bound acceptance fact; an authenticated exact-key 404 proves absence only on
+the query route. Conflict/refusal does not create a fact; timeout, 401/403, 5xx or malformed
+responses do not prove absence. The registry service and its controller-state authentication
+are required provisioned dependencies, not part of GitHub workflow dispatch.
+An unavailable registry, incomplete listing or unauthorized response is never absence.
+Map acceptance into `ReviewDispatchObservation` with exact effect/request/target/payload,
+invocation, immutable remote dispatch ID and retained authenticated `evidenceBytes`.
+An acknowledged workflow run without registry acceptance remains uncertain. On lost replies,
+reopen and query the registry; resend only when authoritative absence and existing deadline,
+attempt budget and lease policy permit it. Same-effect replay returns the same accepted fact.
+Late facts are retained after supersession/expiry without granting a stale acknowledgement.
+Recovery does not claim exactly-once network delivery or erase duplicate transport runs.
+
+Publish the journal manifest only after all referenced raw evidence is durably retained;
+attest the committed manifest afterward. Resume interrupted retention/signing by immutable
+digest and effect identity. Retain bundles, manifests, raw responses, observations and phase
+receipts beyond workflow workspace/log expiry under the configured retention policy.
+Missing, unreadable, corrupt or conflicting required evidence, revoked authority, unsupported
+entitlement and exhausted retry/deadline refuse visibly. Pending transport is not a passed
+review. Installed acceptance must exercise a real independently administered workflow/model,
+retained journal retrieval after restart, and a forbidden candidate-authority substitution.
+Local fixtures can prove adapter behavior but cannot authenticate external independence,
+entitlement or deployment. [GitHub plan requirements](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)
+remain a one-time bootstrap acceptance condition; no per-PR operator action is introduced.
+
 ### Paired review obligations and authenticated invocations
 
 `reviewId` identifies one selected review within the canonical request. It is the stable
