@@ -436,6 +436,55 @@ the manifest, not grant receipt authority. Missing selection or identity mapping
 - **WHEN** applicable authenticated claims conflict, or a required verification operation fails
 - **THEN** refuse rather than choose first/newest or skip an operational failure
 
+### Requirement: Persisted protected review selection
+
+Checkpoint A SHALL resolve subject, ordered context and required-read sets from immutable
+version-1 selection records in the protected controller database, using registration-derived
+request/review/protocol keys. A protected pinned producer SHALL derive records from the frozen
+validated coverage plan and content. The newly versioned frozen plan and dispatch SHALL bind
+record and selection identities before provider execution. Receipt-supplied labels, paths or
+selection expectations SHALL NOT be authority. Absent legacy mapping SHALL require replanning.
+
+#### Scenario: Selection state is missing or substituted
+
+- **WHEN** a selected row is absent, unreadable, malformed, noncanonical or conflicts with its
+  frozen plan, registration, source obligation, selector pin or candidate content
+- **THEN** authentication refuses without repairing state from the predicate or receipt
+
+#### Scenario: Selection freeze is partial or replay changes bytes
+
+- **WHEN** a plan freeze fails between selection persistence and obligation references, or
+  replay proposes different selection bytes under the same key
+- **THEN** no partial plan commits and no existing immutable selection is overwritten
+
+#### Scenario: Legacy request lacks a selection binding
+
+- **WHEN** an old frozen plan or dispatch lacks the versioned selection references
+- **THEN** retain historical bytes but refuse dispatch/authentication until explicit fenced
+  replanning; a signed subject or empty-context default cannot fill the gap
+
+#### Scenario: Protected selection is stable across producer and restart
+
+- **WHEN** the controller reopens retained state or the independent executor consumes the
+  exact registered selection record
+- **THEN** both derive the same subject, ordered context, required reads, record identity and
+  selection identity from frozen sources; held stale resolution cannot authorize a receipt
+
+### Requirement: Canonical byte identity includes the terminal LF
+
+Canonical review resources SHALL use exact UTF-8 `serializeCanonical` output, including one
+terminal LF. Canonical identity SHALL hash those bytes. Raw content/responses and signed
+bundle/statement bytes SHALL retain their original encoding for their corresponding hashes
+and signature verification; they SHALL NOT be normalized into canonical resources implicitly.
+
+#### Scenario: Semantically equal JSON has different canonical bytes
+
+- **WHEN** a canonical resource omits its LF, uses CRLF or extra whitespace, changes key order,
+  or supplies duplicate object keys
+- **THEN** refuse its noncanonical bytes rather than normalize them to the expected digest
+- **WHEN** a retained raw response ends with a newline
+- **THEN** preserve that exact newline in its raw-response digest without adding or stripping one
+
 ### Requirement: Exact phase submissions and artifact graph
 
 Each signed phase submission digest SHALL address retained canonical bytes at the artifact

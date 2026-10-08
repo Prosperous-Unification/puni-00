@@ -199,7 +199,10 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       Continue in two separately reviewed checkpoints; neither alone completes 2.1b.
       **Checkpoint A: authenticated manifest.** First freeze the strict signed predicate v1,
       protected selection resolver and authenticated workflow-metadata response contract from
-      design. Tests: `signed selection cannot choose its own subject`,
+      design. The selection resolver uses the exact persisted record/key contract below;
+      installed checkpoint A depends on 2.1d's preliminary selection producer/freeze slice.
+      Do not claim a test-seeded row is an installed selection producer. Tests:
+      `signed selection cannot choose its own subject`,
       `predicate cannot authenticate its own signer`, `all candidates precede selection`,
       `equivalent attestations select deterministically`, and `conflicting signed claims refuse`.
       Compose protected staged-file rereads with the actual pinned offline runner and strict
@@ -242,7 +245,26 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       F3/F10/F11 independently split acceptance/progress commit, omit progress/version/owner/
       epoch/expiry guards, or expose a reusable send permit; observe unchanged durable rows
       and zero stale sends. Prove finite persisted recovery budget/deadline across restart.
-- [ ] 2.1d Mount the protected Anthropic Messages executor and durable journal/attestation
+- [ ] 2.1d First implement the protected selection producer/freeze prerequisite, before
+      installed checkpoint A and before any provider dispatch. Freeze the strict
+      `ReviewSelectionRecordV1`, pinned selector closure and exhaustive-plan/content mapping;
+      use the specified derived review ID and controller-DB key, never receipt labels.
+      Add selection persistence with paired additive migration/rollback, explicitly versioned
+      frozen-plan/dispatch bindings, atomic owner-fenced freeze and exact replay. Implement the
+      read-only registration-derived resolver. TDD tests:
+      `selection row is required independently of signed claims`,
+      `partial selection freeze rolls back all references`,
+      `reopen preserves exact selection bytes`, `legacy unbound plan requires replanning`,
+      `foreign source obligation and selector refuse`, `selected coverage cannot shrink`, and
+      `controller and executor derive identical selection`. F2/F4/F10/F11 independently omit
+      row/hash/key/pair/source/selector/coverage joins, no-repair/replay checks and post-await
+      fences; compare complete durable snapshots. Also test literal expected canonical bytes
+      and digest including terminal LF, plus missing-LF/CRLF/duplicate-key/noncanonical refusal
+      and unchanged raw response bytes. Removing normalization/refusal guards must fail the
+      intended mounted assertions, not merely parsing or setup. Keep old registrations immutable;
+      explicitly replan unsupported legacy state rather than infer defaults. Record remaining
+      unprovided selector policy/closure as a prerequisite, never an empty-context fallback.
+      Then mount the protected Anthropic Messages executor and durable journal/attestation
       writer using administrator-provided model/program/protocol pins. Tests:
       `informed execution waits for durable cold acknowledgement`,
       `journal retains actual reads responses and usage`,

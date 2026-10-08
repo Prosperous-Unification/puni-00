@@ -633,8 +633,19 @@ Process fixtures prove adapter behavior only; local `/usr/bin/gh` is not bootstr
 Freeze one custom predicate object with the exact fields below. Every object rejects unknown
 fields. `Digest` means 64 lowercase hexadecimal SHA-256 characters; `Commit` means 40 lowercase
 hexadecimal Git commit characters; `Id` means a nonempty existing protocol identifier;
-`Positive` and `Attempt` mean safe integers respectively >= 1 and >= 0. Canonical objects use
-`serializeCanonical`, without trailing whitespace/newline; raw resources use exact bytes.
+`Positive` and `Attempt` mean safe integers respectively >= 1 and >= 0. The encoding name in this contract is `serializeCanonical` (repository canonical JSON with
+terminal LF), not newline-free JSON or RFC 8785/JCS. Canonical object bytes are its UTF-8 output: byte-sorted
+object keys, preserved array order and exactly one terminal LF (`0x0a`). Thus
+`hashCanonical(value) = hashBytes(serializeCanonical(value))`, including that LF.
+A resource declared canonical must equal that serialization byte-for-byte after strict
+UTF-8/schema decoding; missing LF, CRLF, extra whitespace, duplicate object keys or alternate
+key ordering refuse, even if JSON parsing produces the same value. Do not normalize fetched
+bytes before their digest check. This applies to manifests, selection records, phase submissions,
+source projections and canonical role artifacts, including the retained harness-input strings
+(their LF is escaped within the enclosing canonical object). Raw responses/content and signed
+DSSE/bundle bytes retain their original encoding and are never canonicalized for signature or
+resource-digest verification. A signed statement predicate is schema-decoded and compared
+semantically; its containing signed bytes need not use this repository's canonical encoding.
 The configured `predicateType` remains external and must match the signed statement exactly.
 
 ```ts
@@ -719,6 +730,97 @@ predicate. An absent mapping refuses. Existing obligations do not themselves car
 subject/read mapping: the resolver and its producer parity proof are explicit checkpoint A
 prerequisites, not defaults inferred from one observed file. Both required-read sets include
 the selected subject content; the informed set also includes every supplied informed context.
+
+The existing controller `EvaluationObligation`/stored obligation rows bind review ID, executor,
+protocol and phase only. `AuditObligation` and `ExhaustivePlan` elsewhere contain subjects but
+are not installed selection authority for activation; neither defines the complete required-read
+and informed-context mapping. No current row, model response or fixture label supplies this
+missing mapping. Introduce the following producer/storage contract before mounting checkpoint A.
+
+`ReviewSelectionRecordV1` is strict canonical JSON, with every nested object rejecting unknown
+fields, exactly:
+
+```ts
+{
+  schemaVersion: 1,
+  kind: 'activation-review-selection',
+  requestIdentity: Digest,
+  reviewId: Id,
+  protocolIdentity: Digest,
+  selectorIdentity: Digest,
+  snapshotIdentity: Digest,
+  coveragePlanIdentity: Digest,
+  sourceObligationId: Id,
+  selection: {
+    subject: ReviewSubject,
+    informedContextIds: Digest[],
+    coldRequiredReadIds: Digest[],
+    informedRequiredReadIds: Digest[]
+  }
+}
+```
+
+`selectorIdentity` names an independently pinned selection-program/policy closure. It is not
+self-authorizing merely because it hashes. Add a required strict `selection` section in the
+next explicitly versioned protected provider descriptor, exactly
+`{ schemaVersion: 1, selectorIdentity: Digest, coverageKind: 'exhaustive-sweep' }`.
+Its containing descriptor digest remains bound by the independent bootstrap pin; a legacy
+descriptor without that section cannot enable this resolver. The installed selector closure
+is resolved by that pin, not a record-provided executable or policy path. `snapshotIdentity` names the frozen complete
+candidate manifest, and `coveragePlanIdentity` names retained canonical `ExhaustivePlan` bytes
+validated against that same candidate by the existing coverage validator. `sourceObligationId`
+selects exactly one obligation in that plan; the subject must equal its full subject object.
+The protected producer derives stable `reviewId` as `review.` followed by
+`hashCanonical({ schemaVersion: 1, coveragePlanIdentity, sourceObligationId })`; it cannot
+substitute an arbitrary caller's review label. For this v1 route, unsupported coverage-plan
+kinds refuse rather than guessing a subject mapping.
+
+The selection producer is protected controller planning code under `selectorIdentity`, not
+the remote signer or the receipt caller. It derives ordered context and required reads using
+that pinned program/policy over the validated frozen coverage plan and retained content;
+returns explicit empty context only when the policy selects none; and refuses unavailable
+policy/content mappings. All output digests must resolve to exact retained bytes. A directory
+or project subject may identify a canonical aggregate artifact: verify that artifact through
+the frozen coverage plan rather than pretending its digest names one filesystem file. The
+producer must preserve complete selected coverage; freezing an arbitrary subset of plan
+obligations is not an authorized way to produce a passing selection. The producer's concrete
+context-selection policy and its pinned closure are a required 2.1d prerequisite, not an
+existing implementation or a fallback inferred from receipt observations.
+
+Persist `selection_bytes` and `selection_record_identity = hashBytes(selection_bytes)` in an
+additive `activation_review_selection` table, primary key
+`(request_identity, review_id, protocol_identity)`, within the controller's existing protected
+SQLite database. There is no selection-directory path or caller-selected JSON filename.
+`selectionIdentity` in the signed predicate remains `hashCanonical(record.selection)`;
+it is deliberately distinct from the whole-record digest. Both phase obligations in a newly
+versioned frozen evaluation plan bind the same `selectionRecordIdentity`. The record excludes
+that plan's identity to avoid a digest cycle. Store selection rows and their plan/obligation
+references atomically under the existing current-authority/generation/lease fences, before
+any dispatch registration. Exact replay must match all original bytes; missing, conflicting,
+extra or partially present rows refuse without repair. Require exactly the paired audit
+selection key set when reconstructing the frozen plan. Preserve original bytes across restart.
+
+Advance frozen-plan and dispatch payload contracts explicitly: the latter binds both
+`selectionRecordIdentity` and `selectionIdentity`, and durable registration/effect equality
+includes those bytes. Forward migration is additive with a paired rollback; it must not add
+nullable columns that silently authorize old evidence. Existing frozen plans/dispatches
+without selections remain readable for historical diagnosis but cannot dispatch/authenticate
+under this contract; require explicit replanning into a fresh fenced generation/attempt,
+never mutate old payloads or default/backfill selection from a receipt.
+
+The read-only resolver accepts `(requestIdentity, reviewId, protocolIdentity)` from protected
+registration selection. It reloads the canonical request, frozen plan/pair, dispatch binding,
+selection row and pinned selector authority from that database and retained source store;
+validates exact bytes, record and output hashes, all joins and the expected selected key set;
+then returns `record.selection`. It takes no subject/context/read labels, record path or
+expected digest from a receipt. Missing/unreadable/corrupt state refuses. The implementation
+must provide a coherent read snapshot and recheck current generation/authority after any
+asynchronous source/policy resolution; final receipt selection still uses its own owner fence.
+A read-only resolver may be implemented against seeded test-owned state first, but installed
+checkpoint A waits for the protected producer/freeze integration. In 2.1d the external executor
+consumes the exact registered record, independently verifies its source and selector bindings,
+and recomputes the selection identity before reading or signing; it does not invent a second
+selection. Producer/consumer parity tests cover all three canonical identities and byte order.
 
 For each bounded candidate, privately reread staged bytes with containment/no-follow regular
 file checks, byte limits and fresh hashes. Invoke the actual pinned offline verifier over
