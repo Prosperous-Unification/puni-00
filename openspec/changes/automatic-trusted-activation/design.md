@@ -783,9 +783,8 @@ policy/content mappings. All output digests must resolve to exact retained bytes
 or project subject may identify a canonical aggregate artifact: verify that artifact through
 the frozen coverage plan rather than pretending its digest names one filesystem file. The
 producer must preserve complete selected coverage; freezing an arbitrary subset of plan
-obligations is not an authorized way to produce a passing selection. The producer's concrete
-context-selection policy and its pinned closure are a required 2.1d prerequisite, not an
-existing implementation or a fallback inferred from receipt observations.
+obligations is not an authorized way to produce a passing selection. The initial deterministic policy below and its installed pinned closure are required 2.1d
+prerequisites, not an existing implementation or a fallback inferred from receipt observations.
 
 Persist `selection_bytes` and `selection_record_identity = hashBytes(selection_bytes)` in an
 additive `activation_review_selection` table, primary key
@@ -821,6 +820,174 @@ checkpoint A waits for the protected producer/freeze integration. In 2.1d the ex
 consumes the exact registered record, independently verifies its source and selector bindings,
 and recomputes the selection identity before reading or signing; it does not invent a second
 selection. Producer/consumer parity tests cover all three canonical identities and byte order.
+
+##### Initial selector policy and preparation pipeline
+
+The first producer uses `activation-review-selector.v1`, a fixed algorithm whose strict
+canonical installed configuration is exactly:
+
+```ts
+{
+  schemaVersion: 1,
+  kind: 'activation-review-selector',
+  algorithm: 'exhaustive-subject-and-direct-context.v1',
+  inventoryProtocolIdentity: Digest,
+  classificationPolicyIdentity: Digest,
+  exhaustivePolicyIdentity: Digest,
+  reviewProtocolIdentity: Digest,
+  moduleRulesIdentity: Digest,
+  granularityPolicyIdentity: Digest,
+  modelContextIdentity: Digest,
+  relationshipRecipeIdentity: Digest,
+  extractorRuntimeIdentity: Digest,
+  tokenizerIdentity: Digest,
+  configurationPaths: RelativePath[],
+  maximumPreparationMs: Positive,
+  maximumCandidateEntries: Positive,
+  maximumCandidateBytes: Positive,
+  maximumResourceBytes: Positive,
+  maximumReviewResources: Positive,
+  maximumReviewBytes: Positive,
+  journalReservations: {
+    phaseSubmissionBytes: Positive,
+    phaseOutputBytes: Positive,
+    reviewEvidenceBytes: Positive,
+    telemetryBytes: Positive,
+    rawResponseBytes: Positive
+  }
+}
+```
+
+Every digest resolves through installed protected content; all integers are safe and bounded
+by the installed process policy. The resource/review limits may tighten but cannot exceed existing
+4 MiB/resource, 64 resources/review and 32 MiB/review transport ceilings. Configuration paths
+are byte-sorted, unique, required committed content paths. They identify build/project/runtime
+configuration to inspect, not commands to execute. The source/program closure and these exact
+configuration bytes jointly determine `selectorIdentity`, using
+`hashCanonical({ schemaVersion: 1, programIdentity, configurationIdentity })`.
+The independent descriptor pin authorizes that identity; the candidate cannot repin it.
+Model context must select `overflow: 'refuse'`; no recorded-truncation mode is admitted here.
+No numerical limit, policy path, model configuration or missing document receives a default.
+
+Preparation takes only the persisted request/lease and installed selector capability. Its
+source owner acquires the exact request head and base into a controller-owned object store;
+it validates commit identity and repository binding. It does not inspect a mutable checkout
+or execute candidate hooks, Nx plugins or scripts. Git/configuration/parser execution has a
+finite deadline, fixed environment, pinned runtime and bounded output; Git replacement objects
+and caller/global configuration cannot replace selected objects. Read credentials belong only
+to acquisition and never reach candidate parsers or the later model executor. Local fixtures
+supply real temporary Git objects; public/private remote acquisition is a separate bounded
+read-only adapter, with private access an installation prerequisite.
+
+Retain `ReviewCandidateManifestV1` as canonical bytes with exactly `{ schemaVersion: 1,
+kind: 'review-candidate', repositoryId, headSha, baseSha, tree, entries }`; each entry is
+`{ path, mode, gitObjectId, rawIdentity, classification }`. Entries are byte-sorted by unique
+path; `rawIdentity = hashBytes(exact Git blob bytes)`. Its canonical digest is the selection
+record's `snapshotIdentity`, distinct from a Git object ID, content manifest and worker-stage
+snapshot identity. Refuse unresolved gitlinks and missing/unreadable/mismatched blobs.
+Symlinks retain their exact target bytes; resolve only through validated candidate entries,
+never host paths. Unknown binary formats and unsupported classification/relationship cases
+refuse instead of dropping duties. Every selected raw blob is stored by SHA-256.
+
+Also retain exact preimages used by `deriveExhaustivePopulation`: a file/documentation uses
+`serializeCanonical(classifiedEntry)`, a directory `serializeCanonical({ children })`, and a
+project `serializeCanonical({ projectId, entries })`, with precisely the existing producer's
+field selection/order. Their hashes equal existing `subject.contentIdentity`. Expose this
+preimage generation from the authoritative population algorithm so two independently coded
+approximations cannot diverge. These are descriptors, not claims to have read file contents.
+
+Generate the eleven `ExhaustiveFreezeDocuments` automatically, retaining every exact byte:
+
+| Input                                                                                                                  | Derivation                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `inventoryProtocol`, `classificationPolicy`, `exhaustivePolicy`, `reviewProtocol`, `granularityPolicy`, `modelContext` | Exact installed documents selected by the six configuration pins                                                                                                                                                                   |
+| `inventory`                                                                                                            | Selected committed tree and classification, with actual protocol/policy byte identities; deterministic inventory ID from snapshot identity                                                                                         |
+| `relationshipRequest`                                                                                                  | Exact installed recipe decoded as existing `RelationshipRequest`; its configured paths must resolve in this candidate                                                                                                              |
+| `contentManifestRequest`                                                                                               | Protocol/classification bindings plus actual `extractRelationships` manifest inputs and extractor identities                                                                                                                       |
+| `moduleMapping`                                                                                                        | Installed rules are existing `ModuleMapping` minus `sourceRevision`; instantiate only that field from exact candidate head, resolve all memberships and index paths, and retain the derived mapping                                |
+| `artifactGraph`                                                                                                        | Enumerate every evidence-classified committed record, decode its actual artifact descriptor/references, build the complete graph and run existing artifact validation; an empty graph is legal only when no evidence records exist |
+
+Call `freezeExhaustivePlan`, then its existing validation/recomputation against the same
+retained candidate and documents. Require the existing request policy/mapping/toolkit pins to
+resolve to this installed configuration/rules/runtime set; mismatched joins refuse. Preserve
+source revision validation: do not relabel a previous derived mapping as the new candidate.
+Derive the audit seed as `hashCanonical({ schemaVersion: 1, requestIdentity,
+exhaustivePolicyIdentity })`. Primary selection is **all** `plan.obligations`, never the
+sampled `plan.audit.obligationIds`. Each obligation produces exactly one cold/informed pair.
+
+For each subject define scope paths: one exact path for file/documentation; all content paths
+below its locator for directory/project; all content paths for repository-root. Scope never
+includes paths merely because a receipt names them. Required cold resources are:
+
+- File/documentation: the subject descriptor and exact raw source blob. For a symlink also
+  retain/read its validated resolved target descriptor and raw bytes; cycles/unresolved
+  targets refuse. Binary content is supplied by the pinned read-tool's declared lossless
+  encoding, never silently decoded as text or omitted.
+- Directory: its subject descriptor, descriptors for immediate child content entries and
+  child-directory topology, and raw bytes of configured configuration paths immediately in
+  that directory. Evidence entries remain topology only, matching the existing subject rule.
+- Project: its subject descriptor and raw bytes of configured configuration paths within its
+  scope. Reading this structural descriptor does not discharge member file obligations;
+  those remain separate exhaustive pairs, each requiring its own raw bytes.
+
+Informed expansion starts from the frozen extracted relationship graph and resolved module
+mapping. For file/documentation scopes, include raw bytes of all directly imported internal
+source paths and direct reverse importers; external import selectors become canonical
+relationship facts and never trigger network retrieval. For directory/project scopes, include
+canonical incident graph facts and target project/module descriptors instead of expanding
+all member source files again. For every scope, include raw module-index documentation for
+each module intersecting the scope or its direct internal neighbors, plus raw documentation
+subjects within the scope. Resources already required cold are not added again.
+Resolve relationship endpoints through the existing typed extractor outputs; retain full
+canonical selector/fact objects, not model-provided summaries. Declared unresolved relations,
+unknown endpoint families or missing module index/documentation content refuse. Empty expansion
+is legitimate only when this complete derivation produces none.
+
+Order expansion resources by `(role, locator, identity)`, comparing UTF-8 bytes, with role
+order `relationship-fact`, `related-subject`, `module-index`, `documentation`, `source`.
+A locator is a normalized repository path, existing subject ID, or extracted relationship
+identity according to role; it cannot be a provider URL. Deduplicate identical content digests
+by keeping the first resource in that total order. `informedContextIds` is this ordered digest
+list. `coldRequiredReadIds` is the sorted unique cold-resource digest set;
+`informedRequiredReadIds` is the sorted union of cold resources and informed expansion.
+The informed executor must actually read that union; cold observations alone do not prove
+informed reads. `selectionIdentity` remains exactly
+`hashCanonical({ subject, informedContextIds, coldRequiredReadIds, informedRequiredReadIds })`,
+including the terminal LF. Record identity additionally binds its provenance fields.
+
+Before freezing, enforce preparation deadline/candidate bounds and per-resource/review byte,
+count and pinned tokenizer/context bounds. The tokenizer closure is resolved from
+`tokenizerIdentity`; measure the actual protocol framing and complete resource encodings under
+`modelContext.budgets.contextTokens/inputTokens`, reserving its output budget. Neither model
+estimates nor a byte-to-token heuristic satisfy this check. Count distinct required-resource
+digests; reserve nine resource slots for two submissions, two phase outputs, review evidence,
+two telemetry objects and two raw responses. The required-resource count plus nine must fit
+`maximumReviewResources` and 64, even if eventual content deduplication could save slots.
+Each configured journal reservation is at most 4 MiB; reserve
+`2 * (phaseSubmissionBytes + phaseOutputBytes + telemetryBytes + rawResponseBytes) +
+reviewEvidenceBytes` in addition to required-resource bytes. That sum must fit
+`maximumReviewBytes`; adding 64 KiB manifest allowance and sixteen 1 MiB bundle allowances
+must fit the existing 32 MiB total retrieval ceiling. Invalid configuration refuses before
+preparation. Producer execution bounds each actual output by its corresponding reservation
+and the model budget; exceeding either cannot publish a successful journal. No dropped neighbor, sampled obligation, truncated body or guessed token count may
+turn overflow into success. A real-repository dry preparation is required to establish whether
+these ceilings admit this repository; local small-tree success does not establish that fact.
+If this policy cannot fit a structural duty, a separately versioned resource-pack/sharding
+contract is required; changing limits or omitting content ad hoc is not recovery.
+
+Acquire/hash/store all immutable inputs before the short freeze transaction; preparation never
+holds SQLite across await or long Git/parser work. Capture request version, generation, authority
+and lease epoch/expiry before work and recheck after every asynchronous boundary and at commit.
+Retain objects through exclusive writes, digest validation and durable finalization before
+committing references. The transaction atomically inserts the complete selection set, both
+phase bindings, canonical plan and request transition. An injected failure rolls back all
+references; unreferenced immutable objects may remain but cannot become selected evidence.
+Concurrent takeover discards the prepared selection authority. Exact replay after restart
+must verify every retained reference and byte; corrupt/missing state refuses without repair.
+Only a separately specified collector may remove unreferenced objects, respecting in-flight
+preparation leases. Additive migrations introduce new versioned storage/references with paired
+rollback, leaving historical plans/payloads unchanged. Reservation/dispatch/resolver mounting
+follows this complete freeze contract; observation-only scheduling remains unchanged.
 
 For each bounded candidate, privately reread staged bytes with containment/no-follow regular
 file checks, byte limits and fresh hashes. Invoke the actual pinned offline verifier over

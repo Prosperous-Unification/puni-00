@@ -245,6 +245,28 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       F3/F10/F11 independently split acceptance/progress commit, omit progress/version/owner/
       epoch/expiry guards, or expose a reusable send permit; observe unchanged durable rows
       and zero stale sends. Prove finite persisted recovery budget/deadline across restart.
+- [ ] 2.1d.1 Implement the initial selector policy and retained input preparation first.
+      Start TDD with a real temporary Git repository: exact blobs and subject preimages,
+      generated eleven documents, validated exhaustive plan, then deterministic selections.
+      Exercise file/documentation raw reads, directory/project structural duties, direct
+      context expansion/order and explicit empty expansion. Pin policy/runtime/configuration;
+      test candidate policy tamper, stale mapping, evidence-graph omission and resource/context
+      overflow. F2/F4 independently omit raw-blob inclusion while descriptor remains, select
+      only sampled obligations, bypass graph completeness, source/policy/runtime joins and
+      each bound. Observe intended production assertions RED and restored GREEN, retaining
+      exact commands/fault/output and adjacent Proof. Include literal-byte canonical vectors.
+      Run bounded real-repository preparation separately before claiming this policy fits its
+      content/resource ceilings; unsupported content or required resource packing remains open.
+- [ ] 2.1d.2 Add selection storage/forward-and-down migration and prepared-plan freeze owner.
+      Test held preparation then takeover/expiry/authority change, atomic insert rollback,
+      reopen with exact bytes, absent/corrupt retained content and conflicting replay. Use
+      complete durable row snapshots and prove no dispatch; F10/F11 independently remove each
+      fence/atomic boundary/no-repair check. No transaction spans preparation awaits.
+- [ ] 2.1d.3 Only after the producer/freeze proofs, version reservation/dispatch and mount the
+      registration-derived read-only resolver. Test selection-record and output-digest joins,
+      legacy refusal/replanning, corrupt dispatch bytes and producer/executor parity. Remove
+      each digest/key/pair/current-owner join independently for observed RED/GREEN. These
+      preliminary 2.1d slices precede installed checkpoint A; they do not execute model calls.
 - [ ] 2.1d First implement the protected selection producer/freeze prerequisite, before
       installed checkpoint A and before any provider dispatch. Freeze the strict
       `ReviewSelectionRecordV1`, pinned selector closure and exhaustive-plan/content mapping;
@@ -263,7 +285,7 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       and unchanged raw response bytes. Removing normalization/refusal guards must fail the
       intended mounted assertions, not merely parsing or setup. Keep old registrations immutable;
       explicitly replan unsupported legacy state rather than infer defaults. Record remaining
-      unprovided selector policy/closure as a prerequisite, never an empty-context fallback.
+      uninstalled selector closure/configuration pins as prerequisites, never an empty-context fallback.
       Then mount the protected Anthropic Messages executor and durable journal/attestation
       writer using administrator-provided model/program/protocol pins. Tests:
       `informed execution waits for durable cold acknowledgement`,

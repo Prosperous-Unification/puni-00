@@ -470,6 +470,45 @@ selection expectations SHALL NOT be authority. Absent legacy mapping SHALL requi
 - **THEN** both derive the same subject, ordered context, required reads, record identity and
   selection identity from frozen sources; held stale resolution cannot authorize a receipt
 
+### Requirement: Deterministic exhaustive selection preparation
+
+The initial versioned selector SHALL derive all primary coverage obligations from retained
+candidate objects, installed policy and the validated exhaustive graph. It SHALL retain subject
+preimages and raw blob bytes separately, apply the exact cold/context rules and deterministic
+ordering in design, and refuse bounds or missing coverage rather than shrink the selection.
+Long preparation SHALL precede an atomic, current-owner-fenced freeze transaction.
+
+#### Scenario: Descriptor reading omits actual source
+
+- **WHEN** a file/documentation selection retains and observes its subject descriptor but
+  omits the separately addressed raw source blob
+- **THEN** the selected cold read requirements are incomplete and no passing receipt is possible
+
+#### Scenario: Sampling or stale inputs shrink primary coverage
+
+- **WHEN** a producer substitutes sampled audit obligations, a stale derived module mapping,
+  candidate-supplied policy, or an artifact graph omitting an evidence record
+- **THEN** preparation refuses before freezing any plan or dispatch authority
+
+#### Scenario: Informed expansion exceeds its budget
+
+- **WHEN** complete required resources or context exceed installed byte/count/token limits,
+  or an applicable relationship/documentation endpoint cannot resolve
+- **THEN** refuse visibly without truncating, dropping neighbors or claiming complete coverage
+
+#### Scenario: Takeover or failure interrupts selection freeze
+
+- **WHEN** ownership/generation/authority changes during held preparation or an insert fails
+  midway through freeze
+- **THEN** no stale or partial selection references commit; immutable unselected content grants
+  no authority and no dispatch occurs
+
+#### Scenario: Reopened selection or dispatch bytes conflict
+
+- **WHEN** restart encounters missing/corrupt retained content, altered selection bytes or a
+  dispatch whose selection digest differs from its frozen pair
+- **THEN** refuse without rebuilding evidence from current checkout or repairing old payloads
+
 ### Requirement: Canonical byte identity includes the terminal LF
 
 Canonical review resources SHALL use exact UTF-8 `serializeCanonical` output, including one
