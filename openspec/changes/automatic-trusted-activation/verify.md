@@ -3533,3 +3533,68 @@ Fresh integration validation: pinned OpenSpec strict 1/1 and all 143/143, four-p
 and `git diff --check` passed; all-validation output is `/tmp/activation-reduction-integration-all.json`.
 No source behavior changed or behavioral/R5 acceptance was added by this documentation integration.
 Host gate, CI, external provider, production fit and 030.6 completion remain unverified.
+
+### Local controller-owned object retention slice (2026-10-08)
+
+The implementation worktree adds an installation-time local-source capability. It snapshots the
+installed repository/store paths and Git/runtime/bound inputs; request preparation receives only
+the canonical request, verifies its repository/ref/policy/mapping/toolkit joins, fetches exact
+head/base objects into a private bare store with a fixed environment and pinned Git, then
+retains the canonical candidate manifest and exact SHA-256 raw blobs with exclusive writes,
+file/directory fsync, atomic ready rename and protected digest-checked reread. An identical
+replay checks existing bytes without repair; changed or absent state refuses. This is a **local
+installed adapter**, not controller DB/lease callsite integration or a remote private-repository
+credential adapter. It has no freeze, dispatch, receipt or authentication authority. Installed
+path ownership and repository-ID provenance beyond the configured local source remain controller
+integration prerequisites; `/usr/bin/git` and test-owned fixture values are not production pins.
+
+R5 trials replaced one guard or dependency at a time, ran the named real-Git production-path
+test, restored the source, and observed exit 1. Accepted failures include five independent
+request/binding joins; safe positive bounds; installation and use-time private-root/source
+checks; absolute, regular and digest-pinned Git before invocation; fixed environment and
+no-lazy-fetch in both acquisition and object reader; Git exit, stdout and stderr checks;
+retained directory/inode owner, type, mode, link, nofollow, nonblocking FIFO and digest checks;
+canonical and strict-classification manifest decoding; oversized-manifest prepublication;
+zero-progress write watchdog; raw file, blob-directory, pending-directory and store-base fsync;
+lock inode ownership and primary-plus-cleanup cause aggregation; and final post-cleanup
+monotonic deadline. The source has adjacent `Proof:` comments with each injected fault and
+observed assertion. A source-local upload-pack hook configured in the real temp repository did
+not execute, but this is not a complete proof against every possible source-local Git config;
+the local source itself must be installed trusted state.
+
+Disqualified first trials were repaired before counting: raw-symlink following was masked by
+the target file's public mode until it was set to 0600; FIFO type omission was masked by public
+mode and nonempty digest until an empty blob and mode-0600 FIFO were used; wrong Git digest
+was masked by the later reader's identical pin until an executable marker asserted zero
+pre-reader invocation; pending-directory fsync was masked by the manifest-file fsync until the
+injected path matched only the directory. The post-command deadline check in the earlier
+reader remains independent; this slice separately watches the final cleanup deadline.
+
+The first staged hash `10ac42ec869e211fde3dc601fc1f509f0be0a35584762d277c62eee9bc3948b3`
+was **not** committed. Astra reproduced three P2s, now corrected in this slice: caller mutation of
+nested installed binding/classification documents, a ready replay that skipped a failed
+store-base fsync, and `finally` close errors that hid the primary file-write/file-read/directory
+sync failure. Mounted REDs reproduced each behavior. The installed documents are now strictly
+revalidated from owned clones and recursively frozen; the caller's originals remain mutable
+without changing installed authority. An exact-byte ready replay reattempts the parent-directory
+fsync before returning; two attempts under an injected failure both refuse, then the restored
+barrier permits exact replay. One owned-descriptor path closes once and aggregates operation and
+close failures; separate raw-write, raw-read and blob-directory faults each preserve both causes.
+Deleting each new guard separately failed its named production-path assertion. In the owned-clone
+omission trials, the freeze of the caller's original nested document refused mutation before
+preparation; these are **noninterference** witnesses, not false-authority witnesses.
+
+Astra also identified missing R5 witnesses on retained path order/uniqueness and aggregate raw
+bytes. Canonical digest-matched duplicate and reordered manifests each refused and each passed
+when restored; deleting only the path comparator made each named test accept. Reopening two real
+blobs under a 30-byte installed aggregate ceiling refused while each blob fit individually;
+deleting only that aggregate check returned both. Each now has an adjacent `Proof:` comment.
+
+Fresh two-file Bun run: **79/79 tests, 167 assertions**, exit 0. Direct CLI
+`bunx tsc --noEmit --project .../cli/tsconfig.json`, scoped three-file ESLint, CLI
+`bun src/packaging/build.ts`, and three-file Prettier check each exited 0. Plain
+`bunx openspec` first failed with `EROFS accessing temporary directory`; rerunning the
+pinned `@fission-ai/openspec@1.12.0` with `BUN_TMPDIR=/tmp` passed strict **1/1** and all
+**143/143**, zero failures. Full CLI suite, host gate, CI, production remote acquisition,
+controller lease/DB integration, exhaustive freeze/token fit and external credential tests
+remain unrun or unimplemented for this partial slice.
