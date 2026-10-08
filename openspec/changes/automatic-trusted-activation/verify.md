@@ -3088,3 +3088,161 @@ TypeScript build and Prettier check each exited 0
 (`/tmp/activation-2-1b-correction-final-{lint,type,format}.log`). No host gate,
 CI, live provider credentials, journal retrieval or attestation acceptance
 is claimed.
+
+#### 2.1b increment 2: offline v2.98.0 single-bundle process policy (local only)
+
+The adapter fixes `gh attestation verify` v2.98.0 arguments from the protected
+review-provider descriptor, validates independently resolved executable,
+runtime and root identities before launch, stages only a local bundle and
+exact manifest bytes, and returns an **untrusted process observation**. It
+does not create `VerifiedReview` or authenticate a signature in the fake
+process tests. The production executable/runtime/root installation,
+provenance-backed signed journal fixture, retrieval, semantic receipt mapping,
+CI and h2puni gate remain unverified/open.
+
+The first mounted absent-runtime test was RED before implementation and GREEN
+after the resolver/launch boundary was added. The focused tests cover fixed
+v2.98.0 switches and output shape, wrong runtime pins, nonzero/multiple/
+malformed/foreign structured output, private staging without ambient
+credentials, bounded output, active abort, timeout kill and settlement, and
+primary-plus-cleanup error preservation. The harmless fake executable proves
+process policy only, not cryptographic verification.
+
+`bun /tmp/activation-offline-mutations.mjs` independently removed 43
+production conditions, restoring source before each next trial. All 43 had a
+named failing assertion (RED exit 1) and restored focused-suite GREEN exit 0;
+exact transcripts are `/tmp/activation-offline-<fault>-{red,green}.log` and
+the summary is `/tmp/activation-offline-matrix-summary-final.log`. Watched
+conditions include runtime presence; executable/version/closure/root pins;
+input byte caps and shape; repository, certificate, signer/source commit,
+ref, issuer, predicate, path and exact-version policy; fixed CLI switches;
+child environment, path and resource bounds; cancellation, timeout kill,
+monotonic deadline and streamed output cap; exit/result bounds; timestamp
+and statement shape; and certificate/issuer/predicate, manifest digest and
+exact-bundle joins. The matrix restored historical pre-Proof source SHA-256
+`954149a74c0264a1c64c51419a830eabb2d22644dda244ab886d1027f657afdb`.
+
+Separate `OFFLINE_FAULT=manifest_mode` and `OFFLINE_FAULT=bundle_mode` runs
+each made the child see a nonprivate staged file (RED 1), then restored
+GREEN 0; source restored SHA-256 prefix `3819abae`. The
+`OFFLINE_FAULT=cleanup_aggregate` run lost the cleanup sentinel after a
+primary failure (RED 1); restored GREEN 0 retained both causes in
+`AggregateError`, with restored source SHA-256 prefix `2356be`. These three
+trials bring the accepted total to 46. Adjacent `Proof:` comments name their
+fault and observed result. Comments and formatting followed the mutation
+restorations. On final formatted bytes, the exact five-file command
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/bootstrap.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/review-provider.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/controller.db.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/review-journal.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/review-attestation.test.ts`
+passed **635/635, 2,116 assertions**, exit 0
+(`/tmp/activation-offline-final-five.log`). Direct TypeScript build, scoped
+ESLint and CLI package build each exited 0
+(`/tmp/activation-offline-final-{type,lint,build}.log`). Pinned OpenSpec strict
+and all validation, Prettier check and `git diff --check` each exited 0
+(`/tmp/activation-offline-final-{strict,all}.json` and
+`/tmp/activation-offline-final-format.log`). No real signed journal was
+available for positive cryptographic verification, and no host gate was run.
+
+#### 2.1b increment 2 correction: whole-operation deadline and process teardown
+
+Astra's live fake-process probes found three bounded defects in the first
+freeze: a descendant-held pipe took about 1,013 ms under a 30 ms deadline,
+a synchronous staging write consumed a 30 ms deadline but still launched the
+child, and a 150 ms synchronous cleanup under a 50 ms budget returned success.
+The three mounted negatives initially failed **3/3** in
+`/tmp/activation-offline-lifecycle-initial-red.log`. The adapter now starts
+its monotonic clock before staging, refuses launch after deadline, launches
+the fake verifier in a distinct process group, kills that group and cancels
+both readers on failure, and checks deadline/cancellation after cleanup.
+The focused suite passed **65/65, 169 assertions** after the correction
+(`/tmp/activation-offline-reader-settle-green.log`); final-byte counts below
+supersede that intermediate run. A separate harmless `setsid` fixture tests
+reader cancellation when a process outside the owned group retains a pipe;
+the test explicitly kills that fixture in its own cleanup. The adapter claims
+process-group termination and prompt reader settlement, not containment of
+arbitrary escaped sessions.
+
+`bun /tmp/activation-offline-v2-watches.mjs` independently changed 35 new
+conditions. Every trial had a named RED exit 1 and restored GREEN exit 0,
+with exact mutation/source-hash transcripts at
+`/tmp/activation-offline-v2-<fault>-{red,green}.log` and the main summary at
+`/tmp/activation-offline-v2-summary.log`. The 35 cover group termination,
+pre-spawn and post-cleanup deadline, duration/output safe-integer predicates,
+three independently coherently repinned SHA-256 policy formats, fatal UTF-8,
+stderr byte-cap binding, twelve security CLI arguments and thirteen protected
+authority-to-policy fields. The first group-kill trial stayed GREEN because
+reader cancellation independently settled the pipe; it is disqualified.
+After a descendant-liveness assertion was mounted, omitting group kill alone
+failed that assertion (RED 1/GREEN 0). Separate `reader_cancel`,
+`preaborted`, `cleanup_cancel`, `detached_group`, `timer_kill` and
+`reader_cancel_error` and `reader_settle` trials each failed the named
+intended assertion and restored GREEN 0. These make **42 accepted correction
+pairs**. The first 35
+plus `reader_cancel`, `preaborted`, `cleanup_cancel`, `detached_group` and
+`timer_kill` restored historical pre-Proof SHA-256
+`a34e8ca40134ca880551d87c7f3bac806e290af6cabb6b8b97246581c622965f`;
+the later stream-cleanup-error trial restored historical SHA-256
+`de1258d38853dd429c2b4176d8801c1fe2f51b7fbf5de82a3809eeeac739d0cd`.
+The reader-settlement trial restored historical SHA-256
+`745a5f59f3c2e5c2628d113e54bb7ccf6a5015d062a3566ee61bafca7c2b4854`.
+Adjacent `Proof:` comments report the observed effect, including the
+diagnostic nature of the exact policy-vector failures; no fake output is
+described as a successful signature proof.
+
+The first combined post-correction run passed the new adapter tests but an
+existing check-staging FD-count assertion observed 15 instead of 17 after a
+baseline read (`/tmp/activation-offline-corrected-five.log`); this run is a
+failure, not counted as validation. The adapter now awaits both reader
+cancellation promises before returning, with an independently watched
+`reader_settle` test. Two subsequent unchanged five-file runs each passed
+**653/653, 2,167 assertions**, exit 0
+(`/tmp/activation-offline-corrected-five{2,3}.log`). These runs establish the
+final source behavior; they do not prove the earlier FD-count variance had a
+single cause or alter that existing assertion.
+Direct TypeScript build, scoped ESLint, CLI package build, pinned OpenSpec
+strict (1/1) and all (143/143), and Prettier check on the four intended files
+all exited 0 on corrected bytes (`/tmp/activation-offline-final2-{type,lint,build}.log`,
+`/tmp/activation-offline-final2-{strict,all}.json`, and
+`/tmp/activation-offline-final2-format.log`). `git diff --check` and staged
+patch verification are recorded at freeze. CI, host gate, live credentials,
+installed verifier closure and valid signed-journal cryptographic success
+remain unrun.
+
+The exact `79ef6c8f` staged review found one remaining early-rejection path:
+stdout overflow made `Promise.all` reject before delayed stderr cancellation
+settled. Astra's fake process returned with cancellation started but not
+settled, losing the later cleanup sentinel. The mounted
+`pinned runner retains delayed sibling cancellation failure after stdout overflow`
+test failed **0/1** on that patch (`/tmp/activation-offline-sibling-initial-red.log`).
+The runner now retains both reader promises and drains their outcomes in
+`finally` after killing the owned process group, before temporary cleanup or
+error construction. The focused test then passed in
+`/tmp/activation-offline-sibling-green.log`. Independently replacing the
+two-reader drain with an empty set produced named RED exit 1; restored GREEN
+exit 0 (`/tmp/activation-offline-v2-sibling_settle-{red,green}.log`), restoring
+historical source SHA-256
+`ae4e5777bd1b2e2ec91eb449d1ebaf276291103680cbeb743fdf8f8e0c6c2f04`.
+This is the **43rd accepted correction watch**, and the adjacent `Proof:`
+names the lost delayed error. Final-byte results below supersede the previous
+653-test runs; no signature-authentication claim changes.
+The corrected final five-file command named above passed **654/654, 2,171
+assertions**, exit 0 (`/tmp/activation-offline-final3-five.log`). Direct
+TypeScript build, scoped ESLint, CLI package build, pinned OpenSpec strict
+(1/1) and all (143/143), and Prettier check all exited 0 on these runtime
+bytes (`/tmp/activation-offline-final3-{type,lint,build}.log`,
+`/tmp/activation-offline-final3-{strict,all}.json`, and
+`/tmp/activation-offline-final3-format.log`). The host gate, CI, valid signed
+journal, installed verifier pins and live provider remain unrun/unverified.
+
+Final worker rerun on the corrected runtime bytes (2026-10-08): the exact
+five-file command above passed **654/654 tests, 2,171 assertions**, exit 0
+(`/tmp/activation-offline-final4-five.log`). Direct `tsc --build --force`,
+scoped ESLint, and CLI `bun src/packaging/build.ts` each exited 0
+(`/tmp/activation-offline-final4-{type,lint,build}.log`); the build produced
+nonempty `dist/bin.mjs` and `dist/package-manifest.json`. Pinned OpenSpec
+strict passed 1/1 and `--all` passed 143/143 with zero failures
+(`/tmp/activation-offline-final4-{strict,all}.json`). Prettier checked the
+four intended files and exited 0 (`/tmp/activation-offline-final4-format.log`);
+both working and staged `git diff --check` exited 0. Runtime source SHA-256
+was `1123268bc8ba7a89862acdef19648ecccc180ce614c73b8eedcb66c28d452385`;
+test SHA-256 was `5070c2afcdc8a5d59b8244bac8456a1675f6326266c78782e256d94cc827e71b`.
+This rerun does not establish installed verifier pins, valid signed-journal
+cryptographic success, live provider behavior, CI, or the host gate.

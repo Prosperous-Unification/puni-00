@@ -544,6 +544,25 @@ may use `gh attestation verify` with protected arguments and structured output; 
 supplies CLI switches or trust roots. [Attestation lookup](https://docs.github.com/en/rest/orgs/attestations)
 and [verification controls](https://cli.github.com/manual/gh_attestation_verify) govern this boundary.
 
+The first offline process-policy increment freezes GitHub CLI `gh attestation verify`
+v2.98.0 output compatibility. Its protected descriptor supplies an absolute verifier
+executable, runtime closure identity and custom trust root; an independent resolver must
+match all three identities and the exact version before process launch. Stage one local
+JSON bundle and the exact journal-manifest bytes in private files. Launch with an empty
+environment, fixed repository/certificate/signer-commit/source-commit/ref/issuer/predicate
+arguments, `--bundle`, `--custom-trusted-root`, `--deny-self-hosted-runners` and
+`--no-public-good`; bound input, stdout/stderr and time from before staging
+through cleanup. Launch in a new process group, terminate that group on
+timeout/abort/output failure, cancel both output readers and settle the direct
+child and both reader promises before returning, including when one reader
+rejects first. Synchronous staging or cleanup that crosses the
+original monotonic deadline refuses success; cancellation during cleanup also
+refuses success. Require exactly one structured verification record whose subject SHA-256 matches
+the manifest and whose bundle, certificate identity, issuer and predicate type match the
+pins. The process seam returns an untrusted policy observation in local fake tests. It
+does not issue a `VerifiedReview` or satisfy external provenance without an installed
+independently pinned executable/root and a provenance-backed valid journal fixture.
+
 Mount this authentication behind the existing `verifyReview(ReviewSubmission)` port. Obtain
 `ReviewExpectation` from protected selection/registration, not the submission. Return
 `VerifiedCompleteReview` or `VerifiedColdTerminal` using the existing protocol decoders:
