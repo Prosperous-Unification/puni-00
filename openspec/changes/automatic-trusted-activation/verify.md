@@ -2969,3 +2969,122 @@ Prettier `--check` on all seven changed paths, `git diff --check` and
 above are historical and superseded by this 509-test run. Nx's prior socket
 failure remains uncounted; host gate, CI, live verifier, provider credentials
 and installed entitlement remain unrun/unverified.
+
+#### 2.1b increment 1: protected journal registration and envelope (local only)
+
+The read-only `lookupReviewJournalRegistration` boundary selects a protected,
+content-addressed v1 registration from the trusted `ReviewExpectation`. It joins
+the retained request, registered invocation, immutable review dispatch and
+canonical payload; it does not fetch a journal or authenticate an attestation.
+`decodeReviewJournalManifest` accepts only exact canonical v1 manifest bytes,
+the registered digest, authority fields and the selected cold/informed phase.
+No caller-provided phase or manifest supplies the expected authority. This
+increment has no `recordReceipt` composition, external verifier, provider
+credentials, launch, or receipt-completion claim; parent 2.1b remains open.
+
+The exact focused command
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/review-journal.test.ts`
+passed **40/40, 52 assertions**, exit 0 in
+`/tmp/activation-2-1b-journal-focused-final.log`. Mounted cases include absent
+frozen request/invocation/dispatch, malformed invocation/dispatch rows, v2 or
+foreign-kind protected records and manifests, canonical-byte and digest
+substitution, foreign paired obligation, protected path/link/mode/owner/type,
+and coherent reservation-target/protocol substitutions.
+The existing bootstrap/provider/controller suites plus this journal suite,
+invoked together as four explicit file arguments to `bun test`, passed
+**549/549, 1,952 assertions**, exit 0
+(`/tmp/activation-2-1b-four-file.log`).
+
+`python3 /tmp/activation-2-1b-journal-watch.py` ran 25 one-condition
+omissions; 24 reached unintended lookup/manifest admission (RED 1) and the
+same named tests passed after source restoration (GREEN 0). The initial
+`root_lexical` trial merely changed the refusal to `ancestor malformed` and
+is disqualified. A corrected `${root}/.` fixture and isolated rerun
+`/tmp/activation-2-1b-journal-root_lexical-v2.log` reached unintended
+admission (RED 1), then passed restored (GREEN 0).
+`python3 /tmp/activation-2-1b-journal-extra-watch.py` independently omitted
+ancestor owner/type, file owner/type, and v1 schema version/kind literals for
+registration and manifest. All eight named tests reached unintended
+admission (RED 1), then passed restored (GREEN 0). Each transcript at
+`/tmp/activation-2-1b-journal-<fault>.log` records the changed expression,
+exact filtered `bun test` command, observed assertion and restored exit.
+All watches restored the same **pre-Proof-comment** source SHA-256
+`c4dc697588fd65bf9d908438288b94c7e29fd96fd5b4ec0d0e3bf3ee4dd9522a`.
+The registration kind/version and manifest kind/version cases change one
+schema literal while keeping the foreign bytes canonical and digest-bound.
+
+This local increment does not establish trusted registration provisioning,
+cryptographic journal authentication, immutable artifact retrieval, installed
+issuer/prompt entitlements, CI or the h2puni gate. Those remain unrun/open.
+On final formatted bytes, scoped `bunx eslint` on the two new TypeScript files
+and direct `bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json`
+both exited 0 (`/tmp/activation-2-1b-final-{lint,type}.log`). The package
+`bun src/packaging/build.ts` from the CLI package directory exited 0
+(`/tmp/activation-2-1b-final-build.log`); an earlier invocation from the
+repository root failed `Module not found` and is not counted. Pinned OpenSpec
+strict passed 1/1 and all passed 143/143 (125 changes, 18 specs), exit 0
+(`/tmp/activation-2-1b-final-{strict,all}.json`). Prettier `--check` on the
+three changed paths and `git diff --check` passed, exit 0. The first final
+type/format attempt had only a test-spy overload/format error; these were
+corrected and the final commands above rerun. No Nx or host gate is claimed.
+
+#### 2.1b increment 1 correction: both registered phases and isolated joins
+
+Independent review of the first staged increment found a real cross-phase
+gap: an informed manifest could carry a foreign cold obligation when its own
+informed ID was valid. The mounted test
+`journal manifest joins both registered phase obligations regardless of selected phase`
+failed **0/1** before the fix (`/tmp/activation-2-1b-pair-initial-red.log`),
+then passed **1/1** after the decoder joined every present phase to its
+registered pair (`/tmp/activation-2-1b-pair-initial-green.log`). It includes
+valid complete cold/informed controls and distinct opposite-phase
+substitutions. A cold-only terminal manifest remains valid in the existing
+positive decoder test.
+
+`python3 /tmp/activation-2-1b-journal-correction-watch.py` independently
+removed 41 source conditions and restored each before the next. The
+`/tmp/activation-2-1b-correction-<fault>.log` transcripts retain exact
+mutation, filtered command, RED assertion, restored GREEN and source hash.
+**39** conditions admitted their foreign canonical/digest-matching fixture
+when omitted (RED 1/GREEN 0). The O_NONBLOCK omission blocked the FIFO child
+until `timeout` exit 124, failing the prompt-refusal assertion (RED 1/GREEN
+0); this is a bounded-termination proof, not authority admission. The first
+`payload_executor` trial stayed GREEN because unchanged stored `target_bytes`
+still fenced it, so that trial is disqualified. The corrected fixture
+changes target bytes coherently; omitting only the expected-executor join
+then admitted the foreign target (RED 1/GREEN 0) in
+`/tmp/activation-2-1b-correction-payload_executor-v2.log`. Separate
+`request_identity` and `request_authority` coherent repins each admitted on
+single-join omission (RED 1/GREEN 0) in their named correction logs. The
+41-trial run restored **historical pre-Proof-comment** source SHA-256
+`fe3e25c147e93108a70f50cd554ddd45a52f5e11370c8daf1cef8a12c22e54a3`;
+later comments and formatting change the final source hash.
+
+The correction matrix covers registration key/request/review/attempt/
+invocation/payload/executor/protocol/prompt; manifest issuer/executor/
+protocol/prompt/journal/effect/payload/request/review/attempt/invocation;
+payload plan/review/attempt/invocation/cold/informed/authority/executor/
+prompt/target bytes; persisted request bytes/bootstrap/plan; payload
+canonicality; both phase joins; empty artifacts, passed cold without informed,
+failed cold with informed; FIFO nonblocking; and invalid UTF-8 inside an
+otherwise schema-valid journal ID. Three redundant comparisons already
+guaranteed by exact selected-row queries or earlier canonical-byte equality
+were removed. The wrong dispatch request-key fixture still refuses at the
+`SELECT` boundary; it is not a proof for a later comparison. Earlier
+40-test/final-check results above are historical and superseded by the final
+corrected-byte results below.
+
+After the correction source was formatted, the exact four-file command
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/bootstrap.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/review-provider.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/controller.db.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/review-journal.test.ts`
+passed **588/588, 1,998 assertions**, exit 0
+(`/tmp/activation-2-1b-correction-four.log`). Direct TypeScript build and the
+CLI package build each exited 0; pinned OpenSpec strict passed 1/1 and all
+passed 143/143 (`/tmp/activation-2-1b-correction-{type,build}.log` and
+`/tmp/activation-2-1b-correction-{strict,all}.json`). A first lint/format
+pass found four unnecessary assertions and test-file formatting; those were
+fixed. The rerun on final bytes passed **588/588, 1,998 assertions**
+(`/tmp/activation-2-1b-correction-final-four.log`); scoped ESLint, direct
+TypeScript build and Prettier check each exited 0
+(`/tmp/activation-2-1b-correction-final-{lint,type,format}.log`). No host gate,
+CI, live provider credentials, journal retrieval or attestation acceptance
+is claimed.
