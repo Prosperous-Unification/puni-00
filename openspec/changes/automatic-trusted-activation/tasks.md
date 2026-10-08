@@ -257,6 +257,42 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       exact commands/fault/output and adjacent Proof. Include literal-byte canonical vectors.
       Run bounded real-repository preparation separately before claiming this policy fits its
       content/resource ceilings; token admission and global synthesis remain separately open.
+- [ ] 2.1d.1.1 After bounded acquisition/retention, introduce the closed retained-candidate
+      capability and common freeze/extraction input seams; preserve legacy CLI callers. Start with
+      exact tuple/raw/Git-blob identity and caller-mutation tests, then remove/poison the original
+      source repository and make every parser Git invocation fail. No retained route may use it.
+      Independently omit path/blob/digest/request/policy joins for F2/F4 RED/GREEN. This seam alone
+      is not an eleven-document producer or head-only substitute for complete extraction.
+- [ ] 2.1d.1.2 Capture every policy-declared historical selector before deleting acquired Git
+      objects. TDD with real head/base and a third historical commit whose same path has different
+      bytes: exact commit/tree/path/blob proof, bounded declarationPaths-first two-phase acquisition,
+      complete selector/provenance set, reopen after
+      source removal, missing commit versus absent path, foreign/wrong-parent tree, false-empty
+      history, symlink raw semantics and each declaration/fact/pair/proof-edge/count/byte/depth/deadline bound. Freeze no references on
+      held-owner change or partial retention. Watch each proof/coverage/fence omission separately.
+- [ ] 2.1d.1.3 Implement the retained materializer and closed TypeScript config/compiler/resolution
+      hosts with pinned runtime/dependency closure; move declared current/historical reads and
+      Git blob hashing to the retained capability. TDD absolute and ../ extends/import/typeRoot paths, project
+      references, paths aliases, package symlinks and effective ancestor-symlink escape, candidate node_modules, ambient env replacement, changed dependency
+      bytes, exact absent probes, read/output bounds and cleanup/cancellation. Preserve primary plus cleanup
+      errors and prove finite settlement before closing owned parser resources. Sentinels must
+      prove no ambient candidate/history filesystem or Git read occurs, not merely a later refusal.
+      R5 omit each host/read/runtime fence independently; all existing selector families remain.
+- [ ] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
+      record kind, raw-response payload versus container digest, semantic digest non-edges,
+      installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,
+      missing extra-rule match, false-empty graph/edge list, cycles and bounds. Independently
+      remove each coverage/edge/root/byte/schema join; existing validateArtifacts alone is not proof.
+- [ ] 2.1d.1.5 Generate and retain all eleven documents and the versioned preparation record,
+      then mount common freeze and independent verify. Real temporary-repo parity tests must
+      compare full obligations, relationships, graph, exact input bindings and source projections
+      through both adapters; run retained replay after original checkout/object store removal.
+      Reopen altered policy/runtime/history/graph/document bytes must refuse, and partial write or
+      owner takeover must select nothing. Version required V4 preparation provenance bindings/additive
+      migration before existing selection/dispatch work; never add optional trusted fields to old
+      rows. Watch F2/F4/F10/F11 omissions and record exact RED/GREEN/restoration. Run full-repository
+      fit explicitly, including candidate manifest, historical closure, evidence-container matches,
+      compiler dependency closure and all eleven document sizes; token/reduction acceptance follows.
 - [ ] 2.1d.1a Implement strict selector V2 partitions after the full unpartitioned resource
       derivation. TDD: `all original duties survive partition`, `cross-shard edges retain both endpoints`, `input order cannot change partition`, `indivisible duty refuses`, and
       `ten journal reservations count against every shard`. Independently remove coverage,
@@ -276,10 +312,10 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       promotion, cycle/unreachable/foreign-node refusal, worst-case report/reservation arithmetic
       and finite fan-in/depth/node/certificate limits. Independently omit original-duty closure,
       crossing-node coverage and each bound for F2/F4 RED/GREEN. Version strict report/finding schemas and V3 template-versus-ready
-      evaluation-plan contracts without guessed input digests. Storage/migration follows in 2.1d.2.
+      semantics through the complete V4 preparation-bound evaluation-plan contracts without guessed input digests. Storage/migration follows in 2.1d.2.
 - [ ] 2.1d.2 Add selection storage/forward-and-down migration and prepared-plan freeze owner.
-      Include V3 immutable templates/leaf selections, unready non-leaf pairs and explicit
-      historical V1/V2 refusal; no awaiting template is reservable or treated as completed.
+      Include V4 preparation-bound immutable templates/leaf selections, unready non-leaf pairs
+      and explicit historical V1/V2/V3 refusal; no awaiting template is reservable or treated as completed.
       Test held preparation then takeover/expiry/authority change, atomic insert rollback,
       reopen with exact bytes, absent/corrupt retained content and conflicting replay. Use
       complete durable row snapshots and prove no dispatch; F10/F11 independently remove each
@@ -339,7 +375,7 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       F2/F4 remove authentication, report/receipt/read/citation and bound guards independently.
       Fake or unsigned reports exercise refusal only; positive cryptographic acceptance uses
       the real test-owned signed path, with production trust separately unverified.
-- [ ] 2.1d.5 Implement delayed non-leaf V3 selection materialization and mount existing
+- [ ] 2.1d.5 Implement delayed non-leaf V4 selection materialization and mount existing
       reservation/resolver/dispatch ownership. Tests hold child retrieval through takeover,
       expiry, authority or selected-attempt change; inject partial insert rollback; reopen exact
       and corrupt rows. Assert unchanged durable snapshots and zero stale sends. F3/F10/F11

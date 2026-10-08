@@ -842,6 +842,9 @@ canonical installed configuration is exactly:
   extractorRuntimeIdentity: Digest,
   preflightPolicyIdentity: Digest,
   reductionPolicyIdentity: Digest,
+  retainedContentPolicyIdentity: Digest,
+  runtimeClosureIdentity: Digest,
+  artifactGraphRuleIdentity: Digest,
   maximumShardsPerObligation: Positive,
   maximumTotalShards: Positive,
   configurationPaths: RelativePath[],
@@ -902,23 +905,232 @@ approximations cannot diverge. These are descriptors, not claims to have read fi
 
 Generate the eleven `ExhaustiveFreezeDocuments` automatically, retaining every exact byte:
 
-| Input                                                                                                                  | Derivation                                                                                                                                                                                                                         |
-| ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `inventoryProtocol`, `classificationPolicy`, `exhaustivePolicy`, `reviewProtocol`, `granularityPolicy`, `modelContext` | Exact installed documents selected by the six configuration pins                                                                                                                                                                   |
-| `inventory`                                                                                                            | Selected committed tree and classification, with actual protocol/policy byte identities; deterministic inventory ID from snapshot identity                                                                                         |
-| `relationshipRequest`                                                                                                  | Exact installed recipe decoded as existing `RelationshipRequest`; its configured paths must resolve in this candidate                                                                                                              |
-| `contentManifestRequest`                                                                                               | Protocol/classification bindings plus actual `extractRelationships` manifest inputs and extractor identities                                                                                                                       |
-| `moduleMapping`                                                                                                        | Installed rules are existing `ModuleMapping` minus `sourceRevision`; instantiate only that field from exact candidate head, resolve all memberships and index paths, and retain the derived mapping                                |
-| `artifactGraph`                                                                                                        | Enumerate every evidence-classified committed record, decode its actual artifact descriptor/references, build the complete graph and run existing artifact validation; an empty graph is legal only when no evidence records exist |
+| Input                                                                                                                  | Derivation                                                                                                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `inventoryProtocol`, `classificationPolicy`, `exhaustivePolicy`, `reviewProtocol`, `granularityPolicy`, `modelContext` | Exact installed documents selected by the six configuration pins                                                                                                                                                          |
+| `inventory`                                                                                                            | Selected committed tree and classification, with actual protocol/policy byte identities; deterministic inventory ID from snapshot identity                                                                                |
+| `relationshipRequest`                                                                                                  | Exact installed recipe decoded as existing `RelationshipRequest`; its configured paths must resolve in this candidate                                                                                                     |
+| `contentManifestRequest`                                                                                               | Protocol/classification bindings plus actual `extractRelationships` manifest inputs and extractor identities                                                                                                              |
+| `moduleMapping`                                                                                                        | Installed rules are existing `ModuleMapping` minus `sourceRevision`; instantiate only that field from exact candidate head, resolve all memberships and index paths, and retain the derived mapping                       |
+| `artifactGraph`                                                                                                        | Apply the installed versioned graph recipe below to every evidence-classified retained record, derive exact descriptors/edges/roots and run existing artifact validation; records do not contain generic graph references |
 
-Call `freezeExhaustivePlan`, then its existing validation/recomputation against the same
-retained candidate and documents. Require the existing request policy/mapping/toolkit pins to
+Use the common retained-input freeze core and independent recomputation described below;
+the legacy `freezeExhaustivePlan(repository, ...)` Git wrapper is not the activation adapter. Require the existing request policy/mapping/toolkit pins to
 resolve to this installed configuration/rules/runtime set; mismatched joins refuse. Preserve
 source revision validation: do not relabel a previous derived mapping as the new candidate.
 Derive the audit seed as `hashCanonical({ schemaVersion: 1, requestIdentity,
 exhaustivePolicyIdentity })`. Primary selection is **all** `plan.obligations`, never the
 sampled `plan.audit.obligationIds`. Each original obligation retains complete coverage; the partition contract below produces one
 cold/informed pair per shard without removing any original subject.
+
+##### Closed retained-content producer and all eleven freeze documents
+
+The source audit found four Git dependencies: `freezeExhaustivePlan` reads the candidate and
+classification/evidence blobs; relationship materialization runs `git cat-file --batch`;
+declared historical facts run commit preflight plus `git show revision:path`; declared blob
+selectors run `git hash-object`. TypeScript also reads `ts.sys`/default compiler-host files and
+an ambient `TOOL_WIKI_TRUSTED_NODE_MODULES` tree. None is a retained-content boundary today.
+The new activation route must replace all four Git dependencies and constrain all compiler reads.
+A disposable directory alone does not prevent absolute config/import reads from escaping it.
+
+**Installed policy and closed capability.** Strict `RetainedContentPolicyV1` contains exactly
+`{ schemaVersion: 1, kind: 'retained-review-content-policy', programIdentity,
+gitRuntimeIdentity, gitObjectFormat, historicalSelectorIdentity, compilerHostIdentity,
+maximumDeclarationPaths, maximumDeclarationBytes, maximumDeclarationFacts,
+maximumHistoricalRevisions, maximumHistoricalSelections, maximumHistoricalTreeDepth,
+maximumHistoricalProofEdges,
+maximumRetainedObjects, maximumObjectBytes, maximumRetainedBytes, maximumCandidateManifestBytes,
+maximumHistoricalManifestBytes, maximumRuntimeFiles, maximumRuntimeBytes,
+maximumParserReads, maximumParserReadBytes, maximumGraphArtifacts, maximumGraphEdges,
+maximumFreezeDocumentBytes, maximumFreezeDocumentsBytes, maximumPreparationMs }`.
+`gitObjectFormat` is exactly `sha1` or `sha256`; it must match the independently installed source
+object format and all Git IDs. Digests use existing SHA-256 `Digest`; all numeric bounds are
+positive safe integers, validated against representable allocation/process limits with checked
+arithmetic, never defaults or `Infinity`. Policy hash is `retainedContentPolicyIdentity`.
+The existing candidate entry/raw-byte limits and all review bounds also remain in force.
+Separate retained candidate-manifest capacity from the journal's 64 KiB manifest limit: the
+current retention implementation's hard-coded 64 KiB candidate limit is a partial-slice bound,
+not proof of full-repository fit. Version its storage/configuration contract before increasing it.
+
+An installed owner opens `RetainedCandidate` from a selected retained manifest plus expected
+canonical request and policy/runtime identities. It validates exact repository/head/base/tree,
+full entry tuple/order/classification and every referenced raw digest; reclassification uses the
+same installed classification document that enters the eleven inputs. Expose immutable metadata
+and reads keyed by `(path, gitObjectId, rawIdentity)`, never a repository path or arbitrary host
+filename. A private index joins the exact path tuple to owned byte copies; every read checks
+membership and SHA-256 and returns an owned copy. Independently validate Git blob identity as
+hash of the Git object header plus exact bytes using the pinned object format. Multiple paths
+may share one blob, but conflicting tuple/content bindings refuse. Caller mutation cannot alter
+this capability, policy or retained documents. Do not expose a mutable shared Map as authority.
+The ordinary Git CLI adapter may retain its public API by constructing the same internal input
+ports; the activation composition accepts only the installed retained capability.
+
+**Historical closure before extraction.** The finite acquisition seed is exactly the installed
+`RelationshipRequest.declarationPaths`; no recursive discovery or model-added paths. First bound
+path count by `maximumDeclarationPaths`, read each through the retained head's validated current
+symlink resolver, bound each document by `maximumDeclarationBytes`, and enforce the aggregate
+retained/preparation byte limits before parsing. Bind requested declaration path, actual resolved
+entry and raw identity; reject missing/cyclic/escaping declarations. Decode under pinned schemas,
+count all facts against `maximumDeclarationFacts`, then collect every historical fact's exact `(revision, path)` selector, including duplicates'
+fact/declaration provenance. No model response, current branch name or receipt may add selectors.
+Canonical `HistoricalSelectionV1` has exactly `{ revision, path, uses }`, where `uses` is a
+sorted unique array of `{ declarationPath, declarationIdentity, factId }`. Sort selectors by
+revision then UTF-8 path and hash the complete canonical array. Its digest binds the selector
+set into the retained history manifest. This is phase one of retention; only phase two acquires the complete derived historical set
+while the private pinned Git store still exists. Count every selected pair/revision before acquisition;
+empty history is valid only when complete declaration enumeration derives none.
+
+Before deleting the private acquired Git store, verify each selected revision as a commit and
+resolve the exact path/mode/blob through its tree. Retain strict `RetainedHistoryManifestV1`:
+`{ schemaVersion: 1, kind: 'retained-review-history', requestIdentity, snapshotIdentity,
+retainedContentPolicyIdentity, historicalSelectionsIdentity, selections, proofs }`.
+`selections` is the complete array above. Each proof is exactly `{ revision, path, commit,
+trees, terminal }`; `commit` and each root-to-parent ordered `trees` entry are
+`{ gitObjectId, rawIdentity }`, and `terminal` is `{ mode, gitObjectId, rawIdentity }`.
+Retain the exact uncompressed Git commit/tree/blob object bodies by SHA-256. Validate the commit
+object's Git ID and tree header, each tree object's Git ID and exact path-component child edge,
+and terminal mode/blob/body identity. A pinned bounded object-proof decoder verifies these links
+again on reopen without the source repository. Reject duplicate/extra/unrequested proofs,
+missing commit/tree/path, non-blob terminals, unsupported modes, conflicting bodies and tree-depth
+or byte/count overflow. Historical symlink selectors preserve existing `git show revision:path`
+raw-target semantics; they do not silently resolve to head or host files. Current symlink reads
+retain the existing validated candidate-target semantics.
+
+Capture all selected history, not just base/head: existing declarations may name another exact
+commit. Availability may require the configured acquisition adapter to acquire that exact commit
+under its existing read credential boundary; a locally unavailable revision is a named refusal,
+not permission for the parser to access a remote. No Git/network authority remains in extraction.
+Git object IDs, SHA-256 raw identities and canonical manifest identities remain distinct. The
+historical manifest digest is a required versioned selection-preparation provenance binding;
+it cannot replace the existing candidate `snapshotIdentity`. Retain all proof objects and the
+manifest durably before selecting references. Legacy head-only captures cannot be relabeled as
+complete history; explicitly capture the missing closure or replan without modifying old bytes.
+
+Bounds count full head entries and historical selector occurrences for semantic work; retained
+storage counts unique SHA-256 objects once. Cap the sum of all proof tree edges by `maximumHistoricalProofEdges`, each path depth by
+`maximumHistoricalTreeDepth`, and every individual object. Count head/history/runtime/document
+objects against the total retained-object/byte budgets as well as their separate limits. Bound every acquisition subprocess's stdout/stderr/time and the aggregate
+preparation deadline, covering historical capture, extraction, document generation, fsync and
+cleanup. Store capacity alone is not a process timeout. Long compiler work requires a bounded
+protected parser process with fixed environment, no credentials, cancellation and settle-before-
+close; never assert that a final timestamp check interrupts a blocked synchronous parser.
+
+**Materialization and compiler runtime.** Generate any extractor workspace solely from the
+retained capability, applying the existing path, mode, symlink, Gitlink and candidate-supplied
+`node_modules` refusals. No Git batch reread or checkout fallback remains. Retain the current
+TypeScript/Nx/declaration selector semantics and extractor identities through a common extraction
+core; do not replace extraction with caller-supplied relationship labels. Cleanup owns only its
+private workspace, preserves primary plus cleanup failures and never supplies a successful
+manifest after incomplete work.
+
+Strict `ReviewRuntimeClosureV1` contains exactly `{ schemaVersion: 1,
+kind: 'review-runtime-closure', parserProgramIdentity, compilerHostIdentity,
+resolutionPolicyIdentity, files }`. Each file is `{ path, role, identity, byteLength }`, with
+normalized virtual path, role `program` or `dependency`, SHA-256 identity and safe nonnegative
+length; paths are unique and byte-sorted. Pin the canonical closure digest independently as
+`runtimeClosureIdentity`; retain/hash every file, including TypeScript implementation/default
+libs/package manifests and all parser dependencies. Ambient env selection or symlinked package
+metadata cannot authenticate a runtime. A bootstrap loader may inspect the configured tree only
+to verify this complete closure; candidate parsers receive its owned bytes, never an ambient
+`TOOL_WIKI_TRUSTED_NODE_MODULES` value. Refuse absent/mutated/unreadable/foreign dependency files,
+symlink substitution or candidate overlap. Candidate code, package scripts and Nx plugins do not
+execute. A package version string is not a dependency-closure pin.
+
+Provide a closed TypeScript `ParseConfigHost`, `CompilerHost` and module/type resolution host
+covering `fileExists`, `readFile`, `readDirectory`, `directoryExists`, `getDirectories`,
+`realpath`, `getCurrentDirectory`, default-library lookup and output callbacks. File enumeration
+comes from retained metadata, never `ts.sys`. Resolve extends/references, path mappings,
+imports, type roots and package metadata only inside the virtual candidate namespace or exact
+allowed runtime-closure namespace. Legitimate absent probes within those namespaces return the
+modeled absent value; absolute/relative traversal or unlisted external namespaces throw before
+any OS read. Virtual symlink resolution follows validated retained entries with finite depth and
+cycle refusal. Installed resolution rules map virtual `node_modules` to the pinned dependency
+closure; a candidate cannot add a host search path. Compiler outputs are bounded in-memory
+observations, not emitted candidate executables or ambient file writes. The parser's own code
+and loader may read only its separately verified runtime closure; these reads must be accounted
+for rather than falsely claiming the entire process performs no filesystem I/O.
+
+Retain `CompilerReadManifestV1` with exactly `{ schemaVersion: 1, kind: 'review-compiler-reads',
+requestIdentity, snapshotIdentity, historyManifestIdentity, runtimeClosureIdentity,
+compilerHostIdentity, resolutionPolicyIdentity, reads }`; each read is
+`{ namespace: 'candidate' | 'history' | 'runtime', path, revision, identity, byteLength }`, with
+`revision` the exact historical commit for history and `null` otherwise. Deduplicate identical
+read tuples in this canonical byte-sorted ledger; separately count every probe/read and returned
+byte against execution bounds, including repeated reads. Record actual selected dependencies,
+not guessed library membership. Missing-history and missing-file observations retain their typed
+failure; failed extraction cannot publish a complete read ledger or freeze documents.
+
+**Deterministic artifact graph, not inferred digest strings.** `validateArtifacts` currently
+checks supplied descriptors, references, roots and reachability; it does not derive edges from
+record fields. Introduce pinned `ArtifactGraphRuleV1` with exactly `{ schemaVersion: 1,
+kind: 'review-artifact-graph-rule', algorithm: 'record-dependencies.v1', decoderIdentity,
+additionalEdges }`. Each additional rule is `{ ruleId, source, target }`; each endpoint is
+`{ recordKind, pathSelector }` using the installed classification selector grammar. Rules and
+IDs are unique and sorted. Rules select only actual evidence records; require nonempty source
+and target matches for every installed rule, derive the complete bounded Cartesian edges and
+refuse self/cyclic/foreign dependencies. This is protected policy, not a candidate graph file.
+The canonical rule hash is `artifactGraphRuleIdentity`, required in selector provenance.
+
+Decode every selected evidence record under its exact allowlisted schema. Artifact IDs hash
+original record bytes, not reserialized JSON; descriptors retain exact path, Git blob and kind.
+The fixed per-record dependency mapping is:
+
+| Record kind           | Intrinsic artifact edges and semantic identities                                                                                                                                                                                                                                                                                                                            |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `candidate-inventory` | No intrinsic artifact edge. Entry blobs/selection tree/revision are Git identities; protocol and classification blobs are input bindings, not graph IDs.                                                                                                                                                                                                                    |
+| `benchmark-corpus`    | No intrinsic artifact edge. Repository/inventory/outcome/acceptance identifiers are semantic fields.                                                                                                                                                                                                                                                                        |
+| `experiment-manifest` | No intrinsic artifact edge. Mapping/protocol/prompt/tool/price identities and receipt journal name are semantic pins; embedded corpus is not an artifact pointer.                                                                                                                                                                                                           |
+| `opaque-transcript`   | No intrinsic artifact edge. Payload remains opaque; never parse prose/JSON-looking payload or scan it for digest strings.                                                                                                                                                                                                                                                   |
+| `review-receipt`      | `rawResponseArtifact` is the SHA-256 of raw response payload, not the containing JSON artifact. Bind it to exactly one selected `opaque-transcript` with equal invocation ID and `hashBytes(UTF8(payload))`, then add that container's artifact ID. Supplied-context/observed-read/executor/price identities remain typed semantic bindings, not automatically graph edges. |
+
+A missing or ambiguous response container refuses graph derivation; no raw-payload digest is
+silently promoted to an artifact ID. An externally retained response needs an explicitly
+versioned graph boundary and authenticated binding before this producer can accept it; current
+`ArtifactGraph` represents selected committed records only. Report this as a concrete corpus
+compatibility constraint in full-repository fit, not a fabricated external node or skipped edge.
+Any genuinely required record dependency not expressible by the fixed table uses an installed
+additional edge rule; changing the recipe changes its pin and requires a new preparation.
+
+References are the sorted unique union of intrinsic and installed-rule edges. Derive roots as
+all actual artifact IDs with zero incoming edges, sorted by ID, after validating the entire
+finite graph as acyclic; every artifact must be reachable. Empty artifacts/roots are legal only
+when the complete retained classification contains no evidence records. Enforce artifact/edge
+caps before traversal and use existing finite validation. Generate `validationId` deterministically
+from snapshot and rule identities. Independently recompute descriptors, edges and roots from
+retained records and installed rules before accepting the generated graph; merely validating a
+caller graph cannot detect a false-empty reference list. No candidate-provided list is authority.
+
+**Freeze/replay parity.** Generate all eleven documents listed above, with existing exact byte
+bindings and canonical-LF rules. The new core consumes retained snapshot/read capabilities,
+installed documents and the actual extraction result generated within that owner. It performs
+all existing inventory, module-map, content-manifest, artifact, population and audit validations;
+independent verify recomputes from the same retained closure. The legacy Git wrapper and retained
+adapter must produce identical semantic plan/source projections for the same inputs and pinned
+extractor version; expected identity changes from deliberately versioned extractor/runtime/rule
+pins must be explicit, never normalized away. Preserve all obligations, not sampled audit IDs.
+
+Strict `ReviewPreparationRecordV1` contains exactly `{ schemaVersion: 1,
+kind: 'review-preparation', requestIdentity, snapshotIdentity, selectorIdentity,
+retainedContentPolicyIdentity, historyManifestIdentity, runtimeClosureIdentity,
+compilerReadManifestIdentity, artifactGraphRuleIdentity, coveragePlanIdentity, documents }`.
+`documents` is exactly the eleven-name `ExhaustiveFreezeDocuments` key set mapped to exact byte
+digests, rejecting missing/extra keys. Hash the record canonically with terminal LF. Retain it
+only after the complete graph/plan and independent validation succeed. It grants no receipt
+or model authority by itself.
+
+For the newly complete route, `ReviewSelectionRecordV4` is V3 with `schemaVersion: 4` and required
+`preparationIdentity`. Its review ID uses the V3 derivation with `schemaVersion: 4` and
+`preparationIdentity` added to that canonical preimage. Explicitly version frozen-plan,
+descriptor, reservation/dispatch and resolver contracts to bind that digest. Existing V1/V2/V3
+records remain historical contracts, never augmented with optional trusted fields. Additive
+storage plus rollback and explicit legacy refusal/replan precede mounting this producer.
+
+Acquisition and bounded parsing occur outside the short owner transaction. Recheck request/head/
+base, policy/runtime/rule pins, generation, authority and lease before selecting the complete
+record; partial failure commits no freeze/selection. Reopen verifies every referenced byte and
+bound from retained storage without source checkout, Git fallback or ambient dependency lookup.
+Content corruption refuses without repair. A replay cannot rebuild a new graph/history under
+the old selected digest.
 
 For each subject define scope paths: one exact path for file/documentation; all content paths
 below its locator for directory/project; all content paths for repository-root. Scope never
