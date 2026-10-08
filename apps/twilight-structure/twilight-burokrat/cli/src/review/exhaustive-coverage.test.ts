@@ -7,12 +7,13 @@ import { afterEach, describe, expect, test } from 'bun:test';
 
 import { ClassificationPolicy, RelationshipRequest } from '../contracts/records';
 import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
-import type { ClassifiedEntry } from '../inventory/classify-entries';
+import { type ClassifiedEntry, classifyEntries } from '../inventory/classify-entries';
 import { readCandidate } from '../inventory/read-candidate';
 import { extractRelationships } from '../relationships';
 import type { AuditObligation } from './audit';
 import {
   deriveExhaustivePopulation,
+  deriveExhaustivePopulationWithPreimages,
   evaluateExhaustiveCoverage,
   type ExhaustiveFreezeDocuments,
   type ExhaustivePlan,
@@ -23,6 +24,52 @@ import type { ReviewEvidence } from './protocol';
 
 const SHA_A = 'a'.repeat(40);
 const roots: string[] = [];
+
+test('real committed candidate retains exact authoritative subject preimages', () => {
+  const fixture = repositoryFixture();
+  const snapshot = readCandidate(fixture.repository, {
+    kind: 'committed',
+    revision: fixture.revision,
+  });
+  const classification = parseOrThrow(
+    ClassificationPolicy,
+    fixture.documents.classificationPolicy.input,
+  );
+  const classified = classifyEntries(snapshot.entries, classification, (blob) => {
+    const invocation = Bun.spawnSync(['git', '-C', fixture.repository, 'cat-file', 'blob', blob], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    if (invocation.exitCode !== 0) throw new Error('fixture blob absent');
+    return invocation.stdout;
+  });
+  const policy = fixture.documents.exhaustivePolicy.input as {
+    nonNxProjects: { projectId: string; locator: { kind: 'path'; path: string } }[];
+    explicitDocumentationPaths: string[];
+    defaultRiskStratum: string;
+    shardRule: { hashPrefixLength: number };
+  };
+  const prepared = deriveExhaustivePopulationWithPreimages({
+    entries: classified,
+    projects: policy.nonNxProjects,
+    explicitDocumentationPaths: policy.explicitDocumentationPaths,
+    riskStratum: policy.defaultRiskStratum,
+    shardPrefixLength: policy.shardRule.hashPrefixLength,
+  });
+  expect(prepared.population.subjects.length).toBe(prepared.preimages.length);
+  for (const retained of prepared.preimages) {
+    expect(hashBytes(retained.bytes)).toBe(retained.subject.contentIdentity);
+    expect(retained.bytes.at(-1)).toBe('\n');
+  }
+  const file = prepared.preimages.find(
+    ({ subject }) =>
+      subject.kind === 'file' &&
+      subject.locator.kind === 'path' &&
+      subject.locator.path === 'README.md',
+  );
+  expect(file).toBeDefined();
+  expect(file?.bytes).toBe(serializeCanonical(classified.find(({ path }) => path === 'README.md')));
+});
 
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { force: true, recursive: true });

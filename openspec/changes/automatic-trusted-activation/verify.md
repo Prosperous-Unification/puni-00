@@ -3385,3 +3385,65 @@ was `9122cf055c84ce13086ff3740869645520ff0ee51c2872028eba446daf9b9431`;
 test SHA-256 was
 `491c7cc159a48f7de64b546782e76626549dcbeeed65f138f4f8ff660f2a6c2c`.
 The host gate and CI still require a committed SHA and remain unrun.
+
+### Checkpoint A in-progress: synthetic offline signatures and protected-selection shape (2026-10-08)
+
+This is an **intermediate, non-authorizing** checkpoint. No `AuthenticatedReviewManifest`,
+`VerifiedReview`, `recordReceipt` call, production trust root, Actions-read capability,
+installed selector closure or source-projection parity exists. The staged OpenSpec
+contract incorporates Astra's `d6e36d6` signed-predicate amendment and `618a876`
+selection-record amendment. The latter passed OpenSpec 1/1 strict with the installed
+`@fission-ai/openspec` 1.12.0 CLI. `bunx openspec` was unavailable in this
+sandbox with `EROFS accessing temporary directory`; the installed CLI binary at
+`/tmp/puni-openspec-cli/node_modules/@fission-ai/openspec/bin/openspec.js`
+was invoked instead. No production selector or provider origin was provisioned.
+
+`review-authentication.fixture.ts` creates separate test-owned CA/signing/TSA keys
+in a private temporary directory, a DSSE P-256 signature over the exact custom
+predicate, a signed RFC3161 timestamp over the raw signature, bundle v0.3 and a
+one-line custom trusted root with final LF. The real offline `/usr/bin/gh 2.98.0`
+process accepted the synthetic bundle. Separately corrupting the signature,
+leaf and timestamp or replacing CA/TSA pins refused. Reissued foreign SAN,
+OIDC issuer, signer digest, source digest/ref and runner claims refused under
+gh policy. These are **test-owned crypto and gh-policy observations only**;
+`/usr/bin/gh`, its runtime hash and the synthetic root are not protected
+production authority. An independently re-signed wrong predicate passed real
+gh and then failed the application registration join. Twelve registered-field
+variants and four signed attestor variants repeated that separation. Three
+reissued owner-ID/repository-ID/run-URI leaves passed real gh and failed the
+application certificate join. Fifteen altered structured certificate-output
+fields separately test only the application parser, not a newly valid
+certificate. The adjacent fixture document records generation and cleanup.
+
+R5 isolated single-guard omissions were run against named focused tests and
+restored in `finally` before each next trial. Observed RED meant the intended
+named test failed with exit 1; focused GREEN and later combined suite passed.
+The accepted matrices are:
+
+| Boundary                       | Isolated accepted omissions                                                                                                                                                                            | Disqualified or scope limit                                                                                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Registered claim               | Eleven signed-field comparators, plus separate protected-manifest and observation-digest comparisons; three malformed-output/statement shape guards                                                    | Re-signed wrong `manifestIdentity` alone was masked by the observation digest check, so it is not counted as a proof of the protected-manifest comparator.      |
+| Certificate claim              | Fifteen verifier-output fields, four signed attestor fields, four output/certificate shape arms and protected repository grammar                                                                       | Altered structured output is an untrusted-process boundary test, not cryptographic reissuance.                                                                  |
+| Actions projection             | Eight exact run/workflow fields and four nested-record shape guards                                                                                                                                    | This is a pure projection validator; authenticated exact-route GETs remain unimplemented.                                                                       |
+| Selection record               | Eleven decoder/source-key guards (byte cap, fatal UTF-8 classification, canonical bytes, review ID, two key inputs and five read-set guards), six outer required schema fields, two unknown-key guards | Eight optionalized required schema fields were still refused by later joins or dereferences; these masks are disqualified as isolated schema proofs.            |
+| Seeded selection lookup/source | Eight key/row/internal-identity guards and seven selector/snapshot/plan/protocol/obligation/subject/retained-content joins                                                                             | Test-owned SQLite rows and source projections are non-authorizing; no controller freeze, complete key-set, current-generation or producer parity claim follows. |
+
+The current two-file focused run (`review-authentication.test.ts` and
+`review-selection.test.ts`) passed **201/201 tests and 236 assertions**, exit 0.
+Direct CLI `tsc --noEmit --project .../cli/tsconfig.json` exited 0. Scoped ESLint over the five new TypeScript files exited 0 after formatting and type-only import fixes. Changed-path Prettier initially identified this verify ledger; it was formatted and its focused post-write check passed. No host gate or CI ran; both require a committed SHA.
+
+### Preparation-only selector checkpoint (2026-10-08)
+
+The `c3de4d3` Selection Policy v1 OpenSpec amendment passed strict validation 1/1 through the installed pinned CLI. The implementation is intentionally partial: no selector freeze documents, selections, storage, dispatch, authenticated manifest or receipt mapping exist. The real temporary Git preparation test first failed because `deriveExhaustivePopulationWithPreimages` was absent, then passed after retaining exact canonical bytes in the authoritative population algorithm. Its 21 subjects each have a preimage hashing to the existing content identity. Omitting only preimage retention made the named test fail 21 versus zero; restored full exhaustive suite passed 20/20, 116 assertions. That suite requires explicit `TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules`; without it the existing relationship extractor refused before the new assertion.
+
+The new owned-object-store reader has an explicit Git binary digest pin, fixed process environment, per-invocation timeout/output cap, head/base/tree joins, unique byte-ordered paths, exact raw Git blob retention, classification and canonical `ReviewCandidateManifestV1`. Its real temporary Git tests passed 3/3, 10 assertions and direct CLI typecheck exited zero. Three independently isolated omissions reached the intended production assertion before restoration: removing the Git executable digest comparison returned a complete manifest for a wrong runtime pin; removing the entry ceiling returned both entries under a one-entry limit; removing the aggregate byte ceiling returned 311 raw bytes under a 256-byte limit, with each individual blob and the tree response below 256 bytes. Other new guards still require isolated omission watches. Controller-owned acquisition/repository binding is not implemented by this reader; the temporary fixture supplies an object store directly and is not production authority.
+
+A read-only census of exact implementation HEAD `70326a9ca76fed9e95802fb5e40d2e7c44a5d31a` found 1,725 tracked Markdown paths, 1,722 distinct Git blob IDs, 28,279,060 distinct raw blob bytes and a largest blob of 394,002 bytes. The eleven freeze documents, resource selection and tokenizer fit were not run. Under the current 64-resource ceiling and nine reserved slots, 1,722 distinct Markdown blobs cannot fit 55 remaining digest slots. No candidate was sampled or truncated; policy expansion is paused for a fidelity-preserving contract amendment. No installed tokenizer identity or context measurement has been supplied, so token fit is unknown rather than passed.
+
+The reader R5 matrix was extended with one omitted guard per run, with source restored between runs. Accepted production-path REDs: head and base `HEAD` alias grammar independently, repository ID zero, NaN entry ceiling, zero remaining deadline before spawn, final 10,001-ms deadline fence, inherited `GIT_OBJECT_DIRECTORY`, symlinked object-store path (`stat` substitution), declared Gitlink whose object is a readable blob, `../README.md` from a pinned test Git process, duplicate tree paths, missing raw-blob retention, failed `ls-tree` exit turning into an empty inventory, malformed `rev-parse` tree identity, and an oversized pinned `ls-tree` response. The last case was material: Bun `spawnSync(maxBuffer:256)` returned a successful shell-wrapper response over 256 bytes in this fixture; deleting the explicit `stdout.length` check published the manifest. A separate trial that removed a post-command deadline check was **disqualified** because the next pre-command or final fence still refused; that redundant check was removed. Zero numeric limits also refused without the installed-bound grammar, but by later error paths; these were not counted as independent safety witnesses. The exact focused Bun names identify each injected fault in the test source. These fixtures establish parser/boundary behavior with test-owned Git scripts, not an installed production runtime pin or acquired controller object store.
+
+After correcting a test's hard-coded monotonic clock-call count and rerunning its own isolated omission, the final two-file Bun run passed **36/36 tests, 151 assertions**, exit 0. Direct CLI `tsc --noEmit`, scoped five-file ESLint, six-path Prettier check, CLI `bun src/packaging/build.ts`, strict OpenSpec 1/1 and all OpenSpec 143/143 each exited 0. `git diff --cached --check` exited 0 for the six-path inventory patch. Full host gate, CI and the broader CLI test suite were not run for this partial slice; the host gate requires a reviewed commit.
+
+Astra's P2 review of staged SHA-256 `4b240723763057337ede7b3cfe4bd7ee4622acb864bb08ffefe40d4ed30c9b9f` identified three path guards without isolated witnesses. Three new real-repository tests passed on the unchanged guards, then each corresponding single-arm omission independently made its named refusal assertion fail with exit 1 and returned a candidate manifest: a relative path resolving to correctly pinned `/usr/bin/git`, a symlink named `git` pointing to that same pinned binary with only `isFile()` removed, and a relative path resolving to the actual object-store directory. All three guards were restored and the focused three-test run passed 3/3, three assertions. The first symlink trial used the basename `git-alias`; Git treated that name as a command and a later Git-read error masked the intended guard. That trial is disqualified; the corrected symlink named `git` produced the independent omission proof. The full exact check totals and staged hash below supersede the preceding pre-review totals.
+
+The corrected two-file focused Bun run passed **39/39 tests, 154 assertions**, exit 0. Direct CLI `tsc --noEmit`, scoped five-file ESLint, six-path Prettier check, CLI `bun src/packaging/build.ts`, OpenSpec strict 1/1 and OpenSpec all 143/143 each exited 0. The staged diff and its exact hash were checked after these results. The broader CLI suite, host gate and CI remain unrun for this partial uncommitted slice.

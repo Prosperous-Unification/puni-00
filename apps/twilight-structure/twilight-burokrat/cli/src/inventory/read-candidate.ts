@@ -203,7 +203,8 @@ function captureIndex(repository: string, selection: 'staged' | 'working'): Buff
   }
 }
 
-function parseEntries(bytes: Uint8Array, tree: string): CandidateEntry[] {
+/** Decodes bounded NUL-delimited `ls-tree` bytes; callers must validate path policy and order. */
+export function parseCommittedTreeEntries(bytes: Uint8Array, tree: string): CandidateEntry[] {
   // Proof: the production CLI wrapper injected unterminated, separatorless, bad-header and
   // mode/type-conflicting ls-tree records; the malformed-output test observed each named refusal.
   if (bytes.length === 0) return [];
@@ -276,7 +277,7 @@ function readTree(repository: string, tree: string): CandidateEntry[] {
       `cannot read immutable Git tree ${tree}: ${detail}`,
     );
   }
-  return parseEntries(invocation.stdout, tree);
+  return parseCommittedTreeEntries(invocation.stdout, tree);
 }
 
 function writeIndexTree(repository: string, env?: Record<string, string | undefined>): string {

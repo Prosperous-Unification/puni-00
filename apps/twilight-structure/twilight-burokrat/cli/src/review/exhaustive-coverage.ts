@@ -74,6 +74,11 @@ export interface ExhaustivePopulation {
   shards: ExhaustiveShard[];
 }
 
+export interface ExhaustivePopulationPreimage {
+  subject: ExhaustiveSubject;
+  bytes: string;
+}
+
 const Sha256 = type(/^[0-9a-f]{64}$/);
 const GitIdentity = type(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/);
 const PositiveInteger = type('number.integer>=1').narrow((value, context) =>
@@ -351,7 +356,10 @@ function directoryChildren(directory: string | undefined, entries: readonly Clas
  * Generates the fixed repository review universe before assignment or audit sampling.
  * Evidence bytes are not file-review subjects, but their ancestor topology remains a duty.
  */
-export function deriveExhaustivePopulation(input: ExhaustivePopulationInput): ExhaustivePopulation {
+export function deriveExhaustivePopulationWithPreimages(input: ExhaustivePopulationInput): {
+  population: ExhaustivePopulation;
+  preimages: ExhaustivePopulationPreimage[];
+} {
   if (
     !Number.isSafeInteger(input.shardPrefixLength) ||
     input.shardPrefixLength < 1 ||
@@ -372,15 +380,28 @@ export function deriveExhaustivePopulation(input: ExhaustivePopulationInput): Ex
       throw new Error(`exhaustive documentation selection is unresolved: ${path}`);
     }
   }
-  const subjects: ExhaustiveSubject[] = contentEntries.map((entry) =>
-    makeSubject('file', pathLocator(entry.path), hashCanonical(entry)),
-  );
+  const subjects: ExhaustiveSubject[] = [];
+  const preimages: ExhaustivePopulationPreimage[] = [];
+  const retainSubject = (
+    kind: ExhaustiveSubject['kind'],
+    locator: ReviewSubjectLocator,
+    source: unknown,
+    projectId?: string,
+  ): void => {
+    const bytes = serializeCanonical(source);
+    const subject = makeSubject(kind, locator, hashBytes(Buffer.from(bytes, 'utf8')), projectId);
+    subjects.push(subject);
+    // Proof: omitting this retention left the real committed candidate with fewer exact
+    // preimages than subjects; the preparation test failed its one-to-one identity assertion.
+    preimages.push({ subject, bytes });
+  };
+  for (const entry of contentEntries) retainSubject('file', pathLocator(entry.path), entry);
 
   for (const directory of directoryPaths(input.entries)) {
     const children = directoryChildren(directory, input.entries);
     const locator: ReviewSubjectLocator =
       directory === undefined ? { kind: 'repository-root' } : pathLocator(directory);
-    subjects.push(makeSubject('directory', locator, hashCanonical({ children })));
+    retainSubject('directory', locator, { children });
   }
 
   const projects = [
@@ -410,13 +431,11 @@ export function deriveExhaustivePopulation(input: ExhaustivePopulationInput): Ex
         project.locator.kind === 'repository-root' ? 'repository-root' : project.locator.path;
       throw new Error(`exhaustive project ${project.projectId} is unresolved: ${locator}`);
     }
-    subjects.push(
-      makeSubject(
-        'project',
-        project.locator,
-        hashCanonical({ projectId: project.projectId, entries }),
-        project.projectId,
-      ),
+    retainSubject(
+      'project',
+      project.locator,
+      { projectId: project.projectId, entries },
+      project.projectId,
     );
   }
 
@@ -426,7 +445,7 @@ export function deriveExhaustivePopulation(input: ExhaustivePopulationInput): Ex
       entry.classification.contentClass === 'openspec' ||
       explicitDocuments.has(entry.path);
     if (isDocument) {
-      subjects.push(makeSubject('documentation', pathLocator(entry.path), hashCanonical(entry)));
+      retainSubject('documentation', pathLocator(entry.path), entry);
     }
   }
 
@@ -458,7 +477,12 @@ export function deriveExhaustivePopulation(input: ExhaustivePopulationInput): Ex
       shardId: `shard.v1.${prefix}`,
       obligationIds: obligationIds.sort(compareText),
     }));
-  return { subjects, obligations, shards };
+  preimages.sort((left, right) => compareText(left.subject.subjectId, right.subject.subjectId));
+  return { population: { subjects, obligations, shards }, preimages };
+}
+
+export function deriveExhaustivePopulation(input: ExhaustivePopulationInput): ExhaustivePopulation {
+  return deriveExhaustivePopulationWithPreimages(input).population;
 }
 
 function readBlob(repository: string): ReadBlob {
