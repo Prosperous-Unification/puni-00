@@ -181,6 +181,21 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       joins, raw evidence/cold-link guards, origin/bounds checks and post-await authority fence.
       Cover absent and unreadable artifacts separately; strict verifier output must reject
       valid signatures for foreign semantic evidence. No dispatch is needed for this slice.
+      First complete the retrieval-only increment under
+      [Journal Resource Protocol v1](design.md#journal-resource-protocol-v1-retrieval-before-authentication):
+      fixed digest routes and producer publication order, pinned GitHub candidate lookup with
+      one-next bounded pagination, exact credential/redirect policy, streamed and declared
+      resource ceilings, digest-checked private staging and cache rehash. Return only typed
+      unauthenticated `RetrievedReviewJournal`; require a redacted late-cleanup failure
+      observer, bound late response cancellation and recheck the whole deadline/caller abort
+      after pending-directory cleanup; enforce fatal UTF-8 for both manifest and GitHub
+      listing bytes and recheck a finite late cancellation's monotonic deadline. Do not
+      import remote registration, map a
+      receipt, write the controller DB or install real origins/credentials. RED/GREEN and
+      independently watched F2/F4 negatives must cover origin, redirect, credential crossover,
+      pagination truncation/loops, each count/byte/deadline, digest, incomplete staging,
+      symlinks, conflicting cache and cancellation. Keep the 2.1d producer implementation
+      and full 2.1b authentication/receipt mapping open.
 - [ ] 2.1c Implement GitHub dispatch plus authenticated exact-effect registry query/acceptance
       after durable 1.2/3.3 reservation and recovery prerequisites. Tests:
       `lost dispatch reply recovers original invocation`, `duplicate run cannot execute twice`,

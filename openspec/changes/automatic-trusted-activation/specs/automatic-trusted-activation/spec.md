@@ -300,6 +300,39 @@ attested manifest digest and SHALL preserve phase, attempt, registered invocatio
 protocol observations. `recordReceipt` SHALL remain the transactional selection/join owner.
 Retrieval SHALL enforce protected origins, resource bounds and credential separation.
 
+#### Scenario: Fixed journal resources are retrieved without receipt authority
+
+- **WHEN** a protected registration supplies a manifest SHA-256 and the pinned journal
+  producer serves its complete canonical manifest and digest-addressed artifacts
+- **THEN** retrieval uses only the v1 fixed manifest/artifact routes, verifies exact bytes
+  and returns an unauthenticated `RetrievedReviewJournal` with no selected receipt,
+  `VerifiedReview` or database write
+
+#### Scenario: Candidate lookup is complete and bounded
+
+- **WHEN** the GitHub attestation API returns multiple pages or multiple matching bundles
+- **THEN** the reader joins the pinned repository ID, validates one exact next cursor and
+  all fixed query filters, scans at most five pages and 16 candidates, and returns the whole
+  candidate set without selecting by response order; malformed or truncated pagination refuses
+  and invalid UTF-8 listing bytes refuse before parsing, including informational fields
+
+#### Scenario: Retrieval cannot cross a credential or resource boundary
+
+- **WHEN** a journal or candidate request redirects, a bundle hint points elsewhere,
+  an origin or route changes, a body exceeds its declared or streamed limit, a digest differs,
+  staging is incomplete or symlinked, a cache entry conflicts, or cancellation occurs
+- **THEN** retrieval refuses with a typed failure, forwards no credential across its exact
+  origin and route-family capability, and exposes no partial journal or selected receipt
+
+#### Scenario: Late response cleanup remains observable and bounded
+
+- **WHEN** a fetch returns a response after cancellation, its body cancellation rejects,
+  stalls or settles after the monotonic request deadline, or pending-directory removal
+  crosses the operation deadline or caller abort
+- **THEN** retrieval cancels the late body within the original request deadline, reports
+  redacted late cleanup failure to its required observer, and classifies post-cleanup
+  deadline or cancellation while preserving the original typed refusal as a cause
+
 #### Scenario: Valid attestation covers incomplete or substituted review
 
 - **WHEN** a signature is valid but submission/source/artifact bytes differ, required raw

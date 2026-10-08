@@ -3246,3 +3246,142 @@ was `1123268bc8ba7a89862acdef19648ecccc180ce614c73b8eedcb66c28d452385`;
 test SHA-256 was `5070c2afcdc8a5d59b8244bac8456a1675f6326266c78782e256d94cc827e71b`.
 This rerun does not establish installed verifier pins, valid signed-journal
 cryptographic success, live provider behavior, CI, or the host gate.
+
+#### 2.1b increment 3: bounded unauthenticated journal retrieval
+
+Journal Resource Protocol v1 now has a local retrieval-only implementation. The
+new `RetrievedReviewJournal` is a typed collection of digest-staged bytes and
+GitHub candidate bundle hints; it carries no authenticated-review or receipt
+capability. There is no remote registration import, receipt mapping, database
+write, production origin, credential provisioning or real signed-journal
+positive in this increment. Task 2.1b remains open for those later boundaries,
+and task 2.1d retains the independent producer obligation.
+
+The first missing-module and deliberate-stub tests were RED before the happy
+route became GREEN. Separate mounted REDs covered foreign journal/bundle
+origins, redirect and credential crossover, altered and incomplete pagination,
+duplicate manifest pairs, digest and cache conflict, symlink staging, unreadable
+staging, signed-query redaction, malformed GitHub/manifest bytes, response
+cleanup, byte ceilings and deadlines. The cache aggregate test exposed a real
+omission: cached artifact bytes were not counted toward the 32 MiB whole limit.
+Its eight verified 4 MiB artifacts succeeded before the fix; the corrected
+accounting refuses before the GitHub scan. A pre-aborted operation also created
+and cleaned a pending directory before refusal; it now refuses before staging.
+
+The isolated mutation harness `/tmp/review-retrieval-watches.ts` generated
+`/tmp/review-retrieval-watch-<fault>-{red,green}.log` for each named trial.
+**82** production-path omissions had the intended named RED exit 1 and restored
+GREEN exit 0, with exact source SHA restored after each. They cover exact
+origins/base grammar/routes, family-scoped credentials and redirect policy,
+GitHub Link origin/path/filter/cursor/completeness/page/candidate bounds,
+status/media/encoding/body cleanup, declared/streamed/aggregate/cache byte
+bounds, pre-abort/request/whole deadlines, duplicate identity, exclusive and
+private staging, cache and staged-file rehash, symlink exclusion, partial
+cleanup and signed-query redaction. They also cover explicit GET/omit-credentials
+request fields, input authority, bundle URL userinfo/fragment, cache inode
+metadata and both response/reader cancellation paths.
+
+Astra's read-only lifecycle trace then produced five named initial REDs
+(`/tmp/activation-retrieval-lifecycle-initial-red.log`): a late fetch response
+retained a live body after caller abort; held response and reader cancellation
+blocked teardown; a fetch that advanced the monotonic clock 10,001 ms bypassed
+the request timer; and an injected pending-directory removal failure replaced
+a typed `absent` refusal with a raw cleanup error. The corrected owner cancels
+late bodies, cancellation races the same request abort/deadline, post-await
+checks enforce the absolute request deadline, and failed staging cleanup
+aggregates primary and cleanup errors while retaining the primary typed kind.
+The focused retrieval suite then passed 56/56 tests and 211 assertions
+(`/tmp/activation-retrieval-post-audit-green.log`).
+
+Three provisional mutation trials are excluded from the 82: cache rehash was
+masked by the later staged-file digest check; cache `isFile()` was masked by
+the real directory's `nlink=2`; and the first response-cleanup redaction trial
+had a faulty restored-GREEN assertion of the Error display name. The first
+test now observes the forbidden artifact write after the redundant outer
+digest guard was removed. The second injects a non-file inode with `nlink=1`
+at the production `fstatSync` boundary. The third assertion was corrected.
+Each now has its own accepted named RED/restored GREEN rerun; the original
+masked/disqualified trials are not counted. These are local fake-resource
+proofs, not cryptographic authentication.
+
+The final formatted six-file suite passed **710/710 tests, 2,382 assertions**,
+exit 0 (`/tmp/activation-2-1b-retrieval-final2-six-file-tests.log`). Direct
+`tsc --build --force`, scoped ESLint and CLI `bun src/packaging/build.ts` each
+exited 0 (`/tmp/activation-2-1b-retrieval-final2-{typecheck,eslint,build}.log`);
+the build produced nonempty `dist/bin.mjs` and `dist/package-manifest.json`.
+Pinned OpenSpec strict passed 1/1 and `--all` passed 143/143, zero failures
+(`/tmp/activation-2-1b-retrieval-final2-{strict,all}.json`). Six-path Prettier
+check and working/staged `git diff --check` exited 0. Runtime source SHA-256
+was `b564ee65faa7597f5fefa624e9882ce75f0cdff4d87763550f8a069bb05182bd`;
+test SHA-256 was
+`99b6f58d101ddba354645d10abbab858712ac3a2e1012973698a203c8aa09d4b`.
+The host gate and CI need a committed SHA and were not run for this
+uncommitted slice.
+
+##### Retrieval lifecycle and guard correction after staged review
+
+The preceding 710-test freeze was superseded by Astra's read-only review.
+Four mounted P2 tests initially failed 0/4
+(`/tmp/activation-retrieval-p2-initial-red.log`): a failed pending-directory
+removal completed after the whole deadline or caller abort but returned
+`absent`, and a late response body whose cancellation rejected or stalled
+reported nothing. Retrieval now rechecks the whole deadline and cancellation
+after removal, keeps the original typed refusal in an aggregate cause, and
+requires a caller-supplied observer for redacted late cleanup failures. Late
+body cancellation is bounded by the original request deadline. The focused
+retrieval suite passed 69/69 tests and 256 assertions after the correction
+(`/tmp/activation-retrieval-p2-focused-green.log`).
+
+Sixteen further isolated production-path omissions produced named RED exit 1
+and restored GREEN exit 0 (`/tmp/review-retrieval-p2-watch-summary.json` and
+`/tmp/review-retrieval-watch-<fault>-{red,green}.log`). They cover the two
+post-cleanup fences, late-failure observation and cancellation stall, FIFO
+`O_NONBLOCK`, stage/cache owner UID, both cache-size guards, staged no-follow
+reopen and three inode predicates, fatal manifest UTF-8 before decoder entry,
+the first-body-read deadline and final staging deadline. No new masked trial
+was counted. The accumulated accepted total is **98**; the three earlier
+provisional masks/disqualifications remain excluded. These local probes do
+not establish an installed producer, signed evidence or authenticated review.
+
+The final formatted six-file suite passed **723/723 tests, 2,429 assertions**,
+exit 0 (`/tmp/activation-2-1b-retrieval-final3-six-file-tests.log`). Direct
+`tsc --build --force`, scoped ESLint and CLI `bun src/packaging/build.ts` each
+exited 0 (`/tmp/activation-2-1b-retrieval-final3-{typecheck,eslint,build}.log`);
+the build produced nonempty `dist/bin.mjs` and `dist/package-manifest.json`.
+Pinned OpenSpec strict passed 1/1 and `--all` passed 143/143, zero failures
+(`/tmp/activation-2-1b-retrieval-final3-{strict,all}.json`). Six-path Prettier
+check and working/staged `git diff --check` exited 0. Runtime source SHA-256
+was `84cf794a8c131e7c34706d1da699b92b1b1615f2e13545d0fe8edfed84f0d784`;
+test SHA-256 was
+`1f9440980cddedf5dd633e65b462af07871ff53c8aeae09d0c2fb9ccf487aef4`.
+The host gate and CI still require a committed SHA and remain unrun.
+
+##### Finite late cleanup and GitHub UTF-8 correction
+
+Astra's next read-only trace found that a late body cancellation could settle
+after ten monotonic seconds but before timer delivery, leaving the required
+observer empty. The mounted finite-overrun test failed before the fix
+(`/tmp/activation-retrieval-final-p2-red.log`). The success handler now checks
+the original request deadline after cancellation settles and reports a redacted
+`limit-exceeded` failure. The separate GitHub listing decoder was also missing
+an isolated proof: malformed UTF-8 in an otherwise valid informational
+`initiator` string refused on baseline, while disabling only that decoder's
+`fatal` option returned a retrieved journal. Both independent mutations gave
+named RED exit 1 and restored GREEN exit 0
+(`/tmp/review-retrieval-final-p2-watch-summary.json` and individual watch
+logs), raising the accepted total to **100**. No new mask is counted; the
+three historical provisional trials remain excluded. These tests use fake
+resources and do not authenticate any signed provenance.
+
+The final formatted six-file suite passed **725/725 tests, 2,435 assertions**,
+exit 0 (`/tmp/activation-2-1b-retrieval-final4-six-file-tests.log`). Direct
+`tsc --build --force`, scoped ESLint and CLI `bun src/packaging/build.ts` each
+exited 0 (`/tmp/activation-2-1b-retrieval-final4-{typecheck,eslint,build}.log`);
+the build produced nonempty `dist/bin.mjs` and `dist/package-manifest.json`.
+Pinned OpenSpec strict passed 1/1 and `--all` passed 143/143, zero failures
+(`/tmp/activation-2-1b-retrieval-final4-{strict,all}.json`). Six-path Prettier
+check and working/staged `git diff --check` exited 0. Runtime source SHA-256
+was `9122cf055c84ce13086ff3740869645520ff0ee51c2872028eba446daf9b9431`;
+test SHA-256 was
+`491c7cc159a48f7de64b546782e76626549dcbeeed65f138f4f8ff660f2a6c2c`.
+The host gate and CI still require a committed SHA and remain unrun.

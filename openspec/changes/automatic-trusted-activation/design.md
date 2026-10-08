@@ -544,6 +544,64 @@ may use `gh attestation verify` with protected arguments and structured output; 
 supplies CLI switches or trust roots. [Attestation lookup](https://docs.github.com/en/rest/orgs/attestations)
 and [verification controls](https://cli.github.com/manual/gh_attestation_verify) govern this boundary.
 
+##### Journal Resource Protocol v1: retrieval before authentication
+
+The separately administered journal producer in 2.1d must implement a fixed HTTPS resource
+protocol. Its configured base `bootstrap.journal.endpoint` is an exact allowlisted origin and
+canonical path prefix, with no userinfo, query, fragment, dot segment or encoded separator.
+For one registered lowercase SHA-256 manifest identity, retrieve only
+`GET {base}/v1/manifests/sha256/{digest}`. A successful response is canonical UTF-8
+`application/json`, at most 64 KiB, and hashes to that digest. The manifest's artifact
+identities alone select `GET {base}/v1/artifacts/sha256/{digest}`; each response is exact
+`application/octet-stream` and hashes to its digest. Reject duplicate `(kind, identity)`
+entries. Journal IDs, filenames, caller suffixes and provider URL fields never supply route
+segments. These routes have no listing or pagination behavior. The producer publishes all
+referenced resources durably before exposing the manifest and retains them for the pinned
+policy period; an incomplete publication is never a readable successful manifest.
+
+Discover attestation candidates with the fixed configured-version GitHub request
+`GET https://api.github.com/orgs/{owner}/attestations/sha256%3A{manifestDigest}` with
+`per_page=20` and the encoded pinned `predicate_type`. Parse each returned attestation's
+positive safe-integer `repository_id` and `bundle_url`; optional `initiator` is informational.
+Keep only the pinned repository ID. A metadata URL is a hint, not authority. Follow at most
+one `rel=next` per response only after validating exact API origin, subject path, filters,
+`per_page` and one documented cursor; reject repeated, changed or ambiguous cursors, loops,
+or a continuation beyond five pages. A truncated scan returns no candidate set. Retain at
+most 16 matching candidates and never choose the newest or first as an authentication rule.
+Download bundle hints without GitHub or journal credentials; a later verifier must select
+by signed semantics, not response order.
+
+Each HTTP request uses GET, `redirect: 'error'` and `cache: 'no-store'`. The transport also
+rejects any 3xx, 206, 304 or content encoding response, including a same-origin redirect.
+Credentials are omitted unless an independently supplied capability matches the exact origin
+and route family; the GitHub token applies only to the GitHub candidate API, a journal token
+only to the fixed journal routes, and neither reaches bundle URLs. Never log token or signed
+URL query bytes. Classify absent, inaccessible, rate-limited, unavailable, invalid-response,
+integrity-mismatch, limit-exceeded and cancelled distinctly; do not retry a GET automatically.
+One monotonic 30-second operation deadline includes HTTP body reads, staging and cleanup;
+each request has a 10-second ceiling. Bound the scan to five GitHub pages, 16 candidates,
+64 artifact entries, 1 MiB per bundle, 4 MiB per artifact and 32 MiB of aggregate body
+bytes. Enforce declared `Content-Length` and streamed bytes, including bodies that never
+close; abort/cancel all outstanding reads on failure or external cancellation.
+The retrieval caller supplies a required observer for redacted late cleanup failures:
+if a fetch ignores abort and returns a response after the refusal settles, the
+retriever cancels that body within its original request deadline, rechecks the
+monotonic deadline after finite cancellation settles, and reports a sanitized
+cancellation or deadline failure through the observer. The observer
+must record the failure and must not throw. Pending-directory cleanup also
+rechecks cancellation and the whole deadline after removal, preserving the
+original typed refusal in an aggregate cause.
+
+Stage digest-named resources into one private 0700 operation directory with exclusive 0600
+files. Keep staging pending until every required manifest, artifact and candidate bundle is
+fully fetched, checked and re-opened with no-follow regular-file checks and a fresh digest.
+Reject symlinks, unreadable files, conflicting existing digest cache entries and partial
+staging; remove the pending operation on failure. A successful
+`RetrievedReviewJournal` remains explicitly **unauthenticated** and carries no
+`VerifiedReview`, receipt or database-write capability. This slice only retrieves bytes;
+signature verification, semantic mapping and `recordReceipt` remain later 2.1b work, and
+the producer/retention implementation remains 2.1d.
+
 The first offline process-policy increment freezes GitHub CLI `gh attestation verify`
 v2.98.0 output compatibility. Its protected descriptor supplies an absolute verifier
 executable, runtime closure identity and custom trust root; an independent resolver must
