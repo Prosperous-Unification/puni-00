@@ -306,6 +306,18 @@ Render explicit account/path/timing values during one-time administration. Templ
 and negative configuration checks prove the artifact contract only; installed systemd behavior
 requires separate host acceptance.
 
+The executable observation launcher consumes one canonical protected service JSON path, pins
+the trusted bootstrap before any GET and opens an optional explicit read credential file; it
+does not discover a token from ambient environment, `.env`, Bun preloads or candidate files.
+The service entrypoint calls only the existing one-tick CLI and never initializes or migrates
+SQLite. A typed administrator renderer emits units and an exact SHA-256 list for Bun, the
+launcher, Bun configuration, service configuration and bootstrap into a new private staging
+directory. Rendering binds a non-root account, canonical runtime/trust/state paths and finite
+startup/stop budgets. The unit clears the environment, disables Bun env-file loading, checks
+those pins before execution, writes only the private state path and propagates the launcher exit.
+The renderer does not install or enable a unit; the actual service-account and systemd behavior
+remain host acceptance work.
+
 Local implementation can exercise process locking, SQLite recovery, cancellation and cooldown
 with synthetic transport and test-only bootstrap fixtures. It cannot establish independent
 bootstrap authority from those fixtures. Protected account/directory creation, real bootstrap

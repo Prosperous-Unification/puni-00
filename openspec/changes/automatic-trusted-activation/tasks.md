@@ -106,7 +106,9 @@ close task 1.2, external bootstrap or 030.6.
       overflow validation, provider minimum, durable attempt reservation, deadline/attempt limits
       and failure-health retention. Keep cancellation distinct from provider failure and ensure
       busy/deferred invocations make no GET or success write.
-- [ ] 1.2h Add uninstalled oneshot/timer templates and their provisioning runbook under
+- [ ] 1.2h Add the executable one-tick service composition, an explicit protected configuration
+      and optional read credential boundary, uninstalled oneshot/timer templates with a typed
+      administrator renderer, and their provisioning runbook under
       `infra/ci/burokrat/observation/`; link from the activation runbook. First prove
       `observation service template requires protected execution and bounded shutdown` and
       `timer artifact cannot grant execution authority`. F1-T1 removes required account/path,

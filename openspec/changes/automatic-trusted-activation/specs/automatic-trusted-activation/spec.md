@@ -96,6 +96,17 @@ require explicitly initialized durable state, retain attempts/cooldowns across r
 expose busy, deferred, cancelled and complete reconciliation distinctly. It SHALL NOT execute
 evaluation, worker, review, publication, admission, merge or WBS effects.
 
+The uninstalled service artifact SHALL invoke an executable launcher with a canonical protected
+configuration and optional explicit read credential, without ambient token or env-file discovery.
+It SHALL pin its runtime and trusted configuration bytes, confine writes to the private state
+directory and retain the one-tick exit status. Rendering SHALL refuse unsafe account, path,
+digest or timeout inputs and SHALL NOT initialize/migrate state or install/enable a unit.
+
+#### Scenario: A rendered timer fires before administrator initialization
+
+- **WHEN** the launcher runs against absent protected state
+- **THEN** it fails without creating a database, making a provider read or reporting success
+
 #### Scenario: Another process owns observation
 
 - **WHEN** a second tick or initialization process targets the same state store

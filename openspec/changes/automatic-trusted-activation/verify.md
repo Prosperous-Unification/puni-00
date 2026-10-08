@@ -2646,3 +2646,149 @@ test-fixture bytes;
 --json` passed 1/1 and `validate --all --json` passed 143/143. Changed-path
 Prettier check and `git diff --check` exited 0. Host gate, CI and installed
 service remain unrun.
+
+## 1.2h uninstalled observation-service artifact (2026-10-08)
+
+This bounded increment composes the existing one-tick controller behind an executable
+`observation-service-cli.ts`, an explicit canonical protected service configuration,
+optional explicit read credential, and a typed administrator renderer. It adds an
+uninstalled oneshot/timer bundle and the linked provisioning README. It does not
+install or enable systemd, initialize or migrate SQLite on service start, perform an
+external audit, or grant publication/admission/merge/WBS authority. Task 1.2h and
+030.6 remain open pending independent review and host acceptance.
+
+The first mounted executable-child test failed because the launcher was absent
+(exit 1), then passed with a deferred state and propagated exit 75. The first
+renderer bundle test similarly failed before `render-cli.ts` existed, then passed.
+The credential-FIFO test first timed out at two seconds before O_NONBLOCK was
+added; the restored child refused the FIFO promptly with exit 1.
+The initial focused implementation suite passed **16/16, 89 assertions**:
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/observation-service.db.test.ts infra/ci/burokrat/observation/units.test.ts`.
+Direct `bunx tsc --noEmit --project` for the CLI and observation renderer projects
+both exited 0. `systemd-analyze verify` on the rendered service/timer files
+exited 0 with no diagnostics. This proves local syntax only, not installed
+service-account, filesystem, network, or timer behavior.
+
+The local watch driver `/tmp/activation-1-2h-watch.ts` mutated one production
+source/template condition at a time, ran the named mounted test, restored the
+original bytes in `finally`, then reran the same test. Each accepted row has
+RED exit 1 and restored GREEN exit 0 in
+`/tmp/activation-1-2h-<fault>-{red,green}.log`; the GREEN log records the
+restored historical source SHA-256. These hashes precede final Proof-comment
+and formatting edits, so they are mutation-restoration evidence rather than
+final-byte hashes.
+
+| Fault        | Removed/broken production condition   | Observed RED                                                                              |
+| ------------ | ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `account`    | non-root account refusal              | root layout accepted, `toThrow` failed                                                    |
+| `path`       | canonical safe-path validation        | `%h` Bun path accepted, `toThrow` failed                                                  |
+| `child`      | trust-directory containment           | foreign service-config path rendered; exact named refusal absent                          |
+| `statealias` | immutable runtime/state separation    | writable state path aliased runtime and rendered                                          |
+| `timeout`    | startup timeout upper bound           | 3601-second timeout accepted                                                              |
+| `readwrite`  | only-state writable directive         | unit contract lacked `ReadWritePaths`                                                     |
+| `killgroup`  | whole-service-group stop directive    | unit contract lacked `KillMode`                                                           |
+| `restart`    | no-restart directive                  | unit contract lacked `Restart=no`                                                         |
+| `preflight`  | hash preflight                        | unit contract lacked `ExecStartPre`                                                       |
+| `envclear`   | clean launcher environment            | rendered command no longer contained `env -i`                                             |
+| `envfile`    | Bun env-file refusal                  | rendered command no longer contained `--no-env-file`                                      |
+| `caps`       | empty capability bounding set         | unit contract lacked directive                                                            |
+| `nopriv`     | no-new-privileges constraint          | unit contract lacked directive                                                            |
+| `canonical`  | exact service JSON comparison         | valid noncanonical JSON reached tick; expected config diagnostic changed to `tick-failed` |
+| `bootstrap`  | early bootstrap pin check             | changed pin moved refusal to later `tick-failed`; no authority was admitted               |
+| `mode`       | protected file-mode check             | 0644 config reached tick; expected config diagnostic changed to `tick-failed`             |
+| `size`       | bounded protected-file read           | exact 16 KiB+1 canonical config reached tick; diagnostic changed to `tick-failed`         |
+| `nofollow`   | no-follow credential open             | symlinked credential yielded success 0 and a GET                                          |
+| `nonblock`   | nonblocking protected-file open       | credential FIFO held child beyond the 2-second test budget                                |
+| `ambient`    | absent credential means no token      | ambient sentinel appeared in Authorization header                                         |
+| `trustpin`   | service-config hash in exact pin list | rendered SHA-256 list differed from fixture                                               |
+| `fresh`      | new-only render output directory      | an existing empty directory was accepted                                                  |
+| `outputpath` | canonical render output path          | an `alias/..` output path created a rendered directory                                    |
+| `persistent` | persistent timer recovery             | timer contract lacked `Persistent=true`                                                   |
+| `timerexec`  | timer carries no executable command   | injected `ExecStart` was caught by the timer contract                                     |
+
+An earlier `child` trial used `void parent; void child` without loop braces and
+failed only with `ReferenceError: child is not defined`; it is disqualified.
+An earlier `size` trial used a file far larger than the bounded read; removing
+the size comparison still yielded truncated malformed JSON and stayed GREEN.
+The accepted fixture is exactly 16 KiB+1 canonical bytes, so removing only
+that comparison reaches the tick.
+The accepted replacement used lexical-only `requirePath(child)` and reached
+rendered output. The first `fresh` trial removed directory creation entirely
+and failed initial rendering; it is disqualified. The accepted replacement
+used `recursive:true`, admitting a preexisting empty directory.
+
+The admin renderer creates a new private staging directory and does not install
+anything. The service tests distinguish absent, unreadable and malformed
+configuration, pin drift, absent state, explicit versus ambient token and
+symlinked credential. A malformed or missing protected state produced zero
+GETs and no database creation. Actual host provisioning, live credential,
+systemd execution and the h2puni gate are unrun.
+
+The final activation-controller and renderer suite used
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/*.test.ts infra/ci/burokrat/observation/units.test.ts`
+and passed **637/637, 2,811 assertions**, exit 0, in
+`/tmp/activation-1-2h-final-suite.log`. Direct renderer and CLI TypeScript
+checks exited 0; Nx `twilight-burokrat:lint:source`, `typecheck`, and `build`
+each printed successful target summaries with cache skipped. Strict OpenSpec
+passed 1/1 and all-item OpenSpec passed 143/143. A broader Nx `test` run was
+interrupted at exit 130 before its target summary; it is not counted as a
+passing check. Installed systemd runtime behavior, CI and the h2puni gate
+remain unrun.
+
+### 1.2h independent-review corrections (local, uncommitted)
+
+The mounted service and renderer tests first reproduced the independent review
+findings: `${USER}`, a quote and NUL were accepted as executable-path bytes;
+the bootstrap FIFO held the executable beyond two seconds; protected file
+ownership/link and ancestor ownership/replaceability guards lacked independent
+watches. The corrected service opens the bootstrap with the same bounded,
+nonblocking, no-follow protected-file reader used for configuration and
+credentials, then validates those exact bytes against the independent pin.
+The renderer now admits only literal path bytes that systemd will not expand.
+
+`/tmp/activation-1-2h-watch.ts <fault>` removed only the named production
+condition, ran `bun test <named test file> -t '<named test>'`, restored source
+in `finally`, and reran that exact test. Each row below has RED exit 1 and
+restored GREEN exit 0 in
+`/tmp/activation-1-2h-<fault>-{red,green}.log`; GREEN logs record the restored
+pre-comment source SHA-256. The observed failures, rather than the exit codes
+alone, are the witnesses.
+
+| Fault              | Removed guard                      | Observed mounted RED                                                                                |
+| ------------------ | ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `ancestor_owner`   | trusted ancestor UID               | foreign-owned parent reached the later `tick-failed` diagnostic instead of `service-config-invalid` |
+| `ancestor_mode`    | ancestor non-replaceability        | mode 0777 parent reached the later tick diagnostic                                                  |
+| `leaf_owner`       | protected file UID                 | foreign-owned config reached the later tick diagnostic                                              |
+| `leaf_nlink`       | protected file single-link check   | hard-linked config reached the later tick diagnostic                                                |
+| `token_grammar`    | explicit credential ASCII grammar  | token with space reached the fake provider and tick returned 0                                      |
+| `literal_variable` | renderer literal path grammar      | `${USER}` executable path rendered; named `toThrow` failed                                          |
+| `literal_quote`    | renderer literal path grammar      | quoted executable path rendered; named `toThrow` failed                                             |
+| `literal_nul`      | renderer literal path grammar      | NUL executable path rendered; named `toThrow` failed                                                |
+| `bootstrap_fifo`   | bounded nonblocking bootstrap open | child remained blocked after two seconds; named exit-1 assertion received `timeout`                 |
+
+The previous configuration test's `0644` case is a **mode refusal**, not an
+unreadable-file witness. A separate mounted EACCES test now chmods the file
+`000`, confirms an actual `openSync` error with code `EACCES` under the
+non-root test account, then observes the public service's safe config-failure
+diagnostic. Missing and malformed remain separate in the older test.
+
+The provisioning README now states the feasible ownership boundary: a
+root-owned non-writable trust directory with service-owned `0600` protected
+files, plus a service-owned `0700` state directory. The systemd mount namespace
+provides the effective read-only trust view; file ownership alone does not.
+This is a documented provisioning contract, not installed host evidence.
+
+The corrected focused command
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/observation-service.db.test.ts infra/ci/burokrat/observation/units.test.ts`
+passed **26/26, 114 assertions**, exit 0, at
+`/tmp/activation-1-2h-review-corrected-focused.log`. After final formatting,
+the ten-file activation-controller/renderer suite passed **647/647, 2,833
+assertions**, exit 0 (`/tmp/activation-1-2h-review-final-suite.log`). Nx
+`twilight-burokrat:lint:source`, `typecheck`, and `build` each printed a
+successful target summary with cache skipped in the corresponding
+`/tmp/activation-1-2h-review-final-{lint,type,build}.log`; the renderer's
+direct TypeScript check exited 0. Pinned OpenSpec strict passed 1/1 and all
+passed 143/143 in `/tmp/activation-1-2h-review-final-{strict,all}.json`.
+Prettier `--check` passed on every changed source/document path, and
+`systemd-analyze verify` exited 0 on freshly rendered uninstalled units.
+Host service, CI and h2puni gate remain unrun.
