@@ -3385,3 +3385,43 @@ was `9122cf055c84ce13086ff3740869645520ff0ee51c2872028eba446daf9b9431`;
 test SHA-256 was
 `491c7cc159a48f7de64b546782e76626549dcbeeed65f138f4f8ff660f2a6c2c`.
 The host gate and CI still require a committed SHA and remain unrun.
+
+### Selector partition and token-preflight architecture amendment (2026-10-08)
+
+Docs-only planning follow-up on `plan/automatic-activation-review-semantics`; no source,
+provider configuration, model calls or implementation-worktree edits. The partition and count
+contracts below are **planned, not implemented or externally accepted**. Exact committed
+`70326a9ca76fed9e95802fb5e40d2e7c44a5d31a` inventory, read with `git ls-tree -r`, contains
+1,722 distinct Markdown Git blobs (1,304 under OpenSpec). This is a source-size observation,
+not a completed protected selector run or production-policy classification acceptance.
+
+The amendment preserves complete original resource/relationship duties, defines deterministic
+whole-duty shards and complete coverage certificates, and requires global synthesis for every
+multi-shard original obligation. Its separate synthesis protocol is not implemented; coverage
+alone cannot clear the original review or WBS 030.6. Actual-request count API observations are
+estimates, with explicit headroom and separate actual-usage refusal; no accurate local Claude
+tokenizer or provider credential has been provisioned by this work.
+
+| Planned R5 boundary   | Required isolated fault and observed assertion                                                                                             | Current evidence |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| Partition fidelity    | Drop one original raw document/duty or a crossing-edge endpoint; exact coverage/freeze assertion must fail                                 | Unrun            |
+| Partition bounds      | Omit common-cold/ten-slot reservation, byte/count/shard cap or indivisible-duty refusal; named fit assertion must fail                     | Unrun            |
+| Partition identity    | Change ordered duty/resource/shard binding; exact replay/dispatch assertion must fail                                                      | Unrun            |
+| Certificate authority | Omit one shard/read/status/current-owner/transaction join; no selected certificate or partial state assertion must fail                    | Unrun            |
+| Global synthesis      | Permit multi-shard coverage to satisfy original obligation; verified/publication/admission refusal assertion must fail                     | Unrun            |
+| Count admission       | Omit exact request/model/projection/call binding, checked arithmetic/headroom or deadline/retry bound; intended pre-send refusal must fail | Unrun            |
+| Count concurrency     | Hold count then change owner/epoch/expiry/authority; omitted fence must expose the stale-send assertion                                    | Unrun            |
+| Actual evidence       | Admit count-pass/actual-overrun or omit/substitute one retained preflight record; passing-receipt refusal must fail                        | Unrun            |
+
+No RED/GREEN trial is claimed here. Implementers must record exact commands, intended assertion,
+exit, restoration and masked/disqualified attempts adjacent to each production Proof comment.
+No host gate, CI, model/token-count API, production selector fit or synthesis acceptance ran.
+
+Design checks observed: pinned OpenSpec strict validation passed 1/1 and `--all --json`
+passed 143/143 (zero failures, `/tmp/selector-shards-all.json`). Commands used:
+`bunx @fission-ai/openspec@1.12.0 validate automatic-trusted-activation --strict --json`
+and `bunx @fission-ai/openspec@1.12.0 validate --all --json`.
+The first four-path Prettier check identified a multiline inline-code span in tasks; it was
+rewritten on one line and formatting rerun. Final four-path Prettier, `git diff --check` and repeated strict/all OpenSpec checks passed
+on the complete recorded amendment before commit. These checks validate docs;
+they do not constitute any R5 behavioral proof or live provider acceptance.

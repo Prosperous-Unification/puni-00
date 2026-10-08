@@ -823,14 +823,14 @@ selection. Producer/consumer parity tests cover all three canonical identities a
 
 ##### Initial selector policy and preparation pipeline
 
-The first producer uses `activation-review-selector.v1`, a fixed algorithm whose strict
+The current producer contract uses `activation-review-selector.v2`, a fixed algorithm whose strict
 canonical installed configuration is exactly:
 
 ```ts
 {
-  schemaVersion: 1,
+  schemaVersion: 2,
   kind: 'activation-review-selector',
-  algorithm: 'exhaustive-subject-and-direct-context.v1',
+  algorithm: 'exhaustive-subject-and-direct-context.v2',
   inventoryProtocolIdentity: Digest,
   classificationPolicyIdentity: Digest,
   exhaustivePolicyIdentity: Digest,
@@ -840,7 +840,9 @@ canonical installed configuration is exactly:
   modelContextIdentity: Digest,
   relationshipRecipeIdentity: Digest,
   extractorRuntimeIdentity: Digest,
-  tokenizerIdentity: Digest,
+  preflightPolicyIdentity: Digest,
+  maximumShardsPerObligation: Positive,
+  maximumTotalShards: Positive,
   configurationPaths: RelativePath[],
   maximumPreparationMs: Positive,
   maximumCandidateEntries: Positive,
@@ -853,7 +855,8 @@ canonical installed configuration is exactly:
     phaseOutputBytes: Positive,
     reviewEvidenceBytes: Positive,
     telemetryBytes: Positive,
-    rawResponseBytes: Positive
+    rawResponseBytes: Positive,
+    tokenPreflightsBytes: Positive
   }
 }
 ```
@@ -913,7 +916,8 @@ resolve to this installed configuration/rules/runtime set; mismatched joins refu
 source revision validation: do not relabel a previous derived mapping as the new candidate.
 Derive the audit seed as `hashCanonical({ schemaVersion: 1, requestIdentity,
 exhaustivePolicyIdentity })`. Primary selection is **all** `plan.obligations`, never the
-sampled `plan.audit.obligationIds`. Each obligation produces exactly one cold/informed pair.
+sampled `plan.audit.obligationIds`. Each original obligation retains complete coverage; the partition contract below produces one
+cold/informed pair per shard without removing any original subject.
 
 For each subject define scope paths: one exact path for file/documentation; all content paths
 below its locator for directory/project; all content paths for repository-root. Scope never
@@ -950,30 +954,168 @@ identity according to role; it cannot be a provider URL. Deduplicate identical c
 by keeping the first resource in that total order. `informedContextIds` is this ordered digest
 list. `coldRequiredReadIds` is the sorted unique cold-resource digest set;
 `informedRequiredReadIds` is the sorted union of cold resources and informed expansion.
-The informed executor must actually read that union; cold observations alone do not prove
-informed reads. `selectionIdentity` remains exactly
+The informed executor must actually read its shard union; cold observations alone do not prove
+informed reads. Before partitioning these lists define the complete obligation requirements;
+a shard selection uses the exact subset prescribed below. `selectionIdentity` remains exactly
 `hashCanonical({ subject, informedContextIds, coldRequiredReadIds, informedRequiredReadIds })`,
 including the terminal LF. Record identity additionally binds its provenance fields.
 
-Before freezing, enforce preparation deadline/candidate bounds and per-resource/review byte,
-count and pinned tokenizer/context bounds. The tokenizer closure is resolved from
-`tokenizerIdentity`; measure the actual protocol framing and complete resource encodings under
-`modelContext.budgets.contextTokens/inputTokens`, reserving its output budget. Neither model
-estimates nor a byte-to-token heuristic satisfy this check. Count distinct required-resource
-digests; reserve nine resource slots for two submissions, two phase outputs, review evidence,
-two telemetry objects and two raw responses. The required-resource count plus nine must fit
-`maximumReviewResources` and 64, even if eventual content deduplication could save slots.
-Each configured journal reservation is at most 4 MiB; reserve
-`2 * (phaseSubmissionBytes + phaseOutputBytes + telemetryBytes + rawResponseBytes) +
-reviewEvidenceBytes` in addition to required-resource bytes. That sum must fit
-`maximumReviewBytes`; adding 64 KiB manifest allowance and sixteen 1 MiB bundle allowances
-must fit the existing 32 MiB total retrieval ceiling. Invalid configuration refuses before
-preparation. Producer execution bounds each actual output by its corresponding reservation
-and the model budget; exceeding either cannot publish a successful journal. No dropped neighbor, sampled obligation, truncated body or guessed token count may
-turn overflow into success. A real-repository dry preparation is required to establish whether
-these ceilings admit this repository; local small-tree success does not establish that fact.
-If this policy cannot fit a structural duty, a separately versioned resource-pack/sharding
-contract is required; changing limits or omitting content ad hoc is not recovery.
+Before freezing, enforce preparation deadline/candidate bounds and per-resource/review byte
+and count limits. Exact token feasibility is not a local tokenizer assertion; use the protected
+actual-request preflight below. Reserve ten resource slots per shard: two submissions, two
+phase outputs, review evidence, two telemetry objects, two raw responses and one token-preflight
+aggregate. Distinct required resources plus ten must fit `maximumReviewResources` and 64.
+Reserve bytes as `2 * (phaseSubmissionBytes + phaseOutputBytes + telemetryBytes +
+rawResponseBytes) + reviewEvidenceBytes + tokenPreflightsBytes`. Each reservation is at most
+4 MiB. Required bytes plus these reservations must fit `maximumReviewBytes`; adding 64 KiB
+manifest and sixteen 1 MiB bundle allowances must fit the 32 MiB retrieval ceiling. Configuration
+that cannot fit refuses before work. The actual producer enforces every reservation; duplicate
+content cannot be assumed in advance to reduce worst-case capacity. Output overflow, missing
+reads or token admission failure never changes coverage into a pass.
+
+##### Deterministic partition and complete coverage certificate
+
+The current repository cannot be assumed to fit a single root context: the inspected committed
+`70326a9` tree has 1,722 distinct Markdown blobs, while journal bounds admit only a small
+fraction per review. Retain the complete original expansion. A strict canonical
+`ReviewPartitionV1` has exactly:
+
+```ts
+{
+  schemaVersion: 1,
+  kind: 'review-partition',
+  requestIdentity: Digest,
+  coveragePlanIdentity: Digest,
+  sourceObligationId: Id,
+  subject: ReviewSubject,
+  selectorIdentity: Digest,
+  snapshotIdentity: Digest,
+  commonColdResourceIds: Digest[],
+  resources: [{ identity: Digest, role: Id, locator: Id, byteLength: Nonnegative }],
+  duties: [{ dutyId: Digest, kind: 'resource' | 'relationship', requiredResourceIds: Digest[] }],
+  shards: [{ shardId: Digest, dutyIds: Digest[], requiredResourceIds: Digest[] }]
+}
+```
+
+`Nonnegative` is a safe integer >= 0; empty files remain legitimate bytes. All arrays reject
+duplicates and use the stated deterministic ordering. Resources are unique by content identity, retaining the first applicable role/locator in the
+existing role/locator/identity total order; every other digest list is byte-sorted. One resource duty names each
+original required resource. One relationship duty additionally names each applicable retained
+fact and its required endpoint representations from the original full expansion; external
+endpoints remain retained facts, never fetch URLs. A relationship duty cannot be split across
+shards. `dutyId` hashes canonical `{ kind, requiredResourceIds }`; equal such duties coalesce.
+Verify every original resource and relationship against these duties, so a smaller duty list
+cannot certify itself. Common cold resources are present in every shard.
+
+Sort duties by `dutyId`, then apply deterministic next-fit: append the next whole duty to the
+current shard if the union with common cold resources fits all byte/resource limits; otherwise
+close that shard and start another. Never reorder duties by completion or model output. A duty
+that cannot fit an empty shard, including repeated common cold resources and all reservations,
+refuses as `indivisible-duty-overflow`. A canonical resource over its byte limit is likewise
+indivisible; no implicit content truncation or chunking. Enforce installed per-obligation and
+total shard ceilings. `shardId` hashes canonical `{ dutyIds, requiredResourceIds }`, with its
+sorted exact arrays; sort stored shards by `shardId`. Partition identity hashes the complete
+canonical record including its terminal LF. Zero missing/foreign duties, complete original
+resource union and exact shard resource unions are independently verified before freeze.
+
+`ReviewSelectionRecordV2` is V1 with `schemaVersion: 2` and two additional required fields,
+`partitionIdentity: Digest` and `shardId: Digest`. Its review ID is `review.` followed by
+`hashCanonical({ schemaVersion: 2, coveragePlanIdentity, sourceObligationId,
+partitionIdentity, shardId })`. Subject and common cold reads remain the original obligation's;
+informed context is the original ordered expansion filtered to that shard's resource union;
+informed required reads are its full sorted union. The selection hash retains its four-field
+projection. Explicitly version frozen plans, descriptor selector contract and dispatch payloads;
+bind the immutable partition and shard alongside both selection identities. V1 rows remain
+historical evidence, never an inferred V2 partition. This supersedes the single-pair rule only
+for this newly versioned route; every shard still has exactly one paired review.
+
+A strict canonical `ReviewCoverageCertificateV1` contains exactly `{ schemaVersion: 1,
+kind: 'review-coverage', requestIdentity, sourceObligationId, partitionIdentity,
+shardReceipts: [{ shardId, coldReceiptIdentity, informedReceiptIdentity }],
+status: 'coverage-complete', synthesis: 'not-required' | 'required' }`.
+All identities are digests except the existing source obligation ID; shard receipts are unique
+and sorted by shard ID. The controller derives this certificate from its exact frozen partition
+and selected current authenticated receipts, never from a caller's list. Require every shard
+exactly once, both phases passed in order, actual observed reads covering all shard duties,
+matching authority/generation/attempt and no unresolved findings. Failed/skipped/missing/stale
+or foreign shards refuse complete certification. Retain failed/partial evidence without
+manufacturing this certificate. Bound certificate bytes to 4 MiB and recheck all receipt joins
+inside the short owner transaction that selects its digest; rollback cannot partially select it.
+
+Cross-shard global synthesis **is required for any original obligation with more than one
+shard**. Its certificate must say `synthesis: 'required'` and does not satisfy the original
+whole-subject review or the request's verified join. One-shard coverage says `not-required`
+and may satisfy the original review only through existing receipt checks. Multi-shard global
+synthesis remains refused pending a separately specified and verified bounded reduction-review
+protocol. That protocol must bind real child evidence, cross-shard relationships, reducer
+inputs/receipts and owner-fenced delayed materialization; placeholder summaries or a boolean
+waiver are not a substitute. This amendment authorizes preparation and faithful distributed
+coverage, not a claim that isolated shard passes prove global judgments. 2.1/030.6 remain open
+where synthesis is required.
+
+Sharding is selected because structural-only context would discard currently required raw
+reads, and packing only reduces transport entries while leaving model context unchanged.
+Content-addressed packs are deferred; any later pack must retain member identities, exact
+unpacked bytes, per-member observations and decoded-size/count limits. Hard refusal remains
+the correct outcome for an indivisible over-cap duty. Coverage is never reduced to make fit
+statistics green.
+
+##### Actual-request token-count preflight
+
+Replace the unavailable exact-local-tokenizer promise with a strict installed
+`TokenPreflightPolicyV1`: `{ schemaVersion: 1, kind: 'anthropic-token-preflight', modelId,
+apiVersion, endpoint: 'https://api.anthropic.com/v1/messages/count_tokens',
+requestProjectionIdentity, contextLimit, inputBudget, maxOutputTokens, minimumHeadroomTokens,
+headroomBasisPoints, maximumCallsPerPhase, maximumAttemptsPerCount, maximumCountDurationMs }`.
+All numeric fields are positive safe integers, `headroomBasisPoints <= 10000`, and all budgets
+must agree with the pinned model/protocol policy. Its canonical hash is `preflightPolicyIdentity`.
+The installed request projection explicitly maps actual Messages body fields into the supported
+count API schema; unsupported features refuse instead of being omitted. Pin that implementation.
+
+Preparation reports resource fit separately from token admission. Immediately before every
+Messages call, including tool-loop continuations, the protected executor freezes the complete
+actual HTTP request bytes, including system/tools/history/content encoding/model settings.
+It derives count-request bytes through the pinned projection, preserving all count-relevant
+inputs, and sends a bounded authenticated count request with redirect refusal and finite retry.
+Only this executor holds the provider credential; controller planning and candidate readers do
+not. Cancellation, malformed response, unavailable provider, exhausted retries or unknown model
+refuse admission. A fake counter or old approximate tokenizer cannot supply production authority.
+The API count is explicitly an estimate, not exact usage or a cryptographic attestation.
+
+For returned safe nonnegative `estimatedInputTokens`, compute
+`headroom = max(minimumHeadroomTokens, ceil(estimatedInputTokens * headroomBasisPoints / 10000))`
+with checked arithmetic. Require `estimatedInputTokens + headroom <= inputBudget` and
+`estimatedInputTokens + headroom + maxOutputTokens <= contextLimit`. Never label this estimate
+plus margin as a mathematically guaranteed upper bound. The provider's context refusal remains
+a modeled operational failure, with no passing receipt. Do not automatically repartition or
+mutate an already dispatched request in response; any later replan uses new fenced identities.
+
+Retain a canonical bounded `TokenPreflightRecordV1` for each admitted model call with exactly
+`{ schemaVersion: 1, requestIdentity, reviewId, attempt, invocationId, phase, callOrdinal,
+preflightPolicyIdentity, messageRequestDigest, countRequestDigest, countResponseDigest,
+estimatedInputTokens, headroom, admittedInputLimit, admittedContextLimit, maxOutputTokens }`.
+Ordinal is a safe integer >= 0; other fields use their existing ID/phase/digest types. Retain
+exact request/response bytes in the protected execution journal; no credential headers are
+retained. Before send, recheck request digest and current call ownership/epoch/lease/authority.
+A count observation cannot be replayed for changed request bytes or a different call. Preserve
+existing intent-before-send and uncertain-call recovery; count success never authorizes an
+unfenced later model POST. Finite retry of the side-effect-free count does not permit retrying
+an uncertain Messages call.
+
+After execution retain actual measured usage separately and evaluate its documented provider
+accounting, including cache counters, against the same limits; response/context/output overrun
+cannot yield a passing receipt. Preserve operational failure versus actual failed review, and
+never fabricate missing response/telemetry. The producer's new journal-manifest version adds
+one required `token-preflights` artifact containing the canonical ordered record array for all
+actual cold/informed calls, with no omitted/duplicate ordinal. Signed semantic verification
+joins each record to retained call evidence and measured telemetry. This resource uses the
+reserved tenth slot and `tokenPreflightsBytes`; updating the versioned strict manifest/parser
+is mandatory, not silently adding a role to V1. Count observations and actual usage are separate
+proofs. [Anthropic token counting](https://platform.claude.com/docs/en/build-with-claude/token-counting)
+documents estimates; the [count endpoint](https://platform.claude.com/docs/en/api/messages/count_tokens)
+requires the supported model/request projection. The
+[archived offline tokenizer](https://github.com/anthropics/anthropic-tokenizer-typescript)
+is not an accurate replacement for current Claude models.
 
 Acquire/hash/store all immutable inputs before the short freeze transaction; preparation never
 holds SQLite across await or long Git/parser work. Capture request version, generation, authority
@@ -1060,6 +1202,10 @@ slots share one resource. Reject extra unreferenced role entries and conflicting
 | `telemetry`            | Canonical verified telemetry from each present phase output; cold plus informed for complete source                                                                        |
 | `raw-response`         | Exact UTF-8 `rawResponse.payload` bytes from each present phase output, without JSON wrapping or newline normalization                                                     |
 | `required-read`        | Exact content bytes for every distinct content identity in the phase outputs' observed-read lists; these IDs already name content, not invented observation-wrapper hashes |
+
+For selector V2, the separately versioned journal also requires the `token-preflights` role
+defined above, exactly one canonical call-record aggregate. V1 role tables remain closed; the
+new version must be selected and validated explicitly.
 
 Every role identity is SHA-256 of its exact bytes. `required-read` resource identities equal
 the union of observed content identities; each independently resolved required-read set must

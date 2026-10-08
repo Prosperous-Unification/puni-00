@@ -250,13 +250,26 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       generated eleven documents, validated exhaustive plan, then deterministic selections.
       Exercise file/documentation raw reads, directory/project structural duties, direct
       context expansion/order and explicit empty expansion. Pin policy/runtime/configuration;
-      test candidate policy tamper, stale mapping, evidence-graph omission and resource/context
-      overflow. F2/F4 independently omit raw-blob inclusion while descriptor remains, select
+      test candidate policy tamper, stale mapping, evidence-graph omission and local resource
+      overflow; token admission is the separate 2.1d.1b contract. F2/F4 independently omit raw-blob inclusion while descriptor remains, select
       only sampled obligations, bypass graph completeness, source/policy/runtime joins and
       each bound. Observe intended production assertions RED and restored GREEN, retaining
       exact commands/fault/output and adjacent Proof. Include literal-byte canonical vectors.
       Run bounded real-repository preparation separately before claiming this policy fits its
-      content/resource ceilings; unsupported content or required resource packing remains open.
+      content/resource ceilings; token admission and global synthesis remain separately open.
+- [ ] 2.1d.1a Implement strict selector V2 partitions after the full unpartitioned resource
+      derivation. TDD: `all original duties survive partition`, `cross-shard edges retain both endpoints`, `input order cannot change partition`, `indivisible duty refuses`, and
+      `ten journal reservations count against every shard`. Independently remove coverage,
+      union/order/hash, per-shard/total limits and endpoint/common-cold joins for F2/F4 RED/GREEN.
+      Version selection records and frozen plan/dispatch references; preserve V1 historical rows.
+- [ ] 2.1d.1b Implement the protected actual-request count preflight port and pure policy
+      arithmetic, separately from local preparation fit. Tests: changed message/projection/model,
+      unsupported count input, malformed/absent response, overflow, exact limit, retry/deadline,
+      held count then takeover/expiry and different call ordinal. F2/F4/F10/F11 independently
+      remove request/owner/call joins and each arithmetic/budget fence. Fake counters prove
+      adapter behavior only; installed provider credential/count acceptance remains unverified.
+      Later executor mounting must prove count-pass/actual-overrun refuses success, journal
+      manifest V2 retains every preflight and no uncertain Messages call is replayed.
 - [ ] 2.1d.2 Add selection storage/forward-and-down migration and prepared-plan freeze owner.
       Test held preparation then takeover/expiry/authority change, atomic insert rollback,
       reopen with exact bytes, absent/corrupt retained content and conflicting replay. Use
@@ -269,7 +282,7 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       preliminary 2.1d slices precede installed checkpoint A; they do not execute model calls.
 - [ ] 2.1d First implement the protected selection producer/freeze prerequisite, before
       installed checkpoint A and before any provider dispatch. Freeze the strict
-      `ReviewSelectionRecordV1`, pinned selector closure and exhaustive-plan/content mapping;
+      versioned selection/partition records, pinned selector closure and exhaustive-plan/content mapping;
       use the specified derived review ID and controller-DB key, never receipt labels.
       Add selection persistence with paired additive migration/rollback, explicitly versioned
       frozen-plan/dispatch bindings, atomic owner-fenced freeze and exact replay. Implement the
@@ -310,6 +323,17 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       Include crashes both sides of POST, a held late response through takeover/expiry,
       genuine cold-only failed evidence as a control, and uncertainty with no provider replay
       facility. No automatic new attempt may disguise an uncertain send in this increment.
+- [ ] 2.1d.4 Implement controller-derived complete coverage certification only after receipt
+      ownership is mounted: missing/foreign/failed/stale shard, missing read duty, changed
+      partition, held owner and certificate transaction rollback. Observe complete row snapshots
+      with independent F2/F4/F10/F11 omissions. Multi-shard certificates cannot satisfy the
+      original obligation: first test `all shards passed still requires global synthesis`.
+- [ ] 2.1d.5 Specify and review a separate bounded global synthesis protocol before accepting
+      any multi-shard original obligation. Define authenticated child evidence, cross-shard
+      reducer duties, DAG completeness, reducer input materialization and owner-fenced receipts;
+      no placeholder summary or waiver. Until implemented and proven, full automatic 030.6
+      remains blocked for such obligations. Run full-repository fit reporting all refusals,
+      resource/shard counts and pending token/synthesis acceptance without dropping coverage.
 - [ ] 2.1e Prove installed external acceptance after one-time protected control repository,
       registry, credentials, retention, plan entitlement and trust pins are provisioned.
       Run `installed reviewer proves the exact invocation` with real cold/informed execution,

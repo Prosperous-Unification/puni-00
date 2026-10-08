@@ -439,7 +439,7 @@ the manifest, not grant receipt authority. Missing selection or identity mapping
 ### Requirement: Persisted protected review selection
 
 Checkpoint A SHALL resolve subject, ordered context and required-read sets from immutable
-version-1 selection records in the protected controller database, using registration-derived
+explicitly versioned selection records in the protected controller database, using registration-derived
 request/review/protocol keys. A protected pinned producer SHALL derive records from the frozen
 validated coverage plan and content. The newly versioned frozen plan and dispatch SHALL bind
 record and selection identities before provider execution. Receipt-supplied labels, paths or
@@ -508,6 +508,64 @@ Long preparation SHALL precede an atomic, current-owner-fenced freeze transactio
 - **WHEN** restart encounters missing/corrupt retained content, altered selection bytes or a
   dispatch whose selection digest differs from its frozen pair
 - **THEN** refuse without rebuilding evidence from current checkout or repairing old payloads
+
+### Requirement: Complete deterministic partition coverage
+
+The versioned selector SHALL partition the full original exhaustive obligation into bounded
+whole duties without dropping resources or relationship endpoints. Each shard SHALL have its
+own immutable paired review and registered partition/selection identities. An indivisible
+oversized duty SHALL refuse. Only exact complete current passing shard evidence SHALL produce
+a controller-derived coverage certificate. Multi-shard coverage SHALL require global synthesis;
+until its separate protocol exists it SHALL NOT satisfy the original review or verified join.
+
+#### Scenario: Partition omits a resource or crossing relationship
+
+- **WHEN** a partition drops original documentation, substitutes sampled duties, splits a
+  required relationship across shards without its endpoint resources, or changes a shard digest
+- **THEN** reject partition/freeze or receipt selection despite passing remaining shard receipts
+
+#### Scenario: Whole duty exceeds an empty shard
+
+- **WHEN** a required duty plus common cold reads and journal reservations exceeds its cap
+- **THEN** refuse explicitly without splitting opaque bytes, dropping reads or increasing limits
+
+#### Scenario: Complete coverage is mistaken for global synthesis
+
+- **WHEN** every shard of a multi-shard obligation passes with complete observed reads
+- **THEN** coverage may be certified, but the original review remains blocked on required
+  synthesis and the request cannot become verified, published or admitted through that evidence
+
+#### Scenario: Certificate selection races or sees incomplete evidence
+
+- **WHEN** a shard is missing/failed/skipped/foreign/stale, or ownership changes during certificate
+  construction, or its selection transaction rolls back
+- **THEN** no complete certificate authority commits and existing evidence remains immutable
+
+### Requirement: Estimated actual-request token admission
+
+Every actual model call SHALL receive a bounded protected count preflight for its exact request
+through the pinned projection. Count estimates plus configured headroom SHALL satisfy input
+and context/output policy before the current fenced owner sends. Actual usage SHALL remain
+separate and SHALL also satisfy policy before a pass. Missing counter authority or failed
+preflight SHALL refuse without local approximation fallback or synthetic completion.
+
+#### Scenario: Count is reused for a changed call
+
+- **WHEN** system/tool/history/content/model bytes, call ordinal, invocation or owner changes
+  after count admission
+- **THEN** refuse the model send; an estimate for previous bytes supplies no current authority
+
+#### Scenario: Estimate passes but execution exceeds policy
+
+- **WHEN** the provider rejects context size or retained actual usage/output exceeds policy
+- **THEN** retain the appropriate real operational/review failure and never produce a pass,
+  even when the earlier estimate plus margin passed
+
+#### Scenario: Counter or retained preflight evidence is incomplete
+
+- **WHEN** count is unavailable/malformed/over-budget, arithmetic overflows, retries expire,
+  or the signed journal omits/substitutes a call's preflight record
+- **THEN** refuse admission or semantic verification without fabricated counts or telemetry
 
 ### Requirement: Canonical byte identity includes the terminal LF
 
