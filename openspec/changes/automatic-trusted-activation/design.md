@@ -621,6 +621,237 @@ pins. The process seam returns an untrusted policy observation in local fake tes
 does not issue a `VerifiedReview` or satisfy external provenance without an installed
 independently pinned executable/root and a provenance-backed valid journal fixture.
 
+##### Signed review predicate v1 and checkpoint A
+
+This is the producer/consumer contract to implement, not evidence that an external producer
+or successful signed fixture exists. Checkpoint A authenticates the selected manifest only;
+checkpoint B reconstructs review evidence and mounts the receipt owner. Neither may promote
+`OfflineVerifierObservation.untrustedCliOutput` by casting or by accepting a caller's trust
+flag. The production composition owns the independently pinned runtime/process boundary.
+Process fixtures prove adapter behavior only; local `/usr/bin/gh` is not bootstrap authority.
+
+Freeze one custom predicate object with the exact fields below. Every object rejects unknown
+fields. `Digest` means 64 lowercase hexadecimal SHA-256 characters; `Commit` means 40 lowercase
+hexadecimal Git commit characters; `Id` means a nonempty existing protocol identifier;
+`Positive` and `Attempt` mean safe integers respectively >= 1 and >= 0. Canonical objects use
+`serializeCanonical`, without trailing whitespace/newline; raw resources use exact bytes.
+The configured `predicateType` remains external and must match the signed statement exactly.
+
+```ts
+{
+  schemaVersion: 1,
+  kind: 'tool-wiki-review',
+  descriptorIdentity: Digest,
+  manifestIdentity: Digest,
+  receiptAudience: Id,
+  journalIssuerId: Id,
+  journalId: Id,
+  effectKey: Digest,
+  payloadDigest: Digest,
+  requestIdentity: Digest,
+  reviewId: Id,
+  attempt: Attempt,
+  invocationId: Id,
+  selectionIdentity: Digest,
+  execution: {
+    executorId: Id,
+    modelId: Id,
+    protocolIdentity: Digest,
+    promptIdentity: Digest,
+    programIdentity: Digest,
+    actionIdentity: Digest,
+    runtimeIdentity: Digest,
+    toolPolicyIdentity: Digest
+  },
+  attestor: {
+    ownerId: Positive,
+    repositoryId: Positive,
+    workflowId: Positive,
+    sourceCommitSha: Commit,
+    signerDigest: Commit,
+    runId: Positive,
+    runAttempt: Positive
+  },
+  phases: ReviewJournalManifest['phases']
+}
+```
+
+`phases` uses the existing strict phase-record schema and its paired/cold-terminal cardinality;
+it must equal the decoded manifest's phase array, including order, obligation, submission and
+source digests and status. Require schema/predicate version 1 and exact bootstrap descriptor,
+issuer/audience, registration, dispatch payload/effect and manifest joins. `execution` fields
+match protected descriptor values, not model-supplied labels. The attested statement must have
+one SHA-256 subject equal to the exact registered manifest bytes. Keep its manifest digest,
+submission digests, source projections and bundle digest distinct.
+
+The certificate/verified timestamp chain authenticates issuer, signer identity/revision,
+source identity, runner and signing execution; the predicate authenticates what that pinned
+program claims about review execution. A predicate cannot prove its own signer. Compare
+certificate SAN/issuer, build-signer digest, source repository/owner immutable identifiers,
+source digest/ref, runner environment and run-invocation URI against protected pins and
+`attestor`. The attestor is the signing run, not a substitute for registered `invocationId`.
+Require an authenticated read-only GitHub metadata join from that run to the pinned numeric
+workflow ID/path and repository/owner IDs when the certificate lacks those fields. Read
+`GET /repos/{owner}/{repo}/actions/runs/{runId}/attempts/{runAttempt}`, then
+`GET /repos/{owner}/{repo}/actions/workflows/{workflowId}` from the pinned GitHub API origin;
+route names come from protected configuration and verified identities, never response URLs.
+Validate the run projection `{ id, run_attempt, workflow_id, head_sha, repository: { id,
+owner: { id } } }` and workflow projection `{ id, path }`, comparing every field to the
+certificate/predicate and source/workflow pins. Accept unrelated documented response fields
+only outside these typed projections. Never substitute the latest run attempt. This requires
+an explicit Actions-read route capability, separately scoped from attestation lookup, with
+redirect refusal and existing finite request/body/operation bounds. Retain exact responses
+with each proof; missing/mismatched fields or unavailable historical metadata refuse.
+[Run-attempt API](https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run-attempt)
+and [workflow API](https://docs.github.com/en/rest/actions/workflows#get-a-workflow) define
+these read-only endpoints.
+Do not infer signing OIDC audience from a certificate without that claim. Its bootstrap
+acceptance is separate from the predicate's exact application receipt audience.
+
+Resolve review selection independently before accepting `selectionIdentity`. The protected,
+versioned protocol/program resolver takes the frozen canonical request, stable `reviewId` and
+protocol identity and returns exactly `{ subject, informedContextIds, coldRequiredReadIds,
+informedRequiredReadIds }`, where `subject` uses existing `ReviewSubject` and every list
+contains content digests. Its canonical hash is `selectionIdentity`. Required-read lists are
+sorted and unique; context order is preserved. This resolver must select content from the
+frozen candidate snapshot and selected review scope, never the receipt, current checkout or
+predicate. An absent mapping refuses. Existing obligations do not themselves carry this
+subject/read mapping: the resolver and its producer parity proof are explicit checkpoint A
+prerequisites, not defaults inferred from one observed file. Both required-read sets include
+the selected subject content; the informed set also includes every supplied informed context.
+
+For each bounded candidate, privately reread staged bytes with containment/no-follow regular
+file checks, byte limits and fresh hashes. Invoke the actual pinned offline verifier over
+those bytes and validate its exact versioned output and custom predicate. V1 treats every
+nonzero CLI exit as operational refusal: the current process port does not
+provide a machine-authenticated distinction between cryptographic rejection and operational
+failure. Missing tools, unreadable/corrupt trusted roots, malformed output, timeout and
+cancellation also refuse, rather than permitting a skip to another candidate. Do not infer
+retry/rejection categories by matching human stderr text. Authenticate all candidates within
+one finite composition deadline; no early first-success return. Zero matching proofs refuses.
+
+Group successful proofs by the canonical predicate with only `attestor.runId/runAttempt`
+removed. Identical claims may have different bundles/signatures/timestamps or signing runs;
+retain every verified proof and choose the lexically smallest bundle digest as the stable
+representative. Each proof must independently pass certificate/run/workflow joins. Different
+remaining claims for the same expected registration refuse as conflicting evidence. A valid
+signature that purports to cover this exact registration/manifest but contradicts its frozen
+bindings is also a conflict. Unrelated repository metadata may be filtered by the existing
+retrieval contract, but a pinned signer's statement over this exact manifest cannot claim an
+unrelated registration and be silently ignored. This comparison does not authorize a second
+review execution: only equivalent re-attestations of the identical journal are deduplicated. Response order never grants trust.
+
+Checkpoint A returns an authenticated manifest with retained exact proofs and selection, not
+`VerifiedReview`. Receipt rows remain unchanged. Its authenticity derives from protected
+composition, not from a structurally constructible TypeScript value or fixture output.
+
+##### Phase submission and artifact contract for checkpoint B
+
+Each `phases[].submissionDigest` additionally addresses an immutable object at
+`{base}/v1/artifacts/sha256/{submissionDigest}`. The 2.1d producer retains these bytes before
+publishing the manifest. They need not be repeated in `manifest.artifacts`; fetch them as
+explicit phase resources, charging the existing 4 MiB per-artifact, 64-resource and 32 MiB
+aggregate ceilings, deduplicating by digest. Reject phase-submission objects listed as another
+artifact kind. All phase resources belong to the same authenticated manifest; do not discover
+receipt bytes from a mutable latest pointer. Authentication precedes interpretation.
+
+An exact phase submission is strict canonical JSON with fields:
+`{ schemaVersion: 1, kind: 'review-phase-submission', binding: ReviewExpectation,
+journalId: Id, inputs, source }`. `binding` uses all existing expectation fields exactly;
+it contains no self digest, manifest locator or authority override. `inputs` is a strict
+`{ cold: string, informed: string }` for complete evidence, or `{ cold: string }` for genuine
+cold-only failed/skipped evidence. Each string retains exact canonical UTF-8 protocol request
+bytes: respectively `ColdHarnessRequest` and `InformedHarnessRequest`. These are harness
+protocol inputs, not a claim that their bytes equal the Anthropic HTTP body. The pinned
+producer records their translation/model-call observations under its protocol implementation.
+
+`source` is exactly one existing controller projection:
+
+- Complete: `{ evidence: ReviewEvidence, cold: ColdHarnessOutput,
+informed: InformedHarnessOutput, findings: AuditFinding[], status: 'passed'|'failed'|'skipped' }`.
+- Cold-only: `{ cold: ColdHarnessOutput, terminal: { status: 'failed'|'skipped', reason: Id } }`.
+
+Unknown/missing fields refuse; no inferred empty findings, fabricated reason, telemetry,
+response or status. Hash exact submission bytes into `submissionDigest`; hash canonical
+`source` into `sourceEvidenceDigest`. Both must equal the selected signed phase record.
+The selected record's status equals `source.status` or `source.terminal.status`. A cold-only
+projection is permitted only for the cold phase and the manifest's one-phase terminal shape.
+A complete manifest has cold then informed; both submissions have identical inputs, evidence,
+cold output and informed output. Only selected phase binding, findings and status may differ.
+
+Map artifact roles from these decoded source values, not array position. Each required logical
+slot must have exactly one matching `(kind, identity)` resource; identical bytes across phase
+slots share one resource. Reject extra unreferenced role entries and conflicting alternatives.
+
+| Manifest artifact kind | Exact bytes and required logical slots                                                                                                                                     |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cold-output`          | Canonical `source.cold`; one cold slot for either source branch                                                                                                            |
+| `informed-output`      | Canonical `source.informed`; one informed slot only for complete source                                                                                                    |
+| `review-evidence`      | Canonical `source.evidence`; one slot only for complete source                                                                                                             |
+| `telemetry`            | Canonical verified telemetry from each present phase output; cold plus informed for complete source                                                                        |
+| `raw-response`         | Exact UTF-8 `rawResponse.payload` bytes from each present phase output, without JSON wrapping or newline normalization                                                     |
+| `required-read`        | Exact content bytes for every distinct content identity in the phase outputs' observed-read lists; these IDs already name content, not invented observation-wrapper hashes |
+
+Every role identity is SHA-256 of its exact bytes. `required-read` resource identities equal
+the union of observed content identities; each independently resolved required-read set must
+be included in its phase's observations. The producer records actual read-tool observations;
+retaining content alone does not prove a read, and model-provided read IDs alone do not create
+journal observations. The pinned executor must attest its observed lists, and the consumer
+matches those signed lists, retained content and resolved required sets. Do not silently sort
+or deduplicate the protocol's observation arrays; aggregate arrays preserve existing order
+and multiplicity, while the resource set deduplicates content storage only.
+
+Both protocol input requests and outputs must match the selected subject, protocol and
+registered invocation. Informed context equals the resolved ordered context. Each verified
+telemetry receipt's invocation/receipt IDs equal its phase input's IDs; `inputArtifact`
+hashes its exact retained harness input; `outputArtifact`
+hashes its phase raw response. Executor model equals the descriptor model pin; executor and
+price identities agree across complete phases, and existing receipt schemas validate measured
+usage, charge and elapsed intervals. Retain actual source values rather than replacing them
+with descriptor strings. Additional executor dimensions are authenticated observations, not
+unprovided configuration defaults. Missing required measured fields refuse completion.
+
+Require `hashCanonical(cold.cold)` to equal the informed input/output `coldArtifact` and
+`evidence.protocolEvidence.expansion.coldJudgmentArtifact`; the informed input's cold judgment
+also equals the cold output's. The producer durably acknowledges that exact cold judgment
+before making informed context available. Existing `ReviewEvidence` phase receipts/tools,
+protocol/subject/judgments, ordered observed-read/usage aggregates, context list and informed
+raw-response reference must equal their phase sources as enforced by `authenticatedReview`.
+The semantic adapter must reuse these checks rather than invent a parallel looser protocol.
+
+##### Phase verdicts and receipt ownership
+
+Findings/status in each complete submission describe that selected phase. A cold pass has no
+unresolved cold findings. An informed failed/skipped submission may introduce new findings;
+it preserves all still-applicable findings from prior phases. Finding IDs are unique per
+phase; the same ID across phases cannot silently change severity or summary. V1 does not
+permit a producer to clear an unresolved cold finding and continue: a non-passing cold phase
+is terminal and produces no informed phase. A passed status with any unresolved finding
+refuses. Do not infer pass from decodable JSON, telemetry completion, missing findings or an
+informed correction to a failed cold phase. The pinned review policy decides judgments/status;
+this amendment does not invent a new mapping of `yes|partial|no` judgments to pass.
+
+Cold-pass/informed-fail is represented explicitly: the final immutable manifest contains
+cold `passed` and informed `failed`; both complete submissions retain identical real phase
+outputs/evidence, cold has its authenticated empty unresolved-findings list and informed
+retains its failed verdict/findings. The controller records cold first, then informed failure;
+the request fails and cannot become verified. Its earlier cold receipt remains immutable.
+This is not an omission of informed findings: the adapter authenticates both submissions
+before returning either, checks the paired verdict relationship and retains both. An
+operationally interrupted informed phase without complete evidence cannot manufacture this
+complete branch or a cold-only failed receipt for an actually passed cold phase; it follows
+the operational-failure path and produces no fabricated review receipt.
+
+After checking the entire source/role graph and exact caller submission equality, construct
+only the selected existing `VerifiedCompleteReview` or `VerifiedColdTerminal`. Mount behind
+`verifyReview(ReviewSubmission)` with protected lookup/retrieval/authentication; let
+`recordReceipt` reread current authority, subject generation, lease and own attempt/registration
+inside its short transaction. Authentication runs outside it. Retain authenticated source and
+proof objects before selecting evidence; failed receipt transactions may leave immutable
+unselected evidence but cannot partially select it or erase earlier receipts. Stale results
+cannot grant authority. No schema/default backfill, provider dispatch or observation-service
+evaluation is implied by this composition.
+
 Mount this authentication behind the existing `verifyReview(ReviewSubmission)` port. Obtain
 `ReviewExpectation` from protected selection/registration, not the submission. Return
 `VerifiedCompleteReview` or `VerifiedColdTerminal` using the existing protocol decoders:

@@ -412,6 +412,86 @@ without complete actual cold evidence SHALL NOT produce `VerifiedColdTerminal` o
   durable external journal retrieval has not been observed
 - **THEN** 2.1 remains open and WBS 030.6 remains blocked without a per-PR manual workaround
 
+### Requirement: Strict signed review semantics
+
+Checkpoint A SHALL authenticate a version-1 custom review predicate with the exact fields
+and joins defined in design, including descriptor/audience, registered request/effect/payload,
+review/attempt/invocation, independently resolved selection, execution pins, attestor and
+manifest phase bindings. Certificate/provider metadata SHALL authenticate signer/run identity;
+predicate assertions SHALL NOT supply their own authority. The result SHALL authenticate only
+the manifest, not grant receipt authority. Missing selection or identity mappings SHALL refuse.
+
+#### Scenario: Signed wrong subject or workflow claims trust
+
+- **WHEN** a cryptographically valid predicate substitutes selection, request, audience,
+  workflow ID, signer revision, invocation or phase bindings
+- **THEN** authentication refuses the expected review; signed labels cannot override protected
+  selection, certificate claims or authenticated workflow metadata
+
+#### Scenario: Duplicate and conflicting candidate attestations
+
+- **WHEN** all bounded candidates have been evaluated and valid proofs differ only in signing
+  run, bundle/signature or timestamp while the normalized predicate is identical
+- **THEN** retain every proof and select the smallest bundle digest deterministically
+- **WHEN** applicable authenticated claims conflict, or a required verification operation fails
+- **THEN** refuse rather than choose first/newest or skip an operational failure
+
+### Requirement: Exact phase submissions and artifact graph
+
+Each signed phase submission digest SHALL address retained canonical bytes at the artifact
+route. Checkpoint B SHALL validate both complete phase submissions, or the genuine cold-only
+terminal submission, using existing source projections and protocol schemas. Artifact roles
+SHALL resolve by exact content identities and required cardinality. Findings, terminal reasons,
+raw responses, telemetry and read observations SHALL NOT be defaulted or synthesized.
+The adapter SHALL return only the selected phase after validating the entire authenticated
+source graph and independently selected subject/read requirements.
+
+#### Scenario: Phase submission changes its source projection
+
+- **WHEN** exact submitted bytes, source digest, findings/status/reason, phase input or any
+  role resource differs from the authenticated manifest or selected source
+- **THEN** no review receipt is returned or selected; manifest digest cannot substitute for
+  the exact submission or canonical source digest
+
+#### Scenario: Retained content is mistaken for observed reading
+
+- **WHEN** content files exist but signed actual observed-read lists omit a required content
+  identity, or model claims replace trusted executor observations
+- **THEN** required review evidence remains incomplete despite matching resource hashes
+
+#### Scenario: Cross-phase evidence is substituted
+
+- **WHEN** input/output subject or invocation, telemetry input/raw-output digest, measured
+  phase aggregation, informed context or exact acknowledged cold judgment differs
+- **THEN** the mounted verifier refuses without selecting either submitted receipt
+
+### Requirement: Phase verdict preservation
+
+Complete cold and informed submissions SHALL share exact inputs and phase source evidence
+while preserving their own authenticated verdicts and unresolved findings. A non-passing cold
+phase SHALL remain terminal with no informed phase. A cold pass followed by informed failure
+SHALL retain the cold receipt and fail the request. Operational absence of phase evidence
+SHALL NOT produce a fabricated cold terminal or successful review.
+
+#### Scenario: Cold passes and informed review fails
+
+- **WHEN** both complete submissions authenticate, cold passed without unresolved findings
+  and informed failed with its retained verdict/findings
+- **THEN** cold may be recorded first and informed failure then fails the request; informed
+  cannot precede its paired cold, and the request never becomes verified
+
+#### Scenario: Informed execution is absent after a cold pass
+
+- **WHEN** informed response or required observations are absent after actual cold success
+- **THEN** retain the operational failure/partial evidence, without rewriting cold as failed
+  or manufacturing a complete review receipt
+
+#### Scenario: Receipt ownership changes during semantic verification
+
+- **WHEN** generation, authority, lease or own attempt/registration changes while verification
+  is held, or the later receipt transaction fails
+- **THEN** no stale or partial selected evidence commits; prior immutable receipts remain intact
+
 ### Requirement: Paired review obligations and invocation identity
 
 The frozen evaluation plan SHALL bind a stable `reviewId` to exactly one cold and one

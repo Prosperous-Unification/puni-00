@@ -196,6 +196,37 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       pagination truncation/loops, each count/byte/deadline, digest, incomplete staging,
       symlinks, conflicting cache and cancellation. Keep the 2.1d producer implementation
       and full 2.1b authentication/receipt mapping open.
+      Continue in two separately reviewed checkpoints; neither alone completes 2.1b.
+      **Checkpoint A: authenticated manifest.** First freeze the strict signed predicate v1,
+      protected selection resolver and authenticated workflow-metadata response contract from
+      design. Tests: `signed selection cannot choose its own subject`,
+      `predicate cannot authenticate its own signer`, `all candidates precede selection`,
+      `equivalent attestations select deterministically`, and `conflicting signed claims refuse`.
+      Compose protected staged-file rereads with the actual pinned offline runner and strict
+      certificate/predicate joins. F2/F4 independently omit each identity, subject, audience,
+      execution/attestor/phase join, staged hash/containment guard, candidate completion and
+      conflict check; distinguish filtered unrelated metadata from applicable signed conflict
+      and operational failure. Cover foreign workflow metadata, latest-attempt substitution and
+      read-capability route leakage. Every nonzero CLI exit refuses in v1; do not classify stderr.
+      No cast of fake process output grants trust. Keep receipt rows
+      unchanged; record actual crypto fixtures separately from process/semantic fixtures.
+      **Checkpoint B: source graph and receipt owner.** First implement retained phase-submission
+      resources, strict canonical source projections and exact artifact-role/cardinality rules.
+      Test `phase objects bind exact selected source`, `required reads name observed content`,
+      `foreign telemetry and cold links refuse`, `cold pass informed failure remains failed`,
+      `missing informed evidence cannot synthesize cold terminal`, and
+      `held semantic verifier cannot select stale evidence`. F2/F4/F10/F11 independently omit
+      submission/source/role digests, required read-set inclusion, subject/input/response/
+      telemetry/context/cold cross-links, verdict/finding preservation and post-await owner
+      fences. Cover extra/missing/duplicate artifacts and both genuine cold-terminal and
+      complete pairs. Mount public `recordReceipt`, including cold-before-informed, unrelated
+      check completion, reopen/replay and injected receipt/join rollback with complete row
+      snapshots. Retain proofs before selection; no partial DB selection or evidence repair.
+      Producer parity tests must derive the same protected selection and exact submission
+      bytes from frozen inputs; 2.1d implements the producer contract. Installed independence,
+      real signed custom-journal fixtures and external credential/retention acceptance remain
+      unverified until observed. Record each exact omission, intended assertion, restoration
+      and disqualified/masked attempt in verify with adjacent Proof; no 2.1/WBS completion.
 - [ ] 2.1c Implement GitHub dispatch plus authenticated exact-effect registry query/acceptance
       after durable 1.2/3.3 reservation and recovery prerequisites. Tests:
       `lost dispatch reply recovers original invocation`, `duplicate run cannot execute twice`,
