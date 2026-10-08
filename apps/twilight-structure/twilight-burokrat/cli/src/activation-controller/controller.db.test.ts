@@ -37,12 +37,14 @@ import {
   openActivationController,
   type RequestLease,
   type ReviewExpectation,
+  type ReviewSubmission,
   type StoredRequest,
   type VerifiedColdTerminal,
   type VerifiedCompleteReview,
   type VerifiedReview,
 } from './controller';
 import { type ActivationRequest } from './request';
+import { composeReviewProviderVerification } from './review-provider';
 
 const scratch: string[] = [];
 afterEach(() => {
@@ -369,6 +371,7 @@ async function evidenceHarness(options?: {
   readonly secondPair?: boolean;
   readonly withoutReviewVerifier?: boolean;
   readonly verifyReview?: (expected: ReviewExpectation, bytes: string) => Promise<VerifiedReview>;
+  readonly verifyReviewSubmission?: (submission: ReviewSubmission) => Promise<VerifiedReview>;
 }) {
   const source = fixture();
   const authenticated = new Map<string, unknown>();
@@ -413,6 +416,9 @@ async function evidenceHarness(options?: {
     verifyReview: options?.withoutReviewVerifier
       ? undefined
       : async ({ exactSubmissionBytes, expected }) => {
+          if (options?.verifyReviewSubmission !== undefined) {
+            return options.verifyReviewSubmission({ exactSubmissionBytes, expected });
+          }
           if (options?.verifyReview !== undefined) {
             return options.verifyReview(expected, exactSubmissionBytes);
           }
@@ -560,6 +566,104 @@ function evidenceRows(databasePath: string) {
     database.close();
   }
 }
+
+function writeLegacyReviewDescriptor(path: string): string {
+  const bytes = serializeCanonical({
+    schemaVersion: 1,
+    kind: 'github-actions-attestation-review',
+    control: {
+      owner: 'example-control',
+      repository: 'review-control',
+      ownerId: 8101,
+      repositoryId: 8102,
+      workflowId: 8103,
+      workflowPath: '.github/workflows/review.yml',
+      dispatchRef: 'refs/heads/review',
+      sourceCommitSha: '1'.repeat(40),
+      signerDigest: '2'.repeat(40),
+      programIdentity: '1'.repeat(64),
+      actionIdentity: '2'.repeat(64),
+      runtimeIdentity: '3'.repeat(64),
+      runnerPolicy: 'github-hosted-only',
+    },
+    attestation: {
+      apiOrigin: 'https://api.github.com',
+      apiVersion: '2026-03-10',
+      issuer: 'https://token.actions.githubusercontent.com',
+      signerIdentity:
+        'https://github.com/example-control/review-control/.github/workflows/review.yml@refs/heads/review',
+      trustedRootIdentity: '4'.repeat(64),
+      trustedRootPath: '/protected/review/root',
+      verifierId: 'journal.verifier',
+      verifierIdentity: '5'.repeat(64),
+      verifierVersion: '2.98.0',
+      verifierExecutablePath: '/protected/review/gh',
+      verifierRuntimeIdentity: '6'.repeat(64),
+      predicateType: 'https://example.invalid/review/v1',
+      predicateVersion: 1,
+      receiptAudience: 'tool-wiki-review',
+      signingAudience: 'sigstore',
+      retrievalOrigins: ['https://journal.example.invalid'],
+      redirectPolicy: 'reject',
+      registrationOrigin: 'https://registration.example.invalid',
+      registrationIdentity: '7'.repeat(64),
+      retentionDays: 365,
+      visibility: 'private',
+      enterpriseEntitlement: 'enterprise-cloud-verified',
+    },
+    journal: {
+      issuerId: 'journal.issuer',
+      providerId: 'review.provider',
+      executorId: 'review.executor',
+      accessPolicy: 'authenticated-exact-retrieval',
+    },
+    model: {
+      origin: 'https://api.anthropic.com',
+      apiVersion: '2023-06-01',
+      modelId: 'claude-sonnet-4-5-20250929',
+      protocolIdentity: 'a'.repeat(64),
+      promptIdentity: 'b'.repeat(64),
+      toolPolicyIdentity: '8'.repeat(64),
+      entitlementIdentity: '9'.repeat(64),
+      credentialReference: '/protected/review/model-token',
+    },
+  });
+  writeFileSync(path, bytes, { mode: 0o600 });
+  return hashBytes(bytes);
+}
+
+test('legacy bootstrap cannot authenticate a registered external review phase', async () => {
+  let verifierCalls = 0;
+  const verification: { submit?: (submission: ReviewSubmission) => Promise<VerifiedReview> } = {};
+  const source = await evidenceHarness({
+    skipCold: true,
+    verifyReviewSubmission: (submission) => {
+      if (verification.submit === undefined) throw new Error('provider composition absent');
+      return verification.submit(submission);
+    },
+  });
+  const descriptorPath = `${source.source.bootstrapPath}.provider`;
+  chmodSync(source.source.bootstrapPath, 0o600);
+  const descriptorPin = { identity: writeLegacyReviewDescriptor(descriptorPath) };
+  verification.submit = composeReviewProviderVerification({
+    bootstrapPath: source.source.bootstrapPath,
+    bootstrapPin: source.source.pin,
+    descriptorPath,
+    descriptorPin,
+    verify: ({ expected, exactSubmissionBytes }) => {
+      verifierCalls++;
+      return Promise.resolve(fakeReview(expected, exactSubmissionBytes));
+    },
+  });
+  source.controller.registerReviewAttempt(source.lease, 'review.primary', 0, 'invocation.primary');
+  const before = evidenceRows(source.source.databasePath);
+  await rejectedWith(
+    source.controller.recordReceipt(source.lease, 'd'.repeat(64), source.cold),
+    'legacy bootstrap has no external review provider',
+  );
+  expect(verifierCalls).toBe(0);
+  expect(evidenceRows(source.source.databasePath)).toEqual(before);
+});
 
 async function rejectedWith(operation: Promise<unknown>, message: string): Promise<void> {
   const [settled] = await Promise.allSettled([operation]);

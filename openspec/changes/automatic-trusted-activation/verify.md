@@ -2814,3 +2814,158 @@ review/worker/publisher/admission/merge effects, or WBS completion. The
 h2puni gate and CI remain unrun for this 1.2h checkpoint. Parent 1.1/1.2 and
 later task boxes remain open, as do the full-family NOT RUN acceptance rows
 near the start of this ledger.
+
+### 2.1a protected provider authority (local, uncommitted review patch)
+
+The selected provider descriptor is a strict canonical, content-addressed version-1
+record. It freezes immutable control-repository/workflow/program/runner pins,
+attestation issuer/signer/root/verifier and two distinct audiences, bounded
+journal retrieval/retention and access policy, plus explicit model/protocol/
+prompt/credential-reference pins. The verifier executable path is absolute and
+lexically canonical; its exact binary identity, version and runtime identity are
+descriptor fields. These are configuration pins, **not** proof that a binary or
+Sigstore root is installed, authenticated or used. Bootstrap version 2 binds the
+descriptor digest to an independent pin. Version-1 history still parses, but an
+explicit external-review authority guard refuses to authenticate a new phase.
+
+The first controller-mounted test, `legacy bootstrap cannot authenticate a
+registered external review phase`, initially placed its guard in a test callback.
+That earlier `/tmp/activation-2-1a-bootstrap-legacy_external.log` is historical
+and **disqualified** as production-composition proof. The corrected mounted test
+injects shipped `composeReviewProviderVerification` as `recordReceipt`'s
+`verifyReview` callback. It reads protected bootstrap and descriptor bytes,
+joins independently pinned authority, and refuses v1 before its fake external
+verifier is called. Omitting only the shipped composition guard fulfilled the
+forbidden phase (RED 1); restored it refused with zero verifier calls and
+unchanged request/obligation/attempt/review-registration rows (GREEN 0).
+`/tmp/activation-2-1a-correction-legacy_composition.log` retains the exact
+mutation and outputs. The fake verifier establishes no external provenance.
+
+`bun /tmp/activation-2-1a-watch.ts` changed one required field in the
+production descriptor schema to optional, ran its named
+`bun test .../review-provider.test.ts -t 'provider authority refuses absent
+<section>.<field> rather than inferring it'`, restored source, and reran the
+same test. All 45 logs are at
+`/tmp/activation-2-1a-field-<section>-<field>.log`; each has exact mutation,
+command, RED/GREEN exit and output. Thirty-five final-byte removals admitted an absent field and failed the named
+refusal (RED 1, restored GREEN 0). Six changed only diagnostic specificity
+because independent numeric/retrieval/entitlement checks still refused; four
+stayed GREEN because path or model-ID validation independently refused. Those
+ten are **disqualified** as independent safety proofs, not counted as admission.
+The later direct guards for safe numbers, nonempty retrieval, entitlement,
+canonical paths and model-ID grammar have their own isolated admitting faults.
+The rerun summary is `/tmp/activation-2-1a-correction-field-summary.log`;
+restored source SHA-256 was `dabf761a12ef2ab62495e35d16c5aa87b20495f1d64591a6415303bed9d0f10c`.
+
+`bun /tmp/activation-2-1a-guard-watch.ts` removed each named production
+predicate from the descriptor reader/authority join and reran the exact named
+test after restoring source. All **22** accepted rows have RED exit 1 with a
+named wrong-descriptor admission and restored GREEN exit 0 in
+`/tmp/activation-2-1a-guard-<fault>.log`:
+
+| Faults                                                                                                             | Intended mounted failure when omitted                                                        |
+| ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `join_issuer`, `join_provider`, `join_executor`, `join_verifier`, `join_protocol`, `join_prompt`, `join_retrieval` | Coherently repinned foreign authority returned from the exact bootstrap join.                |
+| `pin`, `canonical`, `utf8`                                                                                         | Wrong raw digest, noncanonical JSON, or lossy invalid UTF-8 bytes were accepted.             |
+| `path_executable`, `path_root`, `path_credential`, `locator`                                                       | Traversing protected paths or a lexical descriptor alias was admitted.                       |
+| `entitlement`, `retrieval_empty`, `retention`                                                                      | Wrong private plan, absent retrieval origin, or >3,650-day retention was admitted.           |
+| `numeric_owner`, `numeric_repository`, `numeric_workflow`, `numeric_predicate`                                     | Unsafe integer identity/version was admitted.                                                |
+| `byte_ceiling`                                                                                                     | A canonical 65,537-byte record was admitted; the exact 65,536-byte control remains readable. |
+
+`bun /tmp/activation-2-1a-file-watch.ts` independently changed the version,
+kind, single-link, mode and no-follow protections: each admitted a foreign
+record or wrong file (RED 1, restored GREEN 0) in
+`/tmp/activation-2-1a-file-<fault>.log`. Its directory-only `file_type`
+trial stayed GREEN because link count separately refused; it is disqualified.
+The dedicated FIFO witness then isolated type and nonblocking: with `isFile`
+removed, the named refusal became a read error (diagnostic only), while
+removing `O_NONBLOCK` held the Bun child until its explicit two-second
+SIGTERM timeout; restored tests passed in
+`/tmp/activation-2-1a-fifo-{file_type,nonblock}.log`. No blocked child remains.
+The composed authority reader also protects the bootstrap read itself.
+Replacing only that call with `readFileSync` held the mounted bootstrap FIFO
+child until its two-second SIGTERM timeout; restored GREEN refused promptly
+in `/tmp/activation-2-1a-bootstrap-protected-read.log`. This does not change
+the historical v1 bootstrap reader used by earlier local fixtures.
+
+`bun /tmp/activation-2-1a-bootstrap-watch.ts` independently removed the
+then-test callback's version guard, descriptor-digest comparison and legacy-with-pin
+refusal; each admitted forbidden authority in its historical fixture (RED 1,
+restored GREEN 0) in
+`/tmp/activation-2-1a-bootstrap-<fault>.log`. Its absent-pin omission merely
+changed the diagnostic to a later digest mismatch and is disqualified. All
+source-mutation scripts restored the original SHA-256 before exiting; those
+hashes are historical pre-comment source bytes, not a claim about final
+formatted bytes.
+
+After final source formatting, the exact command
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/bootstrap.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/review-provider.test.ts apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/controller.db.test.ts`
+passed **498/498, 1,888 assertions**, exit 0
+(`/tmp/activation-2-1a-final-tests.log`). Scoped `bunx eslint` on the
+five changed TypeScript paths exited 0; direct
+`bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json`
+exited 0 (`/tmp/activation-2-1a-final-{lint,type}.log`). The documented package build `bun src/packaging/build.ts` exited
+0 and generated nonempty `dist/bin.mjs` and `dist/package-manifest.json`.
+The earlier `bunx nx run twilight-burokrat:typecheck --skip-nx-cache` exited
+0 after an Nx socket denial **without a target summary**, so it is not
+counted as a target pass; the direct TypeScript check is the type evidence.
+Pinned OpenSpec strict passed 1/1 and all passed 143/143 (125 changes, 18
+specs), both exit 0 in `/tmp/activation-2-1a-final-{strict,all}.json`.
+Prettier `--check` on all six changed paths and
+`git diff --check` passed, exit 0.
+
+No production verifier invocation, attestation retrieval, provider credential,
+real dispatch, host provisioning, CI or h2puni gate is claimed. Parent 2.1
+remains open; 2.1b cryptographic retrieval and semantic receipt mapping are
+separate work. Historical local output logs under `/tmp` are not checked-in
+fixtures or external acceptance evidence.
+
+#### Corrected 2.1a composition and immutable-ID review evidence
+
+GitHub `BuildSignerDigest` maps to `job_workflow_sha`, a 40-hex **commit SHA**;
+program/action/runtime identities remain independent 64-hex SHA-256 values.
+The descriptor now refuses a 64-hex signer value. Its model grammar refuses
+mutable 4.5 aliases, whitespace and fabricated model names, while mounted
+positives retain dated 4.5 and exact dateless 4.6/4.7/5 snapshots. This
+structural grammar does not assert live model entitlement or availability.
+The shipped verifier composition requires an independently pinned descriptor
+and joins its digest to v2 bootstrap; v1 history remains readable but cannot
+call the fake verifier. Public visibility has a separate coherent mismatched
+entitlement fixture and a valid public-plan control.
+
+`python3 /tmp/activation-2-1a-correction-watch.py` ran six isolated source
+mutations and restored each before the next. Each named log
+`/tmp/activation-2-1a-correction-<fault>.log` records changed source,
+exact `bun test ... -t ...` command, RED exit 1 with the assertion below,
+restored GREEN exit 0, and restored source SHA-256
+`a5583940dd920224a257ae8e4f69cfc5dfe04116a041cb17a8bc66b360fbefa9`.
+That is a **pre-format restoration** hash; final-byte checks follow.
+
+| Fault                             | Observed named RED assertion                                                                                                       |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `legacy_composition`              | `recordReceipt` fulfilled under v1 instead of rejecting; restored test also checks verifier calls zero and full evidence snapshot. |
+| `model_alias`, `model_whitespace` | Coherently pinned mutable/whitespace model descriptor returned rather than refusing.                                               |
+| `signer_commit`                   | Coherently pinned 64-hex signer value returned rather than refusing.                                                               |
+| `public_entitlement`              | Public descriptor carrying private Enterprise entitlement returned rather than refusing.                                           |
+| `v2_pin_join`                     | Different valid independently pinned descriptor returned under the old bootstrap descriptor identity.                              |
+
+The signer mapping comes from Sigstore Fulcio's `build-signer-digest` to
+`job_workflow_sha` configuration. `--cert-identity` and `--signer-workflow`
+selection belongs to unimplemented 2.1b retrieval, not this descriptor read.
+
+On corrected, formatted bytes, the exact three-file `bun test` command above passed
+**509/509, 1,900 assertions**, exit 0
+(`/tmp/activation-2-1a-correction-final-tests.log`). Scoped `bunx eslint` on
+five TypeScript paths exited 0 with no diagnostic; direct
+`bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json`
+exited 0 (`/tmp/activation-2-1a-correction-final-{lint,type}.log`).
+`bun src/packaging/build.ts` exited 0 and produced nonempty `dist/bin.mjs`
+and `dist/package-manifest.json`; no build stdout is claimed. Pinned
+`bunx @fission-ai/openspec@1.12.0 validate automatic-trusted-activation --strict --json`
+passed 1/1 and `validate --all --json` passed 143/143 (125 changes, 18
+specs), exit 0 (`/tmp/activation-2-1a-correction-final-{strict,all}.json`).
+Prettier `--check` on all seven changed paths, `git diff --check` and
+`git diff --cached --check` passed, exit 0. The earlier 498-test results
+above are historical and superseded by this 509-test run. Nx's prior socket
+failure remains uncounted; host gate, CI, live verifier, provider credentials
+and installed entitlement remain unrun/unverified.

@@ -110,3 +110,42 @@ test('bootstrap refuses local relabel, wrong issuer and mismatched pinned bytes'
     }),
   ).toThrow('bootstrap configuration malformed');
 });
+
+test('versioned provider bootstrap requires an independent descriptor pin without migrating legacy history', () => {
+  const { path, configuration } = fixture();
+  const descriptorIdentity = 'c'.repeat(64);
+  const bytes = serializeCanonical({
+    ...configuration,
+    schemaVersion: 2,
+    reviewProvider: { kind: 'github-actions-attestation-review', descriptorIdentity },
+  });
+  writeFileSync(path, bytes);
+  const pin = {
+    identity: hashBytes(bytes),
+    journalIssuerId: 'journal.issuer',
+    publisherIssuerId: 'publisher.issuer',
+    reviewProviderIdentity: descriptorIdentity,
+  };
+  expect(readBootstrapConfiguration(path, pin).authorityGeneration).toBe(3);
+  expect(() =>
+    readBootstrapConfiguration(path, { ...pin, reviewProviderIdentity: undefined }),
+  ).toThrow('bootstrap review provider pin absent');
+  expect(() =>
+    readBootstrapConfiguration(path, { ...pin, reviewProviderIdentity: 'd'.repeat(64) }),
+  ).toThrow('bootstrap review provider differs from independent pin');
+  const legacyBytes = serializeCanonical(configuration);
+  writeFileSync(path, legacyBytes);
+  expect(
+    readBootstrapConfiguration(path, {
+      ...pin,
+      identity: hashBytes(legacyBytes),
+      reviewProviderIdentity: undefined,
+    }).schemaVersion,
+  ).toBe(1);
+  expect(() =>
+    readBootstrapConfiguration(path, {
+      ...pin,
+      identity: hashBytes(legacyBytes),
+    }),
+  ).toThrow('legacy bootstrap has no external review provider');
+});

@@ -466,7 +466,8 @@ The external administrator must supply and verify all of the following before in
 
 - Control organization/owner and repository immutable IDs, repository locator, numeric
   workflow ID, qualified workflow path, protected dispatch branch/tag, exact workflow source
-  commit and signer digest, and pinned review-program/action/runtime identities.
+  commit and GitHub signer digest (the 40-hex `job_workflow_sha` commit, not a SHA-256
+  workflow-file digest), and pinned SHA-256 review-program/action/runtime identities.
 - GitHub API origin/version, issuer `https://token.actions.githubusercontent.com`, signer
   identity, trusted Sigstore root/verifier identities, accepted runner policy, custom predicate
   type/version, signed application receipt audience and signing OIDC audience.
