@@ -82,12 +82,14 @@ Fresh lifecycle-amendment checks on 2026-10-07 used the recorded commands: stric
 1/1 with zero issues; all-item OpenSpec 143/143 (125 changes, 18 specs); explicit-path Prettier
 passed; `git diff --check` exited 0. Read-only inspection confirmed 301 intent words, four
 resolving local links, 13 requirements, 43 scenarios and 17 uniquely numbered ordered tasks.
-The mounted tests below remain NOT RUN.
+At this planning-amendment checkpoint, the mounted tests below had not run;
+later local implementation evidence is recorded by slice below.
 
 ## Task completion and delta sync
 
-All tasks remain unchecked and block archive. The new `automatic-trusted-activation`
-capability is pending implementation and sync. No existing spec is marked fulfilled.
+Only the locally proved 1.2e–1.2h slices are now checked. Parent tasks 1.1/1.2,
+all later stages, archive and capability sync remain open. No existing spec is
+marked fulfilled.
 WBS 030.6 remains unresolved until task 5.3's real unattended proof and task 5.4 reconciliation.
 
 ## R5 failure-proof matrix
@@ -1769,7 +1771,9 @@ Planning baseline: local implementation `1520d3b58c34149d0c35b4ac021cc3c2a4f368b
 This amendment changes design/spec/tasks/verification only. The first increment is the mounted
 read-only provider plus durable reconciliation tick, not deployment or activation. Existing
 local foundations and their historical observations above remain scoped to their exact commits.
-No new runtime proof is claimed by this amendment; the following rows are acceptance targets.
+No new runtime proof was claimed by this amendment; the following NOT RUN
+statuses are its historical planning snapshot. Later ordinary-PR observation
+sections record local F10-P/F11-P tests without claiming live deployment.
 
 | Fault family | Independent source fault                                                                                                        | Mounted observation required                                                                                  | Status  |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------- |
@@ -2079,9 +2083,11 @@ remain unrun.
 ### Observation tick design amendment after `e13eee341`
 
 Baseline: `e13eee341ed29ac43d6846a009bf5cab616017c1`; docs-only isolated plan branch.
-This amendment adds a finite observation composition and uninstalled service/timer acceptance
+This amendment added a finite observation composition and uninstalled service/timer acceptance
 contract after GET transport task 1.2d. No runtime changes, service artifacts, deployments or
-new safety proofs have been executed by the planning amendment.
+new safety proofs had been executed by that planning amendment. The NOT RUN rows below are
+its historical baseline, not the current status of local F10-T1–T5, F11-T1/T2 or F1-T1
+proofs; later 1.2e–1.2h sections record those local results.
 
 | Fault family | Independent fault to inject                                                                                                                  | Mounted witness / expected failing observation                                                                               | Status  |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------- |
@@ -2654,8 +2660,9 @@ This bounded increment composes the existing one-tick controller behind an execu
 optional explicit read credential, and a typed administrator renderer. It adds an
 uninstalled oneshot/timer bundle and the linked provisioning README. It does not
 install or enable systemd, initialize or migrate SQLite on service start, perform an
-external audit, or grant publication/admission/merge/WBS authority. Task 1.2h and
-030.6 remain open pending independent review and host acceptance.
+external audit, or grant publication/admission/merge/WBS authority. The local
+1.2h artifact has independent review evidence; parent task 1.2 and 030.6 remain
+open pending installed host and external acceptance.
 
 The first mounted executable-child test failed because the launcher was absent
 (exit 1), then passed with a deferred state and propagated exit 75. The first
@@ -2735,7 +2742,7 @@ interrupted at exit 130 before its target summary; it is not counted as a
 passing check. Installed systemd runtime behavior, CI and the h2puni gate
 remain unrun.
 
-### 1.2h independent-review corrections (local, uncommitted)
+### 1.2h independent-review corrections (committed locally)
 
 The mounted service and renderer tests first reproduced the independent review
 findings: `${USER}`, a quote and NUL were accepted as executable-path bytes;
@@ -2792,3 +2799,18 @@ passed 143/143 in `/tmp/activation-1-2h-review-final-{strict,all}.json`.
 Prettier `--check` passed on every changed source/document path, and
 `systemd-analyze verify` exited 0 on freshly rendered uninstalled units.
 Host service, CI and h2puni gate remain unrun.
+
+### Current 1.2e–1.2h evidence status
+
+The local 1.2e process-lock/schema and 1.2f cancellation/settlement records
+above were independently reviewed with mounted real-process negatives. The
+1.2g durable retry/cooldown implementation is committed at
+`1fe19c32e8b2d5e3a0f970b07be83c757848b82b`. The 1.2h uninstalled
+service composition, exact protected-file and renderer proofs are committed
+at `b2226ec5c81667bbfcba20751b986d7feb466aa0`. These references mark
+local implementation checkpoints; they do not establish a deployed timer,
+live credential, independent external authority, installed systemd confinement,
+review/worker/publisher/admission/merge effects, or WBS completion. The
+h2puni gate and CI remain unrun for this 1.2h checkpoint. Parent 1.1/1.2 and
+later task boxes remain open, as do the full-family NOT RUN acceptance rows
+near the start of this ledger.
