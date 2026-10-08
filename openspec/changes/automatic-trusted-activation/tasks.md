@@ -196,6 +196,40 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       pagination truncation/loops, each count/byte/deadline, digest, incomplete staging,
       symlinks, conflicting cache and cancellation. Keep the 2.1d producer implementation
       and full 2.1b authentication/receipt mapping open.
+      Continue in two separately reviewed checkpoints; neither alone completes 2.1b.
+      **Checkpoint A: authenticated manifest.** First freeze the strict signed predicate v1,
+      protected selection resolver and authenticated workflow-metadata response contract from
+      design. The selection resolver uses the exact persisted record/key contract below;
+      installed checkpoint A depends on 2.1d's preliminary selection producer/freeze slice.
+      Do not claim a test-seeded row is an installed selection producer. Tests:
+      `signed selection cannot choose its own subject`,
+      `predicate cannot authenticate its own signer`, `all candidates precede selection`,
+      `equivalent attestations select deterministically`, and `conflicting signed claims refuse`.
+      Compose protected staged-file rereads with the actual pinned offline runner and strict
+      certificate/predicate joins. F2/F4 independently omit each identity, subject, audience,
+      execution/attestor/phase join, staged hash/containment guard, candidate completion and
+      conflict check; distinguish filtered unrelated metadata from applicable signed conflict
+      and operational failure. Cover foreign workflow metadata, latest-attempt substitution and
+      read-capability route leakage. Every nonzero CLI exit refuses in v1; do not classify stderr.
+      No cast of fake process output grants trust. Keep receipt rows
+      unchanged; record actual crypto fixtures separately from process/semantic fixtures.
+      **Checkpoint B: source graph and receipt owner.** First implement retained phase-submission
+      resources, strict canonical source projections and exact artifact-role/cardinality rules.
+      Test `phase objects bind exact selected source`, `required reads name observed content`,
+      `foreign telemetry and cold links refuse`, `cold pass informed failure remains failed`,
+      `missing informed evidence cannot synthesize cold terminal`, and
+      `held semantic verifier cannot select stale evidence`. F2/F4/F10/F11 independently omit
+      submission/source/role digests, required read-set inclusion, subject/input/response/
+      telemetry/context/cold cross-links, verdict/finding preservation and post-await owner
+      fences. Cover extra/missing/duplicate artifacts and both genuine cold-terminal and
+      complete pairs. Mount public `recordReceipt`, including cold-before-informed, unrelated
+      check completion, reopen/replay and injected receipt/join rollback with complete row
+      snapshots. Retain proofs before selection; no partial DB selection or evidence repair.
+      Producer parity tests must derive the same protected selection and exact submission
+      bytes from frozen inputs; 2.1d implements the producer contract. Installed independence,
+      real signed custom-journal fixtures and external credential/retention acceptance remain
+      unverified until observed. Record each exact omission, intended assertion, restoration
+      and disqualified/masked attempt in verify with adjacent Proof; no 2.1/WBS completion.
 - [ ] 2.1c Implement GitHub dispatch plus authenticated exact-effect registry query/acceptance
       after durable 1.2/3.3 reservation and recovery prerequisites. Tests:
       `lost dispatch reply recovers original invocation`, `duplicate run cannot execute twice`,
@@ -211,7 +245,70 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       F3/F10/F11 independently split acceptance/progress commit, omit progress/version/owner/
       epoch/expiry guards, or expose a reusable send permit; observe unchanged durable rows
       and zero stale sends. Prove finite persisted recovery budget/deadline across restart.
-- [ ] 2.1d Mount the protected Anthropic Messages executor and durable journal/attestation
+- [ ] 2.1d.1 Implement the initial selector policy and retained input preparation first.
+      Start TDD with a real temporary Git repository: exact blobs and subject preimages,
+      generated eleven documents, validated exhaustive plan, then deterministic selections.
+      Exercise file/documentation raw reads, directory/project structural duties, direct
+      context expansion/order and explicit empty expansion. Pin policy/runtime/configuration;
+      test candidate policy tamper, stale mapping, evidence-graph omission and local resource
+      overflow; token admission is the separate 2.1d.1b contract. F2/F4 independently omit raw-blob inclusion while descriptor remains, select
+      only sampled obligations, bypass graph completeness, source/policy/runtime joins and
+      each bound. Observe intended production assertions RED and restored GREEN, retaining
+      exact commands/fault/output and adjacent Proof. Include literal-byte canonical vectors.
+      Run bounded real-repository preparation separately before claiming this policy fits its
+      content/resource ceilings; token admission and global synthesis remain separately open.
+- [ ] 2.1d.1a Implement strict selector V2 partitions after the full unpartitioned resource
+      derivation. TDD: `all original duties survive partition`, `cross-shard edges retain both endpoints`, `input order cannot change partition`, `indivisible duty refuses`, and
+      `ten journal reservations count against every shard`. Independently remove coverage,
+      union/order/hash, per-shard/total limits and endpoint/common-cold joins for F2/F4 RED/GREEN.
+      Version selection records and frozen plan/dispatch references; preserve V1 historical rows.
+- [ ] 2.1d.1b Implement the protected actual-request count preflight port and pure policy
+      arithmetic, separately from local preparation fit. Tests: changed message/projection/model,
+      unsupported count input, malformed/absent response, overflow, exact limit, retry/deadline,
+      held count then takeover/expiry and different call ordinal. F2/F4/F10/F11 independently
+      remove request/owner/call joins and each arithmetic/budget fence. Fake counters prove
+      adapter behavior only; installed provider credential/count acceptance remains unverified.
+      Later executor mounting must prove count-pass/actual-overrun refuses success, journal
+      manifest V2 retains every preflight and no uncertain Messages call is replayed.
+- [ ] 2.1d.1c Before model execution, implement and freeze the deterministic reduction template
+      graph after 2.1d.1a and before 2.1d.2. TDD: synthetic 1,722-document inventory with several reducer
+      levels, crossing relationship ownership, stable order under shuffled input, singleton
+      promotion, cycle/unreachable/foreign-node refusal, worst-case report/reservation arithmetic
+      and finite fan-in/depth/node/certificate limits. Independently omit original-duty closure,
+      crossing-node coverage and each bound for F2/F4 RED/GREEN. Version strict report/finding schemas and V3 template-versus-ready
+      evaluation-plan contracts without guessed input digests. Storage/migration follows in 2.1d.2.
+- [ ] 2.1d.2 Add selection storage/forward-and-down migration and prepared-plan freeze owner.
+      Include V3 immutable templates/leaf selections, unready non-leaf pairs and explicit
+      historical V1/V2 refusal; no awaiting template is reservable or treated as completed.
+      Test held preparation then takeover/expiry/authority change, atomic insert rollback,
+      reopen with exact bytes, absent/corrupt retained content and conflicting replay. Use
+      complete durable row snapshots and prove no dispatch; F10/F11 independently remove each
+      fence/atomic boundary/no-repair check. No transaction spans preparation awaits.
+- [ ] 2.1d.3 Only after the producer/freeze proofs, version reservation/dispatch and mount the
+      registration-derived read-only resolver. Test selection-record and output-digest joins,
+      legacy refusal/replanning, corrupt dispatch bytes and producer/executor parity. Remove
+      each digest/key/pair/current-owner join independently for observed RED/GREEN. These
+      preliminary 2.1d slices precede installed checkpoint A; they do not execute model calls.
+- [ ] 2.1d First implement the protected selection producer/freeze prerequisite, before
+      installed checkpoint A and before any provider dispatch. Freeze the strict
+      versioned selection/partition records, pinned selector closure and exhaustive-plan/content mapping;
+      use the specified derived review ID and controller-DB key, never receipt labels.
+      Add selection persistence with paired additive migration/rollback, explicitly versioned
+      frozen-plan/dispatch bindings, atomic owner-fenced freeze and exact replay. Implement the
+      read-only registration-derived resolver. TDD tests:
+      `selection row is required independently of signed claims`,
+      `partial selection freeze rolls back all references`,
+      `reopen preserves exact selection bytes`, `legacy unbound plan requires replanning`,
+      `foreign source obligation and selector refuse`, `selected coverage cannot shrink`, and
+      `controller and executor derive identical selection`. F2/F4/F10/F11 independently omit
+      row/hash/key/pair/source/selector/coverage joins, no-repair/replay checks and post-await
+      fences; compare complete durable snapshots. Also test literal expected canonical bytes
+      and digest including terminal LF, plus missing-LF/CRLF/duplicate-key/noncanonical refusal
+      and unchanged raw response bytes. Removing normalization/refusal guards must fail the
+      intended mounted assertions, not merely parsing or setup. Keep old registrations immutable;
+      explicitly replan unsupported legacy state rather than infer defaults. Record remaining
+      uninstalled selector closure/configuration pins as prerequisites, never an empty-context fallback.
+      Then mount the protected Anthropic Messages executor and durable journal/attestation
       writer using administrator-provided model/program/protocol pins. Tests:
       `informed execution waits for durable cold acknowledgement`,
       `journal retains actual reads responses and usage`,
@@ -235,6 +332,33 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       Include crashes both sides of POST, a held late response through takeover/expiry,
       genuine cold-only failed evidence as a control, and uncertainty with no provider replay
       facility. No automatic new attempt may disguise an uncertain send in this increment.
+- [ ] 2.1d.4 Version the pinned synthesis protocol/strict phase outputs and implement authenticated
+      child-evidence projection after checkpoint B receipt mapping. TDD: preserve exact actual
+      report and all evidence links, complete assessed inputs, judgment/citation consistency,
+      unsigned/digest-only/tampered/failed/stale child refusal and bounded report/projection bytes.
+      F2/F4 remove authentication, report/receipt/read/citation and bound guards independently.
+      Fake or unsigned reports exercise refusal only; positive cryptographic acceptance uses
+      the real test-owned signed path, with production trust separately unverified.
+- [ ] 2.1d.5 Implement delayed non-leaf V3 selection materialization and mount existing
+      reservation/resolver/dispatch ownership. Tests hold child retrieval through takeover,
+      expiry, authority or selected-attempt change; inject partial insert rollback; reopen exact
+      and corrupt rows. Assert unchanged durable snapshots and zero stale sends. F3/F10/F11
+      independently omit every owner/child-selection/atomic/no-repair guard. Never hold a
+      transaction across awaits or invent a selection digest before authenticated inputs exist.
+- [ ] 2.1d.6 Mount paired execution on leaf, crossing-relationship and recursive-reducer nodes
+      under the actual-request preflight and existing uncertainty recovery. Test cold isolation,
+      exact informed child/direct reads, late response, deadline/call budget across restart,
+      count-pass/usage-overrun, report overflow and no pruning of failed/cancelled nodes. Observe
+      F2/F4/F10/F11 isolated faults at production assertions; record RED/GREEN and restoration.
+      Initial local orchestration fixtures prove only mounted behavior, not external review.
+- [ ] 2.1d.7 Implement atomic terminal V2 coverage-and-synthesis certification and request join.
+      Tests: all leaves pass/root fails, missing crossing review, substituted child attempt,
+      incomplete read closure, root/report inconsistency, owner race and rollback. Independently
+      bypass each graph/receipt/status/current-owner join and substitute intermediate V1 coverage
+      for F2/F4/F10/F11 RED/GREEN. Run complete repository preparation/graph fit without dropping
+      any original resource. Record exact counts/bytes/depth/refusals separately from token and
+      model acceptance. Then exercise the bounded full reduction lifecycle through 2.1e;
+      these tasks are required work in this change, not a deferred synthesis waiver.
 - [ ] 2.1e Prove installed external acceptance after one-time protected control repository,
       registry, credentials, retention, plan entitlement and trust pins are provisioned.
       Run `installed reviewer proves the exact invocation` with real cold/informed execution,

@@ -621,6 +621,794 @@ pins. The process seam returns an untrusted policy observation in local fake tes
 does not issue a `VerifiedReview` or satisfy external provenance without an installed
 independently pinned executable/root and a provenance-backed valid journal fixture.
 
+##### Signed review predicate v1 and checkpoint A
+
+This is the producer/consumer contract to implement, not evidence that an external producer
+or successful signed fixture exists. Checkpoint A authenticates the selected manifest only;
+checkpoint B reconstructs review evidence and mounts the receipt owner. Neither may promote
+`OfflineVerifierObservation.untrustedCliOutput` by casting or by accepting a caller's trust
+flag. The production composition owns the independently pinned runtime/process boundary.
+Process fixtures prove adapter behavior only; local `/usr/bin/gh` is not bootstrap authority.
+
+Freeze one custom predicate object with the exact fields below. Every object rejects unknown
+fields. `Digest` means 64 lowercase hexadecimal SHA-256 characters; `Commit` means 40 lowercase
+hexadecimal Git commit characters; `Id` means a nonempty existing protocol identifier;
+`Positive` and `Attempt` mean safe integers respectively >= 1 and >= 0. The encoding name in this contract is `serializeCanonical` (repository canonical JSON with
+terminal LF), not newline-free JSON or RFC 8785/JCS. Canonical object bytes are its UTF-8 output: byte-sorted
+object keys, preserved array order and exactly one terminal LF (`0x0a`). Thus
+`hashCanonical(value) = hashBytes(serializeCanonical(value))`, including that LF.
+A resource declared canonical must equal that serialization byte-for-byte after strict
+UTF-8/schema decoding; missing LF, CRLF, extra whitespace, duplicate object keys or alternate
+key ordering refuse, even if JSON parsing produces the same value. Do not normalize fetched
+bytes before their digest check. This applies to manifests, selection records, phase submissions,
+source projections and canonical role artifacts, including the retained harness-input strings
+(their LF is escaped within the enclosing canonical object). Raw responses/content and signed
+DSSE/bundle bytes retain their original encoding and are never canonicalized for signature or
+resource-digest verification. A signed statement predicate is schema-decoded and compared
+semantically; its containing signed bytes need not use this repository's canonical encoding.
+The configured `predicateType` remains external and must match the signed statement exactly.
+
+```ts
+{
+  schemaVersion: 1,
+  kind: 'tool-wiki-review',
+  descriptorIdentity: Digest,
+  manifestIdentity: Digest,
+  receiptAudience: Id,
+  journalIssuerId: Id,
+  journalId: Id,
+  effectKey: Digest,
+  payloadDigest: Digest,
+  requestIdentity: Digest,
+  reviewId: Id,
+  attempt: Attempt,
+  invocationId: Id,
+  selectionIdentity: Digest,
+  execution: {
+    executorId: Id,
+    modelId: Id,
+    protocolIdentity: Digest,
+    promptIdentity: Digest,
+    programIdentity: Digest,
+    actionIdentity: Digest,
+    runtimeIdentity: Digest,
+    toolPolicyIdentity: Digest
+  },
+  attestor: {
+    ownerId: Positive,
+    repositoryId: Positive,
+    workflowId: Positive,
+    sourceCommitSha: Commit,
+    signerDigest: Commit,
+    runId: Positive,
+    runAttempt: Positive
+  },
+  phases: ReviewJournalManifest['phases']
+}
+```
+
+`phases` uses the existing strict phase-record schema and its paired/cold-terminal cardinality;
+it must equal the decoded manifest's phase array, including order, obligation, submission and
+source digests and status. Require schema/predicate version 1 and exact bootstrap descriptor,
+issuer/audience, registration, dispatch payload/effect and manifest joins. `execution` fields
+match protected descriptor values, not model-supplied labels. The attested statement must have
+one SHA-256 subject equal to the exact registered manifest bytes. Keep its manifest digest,
+submission digests, source projections and bundle digest distinct.
+
+The certificate/verified timestamp chain authenticates issuer, signer identity/revision,
+source identity, runner and signing execution; the predicate authenticates what that pinned
+program claims about review execution. A predicate cannot prove its own signer. Compare
+certificate SAN/issuer, build-signer digest, source repository/owner immutable identifiers,
+source digest/ref, runner environment and run-invocation URI against protected pins and
+`attestor`. The attestor is the signing run, not a substitute for registered `invocationId`.
+Require an authenticated read-only GitHub metadata join from that run to the pinned numeric
+workflow ID/path and repository/owner IDs when the certificate lacks those fields. Read
+`GET /repos/{owner}/{repo}/actions/runs/{runId}/attempts/{runAttempt}`, then
+`GET /repos/{owner}/{repo}/actions/workflows/{workflowId}` from the pinned GitHub API origin;
+route names come from protected configuration and verified identities, never response URLs.
+Validate the run projection `{ id, run_attempt, workflow_id, head_sha, repository: { id,
+owner: { id } } }` and workflow projection `{ id, path }`, comparing every field to the
+certificate/predicate and source/workflow pins. Accept unrelated documented response fields
+only outside these typed projections. Never substitute the latest run attempt. This requires
+an explicit Actions-read route capability, separately scoped from attestation lookup, with
+redirect refusal and existing finite request/body/operation bounds. Retain exact responses
+with each proof; missing/mismatched fields or unavailable historical metadata refuse.
+[Run-attempt API](https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run-attempt)
+and [workflow API](https://docs.github.com/en/rest/actions/workflows#get-a-workflow) define
+these read-only endpoints.
+Do not infer signing OIDC audience from a certificate without that claim. Its bootstrap
+acceptance is separate from the predicate's exact application receipt audience.
+
+Resolve review selection independently before accepting `selectionIdentity`. The protected,
+versioned protocol/program resolver takes the frozen canonical request, stable `reviewId` and
+protocol identity and returns exactly `{ subject, informedContextIds, coldRequiredReadIds,
+informedRequiredReadIds }`, where `subject` uses existing `ReviewSubject` and every list
+contains content digests. Its canonical hash is `selectionIdentity`. Required-read lists are
+sorted and unique; context order is preserved. This resolver must select content from the
+frozen candidate snapshot and selected review scope, never the receipt, current checkout or
+predicate. An absent mapping refuses. Existing obligations do not themselves carry this
+subject/read mapping: the resolver and its producer parity proof are explicit checkpoint A
+prerequisites, not defaults inferred from one observed file. Both required-read sets include
+the selected subject content; the informed set also includes every supplied informed context.
+
+The existing controller `EvaluationObligation`/stored obligation rows bind review ID, executor,
+protocol and phase only. `AuditObligation` and `ExhaustivePlan` elsewhere contain subjects but
+are not installed selection authority for activation; neither defines the complete required-read
+and informed-context mapping. No current row, model response or fixture label supplies this
+missing mapping. Introduce the following producer/storage contract before mounting checkpoint A.
+
+`ReviewSelectionRecordV1` is strict canonical JSON, with every nested object rejecting unknown
+fields, exactly:
+
+```ts
+{
+  schemaVersion: 1,
+  kind: 'activation-review-selection',
+  requestIdentity: Digest,
+  reviewId: Id,
+  protocolIdentity: Digest,
+  selectorIdentity: Digest,
+  snapshotIdentity: Digest,
+  coveragePlanIdentity: Digest,
+  sourceObligationId: Id,
+  selection: {
+    subject: ReviewSubject,
+    informedContextIds: Digest[],
+    coldRequiredReadIds: Digest[],
+    informedRequiredReadIds: Digest[]
+  }
+}
+```
+
+`selectorIdentity` names an independently pinned selection-program/policy closure. It is not
+self-authorizing merely because it hashes. Add a required strict `selection` section in the
+next explicitly versioned protected provider descriptor, exactly
+`{ schemaVersion: 1, selectorIdentity: Digest, coverageKind: 'exhaustive-sweep' }`.
+Its containing descriptor digest remains bound by the independent bootstrap pin; a legacy
+descriptor without that section cannot enable this resolver. The installed selector closure
+is resolved by that pin, not a record-provided executable or policy path. `snapshotIdentity` names the frozen complete
+candidate manifest, and `coveragePlanIdentity` names retained canonical `ExhaustivePlan` bytes
+validated against that same candidate by the existing coverage validator. `sourceObligationId`
+selects exactly one obligation in that plan; the subject must equal its full subject object.
+The protected producer derives stable `reviewId` as `review.` followed by
+`hashCanonical({ schemaVersion: 1, coveragePlanIdentity, sourceObligationId })`; it cannot
+substitute an arbitrary caller's review label. For this v1 route, unsupported coverage-plan
+kinds refuse rather than guessing a subject mapping.
+
+The selection producer is protected controller planning code under `selectorIdentity`, not
+the remote signer or the receipt caller. It derives ordered context and required reads using
+that pinned program/policy over the validated frozen coverage plan and retained content;
+returns explicit empty context only when the policy selects none; and refuses unavailable
+policy/content mappings. All output digests must resolve to exact retained bytes. A directory
+or project subject may identify a canonical aggregate artifact: verify that artifact through
+the frozen coverage plan rather than pretending its digest names one filesystem file. The
+producer must preserve complete selected coverage; freezing an arbitrary subset of plan
+obligations is not an authorized way to produce a passing selection. The initial deterministic policy below and its installed pinned closure are required 2.1d
+prerequisites, not an existing implementation or a fallback inferred from receipt observations.
+
+Persist `selection_bytes` and `selection_record_identity = hashBytes(selection_bytes)` in an
+additive `activation_review_selection` table, primary key
+`(request_identity, review_id, protocol_identity)`, within the controller's existing protected
+SQLite database. There is no selection-directory path or caller-selected JSON filename.
+`selectionIdentity` in the signed predicate remains `hashCanonical(record.selection)`;
+it is deliberately distinct from the whole-record digest. Both phase obligations in a newly
+versioned frozen evaluation plan bind the same `selectionRecordIdentity`. The record excludes
+that plan's identity to avoid a digest cycle. Store selection rows and their plan/obligation
+references atomically under the existing current-authority/generation/lease fences, before
+any dispatch registration. Exact replay must match all original bytes; missing, conflicting,
+extra or partially present rows refuse without repair. Require exactly the paired audit
+selection key set when reconstructing the frozen plan. Preserve original bytes across restart.
+
+Advance frozen-plan and dispatch payload contracts explicitly: the latter binds both
+`selectionRecordIdentity` and `selectionIdentity`, and durable registration/effect equality
+includes those bytes. Forward migration is additive with a paired rollback; it must not add
+nullable columns that silently authorize old evidence. Existing frozen plans/dispatches
+without selections remain readable for historical diagnosis but cannot dispatch/authenticate
+under this contract; require explicit replanning into a fresh fenced generation/attempt,
+never mutate old payloads or default/backfill selection from a receipt.
+
+The read-only resolver accepts `(requestIdentity, reviewId, protocolIdentity)` from protected
+registration selection. It reloads the canonical request, frozen plan/pair, dispatch binding,
+selection row and pinned selector authority from that database and retained source store;
+validates exact bytes, record and output hashes, all joins and the expected selected key set;
+then returns `record.selection`. It takes no subject/context/read labels, record path or
+expected digest from a receipt. Missing/unreadable/corrupt state refuses. The implementation
+must provide a coherent read snapshot and recheck current generation/authority after any
+asynchronous source/policy resolution; final receipt selection still uses its own owner fence.
+A read-only resolver may be implemented against seeded test-owned state first, but installed
+checkpoint A waits for the protected producer/freeze integration. In 2.1d the external executor
+consumes the exact registered record, independently verifies its source and selector bindings,
+and recomputes the selection identity before reading or signing; it does not invent a second
+selection. Producer/consumer parity tests cover all three canonical identities and byte order.
+
+##### Initial selector policy and preparation pipeline
+
+The current producer contract uses `activation-review-selector.v2`, a fixed algorithm whose strict
+canonical installed configuration is exactly:
+
+```ts
+{
+  schemaVersion: 2,
+  kind: 'activation-review-selector',
+  algorithm: 'exhaustive-subject-and-direct-context.v2',
+  inventoryProtocolIdentity: Digest,
+  classificationPolicyIdentity: Digest,
+  exhaustivePolicyIdentity: Digest,
+  reviewProtocolIdentity: Digest,
+  moduleRulesIdentity: Digest,
+  granularityPolicyIdentity: Digest,
+  modelContextIdentity: Digest,
+  relationshipRecipeIdentity: Digest,
+  extractorRuntimeIdentity: Digest,
+  preflightPolicyIdentity: Digest,
+  reductionPolicyIdentity: Digest,
+  maximumShardsPerObligation: Positive,
+  maximumTotalShards: Positive,
+  configurationPaths: RelativePath[],
+  maximumPreparationMs: Positive,
+  maximumCandidateEntries: Positive,
+  maximumCandidateBytes: Positive,
+  maximumResourceBytes: Positive,
+  maximumReviewResources: Positive,
+  maximumReviewBytes: Positive,
+  journalReservations: {
+    phaseSubmissionBytes: Positive,
+    phaseOutputBytes: Positive,
+    reviewEvidenceBytes: Positive,
+    telemetryBytes: Positive,
+    rawResponseBytes: Positive,
+    tokenPreflightsBytes: Positive
+  }
+}
+```
+
+Every digest resolves through installed protected content; all integers are safe and bounded
+by the installed process policy. The resource/review limits may tighten but cannot exceed existing
+4 MiB/resource, 64 resources/review and 32 MiB/review transport ceilings. Configuration paths
+are byte-sorted, unique, required committed content paths. They identify build/project/runtime
+configuration to inspect, not commands to execute. The source/program closure and these exact
+configuration bytes jointly determine `selectorIdentity`, using
+`hashCanonical({ schemaVersion: 1, programIdentity, configurationIdentity })`.
+The independent descriptor pin authorizes that identity; the candidate cannot repin it.
+Model context must select `overflow: 'refuse'`; no recorded-truncation mode is admitted here.
+No numerical limit, policy path, model configuration or missing document receives a default.
+
+Preparation takes only the persisted request/lease and installed selector capability. Its
+source owner acquires the exact request head and base into a controller-owned object store;
+it validates commit identity and repository binding. It does not inspect a mutable checkout
+or execute candidate hooks, Nx plugins or scripts. Git/configuration/parser execution has a
+finite deadline, fixed environment, pinned runtime and bounded output; Git replacement objects
+and caller/global configuration cannot replace selected objects. Read credentials belong only
+to acquisition and never reach candidate parsers or the later model executor. Local fixtures
+supply real temporary Git objects; public/private remote acquisition is a separate bounded
+read-only adapter, with private access an installation prerequisite.
+
+Retain `ReviewCandidateManifestV1` as canonical bytes with exactly `{ schemaVersion: 1,
+kind: 'review-candidate', repositoryId, headSha, baseSha, tree, entries }`; each entry is
+`{ path, mode, gitObjectId, rawIdentity, classification }`. Entries are byte-sorted by unique
+path; `rawIdentity = hashBytes(exact Git blob bytes)`. Its canonical digest is the selection
+record's `snapshotIdentity`, distinct from a Git object ID, content manifest and worker-stage
+snapshot identity. Refuse unresolved gitlinks and missing/unreadable/mismatched blobs.
+Symlinks retain their exact target bytes; resolve only through validated candidate entries,
+never host paths. Unknown binary formats and unsupported classification/relationship cases
+refuse instead of dropping duties. Every selected raw blob is stored by SHA-256.
+
+Also retain exact preimages used by `deriveExhaustivePopulation`: a file/documentation uses
+`serializeCanonical(classifiedEntry)`, a directory `serializeCanonical({ children })`, and a
+project `serializeCanonical({ projectId, entries })`, with precisely the existing producer's
+field selection/order. Their hashes equal existing `subject.contentIdentity`. Expose this
+preimage generation from the authoritative population algorithm so two independently coded
+approximations cannot diverge. These are descriptors, not claims to have read file contents.
+
+Generate the eleven `ExhaustiveFreezeDocuments` automatically, retaining every exact byte:
+
+| Input                                                                                                                  | Derivation                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `inventoryProtocol`, `classificationPolicy`, `exhaustivePolicy`, `reviewProtocol`, `granularityPolicy`, `modelContext` | Exact installed documents selected by the six configuration pins                                                                                                                                                                   |
+| `inventory`                                                                                                            | Selected committed tree and classification, with actual protocol/policy byte identities; deterministic inventory ID from snapshot identity                                                                                         |
+| `relationshipRequest`                                                                                                  | Exact installed recipe decoded as existing `RelationshipRequest`; its configured paths must resolve in this candidate                                                                                                              |
+| `contentManifestRequest`                                                                                               | Protocol/classification bindings plus actual `extractRelationships` manifest inputs and extractor identities                                                                                                                       |
+| `moduleMapping`                                                                                                        | Installed rules are existing `ModuleMapping` minus `sourceRevision`; instantiate only that field from exact candidate head, resolve all memberships and index paths, and retain the derived mapping                                |
+| `artifactGraph`                                                                                                        | Enumerate every evidence-classified committed record, decode its actual artifact descriptor/references, build the complete graph and run existing artifact validation; an empty graph is legal only when no evidence records exist |
+
+Call `freezeExhaustivePlan`, then its existing validation/recomputation against the same
+retained candidate and documents. Require the existing request policy/mapping/toolkit pins to
+resolve to this installed configuration/rules/runtime set; mismatched joins refuse. Preserve
+source revision validation: do not relabel a previous derived mapping as the new candidate.
+Derive the audit seed as `hashCanonical({ schemaVersion: 1, requestIdentity,
+exhaustivePolicyIdentity })`. Primary selection is **all** `plan.obligations`, never the
+sampled `plan.audit.obligationIds`. Each original obligation retains complete coverage; the partition contract below produces one
+cold/informed pair per shard without removing any original subject.
+
+For each subject define scope paths: one exact path for file/documentation; all content paths
+below its locator for directory/project; all content paths for repository-root. Scope never
+includes paths merely because a receipt names them. Required cold resources are:
+
+- File/documentation: the subject descriptor and exact raw source blob. For a symlink also
+  retain/read its validated resolved target descriptor and raw bytes; cycles/unresolved
+  targets refuse. Binary content is supplied by the pinned read-tool's declared lossless
+  encoding, never silently decoded as text or omitted.
+- Directory: its subject descriptor, descriptors for immediate child content entries and
+  child-directory topology, and raw bytes of configured configuration paths immediately in
+  that directory. Evidence entries remain topology only, matching the existing subject rule.
+- Project: its subject descriptor and raw bytes of configured configuration paths within its
+  scope. Reading this structural descriptor does not discharge member file obligations;
+  those remain separate exhaustive pairs, each requiring its own raw bytes.
+
+Informed expansion starts from the frozen extracted relationship graph and resolved module
+mapping. For file/documentation scopes, include raw bytes of all directly imported internal
+source paths and direct reverse importers; external import selectors become canonical
+relationship facts and never trigger network retrieval. For directory/project scopes, include
+canonical incident graph facts and target project/module descriptors instead of expanding
+all member source files again. For every scope, include raw module-index documentation for
+each module intersecting the scope or its direct internal neighbors, plus raw documentation
+subjects within the scope. Resources already required cold are not added again.
+Resolve relationship endpoints through the existing typed extractor outputs; retain full
+canonical selector/fact objects, not model-provided summaries. Declared unresolved relations,
+unknown endpoint families or missing module index/documentation content refuse. Empty expansion
+is legitimate only when this complete derivation produces none.
+
+Order expansion resources by `(role, locator, identity)`, comparing UTF-8 bytes, with role
+order `relationship-fact`, `related-subject`, `module-index`, `documentation`, `source`.
+A locator is a normalized repository path, existing subject ID, or extracted relationship
+identity according to role; it cannot be a provider URL. Deduplicate identical content digests
+by keeping the first resource in that total order. `informedContextIds` is this ordered digest
+list. `coldRequiredReadIds` is the sorted unique cold-resource digest set;
+`informedRequiredReadIds` is the sorted union of cold resources and informed expansion.
+The informed executor must actually read its shard union; cold observations alone do not prove
+informed reads. Before partitioning these lists define the complete obligation requirements;
+a shard selection uses the exact subset prescribed below. `selectionIdentity` remains exactly
+`hashCanonical({ subject, informedContextIds, coldRequiredReadIds, informedRequiredReadIds })`,
+including the terminal LF. Record identity additionally binds its provenance fields.
+
+Before freezing, enforce preparation deadline/candidate bounds and per-resource/review byte
+and count limits. Exact token feasibility is not a local tokenizer assertion; use the protected
+actual-request preflight below. Reserve ten resource slots per shard: two submissions, two
+phase outputs, review evidence, two telemetry objects, two raw responses and one token-preflight
+aggregate. Distinct required resources plus ten must fit `maximumReviewResources` and 64.
+Reserve bytes as `2 * (phaseSubmissionBytes + phaseOutputBytes + telemetryBytes +
+rawResponseBytes) + reviewEvidenceBytes + tokenPreflightsBytes`. Each reservation is at most
+4 MiB. Required bytes plus these reservations must fit `maximumReviewBytes`; adding 64 KiB
+manifest and sixteen 1 MiB bundle allowances must fit the 32 MiB retrieval ceiling. Configuration
+that cannot fit refuses before work. The actual producer enforces every reservation; duplicate
+content cannot be assumed in advance to reduce worst-case capacity. Output overflow, missing
+reads or token admission failure never changes coverage into a pass.
+
+##### Deterministic partition and complete coverage certificate
+
+The current repository cannot be assumed to fit a single root context: the inspected committed
+`70326a9` tree has 1,722 distinct Markdown blobs, while journal bounds admit only a small
+fraction per review. Retain the complete original expansion. A strict canonical
+`ReviewPartitionV1` has exactly:
+
+```ts
+{
+  schemaVersion: 1,
+  kind: 'review-partition',
+  requestIdentity: Digest,
+  coveragePlanIdentity: Digest,
+  sourceObligationId: Id,
+  subject: ReviewSubject,
+  selectorIdentity: Digest,
+  snapshotIdentity: Digest,
+  commonColdResourceIds: Digest[],
+  resources: [{ identity: Digest, role: Id, locator: Id, byteLength: Nonnegative }],
+  duties: [{ dutyId: Digest, kind: 'resource' | 'relationship', requiredResourceIds: Digest[] }],
+  shards: [{ shardId: Digest, dutyIds: Digest[], requiredResourceIds: Digest[] }]
+}
+```
+
+`Nonnegative` is a safe integer >= 0; empty files remain legitimate bytes. All arrays reject
+duplicates and use the stated deterministic ordering. Resources are unique by content identity, retaining the first applicable role/locator in the
+existing role/locator/identity total order; every other digest list is byte-sorted. One resource duty names each
+original required resource. One relationship duty additionally names each applicable retained
+fact and its required endpoint representations from the original full expansion; external
+endpoints remain retained facts, never fetch URLs. A relationship duty cannot be split across
+shards. `dutyId` hashes canonical `{ kind, requiredResourceIds }`; equal such duties coalesce.
+Verify every original resource and relationship against these duties, so a smaller duty list
+cannot certify itself. Common cold resources are present in every shard.
+
+Sort duties by `dutyId`, then apply deterministic next-fit: append the next whole duty to the
+current shard if the union with common cold resources fits all byte/resource limits; otherwise
+close that shard and start another. Never reorder duties by completion or model output. A duty
+that cannot fit an empty shard, including repeated common cold resources and all reservations,
+refuses as `indivisible-duty-overflow`. A canonical resource over its byte limit is likewise
+indivisible; no implicit content truncation or chunking. Enforce installed per-obligation and
+total shard ceilings. `shardId` hashes canonical `{ dutyIds, requiredResourceIds }`, with its
+sorted exact arrays; sort stored shards by `shardId`. Partition identity hashes the complete
+canonical record including its terminal LF. Zero missing/foreign duties, complete original
+resource union and exact shard resource unions are independently verified before freeze.
+
+`ReviewSelectionRecordV2` is V1 with `schemaVersion: 2` and two additional required fields,
+`partitionIdentity: Digest` and `shardId: Digest`. Its review ID is `review.` followed by
+`hashCanonical({ schemaVersion: 2, coveragePlanIdentity, sourceObligationId,
+partitionIdentity, shardId })`. Subject and common cold reads remain the original obligation's;
+informed context is the original ordered expansion filtered to that shard's resource union;
+informed required reads are its full sorted union. The selection hash retains its four-field
+projection. Explicitly version frozen plans, descriptor selector contract and dispatch payloads;
+bind the immutable partition and shard alongside both selection identities. V1 rows remain
+historical evidence, never an inferred V2 partition. This supersedes the single-pair rule only
+for this newly versioned route; every shard still has exactly one paired review.
+
+A strict canonical `ReviewCoverageCertificateV1` contains exactly `{ schemaVersion: 1,
+kind: 'review-coverage', requestIdentity, sourceObligationId, partitionIdentity,
+shardReceipts: [{ shardId, coldReceiptIdentity, informedReceiptIdentity }],
+status: 'coverage-complete', synthesis: 'not-required' | 'required' }`.
+All identities are digests except the existing source obligation ID; shard receipts are unique
+and sorted by shard ID. The controller derives this certificate from its exact frozen partition
+and selected current authenticated receipts, never from a caller's list. Require every shard
+exactly once, both phases passed in order, actual observed reads covering all shard duties,
+matching authority/generation/attempt and no unresolved findings. Failed/skipped/missing/stale
+or foreign shards refuse complete certification. Retain failed/partial evidence without
+manufacturing this certificate. Bound certificate bytes to 4 MiB and recheck all receipt joins
+inside the short owner transaction that selects its digest; rollback cannot partially select it.
+
+##### Authenticated recursive synthesis in this change
+
+Cross-shard global synthesis **is required for every multi-shard original obligation** and
+is implemented by the following bounded reduction protocol in this change. Leaf coverage
+certificates remain intermediate evidence; they cannot satisfy the original obligation.
+One-shard obligations keep the existing paired-review path. No synthesis waiver, structural-only
+replacement, unreviewed summary or future unspecified protocol can complete a multi-shard review.
+
+Pin a strict `ReviewReductionPolicyV1` with exactly `{ schemaVersion: 1,
+kind: 'review-reduction-policy', protocolIdentity, maximumFanIn, maximumDepth,
+maximumNodesPerObligation, maximumTotalNodes, maximumChildEvidenceBytes, maximumReportBytes,
+maximumCertificateBytes, maximumExecutionMs, maximumTotalModelCalls }`.
+All bounds are positive safe integers, `maximumFanIn >= 2`, and child evidence/report/certificate
+bounds are at most 4 MiB. Its canonical digest is `reductionPolicyIdentity`. No candidate can
+replace this installed policy. Per-node resource/byte/reservation and per-call token policies
+remain mandatory. The aggregate node/call/time limits include leaves, relationship reviewers,
+all reducer levels and recovery attempts; sharding cannot multiply work without a finite bound.
+Preparation must prove that two worst-case child evidence resources plus common cold resources
+and the ten journal reservations fit a reducer. Otherwise refuse `reduction-capacity-unavailable`.
+Actual-request token preflight still decides token admission separately; byte fit is not token fit.
+
+**Frozen templates before execution.** A strict `ReviewReductionPlanV1` contains exactly
+`{ schemaVersion: 1, kind: 'review-reduction-plan', requestIdentity, sourceObligationId,
+partitionIdentity, reductionPolicyIdentity, nodes, rootNodeId }`. A node is the strict tagged union:
+
+- Leaf: `{ kind: 'leaf', nodeId, shardId }`.
+- Relationship: `{ kind: 'relationship', nodeId, dutyId, childNodeIds, directResourceIds }`.
+- Reducer: `{ kind: 'reducer', nodeId, level, childNodeIds }`.
+
+IDs and resource references are digests; `level` is a positive safe integer. Each `nodeId` hashes
+canonical `{ partitionIdentity, reductionPolicyIdentity, template }`, where `template` is the
+node without `nodeId`. Arrays of child/resource IDs are sorted and unique; nodes are stored
+in deterministic topological order, ties by node ID. Template hashes contain no future evidence
+or their own plan digest. All references resolve exactly within the plan, cycles and unreachable
+nodes refuse, and the plan digest covers the complete record with terminal LF.
+
+For each original resource, its owning leaf is the lexicographically smallest shard ID whose
+exact resource union contains it. Recompute this mapping from the frozen partition, not model
+labels. For each original relationship duty whose endpoint resources have different owners,
+create exactly one relationship node: its children are those owner leaves; its direct reads
+are the complete original relationship duty (fact plus exact endpoint representations). Require
+every crossing relationship once, even when its indivisible raw duty was already read by a leaf.
+External endpoint facts retain their original no-fetch representation. A relationship node
+receives the authenticated endpoint-leaf evidence as context and reviews their combined effect
+against the actual retained relation. Missing/unresolved graph facts refuse before freezing.
+A relationship with too many endpoints or oversized indivisible reads refuses; it is not split
+into weaker pairwise edges. Non-crossing duties remain covered by their original leaf.
+
+Build the reduction frontier from every leaf and every relationship node, sorted by node ID.
+Deterministic next-fit groups whole child nodes using common cold resources, one maximum-sized
+child evidence resource per child, ten journal reservations, byte limits and `maximumFanIn`.
+Every group with at least two children becomes a reducer; carry a singleton unchanged into the
+next frontier. Sort each new frontier by node ID and repeat until one root remains. Level is
+one plus the greatest reducer level among its children (leaf/relationship level is zero).
+At least two children must fit, so every nontrivial round strictly shrinks the frontier.
+Enforce depth/node/aggregate caps before any execution. Child evidence may be repeated where a
+leaf also supports a relationship node; verify set coverage, not count equality. Every original
+resource duty and every original relationship duty must reach the root, and every crossing duty
+must reach it through its designated relationship node. An independent graph validator derives
+these closures from the original partition and extracted graph, never from a model's claim.
+
+**Real review content, not pass booleans.** Version the pinned review protocol and strict phase
+output schemas before using this route. Each leaf, relationship reviewer and reducer produces
+an actual model-authored bounded `SynthesisReportV1` inside its existing phase output resource:
+`{ schemaVersion: 1, nodeId, assessedInputIds, assessments, findings }`. `assessedInputIds` is
+exactly the sorted duty IDs for a leaf, its duty plus child-node IDs for a relationship node,
+or child-node IDs for a reducer. Node kind, duty/child bindings and the synthesis instruction
+are supplied through the pinned phase-submission projection, retained and counted in its
+reservation and actual-request preflight. A duty citation resolves through the frozen mapping
+to all its actually observed resources; a child citation resolves to its actually observed
+authenticated child-evidence resource. `assessments` contains exactly one entry per existing
+pinned judgment dimension, in order `purpose`, `relationships`, `impact`: `{ dimension, judgment, rationale, citedInputIds }`; judgment uses the
+existing judgment enum, rationale is nonempty bounded UTF-8 text, and sorted citations must
+resolve to inputs actually observed in that phase. The new protocol defines each strict finding as
+`{ findingId, dimension, judgment, message, citedInputIds }`: `dimension` is exactly `purpose`,
+`relationships` or `impact`, judgment is `partial` or `no`, message is nonempty bounded UTF-8,
+and `findingId` hashes the other canonical fields. Findings are sorted by finding ID; all cited-input arrays are byte-sorted and unique.
+Reject duplicate findings, foreign citations and a `yes` dimension with an adverse finding. Assessment citation union must cover every
+assessed input; a label-only input list does not prove assessment. This is a versioned new
+output contract, not an assertion that existing strict outputs already contain reports/findings.
+Cold reports assess only the common subject reads;
+for cold, `assessedInputIds` is instead exactly the sorted common-cold resource IDs. Informed
+reports use the node-specific inputs above. Reports must agree with phase judgments, preserve
+adverse findings and fit `maximumReportBytes` within the existing `phaseOutputBytes` reservation.
+No new transport slot is silently added. Old strict outputs lacking this report cannot be
+upgraded by fabricating prose or copying a controller-generated summary.
+
+A protected projection produces strict `ReviewChildEvidenceV1` only from selected authenticated
+child evidence: `{ schemaVersion: 1, kind: 'review-child-evidence', requestIdentity,
+reductionPlanIdentity, nodeId, selectionRecordIdentity, coldReceiptIdentity,
+informedReceiptIdentity, journalManifestIdentity, reviewEvidenceIdentity, report }`.
+`report` is the exact authenticated informed `SynthesisReportV1`; other fields bind immutable
+verified artifacts and the selected attempt. Its canonical bytes, including LF, are a required
+resource in the parent's informed phase. Check `maximumChildEvidenceBytes`; never truncate or
+rewrite the report to fit. Retain the underlying phase outputs, raw responses, telemetry,
+read observations, submission bytes, token preflights and authentication records. A digest-only
+reference or an unsigned provider summary cannot replace this resource. This preserves full
+raw evidence at the leaves and explicit contextual reasoning at each level; it does not claim
+that one root context rereads all original bytes or that model reasoning is mathematically proven.
+
+**Delayed materialization with immutable ownership.** Freeze the complete partition, reduction
+templates and leaf selections atomically before leaf dispatch. `ReviewSelectionRecordV3` is V1
+with `schemaVersion: 3`, `partitionIdentity`, `reductionPlanIdentity`, `nodeId`, and `nodeBinding`:
+`{ kind: 'leaf', shardId }`, `{ kind: 'relationship', dutyId }`, or `{ kind: 'reducer' }`.
+Its review ID hashes canonical `{ schemaVersion: 3, coveragePlanIdentity, sourceObligationId,
+partitionIdentity, reductionPlanIdentity, nodeId }` with the existing `review.` prefix.
+The four-field selection digest remains unchanged in meaning. This is an explicit additional
+plan/descriptor/reservation/dispatch schema version, not a reinterpretation of V1/V2 rows.
+The new evaluation-plan version freezes one cold/informed obligation pair and stable review ID
+for every node but distinguishes `awaiting-inputs` template bindings from immutable `ready`
+selection bindings. An awaiting pair is neither reservable nor completed and carries no invented
+selection digest. Its later selection is a separately hashed owner-fenced record linked to the
+unchanged template; materialization never rewrites the frozen evaluation-plan bytes. Update all
+plan, resolver, registration and receipt validators together for this route. Leaf V3 selections use the exact V2 shard reads. Reducer/relationship cold reads remain the
+original subject's common cold reads, with no child output exposed to the cold phase.
+Informed reads add exact child evidence resources ordered by child node ID and, for relationship
+nodes, direct raw resources ordered by the original selector order; digest deduplication keeps
+the first occurrence. All informed required reads include the cold resources.
+
+A non-leaf starts `awaiting-inputs`; it acquires no guessed selection identity or send permit.
+Only after every child has a selected current authenticated passing pair may the protected owner
+construct and retain its exact child projections. In a short transaction, recheck request,
+generation, authority, lease/epoch/expiry, plan/template identity and **every selected child
+receipt identity**, then insert the complete immutable V3 selection and transition the node to
+`ready` atomically. No transaction spans retrieval/authentication/model awaits. A child failure,
+stale owner, missing evidence, conflicting replay or interrupted insert leaves no selected
+partial parent. `ready` enters the existing reservation/execution/receipt state machine; no
+special unfenced reducer dispatch. Exact restart replay verifies retained bytes and the same
+child selection; a new child attempt cannot silently rewrite a ready parent. Changed selected
+children require a new fenced plan/request generation and explicit replan. Uncertain execution
+keeps the existing bounded no-synthetic-receipt recovery. Deadlines/budgets survive restart;
+failed or cancelled nodes cannot be pruned to make a smaller successful DAG.
+
+**Terminal synthesis authority.** Strict `ReviewCoverageCertificateV2` contains exactly
+`{ schemaVersion: 2, kind: 'review-coverage', requestIdentity, sourceObligationId,
+partitionIdentity, reductionPlanIdentity, rootNodeId, nodeReceipts,
+status: 'coverage-and-synthesis-complete' }`. `nodeReceipts` is the sorted exact array
+`[{ nodeId, selectionRecordIdentity, coldReceiptIdentity, informedReceiptIdentity }]` for all
+nodes. Its size must fit `maximumCertificateBytes`; checked worst-case sizing occurs before
+freeze. No implicit paging or truncation. The controller independently validates all original
+duties and crossing duties against the frozen DAG, every current authenticated passing pair,
+actual reads and report bindings, root global judgments and absence of unresolved findings.
+The root report must assess all its child contexts as one original subject, including interactions
+and contradictions, under the pinned synthesis protocol. All leaves passing while the root
+fails is a failed original review. Neither leaf V1 coverage nor a model-created certificate
+can substitute for V2. Recheck the entire selection graph and owner fence in the atomic final
+selection transaction. Only this certificate plus the existing request evidence joins may
+satisfy a multi-shard original obligation; publication/admission cannot bypass it. The other
+activation stages and external acceptance remain required before 030.6 is complete.
+
+Sharding is selected because structural-only context would discard currently required raw
+reads, and packing only reduces transport entries while leaving model context unchanged.
+Content-addressed packs are deferred; any later pack must retain member identities, exact
+unpacked bytes, per-member observations and decoded-size/count limits. Hard refusal remains
+the correct outcome for an indivisible over-cap duty. Coverage is never reduced to make fit
+statistics green.
+
+##### Actual-request token-count preflight
+
+Replace the unavailable exact-local-tokenizer promise with a strict installed
+`TokenPreflightPolicyV1`: `{ schemaVersion: 1, kind: 'anthropic-token-preflight', modelId,
+apiVersion, endpoint: 'https://api.anthropic.com/v1/messages/count_tokens',
+requestProjectionIdentity, contextLimit, inputBudget, maxOutputTokens, minimumHeadroomTokens,
+headroomBasisPoints, maximumCallsPerPhase, maximumAttemptsPerCount, maximumCountDurationMs }`.
+All numeric fields are positive safe integers, `headroomBasisPoints <= 10000`, and all budgets
+must agree with the pinned model/protocol policy. Its canonical hash is `preflightPolicyIdentity`.
+The installed request projection explicitly maps actual Messages body fields into the supported
+count API schema; unsupported features refuse instead of being omitted. Pin that implementation.
+
+Preparation reports resource fit separately from token admission. Immediately before every
+Messages call, including tool-loop continuations, the protected executor freezes the complete
+actual HTTP request bytes, including system/tools/history/content encoding/model settings.
+It derives count-request bytes through the pinned projection, preserving all count-relevant
+inputs, and sends a bounded authenticated count request with redirect refusal and finite retry.
+Only this executor holds the provider credential; controller planning and candidate readers do
+not. Cancellation, malformed response, unavailable provider, exhausted retries or unknown model
+refuse admission. A fake counter or old approximate tokenizer cannot supply production authority.
+The API count is explicitly an estimate, not exact usage or a cryptographic attestation.
+
+For returned safe nonnegative `estimatedInputTokens`, compute
+`headroom = max(minimumHeadroomTokens, ceil(estimatedInputTokens * headroomBasisPoints / 10000))`
+with checked arithmetic. Require `estimatedInputTokens + headroom <= inputBudget` and
+`estimatedInputTokens + headroom + maxOutputTokens <= contextLimit`. Never label this estimate
+plus margin as a mathematically guaranteed upper bound. The provider's context refusal remains
+a modeled operational failure, with no passing receipt. Do not automatically repartition or
+mutate an already dispatched request in response; any later replan uses new fenced identities.
+
+Retain a canonical bounded `TokenPreflightRecordV1` for each admitted model call with exactly
+`{ schemaVersion: 1, requestIdentity, reviewId, attempt, invocationId, phase, callOrdinal,
+preflightPolicyIdentity, messageRequestDigest, countRequestDigest, countResponseDigest,
+estimatedInputTokens, headroom, admittedInputLimit, admittedContextLimit, maxOutputTokens }`.
+Ordinal is a safe integer >= 0; other fields use their existing ID/phase/digest types. Retain
+exact request/response bytes in the protected execution journal; no credential headers are
+retained. Before send, recheck request digest and current call ownership/epoch/lease/authority.
+A count observation cannot be replayed for changed request bytes or a different call. Preserve
+existing intent-before-send and uncertain-call recovery; count success never authorizes an
+unfenced later model POST. Finite retry of the side-effect-free count does not permit retrying
+an uncertain Messages call.
+
+After execution retain actual measured usage separately and evaluate its documented provider
+accounting, including cache counters, against the same limits; response/context/output overrun
+cannot yield a passing receipt. Preserve operational failure versus actual failed review, and
+never fabricate missing response/telemetry. The producer's new journal-manifest version adds
+one required `token-preflights` artifact containing the canonical ordered record array for all
+actual cold/informed calls, with no omitted/duplicate ordinal. Signed semantic verification
+joins each record to retained call evidence and measured telemetry. This resource uses the
+reserved tenth slot and `tokenPreflightsBytes`; updating the versioned strict manifest/parser
+is mandatory, not silently adding a role to V1. Count observations and actual usage are separate
+proofs. [Anthropic token counting](https://platform.claude.com/docs/en/build-with-claude/token-counting)
+documents estimates; the [count endpoint](https://platform.claude.com/docs/en/api/messages/count_tokens)
+requires the supported model/request projection. The
+[archived offline tokenizer](https://github.com/anthropics/anthropic-tokenizer-typescript)
+is not an accurate replacement for current Claude models.
+
+Acquire/hash/store all immutable inputs before the short freeze transaction; preparation never
+holds SQLite across await or long Git/parser work. Capture request version, generation, authority
+and lease epoch/expiry before work and recheck after every asynchronous boundary and at commit.
+Retain objects through exclusive writes, digest validation and durable finalization before
+committing references. For V1/V2 the transaction atomically inserts the complete selection set, both
+phase bindings, canonical plan and request transition. V3 instead freezes all node templates and
+leaf selections in that transaction; non-leaf selections follow the separately guarded delayed
+materialization above. No legacy complete-selection assertion is silently weakened. An injected failure rolls back all
+references; unreferenced immutable objects may remain but cannot become selected evidence.
+Concurrent takeover discards the prepared selection authority. Exact replay after restart
+must verify every retained reference and byte; corrupt/missing state refuses without repair.
+Only a separately specified collector may remove unreferenced objects, respecting in-flight
+preparation leases. Additive migrations introduce new versioned storage/references with paired
+rollback, leaving historical plans/payloads unchanged. Reservation/dispatch/resolver mounting
+follows this complete freeze contract; observation-only scheduling remains unchanged.
+
+For each bounded candidate, privately reread staged bytes with containment/no-follow regular
+file checks, byte limits and fresh hashes. Invoke the actual pinned offline verifier over
+those bytes and validate its exact versioned output and custom predicate. V1 treats every
+nonzero CLI exit as operational refusal: the current process port does not
+provide a machine-authenticated distinction between cryptographic rejection and operational
+failure. Missing tools, unreadable/corrupt trusted roots, malformed output, timeout and
+cancellation also refuse, rather than permitting a skip to another candidate. Do not infer
+retry/rejection categories by matching human stderr text. Authenticate all candidates within
+one finite composition deadline; no early first-success return. Zero matching proofs refuses.
+
+Group successful proofs by the canonical predicate with only `attestor.runId/runAttempt`
+removed. Identical claims may have different bundles/signatures/timestamps or signing runs;
+retain every verified proof and choose the lexically smallest bundle digest as the stable
+representative. Each proof must independently pass certificate/run/workflow joins. Different
+remaining claims for the same expected registration refuse as conflicting evidence. A valid
+signature that purports to cover this exact registration/manifest but contradicts its frozen
+bindings is also a conflict. Unrelated repository metadata may be filtered by the existing
+retrieval contract, but a pinned signer's statement over this exact manifest cannot claim an
+unrelated registration and be silently ignored. This comparison does not authorize a second
+review execution: only equivalent re-attestations of the identical journal are deduplicated. Response order never grants trust.
+
+Checkpoint A returns an authenticated manifest with retained exact proofs and selection, not
+`VerifiedReview`. Receipt rows remain unchanged. Its authenticity derives from protected
+composition, not from a structurally constructible TypeScript value or fixture output.
+
+##### Phase submission and artifact contract for checkpoint B
+
+Each `phases[].submissionDigest` additionally addresses an immutable object at
+`{base}/v1/artifacts/sha256/{submissionDigest}`. The 2.1d producer retains these bytes before
+publishing the manifest. They need not be repeated in `manifest.artifacts`; fetch them as
+explicit phase resources, charging the existing 4 MiB per-artifact, 64-resource and 32 MiB
+aggregate ceilings, deduplicating by digest. Reject phase-submission objects listed as another
+artifact kind. All phase resources belong to the same authenticated manifest; do not discover
+receipt bytes from a mutable latest pointer. Authentication precedes interpretation.
+
+An exact phase submission is strict canonical JSON with fields:
+`{ schemaVersion: 1, kind: 'review-phase-submission', binding: ReviewExpectation,
+journalId: Id, inputs, source }`. `binding` uses all existing expectation fields exactly;
+it contains no self digest, manifest locator or authority override. `inputs` is a strict
+`{ cold: string, informed: string }` for complete evidence, or `{ cold: string }` for genuine
+cold-only failed/skipped evidence. Each string retains exact canonical UTF-8 protocol request
+bytes: respectively `ColdHarnessRequest` and `InformedHarnessRequest`. These are harness
+protocol inputs, not a claim that their bytes equal the Anthropic HTTP body. The pinned
+producer records their translation/model-call observations under its protocol implementation.
+
+`source` is exactly one existing controller projection:
+
+- Complete: `{ evidence: ReviewEvidence, cold: ColdHarnessOutput,
+informed: InformedHarnessOutput, findings: AuditFinding[], status: 'passed'|'failed'|'skipped' }`.
+- Cold-only: `{ cold: ColdHarnessOutput, terminal: { status: 'failed'|'skipped', reason: Id } }`.
+
+Unknown/missing fields refuse; no inferred empty findings, fabricated reason, telemetry,
+response or status. Hash exact submission bytes into `submissionDigest`; hash canonical
+`source` into `sourceEvidenceDigest`. Both must equal the selected signed phase record.
+The selected record's status equals `source.status` or `source.terminal.status`. A cold-only
+projection is permitted only for the cold phase and the manifest's one-phase terminal shape.
+A complete manifest has cold then informed; both submissions have identical inputs, evidence,
+cold output and informed output. Only selected phase binding, findings and status may differ.
+
+Map artifact roles from these decoded source values, not array position. Each required logical
+slot must have exactly one matching `(kind, identity)` resource; identical bytes across phase
+slots share one resource. Reject extra unreferenced role entries and conflicting alternatives.
+
+| Manifest artifact kind | Exact bytes and required logical slots                                                                                                                                     |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cold-output`          | Canonical `source.cold`; one cold slot for either source branch                                                                                                            |
+| `informed-output`      | Canonical `source.informed`; one informed slot only for complete source                                                                                                    |
+| `review-evidence`      | Canonical `source.evidence`; one slot only for complete source                                                                                                             |
+| `telemetry`            | Canonical verified telemetry from each present phase output; cold plus informed for complete source                                                                        |
+| `raw-response`         | Exact UTF-8 `rawResponse.payload` bytes from each present phase output, without JSON wrapping or newline normalization                                                     |
+| `required-read`        | Exact content bytes for every distinct content identity in the phase outputs' observed-read lists; these IDs already name content, not invented observation-wrapper hashes |
+
+For selector V2, the separately versioned journal also requires the `token-preflights` role
+defined above, exactly one canonical call-record aggregate. V1 role tables remain closed; the
+new version must be selected and validated explicitly.
+
+Every role identity is SHA-256 of its exact bytes. `required-read` resource identities equal
+the union of observed content identities; each independently resolved required-read set must
+be included in its phase's observations. The producer records actual read-tool observations;
+retaining content alone does not prove a read, and model-provided read IDs alone do not create
+journal observations. The pinned executor must attest its observed lists, and the consumer
+matches those signed lists, retained content and resolved required sets. Do not silently sort
+or deduplicate the protocol's observation arrays; aggregate arrays preserve existing order
+and multiplicity, while the resource set deduplicates content storage only.
+
+Both protocol input requests and outputs must match the selected subject, protocol and
+registered invocation. Informed context equals the resolved ordered context. Each verified
+telemetry receipt's invocation/receipt IDs equal its phase input's IDs; `inputArtifact`
+hashes its exact retained harness input; `outputArtifact`
+hashes its phase raw response. Executor model equals the descriptor model pin; executor and
+price identities agree across complete phases, and existing receipt schemas validate measured
+usage, charge and elapsed intervals. Retain actual source values rather than replacing them
+with descriptor strings. Additional executor dimensions are authenticated observations, not
+unprovided configuration defaults. Missing required measured fields refuse completion.
+
+Require `hashCanonical(cold.cold)` to equal the informed input/output `coldArtifact` and
+`evidence.protocolEvidence.expansion.coldJudgmentArtifact`; the informed input's cold judgment
+also equals the cold output's. The producer durably acknowledges that exact cold judgment
+before making informed context available. Existing `ReviewEvidence` phase receipts/tools,
+protocol/subject/judgments, ordered observed-read/usage aggregates, context list and informed
+raw-response reference must equal their phase sources as enforced by `authenticatedReview`.
+The semantic adapter must reuse these checks rather than invent a parallel looser protocol.
+
+##### Phase verdicts and receipt ownership
+
+Findings/status in each complete submission describe that selected phase. A cold pass has no
+unresolved cold findings. An informed failed/skipped submission may introduce new findings;
+it preserves all still-applicable findings from prior phases. Finding IDs are unique per
+phase; the same ID across phases cannot silently change severity or summary. V1 does not
+permit a producer to clear an unresolved cold finding and continue: a non-passing cold phase
+is terminal and produces no informed phase. A passed status with any unresolved finding
+refuses. Do not infer pass from decodable JSON, telemetry completion, missing findings or an
+informed correction to a failed cold phase. The pinned review policy decides judgments/status;
+this amendment does not invent a new mapping of `yes|partial|no` judgments to pass.
+
+Cold-pass/informed-fail is represented explicitly: the final immutable manifest contains
+cold `passed` and informed `failed`; both complete submissions retain identical real phase
+outputs/evidence, cold has its authenticated empty unresolved-findings list and informed
+retains its failed verdict/findings. The controller records cold first, then informed failure;
+the request fails and cannot become verified. Its earlier cold receipt remains immutable.
+This is not an omission of informed findings: the adapter authenticates both submissions
+before returning either, checks the paired verdict relationship and retains both. An
+operationally interrupted informed phase without complete evidence cannot manufacture this
+complete branch or a cold-only failed receipt for an actually passed cold phase; it follows
+the operational-failure path and produces no fabricated review receipt.
+
+After checking the entire source/role graph and exact caller submission equality, construct
+only the selected existing `VerifiedCompleteReview` or `VerifiedColdTerminal`. Mount behind
+`verifyReview(ReviewSubmission)` with protected lookup/retrieval/authentication; let
+`recordReceipt` reread current authority, subject generation, lease and own attempt/registration
+inside its short transaction. Authentication runs outside it. Retain authenticated source and
+proof objects before selecting evidence; failed receipt transactions may leave immutable
+unselected evidence but cannot partially select it or erase earlier receipts. Stale results
+cannot grant authority. No schema/default backfill, provider dispatch or observation-service
+evaluation is implied by this composition.
+
 Mount this authentication behind the existing `verifyReview(ReviewSubmission)` port. Obtain
 `ReviewExpectation` from protected selection/registration, not the submission. Return
 `VerifiedCompleteReview` or `VerifiedColdTerminal` using the existing protocol decoders:

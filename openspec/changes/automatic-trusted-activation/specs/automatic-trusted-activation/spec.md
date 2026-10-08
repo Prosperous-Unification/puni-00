@@ -412,6 +412,285 @@ without complete actual cold evidence SHALL NOT produce `VerifiedColdTerminal` o
   durable external journal retrieval has not been observed
 - **THEN** 2.1 remains open and WBS 030.6 remains blocked without a per-PR manual workaround
 
+### Requirement: Strict signed review semantics
+
+Checkpoint A SHALL authenticate a version-1 custom review predicate with the exact fields
+and joins defined in design, including descriptor/audience, registered request/effect/payload,
+review/attempt/invocation, independently resolved selection, execution pins, attestor and
+manifest phase bindings. Certificate/provider metadata SHALL authenticate signer/run identity;
+predicate assertions SHALL NOT supply their own authority. The result SHALL authenticate only
+the manifest, not grant receipt authority. Missing selection or identity mappings SHALL refuse.
+
+#### Scenario: Signed wrong subject or workflow claims trust
+
+- **WHEN** a cryptographically valid predicate substitutes selection, request, audience,
+  workflow ID, signer revision, invocation or phase bindings
+- **THEN** authentication refuses the expected review; signed labels cannot override protected
+  selection, certificate claims or authenticated workflow metadata
+
+#### Scenario: Duplicate and conflicting candidate attestations
+
+- **WHEN** all bounded candidates have been evaluated and valid proofs differ only in signing
+  run, bundle/signature or timestamp while the normalized predicate is identical
+- **THEN** retain every proof and select the smallest bundle digest deterministically
+- **WHEN** applicable authenticated claims conflict, or a required verification operation fails
+- **THEN** refuse rather than choose first/newest or skip an operational failure
+
+### Requirement: Persisted protected review selection
+
+Checkpoint A SHALL resolve subject, ordered context and required-read sets from immutable
+explicitly versioned selection records in the protected controller database, using registration-derived
+request/review/protocol keys. A protected pinned producer SHALL derive records from the frozen
+validated coverage plan and content. The newly versioned frozen plan and dispatch SHALL bind
+record and selection identities before provider execution. Receipt-supplied labels, paths or
+selection expectations SHALL NOT be authority. Absent legacy mapping SHALL require replanning.
+
+#### Scenario: Selection state is missing or substituted
+
+- **WHEN** a selected row is absent, unreadable, malformed, noncanonical or conflicts with its
+  frozen plan, registration, source obligation, selector pin or candidate content
+- **THEN** authentication refuses without repairing state from the predicate or receipt
+
+#### Scenario: Selection freeze is partial or replay changes bytes
+
+- **WHEN** a plan freeze fails between selection persistence and obligation references, or
+  replay proposes different selection bytes under the same key
+- **THEN** no partial plan commits and no existing immutable selection is overwritten
+
+#### Scenario: Legacy request lacks a selection binding
+
+- **WHEN** an old frozen plan or dispatch lacks the versioned selection references
+- **THEN** retain historical bytes but refuse dispatch/authentication until explicit fenced
+  replanning; a signed subject or empty-context default cannot fill the gap
+
+#### Scenario: Protected selection is stable across producer and restart
+
+- **WHEN** the controller reopens retained state or the independent executor consumes the
+  exact registered selection record
+- **THEN** both derive the same subject, ordered context, required reads, record identity and
+  selection identity from frozen sources; held stale resolution cannot authorize a receipt
+
+### Requirement: Deterministic exhaustive selection preparation
+
+The initial versioned selector SHALL derive all primary coverage obligations from retained
+candidate objects, installed policy and the validated exhaustive graph. It SHALL retain subject
+preimages and raw blob bytes separately, apply the exact cold/context rules and deterministic
+ordering in design, and refuse bounds or missing coverage rather than shrink the selection.
+Long preparation SHALL precede an atomic, current-owner-fenced freeze transaction.
+
+#### Scenario: Descriptor reading omits actual source
+
+- **WHEN** a file/documentation selection retains and observes its subject descriptor but
+  omits the separately addressed raw source blob
+- **THEN** the selected cold read requirements are incomplete and no passing receipt is possible
+
+#### Scenario: Sampling or stale inputs shrink primary coverage
+
+- **WHEN** a producer substitutes sampled audit obligations, a stale derived module mapping,
+  candidate-supplied policy, or an artifact graph omitting an evidence record
+- **THEN** preparation refuses before freezing any plan or dispatch authority
+
+#### Scenario: Informed expansion exceeds its budget
+
+- **WHEN** complete required resources or context exceed installed byte/count/token limits,
+  or an applicable relationship/documentation endpoint cannot resolve
+- **THEN** refuse visibly without truncating, dropping neighbors or claiming complete coverage
+
+#### Scenario: Takeover or failure interrupts selection freeze
+
+- **WHEN** ownership/generation/authority changes during held preparation or an insert fails
+  midway through freeze
+- **THEN** no stale or partial selection references commit; immutable unselected content grants
+  no authority and no dispatch occurs
+
+#### Scenario: Reopened selection or dispatch bytes conflict
+
+- **WHEN** restart encounters missing/corrupt retained content, altered selection bytes or a
+  dispatch whose selection digest differs from its frozen pair
+- **THEN** refuse without rebuilding evidence from current checkout or repairing old payloads
+
+### Requirement: Complete deterministic partition coverage
+
+The versioned selector SHALL partition the full original exhaustive obligation into bounded
+whole duties without dropping resources or relationship endpoints. Each shard SHALL have its
+own immutable paired review and registered partition/selection identities. An indivisible
+oversized duty SHALL refuse. Only exact complete current passing shard evidence SHALL produce
+a controller-derived coverage certificate. Multi-shard coverage SHALL require global synthesis;
+only a complete authenticated reduction DAG and terminal synthesis certificate SHALL satisfy
+the original review or verified join. This change SHALL implement that bounded protocol.
+
+#### Scenario: Partition omits a resource or crossing relationship
+
+- **WHEN** a partition drops original documentation, substitutes sampled duties, splits a
+  required relationship across shards without its endpoint resources, or changes a shard digest
+- **THEN** reject partition/freeze or receipt selection despite passing remaining shard receipts
+
+#### Scenario: Whole duty exceeds an empty shard
+
+- **WHEN** a required duty plus common cold reads and journal reservations exceeds its cap
+- **THEN** refuse explicitly without splitting opaque bytes, dropping reads or increasing limits
+
+#### Scenario: Complete coverage is mistaken for global synthesis
+
+- **WHEN** every shard of a multi-shard obligation passes with complete observed reads
+- **THEN** coverage may be certified, but the original review remains blocked on required
+  synthesis and the request cannot become verified, published or admitted through that evidence
+
+#### Scenario: Certificate selection races or sees incomplete evidence
+
+- **WHEN** a shard is missing/failed/skipped/foreign/stale, or ownership changes during certificate
+  construction, or its selection transaction rolls back
+- **THEN** no complete certificate authority commits and existing evidence remains immutable
+
+### Requirement: Bounded authenticated recursive synthesis
+
+For a multi-shard original obligation, the controller SHALL freeze a deterministic reduction
+DAG covering every leaf and every crossing relationship duty. Each crossing relationship SHALL
+review its complete retained fact/endpoints with authenticated endpoint-leaf evidence. Recursive
+reducers SHALL consume exact authenticated child reports under installed fan-in/depth/node,
+resource, token and aggregate execution limits. Every node SHALL perform a real paired review
+under the versioned synthesis protocol. Reports SHALL retain judgments, rationale and actual
+input citations; unsigned summaries and pass-only aggregation SHALL NOT authorize synthesis.
+
+#### Scenario: Many documents require multiple reducer levels
+
+- **WHEN** the complete original documentation and relationship inventory exceeds one review
+  and one reducer fan-in, while indivisible duties and installed aggregate limits fit
+- **THEN** deterministic bounded leaves and recursive reducers cover every original duty;
+  all current authenticated passing node pairs and a passing global root produce the terminal
+  certificate without sampling, truncation or a per-PR operator step
+
+#### Scenario: Crossing relationship disappears in aggregation
+
+- **WHEN** a DAG omits a crossing-duty node, substitutes endpoint ownership, drops a child or
+  uses an unreachable/cyclic node to claim coverage
+- **THEN** independent validation against the original partition and graph refuses authority
+  despite all remaining leaf receipts passing
+
+#### Scenario: A child report is unauthenticated or adverse
+
+- **WHEN** a parent sees an unsigned summary, digest-only placeholder, altered report,
+  missing/foreign/stale selected pair, failed judgment or unresolved child finding
+- **THEN** parent materialization or receipt acceptance refuses without synthesizing a pass
+  and the original evidence remains retained
+
+#### Scenario: Ready reducer inputs change or freeze rolls back
+
+- **WHEN** a selected child attempt or owner changes during held materialization, a selection
+  insert fails, or restart finds different projection bytes for a ready node
+- **THEN** no partial or stale parent dispatch authority commits; exact replay never repairs
+  immutable selections, and changed children require explicit fenced replanning
+
+#### Scenario: Root discovers conflict after all leaves pass
+
+- **WHEN** every leaf passes but a relationship reviewer or final global reducer fails
+- **THEN** no terminal coverage-and-synthesis certificate or request verification is selected
+  and passing children cannot waive the adverse global result
+
+#### Scenario: A reduction or report cannot fit
+
+- **WHEN** an indivisible relationship, two worst-case child reports, actual request token
+  preflight, depth/node/call/deadline budget or terminal certificate exceeds installed limits
+- **THEN** refuse the named bound without omitting evidence, silently changing policy,
+  looping singleton reducers or manufacturing successful completion
+
+### Requirement: Estimated actual-request token admission
+
+Every actual model call SHALL receive a bounded protected count preflight for its exact request
+through the pinned projection. Count estimates plus configured headroom SHALL satisfy input
+and context/output policy before the current fenced owner sends. Actual usage SHALL remain
+separate and SHALL also satisfy policy before a pass. Missing counter authority or failed
+preflight SHALL refuse without local approximation fallback or synthetic completion.
+
+#### Scenario: Count is reused for a changed call
+
+- **WHEN** system/tool/history/content/model bytes, call ordinal, invocation or owner changes
+  after count admission
+- **THEN** refuse the model send; an estimate for previous bytes supplies no current authority
+
+#### Scenario: Estimate passes but execution exceeds policy
+
+- **WHEN** the provider rejects context size or retained actual usage/output exceeds policy
+- **THEN** retain the appropriate real operational/review failure and never produce a pass,
+  even when the earlier estimate plus margin passed
+
+#### Scenario: Counter or retained preflight evidence is incomplete
+
+- **WHEN** count is unavailable/malformed/over-budget, arithmetic overflows, retries expire,
+  or the signed journal omits/substitutes a call's preflight record
+- **THEN** refuse admission or semantic verification without fabricated counts or telemetry
+
+### Requirement: Canonical byte identity includes the terminal LF
+
+Canonical review resources SHALL use exact UTF-8 `serializeCanonical` output, including one
+terminal LF. Canonical identity SHALL hash those bytes. Raw content/responses and signed
+bundle/statement bytes SHALL retain their original encoding for their corresponding hashes
+and signature verification; they SHALL NOT be normalized into canonical resources implicitly.
+
+#### Scenario: Semantically equal JSON has different canonical bytes
+
+- **WHEN** a canonical resource omits its LF, uses CRLF or extra whitespace, changes key order,
+  or supplies duplicate object keys
+- **THEN** refuse its noncanonical bytes rather than normalize them to the expected digest
+- **WHEN** a retained raw response ends with a newline
+- **THEN** preserve that exact newline in its raw-response digest without adding or stripping one
+
+### Requirement: Exact phase submissions and artifact graph
+
+Each signed phase submission digest SHALL address retained canonical bytes at the artifact
+route. Checkpoint B SHALL validate both complete phase submissions, or the genuine cold-only
+terminal submission, using existing source projections and protocol schemas. Artifact roles
+SHALL resolve by exact content identities and required cardinality. Findings, terminal reasons,
+raw responses, telemetry and read observations SHALL NOT be defaulted or synthesized.
+The adapter SHALL return only the selected phase after validating the entire authenticated
+source graph and independently selected subject/read requirements.
+
+#### Scenario: Phase submission changes its source projection
+
+- **WHEN** exact submitted bytes, source digest, findings/status/reason, phase input or any
+  role resource differs from the authenticated manifest or selected source
+- **THEN** no review receipt is returned or selected; manifest digest cannot substitute for
+  the exact submission or canonical source digest
+
+#### Scenario: Retained content is mistaken for observed reading
+
+- **WHEN** content files exist but signed actual observed-read lists omit a required content
+  identity, or model claims replace trusted executor observations
+- **THEN** required review evidence remains incomplete despite matching resource hashes
+
+#### Scenario: Cross-phase evidence is substituted
+
+- **WHEN** input/output subject or invocation, telemetry input/raw-output digest, measured
+  phase aggregation, informed context or exact acknowledged cold judgment differs
+- **THEN** the mounted verifier refuses without selecting either submitted receipt
+
+### Requirement: Phase verdict preservation
+
+Complete cold and informed submissions SHALL share exact inputs and phase source evidence
+while preserving their own authenticated verdicts and unresolved findings. A non-passing cold
+phase SHALL remain terminal with no informed phase. A cold pass followed by informed failure
+SHALL retain the cold receipt and fail the request. Operational absence of phase evidence
+SHALL NOT produce a fabricated cold terminal or successful review.
+
+#### Scenario: Cold passes and informed review fails
+
+- **WHEN** both complete submissions authenticate, cold passed without unresolved findings
+  and informed failed with its retained verdict/findings
+- **THEN** cold may be recorded first and informed failure then fails the request; informed
+  cannot precede its paired cold, and the request never becomes verified
+
+#### Scenario: Informed execution is absent after a cold pass
+
+- **WHEN** informed response or required observations are absent after actual cold success
+- **THEN** retain the operational failure/partial evidence, without rewriting cold as failed
+  or manufacturing a complete review receipt
+
+#### Scenario: Receipt ownership changes during semantic verification
+
+- **WHEN** generation, authority, lease or own attempt/registration changes while verification
+  is held, or the later receipt transaction fails
+- **THEN** no stale or partial selected evidence commits; prior immutable receipts remain intact
+
 ### Requirement: Paired review obligations and invocation identity
 
 The frozen evaluation plan SHALL bind a stable `reviewId` to exactly one cold and one
