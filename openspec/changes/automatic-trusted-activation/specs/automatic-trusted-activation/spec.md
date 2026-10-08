@@ -336,6 +336,43 @@ unavailable/ambiguous state and preserve bounded retries and historical facts.
 - **THEN** the provider does not start a model call; recovery does not infer absence or grant
   a stale acknowledgement, while any already accepted historical fact remains retained
 
+### Requirement: Recoverable accepted execution progress
+
+Acceptance SHALL atomically establish durable execution progress independently of the
+immutable acceptance fact. Each phase/model-call ordinal SHALL carry exact input identity,
+versioned ownership, lease, deadline and bounded recovery budget through `pre-send`,
+`uncertain`, `evidence-retained` and immutable `terminal` disposition. A protected gateway
+SHALL own the actual model send and commit its fenced send intent before that send. Unknown
+execution SHALL NOT be replayed or transformed into a review verdict. Operational failure
+without complete actual cold evidence SHALL NOT produce `VerifiedColdTerminal` or a receipt.
+
+#### Scenario: Accepted worker crashes before send intent
+
+- **WHEN** the worker dies after acceptance while progress remains pre-send
+- **THEN** a replacement may recover the same invocation/input under a new fenced lease and
+  bounded budget; the stale worker cannot commit an intent or independently send a call
+
+#### Scenario: Worker crashes around the model POST
+
+- **WHEN** send intent is committed and the process dies either before POST or after POST
+  before response evidence is durably retained
+- **THEN** progress remains uncertain, recovery does not resend, and bounded reconciliation
+  either recovers exact authenticated evidence or records terminal operational failure;
+  absent response/reads/telemetry never become a synthetic cold terminal or selected receipt
+
+#### Scenario: Worker returns after takeover or terminal failure
+
+- **WHEN** a stale worker returns authentic response evidence after takeover, expiry or failure
+- **THEN** matching bytes may be retained as immutable facts but the worker cannot advance
+  progress or select evidence; terminal state cannot reopen, and only a current owner before
+  deadline/terminal may reconcile complete matching evidence
+
+#### Scenario: Retained evidence survives crash before signing
+
+- **WHEN** the process restarts with complete digest-bound evidence-retained progress
+- **THEN** it resumes validation/journal/signing under current fences without another model
+  call; conflicting or missing evidence refuses and cannot satisfy a required obligation
+
 #### Scenario: Installed external execution is not yet observed
 
 - **WHEN** local fixture tests pass but independent workflow/model execution, entitlement or

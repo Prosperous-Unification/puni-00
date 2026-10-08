@@ -190,6 +190,12 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       owner/epoch/expiry/current-authority checks, deadline/budget and retained-fact fences.
       Exercise reopen, held replies, takeover, expiry without takeover and conflicting replay.
       A workflow run ID alone must not create `ReviewDispatchObservation` acceptance.
+      Acceptance and initial execution progress must commit atomically. First mount tests
+      `accepted pre-send crash recovers with fenced owner`,
+      `accepted row without progress refuses`, and `late worker cannot send after takeover`.
+      F3/F10/F11 independently split acceptance/progress commit, omit progress/version/owner/
+      epoch/expiry guards, or expose a reusable send permit; observe unchanged durable rows
+      and zero stale sends. Prove finite persisted recovery budget/deadline across restart.
 - [ ] 2.1d Mount the protected Anthropic Messages executor and durable journal/attestation
       writer using administrator-provided model/program/protocol pins. Tests:
       `informed execution waits for durable cold acknowledgement`,
@@ -200,6 +206,20 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       joins and retention-before-signing. Use harmless credential sentinels for isolation;
       no candidate shell execution or permissive ACP prototype policy. Interrupted append/
       signing/reply must recover by exact identity without overwriting prior evidence.
+      Persist per-phase/call-ordinal `pre-send -> uncertain -> evidence-retained -> terminal`
+      progress, with intent-before-POST in the protected credential-owning send gateway.
+      Start with crash tests `committed intent before POST is not replayed`,
+      `POST without retained response reaches bounded operational failure`,
+      `retained response resumes signing without model replay`,
+      `late response cannot reopen terminal execution`, and
+      `missing execution evidence cannot synthesize cold terminal`.
+      F2/F4/F10/F11 independently remove intent-before-send, same-call replay refusal,
+      current-owner/CAS and ordinal-order fences, finite failure deadline, evidence-retention
+      joins, terminal immutability and operational-failure/receipt separation. Watch intended
+      send-count, exact durable-state and absent-receipt assertions fail, then restore GREEN.
+      Include crashes both sides of POST, a held late response through takeover/expiry,
+      genuine cold-only failed evidence as a control, and uncertainty with no provider replay
+      facility. No automatic new attempt may disguise an uncertain send in this increment.
 - [ ] 2.1e Prove installed external acceptance after one-time protected control repository,
       registry, credentials, retention, plan entitlement and trust pins are provisioned.
       Run `installed reviewer proves the exact invocation` with real cold/informed execution,

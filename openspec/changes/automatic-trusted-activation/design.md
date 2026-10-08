@@ -567,8 +567,8 @@ A protected durable provider registry must atomically accept each `effectKey` ag
 request, target, payload digest and invocation, while validating current authority and live
 owner/lease epoch/expiry. The controller exposes authenticated acceptance to that registry;
 caller-supplied epochs alone are not authority. Reject conflicting bytes/target/invocation.
-A duplicate workflow run must query this registry before any model call and cannot acquire
-a second execution. GitHub workflow concurrency and workflow-run listings alone do not
+A duplicate workflow run must query this registry before any model call and cannot allocate
+a second invocation; it may recover unfinished progress only through the fenced protocol below. GitHub workflow concurrency and workflow-run listings alone do not
 implement idempotency. The registry is an explicit bootstrap dependency, not an assumed
 GitHub API feature or an ephemeral Actions cache.
 
@@ -590,6 +590,61 @@ reopen and query the registry; resend only when authoritative absence and existi
 attempt budget and lease policy permit it. Same-effect replay returns the same accepted fact.
 Late facts are retained after supersession/expiry without granting a stale acknowledgement.
 Recovery does not claim exactly-once network delivery or erase duplicate transport runs.
+
+Registry acceptance and execution completion are separate durable facts. Acceptance must
+atomically create an execution-progress row; an accepted row without progress is corrupt
+trusted state and refuses rather than silently repairing or waiting forever. Preserve the
+immutable acceptance fact while advancing versioned progress for each phase and model-call
+ordinal. Record the exact call-input digest, execution owner/epoch/lease, attempt budget,
+absolute deadline, observed response references and terminal reason. A workflow run ID is
+not an execution lease. The progress states are:
+
+| State               | Durable meaning and permitted recovery                                                                                                                                                                                                               |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pre-send`          | No send-intent exists for this call. A current authorized owner may acquire/recover a bounded execution lease and CAS the progress version. A replacement must fence the old owner before proceeding.                                                |
+| `uncertain`         | Send intent was committed before permitting the HTTP POST. The call may or may not have reached Anthropic. No replay of this call, new invocation or automatic replacement review is authorized merely by a lost response or expired lease.          |
+| `evidence-retained` | Exact response bytes, request metadata and actual required observations are durably retained and digest-bound. Recovery may validate these bytes and resume journal/signing work without repeating the call. This state alone is not a passed phase. |
+| `terminal`          | Immutable execution disposition: completed with required retained evidence, or failed with an explicit operational reason. It cannot reset to pre-send, erase evidence or revive a failed request.                                                   |
+
+A protected send gateway owns model credentials and the actual POST. It validates current
+request/authority and execution owner/epoch/lease/deadline, then atomically CASes `pre-send`
+to `uncertain` before sending. Workers cannot bypass the gateway or use a previously issued
+permit to send independently. Losing the CAS or using an expired/replaced lease sends nothing.
+There is no transaction spanning the network call. A crash after the intent commit but before
+the POST is deliberately indistinguishable from a crash after the POST: both remain uncertain.
+The gate's intent marker authorizes at most one send for that call; recovery never resends it.
+An already initiated call cannot be revoked by later lease expiry or supersession.
+
+A crash while still `pre-send` is safely recoverable by a fenced owner under the original
+invocation, input digest, deadline and bounded recovery budget. A crash in `uncertain` uses
+bounded reconciliation for exact authenticated retained response evidence only; Anthropic
+request IDs or workflow success are not assumed to provide replayable response retrieval.
+If the bytes cannot be recovered before the persisted deadline/budget, record terminal
+`execution-uncertain` failure and propagate a failed/incomplete required obligation through
+an explicit operational-failure path. Do not leave an accepted effect pending indefinitely.
+Missing/corrupt trusted progress or required retained bytes is a distinct refusal, reported
+through failure health without synthesizing or repairing progress. It is neither ordinary
+pending work nor completion. A classified
+pre-send transient may use bounded fenced recovery; uncertain execution has no automatic
+fresh-attempt retry in this increment. Any later retry policy needs a separately specified
+trusted transition retaining the failed attempt, not an implicit reset.
+
+Late workers may append authenticated matching response facts immutably through a retention
+path, even after their execution lease is stale; they cannot update authoritative progress,
+select a receipt or change a terminal disposition. A current recovery owner may join such
+facts only before terminal/deadline and after all current-state and evidence checks. Retained
+late bytes after terminal remain historical. Repeated identical facts are idempotent;
+conflicting bytes, call ordinals or invocation bindings refuse. Recovery from
+`evidence-retained` never calls the model again. A next model-call ordinal or informed phase
+requires the prior call's validated durable evidence and protocol order under a fresh fenced
+transition; phases/ordinals cannot disguise a replay of an uncertain call.
+
+Operational execution failure is not `VerifiedColdTerminal`. That review type still requires
+an actual valid cold output, observed reads/raw response/telemetry and its authenticated
+bindings. If these are absent, retain operational failure and available partial evidence;
+produce no synthetic cold output, review receipt or passed status. If genuine complete
+cold-only failed/skipped evidence exists, it may use the existing verifier normally. Tests
+must inspect both operational state and absence of selected receipts after bounded failure.
 
 Publish the journal manifest only after all referenced raw evidence is durably retained;
 attest the committed manifest afterward. Resume interrupted retention/signing by immutable
