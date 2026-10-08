@@ -267,6 +267,81 @@ evidence and incomplete or censored phases SHALL prevent admission.
   is absent, unreadable, malformed or mismatched
 - **THEN** the request fails without synthesizing the missing observation
 
+### Requirement: Selected external provider authority
+
+The controller SHALL use GitHub Actions custom artifact attestations as the external journal
+envelope for 2.1 and SHALL require an independently installed versioned provider descriptor.
+The descriptor SHALL bind immutable control repository/workflow identities, signer/source
+digest, issuer, signing and receipt audiences, predicate type/version, trusted roots/verifier,
+retrieval/registration origins, model/protocol/prompt/program pins, retention and verified plan
+entitlement. No absent field SHALL acquire a default from candidate input or ambient state.
+Anthropic Messages API is the recommended execution backend, requiring explicit approved
+model access; a model response SHALL NOT itself authenticate a review.
+
+#### Scenario: Provider configuration lacks authority or entitlement
+
+- **WHEN** any required pin or entitlement is missing, malformed, unreadable or mismatched,
+  or private/internal attestations lack GitHub Enterprise Cloud entitlement
+- **THEN** real dispatch and receipt authentication refuse; legacy bootstrap history remains
+  readable but cannot acquire guessed authority, and no HTTPS broker fallback occurs
+
+#### Scenario: Configured identity drifts
+
+- **WHEN** a dispatch ref resolves to another program, repository/workflow identity changes,
+  or a signed receipt has the wrong issuer, signer digest, predicate version or receipt audience
+- **THEN** no receipt is selected and no new invocation is authorized under the old pin
+
+### Requirement: Authenticated journal mapping and retention
+
+The verifier SHALL authenticate an immutable journal manifest and its exact evidence artifacts
+before returning the existing `VerifiedCompleteReview` or `VerifiedColdTerminal` contract.
+It SHALL bind exact submission and canonical source-evidence digests separately from the
+attested manifest digest and SHALL preserve phase, attempt, registered invocation and actual
+protocol observations. `recordReceipt` SHALL remain the transactional selection/join owner.
+Retrieval SHALL enforce protected origins, resource bounds and credential separation.
+
+#### Scenario: Valid attestation covers incomplete or substituted review
+
+- **WHEN** a signature is valid but submission/source/artifact bytes differ, required raw
+  response/read/telemetry is absent, informed evidence borrows another cold artifact, or a
+  cold-only terminal is relabeled passed or informed
+- **THEN** the mounted receipt owner refuses without changing selected evidence
+
+#### Scenario: Retrieval loses required evidence or changes origin
+
+- **WHEN** an artifact is absent, unreadable, corrupt or expired, or retrieval redirects to an
+  unapproved origin or exceeds its configured bound
+- **THEN** authentication refuses without leaking credentials or treating missing bytes as
+  a successful review; a retained complete journal remains retrievable after process restart
+
+### Requirement: Idempotent external review acceptance
+
+The controller SHALL reserve immutable invocation/effect bytes before dispatch. The protected
+provider registry SHALL accept a matching effect at most once under current authority and
+live lease ownership before any model execution. Duplicate delivery SHALL recover that
+accepted fact. Dispatch acknowledgement, run listings and workflow concurrency alone SHALL
+NOT establish invocation acceptance. Recovery SHALL distinguish authoritative absence from
+unavailable/ambiguous state and preserve bounded retries and historical facts.
+
+#### Scenario: Lost dispatch reply and duplicate workflow run
+
+- **WHEN** the dispatch reply is lost and a duplicate run receives the same effect
+- **THEN** recovery queries its authenticated registry, preserves the exact invocation/payload,
+  and returns the original accepted fact without starting another accepted execution
+
+#### Scenario: Registry is unavailable or acceptance fence changed
+
+- **WHEN** the registry cannot establish absence, effect bytes conflict, or authority/owner/
+  epoch/expiry changes before provider acceptance
+- **THEN** the provider does not start a model call; recovery does not infer absence or grant
+  a stale acknowledgement, while any already accepted historical fact remains retained
+
+#### Scenario: Installed external execution is not yet observed
+
+- **WHEN** local fixture tests pass but independent workflow/model execution, entitlement or
+  durable external journal retrieval has not been observed
+- **THEN** 2.1 remains open and WBS 030.6 remains blocked without a per-PR manual workaround
+
 ### Requirement: Paired review obligations and invocation identity
 
 The frozen evaluation plan SHALL bind a stable `reviewId` to exactly one cold and one

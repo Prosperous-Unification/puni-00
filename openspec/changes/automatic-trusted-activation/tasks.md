@@ -162,6 +162,53 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       The local adapter does not require 2.2 dispatch first. Before real 2.1/2.2 dispatch,
       complete durable effect reservation and lease/attempt recovery under 1.2/3.3, and select
       the independently controlled provider/journal transport and authority through bootstrap.
+- [ ] 2.1a Freeze the selected GitHub attestation provider descriptor and explicit versioned
+      bootstrap binding before real provider adapters. Start with tests:
+      `provider authority has no inferred defaults`, `legacy bootstrap cannot dispatch`, and
+      `private journal requires verified Enterprise Cloud entitlement`. Independently remove
+      each required immutable repository/workflow/signer/issuer/audience/predicate/model/
+      protocol/retrieval/retention/entitlement check (F1/F2); each mounted boundary must fail at
+      its intended assertion. Preserve historical pins/records without guessed migration.
+      External values and credentials are not fixtures to promote into production. Parent
+      1.1/1.2 and 2.1 remain open; no automatic broker fallback or entitlement assumption.
+- [ ] 2.1b Mount read-only attestation retrieval/authentication through `verifyReview` and
+      `recordReceipt`, reusing existing review types. Tests:
+      `attested journal completes only its registered phase`,
+      `manifest digest cannot replace canonical source digest`,
+      `signed incomplete review refuses`, `foreign retrieval cannot receive credentials`, and
+      `held authentication refuses changed authority`. F2/F4/F10 independently remove
+      issuer/root/signer/workflow/digest/audience/predicate and exact submission/source/artifact
+      joins, raw evidence/cold-link guards, origin/bounds checks and post-await authority fence.
+      Cover absent and unreadable artifacts separately; strict verifier output must reject
+      valid signatures for foreign semantic evidence. No dispatch is needed for this slice.
+- [ ] 2.1c Implement GitHub dispatch plus authenticated exact-effect registry query/acceptance
+      after durable 1.2/3.3 reservation and recovery prerequisites. Tests:
+      `lost dispatch reply recovers original invocation`, `duplicate run cannot execute twice`,
+      `unavailable registry is not absence`, `changed workflow ref refuses acceptance`, and
+      `provider acceptance rechecks live ownership`. F3/F10/F11 independently remove immutable
+      payload/target/invocation equality, atomic registry acceptance, authoritative absence,
+      owner/epoch/expiry/current-authority checks, deadline/budget and retained-fact fences.
+      Exercise reopen, held replies, takeover, expiry without takeover and conflicting replay.
+      A workflow run ID alone must not create `ReviewDispatchObservation` acceptance.
+- [ ] 2.1d Mount the protected Anthropic Messages executor and durable journal/attestation
+      writer using administrator-provided model/program/protocol pins. Tests:
+      `informed execution waits for durable cold acknowledgement`,
+      `journal retains actual reads responses and usage`,
+      `interrupted model response cannot become passed review`, and
+      `attestation waits for immutable evidence retention`. F2/F4/F11 independently omit
+      phase order, observed-evidence checks, credential/tool separation, immutable artifact
+      joins and retention-before-signing. Use harmless credential sentinels for isolation;
+      no candidate shell execution or permissive ACP prototype policy. Interrupted append/
+      signing/reply must recover by exact identity without overwriting prior evidence.
+- [ ] 2.1e Prove installed external acceptance after one-time protected control repository,
+      registry, credentials, retention, plan entitlement and trust pins are provisioned.
+      Run `installed reviewer proves the exact invocation` with real cold/informed execution,
+      read authenticated retained evidence after controller restart, and watch wrong signer/
+      candidate-controlled journal substitution refuse. Record API/verifier/program identities,
+      immutable evidence locations/digests, exact commands and RED/GREEN outputs in `verify.md`;
+      add adjacent Proof comments for every changed guard. Fixture-only or unrun external
+      checks remain explicitly unverified. No task here alone completes 2.1, parent 1.1/1.2
+      or 030.6; publication/admission/merge/certification/host requirements remain later tasks.
 - [ ] 2.2 Run selected commands in isolated workers and authenticate measured receipts — tests:
       `installed checks preserve failed and skipped outcomes`,
       `candidate cannot read publisher or mutate journal`; negatives F5/F6 suppress exit/skip
