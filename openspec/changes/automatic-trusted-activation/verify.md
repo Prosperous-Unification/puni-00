@@ -3634,3 +3634,73 @@ automatic-trusted-activation --strict --json` passed 1/1; the same pinned CLI's
 Four-artifact Prettier and `git diff --check` passed. Six relative Markdown links resolved;
 external links were not revalidated. These checks establish document validity only; all new
 behavioral R5 rows remain unrun. No implementation-worktree paths were changed.
+
+### Retained candidate and common freeze input seam (2026-10-08)
+
+The first ordered 2.1d.1.1 implementation slice adds an installed local-source `open` capability.
+It reopens the retained canonical manifest, joins exact request and installed binding, checks
+SHA-1/SHA-256 format and Git `blob <length>\0` identity over every retained SHA-256 raw blob,
+reclassifies against the owned installed policy, and exposes frozen committed metadata plus
+owned-copy exact tuple/blob reads with installed count and checked aggregate-byte ceilings.
+Wrong configured Git object format refuses before ready publication. The new common exhaustive
+freeze and verifier cores consume explicit snapshot, blob-read and relationship-extraction ports;
+the repository-path wrappers remain legacy CLI, explicitly non-authorizing adapters. A real
+temporary Git fixture compared full frozen plan and verifier results, then removed its source
+repository and trapped every `Bun.spawnSync` call during retained freeze. No parser process or
+checkout fallback was invoked. The relationship port in this first seam test is a precomputed
+test oracle, **not** production relationship completeness or a retained historical extractor.
+
+Mounted TDD REDs observed absent owner `open`, absent common freeze/verify seams, acceptance of a
+foreign relationship selection and a canonical reclassification, missing bounded `readBlob`,
+and ready publication under the wrong configured Git format. Each restored GREEN. The real
+fixture also proves borrowed read-byte mutation cannot alter the owned candidate. A separate
+fault mutates only the private cloned bytes and the per-read SHA-256 check refuses them.
+
+The isolated R5 harness `/tmp/activation-retained-r5.ts` replaced one guard per run, captured
+each named Bun test in `/tmp/activation-retained-r5/*.log`, restored the exact source bytes in
+`finally`, and observed 27 accepted exit-1 named failures. Accepted guards: installed format;
+each numeric parser-limit input; five request/binding fields; three manifest/request fields;
+three Git-format fields; prepublication format call; Git blob hash; missing raw map; recursive
+snapshot freeze; missing classification tuple and policy reclassification; path, object and raw
+read joins; missing `readBlob` path; per-read SHA-256; count and aggregate-byte ceilings. The
+initial repository-ID trial was **disqualified** because the later manifest join still refused;
+repackaging the canonical manifest to match the foreign request made its single-guard omission
+return a candidate. The initial raw-tuple trial was **disqualified** because the later digest
+guard still refused; trapping that digest dependency made the missing tuple guard reach a
+distinct injected sentinel. Adjacent `Proof:` comments name the accepted faults. These are
+local capability/seam proofs; no complete producer, history capture, closed compiler/runtime,
+artifact graph, eleven-document freeze, token admission, controller DB/lease, dispatch or
+authentication result is claimed. The 64 KiB candidate manifest remains an unverified
+full-repository capacity limit.
+
+Restored final checks: with `TOOL_WIKI_TRUSTED_NODE_MODULES="$PWD/node_modules"`, the two
+focused Bun files passed 108/108 tests and 299 assertions (38.25 s). Without that explicit
+runtime pin, 18 existing relationship fixtures refused as designed; that run is not counted
+as a behavioral regression or a passing suite. The adjusted one-guard-at-a-time R5 harness
+again observed 27/27 named exit-1 failures after the final style changes. Direct CLI
+`bunx tsc --noEmit --project apps/twilight-structure/twilight-burokrat/cli/tsconfig.json`,
+scoped ESLint over the four changed TypeScript files, and CLI `bun src/packaging/build.ts`
+all exited zero. Pinned OpenSpec strict validation passed 1/1 and `--all` passed 143/143;
+five-file Prettier check and `git diff --check` passed. These are focused checks; the
+host-wide `bin/h2puni-gate.sh <sha>` and CI were not run on this uncommitted review slice.
+
+Astra's format review found that an installed SHA-256 source was fetched into the default
+SHA-1 bare store. A real SHA-256 temp-Git prepare→open→read test was RED with `review
+acquisition Git operation failed or exceeded bound`; initializing the private bare store
+with the validated installed `--object-format` made both real SHA-1 and SHA-256 paths GREEN.
+Removing only that argument again failed the named SHA-256 test (exit 1). The old
+SHA-1-source/SHA-256-installed prepublication test became masked by fetch refusal; it was
+replaced by a successful SHA-256 fetch whose protected reader result was fault-injected
+with a canonical 40-hex tree. Omitting only the post-reader format join then returned and
+published a ready candidate, and its named refusal assertion failed (exit 1); restored
+it refuses before publication. The existing 27-guard matrix was rerun with the corrected
+test and all 27 watched named failures were accepted. The initial masked format trial is
+disqualified; these two independent watches establish the initialization and post-reader
+boundaries separately.
+
+Fresh post-correction checks: pinned-runtime focused Bun suite 110/110 tests, 303 assertions
+(57.55 s); the corrected 27-case omission harness 27/27 named exit-1 watches plus the
+separate bare-init argument omission. Direct CLI typecheck, four-file scoped ESLint, CLI
+build, five-file Prettier, and `git diff HEAD --check` all exited zero. Pinned OpenSpec
+strict validation passed 1/1 and `--all` passed 143/143. Host gate and CI remain unrun
+on the uncommitted slice.

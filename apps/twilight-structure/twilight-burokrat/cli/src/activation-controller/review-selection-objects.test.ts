@@ -23,10 +23,12 @@ import { parseOrThrow } from '@shared/validation';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { ClassificationPolicy } from '../contracts/records';
+import * as contentManifest from '../evidence/content-manifest';
 import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
 import { validateGitHubRepositoryBinding } from './github-source';
 import { createActivationRequest } from './request';
 import { installLocalReviewSource } from './review-selection-objects';
+import * as reviewPreparation from './review-selection-preparation';
 
 const roots: string[] = [];
 afterEach(() => {
@@ -42,7 +44,7 @@ function git(repository: string, ...args: string[]): string {
   return invocation.stdout.toString().trim();
 }
 
-function fixture() {
+function fixture(gitObjectFormat: 'sha1' | 'sha256' = 'sha1') {
   const root = mkdtempSync(join(tmpdir(), 'review-owned-'));
   roots.push(root);
   const sourceRepository = join(root, 'source');
@@ -50,7 +52,7 @@ function fixture() {
   mkdirSync(sourceRepository, { mode: 0o700 });
   mkdirSync(storeBase, { mode: 0o700 });
   chmodSync(storeBase, 0o700);
-  git(sourceRepository, 'init', '--quiet');
+  git(sourceRepository, 'init', '--quiet', `--object-format=${gitObjectFormat}`);
   git(sourceRepository, 'config', 'user.email', 'test@example.invalid');
   git(sourceRepository, 'config', 'user.name', 'Test');
   writeFileSync(join(sourceRepository, 'README.md'), '# exact base\n');
@@ -99,11 +101,396 @@ function fixture() {
     classificationPolicy,
     gitExecutablePath: '/usr/bin/git',
     gitExecutableIdentity: hashBytes(readFileSync('/usr/bin/git')),
+    gitObjectFormat,
     maximumPreparationMs: 10_000,
     maximumCandidateEntries: 10,
     maximumCandidateBytes: 1024,
+    maximumParserReads: 100,
+    maximumParserReadBytes: 10_000,
   };
 }
+
+test.each(['sha1', 'sha256'] as const)(
+  'owned %s object store prepares, reopens, and reads real Git objects',
+  (format) => {
+    const input = fixture(format);
+    const { request, ...configuration } = input;
+    const owner = installLocalReviewSource(configuration);
+    const prepared = owner.prepare(request);
+    const source = prepared.manifest.entries.find(({ path }) => path === 'src.ts');
+    if (source === undefined) throw new Error('fixture source absent');
+    expect(prepared.manifest.headSha).toHaveLength(format === 'sha1' ? 40 : 64);
+    rmSync(input.sourceRepository, { recursive: true });
+    const candidate = owner.open(request, prepared.snapshotIdentity);
+    expect(candidate.read(source.path, source.gitObjectId, source.rawIdentity)).toEqual(
+      Buffer.from('export const exact = 1;\n'),
+    );
+  },
+);
+
+test('installed owner opens an exact retained candidate after the source checkout is removed', () => {
+  const input = fixture();
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource(configuration);
+  const prepared = owner.prepare(request);
+  rmSync(input.sourceRepository, { recursive: true });
+  const open = Reflect.get(owner, 'open');
+  expect(typeof open).toBe('function');
+  const spawn = spyOn(Bun, 'spawnSync').mockImplementation(() => {
+    throw new Error('injected forbidden Git invocation after retention');
+  });
+  let candidate: ReturnType<typeof owner.open>;
+  try {
+    candidate = open(request, prepared.snapshotIdentity);
+  } finally {
+    spawn.mockRestore();
+  }
+  const source = prepared.manifest.entries.find(({ path }) => path === 'src.ts');
+  if (source === undefined) throw new Error('fixture source tuple absent');
+  const expected = Buffer.from('export const exact = 1;\n');
+  expect(candidate.snapshot.selection).toEqual({
+    kind: 'committed',
+    revision: request.headSha,
+    tree: prepared.manifest.tree,
+  });
+  expect(candidate.read(source.path, source.gitObjectId, source.rawIdentity)).toEqual(expected);
+  const readBlob = Reflect.get(candidate, 'readBlob');
+  expect(typeof readBlob).toBe('function');
+  expect(readBlob(source.gitObjectId, source.path)).toEqual(expected);
+  expect(Object.isFrozen(candidate.snapshot.entries[1])).toBe(true);
+  const borrowed = candidate.read(source.path, source.gitObjectId, source.rawIdentity);
+  borrowed[0] = 0;
+  expect(candidate.read(source.path, source.gitObjectId, source.rawIdentity)).toEqual(expected);
+});
+
+test('retained owner refuses a missing raw-map dependency before constructing a candidate', () => {
+  const input = fixture();
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource(configuration);
+  const prepared = owner.prepare(request);
+  const identity = prepared.manifest.entries.at(1)?.rawIdentity;
+  if (identity === undefined) throw new Error('fixture raw identity absent');
+  const original = Object.getOwnPropertyDescriptor(Map.prototype, 'get')?.value as (
+    this: Map<unknown, unknown>,
+    key: unknown,
+  ) => unknown;
+  const lookup = spyOn(Map.prototype, 'get').mockImplementation(function (
+    this: Map<unknown, unknown>,
+    key,
+  ) {
+    if (key === identity) return undefined;
+    return original.call(this, key);
+  });
+  try {
+    expect(() => owner.open(request, prepared.snapshotIdentity)).toThrow('raw blob absent');
+  } finally {
+    lookup.mockRestore();
+  }
+});
+
+test('retained owner refuses a missing classification tuple dependency', () => {
+  const input = fixture();
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource(configuration);
+  const prepared = owner.prepare(request);
+  const original = Object.getOwnPropertyDescriptor(Map.prototype, 'get')?.value as (
+    this: Map<unknown, unknown>,
+    key: unknown,
+  ) => unknown;
+  const lookup = spyOn(Map.prototype, 'get').mockImplementation(function (
+    this: Map<unknown, unknown>,
+    key,
+  ) {
+    if (key === 'src.ts') return undefined;
+    return original.call(this, key);
+  });
+  try {
+    expect(() => owner.open(request, prepared.snapshotIdentity)).toThrow(
+      'classification tuple differs',
+    );
+  } finally {
+    lookup.mockRestore();
+  }
+});
+
+function republishManifest(
+  input: ReturnType<typeof fixture>,
+  prepared: ReturnType<ReturnType<typeof installLocalReviewSource>['prepare']>,
+  manifest: typeof prepared.manifest,
+): string {
+  const bytes = serializeCanonical(manifest);
+  const identity = hashBytes(Buffer.from(bytes));
+  const ready = join(input.storeBase, `ready-${identity}`);
+  cpSync(prepared.readyDirectory, ready, { recursive: true });
+  writeFileSync(join(ready, 'manifest.json'), bytes);
+  return identity;
+}
+
+test('retained owner refuses a canonical tuple naming the wrong Git blob object', () => {
+  const input = fixture();
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource(configuration);
+  const prepared = owner.prepare(request);
+  const altered = structuredClone(prepared.manifest);
+  altered.entries[1].gitObjectId = 'f'.repeat(40);
+  const identity = republishManifest(input, prepared, altered);
+  expect(() => owner.open(request, identity)).toThrow('object identity differs');
+});
+
+test('retained owner refuses a canonical reclassification while raw bytes stay exact', () => {
+  const input = fixture();
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource(configuration);
+  const prepared = owner.prepare(request);
+  const altered = structuredClone(prepared.manifest);
+  altered.entries[1].classification = { kind: 'content', contentClass: 'test' };
+  const identity = republishManifest(input, prepared, altered);
+  expect(() => owner.open(request, identity)).toThrow('classification differs');
+});
+
+test('retained owner refuses a different request head and installed policy pin', () => {
+  const input = fixture();
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource(configuration);
+  const prepared = owner.prepare(request);
+  const { requestIdentity: _identity, ...fields } = request;
+  const moved = createActivationRequest({ ...fields, headSha: request.baseSha }).request;
+  expect(() => owner.open(moved, prepared.snapshotIdentity)).toThrow('manifest differs');
+  const foreign = createActivationRequest({
+    ...fields,
+    policyIdentity: 'c'.repeat(64),
+  }).request;
+  expect(() => owner.open(foreign, prepared.snapshotIdentity)).toThrow('installed binding');
+});
+
+test.each([
+  'repositoryId',
+  'targetRef',
+  'policyIdentity',
+  'mappingIdentity',
+  'toolkitIdentity',
+] as const)('retained owner rejects foreign installed %s before opening', (field) => {
+  const input = fixture();
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource(configuration);
+  const prepared = owner.prepare(request);
+  const { requestIdentity: _identity, ...fields } = request;
+  const foreign = createActivationRequest({
+    ...fields,
+    [field]:
+      field === 'repositoryId'
+        ? 456
+        : field === 'targetRef'
+          ? 'refs/heads/foreign'
+          : 'c'.repeat(64),
+  }).request;
+  const identity =
+    field === 'repositoryId'
+      ? republishManifest(input, prepared, { ...prepared.manifest, repositoryId: 456 })
+      : prepared.snapshotIdentity;
+  expect(() => owner.open(foreign, identity)).toThrow('installed binding');
+});
+
+test.each(['repositoryId', 'headSha', 'baseSha'] as const)(
+  'retained owner rejects a canonical manifest with foreign %s',
+  (field) => {
+    const input = fixture();
+    const { request, ...configuration } = input;
+    const owner = installLocalReviewSource(configuration);
+    const prepared = owner.prepare(request);
+    const altered = structuredClone(prepared.manifest);
+    if (field === 'repositoryId') altered.repositoryId = 456;
+    else altered[field] = 'f'.repeat(40);
+    const identity = republishManifest(input, prepared, altered);
+    expect(() => owner.open(request, identity)).toThrow('manifest differs');
+  },
+);
+
+test('retained owner refuses an installed Git format different from its pinned commit and tree', () => {
+  const input = fixture();
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource(configuration);
+  const prepared = owner.prepare(request);
+  const altered = { ...prepared.manifest, entries: [] };
+  const identity = republishManifest(input, prepared, altered);
+  const sha256Owner = installLocalReviewSource({ ...configuration, gitObjectFormat: 'sha256' });
+  expect(() => sha256Owner.open(request, identity)).toThrow('Git format differs');
+});
+
+test.each(['tree', 'headSha', 'baseSha'] as const)(
+  'retained owner independently refuses a wrong-format %s',
+  (field) => {
+    const input = fixture();
+    const { request, ...configuration } = input;
+    const originalOwner = installLocalReviewSource(configuration);
+    const prepared = originalOwner.prepare(request);
+    const altered = {
+      ...prepared.manifest,
+      headSha: 'a'.repeat(64),
+      baseSha: 'b'.repeat(64),
+      tree: 'c'.repeat(64),
+      entries: [],
+    };
+    altered[field] = 'f'.repeat(40);
+    const identity = republishManifest(input, prepared, altered);
+    const { requestIdentity: _identity, ...fields } = request;
+    const matchingRequest = createActivationRequest({
+      ...fields,
+      headSha: altered.headSha,
+      baseSha: altered.baseSha,
+    }).request;
+    const owner = installLocalReviewSource({ ...configuration, gitObjectFormat: 'sha256' });
+    expect(() => owner.open(matchingRequest, identity)).toThrow('Git format differs');
+  },
+);
+
+test('retained owner rejects unsupported installed Git object format before acquisition', () => {
+  const input = fixture();
+  const malformed = {
+    ...input,
+    gitObjectFormat: 'sha512',
+  } as unknown as Parameters<typeof installLocalReviewSource>[0];
+  expect(() => installLocalReviewSource(malformed)).toThrow('unsupported');
+  expect(readdirSync(input.storeBase)).toEqual([]);
+});
+
+test('acquisition refuses a reader returning a wrong Git object format before ready publication', () => {
+  const input = fixture('sha256');
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource(configuration);
+  const originalReader = reviewPreparation.readOwnedReviewCandidate;
+  const reader = spyOn(reviewPreparation, 'readOwnedReviewCandidate').mockImplementation(
+    (selection) => {
+      const candidate = originalReader(selection);
+      const manifest = { ...candidate.manifest, tree: 'a'.repeat(40) };
+      const manifestBytes = serializeCanonical(manifest);
+      return {
+        ...candidate,
+        manifest,
+        manifestBytes,
+        snapshotIdentity: hashBytes(Buffer.from(manifestBytes)),
+      };
+    },
+  );
+  try {
+    expect(() => owner.prepare(request)).toThrow('Git format differs');
+  } finally {
+    reader.mockRestore();
+  }
+  expect(readdirSync(input.storeBase)).toEqual([]);
+});
+
+test.each(['maximumParserReads', 'maximumParserReadBytes'] as const)(
+  'retained owner refuses invalid installed %s before acquisition',
+  (field) => {
+    const input = fixture();
+    const malformed = { ...input, [field]: Number.NaN };
+    expect(() => installLocalReviewSource(malformed)).toThrow('must be positive');
+    expect(readdirSync(input.storeBase)).toEqual([]);
+  },
+);
+
+test('retained owner refuses each substituted path, Git object, and raw identity on read', () => {
+  const input = fixture();
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource(configuration);
+  const prepared = owner.prepare(request);
+  const candidate = owner.open(request, prepared.snapshotIdentity);
+  const entry = prepared.manifest.entries.at(1);
+  if (entry === undefined) throw new Error('fixture tuple absent');
+  expect(() => candidate.read('other.ts', entry.gitObjectId, entry.rawIdentity)).toThrow(
+    'tuple differs',
+  );
+  expect(() => candidate.read(entry.path, 'f'.repeat(40), entry.rawIdentity)).toThrow(
+    'tuple differs',
+  );
+  expect(() => candidate.read(entry.path, entry.gitObjectId, 'f'.repeat(64))).toThrow(
+    'tuple differs',
+  );
+  expect(() => candidate.readBlob('f'.repeat(40), entry.path)).toThrow('tuple differs');
+  expect(() => candidate.readBlob(entry.gitObjectId, 'absent.ts')).toThrow('path absent');
+});
+
+test('retained raw tuple mismatch refuses before the digest dependency is touched', () => {
+  const input = fixture();
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource(configuration);
+  const prepared = owner.prepare(request);
+  const candidate = owner.open(request, prepared.snapshotIdentity);
+  const entry = prepared.manifest.entries.at(1);
+  if (entry === undefined) throw new Error('fixture tuple absent');
+  const digest = spyOn(contentManifest, 'hashBytes').mockImplementation(() => {
+    throw new Error('injected digest dependency reached');
+  });
+  try {
+    expect(() => candidate.read(entry.path, entry.gitObjectId, 'f'.repeat(64))).toThrow(
+      'tuple differs',
+    );
+    expect(digest).not.toHaveBeenCalled();
+  } finally {
+    digest.mockRestore();
+  }
+});
+
+test('retained read port enforces its installed count and aggregate byte ceilings', () => {
+  const input = fixture();
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource({ ...configuration, maximumParserReads: 1 });
+  const prepared = owner.prepare(request);
+  const candidate = owner.open(request, prepared.snapshotIdentity);
+  const entry = prepared.manifest.entries.at(1);
+  if (entry === undefined) throw new Error('fixture tuple absent');
+  candidate.readBlob(entry.gitObjectId, entry.path);
+  expect(() => candidate.readBlob(entry.gitObjectId, entry.path)).toThrow('read count exceeded');
+
+  const limited = installLocalReviewSource({
+    ...configuration,
+    maximumParserReadBytes: Buffer.byteLength('export const exact = 1;\n') - 1,
+  }).open(request, prepared.snapshotIdentity);
+  expect(() => limited.readBlob(entry.gitObjectId, entry.path)).toThrow(
+    'read byte ceiling exceeded',
+  );
+
+  const aggregate = installLocalReviewSource({
+    ...configuration,
+    maximumParserReadBytes: 30,
+  }).open(request, prepared.snapshotIdentity);
+  const first = prepared.manifest.entries.at(0);
+  if (first === undefined) throw new Error('fixture first tuple absent');
+  aggregate.readBlob(first.gitObjectId, first.path);
+  expect(() => aggregate.readBlob(entry.gitObjectId, entry.path)).toThrow(
+    'read byte ceiling exceeded',
+  );
+});
+
+test('retained read rehash refuses an altered owned byte copy before returning it', () => {
+  const input = fixture();
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource(configuration);
+  const prepared = owner.prepare(request);
+  const original = Uint8Array.from.bind(Uint8Array);
+  let corrupted = false;
+  const clone = spyOn(Uint8Array, 'from').mockImplementation(((bytes: Iterable<number>) => {
+    const copied = original(bytes);
+    if (!corrupted && copied.length === Buffer.byteLength('export const exact = 1;\n')) {
+      copied[0] = 'X'.charCodeAt(0);
+      corrupted = true;
+    }
+    return copied;
+  }) as typeof Uint8Array.from);
+  let candidate: ReturnType<typeof owner.open>;
+  try {
+    candidate = owner.open(request, prepared.snapshotIdentity);
+  } finally {
+    clone.mockRestore();
+  }
+  const entry = prepared.manifest.entries.at(1);
+  if (entry === undefined) throw new Error('fixture tuple absent');
+  expect(corrupted).toBe(true);
+  expect(() => candidate.read(entry.path, entry.gitObjectId, entry.rawIdentity)).toThrow(
+    'read identity differs',
+  );
+});
 
 function read(input: ReturnType<typeof fixture>, snapshotIdentity: string) {
   const { request: _request, ...configuration } = input;

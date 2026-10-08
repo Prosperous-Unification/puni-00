@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import {
   closeSync,
   constants,
@@ -26,6 +27,8 @@ import {
   RelativePath,
 } from '../contracts/records';
 import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
+import { classifyEntries } from '../inventory/classify-entries';
+import type { CandidateSnapshot } from '../inventory/read-candidate';
 import { type GitHubRepositoryBinding, validateGitHubRepositoryBinding } from './github-source';
 import { type ActivationRequest, assertActivationRequest } from './request';
 import { readOwnedReviewCandidate } from './review-selection-preparation';
@@ -95,18 +98,169 @@ export interface LocalReviewAcquisitionInput {
   readonly storeBase: string;
   readonly gitExecutablePath: string;
   readonly gitExecutableIdentity: string;
+  readonly gitObjectFormat: 'sha1' | 'sha256';
   readonly classificationPolicy: ClassificationPolicy;
   readonly maximumPreparationMs: number;
   readonly maximumCandidateEntries: number;
   readonly maximumCandidateBytes: number;
+  readonly maximumParserReads: number;
+  readonly maximumParserReadBytes: number;
 }
 
 const SourceOwnership = Symbol('installed local review source');
+const CandidateOwnership = Symbol('owned retained review candidate');
+
+/** A closed candidate view: reads require the complete retained tuple and return owned bytes. */
+export interface RetainedCandidate {
+  readonly [CandidateOwnership]: true;
+  readonly snapshot: CandidateSnapshot;
+  read(path: string, gitObjectId: string, rawIdentity: string): Uint8Array;
+  readBlob(gitObjectId: string, path: string): Uint8Array;
+}
 
 export interface InstalledLocalReviewSource {
   readonly [SourceOwnership]: true;
   prepare(request: ActivationRequest): ReturnType<typeof prepareRetainedLocalReviewCandidate>;
   read(snapshotIdentity: string): ReturnType<typeof readRetainedReviewCandidate>;
+  open(request: ActivationRequest, snapshotIdentity: string): RetainedCandidate;
+}
+
+function gitBlobIdentity(bytes: Uint8Array, format: 'sha1' | 'sha256'): string {
+  const hash = createHash(format);
+  hash.update(`blob ${String(bytes.length)}\0`);
+  hash.update(bytes);
+  return hash.digest('hex');
+}
+
+function requireGitObjectFormat(
+  selection: { headSha: string; baseSha: string; tree: string },
+  format: 'sha1' | 'sha256',
+): void {
+  const length = format === 'sha1' ? 40 : 64;
+  // Proof: canonical empty-entry retained manifests with only tree, head or base in the
+  // wrong object format each opened when its own comparator was removed; three named tests failed.
+  if (
+    selection.tree.length !== length ||
+    selection.headSha.length !== length ||
+    selection.baseSha.length !== length
+  ) {
+    throw new Error('retained review Git format differs');
+  }
+}
+
+function openRetainedCandidate(
+  input: LocalReviewAcquisitionInput,
+  rawRequest: ActivationRequest,
+  snapshotIdentity: string,
+): RetainedCandidate {
+  const request = assertActivationRequest(rawRequest);
+  const binding = validateGitHubRepositoryBinding(input.binding);
+  // Proof: replacing each comparator independently let the matching foreign request open.
+  // The repository-ID trial also repackaged the manifest to avoid masking by the later join.
+  if (
+    request.repositoryId !== binding.repositoryId ||
+    request.targetRef !== binding.targetRef ||
+    request.policyIdentity !== binding.policyIdentity ||
+    request.mappingIdentity !== binding.mappingIdentity ||
+    request.toolkitIdentity !== binding.toolkitIdentity
+  ) {
+    throw new Error('retained review request differs from installed binding');
+  }
+  const retained = readRetainedReviewCandidate(
+    input.storeBase,
+    snapshotIdentity,
+    input.maximumCandidateBytes,
+  );
+  const { manifest } = retained;
+  // Proof: repackaging one canonical manifest field at a time (repository, head, base)
+  // returned an owned candidate when its matching comparator was removed.
+  if (
+    manifest.repositoryId !== request.repositoryId ||
+    manifest.headSha !== request.headSha ||
+    manifest.baseSha !== request.baseSha
+  ) {
+    throw new Error('retained review manifest differs from request');
+  }
+  requireGitObjectFormat(manifest, input.gitObjectFormat);
+  const byPath = new Map<string, { gitObjectId: string; rawIdentity: string; bytes: Uint8Array }>();
+  for (const entry of manifest.entries) {
+    const raw = retained.rawBlobs.get(entry.rawIdentity);
+    // Proof: injecting a missing raw-map lookup lost this named refusal with the guard removed.
+    if (raw === undefined) throw new Error('retained review raw blob absent');
+    // Proof: a canonical wrong Git blob ID over unchanged SHA-256 bytes opened when this
+    // independent Git-object hash comparison was removed.
+    if (gitBlobIdentity(raw, input.gitObjectFormat) !== entry.gitObjectId) {
+      throw new Error(`retained review object identity differs: ${entry.path}`);
+    }
+    byPath.set(entry.path, {
+      gitObjectId: entry.gitObjectId,
+      rawIdentity: entry.rawIdentity,
+      bytes: Uint8Array.from(raw),
+    });
+  }
+  // Proof: omitting recursive freeze made the real retained snapshot's nested entry mutable.
+  const snapshot: CandidateSnapshot = freezeOwnedDocument({
+    selection: { kind: 'committed' as const, revision: manifest.headSha, tree: manifest.tree },
+    entries: manifest.entries.map(({ path, mode, gitObjectId }) => ({
+      path,
+      mode,
+      blob: gitObjectId,
+    })),
+    untracked: [] as string[],
+  });
+  const classified = classifyEntries(snapshot.entries, input.classificationPolicy, (blob, path) => {
+    const entry = byPath.get(path);
+    // Proof: an injected missing path lookup lost the classification-tuple refusal when omitted.
+    if (entry?.gitObjectId !== blob)
+      throw new Error(`retained review classification tuple differs: ${path}`);
+    return entry.bytes;
+  });
+  for (const [index, entry] of classified.entries()) {
+    // Proof: a canonical manifest relabeling exact source bytes as test opened when the
+    // installed-policy reclassification comparison was removed.
+    if (
+      serializeCanonical(entry.classification) !==
+      serializeCanonical(manifest.entries[index]?.classification)
+    )
+      throw new Error(`retained review classification differs: ${entry.path}`);
+  }
+  let readCount = 0;
+  let readBytes = 0;
+  const read = (path: string, gitObjectId: string, rawIdentity: string): Uint8Array => {
+    const entry = byPath.get(path);
+    // Proof: substituting path or Git object lost the named tuple refusal when each guard
+    // was removed; a wrong raw identity reached an injected digest trap if its join was removed.
+    if (entry?.gitObjectId !== gitObjectId || entry.rawIdentity !== rawIdentity) {
+      throw new Error(`retained review tuple differs: ${path}`);
+    }
+    // Proof: corrupting only the private cloned source bytes returned the altered bytes
+    // when this per-read rehash was removed; the named read-identity test failed.
+    if (hashBytes(entry.bytes) !== rawIdentity) {
+      throw new Error(`retained review read identity differs: ${path}`);
+    }
+    // Proof: a two-read fixture returned its second read when this installed count bound was removed.
+    if (readCount >= input.maximumParserReads)
+      throw new Error('retained review read count exceeded');
+    const nextBytes = readBytes + entry.bytes.length;
+    // Proof: a source larger than the installed aggregate byte ceiling was returned
+    // when this checked-arithmetic/ceiling guard was removed.
+    if (!Number.isSafeInteger(nextBytes) || nextBytes > input.maximumParserReadBytes)
+      throw new Error('retained review read byte ceiling exceeded');
+    readCount += 1;
+    readBytes = nextBytes;
+    return Uint8Array.from(entry.bytes);
+  };
+  return Object.freeze({
+    [CandidateOwnership]: true,
+    snapshot,
+    read,
+    readBlob(gitObjectId: string, path: string): Uint8Array {
+      const entry = byPath.get(path);
+      // Proof: an absent path lost its named refusal when this adapter guard was removed.
+      if (entry === undefined) throw new Error(`retained review path absent: ${path}`);
+      return read(path, gitObjectId, entry.rawIdentity);
+    },
+  });
 }
 
 function freezeOwnedDocument<T extends object>(document: T): Readonly<T> {
@@ -130,6 +284,19 @@ export function installLocalReviewSource(
   const classificationPolicy = freezeOwnedDocument(
     parseOrThrow(ClassificationPolicy, structuredClone(configuration.classificationPolicy)),
   );
+  // Proof: deleting the format grammar installed sha512 and left the store empty only
+  // because no request was made; the installation refusal test failed on the returned owner.
+  const format: unknown = configuration.gitObjectFormat;
+  if (format !== 'sha1' && format !== 'sha256') {
+    throw new Error('review local Git object format is unsupported');
+  }
+  for (const [label, value] of [
+    ['parser read count', configuration.maximumParserReads],
+    ['parser read bytes', configuration.maximumParserReadBytes],
+  ] as const) {
+    // Proof: replacing this check accepted NaN in each named installed parser limit.
+    if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${label} must be positive`);
+  }
   requirePrivateDirectory(configuration.storeBase, 'review object store');
   requireLocalSource(configuration.sourceRepository);
   const installed = Object.freeze({ ...configuration, binding, classificationPolicy });
@@ -143,6 +310,8 @@ export function installLocalReviewSource(
         snapshotIdentity,
         installed.maximumCandidateBytes,
       ),
+    open: (request: ActivationRequest, snapshotIdentity: string) =>
+      openRetainedCandidate(installed, request, snapshotIdentity),
   });
 }
 
@@ -447,7 +616,15 @@ function prepareRetainedLocalReviewCandidate(
     requirePrivateDirectory(pending, 'pending review directory');
     const gitDirectory = join(pending, 'git');
     mkdirSync(gitDirectory, { mode: 0o700 });
-    invokeGit(['init', '--bare', '--quiet', gitDirectory]);
+    // Proof: removing only the pinned object-format argument made real SHA-256
+    // prepare→open→read fail at fetch; the named SHA-256 test was RED.
+    invokeGit([
+      'init',
+      '--bare',
+      '--quiet',
+      `--object-format=${input.gitObjectFormat}`,
+      gitDirectory,
+    ]);
     invokeGit([
       `--git-dir=${gitDirectory}`,
       'fetch',
@@ -472,6 +649,9 @@ function prepareRetainedLocalReviewCandidate(
       maximumCandidateEntries: input.maximumCandidateEntries,
       maximumCandidateBytes: input.maximumCandidateBytes,
     });
+    // Proof: injecting a canonical SHA-1 tree in the reader result after a real SHA-256
+    // fetch published it when this join was removed; the named ready-store test failed.
+    requireGitObjectFormat(candidate.manifest, input.gitObjectFormat);
     if (performance.now() > deadline) throw new Error('review acquisition deadline exceeded');
     rmSync(gitDirectory, { recursive: true });
     const blobDirectory = join(pending, 'sha256');

@@ -3,8 +3,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { parseOrThrow } from '@shared/validation';
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 
+import { validateGitHubRepositoryBinding } from '../activation-controller/github-source';
+import { createActivationRequest } from '../activation-controller/request';
+import { installLocalReviewSource } from '../activation-controller/review-selection-objects';
 import { ClassificationPolicy, RelationshipRequest } from '../contracts/records';
 import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
 import { type ClassifiedEntry, classifyEntries } from '../inventory/classify-entries';
@@ -18,12 +21,131 @@ import {
   type ExhaustiveFreezeDocuments,
   type ExhaustivePlan,
   freezeExhaustivePlan,
+  freezeExhaustivePlanFromSource,
   verifyExhaustivePlan,
 } from './exhaustive-coverage';
 import type { ReviewEvidence } from './protocol';
 
 const SHA_A = 'a'.repeat(40);
 const roots: string[] = [];
+
+test('common freeze core uses only explicit retained input ports after Git metadata is gone', async () => {
+  const coverage = await import('./exhaustive-coverage');
+  const freezeFromSource = Reflect.get(coverage, 'freezeExhaustivePlanFromSource');
+  const verifyFromSource = Reflect.get(coverage, 'verifyExhaustivePlanFromSource');
+  expect(typeof freezeFromSource).toBe('function');
+  expect(typeof verifyFromSource).toBe('function');
+  const fixture = repositoryFixture();
+  const snapshot = readCandidate(fixture.repository, {
+    kind: 'committed',
+    revision: fixture.revision,
+  });
+  const request = parseOrThrow(RelationshipRequest, fixture.documents.relationshipRequest.input);
+  const relationships = extractRelationships(fixture.repository, snapshot, request);
+  const expected = freezeExhaustivePlan(
+    fixture.repository,
+    fixture.revision,
+    fixture.documents,
+    'seed.retained',
+  );
+  const storeBase = mkdtempSync(join(tmpdir(), 'review-exhaustive-retained-'));
+  roots.push(storeBase);
+  const pin = 'a'.repeat(64);
+  const binding = validateGitHubRepositoryBinding({
+    repositoryId: 123,
+    owner: 'example',
+    name: 'review',
+    targetRef: 'refs/heads/main',
+    policyIdentity: pin,
+    mappingIdentity: pin,
+    toolkitIdentity: pin,
+    readDeadlineMs: 10_000,
+  });
+  const { request: activationRequest } = createActivationRequest({
+    repositoryId: binding.repositoryId,
+    subject: { kind: 'pull-request', number: 7 },
+    targetRef: binding.targetRef,
+    headSha: fixture.revision,
+    baseSha: fixture.revision,
+    policyIdentity: pin,
+    mappingIdentity: pin,
+    toolkitIdentity: pin,
+    authorityIdentity: 'b'.repeat(64),
+    auditGeneration: 1,
+  });
+  const owner = installLocalReviewSource({
+    binding,
+    sourceRepository: fixture.repository,
+    storeBase,
+    gitExecutablePath: '/usr/bin/git',
+    gitExecutableIdentity: hashBytes(readFileSync('/usr/bin/git')),
+    gitObjectFormat: 'sha1',
+    classificationPolicy: parseOrThrow(
+      ClassificationPolicy,
+      fixture.documents.classificationPolicy.input,
+    ),
+    maximumPreparationMs: 10_000,
+    maximumCandidateEntries: 100,
+    maximumCandidateBytes: 100_000,
+    maximumParserReads: 100,
+    maximumParserReadBytes: 100_000,
+  });
+  const prepared = owner.prepare(activationRequest);
+  const retained = owner.open(activationRequest, prepared.snapshotIdentity);
+  expect(retained.snapshot).toEqual(snapshot);
+  rmSync(fixture.repository, { recursive: true });
+  const source = {
+    snapshot: retained.snapshot,
+    readBlob: (blob: string, path: string) => retained.readBlob(blob, path),
+    extractRelationships: (selected: RelationshipRequest) => {
+      expect(selected).toEqual(request);
+      return relationships;
+    },
+  };
+  const spawn = spyOn(Bun, 'spawnSync').mockImplementation(() => {
+    throw new Error('injected forbidden Git invocation during retained freeze');
+  });
+  try {
+    expect(freezeFromSource(source, fixture.documents, 'seed.retained')).toEqual(expected);
+    expect(
+      verifyFromSource(
+        source,
+        expected.identity,
+        expected.plan,
+        fixture.documents,
+        'seed.retained',
+      ),
+    ).toEqual(expected);
+    expect(spawn).not.toHaveBeenCalled();
+  } finally {
+    spawn.mockRestore();
+  }
+});
+
+test('common freeze refuses relationship selectors from a different committed selection', () => {
+  const fixture = repositoryFixture();
+  const snapshot = readCandidate(fixture.repository, {
+    kind: 'committed',
+    revision: fixture.revision,
+  });
+  const request = parseOrThrow(RelationshipRequest, fixture.documents.relationshipRequest.input);
+  const relationships = extractRelationships(fixture.repository, snapshot, request);
+  const foreign = {
+    ...relationships,
+    selection: { kind: 'committed' as const, revision: 'a'.repeat(40), tree: 'b'.repeat(40) },
+  };
+  expect(() =>
+    freezeExhaustivePlanFromSource(
+      {
+        snapshot,
+        readBlob: (_blob, path) => readFileSync(join(fixture.repository, path)),
+        extractRelationships: () => foreign,
+      },
+      fixture.documents,
+      'seed.foreign',
+    ),
+  ).toThrow('relationship selection differs');
+});
 
 test('real committed candidate retains exact authoritative subject preimages', () => {
   const fixture = repositoryFixture();

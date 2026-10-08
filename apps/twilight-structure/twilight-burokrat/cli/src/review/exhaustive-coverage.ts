@@ -699,10 +699,18 @@ function assertDocumentBinding(
   }
 }
 
-/** Reads immutable candidate B and freezes its independently derived exhaustive review universe. */
-export function freezeExhaustivePlan(
-  repository: string,
-  revision: string,
+/** Explicit non-authorizing inputs shared by the CLI and protected retained producer. */
+export interface ExhaustiveFreezeSource {
+  readonly snapshot: CandidateSnapshot;
+  readonly readBlob: ReadBlob;
+  readonly extractRelationships: (
+    request: RelationshipRequest,
+  ) => ReturnType<typeof extractRelationships>;
+}
+
+/** Freezes one candidate from explicit bytes and extraction ports; the caller owns their authority. */
+export function freezeExhaustivePlanFromSource(
+  source: ExhaustiveFreezeSource,
   documents: ExhaustiveFreezeDocuments,
   auditSeed: string,
 ): FrozenExhaustivePlan {
@@ -747,7 +755,7 @@ export function freezeExhaustivePlan(
   const artifactGraph = decodeInput('artifactGraph', documents.artifactGraph, (input) =>
     parseOrThrow(ArtifactGraph, input),
   );
-  const snapshot = readCandidate(repository, { kind: 'committed', revision });
+  const snapshot = source.snapshot;
   if (snapshot.selection.kind !== 'committed') {
     throw new Error('exhaustive freeze requires an immutable committed candidate');
   }
@@ -790,7 +798,7 @@ export function freezeExhaustivePlan(
   const classifiedEntries = classifyEntries(
     snapshot.entries,
     classificationPolicy,
-    readBlob(repository),
+    source.readBlob,
   );
   const candidate = {
     selection: snapshot.selection,
@@ -798,7 +806,12 @@ export function freezeExhaustivePlan(
     untracked: snapshot.untracked,
     policyId: classificationPolicy.policyId,
   };
-  const relationships = extractRelationships(repository, snapshot, relationshipRequest);
+  const relationships = source.extractRelationships(relationshipRequest);
+  // Proof: substituting selectors carrying a different committed revision/tree let the
+  // explicit-port freeze return a complete plan; the foreign-selection test was RED.
+  if (hashCanonical(relationships.selection) !== hashCanonical(snapshot.selection)) {
+    throw new Error('exhaustive relationship selection differs from candidate');
+  }
   if (
     hashCanonical(relationships.manifestInputs.relationshipInputs) !==
       hashCanonical(contentRequest.relationshipInputs) ||
@@ -814,7 +827,7 @@ export function freezeExhaustivePlan(
   );
   // Proof: retaining B's graph after a valid evidence-only commit made this production freeze
   // fail with "artifact descriptor differs from selected evidence" while content identity held.
-  const evidence = validateArtifacts(candidate, artifactGraph, readBlob(repository));
+  const evidence = validateArtifacts(candidate, artifactGraph, source.readBlob);
   const projects = [
     ...nxProjects(relationships),
     ...exhaustivePolicy.nonNxProjects.map(({ projectId, locator }) => ({ projectId, locator })),
@@ -885,27 +898,41 @@ export function freezeExhaustivePlan(
   return { plan, bytes, identity: hashBytes(bytes) };
 }
 
+/** Legacy CLI adapter; it reads a repository path and grants no controller authority. */
+export function freezeExhaustivePlan(
+  repository: string,
+  revision: string,
+  documents: ExhaustiveFreezeDocuments,
+  auditSeed: string,
+): FrozenExhaustivePlan {
+  const snapshot = readCandidate(repository, { kind: 'committed', revision });
+  return freezeExhaustivePlanFromSource(
+    {
+      snapshot,
+      readBlob: readBlob(repository),
+      extractRelationships: (request) => extractRelationships(repository, snapshot, request),
+    },
+    documents,
+    auditSeed,
+  );
+}
+
 function subjectLabel(subject: ExhaustiveSubject): string {
   const locator =
     subject.locator.kind === 'repository-root' ? 'repository-root' : subject.locator.path;
   return `${subject.kind}:${locator}`;
 }
 
-/** Independently recomputes candidate B and refuses any serialized population or binding drift. */
-export function verifyExhaustivePlan(
-  repository: string,
+/** Recomputes the same closed input ports and refuses population or binding drift. */
+export function verifyExhaustivePlanFromSource(
+  source: ExhaustiveFreezeSource,
   expectedIdentity: string,
   submitted: unknown,
   documents: ExhaustiveFreezeDocuments,
   auditSeed: string,
 ): FrozenExhaustivePlan {
   const submittedPlan = parseOrThrow(ExhaustivePlan, submitted);
-  const recomputed = freezeExhaustivePlan(
-    repository,
-    submittedPlan.source.commit,
-    documents,
-    auditSeed,
-  );
+  const recomputed = freezeExhaustivePlanFromSource(source, documents, auditSeed);
   const submittedSubjects = new Map(
     submittedPlan.subjects.map((subject) => [subject.subjectId, subject]),
   );
@@ -933,6 +960,32 @@ export function verifyExhaustivePlan(
     );
   }
   return recomputed;
+}
+
+/** Legacy CLI verifier; the repository adapter is not an activation authority. */
+export function verifyExhaustivePlan(
+  repository: string,
+  expectedIdentity: string,
+  submitted: unknown,
+  documents: ExhaustiveFreezeDocuments,
+  auditSeed: string,
+): FrozenExhaustivePlan {
+  const submittedPlan = parseOrThrow(ExhaustivePlan, submitted);
+  const snapshot = readCandidate(repository, {
+    kind: 'committed',
+    revision: submittedPlan.source.commit,
+  });
+  return verifyExhaustivePlanFromSource(
+    {
+      snapshot,
+      readBlob: readBlob(repository),
+      extractRelationships: (request) => extractRelationships(repository, snapshot, request),
+    },
+    expectedIdentity,
+    submittedPlan,
+    documents,
+    auditSeed,
+  );
 }
 
 /** Replaces caller-claimed review population with the frozen exhaustive population. */
