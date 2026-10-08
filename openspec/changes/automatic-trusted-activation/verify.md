@@ -3457,3 +3457,39 @@ Fresh correction checks: pinned OpenSpec strict passed 1/1; all passed 143/143, 
 (`/tmp/selector-reduction-all.json`). Four-artifact Prettier and `git diff --check` passed.
 Relative Markdown file-link scan found no unresolved targets in these four artifacts; it does
 not validate external URLs. These are document checks only; every reduction R5 row is unrun.
+
+### Complete retained-content producer architecture amendment (2026-10-08)
+
+Read-only callsite audit used implementation HEAD `722e095445b7be64497cb271fb95f5a01aa2774b`.
+The freeze wrapper, relationship Git batch materializer and historical/hash-object declaration
+paths still depend on a repository; TypeScript uses ambient/default hosts and runtime module
+selection. Existing artifact validation checks caller-supplied edges/roots, not field-derived
+completeness. Review rawResponseArtifact hashes payload bytes, not an opaque container. These
+are observed source constraints, not completed adapter behavior. This docs-only amendment makes
+all historical inputs, closed compiler/runtime reads and deterministic artifact derivation
+required work in the same eleven-document producer; it does not reduce the route to head-only.
+
+| Planned R5 boundary       | Independent injected fault and intended assertion                                                                                                    | Evidence |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Retained source ownership | Substitute tuple/raw identity or mutate caller bytes; exact source projection refuses or stays unchanged                                             | Unrun    |
+| No checkout fallback      | Poison/remove original source and trap Git/ambient file reads during mounted retained extraction; zero forbidden reads and identical retained result | Unrun    |
+| Historical closure        | Drop selector, substitute head/base, alter commit/tree edge/blob or exceed capture bound; no complete preparation selected                           | Unrun    |
+| Runtime/compiler boundary | Replace ambient modules, dependency bytes, config/import/type path or effective symlink target; refusal occurs before sentinel read                  | Unrun    |
+| Bounded parser            | Remove read/output/deadline/cancellation/cleanup guard; named finite-settlement/no-publication assertion fails                                       | Unrun    |
+| Graph semantics           | Treat payload digest as container, mismatch invocation, omit actual/required edge/root or accept false-empty census; independent derivation refuses  | Unrun    |
+| Graph semantic non-edges  | Treat protocol/context hash or opaque payload text as a dependency; exact graph parity assertion fails                                               | Unrun    |
+| All eleven inputs         | Omit/alter one document or preparation provenance join; freeze/reopen/source-projection parity refuses                                               | Unrun    |
+| Atomic replay             | Hold work through owner/policy/runtime change or partial persistence; no stale selection, repair or dispatch                                         | Unrun    |
+
+No source implementation, behavioral omission trial, provider, host gate or CI ran for this
+amendment. Full-repository manifest/history/graph/runtime/document capacity and token fit remain
+unverified; the current 64 KiB candidate-manifest limit is not accepted as repository fit.
+External raw responses without the specified committed container are an explicit graph-policy
+compatibility refusal, not invented selected artifacts. All associated implementation tasks stay open.
+
+Fresh document validation: `bunx @fission-ai/openspec@1.12.0 validate
+automatic-trusted-activation --strict --json` passed 1/1; the same pinned CLI's
+`validate --all --json` passed 143/143, zero failures (`/tmp/retained-producer-all.json`).
+Four-artifact Prettier and `git diff --check` passed. Six relative Markdown links resolved;
+external links were not revalidated. These checks establish document validity only; all new
+behavioral R5 rows remain unrun. No implementation-worktree paths were changed.

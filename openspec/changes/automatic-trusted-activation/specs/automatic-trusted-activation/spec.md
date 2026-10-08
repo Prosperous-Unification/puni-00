@@ -509,6 +509,70 @@ Long preparation SHALL precede an atomic, current-owner-fenced freeze transactio
   dispatch whose selection digest differs from its frozen pair
 - **THEN** refuse without rebuilding evidence from current checkout or repairing old payloads
 
+### Requirement: Complete retained-content extraction
+
+The installed producer SHALL derive all eleven freeze documents and their source projections
+from a closed retained candidate, every policy-declared historical input and an independently
+pinned compiler/dependency closure. Candidate/history reads SHALL NOT use ambient filesystem,
+Git, current checkout or network fallback. Exact historical commit/tree/path/blob proof and
+selector completeness SHALL precede extraction. Head-only support SHALL NOT replace required
+historical selectors. All objects, parser work and documents SHALL obey installed finite bounds.
+
+#### Scenario: Historical authority differs from head and base
+
+- **WHEN** an installed declaration selects a third exact commit's path with bytes different
+  from the same path at head/base
+- **THEN** capture and retain its exact commit/tree/blob proof before extraction; source removal
+  and replay preserve those bytes and the existing selector meaning
+
+#### Scenario: Historical closure is unavailable or substituted
+
+- **WHEN** a required commit/path/proof is absent, a tree edge or blob differs, the declared
+  selector set is shrunk or a capture bound expires
+- **THEN** refuse with the named historical failure and select no complete preparation;
+  neither head bytes nor an empty history manifest can substitute
+
+#### Scenario: Compiler resolution attempts an ambient read
+
+- **WHEN** config extends, imports, types, symlinks or dependency metadata resolve outside the
+  retained candidate and pinned runtime namespaces, or ambient dependency configuration changes
+- **THEN** refuse before any outside read; legitimate absent probes inside the closed namespace
+  remain modeled absence and complete read observations bind the actual selected bytes
+
+#### Scenario: All documents survive retained replay
+
+- **WHEN** the producer is reopened after its original checkout and acquired Git store are gone
+- **THEN** all eleven documents, exact bindings, exhaustive obligations and source projections
+  recompute from retained bytes; corrupt input or stale ownership commits no partial selection
+
+### Requirement: Derived artifact dependency semantics
+
+The installed producer SHALL derive exact artifact descriptors, dependency edges and roots
+from every retained evidence record plus its pinned versioned graph recipe. Semantic hashes
+SHALL NOT be guessed as graph references. Review raw-response payload hashes SHALL resolve to
+exact retained container identities under the declared rule. Independent derivation SHALL reject
+missing, foreign, ambiguous and false-empty graphs even when a caller graph passes structural
+validation. Empty graphs SHALL require an actually empty evidence census.
+
+#### Scenario: Payload digest differs from container artifact digest
+
+- **WHEN** a review receipt names its raw response payload and a matching opaque transcript
+- **THEN** the edge targets the transcript artifact's exact byte digest after invocation/payload
+  checks; a payload digest, another invocation or missing/ambiguous transcript refuses
+
+#### Scenario: Semantic identities look like artifact hashes
+
+- **WHEN** inventory/protocol/executor/context or opaque payload fields contain digest-shaped values
+- **THEN** apply the exact pinned per-record mapping; no fabricated edge or recursively parsed
+  opaque payload enters the graph
+
+#### Scenario: A plausible caller graph omits required structure
+
+- **WHEN** a graph drops an evidence record, required intrinsic/installed edge or derived root,
+  adds a foreign node, or claims empty evidence despite retained records
+- **THEN** independent derivation refuses before freeze even if remaining descriptors and
+  references are structurally valid
+
 ### Requirement: Complete deterministic partition coverage
 
 The versioned selector SHALL partition the full original exhaustive obligation into bounded
