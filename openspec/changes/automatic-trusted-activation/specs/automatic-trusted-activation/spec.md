@@ -516,7 +516,8 @@ whole duties without dropping resources or relationship endpoints. Each shard SH
 own immutable paired review and registered partition/selection identities. An indivisible
 oversized duty SHALL refuse. Only exact complete current passing shard evidence SHALL produce
 a controller-derived coverage certificate. Multi-shard coverage SHALL require global synthesis;
-until its separate protocol exists it SHALL NOT satisfy the original review or verified join.
+only a complete authenticated reduction DAG and terminal synthesis certificate SHALL satisfy
+the original review or verified join. This change SHALL implement that bounded protocol.
 
 #### Scenario: Partition omits a resource or crossing relationship
 
@@ -540,6 +541,58 @@ until its separate protocol exists it SHALL NOT satisfy the original review or v
 - **WHEN** a shard is missing/failed/skipped/foreign/stale, or ownership changes during certificate
   construction, or its selection transaction rolls back
 - **THEN** no complete certificate authority commits and existing evidence remains immutable
+
+### Requirement: Bounded authenticated recursive synthesis
+
+For a multi-shard original obligation, the controller SHALL freeze a deterministic reduction
+DAG covering every leaf and every crossing relationship duty. Each crossing relationship SHALL
+review its complete retained fact/endpoints with authenticated endpoint-leaf evidence. Recursive
+reducers SHALL consume exact authenticated child reports under installed fan-in/depth/node,
+resource, token and aggregate execution limits. Every node SHALL perform a real paired review
+under the versioned synthesis protocol. Reports SHALL retain judgments, rationale and actual
+input citations; unsigned summaries and pass-only aggregation SHALL NOT authorize synthesis.
+
+#### Scenario: Many documents require multiple reducer levels
+
+- **WHEN** the complete original documentation and relationship inventory exceeds one review
+  and one reducer fan-in, while indivisible duties and installed aggregate limits fit
+- **THEN** deterministic bounded leaves and recursive reducers cover every original duty;
+  all current authenticated passing node pairs and a passing global root produce the terminal
+  certificate without sampling, truncation or a per-PR operator step
+
+#### Scenario: Crossing relationship disappears in aggregation
+
+- **WHEN** a DAG omits a crossing-duty node, substitutes endpoint ownership, drops a child or
+  uses an unreachable/cyclic node to claim coverage
+- **THEN** independent validation against the original partition and graph refuses authority
+  despite all remaining leaf receipts passing
+
+#### Scenario: A child report is unauthenticated or adverse
+
+- **WHEN** a parent sees an unsigned summary, digest-only placeholder, altered report,
+  missing/foreign/stale selected pair, failed judgment or unresolved child finding
+- **THEN** parent materialization or receipt acceptance refuses without synthesizing a pass
+  and the original evidence remains retained
+
+#### Scenario: Ready reducer inputs change or freeze rolls back
+
+- **WHEN** a selected child attempt or owner changes during held materialization, a selection
+  insert fails, or restart finds different projection bytes for a ready node
+- **THEN** no partial or stale parent dispatch authority commits; exact replay never repairs
+  immutable selections, and changed children require explicit fenced replanning
+
+#### Scenario: Root discovers conflict after all leaves pass
+
+- **WHEN** every leaf passes but a relationship reviewer or final global reducer fails
+- **THEN** no terminal coverage-and-synthesis certificate or request verification is selected
+  and passing children cannot waive the adverse global result
+
+#### Scenario: A reduction or report cannot fit
+
+- **WHEN** an indivisible relationship, two worst-case child reports, actual request token
+  preflight, depth/node/call/deadline budget or terminal certificate exceeds installed limits
+- **THEN** refuse the named bound without omitting evidence, silently changing policy,
+  looping singleton reducers or manufacturing successful completion
 
 ### Requirement: Estimated actual-request token admission
 

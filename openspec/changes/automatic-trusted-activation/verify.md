@@ -3397,8 +3397,8 @@ not a completed protected selector run or production-policy classification accep
 
 The amendment preserves complete original resource/relationship duties, defines deterministic
 whole-duty shards and complete coverage certificates, and requires global synthesis for every
-multi-shard original obligation. Its separate synthesis protocol is not implemented; coverage
-alone cannot clear the original review or WBS 030.6. Actual-request count API observations are
+multi-shard original obligation. The follow-up below specifies recursive synthesis within this
+change; it remains unimplemented, and coverage alone cannot clear the original review or WBS 030.6. Actual-request count API observations are
 estimates, with explicit headroom and separate actual-usage refusal; no accurate local Claude
 tokenizer or provider credential has been provisioned by this work.
 
@@ -3425,3 +3425,35 @@ The first four-path Prettier check identified a multiline inline-code span in ta
 rewritten on one line and formatting rerun. Final four-path Prettier, `git diff --check` and repeated strict/all OpenSpec checks passed
 on the complete recorded amendment before commit. These checks validate docs;
 they do not constitute any R5 behavioral proof or live provider acceptance.
+
+### Recursive synthesis architecture correction (2026-10-08)
+
+The preceding partition amendment's indefinite synthesis deferral is superseded. This docs-only
+correction makes authenticated recursive reduction, crossing-duty review and terminal global
+certification required implementation work in this change. It keeps every original raw duty;
+root reasoning consumes authenticated retained child reports, not all raw bytes in one context.
+Neither mathematical model-quality assurance nor real-repository/provider acceptance is claimed.
+The 1,722-document observation motivates a multi-level test; it is not proof that installed byte,
+model, aggregate cost/time or certificate limits fit. Limits and external identities remain pinned
+bootstrap inputs, and no provider was called or configured.
+
+| Planned R5 boundary         | Independent fault and required production-path assertion                                                                                       | Evidence |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Complete DAG                | Drop raw duty, leaf, crossing relationship or root reachability; independent original-plan closure refuses                                     | Unrun    |
+| Deterministic bounded graph | Change owner/order, allow cycle, singleton loop, fan-in/depth/node/reservation/certificate overflow; exact graph/fit assertions fail           | Unrun    |
+| Child authority             | Replace actual authenticated report with unsigned summary, hash-only placeholder, foreign or failed receipt; parent authority stays absent     | Unrun    |
+| Report fidelity             | Omit input/read/citation/judgment binding or report cap; actual report acceptance refuses                                                      | Unrun    |
+| Delayed materialization     | Omit owner/lease/selected-child fence during held retrieval, atomic insert or no-repair check; stale send/partial row assertion fails          | Unrun    |
+| Cold and informed isolation | Expose child evidence cold or omit direct endpoint/child reads informed; exact phase-read assertions fail                                      | Unrun    |
+| Execution convergence       | Remove persisted aggregate call/deadline/uncertainty guard or prune failed node; bounded refusal and no synthetic receipt assertions fail      | Unrun    |
+| Terminal authority          | Accept all-leaf passes with failed root/crossing node, or substitute V1 intermediate certificate; original-review/verified join remains absent | Unrun    |
+
+All tasks and behavioral proofs remain unchecked. Documentation checks are recorded below only
+after fresh execution. No implementation, worker, host gate, CI, external review or activation
+acceptance is claimed. The follow-up is prepared on the isolated planning branch for local architecture review; no
+implementation-worktree files are changed.
+
+Fresh correction checks: pinned OpenSpec strict passed 1/1; all passed 143/143, zero failures
+(`/tmp/selector-reduction-all.json`). Four-artifact Prettier and `git diff --check` passed.
+Relative Markdown file-link scan found no unresolved targets in these four artifacts; it does
+not validate external URLs. These are document checks only; every reduction R5 row is unrun.

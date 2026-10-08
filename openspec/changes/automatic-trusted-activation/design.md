@@ -841,6 +841,7 @@ canonical installed configuration is exactly:
   relationshipRecipeIdentity: Digest,
   extractorRuntimeIdentity: Digest,
   preflightPolicyIdentity: Digest,
+  reductionPolicyIdentity: Digest,
   maximumShardsPerObligation: Positive,
   maximumTotalShards: Positive,
   configurationPaths: RelativePath[],
@@ -1042,16 +1043,155 @@ or foreign shards refuse complete certification. Retain failed/partial evidence 
 manufacturing this certificate. Bound certificate bytes to 4 MiB and recheck all receipt joins
 inside the short owner transaction that selects its digest; rollback cannot partially select it.
 
-Cross-shard global synthesis **is required for any original obligation with more than one
-shard**. Its certificate must say `synthesis: 'required'` and does not satisfy the original
-whole-subject review or the request's verified join. One-shard coverage says `not-required`
-and may satisfy the original review only through existing receipt checks. Multi-shard global
-synthesis remains refused pending a separately specified and verified bounded reduction-review
-protocol. That protocol must bind real child evidence, cross-shard relationships, reducer
-inputs/receipts and owner-fenced delayed materialization; placeholder summaries or a boolean
-waiver are not a substitute. This amendment authorizes preparation and faithful distributed
-coverage, not a claim that isolated shard passes prove global judgments. 2.1/030.6 remain open
-where synthesis is required.
+##### Authenticated recursive synthesis in this change
+
+Cross-shard global synthesis **is required for every multi-shard original obligation** and
+is implemented by the following bounded reduction protocol in this change. Leaf coverage
+certificates remain intermediate evidence; they cannot satisfy the original obligation.
+One-shard obligations keep the existing paired-review path. No synthesis waiver, structural-only
+replacement, unreviewed summary or future unspecified protocol can complete a multi-shard review.
+
+Pin a strict `ReviewReductionPolicyV1` with exactly `{ schemaVersion: 1,
+kind: 'review-reduction-policy', protocolIdentity, maximumFanIn, maximumDepth,
+maximumNodesPerObligation, maximumTotalNodes, maximumChildEvidenceBytes, maximumReportBytes,
+maximumCertificateBytes, maximumExecutionMs, maximumTotalModelCalls }`.
+All bounds are positive safe integers, `maximumFanIn >= 2`, and child evidence/report/certificate
+bounds are at most 4 MiB. Its canonical digest is `reductionPolicyIdentity`. No candidate can
+replace this installed policy. Per-node resource/byte/reservation and per-call token policies
+remain mandatory. The aggregate node/call/time limits include leaves, relationship reviewers,
+all reducer levels and recovery attempts; sharding cannot multiply work without a finite bound.
+Preparation must prove that two worst-case child evidence resources plus common cold resources
+and the ten journal reservations fit a reducer. Otherwise refuse `reduction-capacity-unavailable`.
+Actual-request token preflight still decides token admission separately; byte fit is not token fit.
+
+**Frozen templates before execution.** A strict `ReviewReductionPlanV1` contains exactly
+`{ schemaVersion: 1, kind: 'review-reduction-plan', requestIdentity, sourceObligationId,
+partitionIdentity, reductionPolicyIdentity, nodes, rootNodeId }`. A node is the strict tagged union:
+
+- Leaf: `{ kind: 'leaf', nodeId, shardId }`.
+- Relationship: `{ kind: 'relationship', nodeId, dutyId, childNodeIds, directResourceIds }`.
+- Reducer: `{ kind: 'reducer', nodeId, level, childNodeIds }`.
+
+IDs and resource references are digests; `level` is a positive safe integer. Each `nodeId` hashes
+canonical `{ partitionIdentity, reductionPolicyIdentity, template }`, where `template` is the
+node without `nodeId`. Arrays of child/resource IDs are sorted and unique; nodes are stored
+in deterministic topological order, ties by node ID. Template hashes contain no future evidence
+or their own plan digest. All references resolve exactly within the plan, cycles and unreachable
+nodes refuse, and the plan digest covers the complete record with terminal LF.
+
+For each original resource, its owning leaf is the lexicographically smallest shard ID whose
+exact resource union contains it. Recompute this mapping from the frozen partition, not model
+labels. For each original relationship duty whose endpoint resources have different owners,
+create exactly one relationship node: its children are those owner leaves; its direct reads
+are the complete original relationship duty (fact plus exact endpoint representations). Require
+every crossing relationship once, even when its indivisible raw duty was already read by a leaf.
+External endpoint facts retain their original no-fetch representation. A relationship node
+receives the authenticated endpoint-leaf evidence as context and reviews their combined effect
+against the actual retained relation. Missing/unresolved graph facts refuse before freezing.
+A relationship with too many endpoints or oversized indivisible reads refuses; it is not split
+into weaker pairwise edges. Non-crossing duties remain covered by their original leaf.
+
+Build the reduction frontier from every leaf and every relationship node, sorted by node ID.
+Deterministic next-fit groups whole child nodes using common cold resources, one maximum-sized
+child evidence resource per child, ten journal reservations, byte limits and `maximumFanIn`.
+Every group with at least two children becomes a reducer; carry a singleton unchanged into the
+next frontier. Sort each new frontier by node ID and repeat until one root remains. Level is
+one plus the greatest reducer level among its children (leaf/relationship level is zero).
+At least two children must fit, so every nontrivial round strictly shrinks the frontier.
+Enforce depth/node/aggregate caps before any execution. Child evidence may be repeated where a
+leaf also supports a relationship node; verify set coverage, not count equality. Every original
+resource duty and every original relationship duty must reach the root, and every crossing duty
+must reach it through its designated relationship node. An independent graph validator derives
+these closures from the original partition and extracted graph, never from a model's claim.
+
+**Real review content, not pass booleans.** Version the pinned review protocol and strict phase
+output schemas before using this route. Each leaf, relationship reviewer and reducer produces
+an actual model-authored bounded `SynthesisReportV1` inside its existing phase output resource:
+`{ schemaVersion: 1, nodeId, assessedInputIds, assessments, findings }`. `assessedInputIds` is
+exactly the sorted duty IDs for a leaf, its duty plus child-node IDs for a relationship node,
+or child-node IDs for a reducer. Node kind, duty/child bindings and the synthesis instruction
+are supplied through the pinned phase-submission projection, retained and counted in its
+reservation and actual-request preflight. A duty citation resolves through the frozen mapping
+to all its actually observed resources; a child citation resolves to its actually observed
+authenticated child-evidence resource. `assessments` contains exactly one entry per existing
+pinned judgment dimension, in order `purpose`, `relationships`, `impact`: `{ dimension, judgment, rationale, citedInputIds }`; judgment uses the
+existing judgment enum, rationale is nonempty bounded UTF-8 text, and sorted citations must
+resolve to inputs actually observed in that phase. The new protocol defines each strict finding as
+`{ findingId, dimension, judgment, message, citedInputIds }`: `dimension` is exactly `purpose`,
+`relationships` or `impact`, judgment is `partial` or `no`, message is nonempty bounded UTF-8,
+and `findingId` hashes the other canonical fields. Findings are sorted by finding ID; all cited-input arrays are byte-sorted and unique.
+Reject duplicate findings, foreign citations and a `yes` dimension with an adverse finding. Assessment citation union must cover every
+assessed input; a label-only input list does not prove assessment. This is a versioned new
+output contract, not an assertion that existing strict outputs already contain reports/findings.
+Cold reports assess only the common subject reads;
+for cold, `assessedInputIds` is instead exactly the sorted common-cold resource IDs. Informed
+reports use the node-specific inputs above. Reports must agree with phase judgments, preserve
+adverse findings and fit `maximumReportBytes` within the existing `phaseOutputBytes` reservation.
+No new transport slot is silently added. Old strict outputs lacking this report cannot be
+upgraded by fabricating prose or copying a controller-generated summary.
+
+A protected projection produces strict `ReviewChildEvidenceV1` only from selected authenticated
+child evidence: `{ schemaVersion: 1, kind: 'review-child-evidence', requestIdentity,
+reductionPlanIdentity, nodeId, selectionRecordIdentity, coldReceiptIdentity,
+informedReceiptIdentity, journalManifestIdentity, reviewEvidenceIdentity, report }`.
+`report` is the exact authenticated informed `SynthesisReportV1`; other fields bind immutable
+verified artifacts and the selected attempt. Its canonical bytes, including LF, are a required
+resource in the parent's informed phase. Check `maximumChildEvidenceBytes`; never truncate or
+rewrite the report to fit. Retain the underlying phase outputs, raw responses, telemetry,
+read observations, submission bytes, token preflights and authentication records. A digest-only
+reference or an unsigned provider summary cannot replace this resource. This preserves full
+raw evidence at the leaves and explicit contextual reasoning at each level; it does not claim
+that one root context rereads all original bytes or that model reasoning is mathematically proven.
+
+**Delayed materialization with immutable ownership.** Freeze the complete partition, reduction
+templates and leaf selections atomically before leaf dispatch. `ReviewSelectionRecordV3` is V1
+with `schemaVersion: 3`, `partitionIdentity`, `reductionPlanIdentity`, `nodeId`, and `nodeBinding`:
+`{ kind: 'leaf', shardId }`, `{ kind: 'relationship', dutyId }`, or `{ kind: 'reducer' }`.
+Its review ID hashes canonical `{ schemaVersion: 3, coveragePlanIdentity, sourceObligationId,
+partitionIdentity, reductionPlanIdentity, nodeId }` with the existing `review.` prefix.
+The four-field selection digest remains unchanged in meaning. This is an explicit additional
+plan/descriptor/reservation/dispatch schema version, not a reinterpretation of V1/V2 rows.
+The new evaluation-plan version freezes one cold/informed obligation pair and stable review ID
+for every node but distinguishes `awaiting-inputs` template bindings from immutable `ready`
+selection bindings. An awaiting pair is neither reservable nor completed and carries no invented
+selection digest. Its later selection is a separately hashed owner-fenced record linked to the
+unchanged template; materialization never rewrites the frozen evaluation-plan bytes. Update all
+plan, resolver, registration and receipt validators together for this route. Leaf V3 selections use the exact V2 shard reads. Reducer/relationship cold reads remain the
+original subject's common cold reads, with no child output exposed to the cold phase.
+Informed reads add exact child evidence resources ordered by child node ID and, for relationship
+nodes, direct raw resources ordered by the original selector order; digest deduplication keeps
+the first occurrence. All informed required reads include the cold resources.
+
+A non-leaf starts `awaiting-inputs`; it acquires no guessed selection identity or send permit.
+Only after every child has a selected current authenticated passing pair may the protected owner
+construct and retain its exact child projections. In a short transaction, recheck request,
+generation, authority, lease/epoch/expiry, plan/template identity and **every selected child
+receipt identity**, then insert the complete immutable V3 selection and transition the node to
+`ready` atomically. No transaction spans retrieval/authentication/model awaits. A child failure,
+stale owner, missing evidence, conflicting replay or interrupted insert leaves no selected
+partial parent. `ready` enters the existing reservation/execution/receipt state machine; no
+special unfenced reducer dispatch. Exact restart replay verifies retained bytes and the same
+child selection; a new child attempt cannot silently rewrite a ready parent. Changed selected
+children require a new fenced plan/request generation and explicit replan. Uncertain execution
+keeps the existing bounded no-synthetic-receipt recovery. Deadlines/budgets survive restart;
+failed or cancelled nodes cannot be pruned to make a smaller successful DAG.
+
+**Terminal synthesis authority.** Strict `ReviewCoverageCertificateV2` contains exactly
+`{ schemaVersion: 2, kind: 'review-coverage', requestIdentity, sourceObligationId,
+partitionIdentity, reductionPlanIdentity, rootNodeId, nodeReceipts,
+status: 'coverage-and-synthesis-complete' }`. `nodeReceipts` is the sorted exact array
+`[{ nodeId, selectionRecordIdentity, coldReceiptIdentity, informedReceiptIdentity }]` for all
+nodes. Its size must fit `maximumCertificateBytes`; checked worst-case sizing occurs before
+freeze. No implicit paging or truncation. The controller independently validates all original
+duties and crossing duties against the frozen DAG, every current authenticated passing pair,
+actual reads and report bindings, root global judgments and absence of unresolved findings.
+The root report must assess all its child contexts as one original subject, including interactions
+and contradictions, under the pinned synthesis protocol. All leaves passing while the root
+fails is a failed original review. Neither leaf V1 coverage nor a model-created certificate
+can substitute for V2. Recheck the entire selection graph and owner fence in the atomic final
+selection transaction. Only this certificate plus the existing request evidence joins may
+satisfy a multi-shard original obligation; publication/admission cannot bypass it. The other
+activation stages and external acceptance remain required before 030.6 is complete.
 
 Sharding is selected because structural-only context would discard currently required raw
 reads, and packing only reduces transport entries while leaving model context unchanged.
@@ -1121,8 +1261,10 @@ Acquire/hash/store all immutable inputs before the short freeze transaction; pre
 holds SQLite across await or long Git/parser work. Capture request version, generation, authority
 and lease epoch/expiry before work and recheck after every asynchronous boundary and at commit.
 Retain objects through exclusive writes, digest validation and durable finalization before
-committing references. The transaction atomically inserts the complete selection set, both
-phase bindings, canonical plan and request transition. An injected failure rolls back all
+committing references. For V1/V2 the transaction atomically inserts the complete selection set, both
+phase bindings, canonical plan and request transition. V3 instead freezes all node templates and
+leaf selections in that transaction; non-leaf selections follow the separately guarded delayed
+materialization above. No legacy complete-selection assertion is silently weakened. An injected failure rolls back all
 references; unreferenced immutable objects may remain but cannot become selected evidence.
 Concurrent takeover discards the prepared selection authority. Exact replay after restart
 must verify every retained reference and byte; corrupt/missing state refuses without repair.

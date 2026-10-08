@@ -270,7 +270,16 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       adapter behavior only; installed provider credential/count acceptance remains unverified.
       Later executor mounting must prove count-pass/actual-overrun refuses success, journal
       manifest V2 retains every preflight and no uncertain Messages call is replayed.
+- [ ] 2.1d.1c Before model execution, implement and freeze the deterministic reduction template
+      graph after 2.1d.1a and before 2.1d.2. TDD: synthetic 1,722-document inventory with several reducer
+      levels, crossing relationship ownership, stable order under shuffled input, singleton
+      promotion, cycle/unreachable/foreign-node refusal, worst-case report/reservation arithmetic
+      and finite fan-in/depth/node/certificate limits. Independently omit original-duty closure,
+      crossing-node coverage and each bound for F2/F4 RED/GREEN. Version strict report/finding schemas and V3 template-versus-ready
+      evaluation-plan contracts without guessed input digests. Storage/migration follows in 2.1d.2.
 - [ ] 2.1d.2 Add selection storage/forward-and-down migration and prepared-plan freeze owner.
+      Include V3 immutable templates/leaf selections, unready non-leaf pairs and explicit
+      historical V1/V2 refusal; no awaiting template is reservable or treated as completed.
       Test held preparation then takeover/expiry/authority change, atomic insert rollback,
       reopen with exact bytes, absent/corrupt retained content and conflicting replay. Use
       complete durable row snapshots and prove no dispatch; F10/F11 independently remove each
@@ -323,17 +332,33 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       Include crashes both sides of POST, a held late response through takeover/expiry,
       genuine cold-only failed evidence as a control, and uncertainty with no provider replay
       facility. No automatic new attempt may disguise an uncertain send in this increment.
-- [ ] 2.1d.4 Implement controller-derived complete coverage certification only after receipt
-      ownership is mounted: missing/foreign/failed/stale shard, missing read duty, changed
-      partition, held owner and certificate transaction rollback. Observe complete row snapshots
-      with independent F2/F4/F10/F11 omissions. Multi-shard certificates cannot satisfy the
-      original obligation: first test `all shards passed still requires global synthesis`.
-- [ ] 2.1d.5 Specify and review a separate bounded global synthesis protocol before accepting
-      any multi-shard original obligation. Define authenticated child evidence, cross-shard
-      reducer duties, DAG completeness, reducer input materialization and owner-fenced receipts;
-      no placeholder summary or waiver. Until implemented and proven, full automatic 030.6
-      remains blocked for such obligations. Run full-repository fit reporting all refusals,
-      resource/shard counts and pending token/synthesis acceptance without dropping coverage.
+- [ ] 2.1d.4 Version the pinned synthesis protocol/strict phase outputs and implement authenticated
+      child-evidence projection after checkpoint B receipt mapping. TDD: preserve exact actual
+      report and all evidence links, complete assessed inputs, judgment/citation consistency,
+      unsigned/digest-only/tampered/failed/stale child refusal and bounded report/projection bytes.
+      F2/F4 remove authentication, report/receipt/read/citation and bound guards independently.
+      Fake or unsigned reports exercise refusal only; positive cryptographic acceptance uses
+      the real test-owned signed path, with production trust separately unverified.
+- [ ] 2.1d.5 Implement delayed non-leaf V3 selection materialization and mount existing
+      reservation/resolver/dispatch ownership. Tests hold child retrieval through takeover,
+      expiry, authority or selected-attempt change; inject partial insert rollback; reopen exact
+      and corrupt rows. Assert unchanged durable snapshots and zero stale sends. F3/F10/F11
+      independently omit every owner/child-selection/atomic/no-repair guard. Never hold a
+      transaction across awaits or invent a selection digest before authenticated inputs exist.
+- [ ] 2.1d.6 Mount paired execution on leaf, crossing-relationship and recursive-reducer nodes
+      under the actual-request preflight and existing uncertainty recovery. Test cold isolation,
+      exact informed child/direct reads, late response, deadline/call budget across restart,
+      count-pass/usage-overrun, report overflow and no pruning of failed/cancelled nodes. Observe
+      F2/F4/F10/F11 isolated faults at production assertions; record RED/GREEN and restoration.
+      Initial local orchestration fixtures prove only mounted behavior, not external review.
+- [ ] 2.1d.7 Implement atomic terminal V2 coverage-and-synthesis certification and request join.
+      Tests: all leaves pass/root fails, missing crossing review, substituted child attempt,
+      incomplete read closure, root/report inconsistency, owner race and rollback. Independently
+      bypass each graph/receipt/status/current-owner join and substitute intermediate V1 coverage
+      for F2/F4/F10/F11 RED/GREEN. Run complete repository preparation/graph fit without dropping
+      any original resource. Record exact counts/bytes/depth/refusals separately from token and
+      model acceptance. Then exercise the bounded full reduction lifecycle through 2.1e;
+      these tasks are required work in this change, not a deferred synthesis waiver.
 - [ ] 2.1e Prove installed external acceptance after one-time protected control repository,
       registry, credentials, retention, plan entitlement and trust pins are provisioned.
       Run `installed reviewer proves the exact invocation` with real cold/informed execution,
