@@ -504,6 +504,8 @@ export function inspectManual(
       kind: 'committed',
       revision: reportRecord.sourceRevision,
     });
+    // Proof: removing exact SHA equality let an annotated tag object's SHA pass after
+    // Git dereferenced it to a commit; the named production CLI assertion failed.
     if (
       tested.selection.kind !== 'committed' ||
       tested.selection.revision !== reportRecord.sourceRevision
@@ -522,7 +524,7 @@ export function inspectManual(
     validation: 'passed' as const,
     outcome: 'passed' as const,
     currency: 'unevaluated' as const,
-    provenance: 'synthetic-external-approval' as const,
+    provenance: 'policy-pinned-external-approval' as const,
     certifies: false as const,
     revision: selected.selection.revision,
     testedRevision: reportRecord.sourceRevision,

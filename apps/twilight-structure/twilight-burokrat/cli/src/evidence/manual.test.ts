@@ -102,7 +102,7 @@ function fixture() {
     reviewer: 'reviewer-one',
     reference: 'ticket-one',
     reviewedAt: '2026-10-07T10:00:00.000Z',
-    reviewBy: '2026-11-07',
+    reviewBy: '9999-12-31',
   };
   const acceptance = {
     schemaVersion: 1,
@@ -179,6 +179,7 @@ test('inspect-manual accepts an exact external approval chain as a noncertifying
   expect(observation['state']).toBe('passing');
   expect(observation['validation']).toBe('passed');
   expect(observation['outcome']).toBe('passed');
+  expect(observation['provenance']).toBe('policy-pinned-external-approval');
   expect(observation['certifies']).toBe(false);
   expect(observation['scenarioId']).toBe('EXAMPLE-001');
   expect(observation['runId']).toBe('run-one');
@@ -214,6 +215,21 @@ test('inspect-manual refuses a pinned tested SHA that is not a commit object', (
   const call = inspect(setup);
   expect(call.exitCode).toBe(1);
   expect(call.stderr.toString()).toContain('absent tested revision');
+});
+
+test('inspect-manual refuses an annotated tag object SHA as the tested revision', () => {
+  const setup = fixture();
+  git(setup.root, ['tag', '-a', 'tested-tag', '-m', 'annotated tested tag']);
+  const tagObject = git(setup.root, ['rev-parse', 'refs/tags/tested-tag']);
+  setup.records.report.sourceRevision = tagObject;
+  setup.records.environment.sourceRevision = tagObject;
+  setup.records.report.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
+  const call = inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Manual tested revision is not an exact commit');
 });
 
 function writeApprovedChain(setup: ReturnType<typeof fixture>): void {
@@ -438,9 +454,10 @@ test.each([
   [
     'deadline',
     (s: ReturnType<typeof fixture>) => {
-      s.records.review.reviewBy = '2026-10-07';
+      s.records.review.reviewedAt = '1999-12-31T10:00:00.000Z';
+      s.records.review.reviewBy = '2000-01-01';
     },
-    'EXAMPLE-001 review overdue on 2026-10-07',
+    'EXAMPLE-001 review overdue on 2000-01-01',
   ],
   [
     'missing step',
