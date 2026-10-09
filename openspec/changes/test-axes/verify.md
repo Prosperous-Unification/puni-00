@@ -1200,3 +1200,24 @@ After restoration, the named fixture exited 0 with one pass and five assertions.
 ### Task 2.1 portable Browser execution — 2026-10-09
 
 On commit `3cfbf79a24aa16a288a6668f989fe1be42177169`, `bunx nx run wbs-core:test:browser:portable:level --skip-nx-cache` exited 0 with cache skipped. The portable Chromium run used Playwright 1.63.0 and passed both collected cases in `libs/wbs/application/core/testing/portable-composition.spec.ts`. The invocation bundle is `tmp/junit/browser/ab1a6d28-60d5-44f2-afe6-7b631e53f2a8`; its manifest binds candidate digest `21422da6edcb2e3011232d2b6759cdb2493b49573051c829489d5e447e0bdebc`, config digest, served artifact inventory, exact case identities, and raw discovery/execution/JUnit digests. The normalized report is `report.xml`. The collector explicitly sets `certifies:false` because raw artifacts and invocation lack external authentication; this run is operational evidence and does not close Task 2.1 or grant coverage. Ordinary and packaged Browser runs, Burokrat-side Browser evidence consumption, and full candidate-bound report verification remain open.
+
+## Task 3.1.1 — Manual schema readers and committed CLI entry (2026-10-09)
+
+The new `inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path>` command reads candidate disposition/procedure bytes from committed Git objects and report/environment/approval bytes through the existing external stable-artifact reader. `RulePolicy.manual` pins exact disposition, report, environment and approval byte digests. Every schema is version 1 and rejects undeclared keys. This is a decoding increment: output is `state:"unevaluated"`, `certifies:false`, with no coverage or Manual JUnit. Semantic joins, B3 resolution, chronology, freshness and final verdicts remain Tasks 3.1.2–3.1.5.
+
+TDD RED: before adding the command, `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/manual.test.ts` exited 1 with six named production CLI tests failing on `unknown command: inspect-manual`. GREEN: the final focused run (`--timeout=60000`) exited 0, 17 passed, 0 failed, 49 assertions. It exercised exact identities and absent, unreadable directory, malformed UTF-8/JSON, unknown version/fields, duplicate pins/steps, symlink, path escape, missing authority and wrong command arity.
+
+R5 watched mutations: each probe replaced only the named guard, ran the matching production CLI test by `--test-name-pattern`, observed exit 1 with a failed assertion, then restored the original bytes and asserted byte equality. Probes: symlink, regular file, fatal UTF-8, JSON error context, committed regular blob, required Manual authority, duplicate pins, canonical alias pins, report pin, disposition pin, duplicate step ID, external environment/approval pin, version 1, top-level disposition/procedure/report/environment/review/acceptance unknown keys, nested scope/module/procedure-step/report-step unknown keys, external/candidate pin unknown keys, Manual authority unknown keys and command arity. The alias-path test itself was first observed RED against raw pin paths (`Manual report differs from external policy pin`), then GREEN after canonical duplicate detection; restoring raw paths made its named duplicate assertion fail again. All original source bytes were restored after mutation probes.
+
+Final scoped checks after restoration:
+
+| Command                                                                                              | Result                                       |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/manual.test.ts --timeout=60000` | Exit 0; 17 pass, 0 fail, 49 assertions       |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:typecheck --skip-nx-cache`   | Exit 0; Nx reported target success           |
+| Scoped `bunx eslint` on five changed source/test files                                               | Exit 0, no diagnostics                       |
+| Scoped `bunx prettier --check` on five changed source/test files                                     | Exit 0; all matched files use Prettier style |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict`                  | Exit 0; `Change 'test-axes' is valid`        |
+| `git diff --check`                                                                                   | Exit 0                                       |
+
+The full h2puni gate and broader Burokrat suite were not run for this bounded slice. No Manual observation is certified by these checks.
