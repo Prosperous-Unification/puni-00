@@ -1,8 +1,18 @@
 import type { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 
 import { digestEvidenceBytes } from '@shared/test-evidence';
 
@@ -106,24 +116,82 @@ export async function run(
   environment: Record<string, string>,
   timeoutMs: number,
 ): Promise<Invocation> {
-  const child = Bun.spawn(argv, { cwd, env: environment, stdout: 'pipe', stderr: 'pipe' });
-  const expired = { value: false };
-  const timeout = setTimeout(() => {
-    expired.value = true;
-    child.kill('SIGKILL');
-  }, timeoutMs);
+  const child = Bun.spawn(argv, {
+    cwd,
+    env: environment,
+    stdout: 'pipe',
+    stderr: 'pipe',
+    detached: true,
+  });
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      try {
+        // Proof: removing the group signal let the descendant write its marker after timeout.
+        process.kill(-child.pid, 'SIGKILL');
+      } catch (cause) {
+        reject(
+          new Error(`Browser command group could not be killed: ${argv.join(' ')}`, { cause }),
+        );
+        return;
+      }
+      // Proof: disabling deadline rejection made the inherited-pipe negative resolve as success.
+      reject(new Error(`Browser command timed out: ${argv.join(' ')}`));
+    }, timeoutMs);
+  });
   try {
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited,
+    const [stdout, stderr, exitCode] = await Promise.race([
+      Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ]),
+      deadline,
     ]);
-    // Proof: disabling this guard made the hung-child negative resolve after its timeout.
-    if (expired.value) throw new Error(`Browser command timed out: ${argv.join(' ')}`);
     return { exitCode, stdout, stderr };
   } finally {
-    clearTimeout(timeout);
+    if (timeout !== undefined) clearTimeout(timeout);
   }
+}
+
+interface ServedFile {
+  path: string;
+  digest: string;
+}
+
+/** Enumerate every regular served file and bind its path and bytes. */
+export async function browserServedFiles(
+  checkout: string,
+  servedRoot: string,
+): Promise<ServedFile[]> {
+  const absoluteRoot = join(checkout, servedRoot);
+  const files: ServedFile[] = [];
+  const rootMetadata = await lstat(absoluteRoot);
+  // Proof: removing this guard made a symlinked served-root negative follow outside bytes.
+  if (!rootMetadata.isDirectory() || rootMetadata.isSymbolicLink())
+    throw new Error('Browser served root is not a regular directory');
+  async function visit(directory: string): Promise<void> {
+    for (const name of (await readdir(directory)).sort()) {
+      const absolute = join(directory, name);
+      const metadata = await lstat(absolute);
+      // Proof: removing this guard let the symlinked-asset negative enter the served inventory.
+      if (metadata.isSymbolicLink()) throw new Error('Browser served inventory contains a symlink');
+      if (metadata.isDirectory()) {
+        await visit(absolute);
+        continue;
+      }
+      // Proof: removing this guard let the special-file negative silently omit an unknown asset.
+      if (!metadata.isFile()) throw new Error('Browser served inventory contains an unknown file');
+      files.push({
+        path: relative(checkout, absolute).replaceAll('\\', '/'),
+        digest: digestEvidenceBytes(await readFile(absolute)),
+      });
+    }
+  }
+  await visit(absoluteRoot);
+  // Proof: removing this guard made the empty-served-tree negative accept an absent build.
+  if (files.length === 0) throw new Error('Browser served inventory is empty');
+  return files;
 }
 
 export function validatedPortShift(): string {
@@ -165,6 +233,7 @@ export async function assertBrowserInputs(
   configPath: string,
   configBytes: Buffer,
   artifact?: { path: string; digest: string },
+  served?: { root: string; files: ServedFile[] },
 ): Promise<void> {
   assertClean(checkout, revision);
   // Proof: disabling this comparison made the altered-config negative accept changed bytes.
@@ -176,6 +245,91 @@ export async function assertBrowserInputs(
     artifact.digest !== digestEvidenceBytes(await readFile(join(checkout, artifact.path)))
   )
     throw new Error('Browser build artifact changed during collection');
+  // Proof: removing this comparison made the changed-JS, changed-CSS and inserted-asset negatives pass.
+  if (
+    served !== undefined &&
+    JSON.stringify(await browserServedFiles(checkout, served.root)) !== JSON.stringify(served.files)
+  )
+    throw new Error('Browser served inventory changed during collection');
+}
+
+interface BrowserBundle {
+  discovery: Uint8Array;
+  execution: Uint8Array;
+  playwright: Uint8Array;
+  report: string;
+  manifest: object;
+}
+
+/** Publish a complete immutable bundle through one atomic current pointer. */
+export async function publishBrowserBundle(
+  root: string,
+  mode: Mode,
+  invocationId: string,
+  bundle: BrowserBundle,
+): Promise<string> {
+  const browserRoot = join(root, 'tmp/junit/browser');
+  const bundleDirectory = join(browserRoot, invocationId);
+  await mkdir(browserRoot, { recursive: true });
+  await mkdir(bundleDirectory, { recursive: false });
+  await Promise.all([
+    writeFile(join(bundleDirectory, 'discovery.json'), bundle.discovery, { flag: 'wx' }),
+    writeFile(join(bundleDirectory, 'execution.json'), bundle.execution, { flag: 'wx' }),
+    writeFile(join(bundleDirectory, 'playwright.xml'), bundle.playwright, { flag: 'wx' }),
+    writeFile(join(bundleDirectory, 'report.xml'), bundle.report, { flag: 'wx' }),
+    writeFile(join(bundleDirectory, 'manifest.json'), `${JSON.stringify(bundle.manifest)}\n`, {
+      flag: 'wx',
+    }),
+  ]);
+  const pointer = join(browserRoot, `${mode}.current.json`);
+  const staging = `${pointer}.${invocationId}.new`;
+  await writeFile(
+    staging,
+    `${JSON.stringify({ schemaVersion: 1, invocationId, mode, bundle: `tmp/junit/browser/${invocationId}` })}\n`,
+    { flag: 'wx' },
+  );
+  // Proof: replacing this rename with a partial pointer write made the concurrent reader reject malformed JSON.
+  await rename(staging, pointer);
+  return pointer;
+}
+
+/** Resolve one pointer snapshot and verify its immutable report/manifest pair. */
+export async function readBrowserPublication(
+  root: string,
+  mode: Mode,
+): Promise<{ invocationId: string; report: string; manifest: Record<string, unknown> }> {
+  const pointer = join(root, 'tmp/junit/browser', `${mode}.current.json`);
+  const publication = parseJson(await readFile(pointer), 'pointer');
+  if (typeof publication !== 'object' || publication === null || Array.isArray(publication))
+    throw new Error('Browser pointer is malformed');
+  const fields = publication as Record<string, unknown>; // Validated external JSON boundary.
+  const invocationId = fields['invocationId'];
+  // Proof: removing this guard let a foreign-bundle pointer select another invocation.
+  if (
+    fields['schemaVersion'] !== 1 ||
+    fields['mode'] !== mode ||
+    typeof invocationId !== 'string' ||
+    !/^[0-9a-f-]{36}$/.test(invocationId) ||
+    fields['bundle'] !== `tmp/junit/browser/${invocationId}`
+  )
+    throw new Error('Browser pointer identity is malformed');
+  const bundleDirectory = join(root, 'tmp/junit/browser', invocationId);
+  const manifestValue = parseJson(
+    await readFile(join(bundleDirectory, 'manifest.json')),
+    'manifest',
+  );
+  if (typeof manifestValue !== 'object' || manifestValue === null || Array.isArray(manifestValue))
+    throw new Error('Browser manifest is malformed');
+  const manifest = manifestValue as Record<string, unknown>; // Validated external JSON boundary.
+  const report = decodeBrowserText(await readFile(join(bundleDirectory, 'report.xml')), 'report');
+  // Proof: removing this guard let a mixed report/manifest pair pass the pointer-reader negative.
+  if (
+    manifest['invocationId'] !== invocationId ||
+    manifest['report'] !== `tmp/junit/browser/${invocationId}/report.xml` ||
+    manifest['reportDigest'] !== digestEvidenceBytes(report)
+  )
+    throw new Error('Browser report and manifest binding differs');
+  return { invocationId, report, manifest };
 }
 
 /** A nonzero setup/discovery process cannot produce passing evidence. */
@@ -214,10 +368,9 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
   const selected = modes[mode];
   const root = resolve(candidateRoot);
   const report = join(root, selected.report);
-  const manifest = `${report}.manifest.json`;
   await mkdir(join(root, 'tmp/junit'), { recursive: true });
-  // Proof: disabling this removal left stale report/manifest readable in the dirty-candidate negative.
-  await Promise.all([rm(report, { force: true }), rm(manifest, { force: true })]);
+  // Legacy two-file outputs are removed; readers use the single current pointer.
+  await Promise.all([rm(report, { force: true }), rm(`${report}.manifest.json`, { force: true })]);
   const revision = assertClean(root);
   const candidate = readIdentity(root, revision);
   const configBytes = await readFile(join(root, selected.config));
@@ -249,7 +402,24 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
       artifact === undefined || artifactDigest === undefined
         ? undefined
         : { path: artifact, digest: artifactDigest };
-    await assertBrowserInputs(checkout, revision, selected.config, configBytes, builtArtifact);
+    const servedRoot =
+      mode === 'packaged'
+        ? 'dist/apps/wbs/fe-01'
+        : mode === 'portable'
+          ? 'dist/libs/wbs/application/core'
+          : undefined;
+    const served =
+      servedRoot === undefined
+        ? undefined
+        : { root: servedRoot, files: await browserServedFiles(checkout, servedRoot) };
+    await assertBrowserInputs(
+      checkout,
+      revision,
+      selected.config,
+      configBytes,
+      builtArtifact,
+      served,
+    );
     const argumentsBase = ['test', '--config', selected.config];
     const listFile = join(scratch, 'list.json');
     const listedRun = await run(
@@ -268,7 +438,14 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
       'list',
       0,
     );
-    await assertBrowserInputs(checkout, revision, selected.config, configBytes, builtArtifact);
+    await assertBrowserInputs(
+      checkout,
+      revision,
+      selected.config,
+      configBytes,
+      builtArtifact,
+      served,
+    );
     // The same checked-revision production helper is fault-injected by the moved-revision negative.
     assertClean(root, revision);
     const runFile = join(scratch, 'run.json');
@@ -295,17 +472,18 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
     reconcileBrowserRuns(listed, executed);
     const junit = decodeBrowserText(junitBytes, 'raw JUnit');
     reconcileBrowserJunit(junit, executed);
-    await assertBrowserInputs(checkout, revision, selected.config, configBytes, builtArtifact);
+    await assertBrowserInputs(
+      checkout,
+      revision,
+      selected.config,
+      configBytes,
+      builtArtifact,
+      served,
+    );
     assertClean(root, revision);
     const invocationId = randomUUID();
     const reportSource = junitSource(mode, executed.cases);
-    const rawDirectory = join(root, 'tmp/junit/browser', invocationId);
-    await mkdir(rawDirectory, { recursive: true });
-    await Promise.all([
-      writeFile(join(rawDirectory, 'discovery.json'), listBytes),
-      writeFile(join(rawDirectory, 'execution.json'), runBytes),
-      writeFile(join(rawDirectory, 'playwright.xml'), junitBytes),
-    ]);
+    const bundlePath = `tmp/junit/browser/${invocationId}`;
     const binding = {
       schemaVersion: 1,
       certifies: false,
@@ -317,6 +495,7 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
       config: selected.config,
       configDigest: digestEvidenceBytes(configBytes),
       artifact: artifact === undefined ? undefined : { path: artifact, digest: artifactDigest },
+      served,
       environment: Object.fromEntries(
         Object.entries(environment).filter(([key]) =>
           ['CI', 'E2E_PORT_SHIFT', 'PLAYWRIGHT_CHROMIUM_REGULAR'].includes(key),
@@ -324,28 +503,36 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
       ),
       runnerVersion: listed.version,
       cases: executed.cases,
+      coverage: {
+        passingCases: executed.cases.filter((browserCase) => browserCase.status === 'passed')
+          .length,
+        skippedDebt: executed.cases.filter((browserCase) => browserCase.status === 'skipped')
+          .length,
+      },
       raw: {
         discovery: {
-          path: `tmp/junit/browser/${invocationId}/discovery.json`,
+          path: `${bundlePath}/discovery.json`,
           digest: digestEvidenceBytes(listBytes),
         },
         execution: {
-          path: `tmp/junit/browser/${invocationId}/execution.json`,
+          path: `${bundlePath}/execution.json`,
           digest: digestEvidenceBytes(runBytes),
         },
         junit: {
-          path: `tmp/junit/browser/${invocationId}/playwright.xml`,
+          path: `${bundlePath}/playwright.xml`,
           digest: digestEvidenceBytes(junitBytes),
         },
       },
       reportDigest: digestEvidenceBytes(reportSource),
+      report: `${bundlePath}/report.xml`,
     };
-    const staging = `${report}.${invocationId}.new`;
-    await writeFile(staging, reportSource);
-    await writeFile(`${staging}.manifest.json`, `${JSON.stringify(binding)}\n`);
-    // Publish report and pointer only after all evidence has been reconciled.
-    await rename(staging, report);
-    await rename(`${staging}.manifest.json`, manifest);
+    await publishBrowserBundle(root, mode, invocationId, {
+      discovery: listBytes,
+      execution: runBytes,
+      playwright: junitBytes,
+      report: reportSource,
+      manifest: binding,
+    });
     // Proof: the real portable run exited 1 for a Chromium sandbox failure and wrote failing JUnit.
     if (executedRun.exitCode !== 0) throw new Error(`Browser ${mode} cases failed`);
   } finally {

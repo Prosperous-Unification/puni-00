@@ -57,6 +57,37 @@ describe('Browser Playwright evidence boundary', () => {
     );
   });
 
+  it('preserves a skipped opt-in case without treating it as passing coverage', () => {
+    const discovered = report('list');
+    const executed = report('run');
+    const skip = structuredClone(executed.suites[0].specs[0]);
+    skip.title = 'optional opt-in probe';
+    skip.tests[0].status = 'skipped';
+    skip.tests[0].results = [];
+    discovered.suites[0].specs.push({ ...skip, tests: [{ ...skip.tests[0], results: [] }] });
+    executed.suites[0].specs.push(skip);
+    const listed = decodeBrowserJson(discovered, root, config, ['chromium'], 'list', 0);
+    const run = decodeBrowserJson(executed, root, config, ['chromium'], 'run', 0);
+    reconcileBrowserRuns(listed, run);
+    expect(run.cases.map((browserCase) => browserCase.status)).toEqual(['passed', 'skipped']);
+    const withSkip = junit
+      .replace('tests="1" failures="0" skipped="0"', 'tests="2" failures="0" skipped="1"')
+      .replace(
+        '</testsuite>',
+        '<testcase name="optional opt-in probe" classname="portable-composition.spec.ts"><skipped/></testcase></testsuite>',
+      );
+    reconcileBrowserJunit(withSkip, run);
+    expect(() => {
+      reconcileBrowserJunit(withSkip.replace('<skipped/>', ''), run);
+    }).toThrow('differ');
+    const allSkipped = report('run');
+    allSkipped.suites[0].specs[0].tests[0].status = 'skipped';
+    allSkipped.suites[0].specs[0].tests[0].results = [];
+    expect(() => decodeBrowserJson(allSkipped, root, config, ['chromium'], 'run', 0)).toThrow(
+      'no passing cases',
+    );
+  });
+
   it('refuses foreign configuration, project, empty collection and execution retry', () => {
     const foreign = report('list');
     foreign.config.configFile = '/other/config.ts';

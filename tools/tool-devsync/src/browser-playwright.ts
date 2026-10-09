@@ -97,6 +97,11 @@ export function decodeBrowserJson(
           cases.push({ config: configPath, project, file, titlePath, status: 'skipped' });
           continue;
         }
+        // Proof: removing this branch made the opt-in skip negative reject a real skipped case.
+        if (results.length === 0 && test['status'] === 'skipped') {
+          cases.push({ config: configPath, project, file, titlePath, status: 'skipped' });
+          continue;
+        }
         // Proof: disabling this guard made the retry negative accept its first result.
         if (results.length !== 1) throw new Error('Browser execution result count mismatch');
         const outcome = recordOf(results[0], 'result');
@@ -136,9 +141,16 @@ export function decodeBrowserJson(
   // Proof: disabling this guard made the inconsistent-exit negative accept exit 1 with a pass.
   if (
     phase === 'run' &&
-    (exitCode === 0) !== cases.every((browserCase) => browserCase.status === 'passed')
+    (exitCode === 0) !== cases.every((browserCase) => browserCase.status !== 'failed')
   )
     throw new Error('Browser run exit and case outcomes disagree');
+  // Proof: disabling this guard made the all-skipped negative claim a successful Browser target.
+  if (
+    phase === 'run' &&
+    exitCode === 0 &&
+    !cases.some((browserCase) => browserCase.status === 'passed')
+  )
+    throw new Error('Browser execution has no passing cases');
   return { version, cases };
 }
 
@@ -224,7 +236,7 @@ export function reconcileBrowserJunit(xml: string, run: BrowserReport): void {
     declared.skipped !== observed.filter((entry) => entry.status === 'skipped').length
   )
     throw new Error('Browser JUnit summary differs from cases');
-  // Playwright JUnit omits parent describe titles. Its (project, classname, leaf)
+  // Playwright JUnit includes parent describe titles. Its (project, classname, full title)
   // mapping is usable only when one JSON case owns it.
   const junitIdentity = (entry: (typeof observed)[number]) =>
     JSON.stringify([entry.project, entry.file, entry.name]);

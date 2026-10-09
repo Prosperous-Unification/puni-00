@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -10,8 +10,11 @@ import {
   assertBrowserCommand,
   assertBrowserInputs,
   assertClean,
+  browserServedFiles,
   decodeBrowserText,
   parseJson,
+  publishBrowserBundle,
+  readBrowserPublication,
   run,
   runBrowserLevel,
   runtimeEnvironment,
@@ -159,4 +162,149 @@ it('bounds a hung Browser child before evidence publication', async () => {
     ),
     'timed out',
   );
+});
+
+it('kills descendant processes and returns before inherited output pipes can drain', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'puni-browser-group-'));
+  const marker = join(root, 'descendant-marker');
+  const command = `sleep 0.4; touch '${marker}'`;
+  const started = Date.now();
+  try {
+    await expectRefusal(
+      run(
+        [
+          process.execPath,
+          '-e',
+          `Bun.spawn(['sh','-c',${JSON.stringify(command)}],{stdout:'inherit',stderr:'inherit'}); await Bun.sleep(1000)`,
+        ],
+        root,
+        { PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
+        50,
+      ),
+      'timed out',
+    );
+    expect(Date.now() - started).toBeLessThan(300);
+    await Bun.sleep(500);
+    expect(existsSync(marker)).toBe(false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('binds every served asset and refuses changed, inserted or symlinked files', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'puni-browser-assets-'));
+  const git = (args: string[]): string => {
+    const call = Bun.spawnSync(['git', '-C', root, ...args], { stdout: 'pipe', stderr: 'pipe' });
+    if (call.exitCode !== 0) throw new Error(call.stderr.toString());
+    return call.stdout.toString().trim();
+  };
+  try {
+    git(['init']);
+    git(['config', 'user.name', 'Browser Fixture']);
+    git(['config', 'user.email', 'browser.fixture@example.invalid']);
+    await writeFile(join(root, '.gitignore'), 'config.ts\ndist/\n');
+    git(['add', '.gitignore']);
+    git(['commit', '-m', 'fixture']);
+    const revision = git(['rev-parse', 'HEAD']);
+    const configBytes = Buffer.from('config');
+    await writeFile(join(root, 'config.ts'), configBytes);
+    const servedRoot = 'dist/site';
+    await mkdir(join(root, servedRoot), { recursive: true });
+    await writeFile(join(root, servedRoot, 'index.html'), '<script src="app.js"></script>');
+    await writeFile(join(root, servedRoot, 'app.js'), 'initial');
+    await writeFile(join(root, servedRoot, 'app.css'), 'initial');
+    const served = { root: servedRoot, files: await browserServedFiles(root, servedRoot) };
+    await assertBrowserInputs(root, revision, 'config.ts', configBytes, undefined, served);
+    await writeFile(join(root, servedRoot, 'app.js'), 'changed');
+    await expectRefusal(
+      assertBrowserInputs(root, revision, 'config.ts', configBytes, undefined, served),
+      'served inventory changed',
+    );
+    await writeFile(join(root, servedRoot, 'app.js'), 'initial');
+    await writeFile(join(root, servedRoot, 'app.css'), 'changed');
+    await expectRefusal(
+      assertBrowserInputs(root, revision, 'config.ts', configBytes, undefined, served),
+      'served inventory changed',
+    );
+    await writeFile(join(root, servedRoot, 'app.css'), 'initial');
+    await writeFile(join(root, servedRoot, 'foreign.js'), 'injected');
+    await expectRefusal(
+      assertBrowserInputs(root, revision, 'config.ts', configBytes, undefined, served),
+      'served inventory changed',
+    );
+    await rm(join(root, servedRoot, 'foreign.js'));
+    await symlink('app.js', join(root, servedRoot, 'alias.js'));
+    await expectRefusal(browserServedFiles(root, servedRoot), 'contains a symlink');
+    await rm(join(root, servedRoot, 'alias.js'));
+    await symlink('site', join(root, 'dist/alias'));
+    await expectRefusal(browserServedFiles(root, 'dist/alias'), 'regular directory');
+    await rm(join(root, 'dist/alias'));
+    const fifo = Bun.spawnSync(['mkfifo', join(root, servedRoot, 'unexpected.pipe')]);
+    if (fifo.exitCode !== 0) throw new Error(fifo.stderr.toString());
+    await expectRefusal(browserServedFiles(root, servedRoot), 'unknown file');
+    await rm(join(root, servedRoot, 'unexpected.pipe'));
+    await rm(join(root, servedRoot, 'app.js'));
+    await rm(join(root, servedRoot, 'app.css'));
+    await rm(join(root, servedRoot, 'index.html'));
+    await expectRefusal(browserServedFiles(root, servedRoot), 'empty');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('publishes concurrent immutable Browser bundles through one complete pointer', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'puni-browser-publish-'));
+  try {
+    const publish = async (invocationId: string) =>
+      publishBrowserBundle(root, 'portable', invocationId, {
+        discovery: Buffer.from(`discovery-${invocationId}`),
+        execution: Buffer.from(`execution-${invocationId}`),
+        playwright: Buffer.from(`raw-${invocationId}`),
+        report: `<testsuite name="${invocationId}"/>`,
+        manifest: {
+          invocationId,
+          report: `tmp/junit/browser/${invocationId}/report.xml`,
+          reportDigest: digestEvidenceBytes(`<testsuite name="${invocationId}"/>`),
+        },
+      });
+    const first = '11111111-1111-4111-8111-111111111111';
+    const second = '22222222-2222-4222-8222-222222222222';
+    const pointers = await Promise.all([publish(first), publish(second)]);
+    expect(pointers[0]).toBe(pointers[1]);
+    const pointer = JSON.parse(await readFile(pointers[0], 'utf8')) as {
+      invocationId: string;
+      bundle: string;
+    };
+    const publication = await readBrowserPublication(root, 'portable');
+    expect(publication.invocationId).toBe(pointer.invocationId);
+    expect(publication.manifest['reportDigest']).toBe(digestEvidenceBytes(publication.report));
+    await expectRefusal(publish(pointer.invocationId), 'EEXIST');
+    const after = await readFile(pointers[0], 'utf8');
+    expect((JSON.parse(after) as { invocationId: string }).invocationId).toBe(pointer.invocationId);
+    await writeFile(join(root, pointer.bundle, 'report.xml'), 'mutated');
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'binding differs');
+    await writeFile(
+      pointers[0],
+      JSON.stringify({
+        schemaVersion: 1,
+        invocationId: first,
+        mode: 'portable',
+        bundle: `tmp/junit/browser/${second}`,
+      }),
+    );
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'pointer identity');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('does not read a legacy shared report without a published pointer', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'puni-browser-legacy-'));
+  try {
+    await mkdir(join(root, 'tmp/junit'), { recursive: true });
+    await writeFile(join(root, 'tmp/junit/wbs-core.browser.portable.xml'), '<testsuite/>');
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'ENOENT');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
