@@ -1,5 +1,13 @@
 # Verification Report
 
+## Task 1.1 — contract and delta validation
+
+| Check | Fresh observation |
+| --- | --- |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict` | Exit 0; `Change 'test-axes' is valid`. |
+
+Proof: copied `specs/test-axes/spec.md` to `/tmp/test-axes-spec-023.md`, deleted only the `#### Scenario: [TEST-AXES-023] ...` heading, then reran strict validation. It exited 1 with `ADDED "Manual dispositions expire for review" must include at least one scenario`. Restored the file from the backup and confirmed `cmp` equality. The working tree was clean before the mutation.
+
 **Change**: `test-axes`
 **Verified at**: `2026-09-20`
 **Verifier**: Codex executor, attempt `010-3-record-the-decision.whole.20260919T221212Z`

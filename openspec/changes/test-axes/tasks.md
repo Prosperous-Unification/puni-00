@@ -1,6 +1,6 @@
 ## 1. The contract
 
-- [ ] 1.1 Record this delta spec, its level-selection table and its identifier rules — test: strict OpenSpec validation reporting zero failures; negative: remove the sole scenario heading of TEST-AXES-023 and watch it report `must include at least one scenario`, then restore it
+- [x] 1.1 Record this delta spec, its level-selection table and its identifier rules — test: strict OpenSpec validation reporting zero failures; negative: remove the sole scenario heading of TEST-AXES-023 and watch it report `must include at least one scenario`, then restore it
 
 ## 2. Levels and identifiers (needs 1.1)
 
