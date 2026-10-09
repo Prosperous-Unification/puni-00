@@ -188,14 +188,16 @@ export function reconcileBrowserJunit(xml: string, run: BrowserReport): void {
   parser.on('doctype', () => {
     throw new Error('Browser JUnit doctype is forbidden');
   });
-  parser.on('text', (body) => {
-    // Proof: removing this refusal made a property-body inspect-browser CLI negative accept metadata text.
+  const validateText = (body: string): void => {
+    // Proof: removing this refusal let production inspect-browser accept text or CDATA inside a property.
     if (
       body.trim() !== '' &&
       !['failure', 'error', 'skipped', 'system-out', 'system-err'].includes(stack.at(-1) ?? '')
     )
       throw new Error('Browser JUnit text is outside a case outcome');
-  });
+  };
+  parser.on('text', validateText);
+  parser.on('cdata', validateText);
   parser.on('opentag', (tag) => {
     const parent = stack.at(-1);
     if ((tag.name === 'failure' || tag.name === 'error') && current === undefined)
@@ -210,8 +212,8 @@ export function reconcileBrowserJunit(xml: string, run: BrowserReport): void {
       parent === 'testcase' &&
       caseChildren === 0 &&
       attributes.length === 0;
-    // Proof: removing the attribute count or nonempty name checks made the
-    // extra-property-attribute or empty-name inspect-browser CLI negatives exit zero.
+    // Proof: removing the attribute count or trimmed-name check made the
+    // extra-property-attribute or whitespace-name inspect-browser CLI negatives exit zero.
     const reporterProperty =
       tag.name === 'property' &&
       parent === 'properties' &&
@@ -219,7 +221,7 @@ export function reconcileBrowserJunit(xml: string, run: BrowserReport): void {
       attributes.includes('name') &&
       attributes.includes('value') &&
       typeof tag.attributes['name'] === 'string' &&
-      tag.attributes['name'].length > 0 &&
+      tag.attributes['name'].trim().length > 0 &&
       typeof tag.attributes['value'] === 'string';
     const allowed =
       (tag.name === 'testsuites' && parent === undefined) ||

@@ -85,7 +85,7 @@ A version-1 Browser bundle SHALL carry its `candidate` as one canonical lowercas
 
 - **GIVEN** raw Playwright JUnit places descriptive `properties` and `property` elements before a testcase's skipped outcome, with matching JSON selection and outcome
 - **WHEN** the Browser inspector reconciles the bundle
-- **THEN** it keeps that case skipped and noncertifying, while malformed property placement or attributes refuse
+- **THEN** it keeps that case skipped and noncertifying, while malformed property placement, blank names, attributes, or character data refuse
 
 ### Requirement: Tests live inside their modules
 

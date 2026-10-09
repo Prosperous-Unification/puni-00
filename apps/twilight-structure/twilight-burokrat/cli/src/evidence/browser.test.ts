@@ -243,6 +243,7 @@ test('inspect-browser accepts reporter annotation metadata and refuses malformed
   for (const [xml, diagnostic] of [
     [withProperties.replace('<properties>', '<properties extra="unknown">'), 'structure'],
     [withProperties.replace('name="issue"', 'name=""'), 'structure'],
+    [withProperties.replace('name="issue"', 'name="   "'), 'structure'],
     [withProperties.replace('value="descriptive only"', ''), 'structure'],
     [withProperties.replace('name="issue"', 'name="issue" extra="unknown"'), 'structure'],
     [
@@ -261,6 +262,13 @@ test('inspect-browser accepts reporter annotation metadata and refuses malformed
       withProperties.replace(
         'value="descriptive only"/>',
         'value="descriptive only">payload</property>',
+      ),
+      'text is outside',
+    ],
+    [
+      withProperties.replace(
+        'value="descriptive only"/>',
+        'value="descriptive only"><![CDATA[payload]]></property>',
       ),
       'text is outside',
     ],
