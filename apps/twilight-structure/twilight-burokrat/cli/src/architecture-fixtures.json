@@ -52,6 +52,10 @@
     {
       "ruleId": "PERF-THRESHOLD",
       "file": "src/architecture/perf-threshold.architecture.test.ts"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "file": "src/architecture/spec-scenarios.architecture.test.ts"
     }
   ]
 }
