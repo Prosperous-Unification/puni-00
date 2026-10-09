@@ -126,13 +126,12 @@ describe('declared level targets', () => {
   // this production-command case failed because Bun discovered unrelated.test.ts and exited 0.
   // Removing each selected fixture and deleting each selector root also confirms stale JUnit is
   // cleared before the selector can fail (2026-10-09).
+  // Proof: on each SQLite API/Unit and core Unit production command, removing rm left stale XML
+  // readable; changing `$files` to `never` let Bun run unrelated.test.ts; changing `&& if` to
+  // `; if` mislabeled failed find as no-cases. All nine injections failed this case (2026-10-09).
   it('refuses empty or failed selection before Bun runs and clears stale JUnit', async () => {
-    const guarded = LEVEL_TARGETS.filter(
-      ({ target, project }) =>
-        target === 'test:conformance:level' ||
-        (project === 'wbs-store-memory' && target === 'test:unit:level'),
-    );
-    expect(guarded).toHaveLength(3);
+    const guarded = LEVEL_TARGETS;
+    expect(guarded).toHaveLength(6);
     for (const target of guarded) {
       const manifest = await readManifest(target.root);
       const command = manifest.targets[target.target]?.options?.command;

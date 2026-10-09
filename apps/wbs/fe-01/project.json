@@ -41,7 +41,7 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "command": "mkdir -p ../../../tmp/junit && TZ=UTC bunx vitest run --config vitest.node.config.ts --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.unit.xml && TZ=UTC bunx vitest run --config vitest.unit-root.config.ts --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.unit.root.xml",
+        "command": "mkdir -p ../../../tmp/junit && rm -f ../../../tmp/junit/wbs-fe-01.unit.xml ../../../tmp/junit/wbs-fe-01.unit.root.xml && TZ=UTC bunx vitest run --config vitest.node.config.ts --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.unit.xml && TZ=UTC bunx vitest run --config vitest.unit-root.config.ts --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.unit.root.xml",
         "cwd": "apps/wbs/fe-01",
         "forwardAllArgs": false
       }
@@ -50,7 +50,7 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "command": "mkdir -p ../../../tmp/junit && TZ=UTC bunx vitest run --config vitest.view.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.view.utc.xml && TZ=Pacific/Auckland bunx vitest run --config vitest.zoned.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.view.auckland.xml",
+        "command": "mkdir -p ../../../tmp/junit && rm -f ../../../tmp/junit/wbs-fe-01.view.utc.xml ../../../tmp/junit/wbs-fe-01.view.auckland.xml && TZ=UTC bunx vitest run --config vitest.view.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.view.utc.xml && TZ=Pacific/Auckland bunx vitest run --config vitest.zoned.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.view.auckland.xml",
         "cwd": "apps/wbs/fe-01",
         "forwardAllArgs": false
       }
