@@ -28,6 +28,10 @@
     {
       "ruleId": "F1",
       "file": "src/architecture/f1.architecture.test.ts"
+    },
+    {
+      "ruleId": "K2",
+      "file": "src/architecture/k2.architecture.test.ts"
     }
   ]
 }
