@@ -601,3 +601,238 @@ replacing the finding path with the declaration path changed adoption and made t
 ratchet test fail. Both mutations were restored.
 The final focused Performance suite passed 18/18 with 149 assertions; Burokrat spec
 TypeScript, changed-file ESLint, Prettier check and `git diff --check` exited 0.
+
+### Performance Playwright collector checkpoint — 2026-10-09
+
+The candidate declaration remains empty. A scratch-only committed candidate with one
+reviewed `lte 200 ms` case exercised the production adapter: Burokrat candidate identity
+and preflight, detached checkout, Playwright JSON `--list`, Playwright execution, fresh
+attachment decoding, independent Burokrat comparison, JUnit and a non-certifying digest
+manifest. An observed 180 ms run produced one passing testcase. A scratch 280 ms run
+caused a nonzero target with `failures="1"` and a `<failure>` testcase in JUnit; before
+the report fix the same test failed with `ENOENT` for the absent JUnit file. The target
+and manifest still say `certifies:false`; this scratch proof is not a repository
+Performance obligation.
+
+The Playwright process uses bounded asynchronous invocation with JSON, stdout and
+stderr redirected to separate files. Direct diagnostic runs of `node
+node_modules/playwright/cli.js` and the executable shebang, each with `--workers=1`,
+exited 0 in 0.8 and 0.7 seconds respectively, emitted 3183 and 3170 JSON bytes and
+empty stderr. The prior `Bun.spawnSync` run hung. A scratch fixture deliberately waiting
+60 seconds was killed after the 20-second bound; the production test passed in 22.37
+seconds and found no reusable JUnit, binding or evidence. Disabling the timeout refusal
+made that named test fail: it received `JSON reporter output is unavailable` instead of
+`timed out`. Playwright receives only PATH, HOME, TMPDIR, LANG and its JSON output path.
+The scratch config reads `PLAYWRIGHT_GREP`; injecting a nonmatching value into the parent
+environment left the normal run passing. Inheriting the parent environment while
+preserving the reporter path made that test fail before collection, so the isolation
+dependency is observed. The runner evidence records an empty selection-affecting
+environment.
+
+The Burokrat `candidate-identity` command returns the same candidate hash as `check`,
+changes after a committed content change and refuses an absent revision. Its response
+includes tool name, project version `0.1.0`, schema version, selected revision and
+`certifies:false`; the adapter validates these before Playwright. Changing the response
+version to `0.0.0` made the scratch target fail with `Burokrat candidate identity tool
+version mismatch`. The shared declaration digest now uses portable noble SHA-256. Bun
+and Node both produced the fixed canonical vector
+`8c1df4f0bb152a042cad1b463d284d99740391ce7561ad6db969bdb0bf64b670`.
+
+Parser guard-to-negative map, using `decodePlaywrightReport` on the production parser
+entrypoint. Every listed guard was disabled individually and its named test failed;
+the adjacent source `Proof:` comments name the observed fault. The discovery/report
+schema fixtures additionally test the remaining field-level malformed records.
+
+Named tests below are all in `tools/tool-devsync/src/performance-playwright.test.ts`:
+**D** = “refuses malformed discovery records at each runner boundary”; **C** =
+“refuses malformed report, config, project and paths”; **S** = “refuses unknown,
+duplicate and missing collection identities”; **R** = “refuses list execution and
+altered run outcomes or observation attachments”; **M** = “refuses malformed
+execution and measurement transport records”. Each mutant command used `bun test
+tools/tool-devsync/src/performance-playwright.test.ts --test-name-pattern '<named
+test>'`; each exited 1 and was restored before the fresh suite.
+
+| Boundary                                | Named test | Negative fixture                               | Guard-removal observation                                                   |
+| --------------------------------------- | ---------- | ---------------------------------------------- | --------------------------------------------------------------------------- |
+| Plain record, array, nonempty string    | D          | malformed config, null projects, empty version | later runner-version error, `null.length` TypeError, empty version accepted |
+| Config path and selected project        | C          | outside config, firefox project                | both foreign selections accepted                                            |
+| Spec and nested-suite file              | S, D       | other spec, other nested file                  | spec accepted; nested mismatch reached later spec error                     |
+| File containment                        | C          | `../outside` suite file, outside root fixture  | later nested mismatch; later undeclared case with `../../` path             |
+| Exact case and collection set           | S          | unknown title, duplicate collected case        | later undefined lookup; duplicate accepted                                  |
+| Per-spec test count and project         | D          | zero selected tests, firefox test              | later invalid record; firefox case accepted                                 |
+| List-only and run result count          | R          | list carrying execution, run missing result    | list accepted; later invalid record                                         |
+| Top-level reporter errors               | D          | nonempty errors                                | report accepted                                                             |
+| Observation attachment count and format | R, M       | absent attachment, text/plain                  | later invalid record; text/plain accepted                                   |
+| Base64 and measurement identity         | R          | malformed base64, foreign case ID              | later JSON error; foreign measurement accepted                              |
+
+Fresh focused outputs after restoring all mutants: `bun test
+tools/tool-devsync/src/performance-playwright.test.ts
+tools/tool-devsync/src/performance-level.test.ts
+libs/shared/domain/test-evidence/src/index.test.ts --timeout=60000` passed
+29/29 with 135 assertions in 30.20 seconds. With
+`TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-test-axes-080-34/node_modules`,
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance.test.ts
+--timeout=30000` passed 20/20 with 166 assertions in 29.79 seconds.
+`bunx tsc -p tools/tool-devsync/tsconfig.spec.json --noEmit`, `bunx tsc -p
+libs/shared/domain/test-evidence/tsconfig.spec.json --noEmit` and `bunx tsc -p
+apps/twilight-structure/twilight-burokrat/cli/tsconfig.spec.json --noEmit`
+each exited 0 with empty output. Changed-file ESLint exited 0; Prettier check
+reported `All matched files use Prettier code style!`; `git diff --check`
+exited 0. The full h2puni gate and a real repository Performance target run
+were not attempted because Task 2.1 and trusted certification remain open.
+
+Certification is **not implemented**. A digest manifest cannot attest execution:
+the current Burokrat transport still accepts caller-supplied JSON and does not recompute
+JUnit/discovery/run artifact bytes. Astra's required next boundary is an externally
+authenticated receipt binding manifest digest, invocation, candidate and trusted
+collector/runtime identity, plus Burokrat verification of those bytes, case sets and
+comparisons. The manifest also needs raw discovery/run artifact digests. A real reviewed
+nonempty repository fixture and run remain mandatory before Task 2.1 can be complete.
+
+### Performance collector boundary corrections after Astra review
+
+The adapter invokes Burokrat from a fresh empty directory outside the candidate and
+passes only PATH, HOME, TMPDIR and LANG. A committed scratch `bunfig.toml` preload writes
+a sentinel if Bun starts in the candidate; the normal target left it absent. Mutating
+the Burokrat CWD back to the candidate made the named scratch success test exit 1:
+its final `ENOENT` sentinel assertion received “operation unexpectedly succeeded”.
+The externally selected policy path is supplied by the trusted caller or an operator
+environment value, never by the candidate declaration. Burokrat performs the trusted
+policy read; the adapter binds the bytes by digest but cannot itself authenticate the
+caller. A missing policy selection refused with `externally selected`; removing that
+guard made the named policy test receive a generic `resolve(undefined)` TypeError.
+An unreadable path refused with `ENOENT`. A policy omitting `performance` was refused
+at preflight with `preflight unavailable`, before Playwright.
+
+The detached checkout is checked for pinned HEAD, clean Git status and exact
+declaration/config bytes before discovery, after discovery, before execution and after
+execution. Candidate HEAD is checked after both phases. The real scratch target
+refused an untracked file written during discovery (`checkout changed after discovery`),
+an untracked file written during execution (`checkout changed after execution`), an
+empty commit in the checkout (`checkout HEAD changed after execution`), a modified
+config hidden with Git `assume-unchanged` (`checkout inputs differ after execution`)
+and an original-candidate commit during execution (`candidate revision changed`).
+No JUnit was emitted for these refusals. Removing the status guard made the dirty-run
+named test exit 1 because `runPerformanceLevel` unexpectedly succeeded; removing HEAD,
+content and original-revision guards made their named tests exit 1 after the expected
+identity refusal was replaced by a later Burokrat `Performance runner exited 1`
+unevaluated verdict. Removing the clean-candidate guard made its named test fail
+because the target unexpectedly succeeded on an untracked candidate file. Removing
+the repository-root guard changed the nested-root test's named refusal to a later
+dirty-status refusal. Persistent changes are covered; transient write-and-restore
+between snapshots is unverified and cannot certify this runner.
+
+JUnit output is now checked by the repository's `saxes` XML parser in the scratch
+production test. A measured case title containing U+0001 was refused before JUnit;
+disabling the XML 1.0 character guard made that named target unexpectedly succeed.
+A measured title with tab, newline and CR round-tripped exactly through parsed JUnit
+attributes because those characters use numeric entities. Removing tab entity
+encoding made the named test fail: the parsed tab became a space. A scratch config
+also appended `0xff` to the actual Playwright JSON reporter file on process exit;
+the target refused `reporter output is not valid UTF-8` before JSON parsing. Turning
+off fatal UTF-8 decoding made the same named test fail with `malformed Playwright
+discovery JSON` instead.
+
+The production `readVerdict` decoder accepts only schema 1, the selected
+`PERF-THRESHOLD` rule, shaped findings/unevaluated records and coherent `allowed`
+with process exit 0/1. Its named malformed-verdict test accepts a debt finding as
+allowed and a refusal finding as disallowed; wrong schema, foreign rule/finding,
+foreign unevaluated record and mismatched allowed/exit each refuse. Disabling each
+of schema, selected-rule, finding, unevaluated and allowed/exit guards made the named
+test exit 1, respectively accepting schema 2 or MOD-INDEX, reaching only a later
+status error, or accepting an incoherent exit-0 `allowed:false`. `assertPreflight`
+requires the selected candidate and exactly one missing-run Performance obligation;
+its named test failed when candidate equality or the missing-run reason check was
+disabled. Exact finding reconciliation also has a named missing/foreign/duplicate
+finding negative; disabling it made the missing-finding test accept no Burokrat
+finding for a measured failure. The production scratch target refuses failed and
+skipped Playwright cases even when their attachments report passing numbers.
+
+Fresh post-correction scoped verification: `bun test
+tools/tool-devsync/src/performance-playwright.test.ts
+tools/tool-devsync/src/performance-level.test.ts
+libs/shared/domain/test-evidence/src/index.test.ts --timeout=60000` exited 0 with
+44 passes, 269 assertions across three files in 69.61 seconds.
+`TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-test-axes-080-34/node_modules bun test
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance.test.ts
+--timeout=30000` exited 0 with 20 passes, 166 assertions in 29.73 seconds.
+Changed-file ESLint, devsync spec TypeScript and Prettier check exited 0.
+The real repository Performance target still has no reviewed case; no full gate or
+operational certification claim is made.
+
+### Performance collector final guard audit
+
+Further scratch runner negatives use the actual `runPerformanceLevel` production
+entrypoint. `exit-list` exits 7 after Playwright writes valid JSON; it refuses
+`discovery failed`. `empty-list` exits 0 with a zero-byte reporter file; it
+refuses `discovery emitted no JSON`. A discovery-stage alteration of the original
+candidate's Git HEAD refuses `candidate revision changed after discovery`; a run
+JSON version altered to `0.0.0` refuses `discovery and execution selection changed`.
+Both a missing result record and a missing observation attachment refuse at the
+strict parser boundary before JUnit. A changed tracked fixture hidden with either
+`assume-unchanged` or `skip-worktree` refuses `tracked input index flags changed
+after execution`. The index scan conservatively requires normal `H` entries for
+all tracked checkout files at every snapshot. Persistent tracked changes with
+masked index flags are therefore rejected; write-and-restore between boundaries
+remains outside this non-certifying adapter's guarantee.
+
+Each mutation below changed only the named production guard, ran `bun test
+tools/tool-devsync/src/performance-level.test.ts --test-name-pattern '<name>'
+--timeout=60000`, observed exit 1, then restored source:
+
+| Disabled guard                 | Named test fragment                              | Observed fault under mutant                                                                                                    |
+| ------------------------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| discovery exit status          | `nonzero discovery`                              | expected `discovery failed`; target unexpectedly succeeded                                                                     |
+| empty discovery reporter       | `nonzero discovery`                              | expected `discovery emitted no JSON`; received `malformed Playwright discovery JSON`                                           |
+| candidate HEAD after discovery | `candidate HEAD changed by Playwright discovery` | expected `candidate revision changed after discovery`; received later `candidate revision changed during Playwright execution` |
+| list/run version comparison    | `runner version differs from discovery`          | expected selection-change refusal; target unexpectedly succeeded                                                               |
+| empty Burokrat verdict output  | `malformed or foreign Burokrat PERF verdicts`    | expected `preflight unavailable`; received malformed JSON refusal                                                              |
+| Burokrat verdict record shape  | `malformed or foreign Burokrat PERF verdicts`    | expected `run verdict is malformed`; received later `run verdict shape is malformed`                                           |
+| checkout index flags           | `dirty, committed or content-masked checkout`    | expected index-flags refusal; received later Burokrat `Performance runner exited 1` refusal                                    |
+| one-to-one finding consumption | `reconciles only the measured case findings`     | expected two-case [A,B] versus [A,A] refusal; returned findings were accepted                                                  |
+| run result cardinality         | `execution report without a case result`         | expected one-result refusal; received `invalid Playwright JSON case result`                                                    |
+| observation cardinality        | `missing measured attachments`                   | expected one-observation refusal; received `invalid Playwright JSON observation attachment`                                    |
+
+The two-case finding test first failed against the old membership-only implementation:
+`Expected substring: "findings differ"; Received function did not throw`. The
+new one-to-one consumption passes the same test. Direct production decoder
+negatives also distinguish empty, malformed JSON, and malformed Burokrat verdict
+records. The earlier selected-policy preflight target negative asserts
+`preflight unavailable` with no JUnit; it cannot silently start Playwright.
+
+Fresh post-audit suite: `bun test tools/tool-devsync/src/performance-playwright.test.ts
+tools/tool-devsync/src/performance-level.test.ts
+libs/shared/domain/test-evidence/src/index.test.ts --timeout=60000` exited 0:
+49 passes, 0 failures, 331 assertions across three files in 93.95 seconds.
+`TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-test-axes-080-34/node_modules bun test
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance.test.ts
+--timeout=30000` exited 0: 20 passes, 0 failures, 166 assertions in 30.27
+seconds. No real repository Performance case or trusted certification was run.
+After the test type refinement, `bunx tsc -p tools/tool-devsync/tsconfig.spec.json
+--noEmit` exited 0 with empty output; the shared and Burokrat spec TypeScript
+checks also exited 0 with empty output. Changed-file ESLint exited 0 with empty
+output. Prettier check reported `All matched files use Prettier code style!`;
+`git diff --check` exited 0 with empty output. The full h2puni gate was skipped
+because Task 2.1 and trusted Performance certification remain open.
+
+A final selected-verdict transport test substitutes only the real Burokrat
+`check` process output while the scratch production target runs. Empty preflight
+stdout refuses `preflight unavailable`; `{` refuses malformed preflight JSON;
+`{}` refuses a malformed preflight verdict. After a valid measured run, a
+foreign 64-character candidate SHA and a coherent exit-1 PERF unevaluated
+obligation each refuse `judge refused the measured run`, with no JUnit.
+`readVerdict` already rejects exit codes outside 0/1, so a duplicate outer
+exit-code predicate was removed. Disabling the post-run candidate predicate
+made the named foreign-candidate/unevaluated test exit 1 because its first
+target unexpectedly succeeded; disabling the unevaluated predicate made its
+second target unexpectedly succeed. Both source guards were restored.
+After restoration, the affected preflight/post-run target command with
+`--test-name-pattern 'missing or malformed Burokrat preflight transport|foreign
+candidate or unevaluated obligation' --timeout=60000` exited 0: 2 passes,
+0 failures, 35 assertions in 15.36 seconds. Devsync spec TypeScript,
+changed devsync ESLint, Prettier check and `git diff --check` each exited 0.
+The root agent independently reran the final-tree focused collector/parser/shared
+suite after the two additional target tests: 51 passes, 0 failures, 366
+assertions in 109.22 seconds. `openspec validate --all --json` validated
+158/158 changes and exited 0. These results do not certify actual repository
+Performance execution, and Tasks 2.1, 2.2 and 3.1 remain open.

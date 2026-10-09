@@ -157,6 +157,38 @@ function readKindOutcome(
   }
 }
 
+function digestCandidate(candidate: CandidateSnapshot): string {
+  return hashCanonical({
+    selection: candidate.selection,
+    entries: candidate.entries,
+    untracked: candidate.untracked,
+  });
+}
+
+/** Non-certifying identity of exactly the selected candidate snapshot. */
+export function identifyCandidate(
+  repository: string,
+  request: CandidateRequest,
+): {
+  readonly schemaVersion: 1;
+  readonly tool: 'twilight-burokrat';
+  readonly toolVersion: '0.1.0';
+  readonly candidate: string;
+  readonly selection: CandidateSnapshot['selection'];
+  readonly certifies: false;
+} {
+  const candidateRoot = resolveCandidateRoot(repository);
+  const candidate = readCandidate(candidateRoot, request);
+  return {
+    schemaVersion: 1,
+    tool: 'twilight-burokrat',
+    toolVersion: '0.1.0',
+    candidate: digestCandidate(candidate),
+    selection: candidate.selection,
+    certifies: false,
+  };
+}
+
 /** Runs every selected rule over one candidate and returns one verdict. Never certifies. */
 export function checkCandidate(request: CheckRequest): Verdict {
   const candidateRoot = resolveCandidateRoot(request.repository);
@@ -178,11 +210,7 @@ export function checkCandidate(request: CheckRequest): Verdict {
     throw new Error('Performance evidence was supplied without selecting PERF-THRESHOLD');
   }
   const candidate = readCandidate(candidateRoot, request.candidate);
-  const candidateDigest = hashCanonical({
-    selection: candidate.selection,
-    entries: candidate.entries,
-    untracked: candidate.untracked,
-  });
+  const candidateDigest = digestCandidate(candidate);
   const performanceEvidence =
     request.performanceEvidencePath === undefined
       ? undefined
@@ -283,6 +311,14 @@ export function writeCheckCommand(argv: readonly string[]): void {
   // Proof: on 2026-09-20, deleting this assignment made an unindexed candidate return exit 0
   // while its verdict still said `allowed: false`.
   if (!verdict.allowed) process.exitCode = 1;
+}
+
+/** `candidate-identity <selection> <repository> <revision-or-base>`; never certifies. */
+export function writeCandidateIdentityCommand(argv: readonly string[]): void {
+  const [, kind, repository, revision] = argv;
+  process.stdout.write(
+    `${JSON.stringify(identifyCandidate(repository, candidateRequest(kind, revision)))}\n`,
+  );
 }
 import { readFileSync } from 'node:fs';
 

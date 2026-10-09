@@ -1,6 +1,17 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
 import { describe, expect, it } from 'bun:test';
 
-import { compareThreshold, decodePerformanceCases, decodePerformanceRun } from './index';
+import {
+  compareThreshold,
+  decodePerformanceCases,
+  decodePerformanceMeasurement,
+  decodePerformanceRun,
+  digestPerformanceDeclaration,
+} from './index';
 
 const caseRecord = {
   caseId: 'paint-ready',
@@ -20,6 +31,48 @@ const declaration = {
 };
 
 describe('Performance case declaration', () => {
+  it('binds the domain-separated declaration with canonical key order', () => {
+    const decoded = decodePerformanceCases(declaration);
+    const reordered = decodePerformanceCases({
+      cases: declaration.cases,
+      project: declaration.project,
+      config: declaration.config,
+      schemaVersion: 1,
+    });
+    expect(digestPerformanceDeclaration(decoded)).toBe(digestPerformanceDeclaration(reordered));
+    expect(digestPerformanceDeclaration(decoded)).toMatch(/^[0-9a-f]{64}$/);
+    expect(() =>
+      digestPerformanceDeclaration(
+        decodePerformanceCases({ ...declaration, cases: [{ ...caseRecord, threshold: -0 }] }),
+      ),
+    ).toThrow('canonically');
+  });
+  it('produces the same canonical SHA-256 vector in Bun and Node', () => {
+    const expected = '8c1df4f0bb152a042cad1b463d284d99740391ce7561ad6db969bdb0bf64b670';
+    const root = mkdtempSync(join(tmpdir(), 'performance-hash-'));
+    try {
+      const output = join(root, 'digest');
+      const source =
+        "import {writeFileSync} from 'node:fs'; const contract=await import(process.argv[1]); writeFileSync(process.argv[3],contract.digestPerformanceDeclaration(contract.decodePerformanceCases(JSON.parse(process.argv[2]))));";
+      const invocation = Bun.spawnSync(
+        [
+          'node',
+          '--input-type=module',
+          '-e',
+          source,
+          pathToFileURL(join(import.meta.dir, 'index.ts')).href,
+          JSON.stringify(declaration),
+          output,
+        ],
+        { stderr: 'pipe' },
+      );
+      expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+      expect(readFileSync(output, 'utf8')).toBe(expected);
+      expect(digestPerformanceDeclaration(decodePerformanceCases(declaration))).toBe(expected);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
   it('accepts several distinct cases in one fixture', () => {
     expect(
       decodePerformanceCases({
@@ -83,6 +136,22 @@ describe('Performance case declaration', () => {
 });
 
 describe('Performance observations', () => {
+  it('decodes a strict one-case attachment and refuses schema or nonfinite values', () => {
+    const measurement = {
+      schemaVersion: 1,
+      caseId: 'paint-ready',
+      measurement: 'paint-ready',
+      unit: 'ms',
+      value: 180,
+    };
+    expect(decodePerformanceMeasurement(measurement).value).toBe(180);
+    expect(() => decodePerformanceMeasurement({ ...measurement, extra: true })).toThrow(
+      'Invalid Performance measurement',
+    );
+    expect(() =>
+      decodePerformanceMeasurement({ ...measurement, value: Number.POSITIVE_INFINITY }),
+    ).toThrow('finite');
+  });
   const run = {
     schemaVersion: 1,
     exitCode: 0,

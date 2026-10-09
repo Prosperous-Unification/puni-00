@@ -1,3 +1,5 @@
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 import { type } from 'arktype';
 
 const UnitRecord = type("'ms'|'bytes'|'count'|'fps'");
@@ -27,11 +29,59 @@ const PerformanceCasesRecord = type({
 /** Versioned candidate declaration for one Performance Playwright selection. */
 export type PerformanceCases = typeof PerformanceCasesRecord.infer;
 
+/** SHA-256 of the domain-separated canonical declaration; its schema has ASCII field names. */
+export function digestPerformanceDeclaration(declaration: PerformanceCases): string {
+  const source = JSON.stringify(
+    { schemaVersion: 1, kind: 'performance-declaration', declaration },
+    // Proof: removing key ordering made the differently ordered declaration test
+    // produce a different digest for the same decoded Performance cases.
+    (_field, value: unknown): unknown =>
+      value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? Object.fromEntries(
+            Object.entries(value).sort(([left], [right]) =>
+              left < right ? -1 : left > right ? 1 : 0,
+            ),
+          )
+        : value,
+  );
+  // Proof: disabling the negative-zero rejection made the canonical digest test accept
+  // a threshold that Burokrat's canonical JSON identity refuses.
+  if (declaration.cases.some((performanceCase) => Object.is(performanceCase.threshold, -0))) {
+    throw new Error('Performance declaration cannot be serialized canonically');
+  }
+  return bytesToHex(sha256(utf8ToBytes(`${source}\n`)));
+}
+
 const ObservationRecord = type({
   measurement: 'string>=1',
   unit: UnitRecord,
   value: 'number',
 }).onUndeclaredKey('reject');
+
+const PerformanceMeasurementRecord = type({
+  schemaVersion: '1',
+  caseId: 'string>=1',
+  measurement: 'string>=1',
+  unit: UnitRecord,
+  value: 'number',
+}).onUndeclaredKey('reject');
+
+export type PerformanceMeasurement = typeof PerformanceMeasurementRecord.infer;
+
+/** A fixture's one measured observation, transported as a JSON attachment. */
+export function decodePerformanceMeasurement(input: unknown): PerformanceMeasurement {
+  const measurement = PerformanceMeasurementRecord(input);
+  // Proof: disabling this branch made the unexpected-field attachment test fail with a
+  // later shape error instead of its named schema refusal.
+  if (measurement instanceof type.errors) {
+    throw new Error(`Invalid Performance measurement: ${measurement.summary}`);
+  }
+  // Proof: disabling this guard made the Infinity attachment test accept a nonfinite value.
+  if (!Number.isFinite(measurement.value)) {
+    throw new Error(`Performance measurement ${measurement.caseId} must be finite`);
+  }
+  return measurement;
+}
 
 const ExecutedCaseRecord = type({
   caseId: 'string>=1',

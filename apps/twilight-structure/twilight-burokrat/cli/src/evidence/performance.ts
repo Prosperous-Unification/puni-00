@@ -2,6 +2,7 @@ import {
   compareThreshold,
   decodePerformanceCases,
   decodePerformanceRun,
+  digestPerformanceDeclaration,
   type PerformanceCases,
   type PerformanceRun,
 } from '@shared/test-evidence';
@@ -176,11 +177,7 @@ export function evaluatePerformanceRun(
     judgments.push(judgeCase(performanceCase, executedCase));
   }
   return {
-    declarationDigest: hashCanonical({
-      schemaVersion: 1,
-      kind: 'performance-declaration',
-      declaration,
-    }),
+    declarationDigest: digestPerformanceDeclaration(declaration),
     policyDigest: authority.policyDigest,
     selectionDigest: hashCanonical({
       schemaVersion: 1,

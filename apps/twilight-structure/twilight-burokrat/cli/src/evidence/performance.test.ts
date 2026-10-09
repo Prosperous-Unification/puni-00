@@ -2,7 +2,11 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { PerformanceCases } from '@shared/test-evidence';
+import {
+  decodePerformanceCases,
+  digestPerformanceDeclaration,
+  type PerformanceCases,
+} from '@shared/test-evidence';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { readCandidate } from '../inventory/read-candidate';
@@ -194,6 +198,52 @@ afterEach(() => {
 });
 
 describe('Burokrat Performance judge', () => {
+  it('prints the non-certifying identity used by check and changes with the selected commit', () => {
+    const fixture = productionFixture();
+    const identity = (revision: string) =>
+      Bun.spawnSync(
+        [
+          process.execPath,
+          'run',
+          join(import.meta.dir, '..', 'cli.ts'),
+          'candidate-identity',
+          'committed',
+          fixture.repository,
+          revision,
+        ],
+        { stdout: 'pipe', stderr: 'pipe', env: process.env },
+      );
+    const first = identity('HEAD');
+    expect(first.exitCode, stderrOf(first)).toBe(0);
+    const firstRecord = JSON.parse(stdoutOf(first)) as {
+      candidate: string;
+      certifies: boolean;
+      selection: { kind: string };
+      tool: string;
+      toolVersion: string;
+    };
+    expect(firstRecord.candidate).toBe(fixture.evidence['candidate'] as string);
+    expect(firstRecord.tool).toBe('twilight-burokrat');
+    expect(firstRecord.toolVersion).toBe(
+      (
+        JSON.parse(readFileSync(join(import.meta.dir, '../..', 'package.json'), 'utf8')) as {
+          version: string;
+        }
+      ).version,
+    );
+    expect(firstRecord.selection.kind).toBe('committed');
+    expect(firstRecord.certifies).toBe(false);
+    writeFileSync(join(fixture.repository, 'other.txt'), 'changed');
+    git(fixture.repository, ['add', '.']);
+    git(fixture.repository, ['commit', '-qm', 'new candidate']);
+    expect((JSON.parse(stdoutOf(identity('HEAD'))) as { candidate: string }).candidate).not.toBe(
+      firstRecord.candidate,
+    );
+    const absent = identity('NO-SUCH-REVISION');
+    expect(absent.exitCode).toBe(1);
+    expect(stderrOf(absent)).toContain('absent');
+  });
+
   it('carries a nonempty candidate-bound run through the production check command', () => {
     const fixture = productionFixture();
     const invocation = checkProduction(fixture);
@@ -324,6 +374,12 @@ describe('Burokrat Performance judge', () => {
   it('uses the reviewed domain-separated case identity', () => {
     expect(digestPerformanceCase(performanceCase)).toBe(
       'da6f4252e2b8804849260dec93f62620c644faa1db2eb3cd877f135aee61494d',
+    );
+  });
+
+  it('shares the exact canonical declaration digest with the runner', () => {
+    expect(digestPerformanceDeclaration(decodePerformanceCases(declaration))).toBe(
+      hashCanonical({ schemaVersion: 1, kind: 'performance-declaration', declaration }),
     );
   });
 
