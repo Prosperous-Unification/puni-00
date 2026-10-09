@@ -738,7 +738,7 @@ type ManualVerdict =
     };
 
 /** Maps a fully validated chain to a noncertifying CLI verdict in precedence order. */
-function manualVerdict(
+function deriveVerdict(
   currency: ManualCurrency,
   outcome: ManualOutcome,
   overdue: boolean,
@@ -981,7 +981,7 @@ export function inspectManual(
     },
     capturedNow,
   );
-  const verdict = manualVerdict(
+  const verdict = deriveVerdict(
     source.currency,
     evaluated.outcome,
     evaluated.overdue,
