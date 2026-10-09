@@ -4,7 +4,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { dlopen } from 'bun:ffi';
+import { dlopen, ptr } from 'bun:ffi';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { SaxesParser } from 'saxes';
 
@@ -14,9 +14,9 @@ import {
   decodeCandidateIdentity,
   readIdentity,
   readVerdict,
-  runPerformanceLevel as runProductionPerformanceLevel,
   xmlText,
 } from './performance-level';
+import { awaitPerformanceSupervisor } from './performance-supervisor-test';
 
 const roots: string[] = [];
 const declarationPath = 'apps/wbs/fe-01/playwright.performance.cases.json';
@@ -65,20 +65,55 @@ async function runPerformanceLevel(
   root: string,
   policyPath?: string,
   descriptors?: ReturnType<typeof healthyScratchDescriptors>,
+  fault?:
+    | 'first-signal'
+    | 'waitpid-echild'
+    | 'partial-evidence'
+    | 'selection-mutate'
+    | 'verdict-preflight-empty'
+    | 'verdict-preflight-malformed'
+    | 'verdict-preflight-shape'
+    | 'verdict-run-foreign'
+    | 'verdict-run-unevaluated'
+    | 'inventory-after-run',
 ): Promise<void> {
-  if (!root.includes('/performance-execution-'))
-    return runProductionPerformanceLevel(root, policyPath, descriptors);
-  const previous = process.env['E2E_PORT_SHIFT'];
-  if (previous === undefined) process.env['E2E_PORT_SHIFT'] = '6000';
+  const supervisorRoot = await mkdtemp(join(tmpdir(), 'performance-supervisor-'));
+  const launchedDescriptors =
+    descriptors ??
+    (root.includes('/performance-execution-') ? healthyScratchDescriptors() : undefined);
+  const encodedDescriptors =
+    launchedDescriptors === undefined
+      ? '-'
+      : Buffer.from(JSON.stringify(launchedDescriptors)).toString('base64url');
+  const environment: Record<string, string> = Object.fromEntries(
+    Object.entries(process.env).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string',
+    ),
+  );
+  if (root.includes('/performance-execution-') && !Object.hasOwn(environment, 'E2E_PORT_SHIFT'))
+    environment['E2E_PORT_SHIFT'] = '6000';
+  if (fault !== undefined) environment['PUNI_PROCESS_FAULT'] = fault;
+  const preloadArguments =
+    fault === undefined
+      ? []
+      : ['--preload', join(import.meta.dir, 'performance-processes.fault.preload.ts')];
   try {
-    await runProductionPerformanceLevel(
-      root,
-      policyPath,
-      descriptors ?? healthyScratchDescriptors(),
+    const supervisor = Bun.spawn(
+      [
+        process.execPath,
+        ...preloadArguments,
+        join(import.meta.dir, 'performance-level-fixture-cli.ts'),
+        root,
+        policyPath ?? '-',
+        encodedDescriptors,
+      ],
+      { cwd: supervisorRoot, env: environment, stdout: 'ignore', stderr: 'pipe' },
     );
+    const { exitCode, stderr } = await awaitPerformanceSupervisor(supervisor, 145_000);
+    if (exitCode !== 0)
+      throw new Error(stderr.trim() || `Performance supervisor exited ${String(exitCode)}`);
   } finally {
-    if (previous === undefined) delete process.env['E2E_PORT_SHIFT'];
-    else process.env['E2E_PORT_SHIFT'] = previous;
+    await rm(supervisorRoot, { recursive: true, force: true });
   }
 }
 
@@ -121,13 +156,26 @@ async function committedPerformanceFixture(
     | 'missing-attachment'
     | 'failed-run'
     | 'skipped-run'
+    | 'orphan-hang'
+    | 'observe-env'
     | 'invalid-json-utf8' = 'none',
   title = 'records readiness',
-): Promise<{ root: string; policyPath: string; preloadSentinel: string }> {
+): Promise<{
+  root: string;
+  policyPath: string;
+  preloadSentinel: string;
+  orphanMarkers: [string, string];
+  observedEnvironment: string;
+}> {
   const parent = await mkdtemp(join(tmpdir(), 'performance-execution-'));
   roots.push(parent);
   const root = join(parent, 'candidate');
   const preloadSentinel = join(parent, 'candidate-preload-sentinel');
+  const orphanMarkers: [string, string] = [
+    join(parent, 'listener.pid'),
+    join(parent, 'sleeper.pid'),
+  ];
+  const observedEnvironment = join(parent, 'observed-env');
   await mkdir(join(root, 'apps/wbs/fe-01/e2e-performance'), { recursive: true });
   await writeFile(join(root, 'bunfig.toml'), 'preload = ["./preload.ts"]\n');
   await writeFile(
@@ -156,7 +204,11 @@ async function committedPerformanceFixture(
           : fault === 'missing-result'
             ? "if (!process.argv.includes('--list')) process.on('exit', () => { const output = process.env['PLAYWRIGHT_JSON_OUTPUT_FILE']; if (existsSync(output)) { const report = JSON.parse(readFileSync(output, 'utf8')); const scrub = (suite) => { for (const spec of suite.specs || []) for (const selected of spec.tests || []) selected.results = []; for (const child of suite.suites || []) scrub(child); }; for (const suite of report.suites) scrub(suite); writeFileSync(output, JSON.stringify(report)); } });\n"
             : '';
-  const configSource = `import { writeFileSync, appendFileSync, existsSync, readFileSync } from 'node:fs';\nimport { execFileSync } from 'node:child_process';\nimport { defineConfig } from '@playwright/test';\n${discoveryFault}${reporterFault}export default defineConfig({ testDir: './e2e-performance', testMatch: /.*\\.perf\\.spec\\.ts/, grep: process.env['PLAYWRIGHT_GREP'], projects: [{ name: 'chromium' }], workers: 1, retries: 0, timeout: ${value === 'hang' ? '0' : '30000'} });\n`;
+  const observedConfig =
+    fault === 'observe-env'
+      ? `writeFileSync(${JSON.stringify(observedEnvironment)} + (process.argv.includes('--list') ? '.discovery' : '.execution'), JSON.stringify({CI:process.env.CI,E2E_PORT_SHIFT:process.env.E2E_PORT_SHIFT}));\n`
+      : '';
+  const configSource = `import { writeFileSync, appendFileSync, existsSync, readFileSync } from 'node:fs';\nimport { execFileSync } from 'node:child_process';\nimport { defineConfig } from '@playwright/test';\n${discoveryFault}${reporterFault}${observedConfig}export default defineConfig({ testDir: './e2e-performance', testMatch: /.*\\.perf\\.spec\\.ts/, grep: process.env['PLAYWRIGHT_GREP'], projects: [{ name: 'chromium' }], workers: 1, retries: 0, timeout: ${value === 'hang' ? '0' : '30000'} });\n`;
   await writeFile(join(root, configPath), configSource);
   const selectedCase = { ...performanceCase, titlePath: ['Paint', title] };
   await writeDeclaration(root, { ...declaration, cases: [selectedCase] });
@@ -189,7 +241,18 @@ async function committedPerformanceFixture(
     `import { writeFileSync, appendFileSync } from 'node:fs';\nimport { execFileSync } from 'node:child_process';\nimport { test } from '@playwright/test';\ntest.describe('Paint', () => { test(${JSON.stringify(title)}, async ({}, testInfo) => { ${wait}${attachmentSource}${faultSource} }); });\n`,
   );
   await mkdir(join(root, 'tools/dev'), { recursive: true });
-  await writeFile(join(root, 'tools/dev/setup.ts'), '// Synthetic committed setup boundary.\n');
+  const setupSource =
+    fault === 'orphan-hang'
+      ? `const environment = { PATH: process.env.PATH ?? '/usr/bin:/bin' };\n` +
+        `const listener = Bun.spawn(['setsid', process.execPath, '--eval', 'Bun.serve({port:10302,fetch(){return new Response("ready")}}); await Bun.sleep(180000)'], {env:environment,stdout:'ignore',stderr:'ignore'});\n` +
+        `const sleeper = Bun.spawn(['setsid', process.execPath, '--eval', 'process.on("SIGTERM", () => {}); await Bun.sleep(180000)'], {env:environment,stdout:'ignore',stderr:'ignore'});\n` +
+        `await Bun.write(${JSON.stringify(orphanMarkers[0])}, String(listener.pid));\n` +
+        `await Bun.write(${JSON.stringify(orphanMarkers[1])}, String(sleeper.pid));\n` +
+        `process.exit(0);\n`
+      : fault === 'observe-env'
+        ? `await Bun.write(${JSON.stringify(observedEnvironment)} + '.setup', JSON.stringify({CI:process.env.CI,E2E_PORT_SHIFT:process.env.E2E_PORT_SHIFT}));\n`
+        : '// Synthetic committed setup boundary.\n';
+  await writeFile(join(root, 'tools/dev/setup.ts'), setupSource);
   for (const app of ['be-01', 'gw-01', 'fe-01']) {
     await mkdir(join(root, 'apps/wbs', app), { recursive: true });
     await writeFile(join(root, 'apps/wbs', app, '.keep'), 'fixture');
@@ -261,7 +324,7 @@ async function committedPerformanceFixture(
       },
     }),
   );
-  return { root, policyPath, preloadSentinel };
+  return { root, policyPath, preloadSentinel, orphanMarkers, observedEnvironment };
 }
 
 async function expectFailure(operation: Promise<unknown>, phrase: string): Promise<void> {
@@ -270,38 +333,6 @@ async function expectFailure(operation: Promise<unknown>, phrase: string): Promi
     (error: unknown) => error,
   );
   expect(String(failure)).toContain(phrase);
-}
-
-async function withAlteredBurokratVerdict(
-  phase: 'preflight' | 'run',
-  alter: (verdict: Record<string, unknown>) => Record<string, unknown> | string,
-  exercise: () => Promise<void>,
-): Promise<void> {
-  const originalSpawn = Bun.spawnSync;
-  const substitute = (...argumentsList: Parameters<typeof Bun.spawnSync>) => {
-    const call = originalSpawn(...argumentsList);
-    const argv = argumentsList[0];
-    if (!Array.isArray(argv) || !argv.includes('check')) return call;
-    const isRun = argv.includes('--performance-evidence');
-    if (isRun !== (phase === 'run')) return call;
-    const verdict = JSON.parse((call.stdout ?? Buffer.alloc(0)).toString()) as Record<
-      string,
-      unknown
-    >;
-    const altered = alter(verdict);
-    const source = typeof altered === 'string' ? altered : JSON.stringify(altered);
-    return {
-      ...call,
-      exitCode: typeof altered === 'string' ? call.exitCode : altered['allowed'] === false ? 1 : 0,
-      stdout: Buffer.from(source),
-    };
-  };
-  Object.defineProperty(Bun, 'spawnSync', { value: substitute });
-  try {
-    await exercise();
-  } finally {
-    Object.defineProperty(Bun, 'spawnSync', { value: originalSpawn });
-  }
 }
 
 afterEach(async () => {
@@ -659,6 +690,23 @@ describe('Performance level target production boundary', () => {
     await expectFailure(readFile(fixture.preloadSentinel), 'ENOENT');
   });
 
+  it('isolates the subreaper supervisor from the Bun test process', async () => {
+    const fixture = await committedPerformanceFixture();
+    const libc = dlopen('libc.so.6', {
+      prctl: { args: ['i32', 'ptr', 'i64', 'i64', 'i64'], returns: 'i32' },
+    });
+    const status = new Int32Array(1);
+    try {
+      expect(libc.symbols.prctl(37, ptr(status), 0, 0, 0)).toBe(0);
+      expect(status[0]).toBe(0);
+      await runPerformanceLevel(fixture.root, fixture.policyPath);
+      expect(libc.symbols.prctl(37, ptr(status), 0, 0, 0)).toBe(0);
+      expect(status[0]).toBe(0);
+    } finally {
+      libc.close();
+    }
+  }, 60_000);
+
   it('publishes distinct immutable passing bundles across sequential invocations', async () => {
     const fixture = await committedPerformanceFixture();
     await runPerformanceLevel(fixture.root, fixture.policyPath);
@@ -753,6 +801,53 @@ describe('Performance level target production boundary', () => {
     }
   }, 60_000);
 
+  it('creates the detached checkout database directory before ordinary service launch', async () => {
+    const fixture = await committedPerformanceFixture();
+    const descriptors = healthyScratchDescriptors();
+    descriptors[0] = {
+      ...descriptors[0],
+      command: `bun --eval "const {existsSync}=require('node:fs'); if(!existsSync('../../../tmp')) process.exit(27); Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})"`,
+    };
+    await runPerformanceLevel(fixture.root, fixture.policyPath, descriptors);
+    expect(await Bun.file(join(fixture.root, currentPath)).exists()).toBe(true);
+  }, 60_000);
+
+  it('passes one exact selection environment to child setup, services, discovery and execution despite mutation and descriptor overrides', async () => {
+    const fixture = await committedPerformanceFixture(180, 'observe-env');
+    const descriptors = healthyScratchDescriptors().map((descriptor, index) => {
+      const marker = `${fixture.observedEnvironment}.service-${String(index)}`;
+      const script = `await Bun.write(${JSON.stringify(marker)}, JSON.stringify({CI:process.env.CI,E2E_PORT_SHIFT:process.env.E2E_PORT_SHIFT})); Bun.serve({port:Number(process.env.PORT),fetch(){return new Response("ready")}});`;
+      return {
+        ...descriptor,
+        command: `bun --eval '${script}'`,
+        env: { ...descriptor.env, CI: '0', E2E_PORT_SHIFT: '9999' },
+      };
+    });
+    await runPerformanceLevel(fixture.root, fixture.policyPath, descriptors, 'selection-mutate');
+    const expected = { CI: '1', E2E_PORT_SHIFT: '6000' };
+    for (const phase of [
+      'setup',
+      'service-0',
+      'service-1',
+      'service-2',
+      'discovery',
+      'execution',
+    ]) {
+      expect(JSON.parse(await readFile(`${fixture.observedEnvironment}.${phase}`, 'utf8'))).toEqual(
+        expected,
+      );
+    }
+    const bundle = await currentBundle(fixture.root);
+    const evidence = JSON.parse(await readFile(join(bundle, 'evidence.json'), 'utf8')) as {
+      selection: { selectionEnvironment: unknown };
+    };
+    const manifest = JSON.parse(await readFile(join(bundle, 'manifest.json'), 'utf8')) as {
+      selection: { selectionEnvironment: unknown };
+    };
+    expect(evidence.selection.selectionEnvironment).toEqual(expected);
+    expect(manifest.selection.selectionEnvironment).toEqual(expected);
+  }, 60_000);
+
   it('emits an honest failing JUnit for an evaluated threshold breach', async () => {
     const fixture = await committedPerformanceFixture(280);
     await mkdir(join(fixture.root, 'tmp/junit'), { recursive: true });
@@ -778,7 +873,10 @@ describe('Performance level target production boundary', () => {
     const fixture = await committedPerformanceFixture('hang');
     await mkdir(join(fixture.root, 'tmp/junit'), { recursive: true });
     await writeFile(join(fixture.root, reportPath), '<testsuite tests="1" failures="0"/>');
-    await expectFailure(runPerformanceLevel(fixture.root, fixture.policyPath), 'timed out');
+    await expectFailure(
+      runPerformanceLevel(fixture.root, fixture.policyPath),
+      'Playwright Performance execution timed out',
+    );
     await expectFailure(readFile(join(fixture.root, reportPath)), 'ENOENT');
     await expectFailure(readFile(join(fixture.root, bindingPath)), 'ENOENT');
     await expectFailure(readFile(join(fixture.root, evidencePath)), 'ENOENT');
@@ -792,6 +890,52 @@ describe('Performance level target production boundary', () => {
       ),
     ).toContain('timed out');
   }, 140_000);
+
+  it('times out execution and reaps immediate-wrapper separate-session listener and TERM-resistant sleeper', async () => {
+    const fixture = await committedPerformanceFixture('hang', 'orphan-hang');
+    const foreign = Bun.spawn(['sleep', '180'], { stdout: 'ignore', stderr: 'ignore' });
+    try {
+      await expectFailure(
+        runPerformanceLevel(fixture.root, fixture.policyPath),
+        'Playwright Performance execution timed out',
+      );
+      const [listenerMarker, sleeperMarker] = fixture.orphanMarkers;
+      const listenerPid = Number((await readFile(listenerMarker, 'utf8')).trim());
+      const sleeperPid = Number((await readFile(sleeperMarker, 'utf8')).trim());
+      expect(Number.isSafeInteger(listenerPid) && listenerPid > 0).toBe(true);
+      expect(Number.isSafeInteger(sleeperPid) && sleeperPid > 0).toBe(true);
+      expect(await Bun.file(`/proc/${String(listenerPid)}/stat`).exists()).toBe(false);
+      expect(await Bun.file(`/proc/${String(sleeperPid)}/stat`).exists()).toBe(false);
+      expect(await Bun.file(`/proc/${String(foreign.pid)}/stat`).exists()).toBe(true);
+      const listener = createServer();
+      await new Promise<void>((resolve, reject) => {
+        listener.once('error', reject);
+        listener.listen(10302, '127.0.0.1', resolve);
+      });
+      await new Promise<void>((resolve, reject) => {
+        listener.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+      const bundles = await readdir(join(fixture.root, 'tmp/junit/performance'));
+      expect(bundles).toHaveLength(1);
+      const bundle = join(fixture.root, 'tmp/junit/performance', bundles[0]);
+      expect(await Bun.file(join(bundle, 'discovery.json')).exists()).toBe(true);
+      const diagnostic = JSON.parse(await readFile(join(bundle, 'failure.json'), 'utf8')) as {
+        executionFailure: string;
+        cleanupFailures: string[];
+      };
+      expect(diagnostic.executionFailure).toContain('Playwright Performance execution timed out');
+      expect(diagnostic.cleanupFailures).toEqual([]);
+      await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
+      for (const legacy of [reportPath, bindingPath, evidencePath])
+        await expectFailure(readFile(join(fixture.root, legacy)), 'ENOENT');
+    } finally {
+      foreign.kill('SIGKILL');
+      await foreign.exited;
+    }
+  }, 150_000);
 
   it('refuses persistent checkout changes between discovery and execution', async () => {
     const fixture = await committedPerformanceFixture(180, 'dirty-discovery');
@@ -915,39 +1059,27 @@ describe('Performance level target production boundary', () => {
   }, 30_000);
 
   it('refuses missing or malformed Burokrat preflight transport before Playwright', async () => {
-    for (const [source, phrase] of [
-      ['', 'preflight unavailable'],
-      ['{', 'malformed Burokrat Performance preflight JSON'],
-      ['{}', 'preflight verdict is malformed'],
+    for (const [fault, phrase] of [
+      ['verdict-preflight-empty', 'preflight unavailable'],
+      ['verdict-preflight-malformed', 'malformed Burokrat Performance preflight JSON'],
+      ['verdict-preflight-shape', 'preflight verdict is malformed'],
     ] as const) {
       const fixture = await committedPerformanceFixture();
-      await withAlteredBurokratVerdict(
-        'preflight',
-        () => source,
-        async () => {
-          await expectFailure(runPerformanceLevel(fixture.root, fixture.policyPath), phrase);
-        },
+      await expectFailure(
+        runPerformanceLevel(fixture.root, fixture.policyPath, undefined, fault),
+        phrase,
       );
       await expectFailure(readFile(join(fixture.root, reportPath)), 'ENOENT');
     }
   }, 30_000);
 
   it('refuses a foreign candidate or unevaluated obligation in the measured verdict', async () => {
-    for (const alter of [
-      (verdict: Record<string, unknown>) => ({ ...verdict, candidate: 'b'.repeat(64) }),
-      (verdict: Record<string, unknown>) => ({
-        ...verdict,
-        allowed: false,
-        unevaluated: [{ ruleId: 'PERF-THRESHOLD', reason: 'injected missing measurement' }],
-      }),
-    ]) {
+    for (const fault of ['verdict-run-foreign', 'verdict-run-unevaluated'] as const) {
       const fixture = await committedPerformanceFixture();
-      await withAlteredBurokratVerdict('run', alter, async () => {
-        await expectFailure(
-          runPerformanceLevel(fixture.root, fixture.policyPath),
-          'judge refused the measured run',
-        );
-      });
+      await expectFailure(
+        runPerformanceLevel(fixture.root, fixture.policyPath, undefined, fault),
+        'judge refused the measured run',
+      );
       await expectFailure(readFile(join(fixture.root, reportPath)), 'ENOENT');
     }
   }, 35_000);
@@ -976,6 +1108,71 @@ describe('Performance level target production boundary', () => {
     expect(escaped).toContain('&#10;');
     expect(escaped).toContain('&#13;');
   });
+
+  it('retains the threshold failure and cleanup fault together without a current pointer', async () => {
+    const fixture = await committedPerformanceFixture(280);
+    await expectFailure(
+      runPerformanceLevel(fixture.root, fixture.policyPath, undefined, 'first-signal'),
+      'pidfd_send_signal failed',
+    );
+    const bundles = await readdir(join(fixture.root, 'tmp/junit/performance'));
+    expect(bundles).toHaveLength(1);
+    const diagnostic = await readFile(
+      join(fixture.root, 'tmp/junit/performance', bundles[0], 'failure.json'),
+      'utf8',
+    );
+    expect(diagnostic).toContain('threshold failure');
+    expect(diagnostic).toContain('pidfd_send_signal failed');
+    await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
+  }, 60_000);
+
+  it('refuses publication after post-run inventory ambiguity while releasing all shifted services', async () => {
+    const fixture = await committedPerformanceFixture();
+    await expectFailure(
+      runPerformanceLevel(fixture.root, fixture.policyPath, undefined, 'inventory-after-run'),
+      'injected post-run inventory ambiguity',
+    );
+    const bundles = await readdir(join(fixture.root, 'tmp/junit/performance'));
+    expect(bundles).toHaveLength(1);
+    const bundle = join(fixture.root, 'tmp/junit/performance', bundles[0]);
+    const failure = JSON.parse(await readFile(join(bundle, 'failure.json'), 'utf8')) as {
+      executionFailure: string | null;
+      cleanupFailures: string[];
+    };
+    expect(failure.executionFailure).toBeNull();
+    expect(failure.cleanupFailures.join(' ')).toContain('injected post-run inventory ambiguity');
+    expect(await Bun.file(join(bundle, 'manifest.json')).exists()).toBe(true);
+    await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
+    for (const port of [9100, 9200, 10200]) {
+      const listener = createServer();
+      await new Promise<void>((resolve, reject) => {
+        listener.once('error', reject);
+        listener.listen(port, '127.0.0.1', resolve);
+      });
+      await new Promise<void>((resolve, reject) => {
+        listener.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+    }
+  }, 60_000);
+
+  it('never exposes a partially written evidence artifact as a final bundle member', async () => {
+    const fixture = await committedPerformanceFixture();
+    await expectFailure(
+      runPerformanceLevel(fixture.root, fixture.policyPath, undefined, 'partial-evidence'),
+      'injected partial bundle write',
+    );
+    const bundles = await readdir(join(fixture.root, 'tmp/junit/performance'));
+    expect(bundles).toHaveLength(1);
+    const bundle = join(fixture.root, 'tmp/junit/performance', bundles[0]);
+    await expectFailure(readFile(join(bundle, 'evidence.json')), 'ENOENT');
+    expect(await readFile(join(bundle, 'failure.json'), 'utf8')).toContain(
+      'injected partial bundle write',
+    );
+    await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
+  }, 60_000);
 
   it('refuses a measured case with an XML-forbidden title before emitting JUnit', async () => {
     const fixture = await committedPerformanceFixture(180, 'none', 'bad\u0001title');

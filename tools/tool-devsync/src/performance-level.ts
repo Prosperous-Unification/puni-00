@@ -77,17 +77,46 @@ function executionEnvironment(
     TMPDIR: tmpdir(),
     LANG: 'C.UTF-8',
     ...extra,
+    // Proof: moving descriptor extras after this exact pair made the child-observed
+    // service phase receive CI=0 and shift=9999; the six-phase integration test failed.
     CI: selectionEnvironment.CI,
     E2E_PORT_SHIFT: selectionEnvironment.E2E_PORT_SHIFT,
   };
 }
 
-function requireCleanPerformanceCleanup(failures: unknown[]): void {
-  if (failures.length > 0)
+function requirePerformanceSuccess(
+  executionFailure: unknown,
+  hasExecutionFailure: boolean,
+  cleanupFailures: unknown[],
+): void {
+  if (cleanupFailures.length > 0)
     throw new AggregateError(
-      failures,
-      `Performance cleanup failed: ${failures.map((failure) => String(failure)).join('; ')}`,
+      hasExecutionFailure ? [executionFailure, ...cleanupFailures] : cleanupFailures,
+      `Performance cleanup failed: ${cleanupFailures.map((failure) => String(failure)).join('; ')}${hasExecutionFailure ? `; execution failed: ${String(executionFailure)}` : ''}`,
     );
+  if (hasExecutionFailure) throw executionFailure;
+}
+
+/** Publishes one immutable invocation artifact only after its complete bytes are written. */
+async function writeBundleArtifact(bundle: string, name: string, source: string): Promise<void> {
+  const temporary = join(bundle, `.${name}.${randomUUID()}.tmp`);
+  try {
+    // Proof: an injected write failure left a truncated final evidence.json;
+    // the watched production runner test now sees only a removed temp file.
+    await writeFile(temporary, source, { flag: 'wx' });
+    await rename(temporary, join(bundle, name));
+  } catch (cause) {
+    try {
+      await rm(temporary, { force: true });
+    } catch (cleanupCause) {
+      throw new AggregateError(
+        [cause, cleanupCause],
+        `Performance bundle ${name} staging cleanup failed`,
+        { cause: cleanupCause },
+      );
+    }
+    throw cause;
+  }
 }
 
 async function awaitChildWithin(
@@ -727,6 +756,8 @@ async function runLockedPerformanceLevel(
   let checkoutAdded = false;
   let owner: PerformanceProcessOwner | undefined;
   let publish = false;
+  let hasExecutionFailure = false;
+  let executionFailure: unknown;
   try {
     requireGit(
       candidateRoot,
@@ -745,6 +776,9 @@ async function runLockedPerformanceLevel(
     const setupExit = await awaitChildWithin(setup, 30_000, 'development setup');
     if (setupExit !== 0)
       throw new Error(`Performance development setup failed: ${String(setupExit)}`);
+    // Proof: the disposable full-mount production Nx target reached BE readiness
+    // but BE exited 1 because its per-invocation SQLite path had no tmp parent.
+    await mkdir(join(checkoutRoot, 'tmp'), { recursive: true });
     const descriptors =
       injectedDescriptors ??
       ordinaryServerDescriptors(
@@ -813,7 +847,7 @@ async function runLockedPerformanceLevel(
       20_000,
       selectionEnvironment,
     );
-    await writeFile(join(bundle, 'discovery.json'), listedInvocation.stdout, { flag: 'wx' });
+    await writeBundleArtifact(bundle, 'discovery.json', listedInvocation.stdout);
     // Proof: disabling this exit-status guard made the nonzero-discovery scratch target
     // continue into execution and miss its named discovery-failed refusal.
     if (listedInvocation.exitCode !== 0)
@@ -859,7 +893,7 @@ async function runLockedPerformanceLevel(
       120_000,
       selectionEnvironment,
     );
-    await writeFile(join(bundle, 'run.json'), runInvocation.stdout, { flag: 'wx' });
+    await writeBundleArtifact(bundle, 'run.json', runInvocation.stdout);
     const executed = decodePlaywrightReport(
       parseJson(runInvocation.stdout, 'Playwright execution'),
       checkoutRoot,
@@ -908,7 +942,7 @@ async function runLockedPerformanceLevel(
       run: executed.execution,
     };
     const evidenceSource = `${JSON.stringify(evidence)}\n`;
-    await writeFile(evidenceFile, evidenceSource, { flag: 'wx' });
+    await writeBundleArtifact(bundle, 'evidence.json', evidenceSource);
     const checked = checkPerformance(candidateRoot, revision, policyPath, evidenceFile);
     const verdict = readVerdict(checked, 'run');
     // readVerdict already enforces the only permitted exit statuses and their
@@ -961,9 +995,10 @@ async function runLockedPerformanceLevel(
       }));
     assertPerformanceFindings(verdict.findings, expectedFindings);
     const reportSource = `<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="wbs-fe-01.performance" tests="${String(declaration.cases.length)}" failures="${String(failedCases.size)}" errors="0" skipped="0">\n${casesXml}\n</testsuite>\n`;
-    await writeFile(join(bundle, 'report.xml'), reportSource, { flag: 'wx' });
-    await writeFile(
-      join(bundle, 'manifest.json'),
+    await writeBundleArtifact(bundle, 'report.xml', reportSource);
+    await writeBundleArtifact(
+      bundle,
+      'manifest.json',
       `${JSON.stringify({
         schemaVersion: 1,
         certifies: false,
@@ -984,7 +1019,6 @@ async function runLockedPerformanceLevel(
         evidence: { path: 'evidence.json', digest: hashBytes(evidenceSource) },
         report: { path: 'report.xml', digest: hashBytes(reportSource) },
       })}\n`,
-      { flag: 'wx' },
     );
     // Proof: before this branch emitted a failing report, the scratch threshold-breach test
     // found no JUnit at all; removing the nonzero exit would make the target accept that breach.
@@ -992,16 +1026,8 @@ async function runLockedPerformanceLevel(
       throw new Error(`Performance threshold failure: ${[...failedCases].join(', ')}`);
     publish = true;
   } catch (cause) {
-    await writeFile(
-      join(bundle, 'failure.json'),
-      `${JSON.stringify({
-        schemaVersion: 1,
-        invocationId,
-        message: String(cause),
-      })}\n`,
-      { flag: 'wx' },
-    );
-    throw cause;
+    hasExecutionFailure = true;
+    executionFailure = cause;
   } finally {
     const cleanupFailures: unknown[] = [];
     if (owner !== undefined) {
@@ -1032,7 +1058,26 @@ async function runLockedPerformanceLevel(
     } catch (cause) {
       cleanupFailures.push(cause);
     }
-    requireCleanPerformanceCleanup(cleanupFailures);
+    if (hasExecutionFailure || cleanupFailures.length > 0) {
+      try {
+        // Proof: the production threshold plus injected pidfd signal fault
+        // formerly left failure.json with only the threshold error.
+        await writeBundleArtifact(
+          bundle,
+          'failure.json',
+          `${JSON.stringify({
+            schemaVersion: 1,
+            invocationId,
+            message: hasExecutionFailure ? String(executionFailure) : 'Performance cleanup failed',
+            executionFailure: hasExecutionFailure ? String(executionFailure) : null,
+            cleanupFailures: cleanupFailures.map((failure) => String(failure)),
+          })}\n`,
+        );
+      } catch (cause) {
+        cleanupFailures.push(cause);
+      }
+    }
+    requirePerformanceSuccess(executionFailure, hasExecutionFailure, cleanupFailures);
     if (publish) {
       const pointer = `${JSON.stringify({ schemaVersion: 1, certifies: false, invocationId, bundle: bundleRelative })}\n`;
       const temporary = join(candidateRoot, 'tmp/junit', `${invocationId}.current.tmp`);
