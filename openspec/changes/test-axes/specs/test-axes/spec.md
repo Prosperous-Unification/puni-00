@@ -59,6 +59,28 @@ Each level SHALL be runnable alone through one Nx target. An existing aggregate 
 - **WHEN** each runs files from two levels
 - **THEN** the declared aggregate passes and the undeclared target fails
 
+### Requirement: Browser observations bind one committed candidate
+
+A version-1 Browser bundle SHALL carry its `candidate` as one canonical lowercase SHA-256 digest. The Browser inspector SHALL independently select the committed revision and recompute its candidate digest before reporting an observation. A valid observation SHALL remain `certifies:false` with authentication absent.
+
+#### Scenario: [TEST-AXES-034] A bundle matches its committed selection
+
+- **GIVEN** a complete Browser bundle with the exact candidate digest and revision
+- **WHEN** the inspector reads it under an external Browser policy pin
+- **THEN** it reports the observed cases with absent authentication and no certification
+
+#### Scenario: [TEST-AXES-035] A candidate digest is absent or foreign
+
+- **GIVEN** a bundle whose candidate digest is missing, malformed, an object, or from another commit with the same tree
+- **WHEN** the inspector independently selects the committed revision
+- **THEN** it refuses the bundle, including when a distinct empty descendant has identical file bytes
+
+#### Scenario: [TEST-AXES-036] A manifest names another revision
+
+- **GIVEN** a bundle with the exact candidate digest but a different manifest revision
+- **WHEN** the inspector compares it with the committed selection
+- **THEN** it refuses the bundle
+
 ### Requirement: Tests live inside their modules
 
 A test SHALL live inside the module it tests, resolved from the module index.

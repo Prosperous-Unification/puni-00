@@ -130,14 +130,7 @@ function fixture(): {
     invocationId,
     mode,
     revision,
-    candidate: {
-      schemaVersion: 1,
-      tool: 'twilight-burokrat',
-      toolVersion: '0.1.0',
-      candidate,
-      selection: selected.selection,
-      certifies: false,
-    },
+    candidate,
     config,
     configDigest: digestEvidenceBytes('export default {}\n'),
     runnerVersion: '1.63.0',
@@ -162,6 +155,31 @@ afterEach(() => {
 
 function inspect(setup: ReturnType<typeof fixture>) {
   return inspectBrowserBundle(setup.root, setup.revision, setup.policyPath, mode);
+}
+
+function invokeInspect(setup: ReturnType<typeof fixture>): {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+} {
+  const invocation = Bun.spawnSync(
+    [
+      process.execPath,
+      'run',
+      join(import.meta.dir, '..', 'cli.ts'),
+      'inspect-browser',
+      setup.root,
+      setup.revision,
+      setup.policyPath,
+      mode,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  return {
+    exitCode: invocation.exitCode,
+    stdout: invocation.stdout.toString(),
+    stderr: invocation.stderr.toString(),
+  };
 }
 
 test('diagnoses exact Browser observations while withholding authentication and coverage', () => {
@@ -199,6 +217,51 @@ test('prints only diagnostic observations through the production CLI', () => {
     { stdout: 'pipe', stderr: 'pipe' },
   );
   expect(staged.exitCode).toBe(1);
+});
+
+test('production CLI refuses missing, malformed, old-object and foreign candidate digests', () => {
+  const setup = fixture();
+  const candidate = setup.manifest['candidate'];
+  for (const [value, diagnostic] of [
+    [undefined, 'Browser candidate is malformed'],
+    ['not-a-sha256', 'Browser candidate digest is malformed'],
+    [{ candidate }, 'Browser candidate is malformed'],
+    ['0'.repeat(64), 'Browser candidate identity differs from committed selection'],
+  ] as const) {
+    if (value === undefined) delete setup.manifest['candidate'];
+    else setup.manifest['candidate'] = value;
+    writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
+    const inspection = invokeInspect(setup);
+    expect(inspection.exitCode).toBe(1);
+    expect(inspection.stderr).toContain(diagnostic);
+    expect(inspection.stdout).toBe('');
+  }
+});
+
+test('production CLI refuses a changed manifest revision even with the exact candidate digest', () => {
+  const setup = fixture();
+  setup.manifest['revision'] = '0'.repeat(40);
+  writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
+  const inspection = invokeInspect(setup);
+  expect(inspection.exitCode).toBe(1);
+  expect(inspection.stderr).toContain('Browser manifest revision differs from committed selection');
+  expect(inspection.stdout).toBe('');
+});
+
+test('production CLI distinguishes an empty descendant with the same tree from its parent digest', () => {
+  const setup = fixture();
+  const oldTree = git(setup.root, ['rev-parse', `${setup.revision}^{tree}`]);
+  git(setup.root, ['commit', '--allow-empty', '-m', 'same tree, new selection']);
+  setup.revision = git(setup.root, ['rev-parse', 'HEAD']);
+  expect(git(setup.root, ['rev-parse', `${setup.revision}^{tree}`])).toBe(oldTree);
+  setup.manifest['revision'] = setup.revision;
+  writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
+  const inspection = invokeInspect(setup);
+  expect(inspection.exitCode).toBe(1);
+  expect(inspection.stderr).toContain(
+    'Browser candidate identity differs from committed selection',
+  );
+  expect(inspection.stdout).toBe('');
 });
 
 test('refuses stale generation, changed pointer, missing bundle and symlink files', () => {

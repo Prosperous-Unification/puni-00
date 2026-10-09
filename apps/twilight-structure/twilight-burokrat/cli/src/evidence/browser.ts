@@ -366,22 +366,22 @@ export function inspectBrowserBundle(
     return contents;
   };
   const manifest = record(decodeJson(bundleBytes('manifest.json'), 'manifest'), 'manifest');
-  const identity = record(manifest['candidate'], 'candidate identity');
-  if (
-    identity['schemaVersion'] !== 1 ||
-    identity['tool'] !== 'twilight-burokrat' ||
-    identity['toolVersion'] !== '0.1.0' ||
-    identity['certifies'] !== false ||
-    identity['candidate'] !== candidate ||
-    JSON.stringify(identity['selection']) !== JSON.stringify(selected.selection)
-  )
+  // Proof: replacing this strict digest read with string coercion lost the
+  // missing-candidate diagnostic in the named production CLI negative.
+  const claimedCandidate = digest(manifest['candidate'], 'candidate');
+  // Proof: removing digest equality made the production CLI accept a foreign
+  // candidate digest and an empty descendant with the same tree.
+  if (claimedCandidate !== candidate)
     throw new Error('Browser candidate identity differs from committed selection');
+  // Proof: removing revision equality made the changed-revision production
+  // CLI negative accept a manifest bound to a different committed selection.
+  if (manifest['revision'] !== selected.selection.revision)
+    throw new Error('Browser manifest revision differs from committed selection');
   if (
     manifest['schemaVersion'] !== 1 ||
     manifest['certifies'] !== false ||
     manifest['mode'] !== mode ||
     manifest['invocationId'] !== invocationId ||
-    manifest['revision'] !== selected.selection.revision ||
     manifest['config'] !== pin.config ||
     manifest['configDigest'] !== configDigest
   )
