@@ -36,6 +36,7 @@ function isolatedTest(
     | 'identity-reused'
     | 'signal-identity-reused'
     | 'direct-reuse'
+    | 'owned-root-reuse'
     | 'first-signal'
     | 'unresolved-direct'
     | 'waitpid-echild'
@@ -405,6 +406,62 @@ isolatedTest(
   },
   10_000,
   'identity-reused',
+);
+
+isolatedTest(
+  'does not signal foreign grandchildren below a reused owned PID',
+  async () => {
+    const owner = createPerformanceProcessOwner();
+    const marker = join(
+      tmpdir(),
+      `performance-reused-tree-${String(process.pid)}-${String(Date.now())}`,
+    );
+    const grandchildScript = 'await Bun.sleep(30_000)';
+    const childScript = `const child = Bun.spawn([process.execPath, '--eval', ${JSON.stringify(grandchildScript)}]); await Bun.write(${JSON.stringify(`${marker}.c`)}, String(child.pid)); await Bun.sleep(30_000);`;
+    const rootScript = `const child = Bun.spawn([process.execPath, '--eval', ${JSON.stringify(childScript)}]); await Bun.write(${JSON.stringify(`${marker}.b`)}, String(child.pid)); await Bun.sleep(30_000);`;
+    const wrapperScript = `const child = Bun.spawn([process.execPath, '--eval', ${JSON.stringify(rootScript)}]); await Bun.write(${JSON.stringify(`${marker}.a`)}, String(child.pid)); await Bun.sleep(30_000);`;
+    const wrapper = owner.spawn([process.execPath, '--eval', wrapperScript], process.cwd(), {});
+    const sibling = owner.spawn(['sleep', '30'], process.cwd(), {
+      PATH: process.env['PATH'] ?? '/usr/bin:/bin',
+    });
+    const pids: number[] = [];
+    try {
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        if (await Bun.file(`${marker}.c`).exists()) break;
+        await Bun.sleep(20);
+      }
+      for (const suffix of ['a', 'b', 'c'])
+        pids.push(Number((await readFile(`${marker}.${suffix}`, 'utf8')).trim()));
+      expect(pids.every((pid) => Number.isInteger(pid) && pid > 0)).toBe(true);
+      const inventory = owner.spawn(['true'], process.cwd(), {
+        PATH: process.env['PATH'] ?? '/usr/bin:/bin',
+      });
+      await inventory.exited;
+      process.env['PUNI_MUTATE_PID'] = String(pids[0]);
+      const failure: unknown = await owner.stop().then(
+        () => new Error('cleanup unexpectedly succeeded'),
+        (cause: unknown) => cause,
+      );
+      expect(String(failure)).toContain(`PID identity changed for ${String(pids[0])}`);
+      expect(await Bun.file(`/proc/${String(pids[0])}/stat`).exists()).toBe(true);
+      expect(await Bun.file(`/proc/${String(pids[1])}/stat`).exists()).toBe(true);
+      expect(await Bun.file(`/proc/${String(pids[2])}/stat`).exists()).toBe(true);
+      expect(await Bun.file(`/proc/${String(sibling.pid)}/stat`).exists()).toBe(false);
+    } finally {
+      delete process.env['PUNI_MUTATE_PID'];
+      for (const pid of pids)
+        if (await Bun.file(`/proc/${String(pid)}/stat`).exists()) process.kill(pid, 'SIGKILL');
+      if (await Bun.file(`/proc/${String(wrapper.pid)}/stat`).exists()) wrapper.kill('SIGKILL');
+      if (await Bun.file(`/proc/${String(sibling.pid)}/stat`).exists()) sibling.kill('SIGKILL');
+      await wrapper.exited;
+      await sibling.exited;
+      await Promise.all(
+        ['a', 'b', 'c'].map((suffix) => rm(`${marker}.${suffix}`, { force: true })),
+      );
+    }
+  },
+  12_000,
+  'owned-root-reuse',
 );
 
 isolatedTest(

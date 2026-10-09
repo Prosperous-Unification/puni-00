@@ -173,6 +173,7 @@ export function createPerformanceProcessOwner(): PerformanceProcessOwner {
   const settledDirect = new Set<number>();
   const directExitFailures = new Map<number, unknown>();
   const reaped = new Set<number>();
+  const tainted = new Map<number, string>();
   let stopping = false;
   let inventoryComplete = true;
 
@@ -201,17 +202,48 @@ export function createPerformanceProcessOwner(): PerformanceProcessOwner {
         }
       }
     }
-    const selected = new Map<number, ProcessIdentity>();
+    const rejected = new Set<number>();
     for (const identity of snapshot.values()) {
-      if (direct.has(identity.pid) && directStarttimes.get(identity.pid) !== identity.starttime) {
-        // Proof: the direct-reuse preload made pidfd_open observe a vanished
-        // launch, then returned the same PID with a different starttime. The
-        // named owner test previously accepted and signaled that identity.
+      const prior = owned.get(identity.pid);
+      if (
+        (direct.has(identity.pid) && directStarttimes.get(identity.pid) !== identity.starttime) ||
+        (prior !== undefined && prior.identity.starttime !== identity.starttime)
+      ) {
+        // Proof: direct-reuse refused a vanished launch reused at the same PID;
+        // owned-root-reuse originally signaled a foreign grandchild below a
+        // changed owned PID. Reject roots before expanding their descendants.
         const fault = new Error(`Performance PID identity changed for ${String(identity.pid)}`);
         if (onFault === undefined) throw fault;
         onFault(fault);
-        continue;
+        rejected.add(identity.pid);
+        tainted.set(identity.pid, identity.starttime);
       }
+    }
+    const hasRejectedAncestor = (identity: ProcessIdentity): boolean => {
+      const seen = new Set<number>();
+      let ancestor: ProcessIdentity | undefined = identity;
+      while (ancestor !== undefined) {
+        // Proof: the owned-root-reuse negative first killed C when expansion
+        // re-added rejected A; a later scan adopted C after its wrapper exited.
+        // Exact-identity taint keeps A/B/C out while a valid sibling drains.
+        if (rejected.has(ancestor.pid) || tainted.get(ancestor.pid) === ancestor.starttime) {
+          tainted.set(identity.pid, identity.starttime);
+          return true;
+        }
+        if (seen.has(ancestor.pid)) {
+          const fault = new Error(`Performance PID ancestry cycle for ${String(identity.pid)}`);
+          if (onFault === undefined) throw fault;
+          onFault(fault);
+          return true;
+        }
+        seen.add(ancestor.pid);
+        ancestor = snapshot.get(ancestor.ppid);
+      }
+      return false;
+    };
+    const selected = new Map<number, ProcessIdentity>();
+    for (const identity of snapshot.values()) {
+      if (hasRejectedAncestor(identity)) continue;
       if (
         direct.has(identity.pid) ||
         owned.has(identity.pid) ||
@@ -223,7 +255,11 @@ export function createPerformanceProcessOwner(): PerformanceProcessOwner {
     while (changed) {
       changed = false;
       for (const identity of snapshot.values()) {
-        if (!selected.has(identity.pid) && selected.has(identity.ppid)) {
+        if (
+          !selected.has(identity.pid) &&
+          selected.has(identity.ppid) &&
+          !hasRejectedAncestor(identity)
+        ) {
           selected.set(identity.pid, identity);
           changed = true;
         }
@@ -232,15 +268,6 @@ export function createPerformanceProcessOwner(): PerformanceProcessOwner {
     for (const identity of selected.values()) {
       const previous = owned.get(identity.pid);
       if (previous !== undefined) {
-        // Proof: a one-read /proc start-time mutation was accepted when this
-        // guard was disabled; the owned-PID negative failed with unexpected success.
-        if (previous.identity.starttime !== identity.starttime) {
-          const fault = new Error(`Performance PID identity changed for ${String(identity.pid)}`);
-          if (onFault === undefined) throw fault;
-          onFault(fault);
-          selected.delete(identity.pid);
-          continue;
-        }
         if (identity.ppid === process.pid && !direct.has(identity.pid)) previous.adopted = true;
         continue;
       }

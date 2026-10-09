@@ -89,11 +89,15 @@ function requirePerformanceSuccess(
   hasExecutionFailure: boolean,
   cleanupFailures: unknown[],
 ): void {
+  // Proof: the post-run /proc ambiguity preload produced cleanupFailures and
+  // the named runner test observed failure.json with no current pointer.
   if (cleanupFailures.length > 0)
     throw new AggregateError(
       hasExecutionFailure ? [executionFailure, ...cleanupFailures] : cleanupFailures,
       `Performance cleanup failed: ${cleanupFailures.map((failure) => String(failure)).join('; ')}${hasExecutionFailure ? `; execution failed: ${String(executionFailure)}` : ''}`,
     );
+  // Proof: the 1500-cell full-mount Nx fault and scratch threshold negative
+  // both emitted failing JUnit and exited nonzero without a success pointer.
   if (hasExecutionFailure) throw executionFailure;
 }
 
@@ -129,6 +133,8 @@ async function awaitChildWithin(
     return await Promise.race([
       child.exited,
       new Promise<never>((_accept, reject) => {
+        // Proof: the hung-Playwright production-path negative reached its
+        // 120-second execution deadline and retained failure diagnostics.
         timeout = setTimeout(() => {
           reject(new Error(`Performance ${phase} timed out`));
         }, deadlineMs);
@@ -1032,6 +1038,8 @@ async function runLockedPerformanceLevel(
     const cleanupFailures: unknown[] = [];
     if (owner !== undefined) {
       try {
+        // Proof: the threshold plus injected pidfd signal fault kept both
+        // errors in failure.json; the combined orphan timeout reaped children.
         await owner.stop();
       } catch (cause) {
         cleanupFailures.push(cause);
@@ -1077,8 +1085,12 @@ async function runLockedPerformanceLevel(
         cleanupFailures.push(cause);
       }
     }
+    // Proof: the post-run inventory ambiguity and threshold-breach runner
+    // negatives retained diagnostics and never published a current pointer.
     requirePerformanceSuccess(executionFailure, hasExecutionFailure, cleanupFailures);
     if (publish) {
+      // Proof: the occupied-port and threshold negatives found no new pointer;
+      // the sequential passing runner test published fresh invocation IDs.
       const pointer = `${JSON.stringify({ schemaVersion: 1, certifies: false, invocationId, bundle: bundleRelative })}\n`;
       const temporary = join(candidateRoot, 'tmp/junit', `${invocationId}.current.tmp`);
       await writeFile(temporary, pointer, { flag: 'wx' });
