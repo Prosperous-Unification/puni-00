@@ -89,6 +89,51 @@ function fails(report: unknown, phase: 'list' | 'run', phrase: string): void {
 }
 
 describe('Performance Playwright JSON boundary', () => {
+  it('keeps a separate per-sample diagnostic without changing scalar observation acceptance', () => {
+    const frame = {
+      actualScrollTop: 1_400,
+      clientHeight: 763,
+      scrollHeight: 2_800,
+      frameHeight: 763,
+      frameTop: 100,
+      frameBottom: 863,
+      publishedOffset: 1_152,
+      rowOverscanPx: 704,
+      rowPublicationStepPx: 576,
+      windowStart: 448,
+      windowEnd: 2_619,
+      visibleStart: 1_400,
+      visibleEnd: 2_163,
+      mountedRows: 84,
+      mountedCells: 1_260,
+      intersectingRows: 28,
+      intersectingCells: 420,
+      mountedRowDetails: [{ id: 'row-17', index: 17, top: 90, bottom: 118, height: 28, cells: 15 }],
+      firstMountedRow: 'row-17',
+      firstMountedIndex: 17,
+      lastMountedRow: 'row-99',
+      lastMountedIndex: 99,
+      pinnedFirstRowMounted: true,
+    };
+    const samples = {
+      schemaVersion: 1,
+      caseId: 'paint-ready',
+      samples: [{ index: 50, requestedPhysicalTop: 1_400, ...frame, followUp: { ...frame } }],
+    };
+    const report = jsonReport('run');
+    const attachments = report.suites[0].suites[0].specs[0].tests[0].results[0].attachments;
+    attachments.unshift({
+      name: 'puni.performance.samples.v1',
+      contentType: 'application/json',
+      body: Buffer.from(JSON.stringify(samples)).toString('base64'),
+    });
+    expect(JSON.parse(Buffer.from(attachments[0].body, 'base64').toString())).toEqual(samples);
+    const accepted = decodePlaywrightReport(report, checkoutRoot, declaration, 'run', 0);
+    expect(accepted.execution.cases[0].observations).toEqual([
+      { measurement: 'paint-ready', unit: 'ms', value: 180 },
+    ]);
+  });
+
   it('matches exact list and measured run identities', () => {
     const listed = decodePlaywrightReport(jsonReport('list'), checkoutRoot, declaration, 'list', 0);
     expect(listed.version).toBe('1.63.0');
