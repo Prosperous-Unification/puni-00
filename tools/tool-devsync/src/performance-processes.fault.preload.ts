@@ -153,6 +153,22 @@ await mock.module('node:fs', () => ({
       throw unreadable;
     }
     const selectedIdentityPath = path === `/proc/${process.env['PUNI_MUTATE_PID'] ?? '-'}/stat`;
+    if (
+      fault === 'ancestry-cycle' &&
+      path === `/proc/${process.env['PUNI_CYCLE_PID'] ?? '-'}/stat`
+    ) {
+      const source = (nativeReadFileSync as (...args: unknown[]) => string)(
+        path,
+        ...argumentsAfterPath,
+      );
+      const end = source.lastIndexOf(')');
+      const fields = source
+        .slice(end + 2)
+        .trim()
+        .split(/\s+/);
+      fields[1] = process.env['PUNI_CYCLE_PID'] ?? '-1';
+      return `${source.slice(0, end + 2)}${fields.join(' ')}\n`;
+    }
     if (selectedIdentityPath && fault === 'owned-root-reuse') {
       const source = (nativeReadFileSync as (...args: unknown[]) => string)(
         path,

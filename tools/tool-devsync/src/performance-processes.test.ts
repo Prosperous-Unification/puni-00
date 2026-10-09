@@ -37,6 +37,7 @@ function isolatedTest(
     | 'signal-identity-reused'
     | 'direct-reuse'
     | 'owned-root-reuse'
+    | 'ancestry-cycle'
     | 'first-signal'
     | 'unresolved-direct'
     | 'waitpid-echild'
@@ -462,6 +463,45 @@ isolatedTest(
   },
   12_000,
   'owned-root-reuse',
+);
+
+isolatedTest(
+  'refuses a cyclic process-inventory ancestry while draining an independent sibling',
+  async () => {
+    const owner = createPerformanceProcessOwner();
+    const marker = join(tmpdir(), `performance-cycle-${String(process.pid)}-${String(Date.now())}`);
+    const wrapper = owner.spawn(
+      ['bash', '-c', `sleep 5 & echo $! > "${marker}"; exit 0`],
+      process.cwd(),
+      {
+        PATH: process.env['PATH'] ?? '/usr/bin:/bin',
+      },
+    );
+    const sibling = owner.spawn(['sleep', '5'], process.cwd(), {
+      PATH: process.env['PATH'] ?? '/usr/bin:/bin',
+    });
+    await wrapper.exited;
+    const cyclicPid = Number((await readFile(marker, 'utf8')).trim());
+    process.env['PUNI_CYCLE_PID'] = String(cyclicPid);
+    try {
+      const failure: unknown = await owner.stop().then(
+        () => new Error('cleanup unexpectedly succeeded'),
+        (cause: unknown) => cause,
+      );
+      expect(String(failure)).toContain(`PID ancestry cycle for ${String(cyclicPid)}`);
+      expect(await Bun.file(`/proc/${String(cyclicPid)}/stat`).exists()).toBe(true);
+      expect(await Bun.file(`/proc/${String(sibling.pid)}/stat`).exists()).toBe(false);
+    } finally {
+      delete process.env['PUNI_CYCLE_PID'];
+      if (await Bun.file(`/proc/${String(cyclicPid)}/stat`).exists())
+        process.kill(cyclicPid, 'SIGKILL');
+      if (await Bun.file(`/proc/${String(sibling.pid)}/stat`).exists()) sibling.kill('SIGKILL');
+      await sibling.exited;
+      await rm(marker, { force: true });
+    }
+  },
+  3_000,
+  'ancestry-cycle',
 );
 
 isolatedTest(

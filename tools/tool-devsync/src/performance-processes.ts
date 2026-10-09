@@ -230,6 +230,9 @@ export function createPerformanceProcessOwner(): PerformanceProcessOwner {
           tainted.set(identity.pid, identity.starttime);
           return true;
         }
+        // Proof: the ancestry-cycle preload rewrote an adopted child's /proc
+        // parent to itself. Without this refusal, its isolated supervisor
+        // timed out after eight seconds; the restored test refuses promptly.
         if (seen.has(ancestor.pid)) {
           const fault = new Error(`Performance PID ancestry cycle for ${String(identity.pid)}`);
           if (onFault === undefined) throw fault;
