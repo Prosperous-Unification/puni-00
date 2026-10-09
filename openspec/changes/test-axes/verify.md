@@ -1230,11 +1230,44 @@ The Manual external boundary now requires canonical absolute paths before symlin
 
 Watched production-path probes restored original bytes byte-for-byte after each run:
 
-| Isolated fault                                                            | Named CLI assertion observed                                                                                                                                      |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Disable only the canonical-path refusal                                   | Traversal test exited 1 because the named canonical-path assertion failed; direct pin equality then refused with `Manual report differs from external policy pin` |
-| Remove canonical validation of policy pin paths                           | CLI exited 0 with `state:"unevaluated"` because the alias pin matched after resolution                                                                            |
-| Replace the component `lstat` contextual throw with a return              | Missing-component test exited 1 because it lost `cannot inspect ... ENOENT`; unreadable-parent test separately lost `cannot inspect ... EACCES`                   |
-| Remove the stable external reader's `cannot open <subject>` error wrapper | Chmod-000 regular-file test exited 1 because raw `EACCES` lost the named `cannot open manual report` context                                                      |
+| Isolated fault                                                            | Named CLI assertion observed                                                                                                                                               |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Disable only the canonical-path refusal                                   | Traversal test exited 1 because the named canonical-path assertion failed; direct pin equality then refused with `Manual report differs from external policy pin`          |
+| Remove canonical validation of policy pin paths                           | CLI exited 0 with `state:"unevaluated"` because the extra noncanonical alias pin was accepted without validation, while the original canonical pin satisfied report lookup |
+| Replace the component `lstat` contextual throw with a return              | Missing-component test exited 1 because it lost `cannot inspect ... ENOENT`; unreadable-parent test separately lost `cannot inspect ... EACCES`                            |
+| Remove the stable external reader's `cannot open <subject>` error wrapper | Chmod-000 regular-file test exited 1 because raw `EACCES` lost the named `cannot open manual report` context                                                               |
 
 After restoration, `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/manual.test.ts --timeout=60000` exited 0 with 20 passes, zero failures and 58 assertions. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:typecheck --skip-nx-cache`, scoped ESLint, scoped Prettier check, `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict`, and `git diff --check` each exited 0. No full h2puni gate or broader Burokrat suite was run for this corrective slice. Manual output remains explicitly unevaluated and non-certifying.
+
+### Task 3.1.2 — committed Manual scenario and procedure resolution (2026-10-09)
+
+`inspect-manual` now requires `policy.scenarios`, calls B3 `evaluateSpecifications` on the selected committed candidate and externally pinned base, and resolves the disposition ID from B3's effective selection. B3 reads the immutable journal and selected spec blobs, checks lineage and allocator provenance, and refuses competing active operations. The CLI returns the selected ID/title while retaining `state:"unevaluated"`, `certifies:false` and no coverage. Assumption: the pre-existing `policy.scenarios.baseRevision` is the reviewed base authority for this slice; no separate Manual base pin is introduced. The fixture commits its journal and main spec in that base, then commits Manual records in the candidate.
+
+TDD RED: seven first-slice CLI tests failed before implementation: resolved scenario was absent from output; missing reason lost its named finding; empty steps, mismatched procedure, unknown and retired IDs, and competing active specs exited 0. Two additional tests failed before their guards: empty/repeated/blank touched modules and blank step fields exited 0. GREEN after implementation: the focused suite exited 0 with 34 passes, zero failures and 97 assertions. It includes separate committed-procedure absence, missing Git object, malformed UTF-8, malformed JSON and symlink-mode cases. For the unreadable object case, the test deletes the selected loose Git blob after commit; `readCandidateBlob` names `cannot read selected blob ... manual/procedure.json`. Filesystem permissions on the worktree cannot establish readability of an immutable Git object and were not used for this negative.
+
+R5 watched removals ran one matching production CLI test per fault and restored exact original source bytes after each run. Every probe exited 1 with a failed test assertion:
+
+| Removed or bypassed check                       | Observed test failure                                                                        |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Missing-reason guard                            | Named `Manual disposition reason` became schema text `reason must be a string (was missing)` |
+| Blank-reason guard                              | Whitespace-only reason made the command exit 0                                               |
+| Nonempty, unique, nonblank touched-module guard | Empty module set made the command exit 0                                                     |
+| Nonempty procedure-step guard                   | Empty steps made the command exit 0                                                          |
+| Procedure/disposition identity guard            | Mismatched scenario made the command exit 0                                                  |
+| Nonblank step-field guard                       | Blank instruction made the command exit 0                                                    |
+| B3 effective selector call                      | Competing active specs made the command exit 0                                               |
+| Active scenario membership guard                | Unknown ID lost the named active-scenario finding and reached the title finding              |
+| Effective title guard                           | Stale title made the command exit 0                                                          |
+| External `policy.scenarios` guard               | Missing authority lost the named finding and failed later on undefined authority             |
+
+Final scoped checks after restoration and task documentation:
+
+| Command                                                                                              | Result                                       |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/manual.test.ts --timeout=60000` | Exit 0; 34 pass, 0 fail, 97 assertions       |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:typecheck --skip-nx-cache`   | Exit 0; Nx target succeeded                  |
+| `bunx prettier --check` on Manual source/test and this change's tasks/verify files                   | Exit 0; all matched files use Prettier style |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict`                  | Exit 0; `Change 'test-axes' is valid`        |
+| `git diff --check`                                                                                   | Exit 0                                       |
+
+The full h2puni gate and broader Burokrat suite were not run in this isolated implementation slice. Report/review joins, source freshness and final verdict mapping remain Tasks 3.1.3–3.1.5, so no Manual observation is certified here.

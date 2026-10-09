@@ -23,6 +23,22 @@ function fixture() {
   git(root, ['init']);
   git(root, ['config', 'user.name', 'Fixture Author']);
   git(root, ['config', 'user.email', 'author@example.invalid']);
+  const source = 'openspec/specs/example/spec.md';
+  mkdirSync(join(root, 'openspec/specs/example'), { recursive: true });
+  writeFileSync(
+    join(root, source),
+    '## Requirements\n### Requirement: Example requirement\n#### Scenario: [EXAMPLE-001] Example\n',
+  );
+  writeFileSync(
+    join(root, 'openspec/scenario-allocations.json'),
+    JSON.stringify({
+      schemaVersion: 1,
+      events: [{ kind: 'import', id: 'EXAMPLE-001', source, title: 'Example' }],
+    }),
+  );
+  git(root, ['add', '.']);
+  git(root, ['commit', '-m', 'reviewed base']);
+  const baseRevision = git(root, ['rev-parse', 'HEAD']);
   const disposition = {
     schemaVersion: 1,
     scenarioId: 'EXAMPLE-001',
@@ -119,10 +135,12 @@ function fixture() {
     policyId: 'manual-fixture',
     ruleModes: registeredRules().map((rule) => ({ ruleId: rule.id, mode: 'observe' })),
     manual,
+    scenarios: { baseRevision },
   };
   writeFileSync(policyPath, JSON.stringify(policy));
   return {
     base,
+    baseRevision,
     root,
     revision,
     policyPath,
@@ -478,4 +496,209 @@ test('inspect-manual names EACCES while inspecting an unreadable path component'
   } finally {
     chmodSync(protectedDirectory, 0o700);
   }
+});
+
+function commitDisposition(setup: ReturnType<typeof fixture>, changes: Record<string, unknown>) {
+  const disposition = { ...setup.disposition, ...changes };
+  writeFileSync(join(setup.root, 'manual/disposition.json'), JSON.stringify(disposition));
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'change disposition']);
+  const policy = {
+    ...setup.policy,
+    manual: {
+      ...setup.manual,
+      dispositions: [{ path: 'manual/disposition.json', digest: digest(disposition) }],
+    },
+  };
+  writeFileSync(setup.policyPath, JSON.stringify(policy));
+  return { ...setup, revision: git(setup.root, ['rev-parse', 'HEAD']) };
+}
+
+test('inspect-manual resolves the committed scenario through B3', () => {
+  const setup = fixture();
+  const call = inspect(setup);
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  const finding = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
+  expect(finding['selectedScenario']).toEqual({ id: 'EXAMPLE-001', title: 'Example' });
+});
+
+test('inspect-manual names a missing or blank disposition reason', () => {
+  for (const reason of [undefined, '   ']) {
+    const setup = fixture();
+    const call = inspect(commitDisposition(setup, { reason }));
+    expect(call.exitCode).toBe(1);
+    expect(call.stderr.toString()).toContain('Manual disposition reason');
+  }
+});
+
+test('inspect-manual names a procedure with no ordered steps', () => {
+  const setup = fixture();
+  writeFileSync(
+    join(setup.root, 'manual/procedure.json'),
+    JSON.stringify({ ...setup.procedure, steps: [] }),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'empty steps']);
+  const call = inspect({ ...setup, revision: git(setup.root, ['rev-parse', 'HEAD']) });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Manual procedure needs ordered steps');
+});
+
+test('inspect-manual names a mismatched procedure scenario', () => {
+  const setup = fixture();
+  writeFileSync(
+    join(setup.root, 'manual/procedure.json'),
+    JSON.stringify({ ...setup.procedure, scenarioId: 'EXAMPLE-002' }),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'mismatch procedure']);
+  const call = inspect({ ...setup, revision: git(setup.root, ['rev-parse', 'HEAD']) });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Manual procedure scenario differs');
+});
+
+test('inspect-manual refuses an unknown scenario ID', () => {
+  const setup = fixture();
+  const changed = commitDisposition(setup, { scenarioId: 'EXAMPLE-999' });
+  writeFileSync(
+    join(setup.root, 'manual/procedure.json'),
+    JSON.stringify({ ...setup.procedure, scenarioId: 'EXAMPLE-999' }),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'same unknown procedure']);
+  const call = inspect({ ...changed, revision: git(setup.root, ['rev-parse', 'HEAD']) });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Manual scenario is not active: EXAMPLE-999');
+});
+
+test('inspect-manual refuses a retired scenario ID', () => {
+  const setup = fixture();
+  writeFileSync(
+    join(setup.root, 'openspec/specs/example/spec.md'),
+    '## Requirements\n### Requirement: Example requirement\n#### Scenario: [EXAMPLE-002] Replacement\n',
+  );
+  writeFileSync(
+    join(setup.root, 'openspec/scenario-allocations.json'),
+    JSON.stringify({
+      schemaVersion: 1,
+      events: [
+        {
+          kind: 'import',
+          id: 'EXAMPLE-001',
+          source: 'openspec/specs/example/spec.md',
+          title: 'Example',
+        },
+        { kind: 'retire', id: 'EXAMPLE-001' },
+        {
+          kind: 'allocate',
+          id: 'EXAMPLE-002',
+          source: 'openspec/specs/example/spec.md',
+          title: 'Replacement',
+        },
+      ],
+    }),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'retire scenario']);
+  const call = inspect({ ...setup, revision: git(setup.root, ['rev-parse', 'HEAD']) });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Manual scenario is not active: EXAMPLE-001');
+});
+
+test('inspect-manual refuses unresolved active specification conflict', () => {
+  const setup = fixture();
+  for (const change of ['first', 'second']) {
+    const path = join(setup.root, `openspec/changes/${change}/specs/example`);
+    mkdirSync(path, { recursive: true });
+    writeFileSync(
+      join(path, 'spec.md'),
+      '## ADDED Requirements\n### Requirement: Duplicate\n#### Scenario: [EXAMPLE-002] Duplicate\n',
+    );
+  }
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'competing changes']);
+  const call = inspect({ ...setup, revision: git(setup.root, ['rev-parse', 'HEAD']) });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('competing');
+});
+
+test('inspect-manual refuses an empty or repeated touched-module set', () => {
+  for (const touchedModules of [[], ['module-one', 'module-one'], ['   ']]) {
+    const setup = fixture();
+    const call = inspect(commitDisposition(setup, { touchedModules }));
+    expect(call.exitCode).toBe(1);
+    expect(call.stderr.toString()).toContain('Manual touched modules');
+  }
+});
+
+test('inspect-manual refuses blank instructions and expected observations', () => {
+  for (const changes of [{ instruction: ' ' }, { expectedObservation: ' ' }, { stepId: ' ' }]) {
+    const setup = fixture();
+    writeFileSync(
+      join(setup.root, 'manual/procedure.json'),
+      JSON.stringify({ ...setup.procedure, steps: [{ ...setup.procedure.steps[0], ...changes }] }),
+    );
+    git(setup.root, ['add', '.']);
+    git(setup.root, ['commit', '-m', 'blank step']);
+    const call = inspect({ ...setup, revision: git(setup.root, ['rev-parse', 'HEAD']) });
+    expect(call.exitCode).toBe(1);
+    expect(call.stderr.toString()).toContain('Manual procedure step is blank');
+  }
+});
+
+test('inspect-manual refuses a disposition title that differs from B3', () => {
+  const setup = fixture();
+  const changed = commitDisposition(setup, { title: 'Other title' });
+  writeFileSync(
+    join(setup.root, 'manual/procedure.json'),
+    JSON.stringify({ ...setup.procedure, title: 'Other title' }),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'matching procedure title']);
+  const call = inspect({ ...changed, revision: git(setup.root, ['rev-parse', 'HEAD']) });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain(
+    'Manual scenario title differs from effective specification',
+  );
+});
+
+test('inspect-manual names an unreadable committed procedure object', () => {
+  const setup = fixture();
+  const blob = git(setup.root, ['rev-parse', 'HEAD:manual/procedure.json']);
+  rmSync(join(setup.root, '.git/objects', blob.slice(0, 2), blob.slice(2)));
+  const call = inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('cannot read selected blob');
+  expect(call.stderr.toString()).toContain('manual/procedure.json');
+});
+
+test('inspect-manual names malformed committed procedure JSON', () => {
+  const setup = fixture();
+  writeFileSync(join(setup.root, 'manual/procedure.json'), '{');
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'malformed procedure JSON']);
+  const call = inspect({ ...setup, revision: git(setup.root, ['rev-parse', 'HEAD']) });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('malformed manual procedure JSON');
+});
+
+test('inspect-manual requires external B3 scenarios authority', () => {
+  const setup = fixture();
+  writeFileSync(setup.policyPath, JSON.stringify({ ...setup.policy, scenarios: undefined }));
+  const call = inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('policy.scenarios');
+});
+
+test('inspect-manual requires procedure title to match the disposition', () => {
+  const setup = fixture();
+  writeFileSync(
+    join(setup.root, 'manual/procedure.json'),
+    JSON.stringify({ ...setup.procedure, title: 'Other title' }),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'mismatched procedure title']);
+  const call = inspect({ ...setup, revision: git(setup.root, ['rev-parse', 'HEAD']) });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Manual procedure scenario differs');
 });

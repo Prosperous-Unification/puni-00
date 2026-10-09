@@ -8,7 +8,8 @@ import { readCandidateBlob } from '../inventory/read-blob';
 import { readCandidate, resolveCandidateRoot } from '../inventory/read-candidate';
 import { readExternalArtifact } from '../policy/trust';
 import { loadRulePolicyWithIdentity } from '../rules/rule-policy';
-import { hashBytes } from './content-manifest';
+import { evaluateSpecifications } from '../rules/specifications';
+import { hashBytes, hashCanonical } from './content-manifest';
 
 // Proof: widening this version made the CLI's unknown-version assertion fail on version 99.
 const Version = type('1');
@@ -24,7 +25,7 @@ const Scope = type({
   modules: type({ moduleId: Id, digest: Digest }).onUndeclaredKey('reject').array(),
 }).onUndeclaredKey('reject');
 
-/** Candidate declaration; semantic review and selector checks occur in the next slice. */
+/** Candidate declaration, validated against the effective B3 scenario before inspection returns. */
 // Proof: ignoring extra disposition keys made the committed-record CLI assertion fail.
 export const ManualDisposition = type({
   schemaVersion: Version,
@@ -196,7 +197,7 @@ function readCandidateRecord(
   return { input, digest: hashBytes(bytes) };
 }
 
-/** Decodes a committed Manual evidence chain. Its state remains unevaluated until later validation slices. */
+/** Decodes a committed Manual evidence chain and resolves its scenario through B3. Review, report and freshness checks remain unevaluated. */
 export function inspectManual(
   repository: string,
   revision: string,
@@ -238,13 +239,30 @@ export function inspectManual(
     reportRecord.dispositionPath,
     'manual disposition',
   );
+  // Proof: deleting this boundary makes the missing-reason CLI negative lose its named finding.
+  if (
+    typeof disposition.input !== 'object' ||
+    disposition.input === null ||
+    !('reason' in disposition.input)
+  )
+    throw new Error('Manual disposition reason is missing');
   const dispositionRecord = parseOrThrow(ManualDisposition, disposition.input);
+  // Proof: missing and whitespace-only reason CLI negatives lose their named refusal without this guard.
+  if (dispositionRecord.reason.trim().length === 0)
+    throw new Error('Manual disposition reason is blank');
   const dispositionPins = manual.dispositions.filter(
     (pin) => pin.path === reportRecord.dispositionPath,
   );
   // Proof: changing or omitting the exact candidate disposition pin made the CLI identity negative lose its refusal.
   if (dispositionPins.length !== 1 || dispositionPins[0]?.digest !== disposition.digest)
     throw new Error('Manual disposition differs from external policy pin');
+  // Proof: empty, repeated and whitespace-only touched-module CLI negatives exit 0 without this guard.
+  if (
+    dispositionRecord.touchedModules.length === 0 ||
+    new Set(dispositionRecord.touchedModules).size !== dispositionRecord.touchedModules.length ||
+    dispositionRecord.touchedModules.some((moduleId) => moduleId.trim().length === 0)
+  )
+    throw new Error('Manual touched modules must be nonempty, unique identifiers');
   const procedure = readCandidateRecord(
     root,
     selected.entries,
@@ -252,9 +270,52 @@ export function inspectManual(
     'manual procedure',
   );
   const procedureRecord = parseOrThrow(ManualProcedure, procedure.input);
+  // Proof: the empty-steps CLI negative exits 0 without this guard.
+  if (procedureRecord.steps.length === 0) throw new Error('Manual procedure needs ordered steps');
+  // Proof: the mismatched-procedure CLI negative exits 0 without this guard.
+  if (
+    procedureRecord.scenarioId !== dispositionRecord.scenarioId ||
+    procedureRecord.title !== dispositionRecord.title
+  )
+    throw new Error(
+      `Manual procedure scenario differs from disposition: ${dispositionRecord.scenarioId}`,
+    );
+  // Proof: whitespace-only step fields CLI negatives exit 0 without this guard.
+  if (
+    procedureRecord.steps.some(
+      (step) =>
+        step.stepId.trim().length === 0 ||
+        step.instruction.trim().length === 0 ||
+        step.expectedObservation.trim().length === 0,
+    )
+  )
+    throw new Error('Manual procedure step is blank');
   const steps = procedureRecord.steps.map((step) => step.stepId);
   // Proof: a duplicate committed step ID made the named production CLI assertion fail when this guard was removed.
   if (new Set(steps).size !== steps.length) throw new Error('duplicate Manual step ID');
+  const scenarios = authority.policy.scenarios;
+  // Proof: a policy without scenarios authority otherwise permits Manual output without B3 lineage.
+  if (scenarios === undefined) throw new Error('Manual needs external policy.scenarios');
+  // Proof: bypassing B3 made the competing-active-spec production CLI negative exit 0.
+  const specifications = evaluateSpecifications(
+    root,
+    selected,
+    scenarios,
+    authority.digest,
+    hashCanonical(selected),
+  );
+  const matches = specifications.selection.effective.flatMap((requirement) =>
+    requirement.scenarios.filter((scenario) => scenario.id === dispositionRecord.scenarioId),
+  );
+  // Proof: unknown and retired scenario CLI negatives exit 0 without this membership refusal.
+  if (matches.length !== 1)
+    throw new Error(`Manual scenario is not active: ${dispositionRecord.scenarioId}`);
+  const selectedScenario = matches[0];
+  // Proof: a stale title cannot identify the selected B3 scenario.
+  if (selectedScenario.title !== dispositionRecord.title)
+    throw new Error(
+      `Manual scenario title differs from effective specification: ${dispositionRecord.scenarioId}`,
+    );
   const environment = readExternal(root, reportRecord.environmentPath, 'manual environment');
   parseOrThrow(ManualEnvironment, environment.input);
   const review = readExternal(root, reportRecord.reviewApprovalPath, 'manual review approval');
@@ -283,6 +344,7 @@ export function inspectManual(
     revision: selected.selection.revision,
     policyDigest: authority.digest,
     scenarioId: dispositionRecord.scenarioId,
+    selectedScenario: { id: dispositionRecord.scenarioId, title: selectedScenario.title },
     runId: reportRecord.runId,
     dispositionDigest: disposition.digest,
     procedureDigest: procedure.digest,
