@@ -35,6 +35,16 @@
         "forwardAllArgs": false
       }
     },
+    "test:conformance:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^production"],
+      "options": {
+        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src/testing -name 'source-conformance.test.ts' | tr '\\n' ' ') --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-memory.conformance.xml --timeout=10000",
+        "cwd": "libs/wbs/adapters/store-memory",
+        "forwardAllArgs": false
+      }
+    },
     "test:unit": {
       "executor": "nx:run-commands",
       "cache": false,
@@ -44,6 +54,16 @@
         "cwd": "libs/wbs/adapters/store-memory"
       },
       "outputs": ["{projectRoot}/coverage"]
+    },
+    "test:unit:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^production"],
+      "options": {
+        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src -name '*.test.ts' ! -path 'src/testing/source-conformance.test.ts' | tr '\\n' ' ') --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-memory.unit.xml --timeout=10000",
+        "cwd": "libs/wbs/adapters/store-memory",
+        "forwardAllArgs": false
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",

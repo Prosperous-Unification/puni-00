@@ -58,6 +58,13 @@ describe('the level-selection table', () => {
 });
 
 describe('the adopted projects', () => {
+  it('keeps store-memory conformance separate from its legacy unit aggregate', () => {
+    expect(AGGREGATE_TARGETS).toContain('wbs-store-memory:test:unit');
+    const names = LEVEL_TARGETS.map(({ project, target }) => `${project}:${target}`);
+    expect(names).toContain('wbs-store-memory:test:unit:level');
+    expect(names).toContain('wbs-store-memory:test:conformance:level');
+    expect(names).toContain('wbs-store-sqlite:test:conformance:level');
+  });
   it('keeps every test file outside a declared test root on the known list', async () => {
     const outside: string[] = [];
     for (const root of new Set(LEVEL_TARGETS.map((target) => target.root))) {

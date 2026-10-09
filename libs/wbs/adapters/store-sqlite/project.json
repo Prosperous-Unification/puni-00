@@ -59,6 +59,16 @@
         "forwardAllArgs": false
       }
     },
+    "test:conformance:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^production", "{workspaceRoot}/apps/wbs/be-01/drizzle"],
+      "options": {
+        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src/testing -name 'source-conformance.db.test.ts' | tr '\\n' ' ') --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.conformance.xml --timeout=30000",
+        "cwd": "libs/wbs/adapters/store-sqlite",
+        "forwardAllArgs": false
+      }
+    },
     "test:unit": {
       "executor": "nx:run-commands",
       "inputs": ["default", "^production", "{workspaceRoot}/apps/wbs/be-01/drizzle"],

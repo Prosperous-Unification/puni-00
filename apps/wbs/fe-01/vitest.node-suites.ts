@@ -110,4 +110,5 @@ export const NODE_SUITES: readonly string[] = [
   // `+ src/lib/wbs-api.test.ts` and `- src/testing/refusing-api.test.ts`.
   'src/testing/refusing-api.test.ts',
   'vitest-budget.test.ts',
+  'vitest.view-level.test.ts',
 ];

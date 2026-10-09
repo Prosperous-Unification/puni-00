@@ -12,6 +12,14 @@ The current adopted set contains the three identified specs: the active `project
 
 The existing `project-assignment-reads` tests cite its three imported IDs. The pilot command joins only fresh reports from its declared API and Unit targets and prints a hand coverage table. B4 consumes the journal and the same selected scenario identities to produce certifying scenario and structural ledgers, enforce T2, and validate dispositions. The static Burokrat judges recorded reports; it does not run test targets.
 
+## Level classification and runner evidence
+
+`libs/shared/domain/test-levels` owns the pure ten-row precedence function. It has no runner or policy imports, and its caller supplies the frontend source root. Burokrat supplies Conformance, Architecture, Performance, Browser, frontend Node and manual membership evidence, then applies that function to the selected candidate. Devsync consumes the same public library for target checks. The shared-domain placement satisfies Nx's existing product and scope rules for the Burokrat application and the product-less devsync tool; Burokrat still owns discovery, thresholds and enforcement.
+
+A collection adapter must produce either a nonempty file plan with its discovery inputs or an explicit `no-cases` result with a reason. Empty collections cannot launch a runner without file arguments because its default discovery may run another level. Performance currently has no fixture with declared thresholds; an empty Performance target is a refusal with `no-cases`, not a passing JUnit report. Task 2.1 remains open until a real Performance fixture proves isolated execution. Manual requires a reviewed procedure and report bound to source and environment; its validator must refuse absent or stale evidence and may never synthesize a human pass.
+
+The current JUnit target additions cover separate store-memory Unit and Conformance runs, store-sqlite Conformance, and frontend Unit/View commands. The frontend's UTC View, Auckland View, Node Unit and root Unit collections are distinct. Existing legacy targets remain intact; `wbs-store-memory:test:unit` is an explicit mixed aggregate. A later runner adapter must bind each JUnit report to target, config, candidate and exact collected files in a companion manifest, and reject report reuse or overwrite across invocations before Burokrat treats it as coverage.
+
 ## Assumptions to revisit
 
 The allocator derives the ID namespace from the final spec directory name and never renumbers after a scenario moves. Cross-capability moves need an explicit successor/predecessor policy before they can be automated. The first journal imports only currently identified active specs; expanding adoption requires an explicit reviewed import or allocation step.

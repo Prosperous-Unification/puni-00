@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { classifyTestFile, type TestLevel as ClassifiedTestLevel } from '@shared/test-levels';
 import { SaxesParser } from 'saxes';
 
 /** The workspace root, from this file's own location. */
@@ -13,7 +14,7 @@ export const WORKSPACE = new URL('../../../', import.meta.url);
  * not reachable from the adopted projects' test roots, so {@link levelOf} throws
  * rather than guessing when a file matches no row it knows.
  */
-export type TestLevel = 'api' | 'conformance' | 'unit';
+export type TestLevel = ClassifiedTestLevel;
 
 /** One Nx target declared to run exactly one level. */
 export interface LevelTarget {
@@ -60,6 +61,30 @@ export const LEVEL_TARGETS: readonly LevelTarget[] = [
     report: 'tmp/junit/wbs-core.unit.xml',
     testRoots: ['src'],
   },
+  {
+    project: 'wbs-store-memory',
+    root: 'libs/wbs/adapters/store-memory',
+    target: 'test:unit:level',
+    level: 'unit',
+    report: 'tmp/junit/wbs-store-memory.unit.xml',
+    testRoots: ['src'],
+  },
+  {
+    project: 'wbs-store-memory',
+    root: 'libs/wbs/adapters/store-memory',
+    target: 'test:conformance:level',
+    level: 'conformance',
+    report: 'tmp/junit/wbs-store-memory.conformance.xml',
+    testRoots: ['src'],
+  },
+  {
+    project: 'wbs-store-sqlite',
+    root: 'libs/wbs/adapters/store-sqlite',
+    target: 'test:conformance:level',
+    level: 'conformance',
+    report: 'tmp/junit/wbs-store-sqlite.conformance.xml',
+    testRoots: ['src'],
+  },
 ];
 
 /**
@@ -70,7 +95,12 @@ export const LEVEL_TARGETS: readonly LevelTarget[] = [
  * levels is not refused — because no undeclared target of an adopted project
  * spans levels today.
  */
-export const AGGREGATE_TARGETS: readonly string[] = ['wbs-store-sqlite:test', 'wbs-core:test'];
+export const AGGREGATE_TARGETS: readonly string[] = [
+  'wbs-store-sqlite:test',
+  'wbs-core:test',
+  'wbs-store-memory:test',
+  'wbs-store-memory:test:unit',
+];
 
 /**
  * Test-running targets of an adopted project that are neither a level target nor
@@ -83,6 +113,8 @@ export const UNDECLARED_TEST_TARGETS: Readonly<Record<string, string>> = {
   'wbs-store-sqlite:test:conformance':
     'Conformance level. Its exact command is pinned by workspace-targets.test.ts, so it cannot ' +
     'gain a JUnit report in this increment.',
+  'wbs-store-memory:test:conformance':
+    'Pinned legacy Conformance command; test:conformance:level adds isolated JUnit output.',
   'wbs-core:test:portable':
     'Browser level, run by Playwright from libs/wbs/application/core/playwright.config.ts.',
 };
@@ -159,17 +191,15 @@ export function levelOf(
   projectRelativePath: string,
   conformanceFiles: readonly string[],
 ): TestLevel {
-  // Proof: deleting this precedence guard failed "resolves the plain and the database conformance
-  // suffixes through target membership", receiving api and unit for its first two levels
-  // (2026-09-20).
-  if (conformanceFiles.includes(projectRelativePath)) return 'conformance';
-  if (/\.db\.test\.[cm]?[jt]sx?$/.test(projectRelativePath)) return 'api';
-  if (/\.test\.[cm]?[jt]s$/.test(projectRelativePath)) return 'unit';
-  // Proof: replacing this throw with `return 'unit'` failed "refuses a file that matches no row"
-  // because the received value was "unit" and no exception was thrown (2026-09-20).
-  throw new Error(
-    `${projectRelativePath} matches no row of the level-selection table this increment implements`,
-  );
+  return classifyTestFile(projectRelativePath, {
+    frontendSourceRoot: 'apps/wbs/fe-01/src',
+    manualProcedures: new Set(),
+    conformanceFiles: new Set(conformanceFiles),
+    architectureFixtures: new Set(),
+    performanceFiles: new Set(),
+    browserFiles: new Set(),
+    frontendNodeSuites: new Set(),
+  });
 }
 
 /** Every file Bun's runner would collect under `root`/`dir`, `root`-relative and sorted. */

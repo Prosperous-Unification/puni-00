@@ -2,8 +2,8 @@
 
 ## Task 1.1 — contract and delta validation
 
-| Check | Fresh observation |
-| --- | --- |
+| Check                                                                               | Fresh observation                      |
+| ----------------------------------------------------------------------------------- | -------------------------------------- |
 | `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict` | Exit 0; `Change 'test-axes' is valid`. |
 
 Proof: copied `specs/test-axes/spec.md` to `/tmp/test-axes-spec-023.md`, deleted only the `#### Scenario: [TEST-AXES-023] ...` heading, then reran strict validation. It exited 1 with `ADDED "Manual dispositions expire for review" must include at least one scenario`. Restored the file from the backup and confirmed `cmp` equality. The working tree was clean before the mutation.
@@ -345,8 +345,8 @@ The source-path proof was corrected: a production CLI negative rejects `openspec
 
 Two further defects emerged from production CLI negatives. `EXAMPLE-DETAIL-001` was accepted as an `example` ID because `startsWith('EXAMPLE-')` admitted another namespace after the hyphen. The derived index now checks a numeric suffix. A scenario named `constructor` inherited a function from `Object.prototype` during predecessor lookup; allocation now reads only own predecessor keys. The allocator and the report join accept ordinal 1000 and later. The journal decoder's schema does not cap the ID width; the old three-digit regular expressions in the allocator, CLI predecessor selector and report join were widened consistently.
 
-| Fault injected | Named negative observed with the fault |
-| --- | --- |
+| Fault injected                                                                         | Named negative observed with the fault                                                                               |
+| -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Skip journal index derivation after valid JSON/schema decode                           | Failed: expected `malformed scenario journal`, received raw `scenario identifier was already reserved: EXAMPLE-001`. |
 | Remove the numeric suffix test for an `example` event with `EXAMPLE-DETAIL-001`        | Failed: expected namespace mismatch, received `scenario identifier lacks current allocator provenance: EXAMPLE-001`. |
 | Disable import collision check for the same ID with another title                      | Failed: expected exit 1, received 0.                                                                                 |
@@ -356,8 +356,8 @@ Two further defects emerged from production CLI negatives. `EXAMPLE-DETAIL-001` 
 | Return an empty string after missing or unreadable journal read                        | Both failed: expected `ENOENT` or `EISDIR`, received malformed JSON instead.                                         |
 | Read an inherited predecessor for the ordinary title `constructor`                     | Failed: expected exit 0, received 1 and `unknown or inactive scenario predecessor: function Object()`.               |
 | Skip CLI source-path validation                                                        | Failed: received `cannot read scenario specification ... ENOENT` after the invalid path passed the input boundary.   |
-| Restore three-digit allocator identifier parsing | Direct allocator test failed with `scenario identifier does not match ... EXAMPLE-1000`. |
-| Restore three-digit report-join identifier parsing | Direct report-join test failed: expected `['EXAMPLE-1000']`, received an unidentified scenario. |
+| Restore three-digit allocator identifier parsing                                       | Direct allocator test failed with `scenario identifier does not match ... EXAMPLE-1000`.                             |
+| Restore three-digit report-join identifier parsing                                     | Direct report-join test failed: expected `['EXAMPLE-1000']`, received an unidentified scenario.                      |
 
 The production negatives with intact guards also distinguish absent journal `ENOENT` from unreadable journal-path `EISDIR`; reject unsupported action, extra argument and predecessor on import; reject an allocation with no unidentified headings; and reject an imported ID assigned another title. The source-path and duplicate-heading faults are recorded above. Every injected fault was restored before the final focused checks. These are exact path proofs for the listed checks. Candidate/base continuity is deferred until it has a production caller.
 
@@ -386,3 +386,25 @@ The next review pass added production CLI negatives for the remaining active B3 
 | Disable import reservation refusal or validation provenance refusal | Two import negatives and three validation negatives respectively expected exit 1, received 0.                   |
 
 Each fault was applied one at a time to the active source and restored before the next probe. The exact outputs are retained under `/tmp/puni-b3-guard-probes/` in this workspace. Final restored-tree checks: Burokrat `scenarios.test.ts` exit 0, 43 pass and 94 assertions; devsync `test-levels.test.ts` exit 0, 58 pass and 63 assertions; Burokrat TypeScript build exit 0; scoped ESLint on five source/test files exit 0. The final formatting and diff checks follow this record. A production candidate/base comparison, whole-tree spec selection, citation-removal proof, clean API target and h2puni gate remain open with task 2.2.
+
+## Task 2.1 continuation — 2026-10-09
+
+The classifier now lives in `libs/shared/domain/test-levels`. Its ten rows distinguish all eight levels with exact `.ts`/`.tsx` suffixes; callers supply frontend root and policy/runner membership. Burokrat re-exports the pure API and devsync imports the shared library. The pilot target checker gained separate store-memory Unit and Conformance targets and a separate SQLite Conformance target, leaving pinned legacy Conformance commands unchanged. The existing store-memory `test:unit` is declared a mixed aggregate. The frontend declarations add Node Unit, root Unit, UTC View and Auckland View report identities.
+
+| Fresh check                                                                                                         | Observation                                                                              |
+| ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Shared classifier `bun test src/index.test.ts`                                                                      | Exit 0; 4 pass, 20 assertions.                                                           |
+| Burokrat `bun test src/rules/test-collection.test.ts`                                                               | Exit 0; 3 pass, 4 assertions.                                                            |
+| Devsync `bun test --preload ../test/scratch/preload.ts src/test-levels.test.ts`                                     | Exit 0; 59 pass, 67 assertions.                                                          |
+| `NX_CACHE_PROJECT_GRAPH=false bunx eslint` on shared classifier, Burokrat collection and devsync level source/tests | Exit 0 after the shared-library extraction; Nx module boundaries intact.                 |
+| `bunx tsc -p ... --noEmit` for shared classifier, Burokrat CLI and devsync                                          | Each exited 0.                                                                           |
+| Frontend `vitest run --config vitest.node.config.ts src/test-tiers.test.ts vitest.view-level.test.ts`               | Exit 0; 2 files, 8 tests.                                                                |
+| Frontend `vitest run --config vitest.unit-root.config.ts`                                                           | Exit 0; 2 files, 21 tests.                                                               |
+| `vitest list --filesOnly --json` for Node Unit, root Unit, UTC View and Auckland View                               | 70, 2, 104 and 2 distinct files, respectively.                                           |
+| `wbs-store-memory:test:unit:level`                                                                                  | Exit 0; 73 tests in seven files; JUnit `tmp/junit/wbs-store-memory.unit.xml` exists.     |
+| `wbs-store-memory:test:conformance:level`                                                                           | Exit 0; 73 tests in one file; JUnit `tmp/junit/wbs-store-memory.conformance.xml` exists. |
+| `wbs-store-sqlite:test:conformance:level`                                                                           | Exit 0; 73 tests in one file; JUnit `tmp/junit/wbs-store-sqlite.conformance.xml` exists. |
+
+All successful Nx runs above used `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/puni-test-axes-nx`. A first plain `bunx nx run` exited 0 after daemon/plugin socket denials without showing any `> nx run` line or producing reports; that exit was not counted as a run. Removing the SQLite API selector exclusion for `source-conformance.db.test.ts` made the devsync production target audit fail with `wbs-store-sqlite:test:api is declared api and collects src/testing/source-conformance.db.test.ts, which is conformance`; the selector was restored. Replacing the shared Performance suite-membership guard with `if (false)` made its negative fail because `elsewhere/check.spec.ts` was accepted as Performance; the guard was restored. Tests also reject `.db.test.js` and `.test.jsx`, and classify `.db.test.tsx` as View.
+
+`wbs-fe-01:test:unit:level` exited 1 on the Node phase; its JUnit contains 844 tests, five failures, including `spawnSync bun/sh EPERM` under this sandbox and one timeout-oracle failure. The root Unit phase did not run after that failure, though its standalone 21-test command passed. `wbs-fe-01:test:view:level` produced a zero-byte UTC report and no Auckland report after more than 150 seconds and was interrupted with exit 130. Those targets remain unverified. No Browser, Performance, Architecture or Manual target/report inventory or candidate-bound collection manifest is claimed complete. There is no declared Performance fixture with thresholds, so an empty Performance level must be an explicit `no-cases` refusal; a real fixture and isolation proof remain required. Task 2.1 stays open.
