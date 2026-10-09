@@ -166,6 +166,70 @@ it('refuses a stuck publication lock and clears prior success', async () => {
   }
 });
 
+it('revokes an admitted Browser publisher when a newer attempt times out on the mode lock', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'puni-browser-lock-owner-'));
+  const lock = join(root, 'tmp/junit/browser/portable.lock');
+  const firstEntered = Promise.withResolvers<undefined>();
+  const releaseFirst = Promise.withResolvers<undefined>();
+  const firstId = '33333333-3333-4333-8333-333333333333';
+  const lateId = '44444444-4444-4444-8444-444444444444';
+  try {
+    const first = withBrowserInvocation(root, 'portable', async (publish) => {
+      firstEntered.resolve(undefined);
+      await releaseFirst.promise;
+      await publish(firstId, {
+        discovery: Buffer.from('{}'),
+        execution: Buffer.from('{}'),
+        playwright: Buffer.from('<testsuite/>'),
+        report: '<testsuite/>',
+        manifest: {
+          invocationId: firstId,
+          report: `tmp/junit/browser/${firstId}/report.xml`,
+          reportDigest: digestEvidenceBytes('<testsuite/>'),
+        },
+      });
+    });
+    await firstEntered.promise;
+    const admittedOwner = await readFile(join(root, 'tmp/junit/browser/portable.owner'), 'utf8');
+    await mkdir(lock);
+    await expectRefusal(
+      withBrowserInvocation(
+        root,
+        'portable',
+        () => Promise.reject(new Error('timed-out Browser attempt entered collection')),
+        50,
+      ),
+      'lock timed out',
+    );
+    await rm(lock, { recursive: true });
+    releaseFirst.resolve(undefined);
+    await expectRefusal(first, 'ownership changed');
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'ENOENT');
+    // Model the in-flight publisher that passed its owner check before the timeout.
+    await publishBrowserBundle(
+      root,
+      'portable',
+      lateId,
+      {
+        discovery: Buffer.from('{}'),
+        execution: Buffer.from('{}'),
+        playwright: Buffer.from('<testsuite/>'),
+        report: '<testsuite/>',
+        manifest: {
+          invocationId: lateId,
+          report: `tmp/junit/browser/${lateId}/report.xml`,
+          reportDigest: digestEvidenceBytes('<testsuite/>'),
+        },
+      },
+      admittedOwner,
+    );
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'ownership changed');
+  } finally {
+    releaseFirst.resolve(undefined);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 it('refuses hidden Git inputs and revision movement', async () => {
   const root = await mkdtemp(join(tmpdir(), 'puni-browser-index-'));
   const git = (args: string[]): string => {
