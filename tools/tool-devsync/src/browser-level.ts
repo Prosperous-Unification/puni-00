@@ -304,48 +304,66 @@ export async function withBrowserInvocation(
   mode: Mode,
   collect: (publish: BrowserPublish) => Promise<void>,
   lockWaitMs = 5_000,
+  hooks?: {
+    beforeOwnerRename?: () => Promise<void>;
+    afterOwnerRename?: () => Promise<void>;
+    beforePointerRename?: () => Promise<void>;
+  },
 ): Promise<void> {
   const browserRoot = join(root, 'tmp/junit/browser');
   const pointer = join(browserRoot, `${mode}.current.json`);
   const owner = join(browserRoot, `${mode}.owner`);
+  const latestRequest = join(browserRoot, `${mode}.latest-request`);
   const invocationOwner = randomUUID();
   await mkdir(browserRoot, { recursive: true });
-  try {
-    await withBrowserLock(
-      root,
-      mode,
-      async () => {
-        const staging = `${owner}.${invocationOwner}.new`;
-        await writeFile(staging, invocationOwner, { flag: 'wx' });
-        await rename(staging, owner);
-        // Proof: disabling this admission removal let the success-then-dirty-candidate negative read stale success.
-        await rm(pointer, { force: true });
-      },
-      lockWaitMs,
-    );
-  } catch (cause) {
-    try {
-      // Proof: removing owner revocation let the admitted-publisher/lock-timeout negative
-      // republish readable success after the newer attempt had refused.
-      const revokedOwner = randomUUID();
-      const staging = `${owner}.${revokedOwner}.new`;
-      await writeFile(staging, revokedOwner, { flag: 'wx' });
+  const requestStaging = `${latestRequest}.${invocationOwner}.new`;
+  await writeFile(requestStaging, invocationOwner, { flag: 'wx' });
+  // Proof: skipping this rename made the admission-paused A/B-timeout negative fail at missing generation.
+  await rename(requestStaging, latestRequest);
+  const assertLatestRequest = async (): Promise<void> => {
+    // Proof: disabling the generation checks let the admitted-publisher/B-timeout negative publish A.
+    if ((await readFile(latestRequest, 'utf8')) !== invocationOwner)
+      throw new Error(`Browser ${mode} publication request changed`);
+  };
+  await withBrowserLock(
+    root,
+    mode,
+    async () => {
+      await hooks?.beforeOwnerRename?.();
+      // Proof: removing this check let the admission-paused A/B-timeout negative write A's owner.
+      await assertLatestRequest();
+      const staging = `${owner}.${invocationOwner}.new`;
+      await writeFile(staging, invocationOwner, { flag: 'wx' });
       await rename(staging, owner);
-    } finally {
-      // Proof: disabling this refusal removal let the stuck-lock negative read prior success.
+      await hooks?.afterOwnerRename?.();
+      // Proof: removing this check let the post-rename/B-timeout negative enter collection.
+      await assertLatestRequest();
+      // Proof: disabling this admission removal let the success-then-dirty-candidate negative read stale success.
       await rm(pointer, { force: true });
-    }
-    throw cause;
-  }
+    },
+    lockWaitMs,
+  );
   await collect(async (invocationId, bundle) =>
     withBrowserLock(
       root,
       mode,
       async () => {
+        // Proof: removing this check let the admitted-publisher/B-timeout negative create A's bundle.
+        await assertLatestRequest();
         // Proof: disabling owner comparison let the older concurrent invocation republish after the newer attempt failed.
         if ((await readFile(owner, 'utf8')) !== invocationOwner)
           throw new Error(`Browser ${mode} publication ownership changed`);
-        return publishBrowserBundle(root, mode, invocationId, bundle, invocationOwner);
+        const published = await publishBrowserBundle(
+          root,
+          mode,
+          invocationId,
+          bundle,
+          invocationOwner,
+          hooks?.beforePointerRename,
+        );
+        // Proof: removing this check let the staged-pointer/B-timeout negative resolve A as success.
+        await assertLatestRequest();
+        return published;
       },
       lockWaitMs,
     ),
@@ -358,7 +376,8 @@ export async function publishBrowserBundle(
   mode: Mode,
   invocationId: string,
   bundle: BrowserBundle,
-  invocationOwner?: string,
+  invocationOwner: string,
+  beforePointerRename?: () => Promise<void>,
 ): Promise<string> {
   const browserRoot = join(root, 'tmp/junit/browser');
   const bundleDirectory = join(browserRoot, invocationId);
@@ -377,9 +396,10 @@ export async function publishBrowserBundle(
   const staging = `${pointer}.${invocationId}.new`;
   await writeFile(
     staging,
-    `${JSON.stringify({ schemaVersion: invocationOwner === undefined ? 1 : 2, invocationId, mode, bundle: `tmp/junit/browser/${invocationId}`, ...(invocationOwner === undefined ? {} : { owner: invocationOwner }) })}\n`,
+    `${JSON.stringify({ schemaVersion: 2, invocationId, mode, bundle: `tmp/junit/browser/${invocationId}`, owner: invocationOwner })}\n`,
     { flag: 'wx' },
   );
+  await beforePointerRename?.();
   // Proof: replacing this rename with a partial pointer write made the concurrent reader reject malformed JSON.
   await rename(staging, pointer);
   return pointer;
@@ -398,22 +418,25 @@ export async function readBrowserPublication(
   const invocationId = fields['invocationId'];
   // Proof: removing this guard let a foreign-bundle pointer select another invocation.
   if (
-    (fields['schemaVersion'] !== 1 && fields['schemaVersion'] !== 2) ||
+    fields['schemaVersion'] !== 2 ||
     fields['mode'] !== mode ||
     typeof invocationId !== 'string' ||
     !/^[0-9a-f-]{36}$/.test(invocationId) ||
     fields['bundle'] !== `tmp/junit/browser/${invocationId}`
   )
     throw new Error('Browser pointer identity is malformed');
-  if (fields['schemaVersion'] === 2) {
-    // Proof: removing this token check let the lock-timeout negative read the old
-    // publisher's late success after its owner token was revoked.
-    if (
-      typeof fields['owner'] !== 'string' ||
-      (await readFile(join(root, 'tmp/junit/browser', `${mode}.owner`), 'utf8')) !== fields['owner']
-    )
-      throw new Error(`Browser ${mode} publication ownership changed`);
-  }
+  // Proof: removing this token check let the lock-timeout negative read the old
+  // publisher's late success after its owner token was revoked.
+  if (
+    typeof fields['owner'] !== 'string' ||
+    (await readFile(join(root, 'tmp/junit/browser', `${mode}.owner`), 'utf8')) !== fields['owner']
+  )
+    throw new Error(`Browser ${mode} publication ownership changed`);
+  const latestRequest = join(root, 'tmp/junit/browser', `${mode}.latest-request`);
+  const currentRequest = await readFile(latestRequest, 'utf8');
+  // Proof: removing this comparison let a timed-out newer request leave the older pointer readable.
+  if (fields['owner'] !== currentRequest)
+    throw new Error(`Browser ${mode} publication request changed`);
   const bundleDirectory = join(root, 'tmp/junit/browser', invocationId);
   const manifestValue = parseJson(
     await readFile(join(bundleDirectory, 'manifest.json')),

@@ -34,6 +34,15 @@ async function expectRefusal(action: Promise<unknown>, phrase: string): Promise<
   expect(cause.message).toContain(phrase);
 }
 
+async function seedBrowserOwner(root: string): Promise<string> {
+  const browserRoot = join(root, 'tmp/junit/browser');
+  const owner = '77777777-7777-4777-8777-777777777777';
+  await mkdir(browserRoot, { recursive: true });
+  await writeFile(join(browserRoot, 'portable.owner'), owner);
+  await writeFile(join(browserRoot, 'portable.latest-request'), owner);
+  return owner;
+}
+
 it('clears stale Browser pointers and refuses a dirty candidate before execution', async () => {
   const root = await mkdtemp(join(tmpdir(), 'puni-browser-dirty-'));
   const call = (args: string[]) => {
@@ -55,17 +64,24 @@ it('clears stale Browser pointers and refuses a dirty candidate before execution
     await writeFile(report, '<testsuite tests="1" failures="0"/>');
     await writeFile(`${report}.manifest.json`, '{}');
     const previousId = '11111111-1111-4111-8111-111111111111';
-    await publishBrowserBundle(root, 'portable', previousId, {
-      discovery: Buffer.from('{}'),
-      execution: Buffer.from('{}'),
-      playwright: Buffer.from('<testsuite/>'),
-      report: '<testsuite tests="1" failures="0"/>',
-      manifest: {
-        invocationId: previousId,
-        report: `tmp/junit/browser/${previousId}/report.xml`,
-        reportDigest: digestEvidenceBytes('<testsuite tests="1" failures="0"/>'),
+    const owner = await seedBrowserOwner(root);
+    await publishBrowserBundle(
+      root,
+      'portable',
+      previousId,
+      {
+        discovery: Buffer.from('{}'),
+        execution: Buffer.from('{}'),
+        playwright: Buffer.from('<testsuite/>'),
+        report: '<testsuite tests="1" failures="0"/>',
+        manifest: {
+          invocationId: previousId,
+          report: `tmp/junit/browser/${previousId}/report.xml`,
+          reportDigest: digestEvidenceBytes('<testsuite tests="1" failures="0"/>'),
+        },
       },
-    });
+      owner,
+    );
     expect((await readBrowserPublication(root, 'portable')).invocationId).toBe(previousId);
     await writeFile(join(root, 'README'), 'changed\n');
     await expectRefusal(
@@ -111,7 +127,7 @@ it('keeps a failed newer invocation authoritative over an older concurrent publi
     const secondRefusal = expectRefusal(second, 'newer Browser attempt failed');
     await secondEntered.promise;
     releaseFirst.resolve(undefined);
-    await expectRefusal(first, 'ownership changed');
+    await expectRefusal(first, 'request changed');
     await secondRefusal;
     await expectRefusal(readBrowserPublication(root, 'portable'), 'ENOENT');
     await withBrowserInvocation(root, 'portable', async (publish) => {
@@ -139,17 +155,24 @@ it('refuses a stuck publication lock and clears prior success', async () => {
   const lock = join(root, 'tmp/junit/browser/portable.lock');
   try {
     const priorId = '22222222-2222-4222-8222-222222222222';
-    await publishBrowserBundle(root, 'portable', priorId, {
-      discovery: Buffer.from('{}'),
-      execution: Buffer.from('{}'),
-      playwright: Buffer.from('<testsuite/>'),
-      report: '<testsuite/>',
-      manifest: {
-        invocationId: priorId,
-        report: `tmp/junit/browser/${priorId}/report.xml`,
-        reportDigest: digestEvidenceBytes('<testsuite/>'),
+    const owner = await seedBrowserOwner(root);
+    await publishBrowserBundle(
+      root,
+      'portable',
+      priorId,
+      {
+        discovery: Buffer.from('{}'),
+        execution: Buffer.from('{}'),
+        playwright: Buffer.from('<testsuite/>'),
+        report: '<testsuite/>',
+        manifest: {
+          invocationId: priorId,
+          report: `tmp/junit/browser/${priorId}/report.xml`,
+          reportDigest: digestEvidenceBytes('<testsuite/>'),
+        },
       },
-    });
+      owner,
+    );
     await mkdir(lock);
     await expectRefusal(
       withBrowserInvocation(
@@ -160,7 +183,7 @@ it('refuses a stuck publication lock and clears prior success', async () => {
       ),
       'lock timed out',
     );
-    await expectRefusal(readBrowserPublication(root, 'portable'), 'ENOENT');
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'request changed');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -203,7 +226,8 @@ it('revokes an admitted Browser publisher when a newer attempt times out on the 
     );
     await rm(lock, { recursive: true });
     releaseFirst.resolve(undefined);
-    await expectRefusal(first, 'ownership changed');
+    await expectRefusal(first, 'request changed');
+    expect(existsSync(join(root, 'tmp/junit/browser', firstId))).toBe(false);
     await expectRefusal(readBrowserPublication(root, 'portable'), 'ENOENT');
     // Model the in-flight publisher that passed its owner check before the timeout.
     await publishBrowserBundle(
@@ -223,9 +247,165 @@ it('revokes an admitted Browser publisher when a newer attempt times out on the 
       },
       admittedOwner,
     );
-    await expectRefusal(readBrowserPublication(root, 'portable'), 'ownership changed');
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'request changed');
   } finally {
     releaseFirst.resolve(undefined);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('keeps a timed-out newer request authoritative while older admission is paused', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'puni-browser-admission-race-'));
+  const firstLocked = Promise.withResolvers<undefined>();
+  const releaseFirst = Promise.withResolvers<undefined>();
+  const firstId = '55555555-5555-4555-8555-555555555555';
+  let firstCollected = false;
+  try {
+    const first = withBrowserInvocation(
+      root,
+      'portable',
+      async (publish) => {
+        firstCollected = true;
+        await publish(firstId, {
+          discovery: Buffer.from('{}'),
+          execution: Buffer.from('{}'),
+          playwright: Buffer.from('<testsuite/>'),
+          report: '<testsuite/>',
+          manifest: {
+            invocationId: firstId,
+            report: `tmp/junit/browser/${firstId}/report.xml`,
+            reportDigest: digestEvidenceBytes('<testsuite/>'),
+          },
+        });
+      },
+      5_000,
+      {
+        beforeOwnerRename: async () => {
+          firstLocked.resolve(undefined);
+          await releaseFirst.promise;
+        },
+      },
+    );
+    await firstLocked.promise;
+    await expectRefusal(
+      withBrowserInvocation(
+        root,
+        'portable',
+        () => Promise.reject(new Error('timed-out request entered collection')),
+        50,
+      ),
+      'lock timed out',
+    );
+    releaseFirst.resolve(undefined);
+    await expectRefusal(first, 'request changed');
+    expect(firstCollected).toBe(false);
+    expect(existsSync(join(root, 'tmp/junit/browser/portable.owner'))).toBe(false);
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'ENOENT');
+    await withBrowserInvocation(root, 'portable', async (publish) => {
+      await publish(firstId, {
+        discovery: Buffer.from('{}'),
+        execution: Buffer.from('{}'),
+        playwright: Buffer.from('<testsuite/>'),
+        report: '<testsuite/>',
+        manifest: {
+          invocationId: firstId,
+          report: `tmp/junit/browser/${firstId}/report.xml`,
+          reportDigest: digestEvidenceBytes('<testsuite/>'),
+        },
+      });
+    });
+    expect((await readBrowserPublication(root, 'portable')).invocationId).toBe(firstId);
+  } finally {
+    releaseFirst.resolve(undefined);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('refuses collection when a newer request arrives after the owner rename', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'puni-browser-owner-race-'));
+  const ownerRenamed = Promise.withResolvers<undefined>();
+  const releaseOwner = Promise.withResolvers<undefined>();
+  let firstCollected = false;
+  try {
+    const first = withBrowserInvocation(
+      root,
+      'portable',
+      () => {
+        firstCollected = true;
+        return Promise.resolve();
+      },
+      5_000,
+      {
+        afterOwnerRename: async () => {
+          ownerRenamed.resolve(undefined);
+          await releaseOwner.promise;
+        },
+      },
+    );
+    await ownerRenamed.promise;
+    await expectRefusal(
+      withBrowserInvocation(
+        root,
+        'portable',
+        () => Promise.reject(new Error('timed-out request entered collection')),
+        50,
+      ),
+      'lock timed out',
+    );
+    releaseOwner.resolve(undefined);
+    await expectRefusal(first, 'request changed');
+    expect(firstCollected).toBe(false);
+  } finally {
+    releaseOwner.resolve(undefined);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('refuses a publisher superseded while its pointer is staged', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'puni-browser-pointer-race-'));
+  const pointerStaged = Promise.withResolvers<undefined>();
+  const releasePointer = Promise.withResolvers<undefined>();
+  const invocationId = '66666666-6666-4666-8666-666666666666';
+  try {
+    const first = withBrowserInvocation(
+      root,
+      'portable',
+      async (publish) => {
+        await publish(invocationId, {
+          discovery: Buffer.from('{}'),
+          execution: Buffer.from('{}'),
+          playwright: Buffer.from('<testsuite/>'),
+          report: '<testsuite/>',
+          manifest: {
+            invocationId,
+            report: `tmp/junit/browser/${invocationId}/report.xml`,
+            reportDigest: digestEvidenceBytes('<testsuite/>'),
+          },
+        });
+      },
+      5_000,
+      {
+        beforePointerRename: async () => {
+          pointerStaged.resolve(undefined);
+          await releasePointer.promise;
+        },
+      },
+    );
+    await pointerStaged.promise;
+    await expectRefusal(
+      withBrowserInvocation(
+        root,
+        'portable',
+        () => Promise.reject(new Error('timed-out request entered collection')),
+        50,
+      ),
+      'lock timed out',
+    );
+    releasePointer.resolve(undefined);
+    await expectRefusal(first, 'request changed');
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'request changed');
+  } finally {
+    releasePointer.resolve(undefined);
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -420,18 +600,25 @@ it('binds every served asset and refuses changed, inserted or symlinked files', 
 it('publishes concurrent immutable Browser bundles through one complete pointer', async () => {
   const root = await mkdtemp(join(tmpdir(), 'puni-browser-publish-'));
   try {
+    const owner = await seedBrowserOwner(root);
     const publish = async (invocationId: string) =>
-      publishBrowserBundle(root, 'portable', invocationId, {
-        discovery: Buffer.from(`discovery-${invocationId}`),
-        execution: Buffer.from(`execution-${invocationId}`),
-        playwright: Buffer.from(`raw-${invocationId}`),
-        report: `<testsuite name="${invocationId}"/>`,
-        manifest: {
-          invocationId,
-          report: `tmp/junit/browser/${invocationId}/report.xml`,
-          reportDigest: digestEvidenceBytes(`<testsuite name="${invocationId}"/>`),
+      publishBrowserBundle(
+        root,
+        'portable',
+        invocationId,
+        {
+          discovery: Buffer.from(`discovery-${invocationId}`),
+          execution: Buffer.from(`execution-${invocationId}`),
+          playwright: Buffer.from(`raw-${invocationId}`),
+          report: `<testsuite name="${invocationId}"/>`,
+          manifest: {
+            invocationId,
+            report: `tmp/junit/browser/${invocationId}/report.xml`,
+            reportDigest: digestEvidenceBytes(`<testsuite name="${invocationId}"/>`),
+          },
         },
-      });
+        owner,
+      );
     const first = '11111111-1111-4111-8111-111111111111';
     const second = '22222222-2222-4222-8222-222222222222';
     const pointers = await Promise.all([publish(first), publish(second)]);
@@ -443,6 +630,13 @@ it('publishes concurrent immutable Browser bundles through one complete pointer'
     const publication = await readBrowserPublication(root, 'portable');
     expect(publication.invocationId).toBe(pointer.invocationId);
     expect(publication.manifest['reportDigest']).toBe(digestEvidenceBytes(publication.report));
+    const latestRequest = join(root, 'tmp/junit/browser/portable.latest-request');
+    await rm(latestRequest);
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'ENOENT');
+    await mkdir(latestRequest);
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'EISDIR');
+    await rm(latestRequest, { recursive: true });
+    await writeFile(latestRequest, owner);
     await expectRefusal(publish(pointer.invocationId), 'EEXIST');
     const after = await readFile(pointers[0], 'utf8');
     expect((JSON.parse(after) as { invocationId: string }).invocationId).toBe(pointer.invocationId);
