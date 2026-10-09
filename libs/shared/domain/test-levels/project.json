@@ -23,6 +23,13 @@
         "cwd": "libs/shared/domain/test-levels"
       }
     },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test src --timeout=10000",
+        "cwd": "libs/shared/domain/test-levels"
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {

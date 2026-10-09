@@ -66,6 +66,7 @@
       "options": {
         "command": "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-store-sqlite.conformance.xml && files=$(find src/testing -name 'source-conformance.db.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: wbs-store-sqlite:test:conformance:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.conformance.xml --timeout=30000",
         "cwd": "libs/wbs/adapters/store-sqlite",
+        "env": { "CLAUDECODE": "0", "AGENT": "0" },
         "forwardAllArgs": false
       }
     },

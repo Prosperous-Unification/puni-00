@@ -23,6 +23,13 @@
         "cwd": "libs/shared/domain/test-evidence"
       }
     },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test src --timeout=10000",
+        "cwd": "libs/shared/domain/test-evidence"
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
