@@ -10,6 +10,7 @@ import {
   decodePerformanceCases,
   decodePerformanceMeasurement,
   decodePerformanceRun,
+  decodePerformanceSelectionEnvironment,
   digestPerformanceDeclaration,
 } from './index';
 
@@ -29,6 +30,28 @@ const declaration = {
   project: 'chromium',
   cases: [caseRecord],
 };
+
+describe('Performance selection environment', () => {
+  it('accepts only a canonical non-default shifted CI pair', () => {
+    expect(decodePerformanceSelectionEnvironment({ CI: '1', E2E_PORT_SHIFT: '6000' })).toEqual({
+      CI: '1',
+      E2E_PORT_SHIFT: '6000',
+    });
+    for (const shift of ['0', '100', '1000', '1100', '06000', '1.0', '10000', '']) {
+      expect(() =>
+        decodePerformanceSelectionEnvironment({ CI: '1', E2E_PORT_SHIFT: shift }),
+      ).toThrow();
+    }
+    for (const environment of [
+      {},
+      { CI: '1' },
+      { CI: '0', E2E_PORT_SHIFT: '6000' },
+      { CI: '1', E2E_PORT_SHIFT: '6000', PLAYWRIGHT_GREP: 'case' },
+    ]) {
+      expect(() => decodePerformanceSelectionEnvironment(environment)).toThrow();
+    }
+  });
+});
 
 describe('Performance case declaration', () => {
   it('binds the domain-separated declaration with canonical key order', () => {

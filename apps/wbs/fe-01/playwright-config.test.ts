@@ -157,6 +157,33 @@ describe('the browser gate’s port shift', () => {
     expect(frontend.env?.['VITE_WS_URL']).toBe('ws://localhost:3700/ws');
   });
 
+  it('uses the ordinary server descriptors shared with the Performance runner', async () => {
+    const { ordinaryServerDescriptors } = await import('./playwright.ordinary-servers');
+    const config = await loadConfig('500');
+    const descriptors = ordinaryServerDescriptors(
+      repoRoot,
+      500,
+      true,
+      join(repoRoot, 'tmp', 'proof.db'),
+    );
+    const configured = serversOf(config);
+    expect(
+      configured.map(({ command, cwd, url, env }) => ({
+        command,
+        cwd,
+        url,
+        env: { ...env, DB_PATH: 'proof.db' },
+      })),
+    ).toEqual(
+      descriptors.map(({ command, cwd, url, env }) => ({
+        command,
+        cwd,
+        url,
+        env: { ...env, DB_PATH: 'proof.db' },
+      })),
+    );
+  });
+
   it('points the browser at the frontend it actually started', async () => {
     const config = (await loadConfig('500')) as { use?: { baseURL?: string } };
     expect(config.use?.baseURL).toBe('http://localhost:4700');
@@ -295,6 +322,21 @@ describe('the browser gate’s port shift', () => {
 
     expect(callerId).toBe('e2e000000000');
     expect(callerId).toMatch(/^[0-9a-f]{12}$/);
+  });
+});
+
+describe('the Performance browser selection', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env['E2E_PORT_SHIFT'];
+  });
+
+  it('points its real fixture at the shifted ordinary frontend', async () => {
+    vi.resetModules();
+    process.env['E2E_PORT_SHIFT'] = '6000';
+    const { default: config } = await import('./playwright.performance.config');
+    expect(config.use?.baseURL).toBe('http://localhost:10200');
+    expect(config.use?.viewport).toEqual({ width: 1400, height: 900 });
   });
 });
 

@@ -3,6 +3,8 @@ import { join } from 'node:path';
 
 import { defineConfig, devices } from '@playwright/test';
 
+import { ordinaryServerDescriptors, parseOrdinaryPortShift } from './playwright.ordinary-servers';
+
 /**
  * The repository root, which is where this config has to be run from.
  *
@@ -75,87 +77,11 @@ const isCi = process.env['CI'] !== undefined;
  * non-negative integer below 10000. An unusable shift silently read as zero is
  * a run against the dev server wearing the costume of an isolated one.
  */
-/** Where the three tiers sit when nothing has moved them. */
-const DEFAULT_PORTS = [3100, 3200, 4200];
-
-const portShift = ((): number => {
-  const asked = process.env['E2E_PORT_SHIFT'];
-  if (asked === undefined || asked === '') return 0;
-  const shift = Number(asked);
-  if (!Number.isInteger(shift) || shift < 0 || shift > 9999) {
-    throw new Error(
-      `E2E_PORT_SHIFT must be a whole number between 0 and 9999; got ${asked}. ` +
-        `It moves be-01, gw-01 and fe-01 together — 500 puts them on 3600/3700/4700.`,
-    );
-  }
-  // **A shift may not land one tier on another tier's usual port.** 1000 puts
-  // gw-01 on 4200, which is fe-01's own default and, on a developer's machine,
-  // the dev server they are trying to run beside: an agent asked for 1000 and
-  // got `http://localhost:4200/health is already used` from a gateway that had
-  // collided with a frontend (2026-08-30). 100 is the same fault one tier over,
-  // landing be-01 on gw-01's 3200.
-  //
-  // Refused rather than nudged, because the shift is written into runbooks and
-  // agent instructions: a silently adjusted 1000 is a number that means
-  // something different from what the person typed.
-  const shifted = [3100 + shift, 3200 + shift, 4200 + shift];
-  const collision = shifted.find((port) => DEFAULT_PORTS.includes(port));
-  if (shift !== 0 && collision !== undefined) {
-    throw new Error(
-      `E2E_PORT_SHIFT=${String(shift)} puts a tier on ${String(collision)}, which is another ` +
-        `tier's usual port. The three tiers sit at 3100/3200/4200, so a shift may not be 100, ` +
-        `1000 or 1100. Try 500, or any shift that clears all three — and if another run is ` +
-        `already using a shift, keep more than 100 between them, or your be-01 takes its gw-01.`,
-    );
-  }
-  return shift;
-})();
-
-const bePort = 3100 + portShift;
-const gwPort = 3200 + portShift;
+const portShift = parseOrdinaryPortShift(process.env['E2E_PORT_SHIFT']);
 const fePort = 4200 + portShift;
-const beUrl = `http://localhost:${String(bePort)}`;
-const gwUrl = `http://localhost:${String(gwPort)}`;
-
-/**
- * A SQLite file this run alone will ever open.
- *
- * Never `apps/wbs/be-01/local.db`. The spec signs up a throwaway account and
- * writes a plan through the UI, and doing that to a developer's own dev
- * database means their projects list grows a new "New project" on every run —
- * and, worse, that a fault only reproducible against *their* leftover state
- * would look like a gate that fails for one person. `tmp/` is gitignored, and
- * so is `*.db`.
- */
 const runDatabase = join(repoRoot, 'tmp', `e2e-${String(Date.now())}.db`);
 mkdirSync(join(repoRoot, 'tmp'), { recursive: true });
-
-/**
- * One of the three servers under test, started from its own directory.
- *
- * `cwd` is load-bearing rather than tidy: bun reads the `.env` beside the
- * process's working directory, which is how each app gets its secrets, its
- * port, and — for gw-01 and be-01 — the shared signing key they have to agree
- * on. `env` here still wins over that file: a variable already in the
- * environment is not overwritten by a `.env` (checked against bun 1.3.14),
- * which is what makes the database override below effective.
- */
-const server = (app: string, command: string, url: string, env?: Record<string, string>) => ({
-  command,
-  cwd: join(repoRoot, 'apps', 'wbs', app),
-  url,
-  env,
-  // Fresh state in CI, and a running `bun run dev` reused locally. Playwright
-  // waits for 2xx/3xx here, so be-01's 503 `{status:"migrating"}` and gw-01's
-  // 503 `{status:"backend_unhealthy"}` both read as "not ready yet" rather
-  // than as a server that is up — which is the whole reason all three URLs are
-  // waited on instead of only Vite's. A signup against a be-01 that has not
-  // migrated is a 500 the spec would report as a broken table.
-  reuseExistingServer: !isCi,
-  timeout: 120_000,
-  stdout: 'pipe' as const,
-  stderr: 'pipe' as const,
-});
+const servers = ordinaryServerDescriptors(repoRoot, portShift, isCi, runDatabase);
 
 export default defineConfig({
   testDir: './e2e',
@@ -317,43 +243,5 @@ export default defineConfig({
   // of them is written twice: an environment variable that moved a listener
   // without moving what points at it is the shift half-applied, which boots
   // three servers that cannot talk to each other.
-  webServer: [
-    server('be-01', 'bun src/main.ts', `${beUrl}/health`, {
-      // Proof: pinning4200 made the shifted-config login probe receive403
-      // instead of401 from the actual backend route (playwright-config.test.ts).
-      APP_ORIGIN: `http://localhost:${String(fePort)}`,
-      PORT: String(bePort),
-      GW_URL: gwUrl,
-      DB_PATH: runDatabase,
-      // CI shells are not required to export HOSTNAME. Production receives
-      // its authenticated Docker hostname; this fixed identity belongs only
-      // to the isolated source-run browser stack. It still has the 12-hex
-      // Docker-hostname shape the supervisor protocol accepts.
-      HOSTNAME: 'e2e000000000',
-      // Stated rather than inherited from `.env.example`: this file is brand
-      // new, so it holds no schema at all, and a developer who turned startup
-      // migration off locally would otherwise get a stack that boots and 500s
-      // on the first write.
-      MIGRATE_ON_STARTUP: 'true',
-    }),
-    server('gw-01', 'bun src/main.ts', `${gwUrl}/health`, {
-      PORT: String(gwPort),
-      BE_URL: beUrl,
-    }),
-    // `VITE_*` rather than a flag: `loadEnv` in `vite.config.ts` prefers a
-    // prefixed variable already in the environment over the one in `.env`, so
-    // these reach both the dev proxy's upstreams and the client bundle's own
-    // idea of where the socket lives. `PORT` is read by `server.port` there.
-    server(
-      'fe-01',
-      'bunx vite build --minify=false && bunx vite preview',
-      `http://localhost:${String(fePort)}`,
-      {
-        PORT: String(fePort),
-        VITE_BE_URL: beUrl,
-        VITE_GW_URL: gwUrl,
-        VITE_WS_URL: `ws://localhost:${String(gwPort)}/ws`,
-      },
-    ),
-  ],
+  webServer: servers,
 });

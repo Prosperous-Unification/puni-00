@@ -1,16 +1,27 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { mkdir, mkdtemp, open, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { closeSync, constants, mkdtempSync, openSync, rmSync } from 'node:fs';
+import { mkdir, mkdtemp, open, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import {
   compareThreshold,
   decodePerformanceCases,
+  decodePerformanceSelectionEnvironment,
   digestPerformanceDeclaration,
 } from '@shared/test-evidence';
+import { dlopen } from 'bun:ffi';
 
+import {
+  ordinaryServerDescriptors,
+  parseOrdinaryPortShift,
+} from '../../../apps/wbs/fe-01/playwright.ordinary-servers';
 import { decodePlaywrightReport } from './performance-playwright';
+import {
+  createPerformanceProcessOwner,
+  type PerformanceProcessOwner,
+} from './performance-processes';
 
 const declarationPath = 'apps/wbs/fe-01/playwright.performance.cases.json';
 const configPath = 'apps/wbs/fe-01/playwright.performance.config.ts';
@@ -21,6 +32,153 @@ const toolRoot = resolve(import.meta.dir, '../../..');
 const burokratCli = join(toolRoot, 'apps/twilight-structure/twilight-burokrat/cli/src/cli.ts');
 const playwrightCli = join(toolRoot, 'node_modules/playwright/cli.js');
 const expectedBurokratVersion = '0.1.0';
+const performanceCurrentPath = 'tmp/junit/wbs-fe-01.performance.current.json';
+const performanceBundleRoot = 'tmp/junit/performance';
+const lockLibrary =
+  process.platform === 'linux'
+    ? dlopen('libc.so.6', { flock: { args: ['i32', 'i32'], returns: 'i32' } })
+    : undefined;
+
+async function withPerformanceLock<T>(root: string, action: () => Promise<T>): Promise<T> {
+  await mkdir(join(root, 'tmp/junit'), { recursive: true });
+  if (lockLibrary === undefined) throw new Error('Performance invocation lock requires Linux');
+  const descriptor = openSync(
+    join(root, 'tmp/junit/performance.lock'),
+    constants.O_CREAT | constants.O_RDWR,
+    0o600,
+  );
+  // Proof: disabling this flock refusal let the busy-lock production test
+  // complete and replace its prior current pointer instead of refusing.
+  if (lockLibrary.symbols.flock(descriptor, 2 | 4) !== 0) {
+    closeSync(descriptor);
+    throw new Error('Performance invocation lock is busy');
+  }
+  try {
+    return await action();
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+interface PerformanceServiceDescriptor {
+  command: string;
+  cwd: string;
+  url: string;
+  env: Record<string, string>;
+}
+
+function executionEnvironment(
+  extra: Record<string, string>,
+  selectionEnvironment: { CI: '1'; E2E_PORT_SHIFT: string },
+): Record<string, string> {
+  return {
+    PATH: process.env['PATH'] ?? '/usr/bin:/bin',
+    HOME: process.env['HOME'] ?? tmpdir(),
+    TMPDIR: tmpdir(),
+    LANG: 'C.UTF-8',
+    ...extra,
+    CI: selectionEnvironment.CI,
+    E2E_PORT_SHIFT: selectionEnvironment.E2E_PORT_SHIFT,
+  };
+}
+
+function requireCleanPerformanceCleanup(failures: unknown[]): void {
+  if (failures.length > 0)
+    throw new AggregateError(
+      failures,
+      `Performance cleanup failed: ${failures.map((failure) => String(failure)).join('; ')}`,
+    );
+}
+
+async function awaitChildWithin(
+  child: Bun.Subprocess,
+  deadlineMs: number,
+  phase: string,
+): Promise<number> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      child.exited,
+      new Promise<never>((_accept, reject) => {
+        timeout = setTimeout(() => {
+          reject(new Error(`Performance ${phase} timed out`));
+        }, deadlineMs);
+      }),
+    ]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
+
+async function awaitServiceReadiness(
+  descriptors: readonly PerformanceServiceDescriptor[],
+  children: readonly Bun.Subprocess[],
+  deadlineMs: number,
+): Promise<void> {
+  const pending = new Set(descriptors.map((descriptor) => descriptor.url));
+  const failures = new Map<string, string>();
+  const deadline = Date.now() + deadlineMs;
+  while (Date.now() < deadline) {
+    for (const [index, descriptor] of descriptors.entries()) {
+      if (!pending.has(descriptor.url)) continue;
+      const child = children.at(index);
+      if (child === undefined) throw new Error('Performance readiness lacks a service child');
+      if (child.exitCode !== null) {
+        // Proof: the production GW readiness negative exited 23; without this
+        // branch the unready service waited for startup deadline instead of refusing.
+        throw new Error(
+          `Performance readiness failed: ${descriptor.url} exited ${String(child.exitCode)}`,
+        );
+      }
+      try {
+        const response = await fetch(descriptor.url, {
+          signal: AbortSignal.timeout(750),
+          redirect: 'manual',
+        });
+        if (response.status >= 200 && response.status < 400) pending.delete(descriptor.url);
+      } catch (cause) {
+        // A refused connection during startup is retryable; the last cause is retained.
+        failures.set(descriptor.url, String(cause));
+      }
+    }
+    if (pending.size === 0) return;
+    await Bun.sleep(100);
+  }
+  throw new Error(
+    `Performance readiness timed out: ${[...pending].map((url) => `${url} (${failures.get(url) ?? 'non-2xx/3xx response'})`).join(', ')}`,
+  );
+}
+
+async function assertShiftedPortsFree(shift: number): Promise<void> {
+  for (const port of [3100 + shift, 3200 + shift, 4200 + shift]) {
+    const listener = createServer();
+    try {
+      await new Promise<void>((accept, reject) => {
+        listener.once('error', reject);
+        listener.listen(port, '::', accept);
+      });
+    } catch (cause) {
+      if (
+        typeof cause === 'object' &&
+        cause !== null &&
+        Reflect.get(cause, 'code') === 'EADDRINUSE'
+      ) {
+        // Proof: the production scratch target bound shifted FE port 10200; disabling
+        // this refusal let the invocation unexpectedly succeed while foreign owned it.
+        throw new Error(`Performance shifted port ${String(port)} is occupied`, { cause });
+      }
+      throw new Error(`Performance shifted port ${String(port)} preflight failed`, { cause });
+    } finally {
+      if (listener.listening)
+        await new Promise<void>((accept, reject) =>
+          listener.close((error) => {
+            if (error) reject(error);
+            else accept();
+          }),
+        );
+    }
+  }
+}
 
 interface Invocation {
   exitCode: number;
@@ -79,6 +237,9 @@ async function invokePlaywright(
   argv: string[],
   cwd: string,
   reportFile: string,
+  owner: PerformanceProcessOwner,
+  deadlineMs: number,
+  selectionEnvironment: { CI: '1'; E2E_PORT_SHIFT: string },
 ): Promise<Invocation> {
   // Proof: inheriting process.env made the scratch config consume injected PLAYWRIGHT_GREP;
   // the production fixture test then failed exact collection instead of measuring its case.
@@ -88,34 +249,27 @@ async function invokePlaywright(
     TMPDIR: tmpdir(),
     LANG: 'C.UTF-8',
     PLAYWRIGHT_JSON_OUTPUT_FILE: reportFile,
+    CI: selectionEnvironment.CI,
+    E2E_PORT_SHIFT: selectionEnvironment.E2E_PORT_SHIFT,
   };
   tracePerformance(`start playwright ${argv.includes('--list') ? 'list' : 'run'}`);
   const stdoutFile = await open(`${reportFile}.stdout`, 'w');
   const stderrFile = await open(`${reportFile}.stderr`, 'w');
-  const child = Bun.spawn(argv, {
-    cwd,
+  const child = owner.spawn(argv, cwd, runtimeEnvironment, {
     stdout: stdoutFile.fd,
     stderr: stderrFile.fd,
-    env: runtimeEnvironment,
   });
-  const timeoutState = { expired: false };
-  const timeout = setTimeout(() => {
-    timeoutState.expired = true;
-    child.kill('SIGKILL');
-  }, 20_000);
   try {
-    const exitCode = await child.exited;
+    const exitCode = await awaitChildWithin(
+      child,
+      deadlineMs,
+      `Playwright Performance ${argv.includes('--list') ? 'discovery' : 'execution'}`,
+    );
     await Promise.all([stdoutFile.close(), stderrFile.close()]);
     const [stdout, stderr] = await Promise.all([
       readFile(`${reportFile}.stdout`, 'utf8'),
       readFile(`${reportFile}.stderr`, 'utf8'),
     ]);
-    // Proof: disabling this branch made the hung-child production test receive a missing
-    // reporter-file error instead of the bounded timeout refusal after the child was killed.
-    if (timeoutState.expired)
-      throw new Error(
-        `Playwright Performance ${argv.includes('--list') ? 'discovery' : 'execution'} timed out: ${stderr.trim()}`,
-      );
     const reportBytes = await readFile(reportFile).catch((cause: unknown) => {
       throw new Error(
         `Playwright Performance JSON reporter output is unavailable: ${stderr.trim()}`,
@@ -135,7 +289,6 @@ async function invokePlaywright(
     );
     return { exitCode, stdout: report, stderr };
   } finally {
-    clearTimeout(timeout);
     await Promise.all([stdoutFile.close(), stderrFile.close()]);
   }
 }
@@ -500,19 +653,19 @@ export function xmlText(value: string): string {
 }
 
 /** Clears stale outputs and executes only the reviewed, committed Performance selection. */
-export async function runPerformanceLevel(
+async function runLockedPerformanceLevel(
   candidateRoot: string,
   rulePolicyPath?: string,
+  injectedDescriptors?: readonly PerformanceServiceDescriptor[],
 ): Promise<void> {
   const report = join(candidateRoot, reportPath);
   const binding = join(candidateRoot, bindingPath);
-  const evidenceFile = join(candidateRoot, evidencePath);
   await mkdir(join(candidateRoot, 'tmp/junit'), { recursive: true });
   // Proof: omitting this removal left the stale passing XML readable after no-cases refusal.
   await rm(report, { force: true });
   // Proof: omitting this removal left stale passing provenance readable after no-cases refusal.
   await rm(binding, { force: true });
-  await rm(evidenceFile, { force: true });
+  await rm(join(candidateRoot, evidencePath), { force: true });
 
   const declarationBytes = await readFile(join(candidateRoot, declarationPath));
   let source: string;
@@ -538,6 +691,22 @@ export async function runPerformanceLevel(
     throw new Error('no-cases: no performance fixtures declare thresholds');
   }
 
+  const shift = parseOrdinaryPortShift(process.env['E2E_PORT_SHIFT'], true);
+  const selectionEnvironment = decodePerformanceSelectionEnvironment({
+    CI: '1',
+    E2E_PORT_SHIFT: String(shift),
+  });
+  await assertShiftedPortsFree(shift);
+  const invocationId = randomUUID();
+  const bundleRelative = `${performanceBundleRoot}/${invocationId}`;
+  const bundle = join(candidateRoot, bundleRelative);
+  const evidenceFile = join(bundle, 'evidence.json');
+  // Proof: removing this admitted-run invalidation made the threshold-breach
+  // production test read a stale current-success pointer instead of ENOENT.
+  await rm(join(candidateRoot, performanceCurrentPath), { force: true });
+  await mkdir(join(candidateRoot, performanceBundleRoot), { recursive: true });
+  await mkdir(bundle, { recursive: false });
+
   const revision = assertCleanCandidate(candidateRoot);
   const selectedPolicyPath = rulePolicyPath ?? process.env['PUNI_PERFORMANCE_RULE_POLICY'];
   // Proof: disabling external-policy selection made the absent-policy scratch test
@@ -556,6 +725,8 @@ export async function runPerformanceLevel(
   const archiveParent = await mkdtemp(join(tmpdir(), 'puni-performance-'));
   const checkoutRoot = join(archiveParent, 'candidate');
   let checkoutAdded = false;
+  let owner: PerformanceProcessOwner | undefined;
+  let publish = false;
   try {
     requireGit(
       candidateRoot,
@@ -564,6 +735,52 @@ export async function runPerformanceLevel(
     );
     checkoutAdded = true;
     await symlink(join(toolRoot, 'node_modules'), join(checkoutRoot, 'node_modules'), 'dir');
+    owner = createPerformanceProcessOwner();
+    const activeOwner = owner;
+    const setup = activeOwner.spawn(
+      [process.execPath, 'run', 'tools/dev/setup.ts'],
+      checkoutRoot,
+      executionEnvironment({}, selectionEnvironment),
+    );
+    const setupExit = await awaitChildWithin(setup, 30_000, 'development setup');
+    if (setupExit !== 0)
+      throw new Error(`Performance development setup failed: ${String(setupExit)}`);
+    const descriptors =
+      injectedDescriptors ??
+      ordinaryServerDescriptors(
+        checkoutRoot,
+        shift,
+        true,
+        join(checkoutRoot, 'tmp', `e2e-performance-${randomUUID()}.db`),
+      );
+    const expectedUrls = [
+      `http://localhost:${String(3100 + shift)}/health`,
+      `http://localhost:${String(3200 + shift)}/health`,
+      `http://localhost:${String(4200 + shift)}`,
+    ];
+    if (
+      descriptors.length !== 3 ||
+      descriptors.some((descriptor, index) => descriptor.url !== expectedUrls[index])
+    )
+      throw new Error('Performance service descriptors must name the three shifted ordinary URLs');
+    const normalizedDescriptors = descriptors.map((descriptor, index) => {
+      const cwd = resolve(checkoutRoot, descriptor.cwd);
+      if (
+        !cwd.startsWith(`${checkoutRoot}/`) ||
+        descriptor.command.trim() === '' ||
+        descriptor.env['PORT'] !== String([3100, 3200, 4200][index] + shift)
+      )
+        throw new Error('Performance service descriptor leaves the checked-out shifted stack');
+      return { ...descriptor, cwd };
+    });
+    const serviceChildren = normalizedDescriptors.map((descriptor) =>
+      activeOwner.spawn(
+        ['sh', '-c', descriptor.command],
+        descriptor.cwd,
+        executionEnvironment(descriptor.env, selectionEnvironment),
+      ),
+    );
+    await awaitServiceReadiness(normalizedDescriptors, serviceChildren, 120_000);
     await assertPinnedCheckout(
       checkoutRoot,
       revision,
@@ -592,7 +809,11 @@ export async function runPerformanceLevel(
       ['node', playwrightCli, ...listArguments],
       checkoutRoot,
       join(archiveParent, 'list.json'),
+      activeOwner,
+      20_000,
+      selectionEnvironment,
     );
+    await writeFile(join(bundle, 'discovery.json'), listedInvocation.stdout, { flag: 'wx' });
     // Proof: disabling this exit-status guard made the nonzero-discovery scratch target
     // continue into execution and miss its named discovery-failed refusal.
     if (listedInvocation.exitCode !== 0)
@@ -634,7 +855,11 @@ export async function runPerformanceLevel(
       ['node', playwrightCli, ...runArguments],
       checkoutRoot,
       join(archiveParent, 'run.json'),
+      activeOwner,
+      120_000,
+      selectionEnvironment,
     );
+    await writeFile(join(bundle, 'run.json'), runInvocation.stdout, { flag: 'wx' });
     const executed = decodePlaywrightReport(
       parseJson(runInvocation.stdout, 'Playwright execution'),
       checkoutRoot,
@@ -678,12 +903,12 @@ export async function runPerformanceLevel(
         runnerVersion: listed.version,
         listArguments,
         runArguments,
-        selectionEnvironment: {},
+        selectionEnvironment,
       },
       run: executed.execution,
     };
     const evidenceSource = `${JSON.stringify(evidence)}\n`;
-    await writeFile(evidenceFile, evidenceSource);
+    await writeFile(evidenceFile, evidenceSource, { flag: 'wx' });
     const checked = checkPerformance(candidateRoot, revision, policyPath, evidenceFile);
     const verdict = readVerdict(checked, 'run');
     // readVerdict already enforces the only permitted exit statuses and their
@@ -736,14 +961,13 @@ export async function runPerformanceLevel(
       }));
     assertPerformanceFindings(verdict.findings, expectedFindings);
     const reportSource = `<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="wbs-fe-01.performance" tests="${String(declaration.cases.length)}" failures="${String(failedCases.size)}" errors="0" skipped="0">\n${casesXml}\n</testsuite>\n`;
-    await writeFile(report, reportSource);
+    await writeFile(join(bundle, 'report.xml'), reportSource, { flag: 'wx' });
     await writeFile(
-      binding,
+      join(bundle, 'manifest.json'),
       `${JSON.stringify({
         schemaVersion: 1,
         certifies: false,
-        reason: 'report bytes are not yet verified by a trusted Burokrat consumer',
-        invocationId: randomUUID(),
+        invocationId,
         candidate,
         revision,
         policyDigest,
@@ -755,25 +979,84 @@ export async function runPerformanceLevel(
           fixture,
           titlePath,
         })),
-        evidence: { path: evidencePath, digest: hashBytes(evidenceSource) },
-        report: { path: reportPath, digest: hashBytes(reportSource) },
+        discovery: { path: 'discovery.json', digest: hashBytes(listedInvocation.stdout) },
+        run: { path: 'run.json', digest: hashBytes(runInvocation.stdout) },
+        evidence: { path: 'evidence.json', digest: hashBytes(evidenceSource) },
+        report: { path: 'report.xml', digest: hashBytes(reportSource) },
       })}\n`,
+      { flag: 'wx' },
     );
     // Proof: before this branch emitted a failing report, the scratch threshold-breach test
     // found no JUnit at all; removing the nonzero exit would make the target accept that breach.
     if (failedCases.size > 0)
       throw new Error(`Performance threshold failure: ${[...failedCases].join(', ')}`);
+    publish = true;
+  } catch (cause) {
+    await writeFile(
+      join(bundle, 'failure.json'),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        invocationId,
+        message: String(cause),
+      })}\n`,
+      { flag: 'wx' },
+    );
+    throw cause;
   } finally {
-    if (checkoutAdded)
-      requireGit(
-        candidateRoot,
-        ['worktree', 'remove', '--force', checkoutRoot],
-        'checkout cleanup',
-      );
-    await rm(archiveParent, { recursive: true, force: true });
+    const cleanupFailures: unknown[] = [];
+    if (owner !== undefined) {
+      try {
+        await owner.stop();
+      } catch (cause) {
+        cleanupFailures.push(cause);
+      }
+      try {
+        await assertShiftedPortsFree(shift);
+      } catch (cause) {
+        cleanupFailures.push(cause);
+      }
+    }
+    if (checkoutAdded) {
+      try {
+        requireGit(
+          candidateRoot,
+          ['worktree', 'remove', '--force', checkoutRoot],
+          'checkout cleanup',
+        );
+      } catch (cause) {
+        cleanupFailures.push(cause);
+      }
+    }
+    try {
+      await rm(archiveParent, { recursive: true, force: true });
+    } catch (cause) {
+      cleanupFailures.push(cause);
+    }
+    requireCleanPerformanceCleanup(cleanupFailures);
+    if (publish) {
+      const pointer = `${JSON.stringify({ schemaVersion: 1, certifies: false, invocationId, bundle: bundleRelative })}\n`;
+      const temporary = join(candidateRoot, 'tmp/junit', `${invocationId}.current.tmp`);
+      await writeFile(temporary, pointer, { flag: 'wx' });
+      await rename(temporary, join(candidateRoot, performanceCurrentPath));
+    }
   }
 }
 
+/** Runs one Performance invocation under a kernel-released exclusive target lock. */
+export async function runPerformanceLevel(
+  candidateRoot: string,
+  rulePolicyPath?: string,
+  injectedDescriptors?: readonly PerformanceServiceDescriptor[],
+): Promise<void> {
+  return withPerformanceLock(candidateRoot, () =>
+    runLockedPerformanceLevel(candidateRoot, rulePolicyPath, injectedDescriptors),
+  );
+}
+
 if (import.meta.main) {
+  // Proof: the CLI alternate-service negative supplies --services=synthetic and
+  // observes this named refusal before any target admission.
+  if (process.argv.length !== 2)
+    throw new Error('Performance CLI does not accept alternate service arguments');
   await runPerformanceLevel(process.cwd());
 }

@@ -34,6 +34,7 @@
     "e2e/**/*.ts",
     "e2e-packaged/**/*.ts",
     "playwright.config.ts",
+    "playwright.ordinary-servers.ts",
     "playwright.packaged.config.ts",
     "playwright.performance.config.ts",
     "e2e-performance/**/*.ts"

@@ -71,6 +71,14 @@ The historical geometry budget is documented at [measured-rendering/verify.md:65
 The lifecycle and publication contract below is the sole definition of process ownership,
 readiness, deadlines, diagnostics and current-evidence publication for this target.
 
+The selected environment for this real shifted stack is exactly `CI=1` and a
+canonical decimal `E2E_PORT_SHIFT` from 1 through 9999, excluding 100, 1000
+and 1100. One captured pair is passed to setup, every service, discovery and
+execution; a service descriptor cannot override it. The pair is included in
+the evidence, immutable manifest and Burokrat selection digest. The former
+empty-selection-environment rule applied only before the dedicated config
+depended on shifted ports and is retired without an empty fallback.
+
 ### Lifecycle and publication contract
 
 Reuse the ordinary Browser configuration's exact FE/BE/GW command, cwd, URL and environment

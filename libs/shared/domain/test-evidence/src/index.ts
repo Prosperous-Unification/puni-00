@@ -17,6 +17,28 @@ export function digestEvidenceBytes(bytes: Uint8Array | string): string {
 const UnitRecord = type("'ms'|'bytes'|'count'|'fps'");
 const OperatorRecord = type("'lte'|'gte'");
 
+/** Exact environment bound to one shifted Performance selection. */
+export function decodePerformanceSelectionEnvironment(input: unknown): {
+  CI: '1';
+  E2E_PORT_SHIFT: string;
+} {
+  if (typeof input !== 'object' || input === null || Array.isArray(input))
+    throw new Error('Performance selection environment must be an exact CI and shift record');
+  const keys = Object.keys(input).sort();
+  if (JSON.stringify(keys) !== JSON.stringify(['CI', 'E2E_PORT_SHIFT']))
+    throw new Error('Performance selection environment must contain only CI and E2E_PORT_SHIFT');
+  const ci: unknown = Reflect.get(input, 'CI');
+  const shift: unknown = Reflect.get(input, 'E2E_PORT_SHIFT');
+  if (ci !== '1' || typeof shift !== 'string' || !/^[1-9][0-9]{0,3}$/.test(shift))
+    throw new Error(
+      'Performance selection environment requires CI=1 and canonical non-default shift',
+    );
+  const shifted = Number(shift);
+  if (shifted > 9999 || [100, 1000, 1100].includes(shifted))
+    throw new Error('Performance selection environment shift collides with ordinary ports');
+  return { CI: '1', E2E_PORT_SHIFT: shift };
+}
+
 // Proof: changing this undeclared-key rule to ignore let a case-local unexpected field reach
 // runner execution; the production schema test failed instead of refusing the field.
 const CaseRecord = type({
@@ -142,6 +164,7 @@ export function decodePerformanceEvidence(input: unknown): PerformanceEvidence {
   }
   assertWorkspacePath(evidence.selection.declarationPath);
   assertWorkspacePath(evidence.selection.config);
+  decodePerformanceSelectionEnvironment(evidence.selection.selectionEnvironment);
   decodePerformanceRun(evidence.run);
   return evidence;
 }

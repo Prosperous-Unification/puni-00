@@ -75,7 +75,7 @@ const selection = {
     declaration.project,
     '--reporter=json',
   ],
-  selectionEnvironment: {},
+  selectionEnvironment: { CI: '1', E2E_PORT_SHIFT: '6000' },
 };
 
 function git(repository: string, args: string[]): void {
@@ -586,12 +586,31 @@ describe('Burokrat Performance judge', () => {
         listArguments: [...selection.listArguments, '--grep=ordinary'],
       }),
     ).toThrow('discovery selection arguments mismatch');
-    expect(() =>
-      evaluatePerformanceRun(declaration, execution, authority, {
-        ...selection,
-        selectionEnvironment: { PLAYWRIGHT_GREP: 'ordinary' },
-      }),
-    ).toThrow('selection environment must be empty');
+    for (const selectionEnvironment of [
+      {},
+      { CI: '1', E2E_PORT_SHIFT: '0' },
+      { CI: '1', E2E_PORT_SHIFT: '6000', PLAYWRIGHT_GREP: 'ordinary' },
+    ]) {
+      expect(() =>
+        evaluatePerformanceRun(declaration, execution, authority, {
+          ...selection,
+          selectionEnvironment,
+        }),
+      ).toThrow('selection environment');
+    }
+  });
+
+  it('binds the exact shifted CI environment into the selection digest', () => {
+    const { candidateRoot, policyPath } = policyFixture();
+    const loaded = loadRulePolicyWithIdentity(candidateRoot, policyPath);
+    const authority = { policy: loaded.policy, policyDigest: loaded.digest };
+    const first = evaluatePerformanceRun(declaration, execution, authority, selection);
+    const second = evaluatePerformanceRun(declaration, execution, authority, {
+      ...selection,
+      selectionEnvironment: { CI: '1', E2E_PORT_SHIFT: '6500' },
+    });
+    expect(first.selectionDigest).toMatch(/^[0-9a-f]{64}$/);
+    expect(second.selectionDigest).not.toBe(first.selectionDigest);
   });
 
   it('requires exact reviewed case records and exact execution set', () => {

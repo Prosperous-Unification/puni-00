@@ -110,7 +110,7 @@ test('PERF-THRESHOLD refuses a synthetic committed case above its reviewed thres
             '--reporter=json',
           ],
           runArguments: ['test', '--config', config, '--project', 'chromium', '--reporter=json'],
-          selectionEnvironment: {},
+          selectionEnvironment: { CI: '1', E2E_PORT_SHIFT: '6000' },
         },
         run: {
           schemaVersion: 1,

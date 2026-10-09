@@ -2,6 +2,7 @@ import {
   compareThreshold,
   decodePerformanceCases,
   decodePerformanceRun,
+  decodePerformanceSelectionEnvironment,
   digestPerformanceDeclaration,
   type PerformanceCases,
   type PerformanceRun,
@@ -123,11 +124,12 @@ export function evaluatePerformanceRun(
   if (JSON.stringify(selection.runArguments) !== JSON.stringify(expectedRun)) {
     throw new Error('Performance execution selection arguments mismatch');
   }
-  // Proof: disabling this guard made the injected PLAYWRIGHT_GREP test fail without
-  // its expected environment refusal.
-  if (Object.keys(selection.selectionEnvironment).length !== 0) {
-    throw new Error('Performance selection environment must be empty for the dedicated config');
-  }
+  // Proof: the production judge test changed the reviewed selection to the exact
+  // CI/shift pair, then injected {}, shift 0 and PLAYWRIGHT_GREP; the old
+  // empty-environment rule accepted {} and this test failed.
+  const selectionEnvironment = decodePerformanceSelectionEnvironment(
+    selection.selectionEnvironment,
+  );
   // Proof: removing this check made the failed-runner test accept exit code 1.
   if (execution.exitCode !== 0) {
     throw new Error(`Performance runner exited ${String(execution.exitCode)}`);
@@ -189,7 +191,9 @@ export function evaluatePerformanceRun(
       runnerVersion: selection.runnerVersion,
       listArguments: selection.listArguments,
       runArguments: selection.runArguments,
-      selectionEnvironment: selection.selectionEnvironment,
+      // Proof: omitting this exact CI/shift pair made the production digest
+      // test return one digest for shifts 6000 and 6500.
+      selectionEnvironment,
     }),
     cases: judgments,
   };

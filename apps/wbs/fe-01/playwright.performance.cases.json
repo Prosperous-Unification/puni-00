@@ -2,5 +2,15 @@
   "schemaVersion": 1,
   "config": "apps/wbs/fe-01/playwright.performance.config.ts",
   "project": "chromium",
-  "cases": []
+  "cases": [
+    {
+      "caseId": "wbs-folded-mounted-cells",
+      "fixture": "apps/wbs/fe-01/e2e-performance/mounted-cells.perf.spec.ts",
+      "titlePath": ["[TEST-AXES-038] a 100-row folded plan stays within its mounted-cell budget"],
+      "measurement": "folded-mounted-cells",
+      "unit": "count",
+      "operator": "lte",
+      "threshold": 1200
+    }
+  ]
 }
