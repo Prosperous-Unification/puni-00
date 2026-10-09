@@ -68,7 +68,7 @@ export default defineConfig({
       // `--rm` so a failed run leaves nothing behind, and both mounts read-only:
       // this container may not write to the artifact it is measuring.
       command:
-        `exec docker run --rm -p ${String(PORT)}:80 ` +
+        `docker run --rm -p ${String(PORT)}:80 ` +
         `-v ${site}:/srv/www:ro ` +
         `-v ${join(repoRoot, 'apps', 'wbs', 'fe-01', 'Caddyfile')}:/etc/caddy/Caddyfile:ro ` +
         `caddy:2-alpine`,
@@ -81,11 +81,10 @@ export default defineConfig({
       // build" fault in a different hat.
       reuseExistingServer: false,
       timeout: 120_000,
-      // Proof: removing graceful shutdown after a successful packaged target
-      // left its Caddy container alive on 4341; the next target refused its
-      // webServer setup. Playwright's SIGTERM probe stopped Caddy and freed
-      // the port; exec gives the Docker client the webServer process identity.
-      // Ten seconds bounds normal Docker/Caddy cleanup before force-kill.
+      // Proof: removing graceful shutdown made the exact packaged target pass
+      // its cases but fail the production teardown assertion: its Caddy
+      // container remained on 4341. Playwright's SIGTERM probe stopped Caddy
+      // and freed the port. Ten seconds bounds normal cleanup before force-kill.
       gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
       stdout: 'pipe' as const,
       stderr: 'pipe' as const,
