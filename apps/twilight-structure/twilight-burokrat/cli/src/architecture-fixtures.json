@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "fixtures": [
+    {
+      "ruleId": "MOD-INDEX",
+      "file": "src/architecture/mod-index.architecture.test.ts"
+    }
+  ]
+}
