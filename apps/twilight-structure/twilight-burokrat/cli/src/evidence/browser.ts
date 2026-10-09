@@ -72,7 +72,8 @@ function readRegular(root: string, path: string): Uint8Array {
     // Proof: symlinked bundle and file negatives lose their named refusal when this check is disabled.
     if (metadata.isSymbolicLink()) throw new Error(`Browser evidence contains a symlink: ${path}`);
   }
-  // Proof: the directory-as-manifest negative loses its regular-file refusal without this guard.
+  // Proof: disabling this guard made the production directory-as-manifest negative fail
+  // with EISDIR instead of the named regular-file refusal.
   if (!lstatSync(absolute).isFile())
     throw new Error(`Browser evidence is not a regular file: ${path}`);
   return readFileSync(absolute);
@@ -80,7 +81,8 @@ function readRegular(root: string, path: string): Uint8Array {
 
 function boundBlob(repository: string, candidate: CandidateSnapshot, path: string): Uint8Array {
   const entry = candidate.entries.find((record) => record.path === path);
-  // Proof: removing the regular-blob check let a missing candidate config match a manifest digest.
+  // Proof: disabling this guard made the production missing-config negative fail with a
+  // TypeError on entry.blob instead of the named candidate-blob refusal.
   if (entry === undefined || (entry.mode !== '100644' && entry.mode !== '100755'))
     throw new Error(`Browser candidate config is not a regular blob: ${path}`);
   return readCandidateBlob(repository, entry.blob, path);

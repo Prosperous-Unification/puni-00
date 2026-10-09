@@ -237,6 +237,76 @@ test('refuses raw byte, manifest case and normalized JUnit mismatches', () => {
   expect(() => inspect(setup)).toThrow('normalized JUnit cases differ');
 });
 
+test('inspect-browser refuses contradictory raw JUnit outcomes even when counts and JSON agree', () => {
+  const setup = fixture();
+  const discoveryPath = join(setup.bundle, 'discovery.json');
+  const executionPath = join(setup.bundle, 'execution.json');
+  const discovery = JSON.parse(readFileSync(discoveryPath, 'utf8')) as {
+    suites: {
+      specs: {
+        file: string;
+        title: string;
+        tests: { projectName: string; status: string; results: unknown[] }[];
+      }[];
+    }[];
+  };
+  const execution = JSON.parse(readFileSync(executionPath, 'utf8')) as typeof discovery;
+  const skipped = 'opted out';
+  discovery.suites[0]?.specs.push({
+    file,
+    title: skipped,
+    tests: [{ projectName: 'chromium', status: 'skipped', results: [] }],
+  });
+  execution.suites[0]?.specs.push({
+    file,
+    title: skipped,
+    tests: [{ projectName: 'chromium', status: 'skipped', results: [] }],
+  });
+  const discoveryBytes = Buffer.from(JSON.stringify(discovery));
+  const executionBytes = Buffer.from(JSON.stringify(execution));
+  writeFileSync(discoveryPath, discoveryBytes);
+  writeFileSync(executionPath, executionBytes);
+  const rawJunit = Buffer.from(
+    `<testsuites tests="2" failures="0" errors="0" skipped="1"><testsuite name="${file}" hostname="chromium"><testcase name="${title}" classname="${file}"/><testcase name="${skipped}" classname="${file}"><failure/><skipped/></testcase></testsuite></testsuites>`,
+  );
+  const normalized = Buffer.from(
+    `<testsuite name="browser.ordinary" tests="2" failures="0" errors="0" skipped="1"><testcase classname="chromium" name="${title}" file="${file}"/><testcase classname="chromium" name="${skipped}" file="${file}"><skipped/></testcase></testsuite>`,
+  );
+  writeFileSync(join(setup.bundle, 'playwright.xml'), rawJunit);
+  writeFileSync(join(setup.bundle, 'report.xml'), normalized);
+  const raw = setup.manifest['raw'] as {
+    discovery: { digest: string };
+    execution: { digest: string };
+    junit: { digest: string };
+  };
+  raw.discovery.digest = digestEvidenceBytes(discoveryBytes);
+  raw.execution.digest = digestEvidenceBytes(executionBytes);
+  raw.junit.digest = digestEvidenceBytes(rawJunit);
+  setup.manifest['reportDigest'] = digestEvidenceBytes(normalized);
+  setup.manifest['cases'] = [
+    { config, project: 'chromium', file, titlePath: [title], status: 'passed' },
+    { config, project: 'chromium', file, titlePath: [skipped], status: 'skipped' },
+  ];
+  setup.manifest['coverage'] = { passingCases: 1, skippedDebt: 1 };
+  writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
+  const cli = join(import.meta.dir, '..', 'cli.ts');
+  const invocation = Bun.spawnSync(
+    [
+      process.execPath,
+      'run',
+      cli,
+      'inspect-browser',
+      setup.root,
+      setup.revision,
+      setup.policyPath,
+      mode,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  expect(invocation.exitCode).toBe(1);
+  expect(invocation.stderr.toString()).toContain('duplicate outcome');
+});
+
 test('requires external mode/config authority and committed candidate blob', () => {
   const setup = fixture();
   const policy = JSON.parse(readFileSync(setup.policyPath, 'utf8')) as Record<string, unknown>;
@@ -248,6 +318,22 @@ test('requires external mode/config authority and committed candidate blob', () 
   };
   writeFileSync(setup.policyPath, JSON.stringify(policy));
   expect(() => inspect(setup)).toThrow('config differs from policy');
+});
+
+test('refuses a committed candidate without the pinned config blob', () => {
+  const setup = fixture();
+  git(setup.root, ['rm', config]);
+  git(setup.root, ['commit', '-m', 'remove pinned Browser config']);
+  setup.revision = git(setup.root, ['rev-parse', 'HEAD']);
+  expect(() => inspect(setup)).toThrow('candidate config is not a regular blob');
+});
+
+test('refuses a bundle directory in place of the manifest file', () => {
+  const setup = fixture();
+  const manifestPath = join(setup.bundle, 'manifest.json');
+  rmSync(manifestPath);
+  mkdirSync(manifestPath);
+  expect(() => inspect(setup)).toThrow('evidence is not a regular file');
 });
 
 test('refuses pointer and token changes across its immutable bundle read', () => {

@@ -83,7 +83,7 @@ interface CheckVerdict {
       inputs: { path: string; digest: string }[];
       effective: { title: string; source: string; aliases: string[] }[];
       operations: { kind: string; title: string; source: string }[];
-      removals: { title: string; ids: string[] }[];
+      removals: { capability: string; title: string; ids: string[] }[];
     };
   };
 }

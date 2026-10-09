@@ -236,15 +236,11 @@ export function reconcileBrowserJunit(xml: string, run: BrowserReport): void {
       };
       observed.push(current);
     }
-    if (tag.name === 'failure' || tag.name === 'error') {
-      // Proof: disabling this guard made the unscoped-failure negative fail with a TypeError.
-      if (current === undefined) throw new Error('Browser JUnit failure outside testcase');
-      current.status = 'failed';
-    }
-    if (tag.name === 'skipped') {
-      // Proof: disabling this guard made the unscoped-skip negative fail with a TypeError.
-      if (current === undefined) throw new Error('Browser JUnit skip outside testcase');
-      current.status = 'skipped';
+    if (tag.name === 'failure' || tag.name === 'error' || tag.name === 'skipped') {
+      // Proof: with this refusal absent, inspect-browser accepted a failure followed by a skip
+      // for one case when its JSON and summary matched the later skipped status.
+      if (current?.status !== 'passed') throw new Error('Browser JUnit duplicate outcome');
+      current.status = tag.name === 'skipped' ? 'skipped' : 'failed';
     }
     stack.push(tag.name);
   });
