@@ -59,6 +59,34 @@ Each level SHALL be runnable alone through one Nx target. An existing aggregate 
 - **WHEN** each runs files from two levels
 - **THEN** the declared aggregate passes and the undeclared target fails
 
+### Requirement: Performance execution measures the declared real WBS fixture
+
+The Performance target SHALL execute its declared fixture against the real WBS FE/BE/GW stack in a detached committed checkout. Before admitting an invocation, it SHALL refuse if any selected shifted port is already occupied and SHALL preserve that unrelated listener. The WBS rendering case SHALL verify the seeded server plan contains exactly 100 logical rows and two steps, and SHALL sample nonempty geometry at logical rows 0, 50 and 99 at a 1400×900 viewport with Gantt closed and estimates folded. It SHALL retain and count the active editor row in the final sample. Its measured value SHALL be the maximum actual mounted table-cell count from those settled samples and SHALL pass only at or below 1200 cells; waiting for the count to meet the threshold SHALL NOT be a readiness condition. A runner startup/readiness failure, execution timeout, or failed cleanup SHALL refuse the invocation without publishing a current-success pointer. Before launch, the Linux runner SHALL verify child-subreaper, `pidfd_open` and `pidfd_send_signal` support, otherwise refusing before services start. It SHALL keep the subreaper alive through cleanup, stop launching before draining, repeatedly discover descendants and adopted children during a bounded graceful/forced cleanup loop, await directly spawned child exits, reap adopted children, and verify no live/adopted child remains. It SHALL signal only revalidated pidfd identities. A pre-existing or unexpected foreign listener SHALL cause a named refusal and SHALL NOT be killed. Evidence publication SHALL be an immutable per-invocation bundle plus one atomic current pointer; a new admitted attempt invalidates the old pointer, successful passing evidence publishes it only after cleanup, and an older invocation SHALL NOT publish after a newer admission. Failed threshold measurements SHALL retain diagnostic JUnit and observations in their immutable invocation bundle without a current-success pointer. Successful sequential invocations SHALL publish distinct fresh evidence and leave all owned shifted listeners closed. All evidence remains noncertifying.
+
+#### Scenario: [TEST-AXES-038] A folded 100-row plan stays within its mounted-cell budget
+
+- **GIVEN** the real WBS stack and the declared 100-row sparse plan fixture
+- **WHEN** the Performance case verifies 100 logical rows and samples settled, nonempty mounted-cell geometry at logical rows 0, 50 and 99 with Gantt closed and estimates folded at a 1400×900 viewport
+- **THEN** it records the maximum sampled count, retains the active editor row in the final sample, and passes only when the count is at most 1200, with noncertifying evidence
+
+#### Scenario: [TEST-AXES-039] A timed-out Performance run leaves no owned process or listener
+
+- **GIVEN** an admitted Performance invocation whose actual supervised WBS stack starts an intermediate wrapper that exits immediately after starting a separate-session child with a shifted listener and a second child with no listener
+- **WHEN** the runner deadline expires
+- **THEN** child-subreaper adoption retains both children, the runner repeatedly discovers and signals their stable pidfd identities with bounded graceful then forced cleanup, reaps both and verifies neither remains without signaling an unrelated process, retains failure diagnostics without a current-success pointer, and refuses publication
+
+#### Scenario: [TEST-AXES-040] A required service fails readiness before Performance execution
+
+- **GIVEN** a required WBS service does not become ready after admission, or a selected shifted port is occupied before admission
+- **WHEN** the runner performs bounded stack startup
+- **THEN** an occupied-port refusal preserves the existing listener; a readiness refusal occurs before test-case execution, cleans up only owned processes, and publishes no current-success pointer
+
+#### Scenario: [TEST-AXES-041] Sequential Performance invocations own fresh reports and ports
+
+- **GIVEN** two successful Performance invocations run sequentially with validated shifted ports
+- **WHEN** each completes against its own fresh committed checkout
+- **THEN** each passing run publishes a distinct immutable invocation bundle through the atomic current pointer and all owned shifted listeners are closed after each run
+
 ### Requirement: Browser observations bind one committed candidate
 
 A version-1 Browser bundle SHALL carry its `candidate` as one canonical lowercase SHA-256 digest. The Browser inspector SHALL independently select the committed revision and recompute its candidate digest before reporting an observation. A valid observation SHALL remain `certifies:false` with authentication absent.

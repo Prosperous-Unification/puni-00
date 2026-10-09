@@ -53,3 +53,53 @@ or a human review. It cannot certify or close the Performance target. The runner
 binding manifest, validated collection/execution reconciliation and real fixture/run remain
 to be built. The registered rule reports a valid empty declaration as `no-cases` and
 disallows a missing declaration, including when the reviewed set is empty.
+
+## Reviewed repository Performance case
+
+The bounded repository case ID is `wbs-folded-mounted-cells`; its test title cites the
+allocated scenario `[TEST-AXES-038]`: `apps/wbs/fe-01/e2e-performance/mounted-cells.perf.spec.ts` renders a
+real WBS table seeded with 100 sparse rows and two steps, closes Gantt, folds estimates,
+sets a 1400×900 viewport, verifies the server tree has exactly 100 logical rows and two
+steps, and measures actual mounted table cells through the existing `renderingGeometry`
+helper. It opens the first row's name editor and samples settled, nonempty geometry at
+logical rows 0, 50 and 99; the editor row must remain mounted in the final sample. The
+observation is the maximum of those three samples, with no threshold-based readiness wait.
+The `folded-mounted-cells` observation is a count with comparison `lte 1200`.
+
+The historical geometry budget is documented at [measured-rendering/verify.md:65](../../../openspec/changes/measured-rendering/verify.md#L65); its full-mount negative is at line 628. The 21-column derivation is the eight-step folded envelope: 30 intersecting rows, 12 overscan rows on each side, and a full editor row gives `(30 + 12 + 12 + 1) × 21 = 1155`, rounded to 1200. The proposed two-step, 100-row fixture previously measured 1500 cells when fully mounted. This supports a discriminating 1200 budget. The new exact candidate still must measure its actual maximum before any pass is claimed, and this single case does not prove full-scale rendering or latency.
+
+The lifecycle and publication contract below is the sole definition of process ownership,
+readiness, deadlines, diagnostics and current-evidence publication for this target.
+
+### Lifecycle and publication contract
+
+Reuse the ordinary Browser configuration's exact FE/BE/GW command, cwd, URL and environment
+descriptors through a shared module. The Performance adapter starts those descriptors itself
+after `tools/dev/setup.ts`, with `CI=1`, a validated non-default `E2E_PORT_SHIFT`, and no
+server reuse. It refuses before admission if a selected port is occupied, preserving the
+existing listener. After launch, it polls all three descriptor URLs for the ordinary config's
+acceptable 2xx/3xx readiness semantics under a startup deadline; only after readiness does
+the separate Playwright execution deadline begin.
+
+Before launch, set and verify Linux `PR_SET_CHILD_SUBREAPER` and verify `pidfd_open` plus
+`pidfd_send_signal`; refuse before launch if any is unavailable. Keep the adapter alive as
+subreaper until cleanup finishes, stop launching new work before draining, and record every
+service root with a pidfd and `/proc/<pid>/stat` start-time identity. Repeatedly enumerate
+descendants and adopted children during shutdown, including separate-session children whose
+intermediate wrapper exits immediately. Open pidfds and revalidate start-time plus
+descendant/adopted ownership before signaling. Send SIGTERM through pidfds, discover and stop
+new descendants during the bounded grace period, then send SIGKILL through the same validated
+pidfds to remaining processes. Await direct Bun child exits and reap adopted children with
+`waitpid` without stealing Bun-owned waits. Continue until every owned process exited and was
+reaped and no live/adopted child remains. Any enumeration, identity, signal, reap or
+convergence failure refuses publication. Verify owned shifted listeners are closed. Never
+signal a foreign process; an unexpected foreign listener causes a named refusal.
+
+Serialize invocations with one target lock held through cleanup and publication. A port
+preflight or busy-lock refusal is not an admitted attempt. Once admitted, remove the old
+`tmp/junit/wbs-fe-01.performance.current.json` pointer. Store immutable files under
+`tmp/junit/performance/<invocation-id>/` (`discovery.json`, `run.json`, `evidence.json`,
+`report.xml`, `manifest.json`, plus an optional `failure.json`). Failed threshold runs retain
+their failing JUnit and observations in that bundle, but never publish a current-success
+pointer. A passing run publishes the pointer by atomic rename only after cleanup and all
+evidence checks succeed. The lock prevents an older run from publishing after newer admission.

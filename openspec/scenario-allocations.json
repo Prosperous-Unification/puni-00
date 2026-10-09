@@ -486,6 +486,54 @@
       "id": "TEST-AXES-033",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "An active input changes without changing effective requirements"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-034",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A bundle matches its committed selection"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-035",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A candidate digest is absent or foreign"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-036",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A manifest names another revision"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-037",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "An opt-in Browser case carries Playwright annotation metadata"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-038",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A folded 100-row plan stays within its mounted-cell budget"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-039",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A timed-out Performance run leaves no owned process or listener"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-040",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A required service fails readiness before Performance execution"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-041",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Sequential Performance invocations own fresh reports and ports"
     }
   ]
 }
