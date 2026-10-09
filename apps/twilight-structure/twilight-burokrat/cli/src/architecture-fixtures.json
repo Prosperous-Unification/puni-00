@@ -32,6 +32,10 @@
     {
       "ruleId": "K2",
       "file": "src/architecture/k2.architecture.test.ts"
+    },
+    {
+      "ruleId": "K3",
+      "file": "src/architecture/k3.architecture.test.ts"
     }
   ]
 }
