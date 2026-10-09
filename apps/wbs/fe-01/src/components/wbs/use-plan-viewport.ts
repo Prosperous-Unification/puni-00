@@ -11,8 +11,10 @@ import {
 } from './plan-viewport';
 import { recordScrollProbe, scrollProbeStart } from './scroll-performance';
 
-/** The vertical allowance published in the measured-rendering budget. */
-export const ROW_OVERSCAN_PX = 768;
+/** The vertical allowance of the current measured row window. */
+// Proof: the 100-row/15-cell fixture model observed 1230 mounted cells with
+// 768/640 and failed its <=1200 focused guard before this paired reduction.
+export const ROW_OVERSCAN_PX = 704;
 
 /** The horizontal allowance published in the measured-rendering budget. */
 export const COLUMN_OVERSCAN_PX = 256;
@@ -29,7 +31,9 @@ export const ESTIMATED_ROW_HEIGHT_PX = 26.1875;
  * the hook technically publishes only changed windows, but still commits once
  * per wheel event because rows cross that moving edge.
  */
-export const ROW_PUBLICATION_STEP_PX = 640;
+// Proof: the focused fixture guard keeps overscan minus publication step at
+// 128px, covering the 96px wheel probe while the paired window shrinks.
+export const ROW_PUBLICATION_STEP_PX = 576;
 
 /**
  * Pins a compositor offset to the start of its retained publication bucket.
