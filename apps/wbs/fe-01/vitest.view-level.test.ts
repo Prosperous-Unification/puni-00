@@ -58,7 +58,7 @@ describe('View level collection', () => {
       chmodSync(join(binRoot, 'bunx'), 0o755);
       const invocation = spawnSync('sh', ['-c', command], {
         cwd: projectRoot,
-        env: { ...process.env, PATH: `${binRoot}:${process.env.PATH ?? ''}` },
+        env: { ...process.env, PATH: `${binRoot}:${process.env['PATH'] ?? ''}` },
         encoding: 'utf8',
       });
       expect(invocation.status).toBe(67);
