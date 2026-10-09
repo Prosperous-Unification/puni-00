@@ -16,6 +16,10 @@
     {
       "ruleId": "F7",
       "file": "src/architecture/f7.architecture.test.ts"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "file": "src/architecture/mod-layout.architecture.test.ts"
     }
   ]
 }
