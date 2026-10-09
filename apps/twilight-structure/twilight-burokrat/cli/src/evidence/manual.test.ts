@@ -565,7 +565,7 @@ test.each([
   [
     'wrong title',
     (procedure: ReturnType<typeof fixture>['procedure']) => ({ ...procedure, title: 'Alternate' }),
-    'Manual historical procedure scenario differs from disposition',
+    'Manual historical procedure scenario differs from selected specification',
   ],
 ])('inspect-manual refuses %s in an intervening procedure', (_subject, change, finding) => {
   const setup = fixture();
@@ -580,6 +580,66 @@ test.each([
   const call = inspect({ ...setup, revision });
   expect(call.exitCode).toBe(1);
   expect(call.stderr.toString()).toContain(finding);
+});
+
+test('inspect-manual marks a valid historical scenario and procedure rename then revert stale', () => {
+  const setup = fixture();
+  const specPath = join(setup.root, 'openspec/specs/example/spec.md');
+  const journalPath = join(setup.root, 'openspec/scenario-allocations.json');
+  const procedurePath = join(setup.root, 'manual/procedure.json');
+  const dispositionPath = join(setup.root, 'manual/disposition.json');
+  const originalSpec = readFileSync(specPath);
+  const originalJournal = JSON.parse(readFileSync(journalPath, 'utf8')) as {
+    schemaVersion: number;
+    events: unknown[];
+  };
+  const renamed = {
+    kind: 'rename',
+    id: 'EXAMPLE-001',
+    priorTitle: 'Example',
+    title: 'Alternate',
+    priorRevision: setup.revision,
+  };
+  writeFileSync(
+    specPath,
+    '## Requirements\n### Requirement: Example requirement\n#### Scenario: [EXAMPLE-001] Alternate\n',
+  );
+  writeFileSync(
+    journalPath,
+    JSON.stringify({ ...originalJournal, events: [...originalJournal.events, renamed] }),
+  );
+  writeFileSync(procedurePath, JSON.stringify({ ...setup.procedure, title: 'Alternate' }));
+  writeFileSync(dispositionPath, JSON.stringify({ ...setup.disposition, title: 'Alternate' }));
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'rename historical scenario and procedure']);
+  const renamedRevision = git(setup.root, ['rev-parse', 'HEAD']);
+  writeFileSync(specPath, originalSpec);
+  writeFileSync(
+    journalPath,
+    JSON.stringify({
+      ...originalJournal,
+      events: [
+        ...originalJournal.events,
+        renamed,
+        {
+          kind: 'rename',
+          id: 'EXAMPLE-001',
+          priorTitle: 'Alternate',
+          title: 'Example',
+          priorRevision: renamedRevision,
+        },
+      ],
+    }),
+  );
+  writeFileSync(procedurePath, JSON.stringify(setup.procedure));
+  writeFileSync(dispositionPath, JSON.stringify(setup.disposition));
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'restore scenario and procedure title']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('stale');
+  expect((JSON.parse(call.stdout.toString()) as { certifies: unknown }).certifies).toBe(false);
 });
 
 test('inspect-manual ignores Git replacement objects for module indexes', () => {

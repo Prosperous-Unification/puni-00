@@ -648,9 +648,10 @@ function evaluateSourceCurrency(
         )
       )
         throw new Error('Manual historical procedure steps are invalid');
-      // Proof: disabling this join made the intervening wrong-title CLI assertion return stale.
-      if (intermediate.scenarioId !== scenarioId || intermediate.title !== reviewedTitle)
-        throw new Error('Manual historical procedure scenario differs from disposition');
+      // Proof: comparing against the reviewed title refused a valid historical rename/revert;
+      // disabling the same-revision join made the wrong-title CLI assertion return stale.
+      if (intermediate.scenarioId !== scenarioId || intermediate.title !== requirement.title)
+        throw new Error('Manual historical procedure scenario differs from selected specification');
     }
     const modules = moduleScope(repository, snapshot, touchedModules);
     for (const index of checkIndexes(repository, snapshot).indexes) {
