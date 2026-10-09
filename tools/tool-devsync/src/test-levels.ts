@@ -250,8 +250,9 @@ export interface LevelCommand {
 }
 
 /**
- * The only command shape a declared level target may have:
- * `mkdir -p <dir> && bun test $( <selector> ) <flag>…`.
+ * Declared targets use a file selector and JUnit flags. New find-based targets
+ * remove the old report and refuse an empty selection before launching Bun.
+ * The older command shape remains accepted for unchanged pinned targets.
  *
  * Anchored on purpose. A positional argument after the selector is how a target
  * quietly gains a file of another level without the selector saying so, and a
@@ -261,19 +262,36 @@ export interface LevelCommand {
  * {@link ALLOWED_LEVEL_FLAG}.
  */
 export function parseLevelCommand(command: string): LevelCommand {
-  const parsed = /^mkdir -p (\S+) && bun test \$\(([^()]*)\)((?: \S+)*)$/.exec(command);
+  // Proof: replacing the memory Unit guard's `$files` test with `never` made the
+  // production target negative run an unrelated test and exit 0 (2026-10-09).
+  const guarded =
+    /^mkdir -p (\S+) && rm -f (\S+) && files=\$\(([^()]*)\) && if \[ -z "\$files" \]; then echo 'no-cases: ([^']+)' >&2; exit 1; fi && bun test \$files((?: \S+)*)$/.exec(
+      command,
+    );
+  const legacy = /^mkdir -p (\S+) && bun test \$\(([^()]*)\)((?: \S+)*)$/.exec(command);
+  const parsed = guarded ?? legacy;
   if (parsed === null) {
     throw new Error(
-      `a declared level target must read \`mkdir -p <dir> && bun test $( <selector> ) <flag>…\`; got: ${command}`,
+      `a declared level target must use a guarded file selector or the pinned legacy command shape; got: ${command}`,
     );
   }
-  const [, reportDirectory, selector, rest] = parsed;
+  const reportDirectory = parsed[1];
+  const selector = guarded === null ? parsed[2] : parsed[3];
+  const rest = guarded === null ? parsed[3] : parsed[5];
   const flags = rest.split(/\s+/).filter(Boolean);
   const refused = flags.filter((flag) => !ALLOWED_LEVEL_FLAG.test(flag));
   if (refused.length > 0) {
     throw new Error(
       `a declared level target may not pass ${refused.join(', ')}; only coverage, JUnit reporting and timeout flags are allowed`,
     );
+  }
+  if (guarded !== null) {
+    const report = flags.find((flag) => flag.startsWith('--reporter-outfile='))?.slice(19);
+    if (report !== guarded[2]) {
+      throw new Error(
+        `guarded level target clears ${guarded[2]} but writes ${report ?? 'no report'}`,
+      );
+    }
   }
   return { reportDirectory, selector, flags };
 }

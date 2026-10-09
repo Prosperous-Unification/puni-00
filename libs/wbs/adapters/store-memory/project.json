@@ -40,7 +40,7 @@
       "cache": false,
       "inputs": ["default", "^production"],
       "options": {
-        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src/testing -name 'source-conformance.test.ts' | tr '\\n' ' ') --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-memory.conformance.xml --timeout=10000",
+        "command": "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-store-memory.conformance.xml && files=$(find src/testing -name 'source-conformance.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: wbs-store-memory:test:conformance:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-memory.conformance.xml --timeout=10000",
         "cwd": "libs/wbs/adapters/store-memory",
         "forwardAllArgs": false
       }
@@ -60,7 +60,7 @@
       "cache": false,
       "inputs": ["default", "^production"],
       "options": {
-        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src -name '*.test.ts' ! -path 'src/testing/source-conformance.test.ts' | tr '\\n' ' ') --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-memory.unit.xml --timeout=10000",
+        "command": "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-store-memory.unit.xml && files=$(find src -name '*.test.ts' ! -path 'src/testing/source-conformance.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: wbs-store-memory:test:unit:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-memory.unit.xml --timeout=10000",
         "cwd": "libs/wbs/adapters/store-memory",
         "forwardAllArgs": false
       }

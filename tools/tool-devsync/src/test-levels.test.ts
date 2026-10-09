@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'bun:test';
 
 import {
@@ -104,6 +108,66 @@ describe('the adopted projects', () => {
 });
 
 describe('declared level targets', () => {
+  // Proof: with the memory Unit command's empty-file guard changed to inspect "never",
+  // this production-command case failed because Bun discovered unrelated.test.ts and exited 0.
+  // Removing each selected fixture and deleting each selector root also confirms stale JUnit is
+  // cleared before the selector can fail (2026-10-09).
+  it('refuses empty or failed selection before Bun runs and clears stale JUnit', async () => {
+    const guarded = LEVEL_TARGETS.filter(
+      ({ target, project }) =>
+        target === 'test:conformance:level' ||
+        (project === 'wbs-store-memory' && target === 'test:unit:level'),
+    );
+    expect(guarded).toHaveLength(3);
+    for (const target of guarded) {
+      const manifest = await readManifest(target.root);
+      const command = manifest.targets[target.target]?.options?.command;
+      if (command === undefined)
+        throw new Error(`${target.project}:${target.target} has no command`);
+      const scratchRoot = mkdtempSync(join(tmpdir(), 'test-level-empty-'));
+      try {
+        const projectRoot = join(scratchRoot, target.root);
+        const report = join(scratchRoot, target.report);
+        const sentinel = join(projectRoot, 'unrelated.test.ts');
+        const marker = join(projectRoot, 'unrelated-ran');
+        mkdirSync(join(projectRoot, 'src/testing'), { recursive: true });
+        mkdirSync(join(scratchRoot, 'tmp/junit'), { recursive: true });
+        writeFileSync(
+          sentinel,
+          `import { test } from 'bun:test'; test('unrelated', () => { Bun.write('${marker}', 'ran'); });\n`,
+        );
+
+        for (const failure of ['empty', 'selector-error'] as const) {
+          writeFileSync(
+            report,
+            '<testsuites><testsuite><testcase name="stale" file="old"/></testsuite></testsuites>',
+          );
+          if (failure === 'selector-error') rmSync(join(projectRoot, 'src'), { recursive: true });
+          const invocation = Bun.spawnSync(['sh', '-c', command], {
+            cwd: projectRoot,
+            stdout: 'pipe',
+            stderr: 'pipe',
+          });
+          const output = `${invocation.stdout.toString()}${invocation.stderr.toString()}`;
+          expect(
+            invocation.exitCode,
+            `${target.project}:${target.target} ${failure}: ${output}`,
+          ).not.toBe(0);
+          if (failure === 'empty')
+            expect(output).toContain(`no-cases: ${target.project}:${target.target}`);
+          if (failure === 'selector-error') {
+            expect(output).toContain('find:');
+            expect(output).not.toContain('no-cases:');
+          }
+          expect(() => readFileSync(report)).toThrow();
+          expect(() => readFileSync(marker)).toThrow();
+        }
+      } finally {
+        rmSync(scratchRoot, { recursive: true, force: true });
+      }
+    }
+  }, 30_000);
+
   // Three shell spawns and three directory walks: the batch-2 brief's rule for a
   // test that spawns more than twice.
   it('collects exactly the files of its own level', async () => {
