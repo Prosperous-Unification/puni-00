@@ -226,7 +226,7 @@ function hashBytes(bytes: Uint8Array | string): string {
   return new Bun.CryptoHasher('sha256').update(bytes).digest('hex');
 }
 
-function readIdentity(root: string, revision: string): string {
+export function readIdentity(root: string, revision: string): string {
   const invocation = invokeBurokrat([
     process.execPath,
     'run',

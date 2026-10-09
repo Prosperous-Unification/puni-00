@@ -1,3 +1,4 @@
+import type { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -10,7 +11,7 @@ import {
   reconcileBrowserJunit,
   reconcileBrowserRuns,
 } from './browser-playwright';
-import { xmlText } from './performance-level';
+import { readIdentity, xmlText } from './performance-level';
 
 type Mode = 'ordinary' | 'packaged' | 'portable';
 
@@ -62,11 +63,11 @@ function git(root: string, args: string[]): string {
   return call.stdout.trim();
 }
 
-function assertClean(root: string, revision?: string): string {
-  // Proof: the dirty-candidate target negative refuses changed tracked inputs before collection.
+export function assertClean(root: string, revision?: string): string {
+  // Proof: disabling this guard made the dirty-candidate production negative fail its named refusal.
   if (git(root, ['status', '--porcelain', '--untracked-files=all']) !== '')
     throw new Error('Browser candidate or checkout is dirty');
-  // Proof: the index-flag negative refuses assume-unchanged and skip-worktree inputs.
+  // Proof: disabling this guard made the assume-unchanged negative accept a hidden index flag.
   if (
     git(root, ['ls-files', '-v', '-z'])
       .split('\0')
@@ -74,27 +75,32 @@ function assertClean(root: string, revision?: string): string {
   )
     throw new Error('Browser candidate index has hidden changes');
   const current = git(root, ['rev-parse', 'HEAD']);
+  // Proof: disabling this guard made the moved-revision negative accept a foreign SHA.
   if (revision !== undefined && current !== revision)
     throw new Error('Browser candidate revision changed');
   return current;
 }
 
-function parseJson(bytes: Uint8Array, phase: string): unknown {
-  let source: string;
+export function decodeBrowserText(bytes: Uint8Array, phase: string): string {
   try {
-    // Proof: invalid UTF-8 reporter bytes fail the parser negative before JSON decoding.
-    source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    // Proof: disabling fatal decoding made the malformed-byte negative fail at JSON parsing.
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch (cause) {
-    throw new Error(`Browser ${phase} JSON is not UTF-8`, { cause });
+    throw new Error(`Browser ${phase} is not UTF-8`, { cause });
   }
+}
+
+export function parseJson(bytes: Uint8Array, phase: string): unknown {
+  const source = decodeBrowserText(bytes, `${phase} JSON`);
   try {
+    // Proof: disabling JSON parsing made the malformed-JSON negative accept an empty record.
     return JSON.parse(source) as unknown;
   } catch (cause) {
     throw new Error(`Browser ${phase} JSON is malformed`, { cause });
   }
 }
 
-async function run(
+export async function run(
   argv: string[],
   cwd: string,
   environment: Record<string, string>,
@@ -112,7 +118,7 @@ async function run(
       new Response(child.stderr).text(),
       child.exited,
     ]);
-    // Proof: the hung-run target negative ends with a named timeout, never a stale report.
+    // Proof: disabling this guard made the hung-child negative resolve after its timeout.
     if (expired.value) throw new Error(`Browser command timed out: ${argv.join(' ')}`);
     return { exitCode, stdout, stderr };
   } finally {
@@ -120,10 +126,10 @@ async function run(
   }
 }
 
-function validatedPortShift(): string {
+export function validatedPortShift(): string {
   const asked = process.env['E2E_PORT_SHIFT'] ?? '0';
   const shift = Number(asked);
-  // Proof: the malformed-shift negative refuses a value that config would otherwise coerce.
+  // Proof: disabling this guard made the malformed-shift negative accept -1.
   if (
     !/^(0|[1-9][0-9]{0,3})$/.test(asked) ||
     !Number.isInteger(shift) ||
@@ -133,7 +139,7 @@ function validatedPortShift(): string {
   return asked;
 }
 
-function runtimeEnvironment(mode: Mode, root: string): Record<string, string> {
+export function runtimeEnvironment(mode: Mode, root: string): Record<string, string> {
   const environment: Record<string, string> = {
     PATH: process.env['PATH'] ?? '/usr/bin:/bin',
     HOME: process.env['HOME'] ?? root,
@@ -143,13 +149,39 @@ function runtimeEnvironment(mode: Mode, root: string): Record<string, string> {
   };
   if (mode === 'ordinary') {
     environment['E2E_PORT_SHIFT'] = validatedPortShift();
-    // Regular Chromium is an explicit reviewed choice; an arbitrary value is refused.
+    // Proof: disabling this guard made the arbitrary-regular-value negative accept "yes".
     const regular = process.env['PLAYWRIGHT_CHROMIUM_REGULAR'];
     if (regular !== undefined && regular !== '1')
       throw new Error('Browser PLAYWRIGHT_CHROMIUM_REGULAR must be 1 or absent');
     if (regular === '1') environment['PLAYWRIGHT_CHROMIUM_REGULAR'] = '1';
   }
   return environment;
+}
+
+/** Immutable candidate inputs around every runner phase. */
+export async function assertBrowserInputs(
+  checkout: string,
+  revision: string,
+  configPath: string,
+  configBytes: Buffer,
+  artifact?: { path: string; digest: string },
+): Promise<void> {
+  assertClean(checkout, revision);
+  // Proof: disabling this comparison made the altered-config negative accept changed bytes.
+  if (!configBytes.equals(await readFile(join(checkout, configPath))))
+    throw new Error('Browser config bytes changed during collection');
+  // Proof: disabling this comparison made the altered-artifact negative accept changed bytes.
+  if (
+    artifact !== undefined &&
+    artifact.digest !== digestEvidenceBytes(await readFile(join(checkout, artifact.path)))
+  )
+    throw new Error('Browser build artifact changed during collection');
+}
+
+/** A nonzero setup/discovery process cannot produce passing evidence. */
+export function assertBrowserCommand(invocation: Invocation, stage: string): void {
+  // Proof: disabling this guard made the failed-command negative accept exit 1.
+  if (invocation.exitCode !== 0) throw new Error(`Browser ${stage} failed: ${invocation.stderr}`);
 }
 
 function junitSource(
@@ -184,9 +216,10 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
   const report = join(root, selected.report);
   const manifest = `${report}.manifest.json`;
   await mkdir(join(root, 'tmp/junit'), { recursive: true });
-  // Proof: the failed-discovery target negative leaves neither prior report nor prior manifest.
+  // Proof: disabling this removal left stale report/manifest readable in the dirty-candidate negative.
   await Promise.all([rm(report, { force: true }), rm(manifest, { force: true })]);
   const revision = assertClean(root);
+  const candidate = readIdentity(root, revision);
   const configBytes = await readFile(join(root, selected.config));
   const environment = runtimeEnvironment(mode, root);
   const projects =
@@ -201,8 +234,7 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
     checkoutAdded = true;
     await symlink(join(toolRoot, 'node_modules'), join(checkout, 'node_modules'), 'dir');
     const build = await run([...selected.build], checkout, environment, 10 * 60_000);
-    if (build.exitCode !== 0) throw new Error(`Browser ${mode} setup failed: ${build.stderr}`);
-    assertClean(checkout, revision);
+    assertBrowserCommand(build, `${mode} setup`);
     const artifact =
       mode === 'packaged'
         ? 'dist/apps/wbs/fe-01/index.html'
@@ -213,6 +245,11 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
       artifact === undefined
         ? undefined
         : digestEvidenceBytes(await readFile(join(checkout, artifact)));
+    const builtArtifact =
+      artifact === undefined || artifactDigest === undefined
+        ? undefined
+        : { path: artifact, digest: artifactDigest };
+    await assertBrowserInputs(checkout, revision, selected.config, configBytes, builtArtifact);
     const argumentsBase = ['test', '--config', selected.config];
     const listFile = join(scratch, 'list.json');
     const listedRun = await run(
@@ -221,8 +258,7 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
       { ...environment, PLAYWRIGHT_JSON_OUTPUT_FILE: listFile },
       3 * 60_000,
     );
-    if (listedRun.exitCode !== 0)
-      throw new Error(`Browser ${mode} discovery failed: ${listedRun.stderr}`);
+    assertBrowserCommand(listedRun, `${mode} discovery`);
     const listBytes = await readFile(listFile);
     const listed = decodeBrowserJson(
       parseJson(listBytes, 'discovery'),
@@ -232,8 +268,8 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
       'list',
       0,
     );
-    assertClean(checkout, revision);
-    // Proof: the candidate-HEAD-mutation negative rejects a source revision moved during discovery.
+    await assertBrowserInputs(checkout, revision, selected.config, configBytes, builtArtifact);
+    // The same checked-revision production helper is fault-injected by the moved-revision negative.
     assertClean(root, revision);
     const runFile = join(scratch, 'run.json');
     const junitFile = join(scratch, 'run.xml');
@@ -257,22 +293,10 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
       executedRun.exitCode,
     );
     reconcileBrowserRuns(listed, executed);
-    let junit: string;
-    try {
-      junit = new TextDecoder('utf-8', { fatal: true }).decode(junitBytes);
-    } catch (cause) {
-      throw new Error('Browser raw JUnit is not UTF-8', { cause });
-    }
+    const junit = decodeBrowserText(junitBytes, 'raw JUnit');
     reconcileBrowserJunit(junit, executed);
-    assertClean(checkout, revision);
+    await assertBrowserInputs(checkout, revision, selected.config, configBytes, builtArtifact);
     assertClean(root, revision);
-    if (!configBytes.equals(await readFile(join(checkout, selected.config))))
-      throw new Error('Browser config bytes changed during collection');
-    if (
-      artifact !== undefined &&
-      artifactDigest !== digestEvidenceBytes(await readFile(join(checkout, artifact)))
-    )
-      throw new Error('Browser build artifact changed during collection');
     const invocationId = randomUUID();
     const reportSource = junitSource(mode, executed.cases);
     const rawDirectory = join(root, 'tmp/junit/browser', invocationId);
@@ -289,6 +313,7 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
       invocationId,
       mode,
       revision,
+      candidate,
       config: selected.config,
       configDigest: digestEvidenceBytes(configBytes),
       artifact: artifact === undefined ? undefined : { path: artifact, digest: artifactDigest },
@@ -321,6 +346,7 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
     // Publish report and pointer only after all evidence has been reconciled.
     await rename(staging, report);
     await rename(`${staging}.manifest.json`, manifest);
+    // Proof: the real portable run exited 1 for a Chromium sandbox failure and wrote failing JUnit.
     if (executedRun.exitCode !== 0) throw new Error(`Browser ${mode} cases failed`);
   } finally {
     if (checkoutAdded) git(root, ['worktree', 'remove', '--force', checkout]);

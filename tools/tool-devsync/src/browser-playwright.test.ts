@@ -21,7 +21,7 @@ function report(phase: 'list' | 'run') {
       rootDir: join(root, 'libs/wbs/application/core/testing'),
       projects: [{ name: 'chromium' }],
     },
-    errors: [],
+    errors: [] as unknown[],
     suites: [
       {
         file,
@@ -44,7 +44,7 @@ function report(phase: 'list' | 'run') {
   };
 }
 
-const junit = `<testsuites tests="1"><testsuite name="${file}" hostname="chromium" tests="1"><testcase name="${title}" classname="${file}"/></testsuite></testsuites>`;
+const junit = `<testsuites tests="1" failures="0" skipped="0" errors="0"><testsuite name="${file}" hostname="chromium" tests="1"><testcase name="${title}" classname="${file}"/></testsuite></testsuites>`;
 
 describe('Browser Playwright evidence boundary', () => {
   it('reconciles exact discovery, execution and raw JUnit', () => {
@@ -84,15 +84,123 @@ describe('Browser Playwright evidence boundary', () => {
     expect(() => {
       reconcileBrowserRuns(listed, run);
     }).toThrow('selection changed');
+    const changedVersion = decodeBrowserJson(report('run'), root, config, ['chromium'], 'run', 0);
+    changedVersion.version = '1.64.0';
+    expect(() => {
+      reconcileBrowserRuns(listed, changedVersion);
+    }).toThrow('selection changed');
     expect(() => {
       reconcileBrowserJunit(junit, run);
     }).toThrow('differ');
     expect(() => {
       reconcileBrowserJunit('<testsuites/>', run);
-    }).toThrow('differ');
+    }).toThrow('summary');
     expect(() => {
       reconcileBrowserJunit(junit.replace('/>', '><failure/></testcase>'), run);
     }).toThrow('differ');
+  });
+
+  it('refuses duplicate cases, top-level errors, suite movement and exit mismatch', () => {
+    const duplicated = report('list');
+    duplicated.suites.push(structuredClone(duplicated.suites[0]));
+    expect(() => decodeBrowserJson(duplicated, root, config, ['chromium'], 'list', 0)).toThrow(
+      'duplicated',
+    );
+    const errored = report('list');
+    errored.errors.push({ message: 'collection failed' });
+    expect(() => decodeBrowserJson(errored, root, config, ['chromium'], 'list', 0)).toThrow(
+      'top-level errors',
+    );
+    const moved = report('list');
+    moved.suites[0].specs[0].file = 'other.spec.ts';
+    expect(() => decodeBrowserJson(moved, root, config, ['chromium'], 'list', 0)).toThrow(
+      'spec file mismatch',
+    );
+    expect(() => decodeBrowserJson(report('run'), root, config, ['chromium'], 'run', 1)).toThrow(
+      'exit and case outcomes disagree',
+    );
+  });
+
+  it('refuses malformed reporter records and unsafe paths at their boundary', () => {
+    expect(() =>
+      decodeBrowserJson({ config: null }, root, config, ['chromium'], 'list', 0),
+    ).toThrow('config is malformed');
+    const missingSuites = report('list');
+    Reflect.set(missingSuites, 'suites', null);
+    expect(() => decodeBrowserJson(missingSuites, root, config, ['chromium'], 'list', 0)).toThrow(
+      'suites is malformed',
+    );
+    const emptyProject = report('list');
+    emptyProject.config.projects[0].name = '';
+    expect(() => decodeBrowserJson(emptyProject, root, config, ['chromium'], 'list', 0)).toThrow(
+      'project name is malformed',
+    );
+    const outside = report('list');
+    outside.config.rootDir = '/outside';
+    expect(() => decodeBrowserJson(outside, root, config, ['chromium'], 'list', 0)).toThrow(
+      'normalized workspace path',
+    );
+    const traversing = report('list');
+    traversing.suites[0].file = '../escape.spec.ts';
+    expect(() => decodeBrowserJson(traversing, root, config, ['chromium'], 'list', 0)).toThrow(
+      'normalized workspace path',
+    );
+  });
+
+  it('refuses execution hidden in discovery, unknown outcomes and foreign project cases', () => {
+    const executedList = report('list');
+    executedList.suites[0].specs[0].tests[0].results.push({ status: 'passed' });
+    expect(() => decodeBrowserJson(executedList, root, config, ['chromium'], 'list', 0)).toThrow(
+      'contains execution',
+    );
+    const unknown = report('run');
+    unknown.suites[0].specs[0].tests[0].results[0].status = 'future-status';
+    expect(() => decodeBrowserJson(unknown, root, config, ['chromium'], 'run', 1)).toThrow(
+      'status is unknown',
+    );
+    const foreign = report('list');
+    foreign.suites[0].specs[0].tests[0].projectName = 'firefox';
+    expect(() => decodeBrowserJson(foreign, root, config, ['chromium'], 'list', 0)).toThrow(
+      'foreign project case',
+    );
+  });
+
+  it('refuses a nested suite assigned to a different file', () => {
+    const moved = report('list');
+    const original = moved.suites[0].specs[0];
+    moved.suites[0].specs = [];
+    Reflect.set(moved.suites[0], 'suites', [
+      { title: 'nested', file: 'other.spec.ts', specs: [original] },
+    ]);
+    expect(() => decodeBrowserJson(moved, root, config, ['chromium'], 'list', 0)).toThrow(
+      'nested suite file mismatch',
+    );
+  });
+
+  it('refuses JUnit classname, ambiguous case mapping and unscoped failure', () => {
+    const run = decodeBrowserJson(report('run'), root, config, ['chromium'], 'run', 0);
+    expect(() => {
+      reconcileBrowserJunit(junit.replace(`classname="${file}"`, 'classname="other.spec.ts"'), run);
+    }).toThrow('classname');
+    expect(() => {
+      reconcileBrowserJunit(
+        '<testsuites tests="0" failures="0" skipped="0" errors="0"><failure/></testsuites>',
+        run,
+      );
+    }).toThrow('outside testcase');
+    expect(() => {
+      reconcileBrowserJunit(
+        '<testsuites tests="0" failures="0" skipped="0" errors="0"><skipped/></testsuites>',
+        run,
+      );
+    }).toThrow('outside testcase');
+    const duplicate = {
+      ...run,
+      cases: [run.cases[0], { ...run.cases[0], titlePath: [...run.cases[0].titlePath] }],
+    };
+    expect(() => {
+      reconcileBrowserJunit(junit, duplicate);
+    }).toThrow('ambiguous');
   });
 
   it('refuses JUnit file ambiguity and malformed XML', () => {
@@ -103,5 +211,11 @@ describe('Browser Playwright evidence boundary', () => {
     expect(() => {
       reconcileBrowserJunit('<testsuites>', run);
     }).toThrow();
+    expect(() => {
+      reconcileBrowserJunit(junit.replace('tests="1"', 'tests="2"'), run);
+    }).toThrow('summary');
+    expect(() => {
+      reconcileBrowserJunit(junit.replace('tests="1"', 'tests="invalid"'), run);
+    }).toThrow('summary is malformed');
   });
 });

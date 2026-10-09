@@ -1003,14 +1003,22 @@ A broader `bun test tools/tool-devsync/src/workspace-targets.test.ts --timeout=6
 
 Commit `ed9fd62635a9c9cb3fb9c04795291e1110e7c900` resolved the three audit findings above. The conformance inventory now evaluates declared selectors with the production `parseLevelCommand` and `collectedFiles` functions, recognizes both Conformance level targets, and proves the memory Unit selector excludes its Conformance fixture. The five level targets named by the output-variable audit now set `CLAUDECODE=0` and `AGENT=0`. Both `shared-test-evidence` and `shared-test-levels` now declare `test:unit` targets and are included in the root fast tier.
 
-| Check or injected fault | Fresh result |
-| --- | --- |
-| `bun test tools/tool-devsync/src/workspace-targets.test.ts --timeout=60000` | Exit 0; 22 passed, 0 failed, 77 assertions. |
-| Remove the memory Unit `! -path` exclusion | Named audit assertion failed because its Conformance fixture became a Unit collection member. Restored. |
-| Remove the memory Conformance selector | Named audit assertion failed because the declared Conformance level target disappeared. Restored. |
-| `bunx nx run shared-test-evidence:test:unit --skip-nx-cache` | Exit 0; 11 passed. |
-| `bunx nx run shared-test-levels:test:unit --skip-nx-cache` | Exit 0; 4 passed. |
-| Memory Unit and Conformance; SQLite Conformance targets | Each exited 0; 73 tests passed. |
-| TypeScript, ESLint, Prettier, strict OpenSpec validation, diff check | Each exited 0; OpenSpec reported 158/158. |
+| Check or injected fault                                                     | Fresh result                                                                                            |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `bun test tools/tool-devsync/src/workspace-targets.test.ts --timeout=60000` | Exit 0; 22 passed, 0 failed, 77 assertions.                                                             |
+| Remove the memory Unit `! -path` exclusion                                  | Named audit assertion failed because its Conformance fixture became a Unit collection member. Restored. |
+| Remove the memory Conformance selector                                      | Named audit assertion failed because the declared Conformance level target disappeared. Restored.       |
+| `bunx nx run shared-test-evidence:test:unit --skip-nx-cache`                | Exit 0; 11 passed.                                                                                      |
+| `bunx nx run shared-test-levels:test:unit --skip-nx-cache`                  | Exit 0; 4 passed.                                                                                       |
+| Memory Unit and Conformance; SQLite Conformance targets                     | Each exited 0; 73 tests passed.                                                                         |
+| TypeScript, ESLint, Prettier, strict OpenSpec validation, diff check        | Each exited 0; OpenSpec reported 158/158.                                                               |
 
 This resolves those three target-audit gaps. FE Unit still fails under this sandbox with `spawnSync bun EPERM`; FE View still produces a zero-byte UTC report and no Auckland report and was interrupted after about two minutes. SQLite API still has three sandbox write-lock-holder `EPERM` failures. These execution results remain unverified; the h2puni gate was not run.
+
+### Browser collector checkpoint — 2026-10-09
+
+The additive ordinary, packaged and portable Browser level targets call one detached-checkout collector. It performs JSON-only discovery, JSON plus raw JUnit execution, exact case and outcome reconciliation, and atomic normalized JUnit/manifest publication. The companion manifest retains raw artifact digests, build artifact digest where applicable, selected environment and Burokrat candidate identity, and declares `certifies:false`.
+
+`bun test tools/tool-devsync/src/browser-level.test.ts tools/tool-devsync/src/browser-playwright.test.ts` exited 0 on the restored tree with 14 passes and 52 assertions. Scoped ESLint and `bunx tsc --build --force tools/tool-devsync/tsconfig.json` exited 0. Each of 23 Browser JSON/JUnit parser guard removals failed a named negative, then the source was restored. Twelve collector-helper guard removals likewise failed named production-path negatives: stale pointer removal, dirty candidate, hidden index flag, moved revision, UTF-8, malformed JSON, timeout, invalid port shift, invalid regular Chromium selection, changed config bytes, changed artifact bytes and nonzero command exit. These probes do not certify the collector; their failure modes prove the local checks can break.
+
+The portable collector executed a fresh build, JSON discovery and JSON/JUnit run on committed `deab04545`; it wrote a failing normalized report with 1 pass, 1 failure and exited 1. The raw JSON records Chromium's `sandbox_host_linux.cc` fatal `Operation not permitted` while launching the second case. Earlier two-pass historical portable evidence and the list-only two-skipped report do not establish this collector's passing run. Ordinary and packaged modes, Burokrat-side Browser classification, an externally authenticated receipt, Burokrat byte verification, and a clean Browser pass remain open. Task 2.1 remains open.
