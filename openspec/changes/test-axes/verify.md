@@ -479,7 +479,7 @@ before Playwright. A nonempty declaration currently exits with the explicit
 
 | Check                                                                                                                   | Fresh observation                                                                                                                                                                                                                                                                                                                                                        |
 | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bun test src/performance-level.test.ts` in `tools/tool-devsync`                                                        | Exit 0; 7 pass, 0 fail, 28 assertions. These call the production adapter and distinguish absent `ENOENT`, unreadable directory `EISDIR`, malformed JSON, absent/unreadable config, path/threshold/schema/identity faults and stale report removal.                                                                                                                       |
+| `bun test src/performance-level.test.ts` in `tools/tool-devsync`                                                        | Exit 0; 8 pass, 0 fail, 30 assertions. These call the production adapter and distinguish absent `ENOENT`, unreadable directory `EISDIR`, malformed JSON, absent/unreadable config, path/threshold/schema/identity faults and stale report removal.                                                                                                                       |
 | `bun test src/index.test.ts` in `libs/shared/domain/test-evidence`                                                      | Exit 0; 5 pass, 0 fail, 13 assertions.                                                                                                                                                                                                                                                                                                                                   |
 | `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/puni-nx-axes bunx nx run wbs-fe-01:test:performance:level` | Exit 1; actual Nx target invoked `bun tools/tool-devsync/src/performance-level.ts` and printed the named `no-cases` error. Neither `tmp/junit/wbs-fe-01.performance.xml` nor its companion manifest existed afterward. An earlier Nx invocation without the three environment settings exited 0 after socket warnings without running any target, so it is not evidence. |
 | Scoped TypeScript for devsync, shared evidence and frontend E2E tsconfigs                                               | Exit 0.                                                                                                                                                                                                                                                                                                                                                                  |
@@ -508,3 +508,18 @@ The next required slice is strict Playwright JSON discovery, same-selection exec
 fresh finite observations, independent Burokrat comparison, trusted-policy/candidate binding,
 JUnit plus companion manifest, and a real reviewed Performance fixture/run. No
 Performance pass or Task 2.1 completion is claimed here. `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict` exited 0 with `Change 'test-axes' is valid`. Bare `bunx openspec` could not determine an executable and is excluded. The h2puni gate remains unrun.
+
+### Astra P2 corrections to the empty/refusal checkpoint
+
+The declaration now decodes raw bytes with fatal UTF-8 handling. The focused adapter tests exit 0 with 8 passes and 30 assertions; scoped TypeScript and ESLint exit 0 after restoration. Before the fix, a single
+`0xff` byte in the candidate declaration caused `SyntaxError: JSON Parse error: Unrecognized
+token '�'`; the production test expected a UTF-8 refusal and failed. With fatal decoding it
+passes. Turning `fatal` back off made the same named test fail with the replacement-character
+JSON error; the fault was restored.
+
+Both explicit `wbs-fe-01:lint` and `lint:fast` command lists include the dedicated
+`playwright.performance.config.ts`. The owning `wbs-fe-01:lint --skip-nx-cache` baseline
+exited 0 in 56.2 seconds. Injecting `const injectedLintFault = ;` into that config made the
+same Nx target exit 1 in 56.5 seconds; direct scoped ESLint named the file at `3:26` with
+`Parsing error: Expression expected`. The syntax fault was restored, and a fresh owning `wbs-fe-01:lint --skip-nx-cache` rerun exited 0 in 56.7 seconds. `lint:fast` execution
+has not yet been independently run; its explicit command list contains the same path.

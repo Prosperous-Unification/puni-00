@@ -20,7 +20,15 @@ export async function runPerformanceLevel(candidateRoot: string): Promise<void> 
   // no-cases refusal, failing "clears stale JUnit and refuses a valid empty selection".
   await rm(binding, { force: true });
 
-  const source = await readFile(join(candidateRoot, declarationPath), 'utf8');
+  const declarationBytes = await readFile(join(candidateRoot, declarationPath));
+  let source: string;
+  try {
+    // Proof: turning off fatal decoding made the invalid-byte production test receive a JSON
+    // error containing U+FFFD instead of the named UTF-8 refusal.
+    source = new TextDecoder('utf-8', { fatal: true }).decode(declarationBytes);
+  } catch (error) {
+    throw new Error('Performance declaration is not valid UTF-8', { cause: error });
+  }
   const declaration = decodePerformanceCases(JSON.parse(source));
   // Proof: disabling this match made the changed-config production test fail with the
   // later runner error instead of refusing the candidate's replacement config.

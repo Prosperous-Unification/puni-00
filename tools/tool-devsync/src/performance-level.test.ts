@@ -78,6 +78,13 @@ describe('Performance level target production boundary', () => {
     await expectFailure(runPerformanceLevel(root), 'JSON');
   });
 
+  it('refuses invalid declaration UTF-8 before JSON or empty-case handling', async () => {
+    const root = await candidateRoot();
+    await writeFile(join(root, declarationPath), Buffer.from([0xff]));
+    await expectFailure(runPerformanceLevel(root), 'UTF-8');
+    await expectFailure(readFile(join(root, reportPath)), 'ENOENT');
+  });
+
   it('distinguishes an absent or unreadable selected config even for empty cases', async () => {
     const root = await candidateRoot();
     await writeDeclaration(root, { ...declaration, cases: [] });
