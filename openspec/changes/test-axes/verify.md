@@ -998,3 +998,19 @@ R5 injections against each changed Bun command were restored after each run. Rem
 Scoped `bunx tsc -p tools/tool-devsync/tsconfig.json --noEmit` and `bunx tsc -p apps/wbs/fe-01/tsconfig.json --noEmit` exited 0. Changed-file ESLint initially found an unnecessary optional chain; after correction it exited 0. Changed-file Prettier and `git diff --check` exited 0. `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 0 with 158/158 valid items.
 
 A broader `bun test tools/tool-devsync/src/workspace-targets.test.ts --timeout=60000` run exited 1 with 19 passes and 3 failures. Fresh failures: source conformance discovery included `wbs-store-memory:test:unit:level` beyond the expected map; the agent-shell output-variable audit named five existing level targets; the fast-tier audit missed `shared-test-evidence` and `shared-test-levels`. These are open Task 2.1 audit gaps. A clean SQLite API run, full FE phase runs and the h2puni gate were not run in this slice.
+
+### Task 2.1 workspace target audit correction — 2026-10-09
+
+Commit `ed9fd62635a9c9cb3fb9c04795291e1110e7c900` resolved the three audit findings above. The conformance inventory now evaluates declared selectors with the production `parseLevelCommand` and `collectedFiles` functions, recognizes both Conformance level targets, and proves the memory Unit selector excludes its Conformance fixture. The five level targets named by the output-variable audit now set `CLAUDECODE=0` and `AGENT=0`. Both `shared-test-evidence` and `shared-test-levels` now declare `test:unit` targets and are included in the root fast tier.
+
+| Check or injected fault | Fresh result |
+| --- | --- |
+| `bun test tools/tool-devsync/src/workspace-targets.test.ts --timeout=60000` | Exit 0; 22 passed, 0 failed, 77 assertions. |
+| Remove the memory Unit `! -path` exclusion | Named audit assertion failed because its Conformance fixture became a Unit collection member. Restored. |
+| Remove the memory Conformance selector | Named audit assertion failed because the declared Conformance level target disappeared. Restored. |
+| `bunx nx run shared-test-evidence:test:unit --skip-nx-cache` | Exit 0; 11 passed. |
+| `bunx nx run shared-test-levels:test:unit --skip-nx-cache` | Exit 0; 4 passed. |
+| Memory Unit and Conformance; SQLite Conformance targets | Each exited 0; 73 tests passed. |
+| TypeScript, ESLint, Prettier, strict OpenSpec validation, diff check | Each exited 0; OpenSpec reported 158/158. |
+
+This resolves those three target-audit gaps. FE Unit still fails under this sandbox with `spawnSync bun EPERM`; FE View still produces a zero-byte UTC report and no Auckland report and was interrupted after about two minutes. SQLite API still has three sandbox write-lock-holder `EPERM` failures. These execution results remain unverified; the h2puni gate was not run.
