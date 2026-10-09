@@ -36,7 +36,7 @@ candidate must not resolve implementation modules from the older live checkout.
 
 ## Capabilities
 
-### Modified Capabilities
+### Added Capabilities
 
 - `deployment-pipeline`: solver compatibility preparation becomes an automatic,
   host-owned pre-reset phase of the dev Deploy trigger.
