@@ -100,6 +100,48 @@ SHALL be the one that answers.
 - **WHEN** every element in the document is examined
 - **THEN** none SHALL carry `data-hint` and `data-fact` at once
 
+#### Scenario: a cursor crossing the toolbar
+
+- **GIVEN** the plan toolbar, and a pointer moving across three hinted controls
+  in under a second
+- **WHEN** the pointer comes to rest past the last of them
+- **THEN** no card SHALL have opened for any of them
+
+#### Scenario: a fact nested inside a hinted control
+
+- **GIVEN** a mark carrying a `data-fact` inside an element carrying a
+  `data-hint`
+- **WHEN** the pointer moves onto the inner mark
+- **THEN** the card SHALL open at once, saying what the `data-fact` says
+
+#### Scenario: the pointer moves on
+
+- **GIVEN** an open card of either kind
+- **WHEN** the pointer moves onto a mark that carries neither attribute
+- **THEN** the card SHALL close
+
+#### Scenario: the keyboard
+
+- **GIVEN** a mark carrying either attribute
+- **WHEN** it takes the focus
+- **THEN** the same card SHALL open at once, with no wait of either kind, and
+  the mark's `aria-describedby` SHALL name it
+- **AND WHEN** the card closes, the mark SHALL carry no `aria-describedby` it
+  did not have before
+
+#### Scenario: a tap
+
+- **GIVEN** a mark carrying either attribute
+- **WHEN** a touch pointer arrives over it
+- **THEN** no card SHALL open
+
+#### Scenario: a mark with nothing to say today
+
+- **GIVEN** a mark whose attribute is empty, because the value it is written
+  from is absent
+- **WHEN** the pointer moves onto it
+- **THEN** no card SHALL open
+
 ### Requirement: A waiting tool hint shows a wait ring
 
 While a `data-hint` card is waiting to open, the application SHALL draw a ring
@@ -130,6 +172,18 @@ pointer.
 - **THEN** no ring SHALL be on screen 200ms later
 - **AND** a ring SHALL be on screen one second later, within 40px of the cursor
 - **AND** no ring SHALL be on screen once the card has opened
+
+#### Scenario: the ring goes with the pointer
+
+- **GIVEN** a ring drawn beside the cursor on a hinted control
+- **WHEN** the pointer moves off that control before the wait is out
+- **THEN** the ring SHALL go, and no card SHALL open
+
+#### Scenario: a fact draws no ring
+
+- **GIVEN** a mark carrying a `data-fact`
+- **WHEN** the pointer comes to rest on it
+- **THEN** its card SHALL open at once and no ring SHALL ever be drawn
 
 ## ADDED Requirements
 
