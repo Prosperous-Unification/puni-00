@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { lstatSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -93,6 +93,8 @@ export const LEVEL_TARGETS: readonly LevelTarget[] = [
 export interface FrontendPhase {
   readonly config: string;
   readonly report: string;
+  readonly timezone: 'UTC' | 'Pacific/Auckland';
+  readonly isSerial: boolean;
 }
 
 /** A frontend target whose phases all belong to one test level. */
@@ -101,7 +103,7 @@ export interface FrontendLevelTarget {
   readonly root: string;
   readonly target: string;
   readonly level: 'unit' | 'view';
-  readonly phases: readonly FrontendPhase[];
+  readonly phases: readonly [FrontendPhase, ...FrontendPhase[]];
 }
 
 /** Frontend Unit and View commands retain their existing names and report paths. */
@@ -112,8 +114,18 @@ export const FRONTEND_LEVEL_TARGETS: readonly FrontendLevelTarget[] = [
     target: 'test:unit:level',
     level: 'unit',
     phases: [
-      { config: 'vitest.node.config.ts', report: 'tmp/junit/wbs-fe-01.unit.xml' },
-      { config: 'vitest.unit-root.config.ts', report: 'tmp/junit/wbs-fe-01.unit.root.xml' },
+      {
+        config: 'vitest.node.config.ts',
+        report: 'tmp/junit/wbs-fe-01.unit.xml',
+        timezone: 'UTC',
+        isSerial: false,
+      },
+      {
+        config: 'vitest.unit-root.config.ts',
+        report: 'tmp/junit/wbs-fe-01.unit.root.xml',
+        timezone: 'UTC',
+        isSerial: false,
+      },
     ],
   },
   {
@@ -122,11 +134,95 @@ export const FRONTEND_LEVEL_TARGETS: readonly FrontendLevelTarget[] = [
     target: 'test:view:level',
     level: 'view',
     phases: [
-      { config: 'vitest.view.config.ts', report: 'tmp/junit/wbs-fe-01.view.utc.xml' },
-      { config: 'vitest.zoned.config.ts', report: 'tmp/junit/wbs-fe-01.view.auckland.xml' },
+      {
+        config: 'vitest.view.config.ts',
+        report: 'tmp/junit/wbs-fe-01.view.utc.xml',
+        timezone: 'UTC',
+        isSerial: true,
+      },
+      {
+        config: 'vitest.zoned.config.ts',
+        report: 'tmp/junit/wbs-fe-01.view.auckland.xml',
+        timezone: 'Pacific/Auckland',
+        isSerial: true,
+      },
     ],
   },
 ];
+
+/** Read the FE-owned Node tier manifest as external project metadata. */
+export function readNodeSuiteManifest(
+  path = new URL('apps/wbs/fe-01/vitest.node-suites.json', WORKSPACE).pathname,
+): ReadonlySet<string> {
+  let source: unknown;
+  try {
+    // Proof: disabling this check made the linked manifest CLI fault accept
+    // the symlinked JSON and exit zero.
+    if (!lstatSync(path).isFile()) throw new Error('not a regular file');
+    // Proof: replacing this read with the committed manifest made the missing,
+    // unreadable and malformed override CLI cases miss their named refusals.
+    source = JSON.parse(readFileSync(path, 'utf8'));
+  } catch (cause) {
+    throw new Error(`${path}: Node suite manifest is missing, unreadable or malformed`, { cause });
+  }
+  // Proof: malformed/version/unknown-field CLI fixtures lose their named
+  // refusal when this strict manifest-shape boundary is disabled.
+  if (
+    typeof source !== 'object' ||
+    source === null ||
+    Array.isArray(source) ||
+    Object.keys(source).sort().join(',') !== 'schemaVersion,suites' ||
+    !('schemaVersion' in source) ||
+    source.schemaVersion !== 1 ||
+    !('suites' in source) ||
+    !Array.isArray(source.suites) ||
+    source.suites.length === 0
+  )
+    throw new Error(`${path}: Node suite manifest has an invalid schema or version`);
+  const root = resolve(WORKSPACE.pathname, 'apps/wbs/fe-01');
+  const files = new Set<string>();
+  const suites: readonly unknown[] = source.suites;
+  for (const entry of suites) {
+    if (
+      typeof entry !== 'object' ||
+      entry === null ||
+      Array.isArray(entry) ||
+      !('file' in entry) ||
+      typeof entry.file !== 'string' ||
+      Object.keys(entry).some((key) => key !== 'file' && key !== 'reason') ||
+      ('reason' in entry && (typeof entry.reason !== 'string' || entry.reason.trim() === ''))
+    )
+      throw new Error(`${path}: Node suite manifest has an invalid entry`);
+    const file = entry.file;
+    // Proof: disabling the traversal segment check made the ../escape CLI
+    // case miss its named noncanonical-path refusal.
+    if (
+      file.startsWith('/') ||
+      /^[A-Za-z]:/.test(file) ||
+      file.includes('\\') ||
+      file.split('/').some((segment) => segment === '' || segment === '.' || segment === '..') ||
+      !BUN_TEST_FILE.test(file)
+    )
+      throw new Error(`${path}: Node suite path is noncanonical: ${file}`);
+    const canonical = `apps/wbs/fe-01/${file}`;
+    // Proof: disabling this check made the repeated-suite CLI case exit zero.
+    if (files.has(canonical)) throw new Error(`${path}: duplicate Node suite ${canonical}`);
+    const absolute = resolve(root, file);
+    try {
+      // Proof: disabling the realpath equality made the symlinked parent
+      // directory CLI case miss its named project-escape refusal.
+      if (!lstatSync(absolute).isFile() || realpathSync(absolute) !== absolute)
+        throw new Error('not an unsymlinked regular file');
+    } catch (cause) {
+      throw new Error(
+        `${path}: Node suite is missing, nonregular or escapes project: ${canonical}`,
+        { cause },
+      );
+    }
+    files.add(canonical);
+  }
+  return files;
+}
 
 /** Verifies one Bun level target's actual selector. */
 export function assertBunLevelCollection(
@@ -166,17 +262,84 @@ export function assertBunLevelCollection(
   return canonical;
 }
 
+/** Admit only the existing Nx execution envelope of a covered level target. */
+export function assertLevelEnvelope(
+  target: LevelTarget | FrontendLevelTarget,
+  manifest: ProjectManifest,
+): string {
+  const label = `${target.project}:${target.target}`;
+  const declared = manifest.targets[target.target];
+  if (declared === undefined) throw new Error(`${label} is missing from project manifest`);
+  // Proof: deleting SQLite API's executor made the CLI pass when this guard was disabled.
+  if (declared.executor !== 'nx:run-commands')
+    throw new Error(`${label} executor differs from declaration`);
+  // Proof: adding a Conformance dependency or options.args test-name filter made
+  // the CLI pass when this envelope guard was disabled.
+  if (
+    Object.keys(declared).some(
+      (key) => !['executor', 'cache', 'inputs', 'options', 'outputs'].includes(key),
+    ) ||
+    Object.keys(declared.options ?? {}).some(
+      (key) => !['command', 'cwd', 'env', 'forwardAllArgs'].includes(key),
+    ) ||
+    declared.options?.forwardAllArgs ||
+    (declared.options?.env !== undefined &&
+      JSON.stringify(declared.options.env) !== JSON.stringify({ CLAUDECODE: '0', AGENT: '0' }))
+  )
+    throw new Error(`${label} Nx envelope changes collection`);
+  // Proof: changing SQLite API's cwd made the named CLI cwd negative fail when removed.
+  if (declared.options?.cwd !== target.root)
+    throw new Error(`${label} cwd differs from declaration`);
+  const command = declared.options.command;
+  if (command === undefined) throw new Error(`${label} has no declared command`);
+  return command;
+}
+
+/** Admit the report identity that a Bun target actually writes. */
+export function assertBunReport(target: LevelTarget, command: string): void {
+  const label = `${target.project}:${target.target}`;
+  const parsed = parseLevelCommand(command);
+  const report = reportPathFrom(target.root, target.report);
+  // Proof: changing both clear and write paths to wrong.xml made the named CLI
+  // report negative pass when this identity guard was disabled.
+  if (
+    parsed.flags.filter((flag) => flag === '--reporter=junit').length !== 1 ||
+    parsed.flags.filter((flag) => flag === `--reporter-outfile=${report}`).length !== 1
+  )
+    throw new Error(`${label} report differs from declaration`);
+  // Proof: changing only SQLite API's mkdir directory made the named CLI
+  // report-directory negative pass when this guard was disabled.
+  if (parsed.reportDirectory !== report.slice(0, report.lastIndexOf('/')))
+    throw new Error(`${label} report directory differs from declaration`);
+}
+
 /** Collects a Vitest phase from its production config. */
-export function collectVitestPhase(root: string, config: string): readonly string[] {
+export function collectVitestPhase(
+  root: string,
+  config: string,
+  timezone: FrontendPhase['timezone'] = 'UTC',
+  isSerial = false,
+): readonly string[] {
   const directory = mkdtempSync(join(tmpdir(), 'test-level-vitest-'));
   let listing: unknown;
   try {
     const output = join(directory, 'list.json');
     const invocation = Bun.spawnSync(
-      ['bunx', 'vitest', 'list', '--filesOnly', `--json=${output}`, '--config', config],
+      [
+        'bunx',
+        'vitest',
+        'list',
+        '--filesOnly',
+        `--json=${output}`,
+        '--config',
+        config,
+        ...(isSerial ? ['--no-file-parallelism', '--maxWorkers=1'] : []),
+        '--testTimeout=30000',
+        '--hookTimeout=30000',
+      ],
       {
         cwd: new URL(`${root}/`, WORKSPACE).pathname,
-        env: { ...process.env, VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true' },
+        env: { ...process.env, TZ: timezone, VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true' },
         stdout: 'pipe',
         stderr: 'pipe',
       },
@@ -225,44 +388,52 @@ export function collectVitestPhase(root: string, config: string): readonly strin
   return files.sort();
 }
 
+/** Exact admitted frontend target command, derived from its declared phases. */
+export function renderFrontendCommand(target: FrontendLevelTarget): string {
+  const reports = target.phases.map((phase) => reportPathFrom(target.root, phase.report));
+  const first = reports[0];
+  const directory = first.slice(0, first.lastIndexOf('/'));
+  const runs = target.phases.map(
+    (phase) =>
+      `TZ=${phase.timezone} bunx vitest run --config ${phase.config}${phase.isSerial ? ' --no-file-parallelism --maxWorkers=1' : ''} --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=${reportPathFrom(target.root, phase.report)}`,
+  );
+  return `mkdir -p ${directory} && rm -f ${reports.join(' ')} && ${runs.join(' && ')}`;
+}
+
 /** Verify actual Vitest phases, declared JUnit outputs and classifier membership. */
 export function assertFrontendLevelCollection(
   target: FrontendLevelTarget,
   manifest: ProjectManifest,
+  declaredNode = readNodeSuiteManifest(),
 ): readonly string[] {
   const label = `${target.project}:${target.target}`;
-  const declared = manifest.targets[target.target];
-  const command = declared?.options?.command;
-  // Proof: disabling this guard made the missing-command frontend fixture
-  // miss its named refusal in the phase-contract negative.
-  if (command === undefined) throw new Error(`${label} has no declared command`);
-  // Proof: disabling this guard let the wrong-cwd frontend fixture advance
-  // without its named working-directory refusal.
-  if (declared?.options?.cwd !== target.root)
-    throw new Error(`${label} runs in ${String(declared?.options?.cwd)}, not ${target.root}`);
-  const pairs = [...command.matchAll(/--config (\S+)(?:(?!&&).)*?--outputFile=(\S+)/g)].map(
-    ([, config, report]) => ({ config, report }),
+  const command = assertLevelEnvelope(target, manifest);
+  // Proof: removing exact command equality made the CLI accept removed JUnit
+  // reporter, added test-name selection and changed timezone fixtures.
+  if (command !== renderFrontendCommand(target))
+    throw new Error(`${label} runner selection, reporter or phase outputs differ from declaration`);
+  const nodePhase = FRONTEND_LEVEL_TARGETS.flatMap((entry) => entry.phases).find(
+    (phase) => phase.config === 'vitest.node.config.ts',
   );
-  const expected = target.phases.map((phase) => ({
-    config: phase.config,
-    report: reportPathFrom(target.root, phase.report),
-  }));
-  // Proof: disabling this equality let the changed-config fixture miss its
-  // named phase/report refusal.
-  if (JSON.stringify(pairs) !== JSON.stringify(expected))
-    throw new Error(`${label} Vitest phases or JUnit outputs differ from declaration`);
-  const cleared = /^mkdir -p \S+ && rm -f ([^&]+) &&/.exec(command)?.[1]?.trim().split(/\s+/);
-  // Proof: disabling report-list equality let the wrong-clear-path fixture
-  // miss its named JUnit cleanup refusal.
-  if (
-    cleared === undefined ||
-    JSON.stringify(cleared) !== JSON.stringify(expected.map((phase) => phase.report))
-  )
-    throw new Error(`${label} does not clear its declared JUnit outputs`);
-  const nodeFiles = new Set(collectVitestPhase(target.root, 'vitest.node.config.ts'));
+  if (nodePhase === undefined) throw new Error('frontend Node phase is absent');
+  const nodeFiles = new Set(
+    collectVitestPhase(target.root, nodePhase.config, nodePhase.timezone, nodePhase.isSerial),
+  );
+  const extra = [...nodeFiles].find((file) => !declaredNode.has(file));
+  const missing = [...declaredNode].find((file) => !nodeFiles.has(file));
+  // Proof: removing this independent membership join let the intercepted
+  // real Vitest list put src/lib/api.test.ts in Node and still pass the CLI.
+  const mismatch = extra ?? missing;
+  if (mismatch !== undefined)
+    throw new Error(`vitest.node.config.ts collection differs from NODE_SUITES: ${mismatch}`);
   const all = new Set<string>();
   for (const phase of target.phases) {
-    for (const file of collectVitestPhase(target.root, phase.config)) {
+    for (const file of collectVitestPhase(
+      target.root,
+      phase.config,
+      phase.timezone,
+      phase.isSerial,
+    )) {
       // Proof: disabling this guard made the repeated Node phase negative
       // miss its named duplicate-phase-file refusal.
       if (all.has(file)) throw new Error(`${label} collects ${file} in two phases`);
@@ -274,7 +445,7 @@ export function assertFrontendLevelCollection(
         architectureFixtures: new Set(),
         performanceFiles: new Set(),
         browserFiles: new Set(),
-        frontendNodeSuites: nodeFiles,
+        frontendNodeSuites: declaredNode,
       });
       // Proof: disabling this guard let the View target declared Unit pass
       // the named foreign-View-file negative.
@@ -290,20 +461,23 @@ export function assertFrontendLevelCollection(
 /** Check every covered project and refuse omitted frontend source or root tests. */
 export async function verifyDeclaredCollections(
   overrides: ReadonlyMap<string, ProjectManifest> = new Map(),
+  nodeManifestPath?: string,
 ): Promise<void> {
   const roots = new Set([...LEVEL_TARGETS, ...FRONTEND_LEVEL_TARGETS].map((target) => target.root));
+  const declaredNode = readNodeSuiteManifest(nodeManifestPath);
+  const manifests = new Map<string, ProjectManifest>();
+  for (const root of roots) manifests.set(root, overrides.get(root) ?? (await readManifest(root)));
   for (const root of roots) {
-    const manifest = overrides.get(root) ?? (await readManifest(root));
+    const manifest = manifests.get(root);
+    if (manifest === undefined) throw new Error(`${root} manifest is absent`);
     await verifyTargetInventory(root, manifest);
     const conformance = conformanceFilesIn(
       manifest.targets['test:conformance']?.options?.command ?? '',
     );
     const bunFiles = new Set<string>();
     for (const target of LEVEL_TARGETS.filter((entry) => entry.root === root)) {
-      const command = manifest.targets[target.target]?.options?.command;
-      // Proof: disabling this guard made the missing memory Unit command
-      // negative fail with a parser message instead of the named target refusal.
-      if (command === undefined) throw new Error(`${target.project}:${target.target} is absent`);
+      const command = assertLevelEnvelope(target, manifest);
+      assertBunReport(target, command);
       for (const file of assertBunLevelCollection(target, command, conformance)) bunFiles.add(file);
     }
     if (bunFiles.size > 0) {
@@ -317,7 +491,9 @@ export async function verifyDeclaredCollections(
     }
     if (root === 'apps/wbs/fe-01') {
       const collected = new Set(
-        FRONTEND_LEVEL_TARGETS.flatMap((target) => assertFrontendLevelCollection(target, manifest)),
+        FRONTEND_LEVEL_TARGETS.flatMap((target) =>
+          assertFrontendLevelCollection(target, manifest, declaredNode),
+        ),
       );
       const all = await testFilesInProject(root);
       const expected = all.filter((path) => {
@@ -330,6 +506,50 @@ export async function verifyDeclaredCollections(
         if (!collected.has(file)) throw new Error(`wbs-fe-01 level targets do not collect ${file}`);
       }
     }
+  }
+  assertBrowserAggregateMembers(manifests);
+}
+
+/** Resolve all Browser aggregate members in their owning project manifests. */
+export function assertBrowserAggregateMembers(
+  manifests: ReadonlyMap<string, ProjectManifest>,
+): void {
+  const members = [
+    [
+      'apps/wbs/fe-01',
+      'wbs-fe-01',
+      'test:browser:ordinary:level',
+      'bun tools/tool-devsync/src/browser-level.ts ordinary',
+    ],
+    [
+      'apps/wbs/fe-01',
+      'wbs-fe-01',
+      'test:browser:packaged:level',
+      'bun tools/tool-devsync/src/browser-level.ts packaged',
+    ],
+    [
+      'libs/wbs/application/core',
+      'wbs-core',
+      'test:browser:portable:level',
+      'bun tools/tool-devsync/src/browser-level.ts portable',
+    ],
+  ] as const;
+  for (const [root, project, target, command] of members) {
+    const entry = manifests.get(root)?.targets[target];
+    // Proof: deleting the core portable target made the production CLI pass
+    // when this cross-project member guard was removed.
+    if (entry === undefined)
+      throw new Error(`wbs-fe-01:test:browser:level member ${project}:${target} is absent`);
+    if (
+      entry.executor !== 'nx:run-commands' ||
+      entry.options?.command !== command ||
+      entry.options.forwardAllArgs !== false ||
+      Object.keys(entry).some((key) => !['executor', 'cache', 'options'].includes(key)) ||
+      Object.keys(entry.options).some((key) => !['command', 'forwardAllArgs'].includes(key))
+    )
+      throw new Error(
+        `wbs-fe-01:test:browser:level member ${project}:${target} differs from declaration`,
+      );
   }
 }
 
@@ -417,7 +637,16 @@ export async function assertAggregateMembership(
     ];
     // Proof: disabling this equality made the missing portable Browser
     // member fixture miss its named aggregate refusal.
-    if (JSON.stringify(entry.options?.commands) !== JSON.stringify(expected))
+    if (
+      entry.executor !== 'nx:run-commands' ||
+      entry.options?.parallel !== false ||
+      entry.options.forwardAllArgs !== false ||
+      JSON.stringify(entry.options.commands) !== JSON.stringify(expected) ||
+      Object.keys(entry).some((key) => !['executor', 'cache', 'options'].includes(key)) ||
+      Object.keys(entry.options).some(
+        (key) => !['commands', 'parallel', 'forwardAllArgs'].includes(key),
+      )
+    )
       throw new Error(`${aggregate.qualified} aggregate members differ from declaration`);
     return;
   }
@@ -428,8 +657,12 @@ export async function assertAggregateMembership(
     // Proof: disabling the Unit dependency check made the frontend aggregate
     // fixture with no test:unit dependency miss its named refusal.
     if (
+      entry.executor !== 'nx:run-commands' ||
+      entry.options?.cwd !== root ||
       JSON.stringify(entry.dependsOn) !== JSON.stringify(['test:unit']) ||
-      command !== expectedCommand
+      command !== expectedCommand ||
+      Object.keys(entry).some((key) => !['executor', 'dependsOn', 'options'].includes(key)) ||
+      Object.keys(entry.options).some((key) => !['command', 'cwd'].includes(key))
     )
       throw new Error(`${aggregate.qualified} aggregate members differ from declaration`);
     return;
@@ -571,11 +804,18 @@ const NEVER_WALKED = new Set(['node_modules', 'dist', 'coverage', 'test-results'
 
 /** One Nx target as a project manifest spells it. */
 export interface ManifestTarget {
+  readonly executor?: string;
   readonly dependsOn?: readonly string[];
+  readonly configurations?: Readonly<Record<string, unknown>>;
+  readonly defaultConfiguration?: string;
   readonly options?: {
     readonly command?: string;
     readonly commands?: readonly string[];
     readonly cwd?: string;
+    readonly args?: readonly string[];
+    readonly env?: Readonly<Record<string, string>>;
+    readonly forwardAllArgs?: boolean;
+    readonly parallel?: boolean;
   };
 }
 

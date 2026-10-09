@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -30,6 +31,7 @@ import {
   levelTargetNamed,
   parseLevelCommand,
   passedCitations,
+  type ProjectManifest,
   readJUnitReport,
   readManifest,
   readSpec,
@@ -64,6 +66,33 @@ async function rejectionOf(operation: Promise<unknown>): Promise<unknown> {
   } catch (cause) {
     return cause;
   }
+}
+
+/** Run the production verifier over one proposed manifest without changing the workspace. */
+function auditManifest(
+  root: string,
+  manifest: ProjectManifest,
+): { exitCode: number | null; stderr: string } {
+  const scratch = mkdtempSync(join(tmpdir(), 'test-level-audit-'));
+  try {
+    const path = join(scratch, 'project.json');
+    writeFileSync(path, JSON.stringify(manifest));
+    const run = Bun.spawnSync(
+      ['bun', 'tools/tool-devsync/src/verify-test-levels-cli.ts', '--manifest', root, path],
+      { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+    );
+    return { exitCode: run.exitCode, stderr: run.stderr.toString() };
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
+function auditNodeManifest(path: string): { exitCode: number | null; stderr: string } {
+  const run = Bun.spawnSync(
+    ['bun', 'tools/tool-devsync/src/verify-test-levels-cli.ts', '--node-manifest', path],
+    { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+  );
+  return { exitCode: run.exitCode, stderr: run.stderr.toString() };
 }
 
 describe('the level-selection table', () => {
@@ -311,7 +340,13 @@ describe('the adopted projects', () => {
     ).toContain('wbs-store-memory:test:conformance:level is missing from project manifest');
     const noCommand = {
       ...manifest,
-      targets: { ...manifest.targets, 'test:unit:level': { options: {} } },
+      targets: {
+        ...manifest.targets,
+        'test:unit:level': {
+          ...manifest.targets['test:unit:level'],
+          options: { ...manifest.targets['test:unit:level']?.options, command: undefined },
+        },
+      },
     };
     expect(
       String(
@@ -319,7 +354,7 @@ describe('the adopted projects', () => {
           verifyDeclaredCollections(new Map([['libs/wbs/adapters/store-memory', noCommand]])),
         ),
       ),
-    ).toContain('wbs-store-memory:test:unit:level is absent');
+    ).toContain('wbs-store-memory:test:unit:level has no declared command');
   });
 
   it('keeps store-memory conformance separate from its legacy unit aggregate', () => {
@@ -368,6 +403,342 @@ describe('the adopted projects', () => {
 });
 
 describe('declared level targets', () => {
+  it('refuses Bun Nx envelope and report drift through the production CLI', async () => {
+    const root = SQLITE;
+    const manifest = await readManifest(root);
+    const entry = manifest.targets['test:api'];
+    const command = entry?.options?.command;
+    if (entry === undefined || command === undefined)
+      throw new Error('SQLite API command is absent');
+    const faults: readonly [string, typeof entry][] = [
+      ['executor differs from declaration', { ...entry, executor: undefined }],
+      ['Nx envelope changes collection', { ...entry, dependsOn: ['test:conformance:level'] }],
+      ['Nx envelope changes collection', { ...entry, configurations: { alternate: {} } }],
+      ['Nx envelope changes collection', { ...entry, defaultConfiguration: 'alternate' }],
+      [
+        'Nx envelope changes collection',
+        { ...entry, options: { ...entry.options, args: ['--test-name-pattern=NO_MATCH'] } },
+      ],
+      [
+        'Nx envelope changes collection',
+        { ...entry, options: { ...entry.options, commands: ['bun test src'] } },
+      ],
+      [
+        'Nx envelope changes collection',
+        { ...entry, options: { ...entry.options, env: { TZ: 'Pacific/Auckland' } } },
+      ],
+      [
+        'Nx envelope changes collection',
+        { ...entry, options: { ...entry.options, forwardAllArgs: true } },
+      ],
+      [
+        'cwd differs from declaration',
+        { ...entry, options: { ...entry.options, cwd: 'wrong/project' } },
+      ],
+      [
+        'report differs from declaration',
+        {
+          ...entry,
+          options: { ...entry.options, command: command.replace('--reporter=junit ', '') },
+        },
+      ],
+      [
+        'report differs from declaration',
+        {
+          ...entry,
+          options: {
+            ...entry.options,
+            command: command.replaceAll('wbs-store-sqlite.api.xml', 'wrong.xml'),
+          },
+        },
+      ],
+      [
+        'report directory differs from declaration',
+        {
+          ...entry,
+          options: {
+            ...entry.options,
+            command: command.replace(
+              'mkdir -p ../../../../tmp/junit',
+              'mkdir -p ../../../../tmp/wrong',
+            ),
+          },
+        },
+      ],
+    ];
+    for (const [fault, changed] of faults) {
+      const run = auditManifest(root, {
+        ...manifest,
+        targets: { ...manifest.targets, 'test:api': changed },
+      });
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr).toContain(`error: wbs-store-sqlite:test:api ${fault}`);
+    }
+  }, 30_000);
+
+  it('refuses frontend runner grammar drift through the production CLI', async () => {
+    const root = 'apps/wbs/fe-01';
+    const manifest = await readManifest(root);
+    const entry = manifest.targets['test:unit:level'];
+    const command = entry?.options?.command;
+    if (entry === undefined || command === undefined)
+      throw new Error('frontend Unit command is absent');
+    for (const [, changed] of [
+      ['reporter', command.replaceAll('--reporter=junit ', '')],
+      ['selection', `${command} --testNamePattern=NO_MATCH`],
+      ['timezone', command.replace('TZ=UTC', 'TZ=Pacific/Auckland')],
+    ] as const) {
+      const run = auditManifest(root, {
+        ...manifest,
+        targets: {
+          ...manifest.targets,
+          'test:unit:level': { ...entry, options: { ...entry.options, command: changed } },
+        },
+      });
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr).toContain(
+        'error: wbs-fe-01:test:unit:level runner selection, reporter or phase outputs differ from declaration',
+      );
+    }
+  }, 30_000);
+
+  it('refuses an absent cross-project Browser aggregate member through the CLI', async () => {
+    const root = 'libs/wbs/application/core';
+    const manifest = await readManifest(root);
+    const targets = { ...manifest.targets };
+    delete targets['test:browser:portable:level'];
+    const run = auditManifest(root, { ...manifest, targets });
+    expect(run.exitCode).toBe(1);
+    expect(run.stderr).toContain(
+      'error: wbs-fe-01:test:browser:level member wbs-core:test:browser:portable:level is absent',
+    );
+    const portable = manifest.targets['test:browser:portable:level'];
+    if (portable === undefined) throw new Error('portable Browser target is absent');
+    const changed = auditManifest(root, {
+      ...manifest,
+      targets: {
+        ...manifest.targets,
+        'test:browser:portable:level': {
+          ...portable,
+          options: { ...portable.options, command: 'echo no-browser' },
+        },
+      },
+    });
+    expect(changed.exitCode).toBe(1);
+    expect(changed.stderr).toContain(
+      'error: wbs-fe-01:test:browser:level member wbs-core:test:browser:portable:level differs from declaration',
+    );
+    const forwarded = auditManifest(root, {
+      ...manifest,
+      targets: {
+        ...manifest.targets,
+        'test:browser:portable:level': {
+          ...portable,
+          options: { ...portable.options, args: ['--test-name-pattern=NO_MATCH'] },
+        },
+      },
+    });
+    expect(forwarded.exitCode).toBe(1);
+    expect(forwarded.stderr).toContain(
+      'error: wbs-fe-01:test:browser:level member wbs-core:test:browser:portable:level differs from declaration',
+    );
+    const frontend = await readManifest('apps/wbs/fe-01');
+    const browser = frontend.targets['test:browser:level'];
+    if (browser === undefined) throw new Error('frontend Browser aggregate is absent');
+    const envelope = auditManifest('apps/wbs/fe-01', {
+      ...frontend,
+      targets: {
+        ...frontend.targets,
+        'test:browser:level': { ...browser, executor: undefined },
+      },
+    });
+    expect(envelope.exitCode).toBe(1);
+    expect(envelope.stderr).toContain(
+      'error: wbs-fe-01:test:browser:level aggregate members differ from declaration',
+    );
+    const extra = auditManifest('apps/wbs/fe-01', {
+      ...frontend,
+      targets: {
+        ...frontend.targets,
+        'test:browser:level': {
+          ...browser,
+          options: { ...browser.options, args: ['--test-name-pattern=NO_MATCH'] },
+        },
+      },
+    });
+    expect(extra.exitCode).toBe(1);
+    expect(extra.stderr).toContain(
+      'error: wbs-fe-01:test:browser:level aggregate members differ from declaration',
+    );
+  }, 30_000);
+
+  it('refuses a Node list containing a View suite outside NODE_SUITES', () => {
+    const realBunx = Bun.which('bunx');
+    if (realBunx === null) throw new Error('bunx is required for the Node list fault');
+    const scratch = mkdtempSync(join(tmpdir(), 'test-level-node-drift-'));
+    try {
+      const bin = join(scratch, 'bin');
+      mkdirSync(bin);
+      const wrapper = join(bin, 'bunx');
+      writeFileSync(
+        wrapper,
+        `#!/bin/sh
+"$REAL_BUNX" "$@"
+status=$?
+[ "$status" -eq 0 ] || exit "$status"
+for arg in "$@"; do case "$arg" in --json=*) listing="\${arg#--json=}";; esac; done
+case " $* " in *vitest.node.config.ts*) phase=node;; *vitest.view.config.ts*) phase=view;; *) phase=other;; esac
+LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.LIST_JSON; const phase=process.env.LIST_PHASE; const file=process.env.LIST_VIEW; const entries=await Bun.file(path).json(); if(phase==="node") entries.push({file}); if(phase==="view") entries.splice(0,entries.length,...entries.filter(entry=>entry.file!==file)); await Bun.write(path,JSON.stringify(entries));'
+`,
+      );
+      chmodSync(wrapper, 0o755);
+      const run = Bun.spawnSync(['bun', 'tools/tool-devsync/src/verify-test-levels-cli.ts'], {
+        cwd: WORKSPACE.pathname,
+        env: {
+          ...process.env,
+          PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+          REAL_BUNX: realBunx,
+          REAL_BUN: process.execPath,
+          LIST_VIEW: join(WORKSPACE.pathname, 'apps/wbs/fe-01/src/lib/api.test.ts'),
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr.toString()).toContain(
+        'error: vitest.node.config.ts collection differs from NODE_SUITES',
+      );
+      expect(run.stderr.toString()).toContain('apps/wbs/fe-01/src/lib/api.test.ts');
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  }, 30_000);
+  it('refuses missing, unreadable and malformed Node suite manifests through the CLI', () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'test-level-node-manifest-'));
+    try {
+      const absent = join(scratch, 'absent.json');
+      const missing = auditNodeManifest(absent);
+      expect(missing.exitCode).toBe(1);
+      expect(missing.stderr).toContain(
+        `error: ${absent}: Node suite manifest is missing, unreadable or malformed`,
+      );
+      const path = join(scratch, 'node.json');
+      writeFileSync(path, '{}');
+      chmodSync(path, 0o000);
+      const unreadable = auditNodeManifest(path);
+      expect(unreadable.exitCode).toBe(1);
+      expect(unreadable.stderr).toContain(
+        `error: ${path}: Node suite manifest is missing, unreadable or malformed`,
+      );
+      chmodSync(path, 0o600);
+      writeFileSync(path, '{broken');
+      const malformed = auditNodeManifest(path);
+      expect(malformed.exitCode).toBe(1);
+      expect(malformed.stderr).toContain(
+        `error: ${path}: Node suite manifest is missing, unreadable or malformed`,
+      );
+      const link = join(scratch, 'linked.json');
+      symlinkSync(join(WORKSPACE.pathname, 'apps/wbs/fe-01/vitest.node-suites.json'), link);
+      const linked = auditNodeManifest(link);
+      expect(linked.exitCode).toBe(1);
+      expect(linked.stderr).toContain(
+        `error: ${link}: Node suite manifest is missing, unreadable or malformed`,
+      );
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses invalid Node suite entries and omitted authority members through the CLI', () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'test-level-node-entries-'));
+    const root = join(WORKSPACE.pathname, 'apps/wbs/fe-01');
+    const manifest = JSON.parse(readFileSync(join(root, 'vitest.node-suites.json'), 'utf8')) as {
+      schemaVersion: number;
+      suites: { file: string; reason?: string }[];
+    };
+    const path = join(scratch, 'node.json');
+    const directory = join(root, `nonregular-${String(process.pid)}.test.ts`);
+    const link = join(root, `escaped-${String(process.pid)}.test.ts`);
+    const outside = mkdtempSync(join(tmpdir(), 'test-level-outside-'));
+    const parentLink = join(root, `outside-${String(process.pid)}`);
+    mkdirSync(directory);
+    symlinkSync('/etc/hosts', link);
+    writeFileSync(join(outside, 'file.test.ts'), 'export {};\n');
+    symlinkSync(outside, parentLink);
+    try {
+      const first = manifest.suites[0];
+      for (const [changed, message] of [
+        [
+          { ...manifest, schemaVersion: 99 },
+          `error: ${path}: Node suite manifest has an invalid schema or version`,
+        ],
+        [
+          { ...manifest, extra: true },
+          `error: ${path}: Node suite manifest has an invalid schema or version`,
+        ],
+        [
+          { ...manifest, suites: [] },
+          `error: ${path}: Node suite manifest has an invalid schema or version`,
+        ],
+        [
+          { ...manifest, suites: [...manifest.suites, first] },
+          `error: ${path}: duplicate Node suite`,
+        ],
+        [
+          { ...manifest, suites: [{ file: '../escape.test.ts' }] },
+          `error: ${path}: Node suite path is noncanonical`,
+        ],
+        [
+          { ...manifest, suites: [{ file: 'src\\escape.test.ts' }] },
+          `error: ${path}: Node suite path is noncanonical`,
+        ],
+        [
+          { ...manifest, suites: [{ file: 'src/non-test.txt' }] },
+          `error: ${path}: Node suite path is noncanonical`,
+        ],
+        [
+          { ...manifest, suites: [{ ...first, reason: ' ' }] },
+          `error: ${path}: Node suite manifest has an invalid entry`,
+        ],
+        [
+          { ...manifest, suites: [{ ...first, surprise: true }] },
+          `error: ${path}: Node suite manifest has an invalid entry`,
+        ],
+        [
+          { ...manifest, suites: [{ file: 'src/absent.test.ts' }] },
+          `error: ${path}: Node suite is missing, nonregular or escapes project`,
+        ],
+        [
+          { ...manifest, suites: [{ file: `nonregular-${String(process.pid)}.test.ts` }] },
+          `error: ${path}: Node suite is missing, nonregular or escapes project`,
+        ],
+        [
+          { ...manifest, suites: [{ file: `escaped-${String(process.pid)}.test.ts` }] },
+          `error: ${path}: Node suite is missing, nonregular or escapes project`,
+        ],
+        [
+          { ...manifest, suites: [{ file: `outside-${String(process.pid)}/file.test.ts` }] },
+          `error: ${path}: Node suite is missing, nonregular or escapes project`,
+        ],
+        [
+          { ...manifest, suites: manifest.suites.slice(1) },
+          'error: vitest.node.config.ts collection differs from NODE_SUITES',
+        ],
+      ] as const) {
+        writeFileSync(path, JSON.stringify(changed));
+        const run = auditNodeManifest(path);
+        expect(run.exitCode).toBe(1);
+        expect(run.stderr).toContain(message);
+      }
+    } finally {
+      rmSync(link);
+      rmSync(parentLink);
+      rmSync(directory, { recursive: true });
+      rmSync(outside, { recursive: true, force: true });
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   it('names the Conformance file and both levels when the API selector collects it', async () => {
     const target = LEVEL_TARGETS.find(
       (entry) => entry.project === 'wbs-store-sqlite' && entry.target === 'test:api',
@@ -612,30 +983,39 @@ describe('declared level targets', () => {
     if (target === undefined) throw new Error('frontend Unit declaration is absent');
     const original = manifest.targets[target.target];
     const command = original?.options?.command;
-    if (command === undefined) throw new Error('frontend Unit command is absent');
+    if (original === undefined || command === undefined)
+      throw new Error('frontend Unit command is absent');
     const faults = [
-      [{ options: { cwd: target.root } }, 'has no declared command'],
-      [{ options: { command, cwd: 'wrong/project' } }, 'runs in wrong/project'],
       [
-        {
-          options: {
-            command: command.replace('vitest.unit-root.config.ts', 'vitest.view.config.ts'),
-            cwd: target.root,
-          },
-        },
-        'Vitest phases or JUnit outputs differ',
+        { ...original, options: { ...original.options, command: undefined } },
+        'has no declared command',
+      ],
+      [
+        { ...original, options: { ...original.options, cwd: 'wrong/project' } },
+        'cwd differs from declaration',
       ],
       [
         {
+          ...original,
           options: {
+            ...original.options,
+            command: command.replace('vitest.unit-root.config.ts', 'vitest.view.config.ts'),
+          },
+        },
+        'runner selection, reporter or phase outputs differ',
+      ],
+      [
+        {
+          ...original,
+          options: {
+            ...original.options,
             command: command.replace(
               'rm -f ../../../tmp/junit/wbs-fe-01.unit.xml',
               'rm -f ../../../tmp/junit/wrong.xml',
             ),
-            cwd: target.root,
           },
         },
-        'does not clear its declared JUnit outputs',
+        'runner selection, reporter or phase outputs differ',
       ],
     ] as const;
     for (const [entry, message] of faults) {

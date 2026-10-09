@@ -1,3 +1,5 @@
+import manifest from './vitest.node-suites.json';
+
 /**
  * The suites that need no DOM, and therefore no jsdom.
  *
@@ -14,101 +16,6 @@
  * be-01's own tiering learned that the guard is the part that matters: it
  * caught its own first draft's mistake.
  *
- * Paths are relative to `apps/wbs/fe-01`, which is where both configs run.
+ * Paths and per-file reasons live in `vitest.node-suites.json`, relative to `apps/wbs/fe-01`.
  */
-export const NODE_SUITES: readonly string[] = [
-  'playwright-config.test.ts',
-  'src/components/board/step-board.test.ts',
-  'src/components/wbs/cell-card-store.test.ts',
-  'src/components/wbs/column-hints.test.ts',
-  'src/components/wbs/dep-graph.test.ts',
-  'src/components/wbs/dep-picker.test.ts',
-  'src/components/wbs/depends-input.test.ts',
-  'src/components/wbs/drag-drop.test.ts',
-  'src/components/wbs/estimate-draft.test.ts',
-  'src/components/wbs/gantt-geometry.test.ts',
-  'src/components/wbs/import-with-ai-guide.test.ts',
-  'src/components/wbs/initials.test.ts',
-  'src/components/wbs/logical-grid.test.ts',
-  'src/components/wbs/marker-rule-density.test.ts',
-  'src/components/wbs/marker-rule-ink.test.ts',
-  'src/components/wbs/mention.test.ts',
-  'src/components/wbs/name-notes.test.ts',
-  'src/components/wbs/optimization-cue-reading.test.ts',
-  'src/components/wbs/plan-chart-input.test.ts',
-  'src/components/wbs/plan-completeness.test.ts',
-  'src/components/wbs/plan-render-rows.test.ts',
-  'src/components/wbs/plan-viewport.test.ts',
-  'src/components/wbs/pointed-row-store.test.ts',
-  'src/components/wbs/project-picker.test.ts',
-  'src/components/wbs/short-date.test.ts',
-  'src/components/wbs/status-offers.test.ts',
-  'src/components/wbs/wbs-rows.test.ts',
-  // `work-item-deadline` 8.9's repository assertion. It parses `.tsx` sources
-  // with the TypeScript parser and reads them off disk, which is a file-system
-  // job and not a browser one.
-  'src/deadline-copy.test.ts',
-  // Not `src/lib/api.test.ts`: `websocketUrl` reads `location`, so one of its
-  // cases needs a browser after all. It is the file the plan's own measurement
-  // named as the exception, and the guard below asserts it stays one.
-  'src/components/spaces/single-flight.test.ts',
-  'src/lib/local-write.test.ts',
-  'src/lib/plan-refresh.test.ts',
-  'src/lib/step-view.test.ts',
-  'src/lib/refusal.test.ts',
-  // Of saved-plans' three `src/lib` suites this is the only one the tier rule
-  // reads as DOM-free, and the other two are excluded by that rule rather
-  // than by taste: `saved-plan-save.test.ts` imports `@testing-library` and
-  // runs under jsdom for real, and `saved-plan-api.test.ts` is caught by
-  // `DOM_EVIDENCE`'s deliberately generous `\bdocument\b` — fourteen prose
-  // mentions of the *OpenAPI* document, no browser global at all. That is the
-  // safe direction to be wrong in, as the rule's own comment says, so it is
-  // left where the rule puts it rather than special-cased. The shelf's own
-  // suite moved to `src/modules/saved-plans/` and is judged there the same way.
-  'src/lib/saved-plan-compare.test.ts',
-  'src/modules/calendar-markers/calendar-markers.feature.test.ts',
-  'src/modules/calendar-markers/calendar-markers.resource.test.ts',
-  'src/modules/channel.model.test.ts',
-  'src/modules/directory-management/directory-management.feature.test.ts',
-  'src/modules/directory-management/module.test.ts',
-  'src/modules/directory/directory.resource.test.ts',
-  'src/modules/plan-commands/plan-commands.feature.test.ts',
-  'src/modules/plan-feed/delivered-plan-store.model.test.ts',
-  'src/modules/plan-feed/plan-feed.feature.test.ts',
-  'src/modules/plan-feed/plan-feed.resource.test.ts',
-  'src/modules/plan-feed/presence-store.model.test.ts',
-  'src/modules/plan-feed/same-steps.test.ts',
-  'src/modules/plan-writer/busy-store.model.test.ts',
-  'src/modules/plan-writer/plan-writer.test.ts',
-  // Proof: on 2026-09-24, listing the deleted `composition.test.ts` here again failed
-  // `names files that exist` on `src/modules/preferences/composition.test.ts: expected
-  // [Function] to not throw an error but 'Error: ENOENT: no such file or direct…' was thrown`.
-  'src/modules/preferences/module.test.ts',
-  'src/modules/preferences/preferences.feature.test.ts',
-  'src/modules/preferences/preferences.resource.test.ts',
-  'src/modules/project/composition.test.ts',
-  'src/modules/project/project-catalog.feature.test.ts',
-  // Spawns the tier over an unhandled rejection; the tier has to fail it.
-  'src/node-tier.test.ts',
-  // The page's own lifetime ownership: plain TypeScript over DI Bag, no browser
-  // global and no component, which is the whole point of rule F1.
-  'src/runtime/application-runtime.test.ts',
-  'src/runtime/lifetime-slot.model.test.ts',
-  'src/runtime/lifetime-slot.test.ts',
-  'src/runtime/project-runtime.model.test.ts',
-  'src/runtime/project-runtime.test.ts',
-  'src/runtime/retirement-join.test.ts',
-  'src/runtime/session-exit.model.test.ts',
-  'src/runtime/session-runtime.model.test.ts',
-  'src/runtime/session-runtime.test.ts',
-  'src/test-tiers.test.ts',
-  'src/testing/fake-project-api.test.ts',
-  'src/testing/plan-fixture-command-results.test.ts',
-  'src/testing/record-calls.test.ts',
-  // Proof: after the generated-client merge, leaving `wbs-api.test.ts` here
-  // and `refusing-api.test.ts` out failed test-tiers.test.ts with
-  // `+ src/lib/wbs-api.test.ts` and `- src/testing/refusing-api.test.ts`.
-  'src/testing/refusing-api.test.ts',
-  'vitest-budget.test.ts',
-  'vitest.view-level.test.ts',
-];
+export const NODE_SUITES: readonly string[] = manifest.suites.map(({ file }) => file);
