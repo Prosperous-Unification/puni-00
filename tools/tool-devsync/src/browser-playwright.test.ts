@@ -249,4 +249,14 @@ describe('Browser Playwright evidence boundary', () => {
       reconcileBrowserJunit(junit.replace('tests="1"', 'tests="invalid"'), run);
     }).toThrow('summary is malformed');
   });
+
+  it('refuses unexpected raw JUnit structure and doctype', () => {
+    const run = decodeBrowserJson(report('run'), root, config, ['chromium'], 'run', 0);
+    expect(() => {
+      reconcileBrowserJunit(junit.replace('</testsuites>', '<other/></testsuites>'), run);
+    }).toThrow('structure');
+    expect(() => {
+      reconcileBrowserJunit(`<!DOCTYPE testsuites>${junit}`, run);
+    }).toThrow('doctype');
+  });
 });

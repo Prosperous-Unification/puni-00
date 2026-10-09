@@ -80,6 +80,16 @@ const PerformanceAuthorityRecord = type({
     .onUndeclaredKey('reject')
     .array(),
 }).onUndeclaredKey('reject');
+const BrowserAuthorityRecord = type({
+  modes: type({
+    mode: "'ordinary'|'packaged'|'portable'",
+    config: RelativePath,
+    configDigest: Sha256,
+    projects: type('string>=1').array(),
+  })
+    .onUndeclaredKey('reject')
+    .array(),
+}).onUndeclaredKey('reject');
 
 // Proof: on 2026-09-20, accepting undeclared policy keys made the schema test receive empty stderr
 // instead of `unexpected must be removed`.
@@ -94,6 +104,7 @@ const RulePolicyRecord = type({
   'kindInventory?': type({ path: RelativePath }).onUndeclaredKey('reject'),
   'plainTypeScriptPaths?': PlainSelectorRecord.array(),
   'performance?': PerformanceAuthorityRecord,
+  'browser?': BrowserAuthorityRecord,
   'relationshipRequest?': RelationshipRequest,
   'sizeCeilings?': SizeCeilingsRecord,
   'scenarios?': ScenarioAuthorityRecord,

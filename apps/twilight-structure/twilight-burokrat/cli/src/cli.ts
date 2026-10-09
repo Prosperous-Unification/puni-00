@@ -417,6 +417,20 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       writeCandidateIdentityCommand(args);
     });
   }
+  if (args[0] === 'inspect-browser') {
+    if (args.length !== 5 || !['ordinary', 'packaged', 'portable'].includes(args[4] ?? ''))
+      throw new Error(
+        'usage: twilight-burokrat inspect-browser <repository> <committed-revision> <external-rule-policy> <ordinary|packaged|portable>',
+      );
+    return import('./evidence/browser').then(({ inspectBrowserBundle }) => {
+      const mode = args[4];
+      if (mode !== 'ordinary' && mode !== 'packaged' && mode !== 'portable')
+        throw new Error('Browser mode is malformed');
+      process.stdout.write(
+        `${JSON.stringify(inspectBrowserBundle(args[1], args[2], args[3], mode))}\n`,
+      );
+    });
+  }
   if ((args.length === 2 || args.length === 3 || args.length === 7) && args[0] === 'template') {
     return import('./templates/verify').then(({ writeTemplateCommand }) => {
       writeTemplateCommand(args);
@@ -430,7 +444,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // Proof: replacing this refusal with a successful return made the external package test
   // accept `not-a-command` with exit 0 instead of rejecting the unknown command.
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|submit-admission|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-browser|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|submit-admission|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 
