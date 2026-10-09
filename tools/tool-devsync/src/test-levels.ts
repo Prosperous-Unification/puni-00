@@ -1,5 +1,7 @@
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { classifyTestFile, type TestLevel as ClassifiedTestLevel } from '@shared/test-levels';
 import { SaxesParser } from 'saxes';
@@ -87,20 +89,432 @@ export const LEVEL_TARGETS: readonly LevelTarget[] = [
   },
 ];
 
-/**
- * Targets of an adopted project declared to span levels on purpose.
- *
- * They are exempt from isolation while they say so. This increment does not
- * implement the other half of TEST-AXES-005 — an undeclared target that spans
- * levels is not refused — because no undeclared target of an adopted project
- * spans levels today.
- */
-export const AGGREGATE_TARGETS: readonly string[] = [
-  'wbs-store-sqlite:test',
-  'wbs-core:test',
-  'wbs-store-memory:test',
-  'wbs-store-memory:test:unit',
+/** A Vitest phase with its production config and separate JUnit output. */
+export interface FrontendPhase {
+  readonly config: string;
+  readonly report: string;
+}
+
+/** A frontend target whose phases all belong to one test level. */
+export interface FrontendLevelTarget {
+  readonly project: string;
+  readonly root: string;
+  readonly target: string;
+  readonly level: 'unit' | 'view';
+  readonly phases: readonly FrontendPhase[];
+}
+
+/** Frontend Unit and View commands retain their existing names and report paths. */
+export const FRONTEND_LEVEL_TARGETS: readonly FrontendLevelTarget[] = [
+  {
+    project: 'wbs-fe-01',
+    root: 'apps/wbs/fe-01',
+    target: 'test:unit:level',
+    level: 'unit',
+    phases: [
+      { config: 'vitest.node.config.ts', report: 'tmp/junit/wbs-fe-01.unit.xml' },
+      { config: 'vitest.unit-root.config.ts', report: 'tmp/junit/wbs-fe-01.unit.root.xml' },
+    ],
+  },
+  {
+    project: 'wbs-fe-01',
+    root: 'apps/wbs/fe-01',
+    target: 'test:view:level',
+    level: 'view',
+    phases: [
+      { config: 'vitest.view.config.ts', report: 'tmp/junit/wbs-fe-01.view.utc.xml' },
+      { config: 'vitest.zoned.config.ts', report: 'tmp/junit/wbs-fe-01.view.auckland.xml' },
+    ],
+  },
 ];
+
+/** Verifies one Bun level target's actual selector. */
+export function assertBunLevelCollection(
+  target: LevelTarget,
+  command: string,
+  conformance: readonly string[],
+): readonly string[] {
+  const label = `${target.project}:${target.target}`;
+  const collected = collectedFiles(target.root, parseLevelCommand(command).selector);
+  // Proof: disabling this guard made the empty SQLite API selector negative
+  // return [] instead of naming a no-files refusal.
+  if (collected.length === 0) throw new Error(`${label} collected no files`);
+  const membership = new Set(conformance.map((file) => `${target.root}/${file}`));
+  const canonical: string[] = [];
+  for (const file of collected) {
+    const path = canonicalTestPath(
+      target.root,
+      join(new URL(`${target.root}/`, WORKSPACE).pathname, file),
+    );
+    const level = classifyTestFile(path, {
+      frontendSourceRoot: 'apps/wbs/fe-01/src',
+      manualProcedures: new Set(),
+      conformanceFiles: membership,
+      architectureFixtures: new Set(),
+      performanceFiles: new Set(),
+      browserFiles: new Set(),
+      frontendNodeSuites: new Set(),
+    });
+    // Proof: removing this guard made the CLI accept a SQLite API selector that
+    // collects source-conformance.db.test.ts; the named CLI negative saw exit 0.
+    if (level !== target.level)
+      throw new Error(
+        `${label} is declared ${target.level} and collects ${path}, which is ${level}`,
+      );
+    canonical.push(path);
+  }
+  return canonical;
+}
+
+/** Collects a Vitest phase from its production config. */
+export function collectVitestPhase(root: string, config: string): readonly string[] {
+  const directory = mkdtempSync(join(tmpdir(), 'test-level-vitest-'));
+  let listing: unknown;
+  try {
+    const output = join(directory, 'list.json');
+    const invocation = Bun.spawnSync(
+      ['bunx', 'vitest', 'list', '--filesOnly', `--json=${output}`, '--config', config],
+      {
+        cwd: new URL(`${root}/`, WORKSPACE).pathname,
+        env: { ...process.env, VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true' },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+    // Proof: disabling this guard made the injected exit-7 Vitest fault
+    // report absent JSON instead of the named runner failure.
+    if (invocation.exitCode !== 0)
+      throw new Error(
+        `${root}/${config}: Vitest collection failed: ${invocation.stderr.toString()}`,
+      );
+    try {
+      // Vitest 5 exits zero with empty piped stdout; --json=<file> is its actual
+      // collection output. Proof: replacing this read with [] made the absent-output
+      // production collector negative fail instead of naming malformed output.
+      listing = JSON.parse(readFileSync(output, 'utf8'));
+    } catch (cause) {
+      throw new Error(`${root}/${config}: Vitest collection output is absent or malformed`, {
+        cause,
+      });
+    }
+  } finally {
+    // Proof: removing cleanup left the owned Vitest list directory behind in the
+    // named absent-output production collector negative.
+    rmSync(directory, { recursive: true, force: true });
+  }
+  // Proof: disabling this guard made the empty-list injected Vitest negative
+  // miss its named no-files refusal.
+  if (!Array.isArray(listing) || listing.length === 0)
+    throw new Error(`${root}/${config}: Vitest collected no files`);
+  const files = listing.map((entry: unknown) => {
+    // Proof: disabling this shape guard made the bad-entry Vitest negative
+    // fail with a TypeError instead of the named malformed-file refusal.
+    if (
+      typeof entry !== 'object' ||
+      entry === null ||
+      !('file' in entry) ||
+      typeof entry.file !== 'string'
+    )
+      throw new Error(`${root}/${config}: Vitest collection has a malformed file`);
+    return canonicalTestPath(root, entry.file);
+  });
+  // Proof: disabling this guard made the repeated-file injected Vitest
+  // negative miss its named duplicate refusal.
+  if (new Set(files).size !== files.length)
+    throw new Error(`${root}/${config}: Vitest collected a duplicate file`);
+  return files.sort();
+}
+
+/** Verify actual Vitest phases, declared JUnit outputs and classifier membership. */
+export function assertFrontendLevelCollection(
+  target: FrontendLevelTarget,
+  manifest: ProjectManifest,
+): readonly string[] {
+  const label = `${target.project}:${target.target}`;
+  const declared = manifest.targets[target.target];
+  const command = declared?.options?.command;
+  // Proof: disabling this guard made the missing-command frontend fixture
+  // miss its named refusal in the phase-contract negative.
+  if (command === undefined) throw new Error(`${label} has no declared command`);
+  // Proof: disabling this guard let the wrong-cwd frontend fixture advance
+  // without its named working-directory refusal.
+  if (declared?.options?.cwd !== target.root)
+    throw new Error(`${label} runs in ${String(declared?.options?.cwd)}, not ${target.root}`);
+  const pairs = [...command.matchAll(/--config (\S+)(?:(?!&&).)*?--outputFile=(\S+)/g)].map(
+    ([, config, report]) => ({ config, report }),
+  );
+  const expected = target.phases.map((phase) => ({
+    config: phase.config,
+    report: reportPathFrom(target.root, phase.report),
+  }));
+  // Proof: disabling this equality let the changed-config fixture miss its
+  // named phase/report refusal.
+  if (JSON.stringify(pairs) !== JSON.stringify(expected))
+    throw new Error(`${label} Vitest phases or JUnit outputs differ from declaration`);
+  const cleared = /^mkdir -p \S+ && rm -f ([^&]+) &&/.exec(command)?.[1]?.trim().split(/\s+/);
+  // Proof: disabling report-list equality let the wrong-clear-path fixture
+  // miss its named JUnit cleanup refusal.
+  if (
+    cleared === undefined ||
+    JSON.stringify(cleared) !== JSON.stringify(expected.map((phase) => phase.report))
+  )
+    throw new Error(`${label} does not clear its declared JUnit outputs`);
+  const nodeFiles = new Set(collectVitestPhase(target.root, 'vitest.node.config.ts'));
+  const all = new Set<string>();
+  for (const phase of target.phases) {
+    for (const file of collectVitestPhase(target.root, phase.config)) {
+      // Proof: disabling this guard made the repeated Node phase negative
+      // miss its named duplicate-phase-file refusal.
+      if (all.has(file)) throw new Error(`${label} collects ${file} in two phases`);
+      all.add(file);
+      const level = classifyTestFile(file, {
+        frontendSourceRoot: `${target.root}/src`,
+        manualProcedures: new Set(),
+        conformanceFiles: new Set(),
+        architectureFixtures: new Set(),
+        performanceFiles: new Set(),
+        browserFiles: new Set(),
+        frontendNodeSuites: nodeFiles,
+      });
+      // Proof: disabling this guard let the View target declared Unit pass
+      // the named foreign-View-file negative.
+      if (level !== target.level)
+        throw new Error(
+          `${label} is declared ${target.level} and collects ${file}, which is ${level}`,
+        );
+    }
+  }
+  return [...all].sort();
+}
+
+/** Check every covered project and refuse omitted frontend source or root tests. */
+export async function verifyDeclaredCollections(
+  overrides: ReadonlyMap<string, ProjectManifest> = new Map(),
+): Promise<void> {
+  const roots = new Set([...LEVEL_TARGETS, ...FRONTEND_LEVEL_TARGETS].map((target) => target.root));
+  for (const root of roots) {
+    const manifest = overrides.get(root) ?? (await readManifest(root));
+    await verifyTargetInventory(root, manifest);
+    const conformance = conformanceFilesIn(
+      manifest.targets['test:conformance']?.options?.command ?? '',
+    );
+    const bunFiles = new Set<string>();
+    for (const target of LEVEL_TARGETS.filter((entry) => entry.root === root)) {
+      const command = manifest.targets[target.target]?.options?.command;
+      // Proof: disabling this guard made the missing memory Unit command
+      // negative fail with a parser message instead of the named target refusal.
+      if (command === undefined) throw new Error(`${target.project}:${target.target} is absent`);
+      for (const file of assertBunLevelCollection(target, command, conformance)) bunFiles.add(file);
+    }
+    if (bunFiles.size > 0) {
+      for (const file of await testFilesUnder(root, 'src')) {
+        const canonical = `${root}/${file}`;
+        // Proof: omitting space-fixture.test.ts from the memory Unit selector made
+        // the production CLI pass when this complete-collection guard was removed.
+        if (!bunFiles.has(canonical))
+          throw new Error(`${manifest.name} level targets do not collect ${canonical}`);
+      }
+    }
+    if (root === 'apps/wbs/fe-01') {
+      const collected = new Set(
+        FRONTEND_LEVEL_TARGETS.flatMap((target) => assertFrontendLevelCollection(target, manifest)),
+      );
+      const all = await testFilesInProject(root);
+      const expected = all.filter((path) => {
+        const under = path.slice(root.length + 1);
+        return under.startsWith('src/') || !under.includes('/');
+      });
+      for (const file of expected) {
+        // Proof: removing this guard let the production CLI accept an injected
+        // frontend root suite omitted by all four configured phases.
+        if (!collected.has(file)) throw new Error(`wbs-fe-01 level targets do not collect ${file}`);
+      }
+    }
+  }
+}
+
+/** Refuses unknown test targets in covered projects. */
+export async function verifyTargetInventory(
+  root: string,
+  manifest: ProjectManifest,
+): Promise<void> {
+  const declared = new Set(
+    [...LEVEL_TARGETS, ...FRONTEND_LEVEL_TARGETS].map(
+      ({ project, target }) => `${project}:${target}`,
+    ),
+  );
+  for (const name of Object.keys(manifest.targets)) {
+    if (!TEST_TARGET_NAME.test(name)) continue;
+    const qualified = `${manifest.name}:${name}`;
+    if (
+      declared.has(qualified) ||
+      AGGREGATE_TARGETS.includes(qualified) ||
+      qualified in UNDECLARED_TEST_TARGETS
+    )
+      continue;
+    const command = manifest.targets[name]?.options?.command;
+    if (command?.startsWith('bun test src')) {
+      const conformance = new Set(
+        conformanceFilesIn(manifest.targets['test:conformance']?.options?.command ?? '').map(
+          (file) => `${root}/${file}`,
+        ),
+      );
+      const levels = new Set(
+        (await testFilesUnder(root, 'src')).map((file) =>
+          classifyTestFile(`${root}/${file}`, {
+            frontendSourceRoot: 'apps/wbs/fe-01/src',
+            manualProcedures: new Set(),
+            conformanceFiles: conformance,
+            architectureFixtures: new Set(),
+            performanceFiles: new Set(),
+            browserFiles: new Set(),
+            frontendNodeSuites: new Set(),
+          }),
+        ),
+      );
+      // Proof: bypassing this refusal made the injected `test:mixed` target pass the
+      // production inventory check despite collecting real Conformance and Unit files.
+      if (levels.size > 1)
+        throw new Error(
+          `${qualified} is an undeclared mixed target collecting ${[...levels].sort().join(' and ')}`,
+        );
+    }
+    // Proof: removing this refusal made the injected test:unknown target pass
+    // the named inventory negative instead of naming that target.
+    throw new Error(`unknown test target declaration ${qualified}`);
+  }
+  for (const target of [...LEVEL_TARGETS, ...FRONTEND_LEVEL_TARGETS].filter(
+    (entry) => entry.root === root,
+  )) {
+    // Proof: removing this guard made the named missing-Conformance-target
+    // inventory negative resolve with no refusal.
+    if (manifest.targets[target.target] === undefined)
+      throw new Error(`${target.project}:${target.target} is missing from project manifest`);
+  }
+  for (const aggregate of AGGREGATE_DECLARATIONS.filter((entry) =>
+    entry.qualified.startsWith(`${manifest.name}:`),
+  )) {
+    await assertAggregateMembership(root, manifest, aggregate);
+  }
+}
+
+/** Verify a legacy aggregate's actual runner entry and complete declared levels. */
+export async function assertAggregateMembership(
+  root: string,
+  manifest: ProjectManifest,
+  aggregate: AggregateTarget,
+): Promise<void> {
+  const name = aggregate.qualified.slice(manifest.name.length + 1);
+  const entry = manifest.targets[name];
+  // Proof: disabling this guard made the missing memory aggregate fixture
+  // fail with a TypeError instead of the named missing-target refusal.
+  if (entry === undefined) throw new Error(`${aggregate.qualified} aggregate is missing`);
+  if (aggregate.qualified === 'wbs-fe-01:test:browser:level') {
+    const expected = [
+      'bunx nx run wbs-fe-01:test:browser:ordinary:level',
+      'bunx nx run wbs-fe-01:test:browser:packaged:level',
+      'bunx nx run wbs-core:test:browser:portable:level',
+    ];
+    // Proof: disabling this equality made the missing portable Browser
+    // member fixture miss its named aggregate refusal.
+    if (JSON.stringify(entry.options?.commands) !== JSON.stringify(expected))
+      throw new Error(`${aggregate.qualified} aggregate members differ from declaration`);
+    return;
+  }
+  if (aggregate.qualified === 'wbs-fe-01:test') {
+    const command = entry.options?.command ?? '';
+    const expectedCommand =
+      'TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 && TZ=Pacific/Auckland bunx vitest run --config vitest.zoned.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000';
+    // Proof: disabling the Unit dependency check made the frontend aggregate
+    // fixture with no test:unit dependency miss its named refusal.
+    if (
+      JSON.stringify(entry.dependsOn) !== JSON.stringify(['test:unit']) ||
+      command !== expectedCommand
+    )
+      throw new Error(`${aggregate.qualified} aggregate members differ from declaration`);
+    return;
+  }
+  const command = entry.options?.command ?? '';
+  const scope = aggregate.qualified === 'wbs-store-sqlite:test' ? 'all' : 'src';
+  const expectedCommand =
+    scope === 'all'
+      ? 'bun test --coverage --coverage-reporter=lcov --timeout=30000'
+      : 'bun test src --coverage --coverage-reporter=lcov --timeout=10000';
+  // Proof: removing this check made the mutated memory test:unit runner selecting
+  // only Conformance and a separate test-name-filter mutation pass their named negatives.
+  if (entry.options?.cwd !== root || command !== expectedCommand)
+    throw new Error(`${aggregate.qualified} aggregate members differ from declaration`);
+  const files =
+    scope === 'all'
+      ? await testFilesInProject(root)
+      : (await testFilesUnder(root, 'src')).map((file) => `${root}/${file}`);
+  const conformance = new Set(
+    conformanceFilesIn(manifest.targets['test:conformance']?.options?.command ?? '').map(
+      (file) => `${root}/${file}`,
+    ),
+  );
+  const levels = new Set(
+    files.map((file) =>
+      classifyTestFile(file, {
+        frontendSourceRoot: 'apps/wbs/fe-01/src',
+        manualProcedures: new Set(),
+        conformanceFiles: conformance,
+        architectureFixtures: new Set(),
+        performanceFiles: new Set(),
+        browserFiles: new Set(),
+        frontendNodeSuites: new Set(),
+      }),
+    ),
+  );
+  // Proof: removing this equality made the named omitted-Conformance aggregate
+  // negative resolve, though the real memory runner collects both levels.
+  if (JSON.stringify([...levels].sort()) !== JSON.stringify([...aggregate.levels].sort()))
+    throw new Error(`${aggregate.qualified} aggregate members differ from declaration`);
+}
+
+/** Canonical workspace path of a regular collected test file inside its declared project. */
+function canonicalTestPath(root: string, path: string): string {
+  const workspaceRoot = WORKSPACE.pathname;
+  const projectRoot = resolve(workspaceRoot, root);
+  const absolute = resolve(path);
+  // Proof: disabling this guard made the injected /etc/hosts Vitest listing
+  // pass the named project-escape negative with exit 0.
+  if (
+    !isAbsolute(path) ||
+    (absolute !== projectRoot && !absolute.startsWith(`${projectRoot}${sep}`))
+  )
+    throw new Error(`${root}: collected path escapes project: ${path}`);
+  try {
+    // Proof: deleting a selected file must refuse collection instead of treating the
+    // missing path as an empty passing target.
+    // Proof: removing this check made both the missing-selected-file negative
+    // and the Vitest directory-entry negative miss their named refusals.
+    if (!statSync(absolute).isFile()) throw new Error('not a regular file');
+  } catch (cause) {
+    throw new Error(`${root}: collected file is missing or nonregular: ${path}`, { cause });
+  }
+  return relative(workspaceRoot, absolute).split(sep).join('/');
+}
+
+/** An intentionally composed test target and the levels it may contain. */
+export interface AggregateTarget {
+  readonly qualified: string;
+  readonly levels: readonly TestLevel[];
+}
+
+/** Existing mixed/legacy targets keep their names and explicit level membership. */
+export const AGGREGATE_DECLARATIONS: readonly AggregateTarget[] = [
+  { qualified: 'wbs-store-sqlite:test', levels: ['unit', 'api', 'conformance'] },
+  { qualified: 'wbs-core:test', levels: ['unit'] },
+  { qualified: 'wbs-store-memory:test', levels: ['unit', 'conformance'] },
+  { qualified: 'wbs-store-memory:test:unit', levels: ['unit', 'conformance'] },
+  { qualified: 'wbs-fe-01:test', levels: ['unit', 'view'] },
+  { qualified: 'wbs-fe-01:test:browser:level', levels: ['browser'] },
+];
+
+export const AGGREGATE_TARGETS: readonly string[] = AGGREGATE_DECLARATIONS.map(
+  ({ qualified }) => qualified,
+);
 
 /**
  * Test-running targets of an adopted project that are neither a level target nor
@@ -117,6 +531,17 @@ export const UNDECLARED_TEST_TARGETS: Readonly<Record<string, string>> = {
     'Pinned legacy Conformance command; test:conformance:level adds isolated JUnit output.',
   'wbs-core:test:portable':
     'Browser level, run by Playwright from libs/wbs/application/core/playwright.config.ts.',
+  'wbs-core:test:browser:portable:level':
+    'Browser adapter has its own collection and publication contract; this Bun/Vitest slice does not certify it.',
+  'wbs-fe-01:test:unit': 'Legacy Node-only Vitest target without a JUnit report.',
+  'wbs-fe-01:test:performance:level':
+    'Performance adapter has a separate runner and non-certifying evidence contract.',
+  'wbs-fe-01:test:browser:ordinary:level':
+    'Ordinary Browser adapter has a separate runner and publication contract.',
+  'wbs-fe-01:test:browser:packaged:level':
+    'Packaged Browser adapter has a separate runner and publication contract.',
+  'wbs-fe-01:e2e': 'Legacy Browser Playwright target without this slice’s report binding.',
+  'wbs-fe-01:e2e-packaged': 'Legacy packaged Browser target without this slice’s report binding.',
 };
 
 /**
@@ -146,7 +571,12 @@ const NEVER_WALKED = new Set(['node_modules', 'dist', 'coverage', 'test-results'
 
 /** One Nx target as a project manifest spells it. */
 export interface ManifestTarget {
-  readonly options?: { readonly command?: string; readonly cwd?: string };
+  readonly dependsOn?: readonly string[];
+  readonly options?: {
+    readonly command?: string;
+    readonly commands?: readonly string[];
+    readonly cwd?: string;
+  };
 }
 
 /** One project manifest, reduced to what this module reads. */

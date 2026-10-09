@@ -1,15 +1,29 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
 
 import {
   ADOPTED_CAPABILITY,
+  AGGREGATE_DECLARATIONS,
   AGGREGATE_TARGETS,
+  assertAggregateMembership,
+  assertBunLevelCollection,
+  assertFrontendLevelCollection,
   assertReportCovers,
   collectedFiles,
+  collectVitestPhase,
   conformanceFilesIn,
+  FRONTEND_LEVEL_TARGETS,
   KNOWN_OUTSIDE_TEST_ROOTS,
   LEVEL_TARGETS,
   levelOf,
@@ -27,6 +41,9 @@ import {
   testFilesUnder,
   uncoveredScenarios,
   UNDECLARED_TEST_TARGETS,
+  verifyDeclaredCollections,
+  verifyTargetInventory,
+  WORKSPACE,
 } from './test-levels';
 
 const SQLITE = 'libs/wbs/adapters/store-sqlite';
@@ -37,6 +54,16 @@ async function conformanceFilesOf(root: string): Promise<readonly string[]> {
   const manifest = await readManifest(root);
   const command = manifest.targets['test:conformance']?.options?.command;
   return command === undefined ? [] : conformanceFilesIn(command);
+}
+
+/** Capture a required asynchronous refusal for a normal synchronous assertion. */
+async function rejectionOf(operation: Promise<unknown>): Promise<unknown> {
+  try {
+    await operation;
+    return undefined;
+  } catch (cause) {
+    return cause;
+  }
 }
 
 describe('the level-selection table', () => {
@@ -62,6 +89,239 @@ describe('the level-selection table', () => {
 });
 
 describe('the adopted projects', () => {
+  it('registers the frontend Unit and View phases with separate report outputs', () => {
+    expect(
+      FRONTEND_LEVEL_TARGETS.map((target) => [
+        `${target.project}:${target.target}`,
+        target.level,
+        target.phases.map((phase) => phase.report),
+      ]),
+    ).toEqual([
+      [
+        'wbs-fe-01:test:unit:level',
+        'unit',
+        ['tmp/junit/wbs-fe-01.unit.xml', 'tmp/junit/wbs-fe-01.unit.root.xml'],
+      ],
+      [
+        'wbs-fe-01:test:view:level',
+        'view',
+        ['tmp/junit/wbs-fe-01.view.utc.xml', 'tmp/junit/wbs-fe-01.view.auckland.xml'],
+      ],
+    ]);
+  });
+
+  it('refuses an undeclared mixed target from a covered project', async () => {
+    const manifest = await readManifest('libs/wbs/adapters/store-memory');
+    const mixed = {
+      ...manifest,
+      targets: {
+        ...manifest.targets,
+        'test:mixed': {
+          options: { command: 'bun test src', cwd: 'libs/wbs/adapters/store-memory' },
+        },
+      },
+    };
+    expect(
+      String(await rejectionOf(verifyTargetInventory('libs/wbs/adapters/store-memory', mixed))),
+    ).toContain(
+      'wbs-store-memory:test:mixed is an undeclared mixed target collecting conformance and unit',
+    );
+    const scratch = mkdtempSync(join(tmpdir(), 'test-level-manifest-'));
+    try {
+      const path = join(scratch, 'project.json');
+      writeFileSync(path, JSON.stringify(mixed));
+      const run = Bun.spawnSync(
+        [
+          'bun',
+          'tools/tool-devsync/src/verify-test-levels-cli.ts',
+          '--manifest',
+          'libs/wbs/adapters/store-memory',
+          path,
+        ],
+        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+      );
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr.toString()).toContain(
+        'wbs-store-memory:test:mixed is an undeclared mixed target collecting conformance and unit',
+      );
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a declared aggregate whose runner loses a member level', async () => {
+    const manifest = await readManifest('libs/wbs/adapters/store-memory');
+    const targets = {
+      ...manifest.targets,
+      'test:unit': {
+        ...manifest.targets['test:unit'],
+        options: {
+          ...manifest.targets['test:unit']?.options,
+          command: 'bun test src/testing/source-conformance.test.ts --timeout=10000',
+        },
+      },
+    };
+    expect(
+      String(
+        await rejectionOf(
+          verifyTargetInventory('libs/wbs/adapters/store-memory', { ...manifest, targets }),
+        ),
+      ),
+    ).toContain('wbs-store-memory:test:unit aggregate members differ');
+  });
+
+  it('refuses an aggregate runner filter that narrows executed cases', async () => {
+    const manifest = await readManifest('libs/wbs/adapters/store-memory');
+    const command = manifest.targets['test:unit']?.options?.command;
+    if (command === undefined) throw new Error('memory aggregate command is absent');
+    const narrowed = {
+      ...manifest,
+      targets: {
+        ...manifest.targets,
+        'test:unit': {
+          ...manifest.targets['test:unit'],
+          options: {
+            ...manifest.targets['test:unit']?.options,
+            command: `${command} --test-name-pattern=conformance`,
+          },
+        },
+      },
+    };
+    expect(
+      String(await rejectionOf(verifyTargetInventory('libs/wbs/adapters/store-memory', narrowed))),
+    ).toContain('wbs-store-memory:test:unit aggregate members differ');
+  });
+
+  it('refuses aggregate membership that omits a collected level', async () => {
+    const manifest = await readManifest('libs/wbs/adapters/store-memory');
+    const aggregate = AGGREGATE_DECLARATIONS.find(
+      (entry) => entry.qualified === 'wbs-store-memory:test:unit',
+    );
+    if (aggregate === undefined) throw new Error('memory aggregate declaration is absent');
+    expect(
+      String(
+        await rejectionOf(
+          assertAggregateMembership('libs/wbs/adapters/store-memory', manifest, {
+            ...aggregate,
+            levels: ['unit'],
+          }),
+        ),
+      ),
+    ).toContain('wbs-store-memory:test:unit aggregate members differ');
+    const targets = { ...manifest.targets };
+    delete targets['test:unit'];
+    expect(
+      String(
+        await rejectionOf(
+          assertAggregateMembership(
+            'libs/wbs/adapters/store-memory',
+            { ...manifest, targets },
+            aggregate,
+          ),
+        ),
+      ),
+    ).toContain('wbs-store-memory:test:unit aggregate is missing');
+  });
+
+  it('refuses frontend aggregate dependency and Browser member drift', async () => {
+    const manifest = await readManifest('apps/wbs/fe-01');
+    const frontend = AGGREGATE_DECLARATIONS.find((entry) => entry.qualified === 'wbs-fe-01:test');
+    const browser = AGGREGATE_DECLARATIONS.find(
+      (entry) => entry.qualified === 'wbs-fe-01:test:browser:level',
+    );
+    if (frontend === undefined || browser === undefined)
+      throw new Error('frontend aggregate declarations are absent');
+    const unitMissing = {
+      ...manifest,
+      targets: {
+        ...manifest.targets,
+        test: { ...manifest.targets['test'], dependsOn: [] },
+      },
+    };
+    expect(
+      String(await rejectionOf(assertAggregateMembership('apps/wbs/fe-01', unitMissing, frontend))),
+    ).toContain('wbs-fe-01:test aggregate members differ');
+    const viewCommand = manifest.targets['test']?.options?.command;
+    if (viewCommand === undefined) throw new Error('frontend aggregate command is absent');
+    const filtered = {
+      ...manifest,
+      targets: {
+        ...manifest.targets,
+        test: {
+          ...manifest.targets['test'],
+          options: {
+            ...manifest.targets['test']?.options,
+            command: `${viewCommand} --testNamePattern=one`,
+          },
+        },
+      },
+    };
+    expect(
+      String(await rejectionOf(assertAggregateMembership('apps/wbs/fe-01', filtered, frontend))),
+    ).toContain('wbs-fe-01:test aggregate members differ');
+    const commands = manifest.targets['test:browser:level']?.options?.commands;
+    if (commands === undefined) throw new Error('Browser aggregate commands are absent');
+    const portableMissing = {
+      ...manifest,
+      targets: {
+        ...manifest.targets,
+        'test:browser:level': {
+          ...manifest.targets['test:browser:level'],
+          options: {
+            ...manifest.targets['test:browser:level']?.options,
+            commands: commands.slice(0, 2),
+          },
+        },
+      },
+    };
+    expect(
+      String(
+        await rejectionOf(assertAggregateMembership('apps/wbs/fe-01', portableMissing, browser)),
+      ),
+    ).toContain('wbs-fe-01:test:browser:level aggregate members differ');
+  });
+
+  it('refuses an unknown test target declaration', async () => {
+    const manifest = await readManifest('libs/wbs/adapters/store-memory');
+    expect(
+      String(
+        await rejectionOf(
+          verifyTargetInventory('libs/wbs/adapters/store-memory', {
+            ...manifest,
+            targets: {
+              ...manifest.targets,
+              'test:unknown': { options: { command: 'echo unknown' } },
+            },
+          }),
+        ),
+      ),
+    ).toContain('unknown test target declaration wbs-store-memory:test:unknown');
+  });
+
+  it('refuses a missing required level target', async () => {
+    const manifest = await readManifest('libs/wbs/adapters/store-memory');
+    const targets = { ...manifest.targets };
+    delete targets['test:conformance:level'];
+    expect(
+      String(
+        await rejectionOf(
+          verifyTargetInventory('libs/wbs/adapters/store-memory', { ...manifest, targets }),
+        ),
+      ),
+    ).toContain('wbs-store-memory:test:conformance:level is missing from project manifest');
+    const noCommand = {
+      ...manifest,
+      targets: { ...manifest.targets, 'test:unit:level': { options: {} } },
+    };
+    expect(
+      String(
+        await rejectionOf(
+          verifyDeclaredCollections(new Map([['libs/wbs/adapters/store-memory', noCommand]])),
+        ),
+      ),
+    ).toContain('wbs-store-memory:test:unit:level is absent');
+  });
+
   it('keeps store-memory conformance separate from its legacy unit aggregate', () => {
     expect(AGGREGATE_TARGETS).toContain('wbs-store-memory:test:unit');
     const names = LEVEL_TARGETS.map(({ project, target }) => `${project}:${target}`);
@@ -108,6 +368,388 @@ describe('the adopted projects', () => {
 });
 
 describe('declared level targets', () => {
+  it('names the Conformance file and both levels when the API selector collects it', async () => {
+    const target = LEVEL_TARGETS.find(
+      (entry) => entry.project === 'wbs-store-sqlite' && entry.target === 'test:api',
+    );
+    if (target === undefined) throw new Error('SQLite API declaration is absent');
+    const manifest = await readManifest(target.root);
+    const command = manifest.targets[target.target]?.options?.command;
+    if (command === undefined) throw new Error('SQLite API command is absent');
+    const foreign = command.replace(" ! -name 'source-conformance.db.test.ts'", '');
+    expect(foreign).not.toBe(command);
+    const scratch = mkdtempSync(join(tmpdir(), 'test-level-api-'));
+    try {
+      const path = join(scratch, 'project.json');
+      writeFileSync(
+        path,
+        JSON.stringify({
+          ...manifest,
+          targets: {
+            ...manifest.targets,
+            'test:api': {
+              ...manifest.targets['test:api'],
+              options: { ...manifest.targets['test:api']?.options, command: foreign },
+            },
+          },
+        }),
+      );
+      const run = Bun.spawnSync(
+        [
+          'bun',
+          'tools/tool-devsync/src/verify-test-levels-cli.ts',
+          '--manifest',
+          target.root,
+          path,
+        ],
+        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+      );
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr.toString()).toContain(
+        'wbs-store-sqlite:test:api is declared api and collects libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts, which is conformance',
+      );
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+    expect(() => assertBunLevelCollection(target, foreign, [SQLITE_CONFORMANCE])).toThrow(
+      'wbs-store-sqlite:test:api is declared api and collects libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts, which is conformance',
+    );
+  });
+
+  it('refuses a selected Bun file that is missing', async () => {
+    const target = LEVEL_TARGETS.find(
+      (entry) => entry.project === 'wbs-store-sqlite' && entry.target === 'test:api',
+    );
+    if (target === undefined) throw new Error('SQLite API declaration is absent');
+    const manifest = await readManifest(target.root);
+    const command = manifest.targets[target.target]?.options?.command;
+    if (command === undefined) throw new Error('SQLite API command is absent');
+    const absent = command.replace(
+      "find src -name '*.db.test.ts' ! -name 'source-conformance.db.test.ts'",
+      'printf src/absent.db.test.ts',
+    );
+    expect(absent).not.toBe(command);
+    expect(() => assertBunLevelCollection(target, absent, [SQLITE_CONFORMANCE])).toThrow(
+      'collected file is missing or nonregular',
+    );
+  });
+
+  it('refuses an empty Bun selection instead of crediting no cases', async () => {
+    const target = LEVEL_TARGETS.find(
+      (entry) => entry.project === 'wbs-store-sqlite' && entry.target === 'test:api',
+    );
+    if (target === undefined) throw new Error('SQLite API declaration is absent');
+    const manifest = await readManifest(target.root);
+    const command = manifest.targets[target.target]?.options?.command;
+    if (command === undefined) throw new Error('SQLite API command is absent');
+    const empty = command.replace(
+      "find src -name '*.db.test.ts' ! -name 'source-conformance.db.test.ts'",
+      'printf ""',
+    );
+    expect(empty).not.toBe(command);
+    expect(() => assertBunLevelCollection(target, empty, [SQLITE_CONFORMANCE])).toThrow(
+      'wbs-store-sqlite:test:api collected no files',
+    );
+  });
+
+  it('refuses a Bun test file omitted by every declared level target', async () => {
+    const root = 'libs/wbs/adapters/store-memory';
+    const manifest = await readManifest(root);
+    const command = manifest.targets['test:unit:level']?.options?.command;
+    if (command === undefined) throw new Error('memory Unit selector is absent');
+    const omitted = command.replace(
+      "find src -name '*.test.ts' ! -path 'src/testing/source-conformance.test.ts'",
+      "find src -name '*.test.ts' ! -name 'space-fixture.test.ts' ! -path 'src/testing/source-conformance.test.ts'",
+    );
+    expect(omitted).not.toBe(command);
+    const scratch = mkdtempSync(join(tmpdir(), 'test-level-omitted-'));
+    try {
+      const path = join(scratch, 'project.json');
+      writeFileSync(
+        path,
+        JSON.stringify({
+          ...manifest,
+          targets: {
+            ...manifest.targets,
+            'test:unit:level': {
+              ...manifest.targets['test:unit:level'],
+              options: { ...manifest.targets['test:unit:level']?.options, command: omitted },
+            },
+          },
+        }),
+      );
+      const run = Bun.spawnSync(
+        ['bun', 'tools/tool-devsync/src/verify-test-levels-cli.ts', '--manifest', root, path],
+        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+      );
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr.toString()).toContain(
+        'wbs-store-memory level targets do not collect libs/wbs/adapters/store-memory/src/space-fixture.test.ts',
+      );
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it('collects frontend phase files from the actual Vitest configs as canonical paths', () => {
+    for (const target of FRONTEND_LEVEL_TARGETS) {
+      for (const phase of target.phases) {
+        const files = collectVitestPhase(target.root, phase.config);
+        expect(files.length).toBeGreaterThan(0);
+        expect(files.every((file) => file.startsWith(`${target.root}/`))).toBe(true);
+      }
+    }
+  }, 30_000);
+
+  it('verifies frontend phase membership and report paths against production commands', async () => {
+    const manifest = await readManifest('apps/wbs/fe-01');
+    for (const target of FRONTEND_LEVEL_TARGETS) {
+      expect(assertFrontendLevelCollection(target, manifest).length).toBeGreaterThan(0);
+    }
+    await verifyDeclaredCollections();
+  }, 30_000);
+
+  it('runs the collection verifier through its production CLI', async () => {
+    const manifest = await readManifest('tools/tool-devsync');
+    expect(manifest.targets['test-levels:verify']?.options?.command).toBe(
+      'bun tools/tool-devsync/src/verify-test-levels-cli.ts',
+    );
+    const run = Bun.spawnSync(['bun', 'tools/tool-devsync/src/verify-test-levels-cli.ts'], {
+      cwd: WORKSPACE.pathname,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(run.exitCode).toBe(0);
+    expect(run.stdout.toString()).toContain('Verified declared test collections');
+  }, 30_000);
+
+  it('refuses a manifest audit for an unknown project root or identity', async () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'test-level-identity-'));
+    try {
+      const manifest = await readManifest('libs/wbs/adapters/store-memory');
+      const path = join(scratch, 'project.json');
+      writeFileSync(path, JSON.stringify(manifest));
+      const unknown = Bun.spawnSync(
+        [
+          'bun',
+          'tools/tool-devsync/src/verify-test-levels-cli.ts',
+          '--manifest',
+          'wrong/root',
+          path,
+        ],
+        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+      );
+      expect(unknown.exitCode).toBe(1);
+      expect(unknown.stderr.toString()).toContain('unknown manifest override project wrong/root');
+      writeFileSync(path, JSON.stringify({ ...manifest, name: 'wrong-project' }));
+      const mismatch = Bun.spawnSync(
+        [
+          'bun',
+          'tools/tool-devsync/src/verify-test-levels-cli.ts',
+          '--manifest',
+          'libs/wbs/adapters/store-memory',
+          path,
+        ],
+        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+      );
+      expect(mismatch.exitCode).toBe(1);
+      expect(mismatch.stderr.toString()).toContain(
+        'manifest identity wrong-project differs from wbs-store-memory',
+      );
+      writeFileSync(path, '{}');
+      const malformed = Bun.spawnSync(
+        [
+          'bun',
+          'tools/tool-devsync/src/verify-test-levels-cli.ts',
+          '--manifest',
+          'libs/wbs/adapters/store-memory',
+          path,
+        ],
+        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+      );
+      expect(malformed.exitCode).toBe(1);
+      expect(malformed.stderr.toString()).toContain(`error: ${path} is not a project manifest`);
+      const invalidArgs = Bun.spawnSync(
+        ['bun', 'tools/tool-devsync/src/verify-test-levels-cli.ts', '--manifest'],
+        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+      );
+      expect(invalidArgs.exitCode).toBe(1);
+      expect(invalidArgs.stderr.toString()).toContain('error: usage: verify-test-levels-cli.ts');
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a frontend root suite omitted by all declared phases', () => {
+    const file = `apps/wbs/fe-01/uncollected-${String(process.pid)}.test.ts`;
+    const absolute = join(WORKSPACE.pathname, file);
+    writeFileSync(absolute, 'export {};\n');
+    try {
+      const run = Bun.spawnSync(['bun', 'tools/tool-devsync/src/verify-test-levels-cli.ts'], {
+        cwd: WORKSPACE.pathname,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr.toString()).toContain(`wbs-fe-01 level targets do not collect ${file}`);
+    } finally {
+      rmSync(absolute);
+    }
+  }, 30_000);
+
+  it('names a foreign View file in a target declared Unit', async () => {
+    const manifest = await readManifest('apps/wbs/fe-01');
+    const view = FRONTEND_LEVEL_TARGETS.find((target) => target.level === 'view');
+    if (view === undefined) throw new Error('frontend View declaration is absent');
+    expect(() => assertFrontendLevelCollection({ ...view, level: 'unit' }, manifest)).toThrow(
+      'wbs-fe-01:test:view:level is declared unit and collects apps/wbs/fe-01/',
+    );
+  }, 30_000);
+
+  it('refuses frontend command, working directory, phase reports and cleanup drift', async () => {
+    const manifest = await readManifest('apps/wbs/fe-01');
+    const target = FRONTEND_LEVEL_TARGETS.find((entry) => entry.level === 'unit');
+    if (target === undefined) throw new Error('frontend Unit declaration is absent');
+    const original = manifest.targets[target.target];
+    const command = original?.options?.command;
+    if (command === undefined) throw new Error('frontend Unit command is absent');
+    const faults = [
+      [{ options: { cwd: target.root } }, 'has no declared command'],
+      [{ options: { command, cwd: 'wrong/project' } }, 'runs in wrong/project'],
+      [
+        {
+          options: {
+            command: command.replace('vitest.unit-root.config.ts', 'vitest.view.config.ts'),
+            cwd: target.root,
+          },
+        },
+        'Vitest phases or JUnit outputs differ',
+      ],
+      [
+        {
+          options: {
+            command: command.replace(
+              'rm -f ../../../tmp/junit/wbs-fe-01.unit.xml',
+              'rm -f ../../../tmp/junit/wrong.xml',
+            ),
+            cwd: target.root,
+          },
+        },
+        'does not clear its declared JUnit outputs',
+      ],
+    ] as const;
+    for (const [entry, message] of faults) {
+      expect(() =>
+        assertFrontendLevelCollection(target, {
+          ...manifest,
+          targets: { ...manifest.targets, [target.target]: entry },
+        }),
+      ).toThrow(message);
+    }
+  });
+
+  it('refuses a frontend file collected in two phases', async () => {
+    const manifest = await readManifest('apps/wbs/fe-01');
+    const target = FRONTEND_LEVEL_TARGETS.find((entry) => entry.level === 'unit');
+    if (target === undefined) throw new Error('frontend Unit declaration is absent');
+    const command = manifest.targets[target.target]?.options?.command;
+    const first = target.phases[0];
+    const second = target.phases[1];
+    if (command === undefined) throw new Error('frontend Unit command is absent');
+    const repeated = command.replace(second.config, first.config);
+    expect(repeated).not.toBe(command);
+    expect(() =>
+      assertFrontendLevelCollection(
+        { ...target, phases: [first, { ...second, config: first.config }] },
+        {
+          ...manifest,
+          targets: {
+            ...manifest.targets,
+            [target.target]: {
+              ...manifest.targets[target.target],
+              options: { ...manifest.targets[target.target]?.options, command: repeated },
+            },
+          },
+        },
+      ),
+    ).toThrow('collects apps/wbs/fe-01/');
+  }, 30_000);
+
+  it('refuses bad Vitest list output and removes only its owned temporary directory', () => {
+    const script =
+      "import { collectVitestPhase } from './tools/tool-devsync/src/test-levels.ts'; collectVitestPhase('apps/wbs/fe-01', 'vitest.unit-root.config.ts');";
+    for (const [, body, message] of [
+      ['absent', '#!/bin/sh\nexit 0\n', 'output is absent or malformed'],
+      [
+        'malformed',
+        '#!/bin/sh\nfor arg in "$@"; do case "$arg" in --json=*) printf broken > "${arg#--json=}";; esac; done\nexit 0\n',
+        'output is absent or malformed',
+      ],
+      [
+        'directory',
+        '#!/bin/sh\nfor arg in "$@"; do case "$arg" in --json=*) mkdir "${arg#--json=}";; esac; done\nexit 0\n',
+        'output is absent or malformed',
+      ],
+      [
+        'empty',
+        '#!/bin/sh\nfor arg in "$@"; do case "$arg" in --json=*) printf "[]" > "${arg#--json=}";; esac; done\nexit 0\n',
+        'collected no files',
+      ],
+      [
+        'bad-entry',
+        '#!/bin/sh\nfor arg in "$@"; do case "$arg" in --json=*) printf "[{}]" > "${arg#--json=}";; esac; done\nexit 0\n',
+        'malformed file',
+      ],
+      [
+        'duplicate',
+        '#!/bin/sh\nfor arg in "$@"; do case "$arg" in --json=*) printf "[{\\"file\\":\\"%s\\"},{\\"file\\":\\"%s\\"}]" "$LIST_FILE" "$LIST_FILE" > "${arg#--json=}";; esac; done\nexit 0\n',
+        'duplicate file',
+      ],
+      [
+        'outside',
+        '#!/bin/sh\nfor arg in "$@"; do case "$arg" in --json=*) printf "[{\\"file\\":\\"/etc/hosts\\"}]" > "${arg#--json=}";; esac; done\nexit 0\n',
+        'collected path escapes project',
+      ],
+      [
+        'directory-entry',
+        '#!/bin/sh\nfor arg in "$@"; do case "$arg" in --json=*) printf "[{\\"file\\":\\"%s\\"}]" "$LIST_DIRECTORY" > "${arg#--json=}";; esac; done\nexit 0\n',
+        'collected file is missing or nonregular',
+      ],
+      ['failed', '#!/bin/sh\nexit 7\n', 'Vitest collection failed'],
+    ] as const) {
+      const scratch = mkdtempSync(join(tmpdir(), 'vitest-list-fault-'));
+      try {
+        const bin = join(scratch, 'bin');
+        mkdirSync(bin);
+        const wrapper = join(bin, 'bunx');
+        writeFileSync(
+          wrapper,
+          body.replace(
+            '#!/bin/sh\n',
+            '#!/bin/sh\nfor arg in "$@"; do case "$arg" in --json=*) printf "%s" "${arg#--json=}" > "$LIST_TRACE";; esac; done\n',
+          ),
+        );
+        chmodSync(wrapper, 0o755);
+        const call = Bun.spawnSync([process.execPath, '-e', script], {
+          cwd: WORKSPACE.pathname,
+          env: {
+            ...process.env,
+            PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+            LIST_FILE: join(WORKSPACE.pathname, 'apps/wbs/fe-01/vitest.unit-root.config.ts'),
+            LIST_DIRECTORY: join(WORKSPACE.pathname, 'apps/wbs/fe-01/src'),
+            LIST_TRACE: join(scratch, 'trace'),
+          },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        expect(call.exitCode).toBe(1);
+        expect(call.stderr.toString()).toContain(message);
+        expect(existsSync(dirname(readFileSync(join(scratch, 'trace'), 'utf8')))).toBe(false);
+      } finally {
+        rmSync(scratch, { recursive: true, force: true });
+      }
+    }
+  }, 30_000);
   it('refuses a guarded target that clears a different JUnit report', async () => {
     const manifest = await readManifest('libs/wbs/adapters/store-memory');
     const command = manifest.targets['test:unit:level']?.options?.command;
