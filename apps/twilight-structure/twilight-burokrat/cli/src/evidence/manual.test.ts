@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -172,7 +172,8 @@ test('inspect-manual refuses absent and unreadable external report separately', 
   const absent = { ...setup, reportPath: join(setup.base, 'absent.json') };
   const missing = inspect(absent);
   expect(missing.exitCode).toBe(1);
-  expect(missing.stderr.toString()).toContain('cannot open manual report');
+  expect(missing.stderr.toString()).toContain('cannot inspect manual report');
+  expect(missing.stderr.toString()).toContain('ENOENT');
   const directory = join(setup.base, 'directory-report');
   mkdirSync(directory);
   const unreadable = inspect({ ...setup, reportPath: directory });
@@ -381,7 +382,7 @@ test('inspect-manual refuses aliases of one external report pin', () => {
       },
     }),
   );
-  expect(inspect(setup).stderr.toString()).toContain('duplicate Manual report pin');
+  expect(inspect(setup).stderr.toString()).toContain('not canonical absolute');
 });
 
 test('inspect-manual refuses unknown fields on Manual pins and nested step records', () => {
@@ -439,4 +440,42 @@ test('inspect-manual refuses unknown fields in reviewed scope and report step re
     }),
   );
   expect(inspect(setup).stderr.toString()).toContain('extra');
+});
+
+test('inspect-manual refuses a symlink before a parent segment in the report path', () => {
+  const setup = fixture();
+  mkdirSync(join(setup.base, 'other', 'deep'), { recursive: true });
+  symlinkSync(join(setup.base, 'other', 'deep'), join(setup.base, 'jump'));
+  writeFileSync(setup.reportPath, '{');
+  writeFileSync(join(setup.base, 'other', 'report.json'), JSON.stringify(setup.records.report));
+  const path = `${setup.base}/jump/../report.json`;
+  const call = inspect({ ...setup, reportPath: path });
+  expect(call.exitCode, call.stdout.toString()).toBe(1);
+  expect(call.stderr.toString()).toContain('not canonical absolute');
+});
+
+test('inspect-manual refuses an unreadable regular report with EACCES', () => {
+  const setup = fixture();
+  chmodSync(setup.reportPath, 0o000);
+  const call = inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('cannot open manual report');
+  expect(call.stderr.toString()).toContain('EACCES');
+});
+
+test('inspect-manual names EACCES while inspecting an unreadable path component', () => {
+  const setup = fixture();
+  const protectedDirectory = join(setup.base, 'protected');
+  mkdirSync(protectedDirectory);
+  const path = join(protectedDirectory, 'report.json');
+  writeFileSync(path, JSON.stringify(setup.records.report));
+  chmodSync(protectedDirectory, 0o000);
+  try {
+    const call = inspect({ ...setup, reportPath: path });
+    expect(call.exitCode).toBe(1);
+    expect(call.stderr.toString()).toContain('cannot inspect manual report');
+    expect(call.stderr.toString()).toContain('EACCES');
+  } finally {
+    chmodSync(protectedDirectory, 0o700);
+  }
 });

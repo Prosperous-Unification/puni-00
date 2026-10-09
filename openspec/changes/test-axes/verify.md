@@ -1221,3 +1221,19 @@ Final scoped checks after restoration:
 | `git diff --check`                                                                                   | Exit 0                                       |
 
 The full h2puni gate and broader Burokrat suite were not run for this bounded slice. No Manual observation is certified by these checks.
+
+### Task 3.1.1 review correction — external path interpretation and unreadability (2026-10-09)
+
+A production CLI regression fixture reproduced the review finding before the fix. It created `jump` as a symlink to `other/deep`, wrote malformed JSON to the pinned direct `report.json`, and wrote valid report bytes to `other/report.json`. The CLI received `<base>/jump/../report.json`. Lexical `resolve` inspected and matched `<base>/report.json`, while the stable reader opened `<base>/other/report.json` through the symlink. The named test exited 1 because the command itself exited **0** and printed `state:"unevaluated",certifies:false` instead of refusing. This was a reader identity error even though the output was non-certifying.
+
+The Manual external boundary now requires canonical absolute paths before symlink inspection, pin matching or opening. It checks each path component and throws contextual `cannot inspect <subject> <component>: <error>` on any `lstat` failure. Manual policy pins use the same canonical spelling, with direct equality at lookup. The traversal fixture now exits 1 with `path is not canonical absolute`. Existing direct symlink fixtures still refuse. The former directory fixture remains a non-regular-file negative. A separate `chmod 000` **regular** report fixture, run as UID 1000, exited 1 with `cannot open manual report ... EACCES`; a `chmod 000` parent directory exited 1 with `cannot inspect manual report ... EACCES`. Both fixtures restore permissions for cleanup.
+
+Watched production-path probes restored original bytes byte-for-byte after each run:
+
+| Isolated fault                                                            | Named CLI assertion observed                                                                                                                    |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Disable only the canonical-path refusal                                   | Traversal test exited 1 because the command again exited 0 after opening through `jump/..`                                                      |
+| Replace the component `lstat` contextual throw with a return              | Missing-component test exited 1 because it lost `cannot inspect ... ENOENT`; unreadable-parent test separately lost `cannot inspect ... EACCES` |
+| Remove the stable external reader's `cannot open <subject>` error wrapper | Chmod-000 regular-file test exited 1 because raw `EACCES` lost the named `cannot open manual report` context                                    |
+
+After restoration, `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/manual.test.ts --timeout=60000` exited 0 with 20 passes, zero failures and 58 assertions. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:typecheck --skip-nx-cache`, scoped ESLint, scoped Prettier check, `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict`, and `git diff --check` each exited 0. No full h2puni gate or broader Burokrat suite was run for this corrective slice. Manual output remains explicitly unevaluated and non-certifying.

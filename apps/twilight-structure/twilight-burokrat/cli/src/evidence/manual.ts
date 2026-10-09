@@ -1,5 +1,5 @@
 import { lstatSync } from 'node:fs';
-import { parse, resolve, sep } from 'node:path';
+import { isAbsolute, parse, resolve, sep } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
@@ -110,22 +110,34 @@ export const ManualAcceptanceApproval = type({
   acceptedAt: Instant,
 }).onUndeclaredKey('reject');
 
+function assertCanonicalExternalPath(path: string, subject: string): void {
+  // Proof: allowing lexical aliases made the jump/../report.json production CLI negative exit 0
+  // after opening a different file than the one named by its policy pin.
+  if (!isAbsolute(path) || path !== resolve(path))
+    throw new Error(`${subject} path is not canonical absolute: ${path}`);
+}
+
 function assertNoSymlink(path: string, subject: string): void {
+  assertCanonicalExternalPath(path, subject);
   const absolute = resolve(path);
   const root = parse(absolute).root;
   let cursor = root;
   for (const segment of absolute.slice(root.length).split(sep)) {
     if (segment.length === 0) continue;
     cursor = resolve(cursor, segment);
+    let isSymlink: boolean;
     try {
-      // Proof: the production CLI symlink report negative failed to name a symlink when this guard was removed.
-      if (lstatSync(cursor).isSymbolicLink())
-        throw new Error(`${subject} contains a symlink: ${path}`);
+      isSymlink = lstatSync(cursor).isSymbolicLink();
     } catch (cause) {
-      if (cause instanceof Error && cause.message.includes('contains a symlink')) throw cause;
-      // The stable artifact reader names absent and unreadable files at its own boundary.
-      return;
+      // Proof: suppressing this error made an absent path fall through to a different reader;
+      // the production missing-report assertion lost its named component and error code.
+      throw new Error(
+        `cannot inspect ${subject} ${cursor}: ${cause instanceof Error ? cause.message : String(cause)}`,
+        { cause },
+      );
     }
+    // Proof: removing this guard made the production symlink-report assertion fail.
+    if (isSymlink) throw new Error(`${subject} contains a symlink: ${path}`);
   }
 }
 
@@ -161,6 +173,8 @@ function readExternal(
     );
   }
   if (!isFile) throw new Error(`${subject} is not a regular file: ${path}`);
+  // Proof: removing the stable reader's named open-error wrapper made the chmod-000
+  // production CLI assertion lose `cannot open manual report` while EACCES still refused.
   const artifact = readExternalArtifact(root, path, subject);
   const input = readJson(artifact.bytes, subject);
   return { input, digest: hashBytes(artifact.bytes) };
@@ -204,14 +218,17 @@ export function inspectManual(
     ['environment', manual.environments],
     ['approval', manual.approvals],
   ] as const) {
-    // Proof: using raw external paths let two aliases reach report matching; the alias CLI assertion lost its duplicate refusal.
-    const paths = pins.map((pin) => (subject === 'disposition' ? pin.path : resolve(pin.path)));
+    // Proof: removing canonical pin validation let the alias-policy CLI assertion accept a
+    // second spelling of the same external report path.
+    if (subject !== 'disposition')
+      for (const pin of pins) assertCanonicalExternalPath(pin.path, `Manual ${subject} pin`);
+    const paths = pins.map((pin) => pin.path);
     // Proof: duplicating the report policy pin made its named CLI negative fail when this guard was removed.
     if (new Set(paths).size !== paths.length) throw new Error(`duplicate Manual ${subject} pin`);
   }
   const report = readExternal(root, reportPath, 'manual report');
   const reportRecord = parseOrThrow(ManualReport, report.input);
-  const reportPins = manual.reports.filter((pin) => resolve(pin.path) === resolve(reportPath));
+  const reportPins = manual.reports.filter((pin) => pin.path === reportPath);
   // Proof: changing or omitting the exact report pin made the CLI digest negative lose its refusal.
   if (reportPins.length !== 1 || reportPins[0]?.digest !== report.digest)
     throw new Error('Manual report differs from external policy pin');
@@ -255,10 +272,7 @@ export function inspectManual(
   ] as const) {
     const pins = subject === 'environment' ? manual.environments : manual.approvals;
     // Proof: changing an external artifact without its exact policy pin made its production CLI negative fail when this guard was removed.
-    if (
-      pins.filter((pin) => resolve(pin.path) === resolve(path) && pin.digest === digest).length !==
-      1
-    )
+    if (pins.filter((pin) => pin.path === path && pin.digest === digest).length !== 1)
       throw new Error(`Manual ${subject} differs from external policy pin: ${path}`);
   }
   return {
