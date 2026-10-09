@@ -294,7 +294,8 @@ export function inspectManual(
   // Proof: a duplicate committed step ID made the named production CLI assertion fail when this guard was removed.
   if (new Set(steps).size !== steps.length) throw new Error('duplicate Manual step ID');
   const scenarios = authority.policy.scenarios;
-  // Proof: a policy without scenarios authority otherwise permits Manual output without B3 lineage.
+  // Proof: removing this guard made the missing-authority CLI test lose the named
+  // policy.scenarios finding; B3 then failed on undefined authority.baseRevision.
   if (scenarios === undefined) throw new Error('Manual needs external policy.scenarios');
   // Proof: bypassing B3 made the competing-active-spec production CLI negative exit 0.
   const specifications = evaluateSpecifications(
@@ -307,7 +308,8 @@ export function inspectManual(
   const matches = specifications.selection.effective.flatMap((requirement) =>
     requirement.scenarios.filter((scenario) => scenario.id === dispositionRecord.scenarioId),
   );
-  // Proof: unknown and retired scenario CLI negatives exit 0 without this membership refusal.
+  // Proof: removing this guard made the unknown-ID CLI test lose the named active-scenario
+  // finding; it failed later when selectedScenario.title was read from an empty match.
   if (matches.length !== 1)
     throw new Error(`Manual scenario is not active: ${dispositionRecord.scenarioId}`);
   const selectedScenario = matches[0];
