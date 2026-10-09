@@ -8,6 +8,10 @@
     {
       "ruleId": "INV-CLASSIFY",
       "file": "src/architecture/inv-classify.architecture.test.ts"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "file": "src/architecture/mod-direct-entries.architecture.test.ts"
     }
   ]
 }
