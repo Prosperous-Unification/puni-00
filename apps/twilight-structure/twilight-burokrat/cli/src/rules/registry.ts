@@ -234,6 +234,8 @@ const performanceRule: RegisteredRule = {
       if (evidence.declarationDigest !== verdict.declarationDigest) {
         throw new Error('Performance evidence declaration identity mismatch');
       }
+      // Proof: replacing this filter with an empty selection made the production threshold
+      // breach test lose its finding under both enforce and observe modes.
       return verdict.cases
         .filter((performanceCase) => !performanceCase.passed)
         .map((performanceCase) => ({

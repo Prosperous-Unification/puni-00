@@ -169,6 +169,8 @@ export function checkCandidate(request: CheckRequest): Verdict {
   const selected: readonly RegisteredRule[] =
     request.ruleId === undefined ? registeredRules() : [selectRule(request.ruleId)];
   for (const rule of selected) assertPolicyInputs(policy, rule.id);
+  // Proof: disabling this selected-rule check made the production CLI test accept
+  // Performance evidence while evaluating only MOD-INDEX.
   if (
     request.performanceEvidencePath !== undefined &&
     !selected.some((rule) => rule.id === 'PERF-THRESHOLD')
@@ -263,6 +265,8 @@ export function writeCheckCommand(argv: readonly string[]): void {
   if (argv.length === 7 && flag !== '--rule') {
     throw new Error(`the only check flag is --rule <rule-id>: received ${flag}`);
   }
+  // Proof: disabling this flag check made the production CLI test accept --other-evidence
+  // as a Performance evidence selector.
   if (argv.length === 9 && (flag !== '--rule' || evidenceFlag !== '--performance-evidence')) {
     throw new Error('usage: check ... --rule PERF-THRESHOLD --performance-evidence <json>');
   }

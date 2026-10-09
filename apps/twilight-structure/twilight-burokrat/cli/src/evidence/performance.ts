@@ -151,7 +151,8 @@ export function evaluatePerformanceRun(
     if (review === undefined) {
       throw new Error(`missing Performance review for ${performanceCase.caseId}`);
     }
-    // Proof: removing this check made the changed-threshold test accept an old review.
+    // Proof: removing this check made the changed-threshold judge test accept an old review;
+    // the production CLI test with an updated policy digest also lost its named refusal.
     if (review.caseDigest !== digestPerformanceCase(performanceCase)) {
       throw new Error(`Performance reviewed digest mismatch for ${performanceCase.caseId}`);
     }

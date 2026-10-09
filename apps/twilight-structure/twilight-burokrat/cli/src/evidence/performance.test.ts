@@ -141,6 +141,7 @@ function productionFixture(): {
 function checkProduction(
   fixture: ReturnType<typeof productionFixture>,
   includeEvidence = true,
+  flags: { ruleFlag?: string; ruleId?: string; evidenceFlag?: string } = {},
 ): ReturnType<typeof Bun.spawnSync> {
   return Bun.spawnSync(
     [
@@ -152,9 +153,11 @@ function checkProduction(
       fixture.repository,
       'HEAD',
       fixture.policyPath,
-      '--rule',
-      'PERF-THRESHOLD',
-      ...(includeEvidence ? ['--performance-evidence', fixture.evidencePath] : []),
+      flags.ruleFlag ?? '--rule',
+      flags.ruleId ?? 'PERF-THRESHOLD',
+      ...(includeEvidence
+        ? [flags.evidenceFlag ?? '--performance-evidence', fixture.evidencePath]
+        : []),
     ],
     { stdout: 'pipe', stderr: 'pipe', env: process.env },
   );
@@ -273,7 +276,7 @@ describe('Burokrat Performance judge', () => {
     expect(stderrOf(checkProduction(fixture))).toContain('Invalid Performance evidence');
   });
 
-  it('refuses changed executed selection and an unreviewed threshold through production', () => {
+  it('refuses changed executed selection and an unreviewed case digest through production', () => {
     const fixture = productionFixture();
     for (const selectionChange of [
       { config: 'apps/wbs/fe-01/other.config.ts' },
@@ -306,8 +309,16 @@ describe('Burokrat Performance judge', () => {
         },
       }),
     );
+    writeFileSync(
+      fixture.evidencePath,
+      JSON.stringify({
+        ...fixture.evidence,
+        policyDigest: loadRulePolicyWithIdentity(fixture.repository, fixture.policyPath).digest,
+      }),
+    );
     const invocation = checkProduction(fixture);
     expect(invocation.exitCode).toBe(1);
+    expect(stdoutOf(invocation)).toContain('Performance reviewed digest mismatch');
   }, 30_000);
 
   it('uses the reviewed domain-separated case identity', () => {
@@ -348,6 +359,72 @@ describe('Burokrat Performance judge', () => {
         'Performance declaration config or project differs from reviewed authority',
       );
     }
+  });
+
+  it('reports an independently measured threshold breach under enforce and observe', () => {
+    const fixture = productionFixture();
+    const violated = {
+      ...execution,
+      cases: [
+        {
+          ...execution.cases[0],
+          observations: [{ measurement: 'paint-ready', unit: 'ms', value: 220 }],
+        },
+      ],
+    };
+    for (const mode of ['enforce', 'observe'] as const) {
+      const policy = JSON.parse(readFileSync(fixture.policyPath, 'utf8')) as {
+        ruleModes: { ruleId: string; mode: string }[];
+      };
+      writeFileSync(
+        fixture.policyPath,
+        JSON.stringify({
+          ...policy,
+          ruleModes: policy.ruleModes.map((rule) =>
+            rule.ruleId === 'PERF-THRESHOLD' ? { ...rule, mode } : rule,
+          ),
+        }),
+      );
+      writeFileSync(
+        fixture.evidencePath,
+        JSON.stringify({
+          ...fixture.evidence,
+          policyDigest: loadRulePolicyWithIdentity(fixture.repository, fixture.policyPath).digest,
+          run: violated,
+        }),
+      );
+      const invocation = checkProduction(fixture);
+      const verdict = JSON.parse(stdoutOf(invocation)) as {
+        allowed: boolean;
+        certifies: boolean;
+        findings: { ruleId: string; effect: string; path: string; message: string }[];
+        unevaluated: unknown[];
+      };
+      expect(verdict.findings).toEqual([
+        {
+          ruleId: 'PERF-THRESHOLD',
+          effect: mode === 'enforce' ? 'refusal' : 'debt',
+          path: performanceCase.fixture,
+          message: 'Performance case paint-ready did not meet its reviewed threshold',
+        },
+      ]);
+      expect(verdict.unevaluated).toEqual([]);
+      expect(verdict.allowed).toBe(mode === 'observe');
+      expect(verdict.certifies).toBe(false);
+      expect(invocation.exitCode).toBe(mode === 'enforce' ? 1 : 0);
+    }
+  });
+
+  it('rejects invalid evidence flag and evidence without the Performance rule', () => {
+    const fixture = productionFixture();
+    const invalidFlag = checkProduction(fixture, true, { evidenceFlag: '--other-evidence' });
+    expect(invalidFlag.exitCode).toBe(1);
+    expect(stderrOf(invalidFlag)).toContain('--performance-evidence <json>');
+    const wrongRule = checkProduction(fixture, true, { ruleId: 'MOD-INDEX' });
+    expect(wrongRule.exitCode).toBe(1);
+    expect(stderrOf(wrongRule)).toContain(
+      'Performance evidence was supplied without selecting PERF-THRESHOLD',
+    );
   });
 
   it('loads external RulePolicy and independently compares actual observations', () => {

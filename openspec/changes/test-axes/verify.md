@@ -568,3 +568,28 @@ failed/skipped status predicate made those cases appear passing in the judge tes
 Pending: strict Playwright discovery and run adapter, trusted runner-produced manifest,
 JUnit, same-selection reconciliation, real reviewed Performance fixture/run and operational
 proof. The h2puni gate remains unrun because Task 2.1 is incomplete.
+
+### Astra Performance judge proof correction
+
+A production scratch run with observation 220 ms against a reviewed `lte 200 ms`
+threshold now reaches the registered rule. In enforce mode it returns one
+`PERF-THRESHOLD` refusal, `allowed:false`, exit 1; in observe mode it returns the
+same finding as debt, `allowed:true`, exit 0, and `certifies:false` in both modes.
+Replacing the registered rule's failed-case filter with an empty selection made this
+named test fail (the finding disappeared). This probes the actual comparison-to-finding
+path while preserving the rule model's observe semantics.
+
+The changed-reviewed-case test updates the evidence policy digest after mutating the
+external policy, so it now reaches `Performance reviewed digest mismatch` rather than
+stopping at policy identity. Disabling that case-digest guard made the named production
+test fail because the expected mismatch disappeared. The nine-argument CLI flag and
+evidence-without-PERF selected-rule guards each have a production negative: `--other-evidence`
+and `--rule MOD-INDEX --performance-evidence` exit 1 with distinct diagnostics.
+Disabling either guard made the same named test fail. All four mutations were restored.
+
+After restoring the guards, the focused Performance judge suite passed 18/18 with 139
+assertions (`TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-test-axes-080-34/node_modules bun
+test src/evidence/performance.test.ts --timeout=30000`). Burokrat spec TypeScript,
+changed-file ESLint, Prettier check and `git diff --check` each exited 0. The broader
+rules suite was not rerun for this proof-only correction; its last run was 64/64 at
+`13637f19c`.
