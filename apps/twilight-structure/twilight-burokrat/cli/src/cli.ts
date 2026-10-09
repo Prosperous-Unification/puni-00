@@ -407,7 +407,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       writeScenarioCommand(args);
     });
   }
-  if ((args.length === 5 || args.length === 7) && args[0] === 'check') {
+  if ((args.length === 5 || args.length === 7 || args.length === 9) && args[0] === 'check') {
     return import('./rules/check').then(({ writeCheckCommand }) => {
       writeCheckCommand(args);
     });

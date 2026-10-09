@@ -523,3 +523,48 @@ exited 0 in 56.2 seconds. Injecting `const injectedLintFault = ;` into that conf
 same Nx target exit 1 in 56.5 seconds; direct scoped ESLint named the file at `3:26` with
 `Parsing error: Expression expected`. The syntax fault was restored, and a fresh owning `wbs-fe-01:lint --skip-nx-cache` rerun exited 0 in 56.7 seconds. `lint:fast` execution
 has not yet been independently run; its explicit command list contains the same path.
+
+### Performance policy and pure judge checkpoint — 2026-10-09
+
+The existing external `RulePolicy` has an optional `performance` record that the registered
+`PERF-THRESHOLD` rule requires in every mode. It pins declaration/config paths, config bytes,
+project, runner version and domain-separated case digests. The candidate declaration is
+required; an empty reviewed selection is `no-cases` and unevaluated. A synthetic nonempty
+scratch candidate passed through the production `check --rule PERF-THRESHOLD
+--performance-evidence <json>` path, which validates candidate, policy and declaration
+digests, selection, exact reviewed/executed cases and observations, then independently
+recomputes comparisons. This JSON transport is caller-supplied and **untrusted**; the verdict
+has `certifies:false`. It does not prove Playwright ran or close Task 2.1.
+
+Focused observations: `bun test src/evidence/performance.test.ts --timeout=30000` passed
+16/16 (114 assertions) after the final production registry negatives were added. The shared
+`test-evidence` suite passed 8/8 (24 assertions). Changed-file ESLint, Burokrat spec
+TypeScript and shared evidence TypeScript each exited 0. The full
+`src/rules/rules.test.ts` suite initially had 62 passes and two failures because ambient
+graph fixtures lack a Performance declaration; both tests were changed to expect the new
+unevaluated rule, and the focused ambient group then passed 2/2. Fresh full-suite results
+then passed 64/64 (565 assertions) with
+`TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-test-axes-080-34/node_modules`.
+Without that trust environment, the suite's TypeScript graph cases are unavailable;
+the no-env run is excluded. `bunx tsc -p
+apps/twilight-structure/twilight-burokrat/cli/tsconfig.spec.json --noEmit` passed after
+fixing readonly fixture titles, possibly absent process pipes and indexed JSON access.
+
+Observed fault removal, each restored: absent-declaration and empty no-cases guards made
+their named CLI tests exit 0; candidate, policy and declaration digest guards made the
+changed-identity CLI test accept stale evidence; disabling fatal evidence decoding changed
+the UTF-8 refusal to malformed JSON; mutating unreadable/malformed diagnostics and the
+evidence schema error branch failed the named boundary test. Every pure judge guard for
+reviewed config/path/project, selected config/project/digest/version/args/environment,
+runner exit, review set/digest, execution set and observation presence/count/unit was
+individually disabled and made its named judge test fail. A duplicated registry comparison
+of candidate config bytes to selection digest was removed: the candidate bytes already
+equal the reviewed policy digest, and the judge separately requires selection digest to
+equal that same reviewed digest. Its removal did not weaken the negative.
+The production missing-evidence, missing-config, changed-config and changed-declaration
+selection guards also each failed their named CLI test when disabled. Removing the
+failed/skipped status predicate made those cases appear passing in the judge test.
+
+Pending: strict Playwright discovery and run adapter, trusted runner-produced manifest,
+JUnit, same-selection reconciliation, real reviewed Performance fixture/run and operational
+proof. The h2puni gate remains unrun because Task 2.1 is incomplete.

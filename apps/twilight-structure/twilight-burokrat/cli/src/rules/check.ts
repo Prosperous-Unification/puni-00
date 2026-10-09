@@ -24,7 +24,12 @@ import {
   type UnevaluatedRule,
   type Verdict,
 } from './rule';
-import { assertPolicyInputs, loadRulePolicy, ruleMode } from './rule-policy';
+import {
+  assertPolicyInputs,
+  loadRulePolicy,
+  loadRulePolicyWithIdentity,
+  ruleMode,
+} from './rule-policy';
 
 function selectRule(ruleId: string): RegisteredRule {
   const rule = findRule(ruleId);
@@ -80,6 +85,32 @@ export interface CheckRequest {
   rulePolicyPath: string;
   /** When present, only this rule runs. The verdict still says which rules ran. */
   ruleId?: string;
+  performanceEvidencePath?: string;
+}
+
+function readPerformanceEvidence(path: string): PerformanceEvidence {
+  let bytes: Uint8Array;
+  try {
+    bytes = readFileSync(path);
+  } catch (cause) {
+    // Proof: changing this diagnostic made the absent-evidence production test fail.
+    throw new Error(`cannot read Performance evidence ${path}`, { cause });
+  }
+  let source: string;
+  try {
+    // Proof: removing fatal decoding made the non-UTF-8 production test report malformed JSON.
+    source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch (cause) {
+    throw new Error(`Performance evidence ${path} is not UTF-8`, { cause });
+  }
+  let input: unknown;
+  try {
+    input = JSON.parse(source) as unknown;
+  } catch (cause) {
+    // Proof: changing this diagnostic made the malformed-evidence production test fail.
+    throw new Error(`malformed Performance evidence JSON ${path}`, { cause });
+  }
+  return decodePerformanceEvidence(input);
 }
 
 function readIndexOutcome(
@@ -131,13 +162,29 @@ export function checkCandidate(request: CheckRequest): Verdict {
   const candidateRoot = resolveCandidateRoot(request.repository);
   // Proof: on 2026-09-20, passing the caller's interior directory here made the containment test
   // receive empty stderr instead of the required inside-candidate refusal.
-  const policy = loadRulePolicy(candidateRoot, request.rulePolicyPath);
+  const loadedPolicy = loadRulePolicyWithIdentity(candidateRoot, request.rulePolicyPath);
+  const policy = loadedPolicy.policy;
   // Proof: on 2026-09-20, selecting no rules by default made the all-rules adapter test receive
   // `ruleIds: []` while the verdict still said `allowed: true`.
   const selected: readonly RegisteredRule[] =
     request.ruleId === undefined ? registeredRules() : [selectRule(request.ruleId)];
   for (const rule of selected) assertPolicyInputs(policy, rule.id);
+  if (
+    request.performanceEvidencePath !== undefined &&
+    !selected.some((rule) => rule.id === 'PERF-THRESHOLD')
+  ) {
+    throw new Error('Performance evidence was supplied without selecting PERF-THRESHOLD');
+  }
   const candidate = readCandidate(candidateRoot, request.candidate);
+  const candidateDigest = hashCanonical({
+    selection: candidate.selection,
+    entries: candidate.entries,
+    untracked: candidate.untracked,
+  });
+  const performanceEvidence =
+    request.performanceEvidencePath === undefined
+      ? undefined
+      : readPerformanceEvidence(request.performanceEvidencePath);
   let relationshipOutcome: RuleOutcome<RelationshipReport> | undefined;
   const relationships = (): RuleOutcome<RelationshipReport> => {
     relationshipOutcome ??= readRelationshipOutcome(
@@ -160,6 +207,10 @@ export function checkCandidate(request: CheckRequest): Verdict {
       ? {}
       : { relationshipRequest: policy.relationshipRequest }),
     ...(policy.sizeCeilings === undefined ? {} : { sizeCeilings: policy.sizeCeilings }),
+    ...(policy.performance === undefined ? {} : { performance: policy.performance }),
+    ...(performanceEvidence === undefined ? {} : { performanceEvidence }),
+    performancePolicyDigest: loadedPolicy.digest,
+    candidateDigest,
     indexes: readIndexOutcome(candidateRoot, candidate),
     kinds: readKindOutcome(candidateRoot, candidate, policy.kindInventory?.path),
     relationships,
@@ -180,11 +231,7 @@ export function checkCandidate(request: CheckRequest): Verdict {
   return {
     schemaVersion: 1,
     // The identity `lintTrustedCandidate` in `policy/trust.ts` records.
-    candidate: hashCanonical({
-      selection: candidate.selection,
-      entries: candidate.entries,
-      untracked: candidate.untracked,
-    }),
+    candidate: candidateDigest,
     policy: policy.policyId,
     // A rule that could not be evaluated is not an allowed candidate, in any mode.
     // Proof: on 2026-09-20, dropping the unevaluated guard made a failed prerequisite exit 0;
@@ -210,16 +257,21 @@ function candidateRequest(kind: string, revision: string): CandidateRequest {
 
 /** `check <committed|staged|working> <repository> <revision-or-base> <policy> [--rule <id>]` */
 export function writeCheckCommand(argv: readonly string[]): void {
-  const [, kind, repository, revision, rulePolicyPath, flag, ruleId] = argv;
+  const [, kind, repository, revision, rulePolicyPath, flag, ruleId, evidenceFlag, evidencePath] =
+    argv;
   // Proof: on 2026-09-20, deleting this guard made `--only MOD-INDEX` exit 0 with empty stderr.
   if (argv.length === 7 && flag !== '--rule') {
     throw new Error(`the only check flag is --rule <rule-id>: received ${flag}`);
+  }
+  if (argv.length === 9 && (flag !== '--rule' || evidenceFlag !== '--performance-evidence')) {
+    throw new Error('usage: check ... --rule PERF-THRESHOLD --performance-evidence <json>');
   }
   const verdict = checkCandidate({
     repository,
     candidate: candidateRequest(kind, revision),
     rulePolicyPath,
-    ...(argv.length === 7 ? { ruleId } : {}),
+    ...(argv.length >= 7 ? { ruleId } : {}),
+    ...(argv.length === 9 ? { performanceEvidencePath: evidencePath } : {}),
   });
   process.stdout.write(`${JSON.stringify(verdict)}\n`);
   // A refused or unevaluated verdict must fail the caller's shell while the record still reaches
@@ -228,3 +280,6 @@ export function writeCheckCommand(argv: readonly string[]): void {
   // while its verdict still said `allowed: false`.
   if (!verdict.allowed) process.exitCode = 1;
 }
+import { readFileSync } from 'node:fs';
+
+import { decodePerformanceEvidence, type PerformanceEvidence } from '@shared/test-evidence';

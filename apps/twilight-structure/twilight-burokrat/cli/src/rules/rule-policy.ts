@@ -7,6 +7,7 @@ import {
   RelativePath,
   SchemaVersion,
 } from '../contracts/records';
+import { hashBytes } from '../evidence/content-manifest';
 import { readExternalArtifact } from '../policy/trust';
 import { findRule, registeredIds, registeredRules } from './registry';
 import { requiredPolicyInputs, type RuleMode } from './rule';
@@ -55,6 +56,19 @@ const PlainSelectorRecord = type({
   value: RelativePath,
 }).onUndeclaredKey('reject');
 
+const Sha256 = type(/^[0-9a-f]{64}$/);
+const PerformanceAuthorityRecord = type({
+  acceptedDeclarationSchema: '1',
+  declarationPath: RelativePath,
+  config: RelativePath,
+  configDigest: Sha256,
+  project: 'string>=1',
+  runnerVersion: 'string>=1',
+  reviewedCases: type({ caseId: 'string>=1', caseDigest: Sha256 })
+    .onUndeclaredKey('reject')
+    .array(),
+}).onUndeclaredKey('reject');
+
 // Proof: on 2026-09-20, accepting undeclared policy keys made the schema test receive empty stderr
 // instead of `unexpected must be removed`.
 const RulePolicyRecord = type({
@@ -67,6 +81,7 @@ const RulePolicyRecord = type({
   // has. A named inventory that cannot be read leaves every kind rule unevaluated.
   'kindInventory?': type({ path: RelativePath }).onUndeclaredKey('reject'),
   'plainTypeScriptPaths?': PlainSelectorRecord.array(),
+  'performance?': PerformanceAuthorityRecord,
   'relationshipRequest?': RelationshipRequest,
   'sizeCeilings?': SizeCeilingsRecord,
 }).onUndeclaredKey('reject');
@@ -103,7 +118,10 @@ function decodeRulePolicy(bytes: Uint8Array, path: string): RulePolicy {
  * ratchets a rule without one is refused.
  * @throws Error naming the offending rule identifier.
  */
-export function loadRulePolicy(candidateRoot: string, path: string): RulePolicy {
+export function loadRulePolicyWithIdentity(
+  candidateRoot: string,
+  path: string,
+): { policy: RulePolicy; digest: string; path: string } {
   // Proof: on 2026-09-20, falling back after this read made an unreadable policy report a missing
   // mode instead of `cannot open rule policy ...: EACCES`; the containment test failed too.
   const artifact = readExternalArtifact(candidateRoot, path, 'rule policy');
@@ -133,7 +151,12 @@ export function loadRulePolicy(candidateRoot: string, path: string): RulePolicy 
   for (const rule of registeredRules()) {
     if (!stated.has(rule.id)) throw new Error(`rule policy states no mode for ${rule.id}`);
   }
-  return policy;
+  return { policy, digest: hashBytes(artifact.bytes), path: artifact.path };
+}
+
+/** Loads the validated policy for callers that do not need its exact byte identity. */
+export function loadRulePolicy(candidateRoot: string, path: string): RulePolicy {
+  return loadRulePolicyWithIdentity(candidateRoot, path).policy;
 }
 
 /** The mode the policy states for one rule. @throws Error when the policy states none. */
@@ -158,6 +181,9 @@ export function assertPolicyInputs(policy: RulePolicy, ruleId: string): void {
       (input === 'policy.classificationPolicy' && policy.classificationPolicy === undefined) ||
       (input === 'policy.relationshipRequest' && policy.relationshipRequest === undefined) ||
       (input === 'policy.sizeCeilings' && policy.sizeCeilings === undefined) ||
+      // Proof: deleting this disjunct made the production CLI's missing-Performance-input
+      // test receive empty stderr instead of the required policy.performance refusal.
+      (input === 'policy.performance' && policy.performance === undefined) ||
       // Proof: on 2026-09-20, omitting this disjunct made the missing-input test receive empty
       // stderr instead of the required `policy.plainTypeScriptPaths` sentence.
       (input === 'policy.plainTypeScriptPaths' && policy.plainTypeScriptPaths === undefined);

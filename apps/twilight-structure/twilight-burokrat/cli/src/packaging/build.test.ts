@@ -194,6 +194,7 @@ describe('buildPackage', () => {
           { ruleId: 'MOD-DIRECT-ENTRIES', mode: 'observe' },
           { ruleId: 'MOD-INDEX', mode: 'enforce' },
           { ruleId: 'MOD-LAYOUT', mode: 'observe' },
+          { ruleId: 'PERF-THRESHOLD', mode: 'observe' },
           { ruleId: 'REL-EXTRACT', mode: 'observe' },
         ],
       }),

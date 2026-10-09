@@ -69,7 +69,7 @@ describe('explain production CLI', () => {
     const invocation = runCli(['explain', 'NO-SUCH-RULE']);
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain(
-      'unknown rule: NO-SUCH-RULE (registered: F1, F7, INV-CLASSIFY, K2, K3, K4, K5, K6, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, REL-EXTRACT)',
+      'unknown rule: NO-SUCH-RULE (registered: F1, F7, INV-CLASSIFY, K2, K3, K4, K5, K6, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, PERF-THRESHOLD, REL-EXTRACT)',
     );
   });
 });
@@ -339,6 +339,7 @@ const everyRuleObserving: RuleModeEntry[] = [
   { ruleId: 'MOD-DIRECT-ENTRIES', mode: 'observe' },
   { ruleId: 'MOD-INDEX', mode: 'observe' },
   { ruleId: 'MOD-LAYOUT', mode: 'observe' },
+  { ruleId: 'PERF-THRESHOLD', mode: 'observe' },
   { ruleId: 'REL-EXTRACT', mode: 'observe' },
 ];
 
@@ -372,6 +373,15 @@ function writeCompleteRulePolicy(ruleModes: RuleModeEntry[], declarationPaths?: 
       ...(declarationPaths === undefined ? {} : { declarationPaths }),
     },
     plainTypeScriptPaths: [],
+    performance: {
+      acceptedDeclarationSchema: 1,
+      declarationPath: 'apps/wbs/fe-01/playwright.performance.cases.json',
+      config: 'apps/wbs/fe-01/playwright.performance.config.ts',
+      configDigest: '0'.repeat(64),
+      project: 'chromium',
+      runnerVersion: '1.63.0',
+      reviewedCases: [],
+    },
     sizeCeilings: { ceiling: 40, roots: ['src'], pinned: [] },
   });
 }
@@ -500,6 +510,24 @@ describe('rule policy boundary', () => {
     // unevaluated. Only this sentence tells the boundary from the fallback.
     expect(stderrOf(invocation)).toContain(
       'rule INV-CLASSIFY needs policy.classificationPolicy, which the rule policy omits',
+    );
+    expect(invocation.exitCode).toBe(1);
+  });
+
+  test('refuses missing Performance authority even in observe mode through the production CLI', () => {
+    const { repository, revision } = createIndexedCandidate();
+    const policyPath = writeRulePolicy(everyRuleObserving);
+    const invocation = runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      policyPath,
+      '--rule',
+      'PERF-THRESHOLD',
+    ]);
+    expect(stderrOf(invocation)).toContain(
+      'rule PERF-THRESHOLD needs policy.performance, which the rule policy omits',
     );
     expect(invocation.exitCode).toBe(1);
   });
@@ -1303,11 +1331,13 @@ describe('ambient non-code graph evaluation', () => {
       revision,
       writeCompleteRulePolicy(everyRuleObserving),
     ]);
-    expect(invocation.exitCode, `${stdoutOf(invocation)}${stderrOf(invocation)}`).toBe(0);
+    expect(invocation.exitCode, `${stdoutOf(invocation)}${stderrOf(invocation)}`).toBe(1);
     const verdict = verdictOf(invocation);
-    expect(verdict.unevaluated).toEqual([]);
+    expect(verdict.unevaluated).toEqual([
+      { ruleId: 'PERF-THRESHOLD', reason: 'the Performance declaration is absent' },
+    ]);
     expect(verdict.findings.filter(({ ruleId }) => graphRuleIds.includes(ruleId))).toEqual([]);
-    expect(verdict.allowed).toBe(true);
+    expect(verdict.allowed).toBe(false);
   }, 30_000);
 
   test('keeps graph rules unevaluated without an ambient declaration even when the asset exists', () => {
@@ -1327,7 +1357,13 @@ describe('ambient non-code graph evaluation', () => {
     expect(verdict.allowed).toBe(false);
     expect(verdict.findings.filter(({ ruleId }) => graphRuleIds.includes(ruleId))).toEqual([]);
     const reason = "TypeScript import unresolved: src/m/m.feature.ts -> './styles.css'";
-    expect(verdict.unevaluated).toEqual(graphRuleIds.map((ruleId) => ({ ruleId, reason })));
+    expect(verdict.unevaluated).toEqual([
+      ...graphRuleIds
+        .filter((ruleId) => ruleId !== 'REL-EXTRACT')
+        .map((ruleId) => ({ ruleId, reason })),
+      { ruleId: 'PERF-THRESHOLD', reason: 'the Performance declaration is absent' },
+      { ruleId: 'REL-EXTRACT', reason },
+    ]);
   }, 30_000);
 });
 
@@ -1613,7 +1649,7 @@ describe('rule adapters over real candidates', () => {
     ]);
   });
 
-  test('allows the canonical candidate under every registered rule', () => {
+  test('selects every registered rule and refuses a candidate without a Performance declaration', () => {
     const { repository, revision } = createIndexedCandidate();
     const invocation = runCli([
       'check',
@@ -1622,7 +1658,7 @@ describe('rule adapters over real candidates', () => {
       revision,
       writeCompleteRulePolicy(everyRuleObserving),
     ]);
-    expect(invocation.exitCode, `${stdoutOf(invocation)}${stderrOf(invocation)}`).toBe(0);
+    expect(invocation.exitCode, `${stdoutOf(invocation)}${stderrOf(invocation)}`).toBe(1);
     const verdict = verdictOf(invocation);
     // Without `--rule` every registered rule runs. An empty `ruleIds` with `allowed: true` is the
     // shape of a check that cannot fail, so the identifiers are asserted exactly.
@@ -1638,11 +1674,14 @@ describe('rule adapters over real candidates', () => {
       'MOD-DIRECT-ENTRIES',
       'MOD-INDEX',
       'MOD-LAYOUT',
+      'PERF-THRESHOLD',
       'REL-EXTRACT',
     ]);
     expect(verdict.findings).toEqual([]);
-    expect(verdict.unevaluated).toEqual([]);
-    expect(verdict.allowed).toBe(true);
+    expect(verdict.unevaluated).toEqual([
+      { ruleId: 'PERF-THRESHOLD', reason: 'the Performance declaration is absent' },
+    ]);
+    expect(verdict.allowed).toBe(false);
     expect(verdict.certifies).toBe(false);
     expect(verdict.policy).toBe('rules.test.v1');
   });

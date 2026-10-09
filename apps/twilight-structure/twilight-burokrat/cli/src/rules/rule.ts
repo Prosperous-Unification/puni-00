@@ -1,9 +1,12 @@
+import type { PerformanceEvidence } from '@shared/test-evidence';
+
 import type { ClassificationPolicy, RelationshipRequest } from '../contracts/records';
 import type { checkIndexes } from '../indexes/check-indexes';
 import type { CandidateSnapshot } from '../inventory/read-candidate';
 import type { extractRelationships } from '../relationships';
 import type { PlainSelector } from './direction';
 import type { KindGraph } from './kinds';
+import type { RulePolicy } from './rule-policy';
 import type { SizeCeilings } from './size-ratchet';
 
 /**
@@ -87,6 +90,10 @@ export interface RuleContext {
   readonly plainTypeScriptPaths?: readonly PlainSelector[];
   readonly relationshipRequest?: RelationshipRequest;
   readonly sizeCeilings?: SizeCeilings;
+  readonly performance?: RulePolicy['performance'];
+  readonly performanceEvidence?: PerformanceEvidence;
+  readonly performancePolicyDigest?: string;
+  readonly candidateDigest: string;
   /** The index report, computed once per check and shared by the three module rules. */
   readonly indexes: RuleOutcome<IndexReport>;
   /**

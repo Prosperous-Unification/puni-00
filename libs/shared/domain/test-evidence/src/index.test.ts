@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { decodePerformanceCases } from './index';
+import { compareThreshold, decodePerformanceCases, decodePerformanceRun } from './index';
 
 const caseRecord = {
   caseId: 'paint-ready',
@@ -79,5 +79,67 @@ describe('Performance case declaration', () => {
     expect(() =>
       decodePerformanceCases({ ...declaration, cases: [{ ...caseRecord, operator: 'equals' }] }),
     ).toThrow();
+  });
+});
+
+describe('Performance observations', () => {
+  const run = {
+    schemaVersion: 1,
+    exitCode: 0,
+    cases: [
+      {
+        caseId: 'paint-ready',
+        status: 'passed',
+        observations: [{ measurement: 'paint-ready', unit: 'ms', value: 180 }],
+      },
+    ],
+  };
+
+  it('decodes a strict versioned run with finite observations', () => {
+    expect(decodePerformanceRun(run).cases[0]?.observations[0]?.value).toBe(180);
+    expect(() =>
+      decodePerformanceRun({
+        ...run,
+        cases: [
+          {
+            ...run.cases[0],
+            observations: [
+              { measurement: 'paint-ready', unit: 'ms', value: Number.POSITIVE_INFINITY },
+            ],
+          },
+        ],
+      }),
+    ).toThrow('finite');
+  });
+
+  it('rejects unknown fields, duplicate cases and duplicate observations', () => {
+    expect(() => decodePerformanceRun({ ...run, extra: true })).toThrow('extra');
+    expect(() => decodePerformanceRun({ ...run, cases: [run.cases[0], run.cases[0]] })).toThrow(
+      'duplicate Performance execution case',
+    );
+    expect(() =>
+      decodePerformanceRun({
+        ...run,
+        cases: [
+          {
+            ...run.cases[0],
+            observations: [run.cases[0]?.observations[0], run.cases[0]?.observations[0]],
+          },
+        ],
+      }),
+    ).toThrow('duplicate Performance observation');
+  });
+
+  it('recomputes both threshold operators and rejects nonfinite comparisons', () => {
+    expect(compareThreshold({ operator: 'lte', threshold: 200, observation: 180 })).toBe(true);
+    expect(compareThreshold({ operator: 'lte', threshold: 200, observation: 220 })).toBe(false);
+    expect(compareThreshold({ operator: 'gte', threshold: 200, observation: 220 })).toBe(true);
+    expect(compareThreshold({ operator: 'gte', threshold: 200, observation: 180 })).toBe(false);
+    expect(() =>
+      compareThreshold({ operator: 'lte', threshold: 200, observation: Number.NaN }),
+    ).toThrow('finite observation');
+    expect(() =>
+      compareThreshold({ operator: 'lte', threshold: Number.POSITIVE_INFINITY, observation: 180 }),
+    ).toThrow('finite threshold');
   });
 });

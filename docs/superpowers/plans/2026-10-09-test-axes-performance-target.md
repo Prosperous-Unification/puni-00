@@ -8,7 +8,17 @@ Give the Performance level one isolated Nx target with an explicit empty-state r
 
 Keep `apps/wbs/fe-01/playwright.performance.cases.json` beside a dedicated `playwright.performance.config.ts`. The candidate-owned declaration uses schema version 1 and records the exact Playwright config path, project name, and an array of case records. Each case records a stable case ID, fixture path, full test title hierarchy, measurement name, enumerated unit, enumerated comparison operator and finite threshold. Several cases may share one fixture. Fixture paths are normalized and contained; case IDs and `(config, project, fixture, title hierarchy)` tuples are unique. A missing manifest is an error, while a valid empty case array is a named `no-cases` outcome. Missing, malformed or nonfinite thresholds are errors, never empty cases.
 
-An external trusted policy, read outside the candidate through Burokrat's stable artifact boundary, governs accepted schema, review and enforcement terms. Its digest is bound into each evaluation. Candidate data cannot select the reviewer or weaken enforcement. An absent or unreadable policy is unevaluated and disallowed. A changed policy invalidates earlier evidence even when the candidate is unchanged.
+The existing external Burokrat `RulePolicy`, read outside the candidate through its stable
+artifact boundary, gains an optional `performance` input. The registered Performance rule
+requires that input in every mode, including observe; missing or unreadable policy is
+unevaluated and disallowed. The input pins the declaration path, exact config path and content digest, exact
+Playwright project, reviewed runner version, and exact `caseId → canonical case-record digest`
+set. The digest covers the full fixture, title hierarchy, measurement, unit, operator and
+threshold with an explicit schema/domain discriminator. The run evidence binds the full
+candidate declaration digest. Candidate data cannot select the policy path, reviewer or
+enforcement mode. The external policy digest is bound into each evaluation, so changing
+policy invalidates earlier evidence even when the candidate is unchanged. No separate
+Performance policy artifact is selected.
 
 `libs/shared/domain/test-evidence` is a narrow Nx domain library tagged `product:shared`. It owns versioned declaration/evidence schemas, normalized identities, supported units/operators and pure threshold comparison. The frontend runner imports that public contract to collect evidence; Burokrat imports it to judge the same records. Burokrat alone owns trusted policy, authorization, currency and verdict. Neither side imports the other's application source.
 
@@ -31,9 +41,15 @@ Temporary synthetic fixtures may prove items 3 and 4 in scratch repositories. Th
 ## Implementation checkpoint
 
 The candidate declaration, dedicated Playwright config, shared declaration decoder and
-`wbs-fe-01:test:performance:level` adapter now implement only the empty/refusal boundary.
+`wbs-fe-01:test:performance:level` adapter implement the empty/refusal boundary.
 The target clears its prior JUnit and binding file, then distinguishes absent, unreadable,
 malformed and invalid declarations. A valid empty declaration exits nonzero with the named
 `no-cases` reason before any Playwright process starts. Nonempty discovery and execution
-currently refuse explicitly; they cannot produce a passing report. The trusted policy,
-observations, comparison judge, binding manifest and real fixture/run remain to be built.
+currently refuse explicitly; they cannot produce a passing report. Burokrat now has the
+external `RulePolicy.performance` authority, pure comparison judge and a `check
+--performance-evidence` JSON transport for synthetic production-path judge tests. That JSON
+is caller supplied and unauthenticated: it is **not** proof of Playwright discovery, execution
+or a human review. It cannot certify or close the Performance target. The runner-produced
+binding manifest, validated collection/execution reconciliation and real fixture/run remain
+to be built. The registered rule reports a valid empty declaration as `no-cases` and
+disallows a missing declaration, including when the reviewed set is empty.
