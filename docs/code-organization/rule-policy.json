@@ -53,6 +53,10 @@
     {
       "ruleId": "REL-EXTRACT",
       "mode": "observe"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "mode": "observe"
     }
   ],
   "kindInventory": {
@@ -66,6 +70,9 @@
     "project": "chromium",
     "runnerVersion": "1.63.0",
     "reviewedCases": []
+  },
+  "scenarios": {
+    "baseRevision": "53a87a60dd7a7da80ad929c44f36a9739e75e5bf"
   },
   "classificationPolicy": {
     "schemaVersion": 1,

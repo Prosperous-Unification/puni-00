@@ -438,6 +438,30 @@
       "id": "PROJECT-ASSIGNMENT-READS-003",
       "source": "openspec/specs/project-assignment-reads/spec.md",
       "title": "Different projects in the memory fixture"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-026",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A retirement event disappears"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-027",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Initial journal lacks reviewed bootstrap"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-028",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "An allocated heading disappears"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-029",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Only the reviewed base changes"
     }
   ]
 }

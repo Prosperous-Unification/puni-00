@@ -117,6 +117,38 @@ A scenario identifier SHALL never be reused.
 - **WHEN** an allocation requests that identifier
 - **THEN** allocation fails and names the removed scenario
 
+### Requirement: Production scenario provenance is pinned to a reviewed base
+
+Twilight Burokrat SHALL select an externally pinned full Git commit as the predecessor of a committed candidate, or the exact base named by a staged or working selection. Its specifications rule SHALL read the base and candidate journals as immutable regular Git blobs, require the base event values to be an exact prefix of the candidate event values, and reject a missing or malformed journal. A first adoption without a base journal SHALL require an external reviewed bootstrap record binding the base SHA, candidate journal digest, reviewer and reference. Local Git replacement objects SHALL NOT change selected authority or journal bytes. Every rule mode SHALL leave an unjudgeable provenance result unevaluated and disallowed.
+
+#### Scenario: [TEST-AXES-026] A retirement event disappears
+
+- **GIVEN** a reviewed base journal that retires an identifier
+- **WHEN** a candidate deletes the retirement event and restores the identified heading
+- **THEN** the specifications rule refuses the journal rewrite even if the candidate journal and spec agree
+
+#### Scenario: [TEST-AXES-027] Initial journal lacks reviewed bootstrap
+
+- **GIVEN** a selected base commit without a scenario journal
+- **WHEN** the candidate first adds a journal without a matching external reviewed bootstrap record
+- **THEN** the specifications rule leaves the candidate unevaluated and disallowed
+
+### Requirement: Canonical scenarios reconcile in both directions
+
+The specifications rule SHALL select active OpenSpec spec paths, excluding archived changes and headings in fenced code, and compare identified headings with the current journal index in both directions. A missing allocation, duplicate identifier or active allocation without a selected heading SHALL refuse evaluation. Unidentified legacy headings SHALL appear as findings subject to rule mode. The evidence identity SHALL bind the external policy bytes, resolved base, base and candidate journal bytes, selector version and selected spec bytes.
+
+#### Scenario: [TEST-AXES-028] An allocated heading disappears
+
+- **GIVEN** an active journal identity and its canonical identified heading
+- **WHEN** the heading is removed while the journal identity remains active
+- **THEN** the specifications rule leaves the candidate unevaluated and disallowed
+
+#### Scenario: [TEST-AXES-029] Only the reviewed base changes
+
+- **GIVEN** two valid ancestor commits holding the same journal bytes
+- **WHEN** the external policy pins each base for the same candidate
+- **THEN** their specifications evidence identities differ
+
 ### Requirement: T1 unit tests need no scenario citation
 
 The scenario-citation check SHALL accept a unit test that cites no scenario.

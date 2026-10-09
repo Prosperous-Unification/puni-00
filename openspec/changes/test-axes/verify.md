@@ -836,3 +836,54 @@ suite after the two additional target tests: 51 passes, 0 failures, 366
 assertions in 109.22 seconds. `openspec validate --all --json` validated
 158/158 changes and exited 0. These results do not certify actual repository
 Performance execution, and Tasks 2.1, 2.2 and 3.1 remain open.
+
+## B3 specifications rule checkpoint
+
+The production `check --rule SPEC-SCENARIOS` path now requires external
+`RulePolicy.scenarios` authority. It selects an immutable base and candidate,
+compares journal event values as an append-only prefix, checks active canonical
+scenario headings in both directions, and emits a versioned evidence digest.
+The rule remains non-certifying. The focused production suite exited 0 with
+25 passes, 0 failures and 360 assertions. The test cases include a deleted
+retirement event that would otherwise resurrect an identifier, absent and
+malformed journals, a symlink journal and spec, Git replacement commit and blob
+objects, staged checkout ancestry, an absent or mismatched bootstrap, archived
+copies, conflicting active copies, fenced headings, both rule modes for legacy
+unidentified headings and a base-only evidence-identity change.
+
+Each named source guard below was temporarily disabled, the indicated focused
+production test exited 1 with the observed fault, and the source was restored:
+
+| Disabled guard                                    | Production test                              | Observed fault                                                |
+| ------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------- |
+| Required external `policy.scenarios` input        | `requires external specifications authority` | Expected `policy.scenarios` in stderr; received empty stderr. |
+| Strict committed base predecessor                 | `pinned as its own base`                     | Expected exit 1; received 0.                                  |
+| Staged base ancestry to checkout HEAD             | `staged selection requires`                  | Expected exit 1; received 0.                                  |
+| Staged policy pin equals selected base            | `policy pin different`                       | Expected exit 1; received 0.                                  |
+| Exact base-event prefix                           | `resurrection after deleting`                | Expected exit 1; received 0.                                  |
+| Reviewed bootstrap base binding                   | `requires a reviewed bootstrap`              | Expected exit 1 for wrong base; received 0.                   |
+| Bootstrap prohibited over existing journal        | `bootstrap when the base already`            | Expected exit 1; received 0.                                  |
+| Journal regular-blob mode                         | `journal stored as a Git symlink`            | Expected `regular blob`; received malformed-journal reason.   |
+| Git replacement isolation for candidate selection | `trusted base`                               | Expected exit 0; received 1.                                  |
+| Git replacement isolation for blob reads          | `selected journal blob`                      | Expected exit 0; received 1.                                  |
+| Code-fence exclusion                              | `ignores fenced scenario headings`           | Expected exit 0; received 1.                                  |
+| Active-copy conflict refusal                      | `archive copies but refuses conflicting`     | Expected exit 1; received 0.                                  |
+| Reverse active-journal inventory check            | `removed identified heading`                 | Expected exit 1; received 0.                                  |
+| Base and policy terms in evidence digest          | `evidence identity changes`                  | Expected unequal digests; received identical digest.          |
+
+The final scoped run with `TOOL_WIKI_TRUSTED_NODE_MODULES` over the new
+specifications tests, existing rules tests, repository policy tests and
+candidate reader tests exited 0: 95 passes, 0 failures and 971 assertions in
+112.76 seconds. After the staged policy-pin negative and guard proof were added,
+the same four-file suite exited 0: 96 passes, 0 failures and 982 assertions in
+113.86 seconds. The Burokrat spec TypeScript check and changed-file ESLint
+exited 0 with empty output; `git diff --check` exited 0. OpenSpec validated
+158/158 changes and specs. The package build test and full h2puni gate were
+not run for this incremental, non-certifying rule slice. A working-snapshot
+run against the actual repository and an
+external copy of its tracked policy exited 1 with `conflicting active
+specification copies: wbs-domain`. This is the deliberate fail-closed limit of
+the current selector: it only collapses byte-identical active copies and does
+not yet merge a sole unambiguous OpenSpec `MODIFIED` overlay. It also does not
+prove scenario citation removal in the coverage table or a clean pilot API
+target run. Task 2.2 remains open, along with Tasks 2.1 and 3.1.

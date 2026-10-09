@@ -69,7 +69,7 @@ describe('explain production CLI', () => {
     const invocation = runCli(['explain', 'NO-SUCH-RULE']);
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain(
-      'unknown rule: NO-SUCH-RULE (registered: F1, F7, INV-CLASSIFY, K2, K3, K4, K5, K6, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, PERF-THRESHOLD, REL-EXTRACT)',
+      'unknown rule: NO-SUCH-RULE (registered: F1, F7, INV-CLASSIFY, K2, K3, K4, K5, K6, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, PERF-THRESHOLD, REL-EXTRACT, SPEC-SCENARIOS)',
     );
   });
 });
@@ -341,6 +341,7 @@ const everyRuleObserving: RuleModeEntry[] = [
   { ruleId: 'MOD-LAYOUT', mode: 'observe' },
   { ruleId: 'PERF-THRESHOLD', mode: 'observe' },
   { ruleId: 'REL-EXTRACT', mode: 'observe' },
+  { ruleId: 'SPEC-SCENARIOS', mode: 'observe' },
 ];
 
 /** Writes a rule policy in its own scratch root, outside every candidate. */
@@ -382,6 +383,7 @@ function writeCompleteRulePolicy(ruleModes: RuleModeEntry[], declarationPaths?: 
       runnerVersion: '1.63.0',
       reviewedCases: [],
     },
+    scenarios: { baseRevision: '0'.repeat(40) },
     sizeCeilings: { ceiling: 40, roots: ['src'], pinned: [] },
   });
 }
@@ -1335,7 +1337,9 @@ describe('ambient non-code graph evaluation', () => {
     const verdict = verdictOf(invocation);
     expect(verdict.unevaluated).toEqual([
       { ruleId: 'PERF-THRESHOLD', reason: 'the Performance declaration is absent' },
+      { ruleId: 'SPEC-SCENARIOS', reason: verdict.unevaluated[1]?.reason },
     ]);
+    expect(verdict.unevaluated[1]?.reason).toContain('cannot verify specifications base');
     expect(verdict.findings.filter(({ ruleId }) => graphRuleIds.includes(ruleId))).toEqual([]);
     expect(verdict.allowed).toBe(false);
   }, 30_000);
@@ -1357,13 +1361,21 @@ describe('ambient non-code graph evaluation', () => {
     expect(verdict.allowed).toBe(false);
     expect(verdict.findings.filter(({ ruleId }) => graphRuleIds.includes(ruleId))).toEqual([]);
     const reason = "TypeScript import unresolved: src/m/m.feature.ts -> './styles.css'";
+    const scenarioUnevaluated = verdict.unevaluated.at(-1);
+    if (scenarioUnevaluated === undefined) throw new Error('missing scenario rule outcome');
     expect(verdict.unevaluated).toEqual([
       ...graphRuleIds
         .filter((ruleId) => ruleId !== 'REL-EXTRACT')
         .map((ruleId) => ({ ruleId, reason })),
       { ruleId: 'PERF-THRESHOLD', reason: 'the Performance declaration is absent' },
       { ruleId: 'REL-EXTRACT', reason },
+      scenarioUnevaluated,
     ]);
+    expect(scenarioUnevaluated).toEqual({
+      ruleId: 'SPEC-SCENARIOS',
+      reason: scenarioUnevaluated.reason,
+    });
+    expect(scenarioUnevaluated.reason).toContain('cannot verify specifications base');
   }, 30_000);
 });
 
@@ -1676,11 +1688,14 @@ describe('rule adapters over real candidates', () => {
       'MOD-LAYOUT',
       'PERF-THRESHOLD',
       'REL-EXTRACT',
+      'SPEC-SCENARIOS',
     ]);
     expect(verdict.findings).toEqual([]);
     expect(verdict.unevaluated).toEqual([
       { ruleId: 'PERF-THRESHOLD', reason: 'the Performance declaration is absent' },
+      { ruleId: 'SPEC-SCENARIOS', reason: verdict.unevaluated[1]?.reason },
     ]);
+    expect(verdict.unevaluated[1]?.reason).toContain('cannot verify specifications base');
     expect(verdict.allowed).toBe(false);
     expect(verdict.certifies).toBe(false);
     expect(verdict.policy).toBe('rules.test.v1');

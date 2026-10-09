@@ -248,6 +248,30 @@ const performanceRule: RegisteredRule = {
   },
 };
 
+const scenarioRule: RegisteredRule = {
+  id: 'SPEC-SCENARIOS',
+  family: 'specifications',
+  statement:
+    'Scenario identifiers retain an append-only reviewed lineage across the selected candidate and its pinned base.',
+  source: 'openspec/changes/test-axes/specs/test-axes/spec.md',
+  inputs: ['candidate.entries', 'policy.scenarios'],
+  evaluate: (context) => {
+    if (context.scenarios === undefined) {
+      return { kind: 'not-evaluated', reason: 'the rule policy carries no scenario authority' };
+    }
+    const outcome = context.scenariosReport();
+    return outcome.ok
+      ? {
+          kind: 'observed',
+          observations: outcome.report.unidentified.map(({ path, title }) => ({
+            path,
+            message: `scenario heading lacks identifier: ${title}`,
+          })),
+        }
+      : { kind: 'not-evaluated', reason: outcome.reason };
+  },
+};
+
 function graphRule(
   id: string,
   family: string,
@@ -377,6 +401,7 @@ const rules: readonly RegisteredRule[] = [
   sizeRatchetRule,
   plainTypeScriptRule,
   performanceRule,
+  scenarioRule,
   ...kindDirectionRules,
 ];
 

@@ -57,6 +57,16 @@ const PlainSelectorRecord = type({
 }).onUndeclaredKey('reject');
 
 const Sha256 = type(/^[0-9a-f]{64}$/);
+const CommitSha = type(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/);
+const ScenarioAuthorityRecord = type({
+  baseRevision: CommitSha,
+  'bootstrap?': type({
+    baseRevision: CommitSha,
+    candidateJournalDigest: Sha256,
+    reviewer: 'string>=1',
+    reference: 'string>=1',
+  }).onUndeclaredKey('reject'),
+}).onUndeclaredKey('reject');
 const PerformanceAuthorityRecord = type({
   acceptedDeclarationSchema: '1',
   declarationPath: RelativePath,
@@ -84,6 +94,7 @@ const RulePolicyRecord = type({
   'performance?': PerformanceAuthorityRecord,
   'relationshipRequest?': RelationshipRequest,
   'sizeCeilings?': SizeCeilingsRecord,
+  'scenarios?': ScenarioAuthorityRecord,
 }).onUndeclaredKey('reject');
 
 export type RulePolicy = typeof RulePolicyRecord.infer;
@@ -181,6 +192,9 @@ export function assertPolicyInputs(policy: RulePolicy, ruleId: string): void {
       (input === 'policy.classificationPolicy' && policy.classificationPolicy === undefined) ||
       (input === 'policy.relationshipRequest' && policy.relationshipRequest === undefined) ||
       (input === 'policy.sizeCeilings' && policy.sizeCeilings === undefined) ||
+      // Proof: the production missing-authority negative names policy.scenarios instead of
+      // accepting an unevaluated rule under observe mode.
+      (input === 'policy.scenarios' && policy.scenarios === undefined) ||
       // Proof: deleting this disjunct made the production CLI's missing-Performance-input
       // test receive empty stderr instead of the required policy.performance refusal.
       (input === 'policy.performance' && policy.performance === undefined) ||

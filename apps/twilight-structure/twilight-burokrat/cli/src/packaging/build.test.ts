@@ -196,6 +196,7 @@ describe('buildPackage', () => {
           { ruleId: 'MOD-LAYOUT', mode: 'observe' },
           { ruleId: 'PERF-THRESHOLD', mode: 'observe' },
           { ruleId: 'REL-EXTRACT', mode: 'observe' },
+          { ruleId: 'SPEC-SCENARIOS', mode: 'observe' },
         ],
       }),
       'utf8',

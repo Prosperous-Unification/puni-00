@@ -30,6 +30,8 @@ import {
   loadRulePolicyWithIdentity,
   ruleMode,
 } from './rule-policy';
+import type { SpecificationsReport } from './specifications';
+import { evaluateSpecifications } from './specifications';
 
 function selectRule(ruleId: string): RegisteredRule {
   const rule = findRule(ruleId);
@@ -216,6 +218,28 @@ export function checkCandidate(request: CheckRequest): Verdict {
       ? undefined
       : readPerformanceEvidence(request.performanceEvidencePath);
   let relationshipOutcome: RuleOutcome<RelationshipReport> | undefined;
+  let scenarioOutcome: RuleOutcome<SpecificationsReport> | undefined;
+  const scenariosReport = (): RuleOutcome<SpecificationsReport> => {
+    scenarioOutcome ??= (() => {
+      try {
+        if (policy.scenarios === undefined)
+          throw new Error('the rule policy carries no scenario authority');
+        return {
+          ok: true,
+          report: evaluateSpecifications(
+            candidateRoot,
+            candidate,
+            policy.scenarios,
+            loadedPolicy.digest,
+            candidateDigest,
+          ),
+        };
+      } catch (cause) {
+        return { ok: false, reason: reasonOf(cause) };
+      }
+    })();
+    return scenarioOutcome;
+  };
   const relationships = (): RuleOutcome<RelationshipReport> => {
     relationshipOutcome ??= readRelationshipOutcome(
       candidateRoot,
@@ -238,12 +262,14 @@ export function checkCandidate(request: CheckRequest): Verdict {
       : { relationshipRequest: policy.relationshipRequest }),
     ...(policy.sizeCeilings === undefined ? {} : { sizeCeilings: policy.sizeCeilings }),
     ...(policy.performance === undefined ? {} : { performance: policy.performance }),
+    ...(policy.scenarios === undefined ? {} : { scenarios: policy.scenarios }),
     ...(performanceEvidence === undefined ? {} : { performanceEvidence }),
     performancePolicyDigest: loadedPolicy.digest,
     candidateDigest,
     indexes: readIndexOutcome(candidateRoot, candidate),
     kinds: readKindOutcome(candidateRoot, candidate, policy.kindInventory?.path),
     relationships,
+    scenariosReport,
   };
   const findings: Finding[] = [];
   const unevaluated: UnevaluatedRule[] = [];
@@ -271,6 +297,7 @@ export function checkCandidate(request: CheckRequest): Verdict {
     findings,
     unevaluated,
     certifies: false,
+    ...(scenarioOutcome?.ok ? { scenarios: scenarioOutcome.report } : {}),
   };
 }
 

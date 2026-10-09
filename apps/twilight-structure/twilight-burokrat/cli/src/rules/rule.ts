@@ -8,6 +8,7 @@ import type { PlainSelector } from './direction';
 import type { KindGraph } from './kinds';
 import type { RulePolicy } from './rule-policy';
 import type { SizeCeilings } from './size-ratchet';
+import type { SpecificationsReport } from './specifications';
 
 /**
  * Policy disposition for one rule. `observe` reports every finding as debt, `enforce` refuses every
@@ -70,6 +71,7 @@ export interface Verdict {
    * so it cannot certify. Only `lint-ci` certifies.
    */
   readonly certifies: false;
+  readonly scenarios?: SpecificationsReport;
 }
 
 export type RuleEvaluation =
@@ -93,6 +95,7 @@ export interface RuleContext {
   readonly performance?: RulePolicy['performance'];
   readonly performanceEvidence?: PerformanceEvidence;
   readonly performancePolicyDigest?: string;
+  readonly scenarios?: RulePolicy['scenarios'];
   readonly candidateDigest: string;
   /** The index report, computed once per check and shared by the three module rules. */
   readonly indexes: RuleOutcome<IndexReport>;
@@ -107,6 +110,7 @@ export interface RuleContext {
    * for it.
    */
   relationships(): RuleOutcome<RelationshipReport>;
+  scenariosReport(): RuleOutcome<SpecificationsReport>;
 }
 
 /**
