@@ -8,6 +8,7 @@ import {
   readFile,
   rename,
   rm,
+  rmdir,
   symlink,
   writeFile,
 } from 'node:fs/promises';
@@ -261,6 +262,87 @@ interface BrowserBundle {
   manifest: object;
 }
 
+type BrowserPublish = (invocationId: string, bundle: BrowserBundle) => Promise<string>;
+
+async function withBrowserLock<T>(
+  root: string,
+  mode: Mode,
+  action: () => Promise<T>,
+  waitMs: number,
+): Promise<T> {
+  const lock = join(root, 'tmp/junit/browser', `${mode}.lock`);
+  const deadline = Date.now() + waitMs;
+  let acquired = false;
+  while (!acquired) {
+    try {
+      await mkdir(lock);
+      acquired = true;
+    } catch (cause) {
+      if (
+        typeof cause !== 'object' ||
+        cause === null ||
+        !('code' in cause) ||
+        cause.code !== 'EEXIST'
+      )
+        throw cause;
+      // Proof: retaining a lock directory made the stuck-lock negative refuse by the deadline.
+      if (Date.now() >= deadline)
+        throw new Error(`Browser ${mode} publication lock timed out`, { cause });
+      await Bun.sleep(10);
+    }
+  }
+  try {
+    return await action();
+  } finally {
+    await rmdir(lock);
+  }
+}
+
+/** Admit one mode attempt, invalidate prior evidence, and publish only while it remains owner. */
+export async function withBrowserInvocation(
+  root: string,
+  mode: Mode,
+  collect: (publish: BrowserPublish) => Promise<void>,
+  lockWaitMs = 5_000,
+): Promise<void> {
+  const browserRoot = join(root, 'tmp/junit/browser');
+  const pointer = join(browserRoot, `${mode}.current.json`);
+  const owner = join(browserRoot, `${mode}.owner`);
+  const invocationOwner = randomUUID();
+  await mkdir(browserRoot, { recursive: true });
+  try {
+    await withBrowserLock(
+      root,
+      mode,
+      async () => {
+        const staging = `${owner}.${invocationOwner}.new`;
+        await writeFile(staging, invocationOwner, { flag: 'wx' });
+        await rename(staging, owner);
+        // Proof: disabling this admission removal let the success-then-dirty-candidate negative read stale success.
+        await rm(pointer, { force: true });
+      },
+      lockWaitMs,
+    );
+  } catch (cause) {
+    // Proof: disabling this refusal removal let the stuck-lock negative read prior success.
+    await rm(pointer, { force: true });
+    throw cause;
+  }
+  await collect(async (invocationId, bundle) =>
+    withBrowserLock(
+      root,
+      mode,
+      async () => {
+        // Proof: disabling owner comparison let the older concurrent invocation republish after the newer attempt failed.
+        if ((await readFile(owner, 'utf8')) !== invocationOwner)
+          throw new Error(`Browser ${mode} publication ownership changed`);
+        return publishBrowserBundle(root, mode, invocationId, bundle);
+      },
+      lockWaitMs,
+    ),
+  );
+}
+
 /** Publish a complete immutable bundle through one atomic current pointer. */
 export async function publishBrowserBundle(
   root: string,
@@ -364,7 +446,11 @@ function junitSource(
 }
 
 /** Collects one Browser mode in a detached committed checkout and publishes non-certifying evidence. */
-export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promise<void> {
+async function collectBrowserLevel(
+  candidateRoot: string,
+  mode: Mode,
+  publish: BrowserPublish,
+): Promise<void> {
   const selected = modes[mode];
   const root = resolve(candidateRoot);
   const report = join(root, selected.report);
@@ -526,7 +612,7 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
       reportDigest: digestEvidenceBytes(reportSource),
       report: `${bundlePath}/report.xml`,
     };
-    await publishBrowserBundle(root, mode, invocationId, {
+    await publish(invocationId, {
       discovery: listBytes,
       execution: runBytes,
       playwright: junitBytes,
@@ -539,6 +625,11 @@ export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promis
     if (checkoutAdded) git(root, ['worktree', 'remove', '--force', checkout]);
     await rm(scratch, { recursive: true, force: true });
   }
+}
+
+export async function runBrowserLevel(candidateRoot: string, mode: Mode): Promise<void> {
+  const root = resolve(candidateRoot);
+  await withBrowserInvocation(root, mode, (publish) => collectBrowserLevel(root, mode, publish));
 }
 
 if (import.meta.main) {

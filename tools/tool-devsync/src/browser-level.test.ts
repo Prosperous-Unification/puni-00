@@ -19,6 +19,7 @@ import {
   runBrowserLevel,
   runtimeEnvironment,
   validatedPortShift,
+  withBrowserInvocation,
 } from './browser-level';
 
 async function expectRefusal(action: Promise<unknown>, phrase: string): Promise<void> {
@@ -53,6 +54,19 @@ it('clears stale Browser pointers and refuses a dirty candidate before execution
     await mkdir(join(root, 'tmp/junit'), { recursive: true });
     await writeFile(report, '<testsuite tests="1" failures="0"/>');
     await writeFile(`${report}.manifest.json`, '{}');
+    const previousId = '11111111-1111-4111-8111-111111111111';
+    await publishBrowserBundle(root, 'portable', previousId, {
+      discovery: Buffer.from('{}'),
+      execution: Buffer.from('{}'),
+      playwright: Buffer.from('<testsuite/>'),
+      report: '<testsuite tests="1" failures="0"/>',
+      manifest: {
+        invocationId: previousId,
+        report: `tmp/junit/browser/${previousId}/report.xml`,
+        reportDigest: digestEvidenceBytes('<testsuite tests="1" failures="0"/>'),
+      },
+    });
+    expect((await readBrowserPublication(root, 'portable')).invocationId).toBe(previousId);
     await writeFile(join(root, 'README'), 'changed\n');
     await expectRefusal(
       runBrowserLevel(root, 'portable'),
@@ -60,6 +74,93 @@ it('clears stale Browser pointers and refuses a dirty candidate before execution
     );
     expect(existsSync(report)).toBe(false);
     expect(existsSync(`${report}.manifest.json`)).toBe(false);
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'ENOENT');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('keeps a failed newer invocation authoritative over an older concurrent publisher', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'puni-browser-owner-'));
+  const firstEntered = Promise.withResolvers<undefined>();
+  const releaseFirst = Promise.withResolvers<undefined>();
+  const secondEntered = Promise.withResolvers<undefined>();
+  const firstId = '11111111-1111-4111-8111-111111111111';
+  try {
+    const first = withBrowserInvocation(root, 'portable', async (publish) => {
+      firstEntered.resolve(undefined);
+      await releaseFirst.promise;
+      await publish(firstId, {
+        discovery: Buffer.from('{}'),
+        execution: Buffer.from('{}'),
+        playwright: Buffer.from('<testsuite/>'),
+        report: '<testsuite/>',
+        manifest: {
+          invocationId: firstId,
+          report: `tmp/junit/browser/${firstId}/report.xml`,
+          reportDigest: digestEvidenceBytes('<testsuite/>'),
+        },
+      });
+    });
+    await firstEntered.promise;
+    const second = withBrowserInvocation(root, 'portable', async () => {
+      secondEntered.resolve(undefined);
+      await Promise.resolve();
+      throw new Error('newer Browser attempt failed');
+    });
+    const secondRefusal = expectRefusal(second, 'newer Browser attempt failed');
+    await secondEntered.promise;
+    releaseFirst.resolve(undefined);
+    await expectRefusal(first, 'ownership changed');
+    await secondRefusal;
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'ENOENT');
+    await withBrowserInvocation(root, 'portable', async (publish) => {
+      await publish(firstId, {
+        discovery: Buffer.from('{}'),
+        execution: Buffer.from('{}'),
+        playwright: Buffer.from('<testsuite/>'),
+        report: '<testsuite/>',
+        manifest: {
+          invocationId: firstId,
+          report: `tmp/junit/browser/${firstId}/report.xml`,
+          reportDigest: digestEvidenceBytes('<testsuite/>'),
+        },
+      });
+    });
+    expect((await readBrowserPublication(root, 'portable')).invocationId).toBe(firstId);
+  } finally {
+    releaseFirst.resolve(undefined);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('refuses a stuck publication lock and clears prior success', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'puni-browser-lock-'));
+  const lock = join(root, 'tmp/junit/browser/portable.lock');
+  try {
+    const priorId = '22222222-2222-4222-8222-222222222222';
+    await publishBrowserBundle(root, 'portable', priorId, {
+      discovery: Buffer.from('{}'),
+      execution: Buffer.from('{}'),
+      playwright: Buffer.from('<testsuite/>'),
+      report: '<testsuite/>',
+      manifest: {
+        invocationId: priorId,
+        report: `tmp/junit/browser/${priorId}/report.xml`,
+        reportDigest: digestEvidenceBytes('<testsuite/>'),
+      },
+    });
+    await mkdir(lock);
+    await expectRefusal(
+      withBrowserInvocation(
+        root,
+        'portable',
+        () => Promise.reject(new Error('stuck lock admitted an invocation')),
+        50,
+      ),
+      'lock timed out',
+    );
+    await expectRefusal(readBrowserPublication(root, 'portable'), 'ENOENT');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
