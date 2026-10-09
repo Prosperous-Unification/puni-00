@@ -81,7 +81,7 @@ interface CheckVerdict {
     selectorVersion?: number;
     selection?: {
       inputs: { path: string; digest: string }[];
-      effective: { title: string; source: string; aliases: string[] }[];
+      effective: { title: string; source: string; digest: string; aliases: string[] }[];
       operations: { kind: string; title: string; source: string; digest: string; from?: string }[];
       removals: { capability: string; title: string; ids: string[] }[];
     };
@@ -636,6 +636,26 @@ test('production selector records a rename-only operation and binds its effectiv
   ]);
 });
 
+test('production selector keeps a renamed requirement between its canonical neighbors', () => {
+  const { repository } = fixture();
+  const canonical = nextCommit(repository, {
+    [source]:
+      '## Requirements\n### Requirement: Earlier\n#### Scenario: Earlier case\n' +
+      requirementHeading +
+      '### Requirement: Later\n#### Scenario: Later case\n',
+  });
+  const candidate = nextCommit(repository, {
+    'openspec/changes/rename/specs/example/spec.md': renamePair,
+  });
+  const response = check(repository, candidate, { baseRevision: canonical });
+  expect(response.exitCode, response.stderr).toBe(0);
+  expect(response.verdict?.scenarios?.selection?.effective.map(({ title }) => title)).toEqual([
+    'Earlier',
+    'Renamed requirement',
+    'Later',
+  ]);
+});
+
 // Proof: disabling rename parsing made both production checks refuse the valid pair.
 test.each([renamePair + renamedBody, renamedBody + renamePair])(
   'production selector preserves position, scenario and effective body across requirement rename',
@@ -671,6 +691,8 @@ test.each([
     '## RENAMED Requirements\n- TO: `### Requirement: Renamed requirement`\n- FROM: `### Requirement: First requirement`\n',
     'rename pair',
   ],
+  ['blank destination', renamePair.replace('Renamed requirement', '   '), 'rename pair'],
+  ['padded source', renamePair.replace('First requirement', ' First requirement '), 'rename pair'],
   ['duplicate FROM', renamePair + '- FROM: `### Requirement: First requirement`\n', 'rename pair'],
   ['duplicate TO', renamePair + '- TO: `### Requirement: Renamed requirement`\n', 'rename pair'],
   [

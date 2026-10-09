@@ -124,6 +124,16 @@ function parseRequirements(spec: SpecInput): {
               // negatives pass through to an unrelated later refusal.
               if (from === null || to === null)
                 throw new Error(`malformed requirement rename pair: ${spec.path}`);
+              // Proof: disabling exact nonblank titles made the whitespace-only TO
+              // production CLI negative exit 0 with an invented blank destination.
+              if (
+                from[1].trim().length === 0 ||
+                to[1].trim().length === 0 ||
+                from[1].trim() !== from[1] ||
+                to[1].trim() !== to[1]
+              ) {
+                throw new Error(`malformed requirement rename pair: ${spec.path}`);
+              }
               operations.push({
                 kind: 'RENAMED',
                 from: from[1],
@@ -157,10 +167,6 @@ function parseRequirements(spec: SpecInput): {
     // the later empty-spec diagnostic instead of rejecting its requirement here.
     if (spec.kind === 'change' && operation === undefined)
       throw new Error(`overlay requirement has no operation: ${spec.path}`);
-    // Proof: disabling this guard made a heading under a rename-pair section disappear
-    // from effective selection instead of refusing the malformed operation.
-    if (operation === 'RENAMED')
-      throw new Error(`requirement heading inside rename pair: ${spec.path}`);
     const title = label.slice('Requirement: '.length);
     const start = heading.position?.start.offset;
     const next = sections.slice(position + 1).find((section) => section.depth <= 3);

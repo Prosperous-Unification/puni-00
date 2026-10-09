@@ -480,3 +480,376 @@ reader changed SHALL follow as a `patch`.
 - **GIVEN** a leaf forecast `2026-09-01` → `2026-09-10`, no facts held, today `2026-09-13`
 - **WHEN** the prompt opens
 - **THEN** `Finished on` reads `2026-09-10` with `Same as the forecast end.`
+
+### Requirement: Slices cross the wire
+
+The tree payload SHALL carry every scheduled slice: its engine id, work item,
+role, person, duration, `estimated`, earliest/latest start and finish, float,
+`critical`, its binding floor, and its resource predecessor's id or null. The
+numbers SHALL be the engine's verbatim — never rounded, never recomputed. A
+slice's `resourcePredecessorId` SHALL reference a slice present in the same
+payload. The change SHALL be additive: every field the payload carried before
+is unchanged.
+
+The same payload SHALL carry the roles the slices were placed under, in the
+order the engine used, and the name of every person its slices are assigned to.
+A slice's `roleId` SHALL name a role in the same payload and its `personId`
+somebody named in it — the chart is drawn from one read, and a role list or a
+directory fetched separately describes another moment.
+
+#### Scenario: two work items, one person
+
+- **WHEN** `Strip` (3 days, Kat) and `Sand` (2 days, Kat) have no dependency
+  and the tree is read
+- **THEN** the payload holds both slices, `Sand`'s starts at 3 with binding
+  floor `person` and `resourcePredecessorId` equal to `Strip`'s slice id
+
+#### Scenario: a phase removed between two reads
+
+- **WHEN** a peer removes a phase after the tree is read and before the role
+  list is read
+- **THEN** the tree payload still lists the phase its slices are under, and the
+  panel drawn from it draws the chart
+
+#### Scenario: nothing else moved
+
+- **WHEN** the tree is read by a client that ignores `slices`
+- **THEN** every other field is byte-identical to what it was before this
+  change
+
+### Requirement: The Gantt panel mirrors the shown rows
+
+A toolbar control SHALL show and hide the Gantt panel under the plan. The
+panel SHALL draw exactly the rows the plan renderer is showing, in the same
+order — collapsed branches and rows narrowed away by a search SHALL be absent
+— and SHALL do so under either renderer.
+
+#### Scenario: a collapsed branch
+
+- **WHEN** a branch with two children is collapsed and the panel is open
+- **THEN** the panel draws the parent's row and neither child's
+
+#### Scenario: a search narrows the plan
+
+- **WHEN** a search leaves three rows on screen
+- **THEN** the panel draws exactly those three, in the plan's order
+
+### Requirement: The workday is the SVG unit
+
+The chart SHALL be one SVG whose user-space x unit is one workday: a bar's `x`
+SHALL equal its slice's earliest start and its `width` the span it is drawn
+across, which is the slice's duration. Each bar SHALL carry `data-start` and
+`data-finish` holding the engine numbers verbatim. The viewBox SHALL cover the
+whole schedule, 0 through the horizon, and the band outside it the marks of
+"The canvas holds every mark" are drawn in.
+
+#### Scenario: user space equals engine numbers
+
+- **WHEN** a slice runs 3.5 → 6 and the panel renders
+- **THEN** its bar has `x` 3.5, `width` 2.5, `data-start` "3.5",
+  `data-finish` "6", and the SVG viewBox holds 0 through the horizon
+
+#### Scenario: a slice estimated at no days still says where it is
+
+- **WHEN** an estimated slice sits at workday 3 with a duration of 0
+- **THEN** a tick stands at workday 3 and `data-start` and `data-finish` both
+  read "3"
+
+### Requirement: Leaves draw bars for the work somebody costed, and the rest is behind the switch
+
+A leaf's row SHALL hold one bar per **estimated** slice, in role order, whatever
+the switch says. A bar on the critical path SHALL be tinted so, and a bar off it
+SHALL not.
+
+With the switch off, a parent's row SHALL draw no mark of its own — no bar, no
+bracket, no tick, and no hover surface — and a slice nobody has estimated SHALL
+draw no mark of its own: no bar, no tick, no on-bar label and no hover surface.
+A leaf with some roles estimated draws those roles' bars alone; a leaf with none
+draws an empty track.
+
+With the switch on, a parent's row SHALL draw the translucent ghost of a bar
+across its projection, or a tick where that projection has no days; and an
+unestimated slice SHALL draw a bar two workdays wide,
+translucent and dashed, carrying the `?` that says its width is nobody's
+estimate, findable as `data-assumed`.
+
+In **both** states the row SHALL stay on the chart at its own index and the row
+height every other row has, so the chart's row `N` stands beside the plan's row
+`N`, and the label rail SHALL go on naming it. The engine's numbers, the date
+columns, the axis and the canvas SHALL be identical in the two states — the
+switch decides what is painted and nothing about where anything is.
+
+A not-before caret SHALL be drawn only on a row that draws at least one mark of
+its own: with the switch off, only where a costed bar stands; with it on, on
+every row holding a start date, because every such row now draws something for
+the caret to stand over.
+
+#### Scenario: a two-role leaf
+
+- **WHEN** a leaf holds Dev 0→3 and QA 3→5, both estimated
+- **THEN** its row holds two bars, Dev's before QA's, at those coordinates,
+  whichever way the switch is set
+
+#### Scenario: a leaf half estimated, at rest and asked for
+
+- **WHEN** a leaf holds an estimated Dev slice and an unestimated QA slice
+- **THEN** its row holds the Dev bar alone and no mark carries `data-assumed`;
+  and once the switch is pressed the QA slice's assumed bar is drawn beside it,
+  carrying `data-assumed`, with the Dev bar unmoved
+
+#### Scenario: a parent over staggered children
+
+- **WHEN** a parent's children run 0→3 and 2→6
+- **THEN** the parent's row holds no `data-gantt-bracket` mark, its children's
+  bars are drawn where they were, and every row keeps its index; and once the
+  switch is pressed the bracket is drawn across the projection, with every row
+  still at its own index
+
+#### Scenario: a parent whose projection has no days
+
+- **WHEN** every child of a parent is unestimated
+- **THEN** the parent's row holds no mark at all, and the rows below it are not
+  shifted; and once the switch is pressed the row holds the zero-span tick
+
+#### Scenario: a start date held on a row that draws nothing
+
+- **WHEN** a parent and an unestimated leaf each carry a start-no-earlier-than
+  date, beside a leaf that carries one and draws a bar
+- **THEN** only the drawn leaf's row holds a not-before caret, and both empty
+  rows stay on the chart at their own index; and once the switch is pressed all
+  three rows hold a caret
+
+#### Scenario: the critical path is visible
+
+- **WHEN** one leaf has float 0 and another float 2
+- **THEN** the first row's bar carries the critical tint and the second's does
+  not
+
+### Requirement: Calendar labels agree with the date columns
+
+The axis SHALL print calendar labels from the project start date through the
+same workday mapping the date columns use, the finish label following the
+ceil−1 rule, so a bar's labelled dates and its row's Start/End cells SHALL
+never disagree. Without a project start date the axis SHALL print workday
+offsets. Weekends SHALL NOT appear on the axis.
+
+#### Scenario: the panel and the columns agree
+
+- **WHEN** the project starts Monday 2026-08-10 and a slice runs 3 → 5
+- **THEN** the axis places that bar under Thursday 2026-08-13 through Friday
+  2026-08-14, exactly the row's Start and End cells
+
+#### Scenario: no start date
+
+- **WHEN** the project has no start date
+- **THEN** the axis prints workday numbers and no calendar dates
+
+### Requirement: One switch draws every mark the chart holds back
+
+The panel SHALL show one labelled switch, `Detail`, that draws **every** mark
+the chart holds back and takes them all away again: the dependency arrows —
+elbows and heads both — a parent row's summary bracket, and an unestimated
+slice's assumed bar with the marks that follow it. There SHALL be no second
+control and no per-family answer: one press is the whole of the reader's say
+over what the chart draws.
+
+The switch SHALL open **off**, and a chart nobody has asked detail of SHALL hold
+no `data-gantt-arrow`, no `data-gantt-arrow-head`, no `data-gantt-bracket` and
+no `data-assumed` mark.
+
+Pressed on, the chart SHALL draw each of the three families as it drew them
+before `gantt-declutter`, and the marks that follow from them SHALL follow: a
+hand-off line whose far end is an assumed bar, and a not-before caret on every
+row holding a start date, parents and uncosted leaves among them.
+
+The answer SHALL be remembered by the browser under `wbs.ganttDetail` and SHALL
+survive a reload, a project switch and a remount of the panel. It is one
+preference for this browser, not one per project, and be-01 SHALL never be told
+about it. A stored answer that is not a boolean SHALL be dropped — the key
+removed and the switch left off — rather than read as anything.
+
+`wbs.ganttArrows`, the key the arrows-only switch wrote, SHALL be removed from
+storage when the panel is opened and SHALL NOT be read as an answer. It answered
+a narrower question, and a stored `true` carried across would draw two families
+of mark nobody asked for.
+
+Person links between two drawn bars, ticks on costed zero-day slices, the bars
+of costed work, the row labels and the axis SHALL be untouched by the switch.
+
+This supersedes, **by name**, `gantt-declutter`'s requirement "The arrows are
+off until they are asked for" — replaced in full above — and the clauses of its
+"Leaves draw bars for the work somebody costed, and nothing else does" that made
+the two removals unconditional. Confirmed by Dany, 2026-08-12: "what i wanted is
+for arrows toggle to also affect Unestimated QA ghost bars and Parent
+transparent bars. i want to encompass all decluttering into one button."
+
+#### Scenario: The chart opens with none of the three
+
+- **WHEN** the chart is opened on a plan with stored dependencies, a parent row
+  and an unestimated slice, and nobody has touched the switch
+- **THEN** no `data-gantt-arrow`, `data-gantt-arrow-head`, `data-gantt-bracket`
+  or `data-assumed` mark is in the document, and every costed bar, every on-bar
+  label, every person link between two costed bars and every row label is drawn
+
+#### Scenario: Asking for the detail
+
+- **WHEN** the switch is pressed
+- **THEN** every stored dependency's elbow and head, every parent's bracket and
+  every unestimated slice's assumed bar is drawn, and pressing it again takes
+  all three away
+
+#### Scenario: The answer outlives the page
+
+- **WHEN** the switch is pressed on and the page is reloaded
+- **THEN** the chart opens with the arrows, the brackets and the assumed bars
+  drawn, and `aria-pressed` reads `true`
+
+#### Scenario: A stored answer that is not one
+
+- **GIVEN** `wbs.ganttDetail` holding text that is not a boolean
+- **WHEN** the chart is opened
+- **THEN** the detail is off and the key is gone
+
+#### Scenario: The key the old switch wrote
+
+- **GIVEN** `wbs.ganttArrows` holding `true` and no `wbs.ganttDetail` at all
+- **WHEN** the chart is opened
+- **THEN** the switch is off, no arrow is drawn, and `wbs.ganttArrows` is gone
+  from storage
+
+### Requirement: A bar explains itself and finds its row
+
+Hovering a bar SHALL name its slice's binding floor in words — for a person
+floor, naming the person and the slice they were finishing. Clicking a bar or
+its row label SHALL take the plan to that row: the row's name cell is scrolled
+into view and focused, under either renderer. Rows with a manual start SHALL
+carry a not-before flag at that date's workday offset.
+
+#### Scenario: the reason is on the bar
+
+- **WHEN** `Sand`'s slice is floored by Kat finishing `Strip`
+- **THEN** its bar's hover text names Kat and `Strip`
+
+#### Scenario: click lands on the row
+
+- **WHEN** a bar of row `Sand` is clicked
+- **THEN** `Sand`'s name cell is focused and scrolled into view
+
+#### Scenario: a manual date is marked
+
+- **WHEN** a row holds start-no-earlier-than at workday 4
+- **THEN** its row carries a not-before flag at x = 4
+
+### Requirement: Row labels hold the left edge
+
+The panel's row labels SHALL stay visible at the left edge while the chart
+scrolls horizontally, at phone width too. The panel SHALL NOT widen the page:
+the chart scrolls inside the panel. Each label SHALL read `<number> - <name>`,
+the same derived number the plan's Number column shows, so the two drawings of
+one plan name their rows alike; a row with no name reads `<number> - (unnamed)`.
+A bar's hover text SHALL open on the same words.
+
+#### Scenario: a row is named the way the plan names it
+
+- **WHEN** row `010.1` is called `Sanding` and the panel is open
+- **THEN** its label reads `010.1 - Sanding` and its bar's hover text opens on
+  the same line
+
+#### Scenario: scrolled to the horizon on a phone
+
+- **WHEN** the viewport is 390px wide and the chart is scrolled fully right
+- **THEN** every row label is still visible and the page itself has not
+  scrolled sideways
+
+### Requirement: A chart that cannot be drawn costs only the chart
+
+When drawing the panel throws, the plan SHALL stay on screen and editable, and
+the panel's place SHALL hold a sentence naming what could not be drawn and why
+— the thrown error's own words. The next tree read SHALL clear it: a fault
+caught while drawing one read SHALL NOT outlive that read.
+
+#### Scenario: a payload the geometry refuses
+
+- **WHEN** the payload carries a slice whose `resourcePredecessorId` names no
+  slice in it
+- **THEN** the chart is replaced by a sentence naming that slice, and every row
+  of the plan is still on screen and editable
+
+#### Scenario: the skew is over
+
+- **WHEN** a later read carries a payload the geometry accepts
+- **THEN** the chart is drawn again without the page being reloaded
+
+### Requirement: The canvas holds every mark
+
+The drawn canvas SHALL contain every mark the panel draws, including the parts
+of a dependency arrow's route that fall outside the schedule and the assumed
+span an unestimated bar is drawn across. A bar's `x` SHALL remain the engine's
+number and its `data-start`/`data-finish` with it: the canvas's edges are not
+the schedule's.
+
+#### Scenario: an arrow into workday 0
+
+- **WHEN** a successor starts at workday 0 and an arrow arrives at it
+- **THEN** the arrow's head is painted, and its route is inside the canvas
+
+#### Scenario: an arrow off the last bar
+
+- **WHEN** a predecessor finishes at the horizon
+- **THEN** the route out past it is inside the canvas
+
+### Requirement: A plan that cannot be scheduled draws no chart
+
+When the schedule is refused — a dependency cycle — the panel SHALL show the
+same unscheduled state the table's date columns show, and SHALL NOT crash or
+draw stale bars.
+
+#### Scenario: a cycle
+
+- **WHEN** the tree read reports a dependency cycle
+- **THEN** the panel shows the plan cannot be scheduled and draws no bars
+
+### Requirement: A bar names its work, not only its worker
+
+A bar's on-bar label SHALL carry the assignee reading it carries today — full
+name, initials, or nothing, decided by the bar's drawn width — followed by the
+row's own words, `<number> - <name>`, separated by `·`. The row words SHALL be
+cropped to the bar's drawn width by the label box itself (ellipsis), never by
+dropping them from the string: a bar wide enough for three characters of its row
+words shows three characters and `…`, not the assignee alone.
+
+A bar with nobody on it SHALL still write its row words: the label used to be
+the assignee alone, so an unassigned bar wrote nothing, and sixty grey bars with
+no words is the fault this label removes.
+
+The label font SHALL be one size smaller than the row labels beside the chart
+(9px against their 10px), so the words sit inside the bar rather than on it.
+
+#### Scenario: A wide assigned bar
+
+- **WHEN** a 10-workday bar assigned to `Anna Adams` on row `010 - Strip` is drawn
+- **THEN** its label reads `Anna Adams · 010 - Strip`, in 9px, cropped by its own box
+
+#### Scenario: A narrow unassigned bar
+
+- **WHEN** a 2-workday bar nobody is on is drawn for row `020 - Sand`
+- **THEN** its label reads `020 - Sand` cropped to the bar, and not nothing
+
+### Requirement: A parent draws as a virtual bar, behind the switch
+
+With the switch on, a summary row's span SHALL be drawn as the ghost of a bar —
+the same rounded shape a leaf gets, in the page's own ink at low opacity and
+unstroked — across the projection `placeGantt` computed, carrying
+`data-gantt-bracket`. A projection with no days SHALL be drawn as a tick at the
+branch's own day rather than as a rect of no width, which paints nothing.
+
+The mark SHALL NOT be drawn while the switch is off, which is the state every
+reader starts in. `gantt-declutter` removed this requirement outright; it is
+restored here as one of the three families the `Detail` switch draws.
+
+#### Scenario: the ghost of a bar, and only when asked
+
+- **WHEN** the switch is pressed on a plan whose parent spans workdays 0 → 7
+- **THEN** the parent's row holds one `data-gantt-bracket` rect across that
+  projection, painted at low opacity rather than in solid ink; and with the
+  switch off the same plan holds none

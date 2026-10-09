@@ -154,13 +154,25 @@ Every bar with a non-zero drawn span SHALL have a non-zero width. A slice
 - **THEN** its bar has `x` 3.5 and `width` 4.5, `data-start` "3.5",
   `data-finish` "6", and the SVG viewBox holds 0 through the calendar horizon
 
+#### Scenario: user space equals engine numbers
+
+- **WHEN** the plan has no start date and a slice runs 3.5 → 6
+- **THEN** its bar has `x` 3.5, `width` 2.5, `data-start` "3.5",
+  `data-finish` "6", and the SVG viewBox holds 0 through the workday horizon
+
+#### Scenario: a slice estimated at no days still says where it is
+
+- **WHEN** an estimated slice sits at workday 3 with a duration of 0
+- **THEN** a tick stands at its calendar position when the plan is dated, or
+  workday 3 when it is not, and `data-start` and `data-finish` both read "3"
+
 #### Scenario: the data attributes outlive the drawn width
 
 - **WHEN** an unestimated slice sits at workday 3 with a duration of 0 on that
-  plan
-- **THEN** its bar has `x` 3 and `width` 2 — the two workdays it is drawn
+  plan and Detail is pressed
+- **THEN** its assumed bar has `x` 3 and `width` 2 — the two workdays it is drawn
   across, Thursday and Friday, and not zero — while `data-start` and
-  `data-finish` both read "3"
+  `data-finish` both read "3"; before Detail is pressed that bar is absent
 
 #### Scenario: a workday number is not a coordinate
 
@@ -172,35 +184,69 @@ Every bar with a non-zero drawn span SHALL have a non-zero width. A slice
 - **WHEN** the plan has no start date and a slice starts at workday 5
 - **THEN** its bar's `x` is 5, and no coordinate on the chart came from a scale
 
-### Requirement: Leaves draw bars, parents draw summary brackets
+### Requirement: Leaves draw bars for the work somebody costed, and the rest is behind the switch
 
-A leaf's row SHALL hold one bar per slice, in role order. A parent's row SHALL
-hold a summary bracket spanning its projection — a span, never a sum — from the
-start reading of its earliest start to the end reading of its latest finish. A
-bar on the critical path SHALL be tinted so, and a bar off it SHALL not.
+A leaf's row SHALL hold one bar per **estimated** slice, in role order, whatever
+the switch says. A bar on the critical path SHALL be tinted so, and a bar off it
+SHALL not.
 
-A bar whose slice is unestimated SHALL be drawn across an assumed span of two
-workdays from the slice's earliest start, rather than as a mark of no width, and
-SHALL be unmistakably provisional: it keeps its assignee's colour but is drawn
-translucent, with a dashed outline, and carries a `?` in its on-bar label. Its
-hover text SHALL say in a line of its own that it is not estimated and that the
-width is drawn rather than scheduled. The assumed span is a drawing only — the
-engine's numbers, the date columns and the arrows drawn between rows are
-unchanged by it — and the horizon SHALL reach far enough to contain it in
-calendar days.
+With the switch off, a parent's row SHALL draw no mark of its own — no bar, no
+bracket, no tick, and no hover surface — and a slice nobody has estimated SHALL
+draw no mark of its own: no bar, no tick, no on-bar label and no hover surface.
+A leaf with some roles estimated draws those roles' bars alone; a leaf with none
+draws an empty track.
+
+With the switch on, a parent's row SHALL draw the translucent ghost of a bar
+across its projection, or a tick where that projection has no days; and an
+unestimated slice SHALL draw a bar two workdays wide,
+translucent and dashed, carrying the `?` that says its width is nobody's
+estimate, findable as `data-assumed`.
+
+In **both** states the row SHALL stay on the chart at its own index and the row
+height every other row has, so the chart's row `N` stands beside the plan's row
+`N`, and the label rail SHALL go on naming it. The engine's numbers, the date
+columns, the axis and the canvas SHALL be identical in the two states — the
+switch decides what is painted and nothing about where anything is.
+
+A not-before caret SHALL be drawn only on a row that draws at least one mark of
+its own: with the switch off, only where a costed bar stands; with it on, on
+every row holding a start date, because every such row now draws something for
+the caret to stand over.
 
 #### Scenario: a two-role leaf
 
-- **WHEN** the plan starts Monday 2026-08-10 and a leaf holds Dev 0→3 and QA
-  3→5
-- **THEN** its row holds two bars, Dev's at `x` 0 of width 3 and QA's at `x` 3
-  of width 2 — Thursday and Friday, with no weekend tail on the second
+- **WHEN** a leaf holds Dev 0→3 and QA 3→5, both estimated
+- **THEN** its row holds two bars, Dev's before QA's, at those coordinates,
+  whichever way the switch is set
+
+#### Scenario: a leaf half estimated, at rest and asked for
+
+- **WHEN** a leaf holds an estimated Dev slice and an unestimated QA slice
+- **THEN** its row holds the Dev bar alone and no mark carries `data-assumed`;
+  and once the switch is pressed the QA slice's assumed bar is drawn beside it,
+  carrying `data-assumed`, with the Dev bar unmoved
 
 #### Scenario: a parent over staggered children
 
-- **WHEN** that plan's parent has children running 0→3 and 2→6
-- **THEN** the parent's row holds one bracket from 0 to 8, the weekend inside
-  the second child drawn across
+- **WHEN** a parent's children run 0→3 and 2→6
+- **THEN** the parent's row holds no `data-gantt-bracket` mark, its children's
+  bars are drawn where they were, and every row keeps its index; and once the
+  switch is pressed the bracket is drawn across the projection, with every row
+  still at its own index
+
+#### Scenario: a parent whose projection has no days
+
+- **WHEN** every child of a parent is unestimated
+- **THEN** the parent's row holds no mark at all, and the rows below it are not
+  shifted; and once the switch is pressed the row holds the zero-span tick
+
+#### Scenario: a start date held on a row that draws nothing
+
+- **WHEN** a parent and an unestimated leaf each carry a start-no-earlier-than
+  date, beside a leaf that carries one and draws a bar
+- **THEN** only the drawn leaf's row holds a not-before caret, and both empty
+  rows stay on the chart at their own index; and once the switch is pressed all
+  three rows hold a caret
 
 #### Scenario: the critical path is visible
 
@@ -208,20 +254,24 @@ calendar days.
 - **THEN** the first row's bar carries the critical tint and the second's does
   not
 
+When a project start date is set, every estimated bar and Detail mark SHALL use
+the same calendar scale and SHALL retain its workday `data-start` and
+`data-finish` values. Detail changes which marks are painted, not the calendar
+positions or the scheduling facts beneath them.
+
 #### Scenario: an unestimated slice
 
 - **WHEN** a leaf's slice is unestimated and the engine placed it at workday 3
-  with a duration of 0
-- **THEN** its bar is drawn from calendar day 3 across the two workdays' width,
-  translucent and dashed and labelled with a `?`, its `data-start` and
-  `data-finish` still read `3`, and its hover text carries the line
-  `Not estimated — drawn as 2 days`
+  with a duration of 0 on a dated plan
+- **THEN** it has no drawn bar while Detail is off; after Detail is pressed,
+  its assumed bar starts at the corresponding calendar day, spans two workdays,
+  carries `data-assumed` and a `?`, and retains the engine's workday facts
 
 #### Scenario: the horizon holds the assumed span
 
-- **WHEN** the last thing on the chart is an unestimated slice at workday 3 on
-  that plan
-- **THEN** the calendar horizon reaches 5, so the drawn bar is inside the canvas
+- **WHEN** the last thing on a dated chart is an unestimated slice at workday 3
+- **THEN** the calendar horizon reaches the assumed span even while Detail is
+  off, and pressing Detail draws the bar inside the unchanged canvas
 
 ### Requirement: Calendar labels agree with the date columns
 
