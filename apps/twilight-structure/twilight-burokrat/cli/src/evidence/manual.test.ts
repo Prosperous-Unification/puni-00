@@ -2,6 +2,7 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -244,7 +245,7 @@ test('inspect-manual accepts an exact external approval chain as a noncertifying
   const call = inspect(setup);
   expect(call.exitCode, call.stderr.toString()).toBe(0);
   const observation = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
-  expect(observation['state']).toBe('passing');
+  expect(observation['state']).toBe('current');
   expect(observation['validation']).toBe('passed');
   expect(observation['outcome']).toBe('passed');
   expect(observation['provenance']).toBe('policy-pinned-external-approval');
@@ -256,6 +257,152 @@ test('inspect-manual accepts an exact external approval chain as a noncertifying
   expect(observation['currency']).toBe('current');
   expect(observation['reportDigest']).toBe(digest(setup.records.report));
   expect(Object.hasOwn(observation, 'coverage')).toBe(false);
+  expect(readdirSync(setup.base).some((name) => name.endsWith('.xml'))).toBe(false);
+});
+
+test('inspect-manual maps a stale passing report to a failing CLI verdict', () => {
+  const setup = fixture();
+  writeFileSync(join(setup.root, 'source/module.ts'), 'export const lamp = false;\n');
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'change touched module']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toBe('');
+  const observation = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
+  expect(observation['state']).toBe('stale');
+  expect(observation['validation']).toBe('passed');
+  expect(observation['outcome']).toBe('passed');
+  expect(observation['currency']).toBe('stale');
+  expect(observation['certifies']).toBe(false);
+  expect(Object.hasOwn(observation, 'coverage')).toBe(false);
+});
+
+test.each(['failed', 'skipped'] as const)(
+  'inspect-manual maps an internally consistent %s run to failed verdict',
+  (outcome) => {
+    const setup = fixture();
+    setup.records.report.steps[0].outcome = outcome;
+    setup.records.report.outcome = outcome;
+    setup.records.acceptance.reportDigest = digest(setup.records.report);
+    writeApprovedChain(setup);
+    const call = inspect(setup);
+    expect(call.exitCode).toBe(1);
+    expect(call.stderr.toString()).toBe('');
+    const observation = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
+    expect(observation['state']).toBe('failed');
+    expect(observation['validation']).toBe('passed');
+    expect(observation['currency']).toBe('current');
+    expect(observation['outcome']).toBe(outcome);
+    expect(observation['certifies']).toBe(false);
+    expect(Object.hasOwn(observation, 'coverage')).toBe(false);
+  },
+);
+
+test('inspect-manual gives failed outcome precedence over stale source', () => {
+  const setup = fixture();
+  writeFileSync(join(setup.root, 'source/module.ts'), 'export const lamp = false;\n');
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'change touched module']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  setup.records.report.steps[0].outcome = 'failed';
+  setup.records.report.outcome = 'failed';
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  const observation = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
+  expect(observation['state']).toBe('failed');
+  expect(observation['currency']).toBe('stale');
+  expect(observation['outcome']).toBe('failed');
+});
+
+test('inspect-manual derives failed aggregate ahead of skipped steps', () => {
+  const setup = fixture();
+  const procedure = {
+    ...setup.procedure,
+    steps: [
+      ...setup.procedure.steps,
+      { stepId: 'step-two', instruction: 'Release control', expectedObservation: 'Lamp goes dark' },
+    ],
+  };
+  writeFileSync(join(setup.root, 'manual/procedure.json'), JSON.stringify(procedure));
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'add second reviewed step']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  setup.records.report.sourceRevision = revision;
+  setup.records.environment.sourceRevision = revision;
+  setup.records.report.procedureDigest = digest(procedure);
+  setup.records.review.procedureDigest = digest(procedure);
+  setup.records.report.steps = [
+    { stepId: 'step-one', outcome: 'skipped', observation: 'Not run' },
+    { stepId: 'step-two', outcome: 'failed', observation: 'Lamp stayed lit' },
+  ];
+  setup.records.report.outcome = 'failed';
+  setup.records.report.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
+  const observation = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
+  expect(observation['state']).toBe('failed');
+  expect(observation['outcome']).toBe('failed');
+  expect(observation['currency']).toBe('current');
+});
+
+test('inspect-manual maps an overdue approved report to a named refusal verdict', () => {
+  const setup = fixture();
+  setup.records.review.reviewedAt = '1999-12-31T10:00:00.000Z';
+  setup.records.review.reviewBy = '2000-01-01';
+  writeApprovedChain(setup);
+  const call = inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toBe('');
+  const observation = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
+  expect(observation['state']).toBe('overdue');
+  expect(observation['validation']).toBe('refused');
+  expect(observation['outcome']).toBe('passed');
+  expect(observation['currency']).toBe('current');
+  expect(observation['finding']).toBe('EXAMPLE-001 review overdue on 2000-01-01');
+  expect(observation['certifies']).toBe(false);
+});
+
+test('inspect-manual gives overdue precedence over failed outcome and stale source', () => {
+  const setup = fixture();
+  writeFileSync(join(setup.root, 'source/module.ts'), 'export const lamp = false;\n');
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'change touched module']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  setup.records.report.steps[0].outcome = 'failed';
+  setup.records.report.outcome = 'failed';
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  setup.records.review.reviewedAt = '1999-12-31T10:00:00.000Z';
+  setup.records.review.reviewBy = '2000-01-01';
+  writeApprovedChain(setup);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toBe('');
+  const observation = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
+  expect(observation['state']).toBe('overdue');
+  expect(observation['validation']).toBe('refused');
+  expect(observation['outcome']).toBe('failed');
+  expect(observation['currency']).toBe('stale');
+  expect(observation['finding']).toBe('EXAMPLE-001 review overdue on 2000-01-01');
+  expect(observation['certifies']).toBe(false);
+});
+
+test('inspect-manual refuses inconsistent report outcome without a JSON verdict', () => {
+  const setup = fixture();
+  setup.records.report.steps[0].outcome = 'failed';
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
+  const call = inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stdout.toString()).toBe('');
+  expect(call.stderr.toString()).toContain(
+    'Manual report step outcome is not a passing observation',
+  );
 });
 
 test('inspect-manual keeps an earlier tested commit distinct from an unrelated selected descendant', () => {
@@ -314,7 +461,7 @@ test.each([
     git(setup.root, ['commit', '-m', 'change reviewed source']);
     const revision = git(setup.root, ['rev-parse', 'HEAD']);
     const call = inspect({ ...setup, revision });
-    expect(call.exitCode, call.stderr.toString()).toBe(0);
+    expect(call.exitCode, call.stderr.toString()).toBe(1);
     expect(readCurrency(call)).toBe('stale');
   },
 );
@@ -333,7 +480,7 @@ test('inspect-manual marks a touched module membership addition stale', () => {
   git(setup.root, ['commit', '-m', 'add module member']);
   const revision = git(setup.root, ['rev-parse', 'HEAD']);
   const call = inspect({ ...setup, revision });
-  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
   expect(readCurrency(call)).toBe('stale');
 });
 
@@ -347,7 +494,7 @@ test('inspect-manual detects a module change followed by a byte-for-byte revert'
   git(setup.root, ['commit', '-m', 'restore lamp']);
   const revision = git(setup.root, ['rev-parse', 'HEAD']);
   const call = inspect({ ...setup, revision });
-  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
   expect(readCurrency(call)).toBe('stale');
 });
 
@@ -479,8 +626,11 @@ test('inspect-manual validates report steps against the tested procedure after c
   git(setup.root, ['commit', '-m', 'add later procedure step']);
   const revision = git(setup.root, ['rev-parse', 'HEAD']);
   const call = inspect({ ...setup, revision });
-  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
   expect(readCurrency(call)).toBe('stale');
+  const observation = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
+  expect(observation['procedureDigest']).toBe(digest(setup.procedure));
+  expect(observation['selectedProcedureDigest']).not.toBe(digest(setup.procedure));
 });
 
 test('inspect-manual refuses an empty tested procedure even after the candidate repairs it', () => {
@@ -637,7 +787,7 @@ test('inspect-manual marks a valid historical scenario and procedure rename then
   git(setup.root, ['commit', '-m', 'restore scenario and procedure title']);
   const revision = git(setup.root, ['rev-parse', 'HEAD']);
   const call = inspect({ ...setup, revision });
-  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
   expect(readCurrency(call)).toBe('stale');
   expect((JSON.parse(call.stdout.toString()) as { certifies: unknown }).certifies).toBe(false);
 });
@@ -666,7 +816,7 @@ test('inspect-manual marks an edited module index stale', () => {
   git(setup.root, ['commit', '-m', 'edit module index']);
   const revision = git(setup.root, ['rev-parse', 'HEAD']);
   const call = inspect({ ...setup, revision });
-  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
   expect(readCurrency(call)).toBe('stale');
 });
 
@@ -680,7 +830,7 @@ test('inspect-manual marks a sibling scenario edit in the containing requirement
   git(setup.root, ['commit', '-m', 'add sibling scenario']);
   const revision = git(setup.root, ['rev-parse', 'HEAD']);
   const call = inspect({ ...setup, revision });
-  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
   expect(readCurrency(call)).toBe('stale');
 });
 
@@ -734,7 +884,7 @@ test.each([
   git(setup.root, ['commit', '-m', 'restore reviewed input']);
   const revision = git(setup.root, ['rev-parse', 'HEAD']);
   const call = inspect({ ...setup, revision });
-  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
   expect(readCurrency(call)).toBe('stale');
 });
 
@@ -744,7 +894,7 @@ test('inspect-manual marks an executable-mode change to a module member stale', 
   git(setup.root, ['commit', '-m', 'change member mode']);
   const revision = git(setup.root, ['rev-parse', 'HEAD']);
   const call = inspect({ ...setup, revision });
-  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
   expect(readCurrency(call)).toBe('stale');
 });
 
@@ -760,7 +910,7 @@ test.each(['remove', 'rename'])('inspect-manual marks a module member %s stale',
   git(setup.root, ['commit', '-m', `${operation} module member`]);
   const revision = git(setup.root, ['rev-parse', 'HEAD']);
   const call = inspect({ ...setup, revision });
-  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
   expect(readCurrency(call)).toBe('stale');
 });
 
@@ -780,7 +930,7 @@ test('inspect-manual marks nested index ownership transfer stale', () => {
   git(setup.root, ['commit', '-m', 'transfer member to child index']);
   const revision = git(setup.root, ['rev-parse', 'HEAD']);
   const call = inspect({ ...setup, revision });
-  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
   expect(readCurrency(call)).toBe('stale');
 });
 
@@ -831,7 +981,7 @@ test.each([
     git(setup.root, ['merge', '--no-ff', '-m', 'merge side branch', 'side']);
     const revision = git(setup.root, ['rev-parse', 'HEAD']);
     const call = inspect({ ...setup, revision });
-    expect(call.exitCode, call.stderr.toString()).toBe(0);
+    expect(call.exitCode, call.stderr.toString()).toBe(currency === 'stale' ? 1 : 0);
     expect(readCurrency(call)).toBe(currency);
   },
 );
@@ -974,7 +1124,7 @@ test('inspect-manual sees a relevant second-parent edge of a pretested side merg
   git(setup.root, ['merge', '--no-ff', '-s', 'ours', '-m', 'merge side into selected', 'side']);
   const revision = git(setup.root, ['rev-parse', 'HEAD']);
   const call = inspect({ ...setup, revision });
-  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
   expect(readCurrency(call)).toBe('stale');
 });
 
@@ -1040,7 +1190,7 @@ test('inspect-manual detects a pretested side edit under a BOM-prefixed module p
   setup.records.acceptance.reportDigest = digest(setup.records.report);
   writeApprovedChain(setup);
   const call = inspect({ ...setup, revision });
-  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
   expect(readCurrency(call)).toBe('stale');
 });
 
@@ -1222,7 +1372,7 @@ test('inspect-manual marks a changed effective overlay requirement stale', () =>
   git(setup.root, ['commit', '-m', 'overlay requirement edit']);
   const revision = git(setup.root, ['rev-parse', 'HEAD']);
   const call = inspect({ ...setup, revision });
-  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(call.exitCode, call.stderr.toString()).toBe(1);
   expect(readCurrency(call)).toBe('stale');
 });
 
@@ -1499,14 +1649,6 @@ test.each([
     'Manual acceptance chronology',
   ],
   [
-    'deadline',
-    (s: ReturnType<typeof fixture>) => {
-      s.records.review.reviewedAt = '1999-12-31T10:00:00.000Z';
-      s.records.review.reviewBy = '2000-01-01';
-    },
-    'EXAMPLE-001 review overdue on 2000-01-01',
-  ],
-  [
     'missing step',
     (s: ReturnType<typeof fixture>) => {
       s.records.report.steps = [];
@@ -1540,6 +1682,13 @@ test.each([
       s.records.report.steps[0].outcome = 'skipped';
     },
     'Manual report step outcome',
+  ],
+  [
+    'blank observation',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.steps[0].observation = ' ';
+    },
+    'Manual report step observation is blank',
   ],
   [
     'failed aggregate',

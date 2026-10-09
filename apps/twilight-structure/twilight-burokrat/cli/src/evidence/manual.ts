@@ -155,7 +155,7 @@ function evaluateManualChain(
     environmentDigest: string;
   },
   capturedNow: Date,
-): void {
+): { outcome: 'passed' | 'failed' | 'skipped'; overdue: boolean } {
   const { disposition, procedure, report, environment, review, acceptance } = chain;
   // Proof: repinned report identity CLI negatives fail their named assertions when this guard is removed.
   if (report.scenarioId !== disposition.scenarioId || report.title !== disposition.title)
@@ -236,23 +236,30 @@ function evaluateManualChain(
   // Proof: removing this guard made the deadline-before-review CLI assertion fail.
   if (deadline < Date.parse(new Date(reviewed).toISOString().slice(0, 10) + 'T00:00:00.000Z'))
     throw new Error('Manual review deadline predates review');
-  // Proof: overdue review CLI negative loses its scenario/date refusal without this guard.
-  if (capturedNow.toISOString().slice(0, 10) > review.reviewBy)
-    throw new Error(`${disposition.scenarioId} review overdue on ${review.reviewBy}`);
   // Proof: missing, duplicate and extra report-step CLI negatives lose their named refusal without this exact comparison.
   if (
     report.steps.length !== procedure.steps.length ||
     report.steps.some((step, index) => step.stepId !== procedure.steps[index]?.stepId)
   )
     throw new Error('Manual report steps differ from ordered procedure');
-  // Proof: failed and skipped report-step CLI negatives lose their named refusal without this guard.
-  if (
-    report.steps.some((step) => step.outcome !== 'passed' || step.observation.trim().length === 0)
-  )
-    throw new Error('Manual report step outcome is not a passing observation');
-  // Proof: failed or skipped aggregate CLI negatives lose their named refusal without this guard.
-  if (report.outcome !== 'passed')
-    throw new Error('Manual report outcome differs from passing steps');
+  // Proof: blank observations still refuse after failed/skipped runs became modeled outcomes.
+  if (report.steps.some((step) => step.observation.trim().length === 0))
+    throw new Error('Manual report step observation is blank');
+  // Proof: disabling failed or skipped step precedence made their named CLI assertions fail;
+  // disabling the declared-aggregate join made the contradictory-report CLI assertion fail.
+  const outcome = report.steps.some((step) => step.outcome === 'failed')
+    ? 'failed'
+    : report.steps.some((step) => step.outcome === 'skipped')
+      ? 'skipped'
+      : 'passed';
+  if (report.outcome !== outcome) {
+    if (report.outcome === 'passed')
+      throw new Error('Manual report step outcome is not a passing observation');
+    throw new Error('Manual report outcome differs from ordered steps');
+  }
+  // Proof: removing this comparison made the overdue CLI verdict become current and let
+  // a stale failed run outrank the expired review in the combined production case.
+  return { outcome, overdue: capturedNow.toISOString().slice(0, 10) > review.reviewBy };
 }
 
 function assertCanonicalExternalPath(path: string, subject: string): void {
@@ -711,6 +718,52 @@ function evaluateSourceCurrency(
   return { procedure: testedProcedure, currency: stale ? 'stale' : 'current' };
 }
 
+type ManualCurrency = 'current' | 'stale';
+type ManualOutcome = 'passed' | 'failed' | 'skipped';
+type ManualVerdict =
+  | { state: 'current'; validation: 'passed'; outcome: 'passed'; currency: 'current' }
+  | { state: 'stale'; validation: 'passed'; outcome: 'passed'; currency: 'stale' }
+  | {
+      state: 'failed';
+      validation: 'passed';
+      outcome: 'failed' | 'skipped';
+      currency: ManualCurrency;
+    }
+  | {
+      state: 'overdue';
+      validation: 'refused';
+      outcome: ManualOutcome;
+      currency: ManualCurrency;
+      finding: string;
+    };
+
+/** Maps a fully validated chain to a noncertifying CLI verdict in precedence order. */
+function manualVerdict(
+  currency: ManualCurrency,
+  outcome: ManualOutcome,
+  overdue: boolean,
+  scenarioId: string,
+  reviewBy: string,
+): ManualVerdict {
+  // Proof: replacing this branch with the failed or stale branch made the combined
+  // overdue/failed/stale production CLI assertion lose the overdue verdict and finding.
+  if (overdue)
+    return {
+      state: 'overdue',
+      validation: 'refused',
+      outcome,
+      currency,
+      finding: `${scenarioId} review overdue on ${reviewBy}`,
+    };
+  // Proof: removing this branch made valid failed and skipped production CLI reports
+  // appear as current or stale instead of failed.
+  if (outcome !== 'passed') return { state: 'failed', validation: 'passed', outcome, currency };
+  // Proof: removing this branch made the changed-module production CLI case appear current.
+  if (currency === 'stale') return { state: 'stale', validation: 'passed', outcome, currency };
+  // Proof: replacing this state made the exact approved current CLI assertion fail.
+  return { state: 'current', validation: 'passed', outcome, currency };
+}
+
 /** Inspects committed Manual records, approved tested scope and immutable source history. */
 export function inspectManual(
   repository: string,
@@ -911,7 +964,7 @@ export function inspectManual(
     testedProcedureRecord.title !== dispositionRecord.title
   )
     throw new Error('Manual tested procedure scenario differs from disposition');
-  evaluateManualChain(
+  const evaluated = evaluateManualChain(
     {
       disposition: dispositionRecord,
       // Proof: substituting the candidate procedure made the added-later-step CLI assertion
@@ -928,13 +981,18 @@ export function inspectManual(
     },
     capturedNow,
   );
+  const verdict = manualVerdict(
+    source.currency,
+    evaluated.outcome,
+    evaluated.overdue,
+    dispositionRecord.scenarioId,
+    reviewRecord.reviewBy,
+  );
   return {
     schemaVersion: 1 as const,
-    state: 'passing' as const,
-    validation: 'passed' as const,
-    outcome: 'passed' as const,
-    currency: source.currency,
+    ...verdict,
     provenance: 'policy-pinned-external-approval' as const,
+    // Proof: changing this to true made the exact approved production CLI assertion fail.
     certifies: false as const,
     revision: selected.selection.revision,
     testedRevision: reportRecord.sourceRevision,
@@ -943,7 +1001,9 @@ export function inspectManual(
     selectedScenario: { id: dispositionRecord.scenarioId, title: selectedScenario.title },
     runId: reportRecord.runId,
     dispositionDigest: disposition.digest,
-    procedureDigest: procedure.digest,
+    // Proof: the later-procedure-edit CLI case distinguishes tested from selected digests.
+    procedureDigest: source.procedure.digest,
+    selectedProcedureDigest: procedure.digest,
     reportDigest: report.digest,
     environmentDigest: environment.digest,
     reviewApprovalDigest: review.digest,

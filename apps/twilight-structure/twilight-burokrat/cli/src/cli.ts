@@ -425,9 +425,11 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       );
     return import('./evidence/manual').then(({ inspectManual }) => {
       const capturedNow = new Date();
-      process.stdout.write(
-        `${JSON.stringify(inspectManual(args[1], args[2], args[3], args[4], capturedNow))}\n`,
-      );
+      const observation = inspectManual(args[1], args[2], args[3], args[4], capturedNow);
+      process.stdout.write(`${JSON.stringify(observation)}\n`);
+      // Proof: disabling this exit mapping made stale, failed and overdue production CLI
+      // cases return exit 0 despite their structured nonpassing verdicts.
+      if (observation.state !== 'current') process.exitCode = 1;
     });
   }
   if (args[0] === 'inspect-browser') {
@@ -464,6 +466,8 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
 function fail(cause: unknown): void {
   const message = cause instanceof Error ? cause.message : String(cause);
   process.stderr.write(`${message}\n`);
+  // Proof: changing this to exit zero made the inconsistent Manual report production CLI
+  // assertion accept a refused inspection despite its named stderr and empty stdout.
   process.exitCode = 1;
 }
 
