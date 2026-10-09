@@ -48,6 +48,10 @@
     {
       "ruleId": "K6",
       "file": "src/architecture/k6.architecture.test.ts"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "file": "src/architecture/perf-threshold.architecture.test.ts"
     }
   ]
 }
