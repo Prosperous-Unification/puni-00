@@ -47,27 +47,42 @@ describe('Performance case declaration', () => {
       ),
     ).toThrow('canonically');
   });
-  it('produces the same canonical SHA-256 vector in Bun and Node', () => {
+  it('produces the same canonical SHA-256 vector in Bun and emitted Node ESM', async () => {
     const expected = '8c1df4f0bb152a042cad1b463d284d99740391ce7561ad6db969bdb0bf64b670';
     const root = mkdtempSync(join(tmpdir(), 'performance-hash-'));
     try {
-      const output = join(root, 'digest');
+      const output = join(root, 'node-result.json');
+      // Node consumes emitted JavaScript; raw TypeScript source imports are not the runtime contract.
+      const build = await Bun.build({
+        entrypoints: [join(import.meta.dir, 'index.ts')],
+        target: 'node',
+        format: 'esm',
+        outdir: root,
+        naming: { entry: '[name].mjs' },
+      });
+      expect(build.success, build.logs.map((log) => log.message).join('\n')).toBe(true);
+      expect(build.outputs).toHaveLength(1);
+      const bundled = build.outputs[0];
+      expect(bundled.path.endsWith('.mjs')).toBe(true);
       const source =
-        "import {writeFileSync} from 'node:fs'; const contract=await import(process.argv[1]); writeFileSync(process.argv[3],contract.digestPerformanceDeclaration(contract.decodePerformanceCases(JSON.parse(process.argv[2]))));";
+        "import {writeFileSync} from 'node:fs'; const contract=await import(process.argv[1]); let browserError; try { contract.decodeBrowserJson({}, '/tmp', 'browser.config.ts', [], 'list', undefined); } catch (error) { browserError=error.message; } writeFileSync(process.argv[3],JSON.stringify({digest:contract.digestPerformanceDeclaration(contract.decodePerformanceCases(JSON.parse(process.argv[2]))),browserError}));";
       const invocation = Bun.spawnSync(
         [
           'node',
           '--input-type=module',
           '-e',
           source,
-          pathToFileURL(join(import.meta.dir, 'index.ts')).href,
+          pathToFileURL(bundled.path).href,
           JSON.stringify(declaration),
           output,
         ],
         { stderr: 'pipe' },
       );
       expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
-      expect(readFileSync(output, 'utf8')).toBe(expected);
+      expect(JSON.parse(readFileSync(output, 'utf8'))).toEqual({
+        digest: expected,
+        browserError: 'Browser config is malformed',
+      });
       expect(digestPerformanceDeclaration(decodePerformanceCases(declaration))).toBe(expected);
     } finally {
       rmSync(root, { recursive: true, force: true });
