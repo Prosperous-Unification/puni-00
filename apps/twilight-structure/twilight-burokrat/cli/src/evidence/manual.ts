@@ -111,8 +111,8 @@ export const ManualAcceptanceApproval = type({
 }).onUndeclaredKey('reject');
 
 function assertCanonicalExternalPath(path: string, subject: string): void {
-  // Proof: allowing lexical aliases made the jump/../report.json production CLI negative exit 0
-  // after opening a different file than the one named by its policy pin.
+  // Proof: removing this guard made the named traversal CLI test fail its canonical-path assertion;
+  // it fell through to the distinct report-pin mismatch instead of refusing this spelling here.
   if (!isAbsolute(path) || path !== resolve(path))
     throw new Error(`${subject} path is not canonical absolute: ${path}`);
 }
