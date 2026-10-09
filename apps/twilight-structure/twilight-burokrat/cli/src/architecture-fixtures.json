@@ -44,6 +44,10 @@
     {
       "ruleId": "K5",
       "file": "src/architecture/k5.architecture.test.ts"
+    },
+    {
+      "ruleId": "K6",
+      "file": "src/architecture/k6.architecture.test.ts"
     }
   ]
 }
