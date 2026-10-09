@@ -65,6 +65,35 @@
         "forwardAllArgs": false
       }
     },
+    "test:browser:ordinary:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-devsync/src/browser-level.ts ordinary",
+        "forwardAllArgs": false
+      }
+    },
+    "test:browser:packaged:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-devsync/src/browser-level.ts packaged",
+        "forwardAllArgs": false
+      }
+    },
+    "test:browser:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "commands": [
+          "bunx nx run wbs-fe-01:test:browser:ordinary:level",
+          "bunx nx run wbs-fe-01:test:browser:packaged:level",
+          "bunx nx run wbs-core:test:browser:portable:level"
+        ],
+        "parallel": false,
+        "forwardAllArgs": false
+      }
+    },
     "e2e": {
       "executor": "nx:run-commands",
       "options": {

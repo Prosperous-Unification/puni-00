@@ -61,6 +61,14 @@
       },
       "outputs": ["{workspaceRoot}/tmp/core-portable-results"]
     },
+    "test:browser:portable:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-devsync/src/browser-level.ts portable",
+        "forwardAllArgs": false
+      }
+    },
     "typecheck:module": {
       "executor": "nx:run-commands",
       "options": {

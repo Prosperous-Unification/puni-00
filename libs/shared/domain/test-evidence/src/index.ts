@@ -2,6 +2,11 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 import { type } from 'arktype';
 
+/** Portable SHA-256 for raw reporter and build artifact bindings. */
+export function digestEvidenceBytes(bytes: Uint8Array | string): string {
+  return bytesToHex(sha256(typeof bytes === 'string' ? utf8ToBytes(bytes) : bytes));
+}
+
 const UnitRecord = type("'ms'|'bytes'|'count'|'fps'");
 const OperatorRecord = type("'lte'|'gte'");
 
