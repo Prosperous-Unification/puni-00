@@ -165,7 +165,7 @@ Twilight Burokrat SHALL select an externally pinned full Git commit as the prede
 
 The specifications rule SHALL select active OpenSpec spec paths, excluding archived changes and headings in fenced code, and compare identified headings with the current journal index in both directions. A missing allocation, duplicate identifier or active allocation without a selected heading SHALL refuse evaluation. Unidentified legacy headings SHALL appear as findings subject to rule mode. The evidence identity SHALL bind the external policy bytes, resolved base, base and candidate journal bytes, selector version and selected spec bytes.
 
-The active selector SHALL parse immutable specification ASTs and apply `ADDED`, `MODIFIED`, and `REMOVED` operations by the exact capability and requirement title. It SHALL retain canonical requirement order and append new requirements in stable key order. A `MODIFIED` requirement SHALL retain every canonical scenario by identifier, or by exact title when unidentified. A removed adopted identifier SHALL have a journal retirement. Duplicate or competing operations, absent predecessors, unsupported operation sections and scenario headings outside a requirement SHALL refuse evaluation. Synced identical `ADDED` requirements SHALL share one lineage. Selector version 2 evidence SHALL bind every active input path and content digest, effective requirements and source aliases, applied operations and removals.
+The active selector SHALL parse immutable specification ASTs and apply `ADDED`, `MODIFIED`, `REMOVED` and explicit `RENAMED Requirements` `FROM:`/`TO:` pairs by exact capability and requirement title. A rename SHALL preserve canonical position and all canonical scenarios by identifier, or by exact title when unidentified; it SHALL not require a scenario journal event. One `MODIFIED` requirement at the destination in the same change MAY accompany the pair in either section order. Scenario title changes SHALL still require a journal `rename` event. A rename SHALL refuse malformed, missing or duplicate endpoints, absent predecessors, occupied destinations, chains, cycles and any other operation targeting either endpoint, including in another active change. It SHALL retain canonical requirement order and append new requirements in stable key order. A `MODIFIED` requirement SHALL retain every canonical scenario by identifier, or by exact title when unidentified. A removed adopted identifier SHALL have a journal retirement. Duplicate or competing operations, absent predecessors, unsupported operation sections and scenario headings outside a requirement SHALL refuse evaluation. Synced identical `ADDED` requirements SHALL share one lineage. Selector version 3 evidence SHALL bind every active input path and content digest, effective requirements and source aliases, applied operations including rename endpoints, paths and digests, and removals. The effective requirement digest SHALL bind the renamed title and effective body.
 
 #### Scenario: [TEST-AXES-028] An allocated heading disappears
 
@@ -201,7 +201,7 @@ The active selector SHALL parse immutable specification ASTs and apply `ADDED`, 
 
 - **GIVEN** a synced duplicate requirement in an active change
 - **WHEN** the active change spec path or content changes
-- **THEN** the selector version 2 evidence identity changes and records the input and alias
+- **THEN** the selector version 3 evidence identity changes and records the input and alias
 
 ### Requirement: T1 unit tests need no scenario citation
 

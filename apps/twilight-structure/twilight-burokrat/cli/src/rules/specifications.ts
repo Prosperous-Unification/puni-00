@@ -25,7 +25,7 @@ export interface SpecificationsAuthority {
 }
 
 export interface SpecificationsReport {
-  readonly selectorVersion: 2;
+  readonly selectorVersion: 3;
   readonly baseRevision: string;
   readonly baseJournalDigest: string | null;
   readonly candidateJournalDigest: string;
@@ -262,7 +262,7 @@ export function evaluateSpecifications(
   }
   const evidenceDigest = hashCanonical({
     schemaVersion: 1,
-    selectorVersion: 2,
+    selectorVersion: 3,
     policyDigest,
     candidateDigest,
     baseRevision,
@@ -273,7 +273,7 @@ export function evaluateSpecifications(
     unidentified,
   });
   return {
-    selectorVersion: 2,
+    selectorVersion: 3,
     baseRevision,
     baseJournalDigest,
     candidateJournalDigest: candidateJournal.digest,

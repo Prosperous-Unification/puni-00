@@ -21,8 +21,9 @@ interface Requirement {
 }
 
 interface Operation {
-  readonly kind: 'ADDED' | 'MODIFIED' | 'REMOVED';
+  readonly kind: 'ADDED' | 'MODIFIED' | 'REMOVED' | 'RENAMED';
   readonly requirement: Requirement;
+  readonly from?: string;
 }
 
 export interface ActiveSpecSelection {
@@ -36,11 +37,12 @@ export interface ActiveSpecSelection {
     aliases: readonly string[];
   }[];
   readonly operations: readonly {
-    kind: 'ADDED' | 'MODIFIED' | 'REMOVED';
+    kind: 'ADDED' | 'MODIFIED' | 'REMOVED' | 'RENAMED';
     capability: string;
     title: string;
     source: string;
     digest: string;
+    from?: string;
   }[];
   readonly removals: readonly { capability: string; title: string; ids: readonly string[] }[];
 }
@@ -86,11 +88,55 @@ function parseRequirements(spec: SpecInput): {
       if (spec.kind === 'change') {
         const match = /^(ADDED|MODIFIED|REMOVED|RENAMED) Requirements$/.exec(label);
         if (match !== null) {
-          // Proof: the production RENAMED overlay negative reached a successful verdict with
-          // this refusal disabled because the selector silently treated it as no operation.
-          if (match[1] === 'RENAMED')
-            throw new Error(`unsupported overlay operation: ${spec.path}`);
           operation = match[1] as Operation['kind'];
+          if (operation === 'RENAMED') {
+            const start = heading.position?.end.offset;
+            const next = sections.slice(position + 1).find((section) => section.depth <= 2);
+            if (start === undefined) throw new Error('rename section has no source offsets');
+            // Proof: disabling this heading guard made the production heading-in-pair
+            // negative reach a generic pair-shape refusal instead of identifying its cause.
+            if (
+              sections
+                .slice(position + 1)
+                .some(
+                  (section) =>
+                    section.depth === 3 &&
+                    section.position?.start.offset !== undefined &&
+                    section.position.start.offset <
+                      (next?.position?.start.offset ?? spec.markdown.length),
+                )
+            ) {
+              throw new Error(`requirement heading inside rename pair: ${spec.path}`);
+            }
+            const lines = spec.markdown
+              .slice(start, next?.position?.start.offset ?? spec.markdown.length)
+              .split(/\r?\n/)
+              .map((line) => line.trim())
+              .filter(Boolean);
+            // Proof: deleting this shape guard made the production missing/duplicate endpoint
+            // negatives accept incomplete rename pairs.
+            if (lines.length === 0 || lines.length % 2 !== 0)
+              throw new Error(`malformed requirement rename pair: ${spec.path}`);
+            for (let index = 0; index < lines.length; index += 2) {
+              const from = /^- FROM: `### Requirement: (.+)`$/.exec(lines[index]);
+              const to = /^- TO: `### Requirement: (.+)`$/.exec(lines[index + 1]);
+              // Proof: deleting this pair guard made the production malformed FROM/TO
+              // negatives pass through to an unrelated later refusal.
+              if (from === null || to === null)
+                throw new Error(`malformed requirement rename pair: ${spec.path}`);
+              operations.push({
+                kind: 'RENAMED',
+                from: from[1],
+                requirement: {
+                  capability: spec.capability,
+                  title: to[1],
+                  source: spec.path,
+                  digest: hashBytes(Buffer.from(`${from[1]}\u0000${to[1]}`)),
+                  scenarios: [],
+                },
+              });
+            }
+          }
         } else if (label.endsWith('Requirements')) {
           // Proof: disabling this branch made the production REPLACED section negative
           // fail at the later missing-operation diagnostic instead of this boundary.
@@ -111,6 +157,10 @@ function parseRequirements(spec: SpecInput): {
     // the later empty-spec diagnostic instead of rejecting its requirement here.
     if (spec.kind === 'change' && operation === undefined)
       throw new Error(`overlay requirement has no operation: ${spec.path}`);
+    // Proof: disabling this guard made a heading under a rename-pair section disappear
+    // from effective selection instead of refusing the malformed operation.
+    if (operation === 'RENAMED')
+      throw new Error(`requirement heading inside rename pair: ${spec.path}`);
     const title = label.slice('Requirement: '.length);
     const start = heading.position?.start.offset;
     const next = sections.slice(position + 1).find((section) => section.depth <= 3);
@@ -181,9 +231,58 @@ export function selectActiveSpecifications(inputs: readonly SpecInput[]): Active
     operations.push(...parsed.operations);
   }
   const seenOperations = new Set<string>();
+  const renameEndpoints = new Map<string, { source: string; destination: string }>();
   const removals: { capability: string; title: string; ids: string[] }[] = [];
+  for (const { kind, requirement, from } of operations) {
+    if (kind !== 'RENAMED') continue;
+    if (from === undefined) throw new Error('requirement rename source is absent');
+    const sourceKey = keyOf({ capability: requirement.capability, title: from });
+    const destinationKey = keyOf(requirement);
+    // Proof: disabling endpoint uniqueness made the production chain and duplicate-pair
+    // negatives select a path-order-dependent lineage.
+    if (renameEndpoints.has(sourceKey) || renameEndpoints.has(destinationKey))
+      throw new Error(`competing requirement rename endpoint: ${requirement.capability}: ${from}`);
+    const predecessor = canonical.get(sourceKey);
+    // Proof: disabling this guard made the production unknown-source negative fail at a
+    // later property access instead of refusing the absent predecessor.
+    if (predecessor === undefined)
+      throw new Error(`rename requirement has no predecessor: ${requirement.capability}: ${from}`);
+    // Proof: disabling the occupied-destination guard made the production same-title
+    // negative overwrite its canonical predecessor.
+    if (canonical.has(destinationKey))
+      throw new Error(
+        `rename destination is occupied: ${requirement.capability}: ${requirement.title}`,
+      );
+    renameEndpoints.set(sourceKey, { source: requirement.source, destination: destinationKey });
+    renameEndpoints.set(destinationKey, {
+      source: requirement.source,
+      destination: destinationKey,
+    });
+    canonical.delete(sourceKey);
+    canonical.set(destinationKey, {
+      ...predecessor,
+      title: requirement.title,
+      source: requirement.source,
+      digest: hashBytes(Buffer.from(`${requirement.title}\u0000${predecessor.digest}`)),
+      aliases: [...predecessor.aliases, predecessor.source],
+    });
+    const position = mainKeys.indexOf(sourceKey);
+    if (position >= 0) mainKeys[position] = destinationKey;
+  }
   for (const { kind, requirement } of operations) {
+    if (kind === 'RENAMED') continue;
     const key = keyOf(requirement);
+    const rename = renameEndpoints.get(key);
+    // Proof: disabling this endpoint guard made the production competing-change negative
+    // accept a change targeting the old name beside an active rename.
+    if (
+      rename !== undefined &&
+      !(kind === 'MODIFIED' && key === rename.destination && requirement.source === rename.source)
+    ) {
+      throw new Error(
+        `competing overlay operation at rename endpoint: ${requirement.capability}: ${requirement.title}`,
+      );
+    }
     // Proof: removing this refusal made the two-change production negative select one
     // modification by path order and unexpectedly accept competing operations.
     if (seenOperations.has(key))
@@ -232,7 +331,13 @@ export function selectActiveSpecifications(inputs: readonly SpecInput[]): Active
       throw new Error(
         `MODIFIED requirement drops canonical scenario: ${requirement.capability}: ${requirement.title}`,
       );
-    canonical.set(key, { ...requirement, aliases: [...predecessor.aliases, predecessor.source] });
+    canonical.set(key, {
+      ...requirement,
+      aliases: [
+        ...predecessor.aliases,
+        ...(predecessor.source === requirement.source ? [] : [predecessor.source]),
+      ],
+    });
   }
   const inputIdentity = inputs
     .map(({ path, digest }) => ({ path, digest }))
@@ -245,16 +350,19 @@ export function selectActiveSpecifications(inputs: readonly SpecInput[]): Active
     })
     .map(({ aliases, ...requirement }) => ({ ...requirement, aliases: [...aliases].sort() }));
   const applied = operations
-    .map(({ kind, requirement }) => ({
+    .map(({ kind, requirement, from }) => ({
       kind,
       capability: requirement.capability,
       title: requirement.title,
       source: requirement.source,
       digest: requirement.digest,
+      ...(from === undefined ? {} : { from }),
     }))
     .sort(
       (left, right) =>
-        left.source.localeCompare(right.source) || left.title.localeCompare(right.title),
+        left.source.localeCompare(right.source) ||
+        left.title.localeCompare(right.title) ||
+        left.kind.localeCompare(right.kind),
     );
   return { inputs: inputIdentity, effective, operations: applied, removals };
 }

@@ -82,7 +82,7 @@ interface CheckVerdict {
     selection?: {
       inputs: { path: string; digest: string }[];
       effective: { title: string; source: string; aliases: string[] }[];
-      operations: { kind: string; title: string; source: string }[];
+      operations: { kind: string; title: string; source: string; digest: string; from?: string }[];
       removals: { capability: string; title: string; ids: string[] }[];
     };
   };
@@ -146,7 +146,7 @@ test('production check accepts an unchanged journal with an ancestor base and bi
   expect(response.exitCode, response.stderr).toBe(0);
   expect(response.verdict?.allowed).toBe(true);
   expect(response.verdict?.scenarios).toMatchObject({
-    selectorVersion: 2,
+    selectorVersion: 3,
     baseRevision: base,
     baseJournalDigest: hashBytes(new TextEncoder().encode(initialJournal)),
     candidateJournalDigest: hashBytes(new TextEncoder().encode(initialJournal)),
@@ -462,7 +462,7 @@ test('production evidence identity changes when only the trusted base changes', 
   expect(first.verdict?.scenarios?.candidateJournalDigest).toBe(
     second.verdict?.scenarios?.candidateJournalDigest,
   );
-  expect(first.verdict?.scenarios?.selectorVersion).toBe(2);
+  expect(first.verdict?.scenarios?.selectorVersion).toBe(3);
   expect(first.verdict?.scenarios?.evidenceDigest).toMatch(/^[0-9a-f]{64}$/);
   expect(second.verdict?.scenarios?.evidenceDigest).not.toBe(
     first.verdict?.scenarios?.evidenceDigest,
@@ -586,7 +586,7 @@ test('production selector applies modified and added requirements without losing
   });
   const response = check(repository, candidate, { baseRevision: base });
   expect(response.exitCode, response.stderr).toBe(0);
-  expect(response.verdict?.scenarios?.selectorVersion).toBe(2);
+  expect(response.verdict?.scenarios?.selectorVersion).toBe(3);
   expect(response.verdict?.scenarios?.selection?.inputs.map(({ path }) => path)).toEqual([
     overlay,
     source,
@@ -602,16 +602,141 @@ test('production selector applies modified and added requirements without losing
   ]);
 });
 
+const renamePair =
+  '## RENAMED Requirements\n- FROM: `### Requirement: First requirement`\n' +
+  '- TO: `### Requirement: Renamed requirement`\n';
+const renamedBody =
+  '## MODIFIED Requirements\n### Requirement: Renamed requirement\n' +
+  '#### Scenario: [EXAMPLE-001] First case\n- **THEN** revised behavior\n';
+
+test('production selector records a rename-only operation and binds its effective title', () => {
+  const { repository, base, candidate: before } = fixture();
+  const overlay = 'openspec/changes/rename/specs/example/spec.md';
+  const candidate = nextCommit(repository, { [overlay]: renamePair });
+  const prior = check(repository, before, { baseRevision: base });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(prior.exitCode, prior.stderr).toBe(0);
+  expect(response.exitCode, response.stderr).toBe(0);
+  expect(response.verdict?.scenarios?.selection?.effective[0]).toMatchObject({
+    title: 'Renamed requirement',
+    source: overlay,
+    aliases: [source],
+  });
+  expect(response.verdict?.scenarios?.selection?.effective[0]?.digest).not.toBe(
+    prior.verdict?.scenarios?.selection?.effective[0]?.digest,
+  );
+  expect(response.verdict?.scenarios?.selection?.operations).toMatchObject([
+    {
+      kind: 'RENAMED',
+      from: 'First requirement',
+      title: 'Renamed requirement',
+      source: overlay,
+      digest: hashBytes(Buffer.from('First requirement\u0000Renamed requirement')),
+    },
+  ]);
+});
+
+// Proof: disabling rename parsing made both production checks refuse the valid pair.
+test.each([renamePair + renamedBody, renamedBody + renamePair])(
+  'production selector preserves position, scenario and effective body across requirement rename',
+  (markdown) => {
+    const { repository, base } = fixture();
+    const overlay = 'openspec/changes/rename/specs/example/spec.md';
+    const candidate = nextCommit(repository, { [overlay]: markdown });
+    const response = check(repository, candidate, { baseRevision: base });
+    expect(response.exitCode, response.stderr).toBe(0);
+    expect(response.verdict?.scenarios?.selection?.effective).toMatchObject([
+      { title: 'Renamed requirement', source: overlay, aliases: [source] },
+    ]);
+    expect(response.verdict?.scenarios?.selection?.operations.map(({ kind }) => kind)).toEqual([
+      'MODIFIED',
+      'RENAMED',
+    ]);
+  },
+);
+
+test.each([
+  [
+    'missing TO',
+    '## RENAMED Requirements\n- FROM: `### Requirement: First requirement`\n',
+    'rename pair',
+  ],
+  [
+    'missing FROM',
+    '## RENAMED Requirements\n- TO: `### Requirement: Renamed requirement`\n',
+    'rename pair',
+  ],
+  [
+    'reversed endpoints',
+    '## RENAMED Requirements\n- TO: `### Requirement: Renamed requirement`\n- FROM: `### Requirement: First requirement`\n',
+    'rename pair',
+  ],
+  ['duplicate FROM', renamePair + '- FROM: `### Requirement: First requirement`\n', 'rename pair'],
+  ['duplicate TO', renamePair + '- TO: `### Requirement: Renamed requirement`\n', 'rename pair'],
+  [
+    'heading in pair',
+    renamePair + '### Requirement: Hidden\n#### Scenario: Hidden\n',
+    'inside rename pair',
+  ],
+  ['unknown source', renamePair.replace('First requirement', 'Unknown'), 'no predecessor'],
+  [
+    'occupied destination',
+    renamePair.replace('Renamed requirement', 'First requirement'),
+    'occupied',
+  ],
+  [
+    'chain',
+    renamePair +
+      '- FROM: `### Requirement: Renamed requirement`\n- TO: `### Requirement: Third requirement`\n',
+    'competing',
+  ],
+  [
+    'dropped scenario',
+    renamePair +
+      '## MODIFIED Requirements\n### Requirement: Renamed requirement\n#### Scenario: Changed case\n',
+    'drops canonical scenario',
+  ],
+])('production selector refuses requirement rename %s', (_label, markdown, reason) => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    'openspec/changes/rename/specs/example/spec.md': markdown,
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain(reason);
+});
+
+test('production selector refuses another change targeting either rename endpoint', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    'openspec/changes/rename/specs/example/spec.md': renamePair,
+    'openspec/changes/compete/specs/example/spec.md':
+      '## MODIFIED Requirements\n### Requirement: First requirement\n' +
+      '#### Scenario: [EXAMPLE-001] First case\n',
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain('competing');
+});
+
+test('production selector refuses another change targeting the rename destination', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    'openspec/changes/rename/specs/example/spec.md': renamePair,
+    'openspec/changes/compete/specs/example/spec.md':
+      '## MODIFIED Requirements\n### Requirement: Renamed requirement\n' +
+      '#### Scenario: [EXAMPLE-001] First case\n',
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain('competing');
+});
+
 test.each([
   [
     'missing predecessor',
     '## MODIFIED Requirements\n### Requirement: Unknown\n#### Scenario: Other\n',
     'has no predecessor',
-  ],
-  [
-    'unsupported rename',
-    '## RENAMED Requirements\n### Requirement: First requirement\n#### Scenario: [EXAMPLE-001] First case\n',
-    'unsupported overlay operation',
   ],
   [
     'unknown operation',
