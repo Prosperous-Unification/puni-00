@@ -1,11 +1,19 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
 import { registeredRules } from '../rules/registry';
-import { hashBytes } from './content-manifest';
+import { hashBytes, hashCanonical } from './content-manifest';
 
 const scratch: string[] = [];
 const cli = join(import.meta.dir, '..', 'cli.ts');
@@ -15,7 +23,49 @@ function git(root: string, args: string[]): string {
   if (call.exitCode !== 0) throw new Error(call.stderr.toString());
   return call.stdout.toString().trim();
 }
-function fixture() {
+function indexSource(
+  moduleId: string,
+  memberships: { kind: string; path?: string; prefix?: string; exclusions?: string[] }[],
+): string {
+  return `# Fixture module\n\n<!-- module-index ${JSON.stringify({
+    schemaVersion: 1,
+    moduleId,
+    memberships,
+    relationshipSelectors: [],
+    applicableChecks: [],
+    inapplicableSections: [
+      { section: 'relationships', reason: 'Fixture has no relationships.' },
+      { section: 'invariants', reason: 'Fixture has no cross-file invariant.' },
+      { section: 'checks', reason: 'Fixture uses the Manual inspector.' },
+    ],
+    externalConsumers: { kind: 'none-known', knowledgeLimit: 'Fixture candidate only.' },
+  })} -->\n`;
+}
+function reviewedScope(root: string, revision: string) {
+  const requirement =
+    '### Requirement: Example requirement\n#### Scenario: [EXAMPLE-001] Example\n';
+  const paths = ['source/README.md', 'source/module.ts'];
+  const entries = paths.map((path) => ({
+    path,
+    mode: git(root, ['ls-tree', revision, '--', path]).slice(0, 6),
+    blob: git(root, ['rev-parse', `${revision}:${path}`]),
+  }));
+  return {
+    requirementDigest: hashBytes(Buffer.from(requirement)),
+    modules: [
+      {
+        moduleId: 'module-one',
+        digest: hashCanonical({
+          schemaVersion: 1,
+          moduleId: 'module-one',
+          indexPath: 'source/README.md',
+          entries,
+        }),
+      },
+    ],
+  };
+}
+function fixture(baseLamp = true) {
   const base = mkdtempSync(join(tmpdir(), 'burokrat-manual-'));
   scratch.push(base);
   const root = join(base, 'candidate');
@@ -23,6 +73,7 @@ function fixture() {
   git(root, ['init']);
   git(root, ['config', 'user.name', 'Fixture Author']);
   git(root, ['config', 'user.email', 'author@example.invalid']);
+  git(root, ['commit', '--allow-empty', '-m', 'earlier history']);
   const source = 'openspec/specs/example/spec.md';
   mkdirSync(join(root, 'openspec/specs/example'), { recursive: true });
   writeFileSync(
@@ -36,9 +87,24 @@ function fixture() {
       events: [{ kind: 'import', id: 'EXAMPLE-001', source, title: 'Example' }],
     }),
   );
+  writeFileSync(
+    join(root, 'README.md'),
+    indexSource('module-root', [
+      { kind: 'directory-prefix', prefix: 'openspec', exclusions: [] },
+      { kind: 'directory-prefix', prefix: 'manual', exclusions: [] },
+      { kind: 'path', path: 'source/README.md' },
+    ]),
+  );
+  mkdirSync(join(root, 'source'));
+  writeFileSync(
+    join(root, 'source/README.md'),
+    indexSource('module-one', [{ kind: 'path', path: 'module.ts' }]),
+  );
+  writeFileSync(join(root, 'source/module.ts'), `export const lamp = ${String(baseLamp)};\n`);
   git(root, ['add', '.']);
   git(root, ['commit', '-m', 'reviewed base']);
   const baseRevision = git(root, ['rev-parse', 'HEAD']);
+  if (!baseLamp) writeFileSync(join(root, 'source/module.ts'), 'export const lamp = true;\n');
   const disposition = {
     schemaVersion: 1,
     scenarioId: 'EXAMPLE-001',
@@ -61,6 +127,7 @@ function fixture() {
   git(root, ['add', '.']);
   git(root, ['commit', '-m', 'candidate']);
   const revision = git(root, ['rev-parse', 'HEAD']);
+  const scope = reviewedScope(root, revision);
   const environment = {
     schemaVersion: 1,
     observationId: 'observation-one',
@@ -78,10 +145,7 @@ function fixture() {
     dispositionDigest: digest(disposition),
     procedureDigest: digest(procedure),
     sourceRevision: revision,
-    reviewedScope: {
-      requirementDigest: 'a'.repeat(64),
-      modules: [{ moduleId: 'module-one', digest: 'b'.repeat(64) }],
-    },
+    reviewedScope: scope,
     operator: 'operator-one',
     startedAt: '2026-10-08T10:01:00.000Z',
     completedAt: '2026-10-08T10:02:00.000Z',
@@ -152,7 +216,7 @@ function fixture() {
     reportPath: join(base, 'report.json'),
   };
 }
-function inspect(setup: ReturnType<typeof fixture>) {
+function inspect(setup: ReturnType<typeof fixture>, env = process.env) {
   return Bun.spawnSync(
     [
       process.execPath,
@@ -164,8 +228,12 @@ function inspect(setup: ReturnType<typeof fixture>) {
       setup.policyPath,
       setup.reportPath,
     ],
-    { stdout: 'pipe', stderr: 'pipe' },
+    { env, stdout: 'pipe', stderr: 'pipe' },
   );
+}
+function readCurrency(call: ReturnType<typeof inspect>): unknown {
+  const observation = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
+  return observation['currency'];
 }
 afterEach(() => {
   for (const path of scratch.splice(0)) rmSync(path, { recursive: true, force: true });
@@ -185,12 +253,22 @@ test('inspect-manual accepts an exact external approval chain as a noncertifying
   expect(observation['runId']).toBe('run-one');
   expect(observation['revision']).toBe(setup.revision);
   expect(observation['testedRevision']).toBe(setup.revision);
+  expect(observation['currency']).toBe('current');
   expect(observation['reportDigest']).toBe(digest(setup.records.report));
   expect(Object.hasOwn(observation, 'coverage')).toBe(false);
 });
 
 test('inspect-manual keeps an earlier tested commit distinct from an unrelated selected descendant', () => {
   const setup = fixture();
+  writeFileSync(
+    join(setup.root, 'README.md'),
+    indexSource('module-root', [
+      { kind: 'directory-prefix', prefix: 'openspec', exclusions: [] },
+      { kind: 'directory-prefix', prefix: 'manual', exclusions: [] },
+      { kind: 'path', path: 'source/README.md' },
+      { kind: 'path', path: 'unrelated.txt' },
+    ]),
+  );
   writeFileSync(join(setup.root, 'unrelated.txt'), 'unrelated change');
   git(setup.root, ['add', '.']);
   git(setup.root, ['commit', '-m', 'unrelated descendant']);
@@ -200,8 +278,676 @@ test('inspect-manual keeps an earlier tested commit distinct from an unrelated s
   const observation = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
   expect(observation['revision']).toBe(revision);
   expect(observation['testedRevision']).toBe(setup.revision);
-  expect(observation['currency']).toBe('unevaluated');
+  expect(observation['currency']).toBe('current');
   expect(observation['certifies']).toBe(false);
+});
+
+test.each([
+  [
+    'requirement',
+    'openspec/specs/example/spec.md',
+    '## Requirements\n### Requirement: Example requirement\nChanged text.\n#### Scenario: [EXAMPLE-001] Example\n',
+  ],
+  [
+    'procedure',
+    'manual/procedure.json',
+    JSON.stringify({
+      schemaVersion: 1,
+      scenarioId: 'EXAMPLE-001',
+      title: 'Example',
+      steps: [
+        {
+          stepId: 'step-one',
+          instruction: 'Press the red control',
+          expectedObservation: 'Lamp lights',
+        },
+      ],
+    }),
+  ],
+  ['module content', 'source/module.ts', 'export const lamp = false;\n'],
+])(
+  'inspect-manual marks changed %s stale from the production command',
+  (_subject, path, source) => {
+    const setup = fixture();
+    writeFileSync(join(setup.root, path), source);
+    git(setup.root, ['add', '.']);
+    git(setup.root, ['commit', '-m', 'change reviewed source']);
+    const revision = git(setup.root, ['rev-parse', 'HEAD']);
+    const call = inspect({ ...setup, revision });
+    expect(call.exitCode, call.stderr.toString()).toBe(0);
+    expect(readCurrency(call)).toBe('stale');
+  },
+);
+
+test('inspect-manual marks a touched module membership addition stale', () => {
+  const setup = fixture();
+  writeFileSync(
+    join(setup.root, 'source/README.md'),
+    indexSource('module-one', [
+      { kind: 'path', path: 'module.ts' },
+      { kind: 'path', path: 'added.ts' },
+    ]),
+  );
+  writeFileSync(join(setup.root, 'source/added.ts'), 'export const added = true;\n');
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'add module member']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('stale');
+});
+
+test('inspect-manual detects a module change followed by a byte-for-byte revert', () => {
+  const setup = fixture();
+  writeFileSync(join(setup.root, 'source/module.ts'), 'export const lamp = false;\n');
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'temporarily change lamp']);
+  writeFileSync(join(setup.root, 'source/module.ts'), 'export const lamp = true;\n');
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'restore lamp']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('stale');
+});
+
+test('inspect-manual refuses a tested commit outside selected ancestry', () => {
+  const setup = fixture();
+  git(setup.root, ['checkout', '-b', 'other', setup.baseRevision]);
+  writeFileSync(join(setup.root, 'other.txt'), 'different branch\n');
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'unrelated tested branch']);
+  const unrelated = git(setup.root, ['rev-parse', 'HEAD']);
+  setup.records.report.sourceRevision = unrelated;
+  setup.records.environment.sourceRevision = unrelated;
+  setup.records.report.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
+  const call = inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Manual tested revision is not a candidate ancestor');
+});
+
+test('inspect-manual refuses incomplete shallow Git history', () => {
+  const setup = fixture();
+  for (const number of [1, 2, 3]) {
+    writeFileSync(
+      join(setup.root, `unrelated-${String(number)}.txt`),
+      `change ${String(number)}\n`,
+    );
+    git(setup.root, ['add', '.']);
+    git(setup.root, ['commit', '-m', `unrelated ${String(number)}`]);
+  }
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const clone = join(setup.base, 'shallow');
+  git(setup.base, ['clone', '--depth=5', `file://${setup.root}`, clone]);
+  const call = inspect({ ...setup, root: clone, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Manual source history is incomplete');
+});
+
+test.each([
+  ['omitted', (modules: { moduleId: string; digest: string }[]) => modules.slice(0, 0)],
+  ['duplicate', (modules: { moduleId: string; digest: string }[]) => [...modules, modules[0]]],
+  [
+    'extra',
+    (modules: { moduleId: string; digest: string }[]) => [
+      ...modules,
+      { moduleId: 'module-two', digest: 'a'.repeat(64) },
+    ],
+  ],
+])('inspect-manual refuses %s reviewed module scope', (_case, change) => {
+  const setup = fixture();
+  setup.records.report.reviewedScope.modules = change(setup.records.report.reviewedScope.modules);
+  setup.records.review.reviewedScope = setup.records.report.reviewedScope;
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
+  const call = inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain(
+    'Manual reviewed module scope differs from touched modules',
+  );
+});
+
+test('inspect-manual refuses a reviewed requirement digest outside tested Git source', () => {
+  const setup = fixture();
+  setup.records.report.reviewedScope.requirementDigest = 'a'.repeat(64);
+  setup.records.review.reviewedScope = setup.records.report.reviewedScope;
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
+  const call = inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain(
+    'Manual reviewed source scope differs from tested revision',
+  );
+});
+
+test('inspect-manual refuses a reviewed module digest outside tested Git source', () => {
+  const setup = fixture();
+  setup.records.report.reviewedScope.modules[0].digest = 'a'.repeat(64);
+  setup.records.review.reviewedScope = setup.records.report.reviewedScope;
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
+  const call = inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain(
+    'Manual reviewed source scope differs from tested revision',
+  );
+});
+
+test('inspect-manual refuses a touched module ID absent from tested indexes', () => {
+  const setup = fixture();
+  setup.disposition.touchedModules = ['module-unknown'];
+  writeFileSync(join(setup.root, 'manual/disposition.json'), JSON.stringify(setup.disposition));
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'declare unknown touched module']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  setup.manual.dispositions[0].digest = digest(setup.disposition);
+  setup.records.report.dispositionDigest = digest(setup.disposition);
+  setup.records.review.dispositionDigest = digest(setup.disposition);
+  setup.records.report.reviewedScope.modules = [
+    { moduleId: 'module-unknown', digest: 'a'.repeat(64) },
+  ];
+  setup.records.review.reviewedScope = setup.records.report.reviewedScope;
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain(
+    'Manual reviewed source scope differs from tested revision',
+  );
+});
+
+test('inspect-manual validates report steps against the tested procedure after candidate steps change', () => {
+  const setup = fixture();
+  writeFileSync(
+    join(setup.root, 'manual/procedure.json'),
+    JSON.stringify({
+      ...setup.procedure,
+      steps: [
+        ...setup.procedure.steps,
+        {
+          stepId: 'step-two',
+          instruction: 'Release control',
+          expectedObservation: 'Lamp goes dark',
+        },
+      ],
+    }),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'add later procedure step']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('stale');
+});
+
+test('inspect-manual refuses an empty tested procedure even after the candidate repairs it', () => {
+  const setup = fixture();
+  const procedurePath = join(setup.root, 'manual/procedure.json');
+  writeFileSync(procedurePath, JSON.stringify({ ...setup.procedure, steps: [] }));
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'empty tested procedure']);
+  const tested = git(setup.root, ['rev-parse', 'HEAD']);
+  writeFileSync(procedurePath, JSON.stringify(setup.procedure));
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'repair procedure']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  setup.records.report.sourceRevision = tested;
+  setup.records.environment.sourceRevision = tested;
+  setup.records.report.procedureDigest = digest({ ...setup.procedure, steps: [] });
+  setup.records.review.procedureDigest = setup.records.report.procedureDigest;
+  setup.records.report.steps = [];
+  setup.records.report.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Manual tested procedure steps are invalid');
+});
+
+test('inspect-manual ignores Git replacement objects for module indexes', () => {
+  const setup = fixture();
+  const replacement = join(setup.base, 'replacement.md');
+  writeFileSync(replacement, '# forged index\n');
+  const oldBlob = git(setup.root, ['rev-parse', `${setup.revision}:source/README.md`]);
+  const newBlob = git(setup.root, ['hash-object', '-w', replacement]);
+  git(setup.root, ['replace', oldBlob, newBlob]);
+  const call = inspect(setup);
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('current');
+});
+
+test('inspect-manual marks an edited module index stale', () => {
+  const setup = fixture();
+  writeFileSync(
+    join(setup.root, 'source/README.md'),
+    `${indexSource('module-one', [
+      { kind: 'path', path: 'module.ts' },
+    ])}\nReviewed explanation changed.\n`,
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'edit module index']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('stale');
+});
+
+test('inspect-manual marks a sibling scenario edit in the containing requirement stale', () => {
+  const setup = fixture();
+  writeFileSync(
+    join(setup.root, 'openspec/specs/example/spec.md'),
+    '## Requirements\n### Requirement: Example requirement\n#### Scenario: [EXAMPLE-001] Example\n#### Scenario: A new sibling\n',
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'add sibling scenario']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('stale');
+});
+
+test('inspect-manual accepts a tested revision earlier than the current B3 base', () => {
+  const setup = fixture();
+  git(setup.root, ['commit', '--allow-empty', '-m', 'new candidate policy base']);
+  const baseRevision = git(setup.root, ['rev-parse', 'HEAD']);
+  git(setup.root, ['commit', '--allow-empty', '-m', 'later selected commit']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  writeFileSync(setup.policyPath, JSON.stringify({ ...setup.policy, scenarios: { baseRevision } }));
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('current');
+});
+
+test.each([
+  [
+    'requirement',
+    'openspec/specs/example/spec.md',
+    '## Requirements\n### Requirement: Example requirement\nTemporary text.\n#### Scenario: [EXAMPLE-001] Example\n',
+  ],
+  [
+    'procedure',
+    'manual/procedure.json',
+    JSON.stringify({
+      schemaVersion: 1,
+      scenarioId: 'EXAMPLE-001',
+      title: 'Example',
+      steps: [
+        {
+          stepId: 'step-one',
+          instruction: 'Temporarily use the red control',
+          expectedObservation: 'Lamp lights',
+        },
+      ],
+    }),
+  ],
+  [
+    'module membership',
+    'source/README.md',
+    indexSource('module-one', [{ kind: 'directory-prefix', prefix: 'module.ts', exclusions: [] }]),
+  ],
+])('inspect-manual detects %s change then revert', (_subject, path, changed) => {
+  const setup = fixture();
+  const original = readFileSync(join(setup.root, path));
+  writeFileSync(join(setup.root, path), changed);
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'temporary reviewed input change']);
+  writeFileSync(join(setup.root, path), original);
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'restore reviewed input']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('stale');
+});
+
+test('inspect-manual marks an executable-mode change to a module member stale', () => {
+  const setup = fixture();
+  git(setup.root, ['update-index', '--chmod=+x', 'source/module.ts']);
+  git(setup.root, ['commit', '-m', 'change member mode']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('stale');
+});
+
+test.each(['remove', 'rename'])('inspect-manual marks a module member %s stale', (operation) => {
+  const setup = fixture();
+  if (operation === 'rename') git(setup.root, ['mv', 'source/module.ts', 'source/renamed.ts']);
+  else rmSync(join(setup.root, 'source/module.ts'));
+  writeFileSync(
+    join(setup.root, 'source/README.md'),
+    indexSource('module-one', operation === 'rename' ? [{ kind: 'path', path: 'renamed.ts' }] : []),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', `${operation} module member`]);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('stale');
+});
+
+test('inspect-manual marks nested index ownership transfer stale', () => {
+  const setup = fixture();
+  mkdirSync(join(setup.root, 'source/child'));
+  git(setup.root, ['mv', 'source/module.ts', 'source/child/module.ts']);
+  writeFileSync(
+    join(setup.root, 'source/README.md'),
+    indexSource('module-one', [{ kind: 'path', path: 'child/README.md' }]),
+  );
+  writeFileSync(
+    join(setup.root, 'source/child/README.md'),
+    indexSource('module-child', [{ kind: 'path', path: 'module.ts' }]),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'transfer member to child index']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('stale');
+});
+
+test('inspect-manual refuses a grafted history', () => {
+  const setup = fixture();
+  writeFileSync(join(setup.root, '.git/info/grafts'), `${setup.revision} ${setup.baseRevision}\n`);
+  const call = inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Manual source history is incomplete: grafts present');
+});
+
+test.each([
+  ['unrelated', false, 'current'],
+  ['touched module change then revert', true, 'stale'],
+])(
+  'inspect-manual handles a pretested side branch with %s',
+  (_subject, changesModule, currency) => {
+    const setup = fixture();
+    const originalBranch = git(setup.root, ['branch', '--show-current']);
+    git(setup.root, ['checkout', '-b', 'side', setup.baseRevision]);
+    if (changesModule) {
+      writeFileSync(join(setup.root, 'source/module.ts'), 'export const lamp = false;\n');
+      git(setup.root, ['add', '.']);
+      git(setup.root, ['commit', '-m', 'side branch changes module']);
+      writeFileSync(join(setup.root, 'source/module.ts'), 'export const lamp = true;\n');
+      git(setup.root, ['add', '.']);
+      git(setup.root, ['commit', '-m', 'side branch restores module']);
+    } else {
+      writeFileSync(join(setup.root, 'side.txt'), 'unrelated branch change\n');
+      git(setup.root, ['add', '.']);
+      git(setup.root, ['commit', '-m', 'side branch unrelated']);
+    }
+    git(setup.root, ['checkout', originalBranch]);
+    if (!changesModule) {
+      writeFileSync(join(setup.root, 'side.txt'), 'unrelated branch change\n');
+      writeFileSync(
+        join(setup.root, 'README.md'),
+        indexSource('module-root', [
+          { kind: 'directory-prefix', prefix: 'openspec', exclusions: [] },
+          { kind: 'directory-prefix', prefix: 'manual', exclusions: [] },
+          { kind: 'path', path: 'source/README.md' },
+          { kind: 'path', path: 'side.txt' },
+        ]),
+      );
+      git(setup.root, ['add', '.']);
+      git(setup.root, ['commit', '-m', 'index unrelated side file']);
+    }
+    git(setup.root, ['merge', '--no-ff', '-m', 'merge side branch', 'side']);
+    const revision = git(setup.root, ['rev-parse', 'HEAD']);
+    const call = inspect({ ...setup, revision });
+    expect(call.exitCode, call.stderr.toString()).toBe(0);
+    expect(readCurrency(call)).toBe(currency);
+  },
+);
+
+test.each(['commit', 'tree', 'blob'])(
+  'inspect-manual refuses a missing intermediate %s object',
+  (kind) => {
+    const setup = fixture();
+    writeFileSync(join(setup.root, 'source/module.ts'), 'export const lamp = false;\n');
+    git(setup.root, ['add', '.']);
+    git(setup.root, ['commit', '-m', 'intermediate source change']);
+    const middle = git(setup.root, ['rev-parse', 'HEAD']);
+    writeFileSync(join(setup.root, 'source/module.ts'), 'export const lamp = true;\n');
+    git(setup.root, ['add', '.']);
+    git(setup.root, ['commit', '-m', 'restore source']);
+    const revision = git(setup.root, ['rev-parse', 'HEAD']);
+    const objectId =
+      kind === 'commit'
+        ? middle
+        : kind === 'tree'
+          ? git(setup.root, ['rev-parse', `${middle}^{tree}`])
+          : git(setup.root, ['rev-parse', `${middle}:source/module.ts`]);
+    rmSync(join(setup.root, '.git/objects', objectId.slice(0, 2), objectId.slice(2)));
+    const call = inspect({ ...setup, revision });
+    expect(call.exitCode).toBe(1);
+    expect(call.stderr.toString()).toMatch(
+      /cannot verify Manual source (history|objects)|specifications base is not a candidate ancestor|absent .*revision|cannot read selected|cannot read selected blob|cannot resolve/,
+    );
+  },
+);
+
+test('inspect-manual refuses malformed index metadata in an intervening commit', () => {
+  const setup = fixture();
+  writeFileSync(join(setup.root, 'source/README.md'), '# Broken\n<!-- module-index {broken} -->\n');
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'malformed historical index']);
+  writeFileSync(
+    join(setup.root, 'source/README.md'),
+    indexSource('module-one', [{ kind: 'path', path: 'module.ts' }]),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'restore index']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('index metadata malformed');
+});
+
+test('inspect-manual sees a relevant second-parent edge of a pretested side merge', () => {
+  const setup = fixture(false);
+  const branch = git(setup.root, ['branch', '--show-current']);
+  const earlier = git(setup.root, ['rev-parse', `${setup.baseRevision}^`]);
+  git(setup.root, ['checkout', '-b', 'side', earlier]);
+  git(setup.root, ['commit', '--allow-empty', '-m', 'older side branch']);
+  git(setup.root, [
+    'merge',
+    '--no-ff',
+    '-s',
+    'ours',
+    '-m',
+    'merge older base into side',
+    setup.baseRevision,
+  ]);
+  git(setup.root, ['checkout', branch]);
+  git(setup.root, ['merge', '--no-ff', '-s', 'ours', '-m', 'merge side into selected', 'side']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('stale');
+});
+
+test('inspect-manual refuses a retired scenario in an intervening journal', () => {
+  const setup = fixture();
+  const path = join(setup.root, 'openspec/scenario-allocations.json');
+  const original = readFileSync(path);
+  writeFileSync(
+    path,
+    JSON.stringify({
+      schemaVersion: 1,
+      events: [
+        {
+          kind: 'import',
+          id: 'EXAMPLE-001',
+          source: 'openspec/specs/example/spec.md',
+          title: 'Example',
+        },
+        { kind: 'retire', id: 'EXAMPLE-001' },
+      ],
+    }),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'temporary retirement']);
+  writeFileSync(path, original);
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'restore journal']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Manual historical scenario is not active');
+});
+
+test('inspect-manual refuses a historical scenario title outside the reviewed report', () => {
+  const setup = fixture();
+  const specPath = join(setup.root, 'openspec/specs/example/spec.md');
+  const journalPath = join(setup.root, 'openspec/scenario-allocations.json');
+  const originalSpec = readFileSync(specPath);
+  const importEvent = {
+    kind: 'import',
+    id: 'EXAMPLE-001',
+    source: 'openspec/specs/example/spec.md',
+    title: 'Example',
+  };
+  const renamed = {
+    kind: 'rename',
+    id: 'EXAMPLE-001',
+    priorTitle: 'Example',
+    title: 'Alternate',
+    priorRevision: setup.revision,
+  };
+  writeFileSync(
+    specPath,
+    '## Requirements\n### Requirement: Example requirement\n#### Scenario: [EXAMPLE-001] Alternate\n',
+  );
+  writeFileSync(journalPath, JSON.stringify({ schemaVersion: 1, events: [importEvent, renamed] }));
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'historical alternate title']);
+  const tested = git(setup.root, ['rev-parse', 'HEAD']);
+  writeFileSync(specPath, originalSpec);
+  writeFileSync(
+    journalPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      events: [
+        importEvent,
+        renamed,
+        {
+          kind: 'rename',
+          id: 'EXAMPLE-001',
+          priorTitle: 'Alternate',
+          title: 'Example',
+          priorRevision: tested,
+        },
+      ],
+    }),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'restore current title']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  setup.records.report.sourceRevision = tested;
+  setup.records.environment.sourceRevision = tested;
+  setup.records.report.reviewedScope.requirementDigest = hashBytes(
+    Buffer.from('### Requirement: Example requirement\n#### Scenario: [EXAMPLE-001] Alternate\n'),
+  );
+  setup.records.review.reviewedScope = setup.records.report.reviewedScope;
+  setup.records.report.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain(
+    'Manual historical scenario title differs from reviewed report',
+  );
+});
+
+test('inspect-manual refuses a missing blob from a reverted side branch', () => {
+  const setup = fixture();
+  const branch = git(setup.root, ['branch', '--show-current']);
+  git(setup.root, ['checkout', '-b', 'side', setup.baseRevision]);
+  writeFileSync(join(setup.root, 'ephemeral.txt'), 'side-only bytes\n');
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'add side-only blob']);
+  const blob = git(setup.root, ['rev-parse', 'HEAD:ephemeral.txt']);
+  rmSync(join(setup.root, 'ephemeral.txt'));
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'remove side-only blob']);
+  git(setup.root, ['checkout', branch]);
+  git(setup.root, ['merge', '--no-ff', '-m', 'merge reverted side branch', 'side']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  rmSync(join(setup.root, '.git/objects', blob.slice(0, 2), blob.slice(2)));
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('cannot verify Manual source objects');
+});
+
+test('inspect-manual refuses truncated Git path output on a side branch', () => {
+  const setup = fixture();
+  const branch = git(setup.root, ['branch', '--show-current']);
+  git(setup.root, ['checkout', '-b', 'side', setup.baseRevision]);
+  git(setup.root, ['commit', '--allow-empty', '-m', 'side commit']);
+  git(setup.root, ['checkout', branch]);
+  git(setup.root, ['merge', '--no-ff', '-m', 'merge side commit', 'side']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const tools = join(setup.base, 'tools');
+  mkdirSync(tools);
+  const wrapper = join(tools, 'git');
+  writeFileSync(
+    wrapper,
+    '#!/bin/sh\nif [ "$3" = "diff-tree" ]; then printf "source/module.ts"; exit 0; fi\nexec /usr/bin/git "$@"\n',
+  );
+  chmodSync(wrapper, 0o755);
+  const inheritedPath = process.env['PATH'];
+  if (inheritedPath === undefined) throw new Error('test PATH is absent');
+  const call = inspect(
+    { ...setup, revision },
+    { ...process.env, PATH: `${tools}:${inheritedPath}` },
+  );
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('malformed Manual side-branch changes paths');
+});
+
+test('inspect-manual marks a changed effective overlay requirement stale', () => {
+  const setup = fixture();
+  const path = join(setup.root, 'openspec/changes/overlay/specs/example/spec.md');
+  mkdirSync(join(setup.root, 'openspec/changes/overlay/specs/example'), { recursive: true });
+  writeFileSync(
+    path,
+    '## MODIFIED Requirements\n### Requirement: Example requirement\nOverlay edit.\n#### Scenario: [EXAMPLE-001] Example\n',
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'overlay requirement edit']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('stale');
+});
+
+test('inspect-manual keeps identical effective overlay and archive movement current', () => {
+  const setup = fixture();
+  const directory = join(setup.root, 'openspec/changes/overlay/specs/example');
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(
+    join(directory, 'spec.md'),
+    '## MODIFIED Requirements\n### Requirement: Example requirement\n#### Scenario: [EXAMPLE-001] Example\n',
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'identical overlay']);
+  mkdirSync(join(setup.root, 'openspec/changes/archive/overlay/specs/example'), {
+    recursive: true,
+  });
+  git(setup.root, [
+    'mv',
+    'openspec/changes/overlay/specs/example/spec.md',
+    'openspec/changes/archive/overlay/specs/example/spec.md',
+  ]);
+  git(setup.root, ['commit', '-m', 'archive identical overlay']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('current');
 });
 
 test('inspect-manual refuses a pinned tested SHA that is not a commit object', () => {
@@ -636,7 +1382,7 @@ test('inspect-manual refuses malformed and unknown fields in every external reco
     writeFileSync(path, JSON.stringify({ ...setup.records[name], extra: true }));
     expect(inspect(setup).stderr.toString()).toContain('extra');
   }
-});
+}, 12_000);
 
 test('inspect-manual refuses a policy inside candidate and a noncommitted revision', () => {
   const setup = fixture();

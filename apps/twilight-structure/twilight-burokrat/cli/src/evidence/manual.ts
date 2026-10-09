@@ -1,9 +1,10 @@
-import { lstatSync } from 'node:fs';
+import { existsSync, lstatSync } from 'node:fs';
 import { isAbsolute, parse, resolve, sep } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
 import { RelativePath } from '../contracts/records';
+import { checkIndexes } from '../indexes/check-indexes';
 import { readCandidateBlob } from '../inventory/read-blob';
 import {
   CandidateReadError,
@@ -11,9 +12,12 @@ import {
   resolveCandidateRoot,
 } from '../inventory/read-candidate';
 import { readExternalArtifact } from '../policy/trust';
+import { selectActiveSpecifications, type SpecInput } from '../rules/active-spec-selector';
 import { loadRulePolicyWithIdentity } from '../rules/rule-policy';
+import { decodeScenarioJournal } from '../rules/scenario-command';
+import { deriveScenarioIndex } from '../rules/scenarios';
 import { evaluateSpecifications } from '../rules/specifications';
-import { hashBytes, hashCanonical } from './content-manifest';
+import { compareCanonicalText, hashBytes, hashCanonical } from './content-manifest';
 
 // Proof: widening this version made the CLI's unknown-version assertion fail on version 99.
 const Version = type('1');
@@ -136,7 +140,7 @@ function utcDate(value: string, subject: string): number {
   return millis;
 }
 
-/** Evaluates only exact approval, binding, time and step evidence; source-history currency follows in 3.1.4. */
+/** Evaluates exact approval, binding, time and step evidence against the tested procedure. */
 function evaluateManualChain(
   chain: {
     disposition: typeof ManualDisposition.infer;
@@ -185,9 +189,6 @@ function evaluateManualChain(
     throw new Error('Manual review identity is self-asserted or blank');
   // Proof: removing this guard made the repinned blank-operator CLI assertion fail.
   if (report.operator.trim().length === 0) throw new Error('Manual report operator is blank');
-  // Proof: removing this join made the wrong tested-revision CLI assertion fail.
-  if (environment.sourceRevision !== report.sourceRevision)
-    throw new Error('Manual environment source revision differs from report');
   // Proof: removing this join made the repinned environment-digest CLI assertion fail.
   if (report.environmentDigest !== chain.environmentDigest)
     throw new Error('Manual report environment digest differs');
@@ -340,7 +341,323 @@ function readCandidateRecord(
   return { input, digest: hashBytes(bytes) };
 }
 
-/** Inspects committed Manual records and exact policy-pinned approvals; source-history currency remains unevaluated. */
+const ActiveMainSpec = /^openspec\/specs\/([a-z][a-z0-9-]*)\/spec\.md$/;
+const ActiveChangeSpec =
+  /^openspec\/changes\/([a-z][a-z0-9-]*)\/specs\/([a-z][a-z0-9-]*)\/spec\.md$/;
+
+function gitText(repository: string, args: readonly string[], subject: string): string {
+  const invocation = Bun.spawnSync(['git', '-C', repository, ...args], {
+    env: { ...process.env, GIT_NO_REPLACE_OBJECTS: '1' },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  if (invocation.exitCode !== 0)
+    throw new Error(
+      `cannot verify Manual ${subject}: ${invocation.stderr.toString('utf8').trim()}`,
+    );
+  return new TextDecoder('utf-8', { fatal: true }).decode(invocation.stdout).trim();
+}
+
+function gitPaths(repository: string, args: readonly string[], subject: string): string[] {
+  const invocation = Bun.spawnSync(['git', '-C', repository, ...args], {
+    env: { ...process.env, GIT_NO_REPLACE_OBJECTS: '1' },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  if (invocation.exitCode !== 0)
+    throw new Error(
+      `cannot verify Manual ${subject}: ${invocation.stderr.toString('utf8').trim()}`,
+    );
+  const decoded = new TextDecoder('utf-8', { fatal: true }).decode(invocation.stdout);
+  if (decoded.length === 0) return [];
+  // Proof: removing this terminator guard made the truncated-Git-output production CLI
+  // assertion accept a side-branch path after dropping its final byte.
+  if (!decoded.endsWith('\0')) throw new Error(`malformed Manual ${subject} paths`);
+  return decoded.slice(0, -1).split('\0');
+}
+
+function historyRevisions(repository: string, tested: string, candidate: string): string[] {
+  // Proof: disabling this guard made the shallow-clone CLI assertion lose its incomplete-history refusal.
+  if (gitText(repository, ['rev-parse', '--is-shallow-repository'], 'source history') !== 'false')
+    throw new Error('Manual source history is incomplete: shallow repository');
+  const grafts = gitText(repository, ['rev-parse', '--git-path', 'info/grafts'], 'source history');
+  // Proof: disabling this guard made the grafted-history CLI assertion fail.
+  if (existsSync(resolve(repository, grafts)))
+    throw new Error('Manual source history is incomplete: grafts present');
+  const ancestry = Bun.spawnSync(
+    ['git', '-C', repository, 'merge-base', '--is-ancestor', tested, candidate],
+    {
+      env: { ...process.env, GIT_NO_REPLACE_OBJECTS: '1' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+  // Proof: disabling this guard made the nonancestor CLI assertion lose its named refusal.
+  if (ancestry.exitCode === 1)
+    throw new Error(`Manual tested revision is not a candidate ancestor: ${tested}`);
+  if (ancestry.exitCode !== 0)
+    throw new Error(
+      `cannot verify Manual source history: ${ancestry.stderr.toString('utf8').trim()}`,
+    );
+  // Proof: replacing full DAG traversal with first-parent traversal made the pretested
+  // side-branch edit/revert CLI assertion report current instead of stale.
+  const later = gitText(
+    repository,
+    [
+      'rev-list',
+      '--reverse',
+      '--topo-order',
+      '--full-history',
+      '--missing=error',
+      `${tested}..${candidate}`,
+    ],
+    'source history',
+  );
+  // Proof: removing this preflight made the reverted side-branch missing-blob CLI assertion fail.
+  gitText(
+    repository,
+    ['rev-list', '--objects', '--missing=error', `${tested}..${candidate}`],
+    'source objects',
+  );
+  // Proof: replacing every intermediate snapshot with only the tested and selected commits made
+  // the module edit/revert CLI assertion report current instead of stale.
+  return [tested, ...later.split('\n').filter((revision) => revision.length > 0)];
+}
+
+function sideBranchChanges(repository: string, revision: string): string[] {
+  const line = gitText(
+    repository,
+    ['rev-list', '--parents', '-n', '1', revision],
+    'side-branch parents',
+  );
+  const [commit, ...parents] = line.split(' ');
+  if (
+    commit !== revision ||
+    parents.some((parent) => !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(parent))
+  )
+    throw new Error(`malformed Manual side-branch parent list: ${revision}`);
+  if (parents.length === 0)
+    return gitPaths(
+      repository,
+      ['diff-tree', '--root', '--no-renames', '--name-only', '-r', '-z', revision],
+      'side-branch changes',
+    );
+  // Proof: limiting this to the first parent made the pretested side-merge CLI assertion
+  // report current; the second-parent module edge requires stale.
+  return parents.flatMap((parent) => {
+    gitText(repository, ['cat-file', '-e', `${parent}^{tree}`], 'side-branch parent tree');
+    return gitPaths(
+      repository,
+      ['diff-tree', '--no-renames', '--name-only', '-r', '-z', parent, revision],
+      'side-branch changes',
+    );
+  });
+}
+
+function isAncestor(repository: string, ancestor: string, successor: string): boolean {
+  const invocation = Bun.spawnSync(
+    ['git', '-C', repository, 'merge-base', '--is-ancestor', ancestor, successor],
+    { env: { ...process.env, GIT_NO_REPLACE_OBJECTS: '1' }, stdout: 'pipe', stderr: 'pipe' },
+  );
+  if (invocation.exitCode !== 0 && invocation.exitCode !== 1)
+    throw new Error(
+      `cannot verify Manual source history: ${invocation.stderr.toString('utf8').trim()}`,
+    );
+  return invocation.exitCode === 0;
+}
+
+function selectedRequirement(
+  repository: string,
+  snapshot: ReturnType<typeof readCandidate>,
+  scenarioId: string,
+): { digest: string; title: string; capability: string } {
+  const journal = readCandidateRecord(
+    repository,
+    snapshot.entries,
+    'openspec/scenario-allocations.json',
+    'Manual historical scenario journal',
+  );
+  const identity = deriveScenarioIndex(decodeScenarioJournal(journal.input)).get(scenarioId);
+  // Proof: disabling this guard made the temporary-retirement CLI assertion fail.
+  if (!identity?.active) throw new Error(`Manual historical scenario is not active: ${scenarioId}`);
+  const specs: SpecInput[] = [];
+  for (const entry of snapshot.entries) {
+    const main = ActiveMainSpec.exec(entry.path);
+    const change = ActiveChangeSpec.exec(entry.path);
+    const capability = main?.[1] ?? change?.[2];
+    if (capability === undefined) continue;
+    if (entry.mode !== '100644' && entry.mode !== '100755')
+      throw new Error(`Manual historical specification is not a regular blob: ${entry.path}`);
+    const markdown = new TextDecoder('utf-8', { fatal: true }).decode(
+      readCandidateBlob(repository, entry.blob, entry.path),
+    );
+    specs.push({
+      path: entry.path,
+      capability,
+      markdown,
+      digest: hashBytes(Buffer.from(markdown)),
+      kind: main === null ? 'change' : 'main',
+    });
+  }
+  const effective = selectActiveSpecifications(specs).effective;
+  const matches = effective.flatMap((requirement) =>
+    requirement.scenarios
+      .filter((scenario) => scenario.id === scenarioId)
+      .map((scenario) => ({ requirement, scenario })),
+  );
+  if (matches.length !== 1)
+    throw new Error(`Manual historical scenario is ambiguous or absent: ${scenarioId}`);
+  const match = matches[0];
+  if (
+    identity.title !== match.scenario.title ||
+    identity.source.split('/').at(-2) !== match.requirement.capability
+  )
+    throw new Error(
+      `Manual historical scenario journal differs from selected specification: ${scenarioId}`,
+    );
+  return {
+    digest: match.requirement.digest,
+    title: match.scenario.title,
+    capability: match.requirement.capability,
+  };
+}
+
+function moduleScope(
+  repository: string,
+  snapshot: ReturnType<typeof readCandidate>,
+  moduleIds: readonly string[],
+): { moduleId: string; digest: string }[] {
+  // Proof: malformed intermediate index metadata makes the production Manual CLI refuse
+  // before any touched-module digest can be inferred.
+  const indexes = checkIndexes(repository, snapshot).indexes;
+  const entries = new Map(snapshot.entries.map((entry) => [entry.path, entry]));
+  return moduleIds.map((moduleId) => {
+    const matches = indexes.filter((index) => index.moduleId === moduleId);
+    // Proof: the unknown-touched-ID CLI case loses its tested-scope finding if this
+    // missing-index branch is removed; a valid later removal is a stale scope difference.
+    if (matches.length === 0) return { moduleId, digest: '' };
+    if (matches.length !== 1) throw new Error(`ambiguous Manual module index: ${moduleId}`);
+    const index = matches[0];
+    // Proof: omitting the index's own tuple made the edited-index CLI assertion fail.
+    const scope = [index.indexPath, ...index.members].sort(compareCanonicalText);
+    const moduleEntries = scope.map((path) => {
+      const entry = entries.get(path);
+      if (entry === undefined) throw new Error(`incomplete Manual module membership: ${path}`);
+      // Proof: forcing mode 100644 made the executable-mode CLI assertion report current.
+      return { path, mode: entry.mode, blob: entry.blob };
+    });
+    return {
+      moduleId,
+      digest: hashCanonical({
+        schemaVersion: 1,
+        moduleId,
+        indexPath: index.indexPath,
+        entries: moduleEntries,
+      }),
+    };
+  });
+}
+
+function evaluateSourceCurrency(
+  repository: string,
+  candidate: ReturnType<typeof readCandidate>,
+  testedRevision: string,
+  scenarioId: string,
+  reviewedTitle: string,
+  procedurePath: string,
+  touchedModules: readonly string[],
+  reviewedScope: typeof Scope.infer,
+): { procedure: ReturnType<typeof readCandidateRecord>; currency: 'current' | 'stale' } {
+  if (candidate.selection.kind !== 'committed')
+    throw new Error('Manual source requires committed selection');
+  const revisions = historyRevisions(repository, testedRevision, candidate.selection.revision);
+  const expectedModules = [...touchedModules].sort();
+  const reviewedModules = reviewedScope.modules.map((module) => module.moduleId).sort();
+  // Proof: disabling the set equality made the omitted-scope CLI assertion lose its named refusal.
+  if (hashCanonical(reviewedModules) !== hashCanonical(expectedModules))
+    throw new Error('Manual reviewed module scope differs from touched modules');
+  let testedProcedure: ReturnType<typeof readCandidateRecord> | undefined;
+  let stale = false;
+  const moduleDirectories = new Set<string>();
+  let capability: string | undefined;
+  const reviewedModuleDigests = hashCanonical(
+    [...reviewedScope.modules].sort((left, right) =>
+      compareCanonicalText(left.moduleId, right.moduleId),
+    ),
+  );
+  const descendants: string[] = [];
+  const sideBranches: string[] = [];
+  for (const revision of revisions) {
+    if (isAncestor(repository, testedRevision, revision)) descendants.push(revision);
+    else sideBranches.push(revision);
+  }
+  for (const revision of descendants) {
+    const snapshot = readCandidate(repository, { kind: 'committed', revision });
+    const requirement = selectedRequirement(repository, snapshot, scenarioId);
+    const procedure = readCandidateRecord(
+      repository,
+      snapshot.entries,
+      procedurePath,
+      'Manual historical procedure',
+    );
+    const modules = moduleScope(repository, snapshot, touchedModules);
+    for (const index of checkIndexes(repository, snapshot).indexes) {
+      if (touchedModules.includes(index.moduleId))
+        moduleDirectories.add(index.indexPath.slice(0, -'/README.md'.length));
+    }
+    if (testedProcedure === undefined) {
+      testedProcedure = procedure;
+      capability = requirement.capability;
+      // Proof: disabling this guard made the historical-title CLI assertion fail.
+      if (requirement.title !== reviewedTitle)
+        throw new Error(
+          `Manual historical scenario title differs from reviewed report: ${scenarioId}`,
+        );
+      // Proof: disabling the requirement and module comparisons separately made their repinned
+      // tested-scope CLI assertions accept false reviewed digests.
+      if (
+        requirement.digest !== reviewedScope.requirementDigest ||
+        hashCanonical(
+          [...modules].sort((left, right) => compareCanonicalText(left.moduleId, right.moduleId)),
+        ) !== reviewedModuleDigests
+      )
+        throw new Error('Manual reviewed source scope differs from tested revision');
+    } else if (
+      // Proof: disabling these comparisons made the requirement, procedure, and module-content
+      // descendant CLI assertions each report current instead of stale.
+      requirement.digest !== reviewedScope.requirementDigest ||
+      procedure.digest !== testedProcedure.digest ||
+      hashCanonical(
+        [...modules].sort((left, right) => compareCanonicalText(left.moduleId, right.moduleId)),
+      ) !== reviewedModuleDigests
+    ) {
+      stale = true;
+    }
+  }
+  if (testedProcedure === undefined) throw new Error('Manual tested source history is absent');
+  if (capability === undefined) throw new Error('Manual tested requirement capability is absent');
+  for (const revision of sideBranches) {
+    const changed = sideBranchChanges(repository, revision);
+    // Proof: removing the touched-directory predicate made the pretested side-branch module
+    // edit/revert CLI assertion report current. The README clause is conservative ownership scope.
+    if (
+      changed.some(
+        (path) =>
+          path === procedurePath ||
+          path.endsWith('/README.md') ||
+          path === 'README.md' ||
+          (path.startsWith('openspec/') && path.endsWith(`/specs/${capability}/spec.md`)) ||
+          [...moduleDirectories].some(
+            (directory) => directory.length === 0 || path.startsWith(`${directory}/`),
+          ),
+      )
+    )
+      stale = true;
+  }
+  return { procedure: testedProcedure, currency: stale ? 'stale' : 'current' };
+}
+
+/** Inspects committed Manual records, approved tested scope and immutable source history. */
 export function inspectManual(
   repository: string,
   revision: string,
@@ -482,30 +799,20 @@ export function inspectManual(
     if (pins.filter((pin) => pin.path === path && pin.digest === digest).length !== 1)
       throw new Error(`Manual ${subject} differs from external policy pin: ${path}`);
   }
-  evaluateManualChain(
-    {
-      disposition: dispositionRecord,
-      procedure: procedureRecord,
-      report: reportRecord,
-      environment: environmentRecord,
-      review: reviewRecord,
-      acceptance: acceptanceRecord,
-      dispositionDigest: disposition.digest,
-      procedureDigest: procedure.digest,
-      reportDigest: report.digest,
-      environmentDigest: environment.digest,
-    },
-    capturedNow,
-  );
+  // Proof: removing this join made the wrong tested-revision CLI assertion fail by reaching
+  // an absent tested revision instead of refusing the conflicting environment binding.
+  if (environmentRecord.sourceRevision !== reportRecord.sourceRevision)
+    throw new Error('Manual environment source revision differs from report');
+  let tested: ReturnType<typeof readCandidate>;
   try {
-    // Proof: replacing this committed-object read with a no-op made the pinned nonexistent
-    // tested-SHA CLI assertion fail by accepting a report bound to no Git commit.
-    const tested = readCandidate(root, {
+    // Proof: bypassing this committed-object read made the pinned nonexistent-tested-SHA CLI
+    // assertion fail by accepting a report bound to no Git commit.
+    tested = readCandidate(root, {
       kind: 'committed',
       revision: reportRecord.sourceRevision,
     });
-    // Proof: removing exact SHA equality let an annotated tag object's SHA pass after
-    // Git dereferenced it to a commit; the named production CLI assertion failed.
+    // Proof: removing exact SHA equality let an annotated tag object's SHA pass after Git
+    // dereferenced it to a commit; the named production CLI assertion failed.
     if (
       tested.selection.kind !== 'committed' ||
       tested.selection.revision !== reportRecord.sourceRevision
@@ -518,12 +825,59 @@ export function inspectManual(
       throw new Error(`absent tested revision: ${reportRecord.sourceRevision}`, { cause });
     throw cause;
   }
+  const source = evaluateSourceCurrency(
+    root,
+    selected,
+    reportRecord.sourceRevision,
+    dispositionRecord.scenarioId,
+    dispositionRecord.title,
+    dispositionRecord.procedurePath,
+    dispositionRecord.touchedModules,
+    reportRecord.reviewedScope,
+  );
+  const testedProcedureRecord = parseOrThrow(ManualProcedure, source.procedure.input);
+  // Proof: disabling the nonempty guard made the repaired-candidate/empty-tested-procedure
+  // CLI assertion accept an approved report with no Manual steps.
+  if (
+    testedProcedureRecord.steps.length === 0 ||
+    new Set(testedProcedureRecord.steps.map((step) => step.stepId)).size !==
+      testedProcedureRecord.steps.length ||
+    testedProcedureRecord.steps.some(
+      (step) =>
+        step.stepId.trim().length === 0 ||
+        step.instruction.trim().length === 0 ||
+        step.expectedObservation.trim().length === 0,
+    )
+  )
+    throw new Error('Manual tested procedure steps are invalid');
+  if (
+    testedProcedureRecord.scenarioId !== dispositionRecord.scenarioId ||
+    testedProcedureRecord.title !== dispositionRecord.title
+  )
+    throw new Error('Manual tested procedure scenario differs from disposition');
+  evaluateManualChain(
+    {
+      disposition: dispositionRecord,
+      // Proof: substituting the candidate procedure made the added-later-step CLI assertion
+      // refuse an old approved report instead of returning stale.
+      procedure: testedProcedureRecord,
+      report: reportRecord,
+      environment: environmentRecord,
+      review: reviewRecord,
+      acceptance: acceptanceRecord,
+      dispositionDigest: disposition.digest,
+      procedureDigest: source.procedure.digest,
+      reportDigest: report.digest,
+      environmentDigest: environment.digest,
+    },
+    capturedNow,
+  );
   return {
     schemaVersion: 1 as const,
     state: 'passing' as const,
     validation: 'passed' as const,
     outcome: 'passed' as const,
-    currency: 'unevaluated' as const,
+    currency: source.currency,
     provenance: 'policy-pinned-external-approval' as const,
     certifies: false as const,
     revision: selected.selection.revision,
