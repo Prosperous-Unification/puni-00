@@ -3,8 +3,16 @@
 import { act, fireEvent, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { type ViewportColumn, viewportColumns } from './plan-viewport';
-import { COLUMN_OVERSCAN_PX, publicationOffset, usePlanViewport } from './use-plan-viewport';
+import { type ViewportColumn, viewportColumns, viewportRows } from './plan-viewport';
+import {
+  COLUMN_OVERSCAN_PX,
+  ESTIMATED_ROW_HEIGHT_PX,
+  publicationOffset,
+  ROW_OVERSCAN_AFTER_PX,
+  ROW_OVERSCAN_BEFORE_PX,
+  ROW_PUBLICATION_STEP_PX,
+  usePlanViewport,
+} from './use-plan-viewport';
 
 const columns: readonly ViewportColumn[] = [
   { id: 'number', widthPx: 50, pinned: true },
@@ -15,6 +23,73 @@ const columns: readonly ViewportColumn[] = [
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe('usePlanViewport row publication', () => {
+  it('uses one asymmetric row window across both scroll directions and frame resize', () => {
+    const rowIds = Array.from({ length: 100 }, (_row, index) => `row-${String(index)}`);
+    let heightPx = 805;
+    const frame = document.createElement('div');
+    Object.defineProperties(frame, {
+      clientHeight: { configurable: true, get: () => heightPx },
+      clientWidth: { configurable: true, value: 100 },
+      scrollLeft: { configurable: true, writable: true, value: 0 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    });
+    const queued: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      queued.push(callback);
+      return queued.length;
+    });
+
+    let renders = 0;
+    const held = renderHook(() => {
+      renders += 1;
+      return usePlanViewport({
+        frameRef: { current: frame },
+        rowIds,
+        columns,
+        pinnedCells: [],
+        enabled: true,
+      });
+    });
+    const mounted = () => held.result.current.rows.entries.map(({ index }) => index);
+    const expected = (physicalTop: number) =>
+      viewportRows({
+        rowIds,
+        heights: new Map(),
+        estimatedHeight: ESTIMATED_ROW_HEIGHT_PX,
+        scrollTop: publicationOffset(physicalTop, ROW_PUBLICATION_STEP_PX),
+        viewportHeight: heightPx,
+        beforePx: ROW_OVERSCAN_BEFORE_PX,
+        afterPx: ROW_OVERSCAN_AFTER_PX,
+      }).entries.map(({ index }) => index);
+    const scrollTo = (top: number): number => {
+      const rendersBefore = renders;
+      frame.scrollTop = top;
+      fireEvent.scroll(frame);
+      const callback = queued.shift();
+      if (callback === undefined) throw new Error(`scroll ${String(top)} queued no frame`);
+      act(() => {
+        callback(performance.now());
+      });
+      return renders - rendersBefore;
+    };
+
+    expect(mounted()).toEqual(expected(0));
+    expect(scrollTo(96)).toBe(0);
+    expect(scrollTo(ROW_PUBLICATION_STEP_PX - 1)).toBe(0);
+    expect(scrollTo(ROW_PUBLICATION_STEP_PX)).toBe(1);
+    expect(mounted()).toEqual(expected(ROW_PUBLICATION_STEP_PX));
+    expect(scrollTo(ROW_PUBLICATION_STEP_PX * 2 - 1)).toBe(0);
+    expect(scrollTo(ROW_PUBLICATION_STEP_PX - 1)).toBe(1);
+    expect(mounted()).toEqual(expected(ROW_PUBLICATION_STEP_PX - 1));
+
+    heightPx = 600;
+    expect(scrollTo(ROW_PUBLICATION_STEP_PX - 1)).toBe(1);
+    expect(mounted()).toEqual(expected(ROW_PUBLICATION_STEP_PX - 1));
+    held.unmount();
+  });
 });
 
 describe('usePlanViewport horizontal publication', () => {

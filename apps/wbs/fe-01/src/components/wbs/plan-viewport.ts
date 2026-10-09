@@ -20,7 +20,8 @@ interface RowViewportInput {
   estimatedHeight: number;
   scrollTop: number;
   viewportHeight: number;
-  overscanPx: number;
+  beforePx: number;
+  afterPx: number;
   pinnedIds?: ReadonlySet<string>;
 }
 
@@ -70,17 +71,21 @@ export function viewportRows({
   estimatedHeight,
   scrollTop,
   viewportHeight,
-  overscanPx,
+  beforePx,
+  afterPx,
   pinnedIds,
 }: RowViewportInput): ViewportSlice {
   const all = placeRows(rowIds, heights, estimatedHeight);
   const totalPx = all.at(-1)?.startPx ?? 0;
   const lastSizePx = all.at(-1)?.sizePx ?? 0;
+  // Proof: the unchanged symmetric 768/640 production bundle measured 1230
+  // cells; restoring that symmetric selection made `excludes early rows at
+  // the real middle bucket` return rows 19–99 instead of 43–99.
   const windowed = new Set(
     intersecting(
       all,
-      Math.max(0, scrollTop - overscanPx),
-      scrollTop + viewportHeight + overscanPx,
+      Math.max(0, scrollTop - beforePx),
+      Math.min(totalPx + lastSizePx, scrollTop + viewportHeight + afterPx),
     ).map(({ id }) => id),
   );
   // Proof: omitting the pinned-id union, `retains an explicitly pinned row

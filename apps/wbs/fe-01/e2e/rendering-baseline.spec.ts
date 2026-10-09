@@ -363,6 +363,78 @@ test('a row drag at the frame edge reaches an initially unmounted destination', 
   await expect(destination).toHaveAttribute('data-drop', 'into');
 });
 
+test('a row window covers the visible table through bucket edges and frame resize', async ({
+  page,
+}) => {
+  const seeded = await seedRenderingPlan(page, {
+    rows: 100,
+    steps: 2,
+    density: 'sparse',
+    wrappedEvery: 9,
+  });
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await page.goto('/');
+  const frame = page.locator('[data-table-frame]');
+  await expect
+    .poll(async () =>
+      frame.evaluate((node) =>
+        [...node.querySelectorAll<HTMLElement>('tbody tr[data-row-id]')].some(
+          (row) => row.getBoundingClientRect().height > 30,
+        ),
+      ),
+    )
+    .toBe(true);
+  const checkCoverage = async (requestedTop: number) => {
+    await frame.evaluate((node, top) => {
+      node.scrollTop = top;
+    }, requestedTop);
+    await painted(page);
+    const coverage = await frame.evaluate((node, rowIds) => {
+      const header = node.querySelector<HTMLElement>('thead');
+      if (header === null) throw new Error('row-window coverage has no table header');
+      const frameBox = node.getBoundingClientRect();
+      const visibleTop = Math.max(frameBox.top, header.getBoundingClientRect().bottom);
+      const visibleBottom = frameBox.bottom;
+      const rows = [...node.querySelectorAll<HTMLElement>('tbody tr[data-row-id]')]
+        .map((row) => {
+          const box = row.getBoundingClientRect();
+          return {
+            index: rowIds.indexOf(row.dataset['rowId'] ?? ''),
+            top: box.top,
+            bottom: box.bottom,
+          };
+        })
+        .filter(({ top, bottom }) => bottom > visibleTop && top < visibleBottom)
+        .sort((left, right) => left.top - right.top);
+      const first = rows.at(0);
+      const last = rows.at(-1);
+      if (first === undefined || last === undefined)
+        throw new Error('row-window coverage has no visible rows');
+      const gaps: string[] = [];
+      if (first.top > visibleTop + 2 && first.index !== 0) gaps.push('top');
+      for (let index = 1; index < rows.length; index += 1) {
+        const previous = rows[index - 1];
+        const current = rows[index];
+        if (current.index !== previous.index + 1 || current.top > previous.bottom + 2)
+          gaps.push(`${String(previous.index)}→${String(current.index)}`);
+      }
+      if (last.bottom < visibleBottom - 2 && last.index !== rowIds.length - 1) gaps.push('bottom');
+      return { actualTop: node.scrollTop, gaps, firstIndex: first.index, lastIndex: last.index };
+    }, seeded.ids);
+    expect(coverage.gaps, `scrollTop ${String(coverage.actualTop)}`).toEqual([]);
+    expect(coverage.firstIndex).toBeGreaterThanOrEqual(0);
+    expect(coverage.lastIndex).toBeLessThan(100);
+  };
+
+  const end = await frame.evaluate((node) => node.scrollHeight);
+  for (const top of [0, 639, 640, 1279, 1280, 1400, end, 1280, 1279, 640, 639, 0])
+    await checkCoverage(top);
+  await page.setViewportSize({ width: 850, height: 700 });
+  await painted(page);
+  const resizedEnd = await frame.evaluate((node) => node.scrollHeight);
+  for (const top of [639, 640, 1279, resizedEnd]) await checkCoverage(top);
+});
+
 test('a windowed table and the complete Gantt stay on the same logical row', async ({ page }) => {
   const seeded = await seedRenderingPlan(page, { rows: 100, steps: 2, density: 'sparse' });
   await page.goto('/');
