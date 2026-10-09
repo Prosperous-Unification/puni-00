@@ -74,9 +74,39 @@ describe('Browser Playwright evidence boundary', () => {
       .replace('tests="1" failures="0" skipped="0"', 'tests="2" failures="0" skipped="1"')
       .replace(
         '</testsuite>',
-        '<testcase name="optional opt-in probe" classname="portable-composition.spec.ts"><skipped/></testcase></testsuite>',
+        '<testcase name="optional opt-in probe" classname="portable-composition.spec.ts"><properties><property name="skip" value="opt-in baseline experiment, not the acceptance gate"></property></properties><skipped/></testcase></testsuite>',
       );
     reconcileBrowserJunit(withSkip, run);
+    for (const malformed of [
+      withSkip.replace('<properties>', '<properties extra="unknown">'),
+      withSkip.replace('name="skip"', 'name=""'),
+      withSkip.replace('value="opt-in baseline experiment, not the acceptance gate"', ''),
+      withSkip.replace('name="skip"', 'name="skip" extra="unknown"'),
+      withSkip.replace(
+        '</properties>',
+        '</properties><properties><property name="again" value="x"/></properties>',
+      ),
+      withSkip.replace('<property name="skip"', '<properties/><property name="skip"'),
+      withSkip.replace(
+        '<skipped/>',
+        '<skipped/><properties><property name="late" value="x"/></properties>',
+      ),
+      withSkip.replace('<property name="skip"', '<foreign/><property name="skip"'),
+      withSkip.replace('</properties>', '</properties><property name="stray" value="x"/>'),
+    ]) {
+      expect(() => {
+        reconcileBrowserJunit(malformed, run);
+      }).toThrow('structure');
+    }
+    expect(() => {
+      reconcileBrowserJunit(
+        withSkip.replace(
+          '<property name="skip" value="opt-in baseline experiment, not the acceptance gate"></property>',
+          '',
+        ),
+        run,
+      );
+    }).toThrow('properties are empty');
     expect(() => {
       reconcileBrowserJunit(withSkip.replace('<skipped/>', ''), run);
     }).toThrow('differ');

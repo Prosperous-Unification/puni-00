@@ -81,6 +81,12 @@ A version-1 Browser bundle SHALL carry its `candidate` as one canonical lowercas
 - **WHEN** the inspector compares it with the committed selection
 - **THEN** it refuses the bundle
 
+#### Scenario: [TEST-AXES-037] An opt-in Browser case carries Playwright annotation metadata
+
+- **GIVEN** raw Playwright JUnit places descriptive `properties` and `property` elements before a testcase's skipped outcome, with matching JSON selection and outcome
+- **WHEN** the Browser inspector reconciles the bundle
+- **THEN** it keeps that case skipped and noncertifying, while malformed property placement or attributes refuse
+
 ### Requirement: Tests live inside their modules
 
 A test SHALL live inside the module it tests, resolved from the module index.

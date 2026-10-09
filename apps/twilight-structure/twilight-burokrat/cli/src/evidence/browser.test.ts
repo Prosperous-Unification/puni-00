@@ -219,6 +219,64 @@ test('prints only diagnostic observations through the production CLI', () => {
   expect(staged.exitCode).toBe(1);
 });
 
+test('inspect-browser accepts reporter annotation metadata and refuses malformed properties', () => {
+  const setup = fixture();
+  const playwrightPath = join(setup.bundle, 'playwright.xml');
+  const original = readFileSync(playwrightPath, 'utf8');
+  const withProperties = original.replace(
+    `<testcase name="${title}" classname="${file}"/>`,
+    `<testcase name="${title}" classname="${file}"><properties><property name="issue" value="descriptive only"/></properties></testcase>`,
+  );
+  expect(withProperties).not.toBe(original);
+  const raw = setup.manifest['raw'] as { junit: { digest: string } };
+  const putJunit = (xml: string): void => {
+    writeFileSync(playwrightPath, xml);
+    raw.junit.digest = digestEvidenceBytes(xml);
+    writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
+  };
+  putJunit(withProperties);
+  const accepted = invokeInspect(setup);
+  expect(accepted.exitCode, accepted.stderr).toBe(0);
+  const observation = JSON.parse(accepted.stdout) as Record<string, unknown>;
+  expect(observation['certifies']).toBe(false);
+  expect(observation['authentication']).toEqual({ kind: 'absent' });
+  for (const [xml, diagnostic] of [
+    [withProperties.replace('<properties>', '<properties extra="unknown">'), 'structure'],
+    [withProperties.replace('name="issue"', 'name=""'), 'structure'],
+    [withProperties.replace('value="descriptive only"', ''), 'structure'],
+    [withProperties.replace('name="issue"', 'name="issue" extra="unknown"'), 'structure'],
+    [
+      withProperties.replace(
+        '</properties>',
+        '</properties><properties><property name="again" value="x"/></properties>',
+      ),
+      'structure',
+    ],
+    [
+      withProperties.replace('<properties>', '<system-out>log</system-out><properties>'),
+      'structure',
+    ],
+    [withProperties.replace('<properties>', '').replace('</properties>', ''), 'structure'],
+    [
+      withProperties.replace(
+        'value="descriptive only"/>',
+        'value="descriptive only">payload</property>',
+      ),
+      'text is outside',
+    ],
+    [
+      withProperties.replace('<property name="issue" value="descriptive only"/>', ''),
+      'properties are empty',
+    ],
+  ] as const) {
+    putJunit(xml);
+    const refused = invokeInspect(setup);
+    expect(refused.exitCode, refused.stderr).toBe(1);
+    expect(refused.stderr).toContain(diagnostic);
+    expect(refused.stdout).toBe('');
+  }
+});
+
 test('production CLI refuses missing, malformed, old-object and foreign candidate digests', () => {
   const setup = fixture();
   const candidate = setup.manifest['candidate'];

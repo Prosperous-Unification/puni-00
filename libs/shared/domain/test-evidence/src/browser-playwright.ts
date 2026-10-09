@@ -183,10 +183,13 @@ export function reconcileBrowserJunit(xml: string, run: BrowserReport): void {
   let suiteFile = '';
   let declared: { tests: number; failures: number; skipped: number; errors: number } | undefined;
   let current: (typeof observed)[number] | undefined;
+  let caseChildren = 0;
+  let propertyCount = 0;
   parser.on('doctype', () => {
     throw new Error('Browser JUnit doctype is forbidden');
   });
   parser.on('text', (body) => {
+    // Proof: removing this refusal made a property-body inspect-browser CLI negative accept metadata text.
     if (
       body.trim() !== '' &&
       !['failure', 'error', 'skipped', 'system-out', 'system-err'].includes(stack.at(-1) ?? '')
@@ -199,14 +202,39 @@ export function reconcileBrowserJunit(xml: string, run: BrowserReport): void {
       throw new Error('Browser JUnit failure outside testcase');
     if (tag.name === 'skipped' && current === undefined)
       throw new Error('Browser JUnit skip outside testcase');
+    const attributes = Object.keys(tag.attributes);
+    // Proof: removing the first-child or no-attribute terms made the duplicate
+    // or unknown-properties-attribute inspect-browser CLI negatives exit zero.
+    const reporterProperties =
+      tag.name === 'properties' &&
+      parent === 'testcase' &&
+      caseChildren === 0 &&
+      attributes.length === 0;
+    // Proof: removing the attribute count or nonempty name checks made the
+    // extra-property-attribute or empty-name inspect-browser CLI negatives exit zero.
+    const reporterProperty =
+      tag.name === 'property' &&
+      parent === 'properties' &&
+      attributes.length === 2 &&
+      attributes.includes('name') &&
+      attributes.includes('value') &&
+      typeof tag.attributes['name'] === 'string' &&
+      tag.attributes['name'].length > 0 &&
+      typeof tag.attributes['value'] === 'string';
     const allowed =
       (tag.name === 'testsuites' && parent === undefined) ||
       (tag.name === 'testsuite' && parent === 'testsuites') ||
       (tag.name === 'testcase' && parent === 'testsuite') ||
       (['failure', 'error', 'skipped', 'system-out', 'system-err'].includes(tag.name) &&
-        parent === 'testcase');
-    // Proof: a second suite root or misplaced testcase is rejected by the structural negative.
+        parent === 'testcase') ||
+      reporterProperties ||
+      reporterProperty;
+    // Proof: removing reporterProperties made the observed opt-in skip regression fail;
+    // the original structural negative still rejects misplaced testcase tags.
     if (!allowed) throw new Error('Browser JUnit structure is malformed');
+    if (parent === 'testcase') caseChildren += 1;
+    if (reporterProperties) propertyCount = 0;
+    if (reporterProperty) propertyCount += 1;
     if (tag.name === 'testsuites') roots += 1;
     if (tag.name === 'testsuites') {
       const tests = Number(tag.attributes['tests']);
@@ -235,6 +263,7 @@ export function reconcileBrowserJunit(xml: string, run: BrowserReport): void {
         status: 'passed',
       };
       observed.push(current);
+      caseChildren = 0;
     }
     if (tag.name === 'failure' || tag.name === 'error' || tag.name === 'skipped') {
       // Proof: with this refusal absent, inspect-browser accepted a failure followed by a skip
@@ -246,6 +275,9 @@ export function reconcileBrowserJunit(xml: string, run: BrowserReport): void {
   });
   parser.on('closetag', (tag) => {
     if (stack.pop() !== tag.name) throw new Error('Browser JUnit nesting is malformed');
+    // Proof: removing this guard made the empty-properties negative accept metadata the reporter never emits.
+    if (tag.name === 'properties' && propertyCount === 0)
+      throw new Error('Browser JUnit properties are empty');
     if (tag.name === 'testcase') current = undefined;
   });
   parser.write(xml).close();
