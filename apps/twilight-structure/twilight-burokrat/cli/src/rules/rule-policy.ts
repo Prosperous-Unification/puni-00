@@ -57,6 +57,8 @@ const PlainSelectorRecord = type({
 }).onUndeclaredKey('reject');
 
 const Sha256 = type(/^[0-9a-f]{64}$/);
+// Proof: widening CommitSha to string makes the malformed full-SHA production test receive an
+// unevaluated verdict instead of the required policy parse refusal (2026-10-09).
 const CommitSha = type(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/);
 const ScenarioAuthorityRecord = type({
   baseRevision: CommitSha,

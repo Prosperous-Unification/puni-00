@@ -851,6 +851,45 @@ objects, staged checkout ancestry, an absent or mismatched bootstrap, archived
 copies, conflicting active copies, fenced headings, both rule modes for legacy
 unidentified headings and a base-only evidence-identity change.
 
+### B3 review correction — 2026-10-09
+
+The pinned base must itself be a commit object. The production CLI now checks
+its Git object type before resolving the full SHA, and uses that validated
+commit for selection equality and ancestry. An annotated tag object pointing
+at the candidate previously peeled into a passing self-base; its new
+production test first failed with expected exit 1, received 0, then passed
+after the fix. The Markdown scenario scanner now retains the opening fence's
+marker and length and closes only on the same marker with at least that length
+and whitespace after it. Four-marker backtick and tilde fences containing a
+shorter three-marker line and an unallocated heading each first failed with
+expected exit 0, received 1, then passed after the fix.
+
+The full-SHA negative goes through `check --rule SPEC-SCENARIOS` and is rejected
+by the external RulePolicy parser before a verdict is emitted. An explicit
+wrong bootstrap journal digest is rejected by the production CLI. A prior
+final HEAD recheck had no race proof; it was removed. The staged and working
+selection still checks the pinned base against the checkout HEAD when it
+validates ancestry, but this slice does not claim to detect a subsequent HEAD
+change during evaluation. Task 2.2 remains open.
+
+| Disabled guard                                                      | Production test                                | Observed fault                                                                                                           |
+| ------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| RulePolicy full-SHA parser widened to `string`                      | `malformed full base SHA`                      | Exit 1; expected `baseRevision` in stderr, received empty stderr because the local guard emitted an unevaluated verdict. |
+| Pinned Git object-type check replaced with `false`                  | `annotated tag object pinned to the candidate` | Exit 1; expected refusal exit 1, received 0.                                                                             |
+| Bootstrap candidate-journal digest comparison replaced with `false` | `requires a reviewed bootstrap`                | Exit 1; expected wrong-digest refusal exit 1, received 0.                                                                |
+| Fence length comparison replaced with `true`                        | Both `shorter ... fence` cases                 | Exit 1; each expected exit 0 and received 1 for an unallocated heading still inside the containing fence.                |
+
+Each mutant was restored from saved bytes before the next mutation. The
+restored focused specifications file exited 0 with 30 passes, 0 failures and
+426 assertions. After formatting, it again exited 0 with 30 passes, 0 failures
+and 426 assertions. The Burokrat CLI TypeScript and changed-file ESLint checks
+exited 0 with empty output. Prettier check exited 0. OpenSpec validated 158 of
+158 items with no failures. The neighboring Burokrat run named
+`specifications.test.ts`, `rules.test.ts`, `rule-policy.test.ts` and
+`read-candidate.test.ts`; Bun found three files (there is no separate
+`rule-policy.test.ts`) and exited 0 with 95 passes, 0 failures and 1008
+assertions. `git diff --check` exited 0.
+
 Each named source guard below was temporarily disabled, the indicated focused
 production test exited 1 with the observed fault, and the source was restored:
 

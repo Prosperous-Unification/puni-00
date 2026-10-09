@@ -164,6 +164,23 @@ test('production check refuses an absent pinned commit', () => {
   );
 });
 
+test('production check refuses a malformed full base SHA', () => {
+  const { repository, candidate } = fixture();
+  const response = check(repository, candidate, { baseRevision: `${candidate.slice(0, 39)}z` });
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('baseRevision');
+  expect(response.verdict).toBeUndefined();
+});
+
+test('production check refuses an annotated tag object pinned to the candidate', () => {
+  const { repository, candidate } = fixture();
+  runGit(repository, ['tag', '-a', 'candidate-base', candidate, '-m', 'wrong base object']);
+  const tagObject = runGit(repository, ['rev-parse', 'refs/tags/candidate-base']);
+  const response = check(repository, candidate, { baseRevision: tagObject });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain('must name a commit object');
+});
+
 test('production check refuses an unrelated base', () => {
   const { repository, base, candidate } = fixture();
   runGit(repository, ['checkout', '--orphan', 'elsewhere']);
@@ -293,6 +310,17 @@ test('production check requires a reviewed bootstrap for an absent base journal'
   });
   expect(wrongBase.exitCode).toBe(1);
   expect(JSON.stringify(wrongBase.verdict?.unevaluated)).toContain('requires reviewed bootstrap');
+  const wrongDigest = check(repository, candidate, {
+    baseRevision: base,
+    bootstrap: {
+      baseRevision: base,
+      candidateJournalDigest: '0'.repeat(64),
+      reviewer: 'reviewer@example.test',
+      reference: 'review-123',
+    },
+  });
+  expect(wrongDigest.exitCode).toBe(1);
+  expect(JSON.stringify(wrongDigest.verdict?.unevaluated)).toContain('requires reviewed bootstrap');
 });
 
 test('production check refuses a bootstrap when the base already has a journal', () => {
@@ -342,6 +370,19 @@ test('production check ignores fenced scenario headings', () => {
   const response = check(repository, candidate, { baseRevision: base });
   expect(response.exitCode, response.stderr).toBe(0);
 });
+
+test.each(['`', '~'])(
+  'production check keeps a shorter %s fence inside the containing fence',
+  (marker) => {
+    const { repository, base } = fixture();
+    const candidate = nextCommit(repository, {
+      [source]: `${heading}\n${marker.repeat(4)}md\n${marker.repeat(3)}\n#### Scenario: [EXAMPLE-999] In sample\n${marker.repeat(4)}\n`,
+    });
+    const response = check(repository, candidate, { baseRevision: base });
+    expect(response.exitCode, response.stderr).toBe(0);
+    expect(response.verdict?.allowed).toBe(true);
+  },
+);
 
 test('production check reports unidentified legacy headings as debt or refusal by mode', () => {
   const { repository, base } = fixture();

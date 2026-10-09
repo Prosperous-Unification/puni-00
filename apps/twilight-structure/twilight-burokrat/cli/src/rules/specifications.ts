@@ -63,34 +63,32 @@ function verifiedBase(
   pinned: string,
 ): {
   revision: string;
-  head?: string;
 } {
-  // Proof: the production missing-policy and malformed-SHA tests refuse before Git resolves an
-  // ambiguous revision; accepting a symbolic ref would let caller policy move after review.
+  // The policy boundary rejects malformed SHAs before this check. Keep the object check here:
+  // Proof: replacing this type check with unconditional acceptance makes the annotated-tag
+  // production test accept a tag object peeled into the candidate commit.
   if (!FullSha.test(pinned)) throw new Error('specifications baseRevision must be a full Git SHA');
-  const resolved = git(repository, [
-    'rev-parse',
-    '--verify',
-    '--end-of-options',
-    `${pinned}^{commit}`,
-  ]);
+  if (git(repository, ['cat-file', '-t', pinned]) !== 'commit') {
+    throw new Error('specifications baseRevision must name a commit object');
+  }
+  const resolved = git(repository, ['rev-parse', '--verify', '--end-of-options', pinned]);
   const selection = candidate.selection;
   if (selection.kind !== 'committed') {
     // Proof: the staged wrong-base production negative refuses external policy drift.
-    if (selection.base !== pinned)
+    if (selection.base !== resolved)
       throw new Error('specifications base differs from candidate selection');
     const head = git(repository, ['rev-parse', '--verify', 'HEAD^{commit}']);
     // Proof: the staged selection on an orphan checkout otherwise accepted a pin unrelated to HEAD.
-    if (!isAncestor(repository, pinned, head)) {
+    if (!isAncestor(repository, resolved, head)) {
       throw new Error('specifications base is not a checkout ancestor');
     }
-    return { revision: resolved, head };
+    return { revision: resolved };
   } else {
     // Proof: the self-base production negative refuses a candidate-only journal comparison.
-    if (selection.revision === pinned)
+    if (selection.revision === resolved)
       throw new Error('specifications base must precede candidate');
     // Proof: the unrelated-base production negative refuses even when both revisions exist.
-    if (!isAncestor(repository, pinned, selection.revision))
+    if (!isAncestor(repository, resolved, selection.revision))
       throw new Error('specifications base is not a candidate ancestor');
   }
   return { revision: resolved };
@@ -178,16 +176,25 @@ function canonicalSpecs(
 
 function scenarioHeadings(markdown: string): readonly string[] {
   const headings: string[] = [];
-  let fence: '`' | '~' | undefined;
+  let fence: { marker: '`' | '~'; length: number } | undefined;
   for (const line of markdown.split(/\r?\n/)) {
     const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
-    if (marker !== undefined) {
-      const kind = marker.startsWith('`') ? '`' : '~';
-      if (fence === undefined) fence = kind;
-      else if (fence === kind) fence = undefined;
+    if (fence !== undefined) {
+      // Proof: accepting a shorter close makes both production nested-fence tests see an
+      // unallocated heading inside the containing fence and exit 1.
+      if (
+        marker?.startsWith(fence.marker) &&
+        marker.length >= fence.length &&
+        /^ *$/.test(line.slice(line.indexOf(marker) + marker.length))
+      ) {
+        fence = undefined;
+      }
       continue;
     }
-    if (fence !== undefined) continue;
+    if (marker !== undefined) {
+      fence = { marker: marker.startsWith('`') ? '`' : '~', length: marker.length };
+      continue;
+    }
     const heading = /^#### Scenario: (.*)$/.exec(line);
     if (heading !== null) headings.push(heading[1]);
   }
@@ -202,8 +209,7 @@ export function evaluateSpecifications(
   policyDigest: string,
   candidateDigest: string,
 ): SpecificationsReport {
-  const selectedBase = verifiedBase(repository, candidate, authority.baseRevision);
-  const baseRevision = selectedBase.revision;
+  const baseRevision = verifiedBase(repository, candidate, authority.baseRevision).revision;
   const base = readCandidate(repository, { kind: 'committed', revision: baseRevision });
   const candidateJournal = readJournal(repository, candidate, 'candidate');
   const baseEntry = base.entries.find((entry) => entry.path === JournalPath);
@@ -285,12 +291,6 @@ export function evaluateSpecifications(
     selected: specs.map(({ path, capability, digest }) => ({ path, capability, digest })),
     unidentified,
   });
-  if (
-    selectedBase.head !== undefined &&
-    git(repository, ['rev-parse', '--verify', 'HEAD^{commit}']) !== selectedBase.head
-  ) {
-    throw new Error('checkout HEAD changed while judging specifications');
-  }
   return {
     selectorVersion: 1,
     baseRevision,
