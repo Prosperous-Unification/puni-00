@@ -384,6 +384,26 @@ test.each(['`', '~'])(
   },
 );
 
+test('production check closes a backtick fence with a trailing horizontal tab', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    [source]: `${heading}\n\`\`\`md\n\`\`\`\t\n#### Scenario: [EXAMPLE-999] Missing allocation\n`,
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain('EXAMPLE-999');
+});
+
+test('production check rejects a backtick fence opener with a backtick in its info string', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    [source]: `${heading}\n\`\`\`md\`invalid\n#### Scenario: [EXAMPLE-999] Missing allocation\n\`\`\`\n`,
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain('EXAMPLE-999');
+});
+
 test('production check reports unidentified legacy headings as debt or refusal by mode', () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, { [source]: `${heading}#### Scenario: Legacy case\n` });

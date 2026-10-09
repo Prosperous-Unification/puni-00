@@ -853,6 +853,20 @@ unidentified headings and a base-only evidence-identity change.
 
 ### B3 review correction — 2026-10-09
 
+The scanner's CommonMark fence handling was corrected again after two
+production CLI negatives exposed false greens. A closing fence followed by a
+horizontal tab now closes, and a backtick fence opener with a backtick in its
+info string is rejected. In each fixture, the now-visible unallocated
+`EXAMPLE-999` makes `check --rule SPEC-SCENARIOS` exit 1. Before the fixes,
+both tests expected exit 1 and received 0. Replacing the closing-fence
+horizontal-whitespace predicate with spaces only made its focused test fail
+again (expected exit 1, received 0); disabling the backtick-info predicate
+did the same for its focused test. Both source guards were restored. The
+restored full `specifications.test.ts` run exited 0 with 32 passes, 0 failures
+and 454 assertions. Scoped Burokrat TypeScript and changed-file ESLint checks
+exited 0; Prettier reported both changed source files unchanged. This repair
+does not complete Task 2.2.
+
 The pinned base must itself be a commit object. The production CLI now checks
 its Git object type before resolving the full SHA, and uses that validated
 commit for selection equality and ancestry. An annotated tag object pointing

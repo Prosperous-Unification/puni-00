@@ -185,13 +185,19 @@ function scenarioHeadings(markdown: string): readonly string[] {
       if (
         marker?.startsWith(fence.marker) &&
         marker.length >= fence.length &&
-        /^ *$/.test(line.slice(line.indexOf(marker) + marker.length))
+        // Proof: replacing horizontal whitespace with spaces only makes the production
+        // trailing-tab close test exit 0 by hiding EXAMPLE-999 after the valid close.
+        /^[ \t]*$/.test(line.slice(line.indexOf(marker) + marker.length))
       ) {
         fence = undefined;
       }
       continue;
     }
     if (marker !== undefined) {
+      // Proof: omitting the backtick-info rejection makes the production invalid-opener
+      // test exit 0 by treating EXAMPLE-999 as fenced content.
+      if (marker.startsWith('`') && line.slice(line.indexOf(marker) + marker.length).includes('`'))
+        continue;
       fence = { marker: marker.startsWith('`') ? '`' : '~', length: marker.length };
       continue;
     }
