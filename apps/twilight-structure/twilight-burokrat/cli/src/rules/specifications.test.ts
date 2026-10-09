@@ -10,7 +10,9 @@ import { registeredRules } from './registry';
 
 const source = 'openspec/specs/example/spec.md';
 const journalPath = 'openspec/scenario-allocations.json';
-const heading = '### Requirement: First requirement\n#### Scenario: [EXAMPLE-001] First case\n';
+const requirementHeading =
+  '### Requirement: First requirement\n#### Scenario: [EXAMPLE-001] First case\n';
+const heading = `## Requirements\n${requirementHeading}`;
 const initialJournal = JSON.stringify({
   schemaVersion: 1,
   events: [{ kind: 'import', id: 'EXAMPLE-001', source, title: 'First case' }],
@@ -470,7 +472,7 @@ test('production evidence identity changes when only the trusted base changes', 
 test('production check refuses a removed identified heading that remains active in the journal', () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
-    [source]: '### Requirement: First requirement\n#### Scenario: Legacy case\n',
+    [source]: '## Requirements\n### Requirement: First requirement\n#### Scenario: Legacy case\n',
   });
   const response = check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
@@ -648,6 +650,53 @@ test('production selector refuses a scenario outside its requirement section', (
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('outside a requirement');
 });
 
+test('production selector refuses an orphan scenario after a depth-one heading', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    [source]: `${heading}# Notes\n#### Scenario: [EXAMPLE-999] Orphan\n`,
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain('outside a requirement');
+});
+
+test('production selector refuses an overlay requirement after a depth-one heading', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    'openspec/changes/invalid/specs/example/spec.md':
+      '## ADDED Requirements\n# Notes\n### Requirement: Invented\n#### Scenario: Invented case\n',
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
+    'overlay requirement has no operation',
+  );
+});
+
+test('production selector refuses a canonical requirement after a depth-one heading', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    [source]: `${heading}# Notes\n### Requirement: Invented\n#### Scenario: Invented case\n`,
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
+    'canonical requirement outside Requirements',
+  );
+});
+
+test('production selector refuses a canonical requirement under Notes', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    [source]: `## Notes\n${requirementHeading}`,
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
+    'canonical requirement outside Requirements',
+  );
+});
+
 test.each([
   [
     'missing operation',
@@ -749,7 +798,7 @@ test('production evidence binds every active overlay even when effective require
   const { repository, base, candidate: initial } = fixture();
   const alias = 'openspec/changes/duplicate/specs/example/spec.md';
   const candidate = nextCommit(repository, {
-    [alias]: `## ADDED Requirements\n${heading}`,
+    [alias]: `## ADDED Requirements\n${requirementHeading}`,
   });
   const before = check(repository, initial, { baseRevision: base });
   const after = check(repository, candidate, { baseRevision: base });
@@ -758,7 +807,7 @@ test('production evidence binds every active overlay even when effective require
   expect(after.verdict?.scenarios?.selection?.inputs).toEqual([
     {
       path: alias,
-      digest: hashBytes(new TextEncoder().encode(`## ADDED Requirements\n${heading}`)),
+      digest: hashBytes(new TextEncoder().encode(`## ADDED Requirements\n${requirementHeading}`)),
     },
     { path: source, digest: hashBytes(new TextEncoder().encode(heading)) },
   ]);

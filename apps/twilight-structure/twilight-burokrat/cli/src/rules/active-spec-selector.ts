@@ -53,7 +53,7 @@ function headingTitle(markdown: string, heading: Heading): string {
   if (start === undefined || end === undefined)
     throw new Error('active specification heading has no source offsets');
   const raw = markdown.slice(start, end);
-  const match = /^\s*#{2,3}[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/.exec(raw);
+  const match = /^\s*#{1,3}[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/.exec(raw);
   if (match === null) throw new Error('active specification heading has malformed source');
   return match[1];
 }
@@ -63,15 +63,25 @@ function parseRequirements(spec: SpecInput): {
   operations: readonly Operation[];
 } {
   const syntax: Root = fromMarkdown(spec.markdown);
+  // Proof: excluding depth-one headings made the production orphan-after-Notes negative
+  // attribute its scenario to the preceding requirement, reaching allocator provenance.
   const sections = syntax.children.filter(
-    (node): node is Heading => node.type === 'heading' && (node.depth === 2 || node.depth === 3),
+    (node): node is Heading => node.type === 'heading' && node.depth <= 3,
   );
   const requirements: Requirement[] = [];
   const operations: Operation[] = [];
   let parsedScenarioCount = 0;
   let operation: Operation['kind'] | undefined;
+  let inCanonicalRequirements = false;
   for (const [position, heading] of sections.entries()) {
     const label = headingTitle(spec.markdown, heading);
+    if (heading.depth === 1) {
+      // Proof: removing operation reset accepted the production overlay-after-depth-one case;
+      // removing canonical reset accepted the canonical-after-depth-one case.
+      operation = undefined;
+      inCanonicalRequirements = false;
+      continue;
+    }
     if (heading.depth === 2) {
       if (spec.kind === 'change') {
         const match = /^(ADDED|MODIFIED|REMOVED|RENAMED) Requirements$/.exec(label);
@@ -88,10 +98,15 @@ function parseRequirements(spec: SpecInput): {
         } else {
           operation = undefined;
         }
+      } else {
+        inCanonicalRequirements = label === 'Requirements';
       }
       continue;
     }
     if (!label.startsWith('Requirement: ')) continue;
+    // Proof: before this guard, the production Notes negative accepted a canonical requirement.
+    if (spec.kind === 'main' && !inCanonicalRequirements)
+      throw new Error(`canonical requirement outside Requirements: ${spec.path}`);
     // Proof: disabling this guard made the production missing-operation negative fail at
     // the later empty-spec diagnostic instead of rejecting its requirement here.
     if (spec.kind === 'change' && operation === undefined)
@@ -193,8 +208,8 @@ export function selectActiveSpecifications(inputs: readonly SpecInput[]): Active
       }
       continue;
     }
-    // Proof: removing this guard made a production MODIFIED requirement with no canonical
-    // predecessor produce an accepted, invented lineage.
+    // Proof: removing this guard made the production missing-predecessor negative fail with a
+    // TypeError while reading predecessor.scenarios instead of the modeled refusal.
     if (predecessor === undefined)
       throw new Error(
         `overlay requirement has no predecessor: ${requirement.capability}: ${requirement.title}`,
