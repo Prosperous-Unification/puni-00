@@ -76,6 +76,21 @@ test('refuses an empty mapping before Bun can discover unrelated tests', () => {
   expect(() => readFileSync(report)).toThrow();
 });
 
+test('refuses a malformed fixture policy before running Bun', () => {
+  const { root, report } = fixture();
+  writeFileSync(report, '<testsuites><testcase name="stale"/></testsuites>');
+  writeFileSync(
+    join(root, 'src/architecture-fixtures.json'),
+    '{"schemaVersion":2,"fixtures":[{"ruleId":"MOD-INDEX","file":"src/architecture/mod-index.architecture.test.ts"}]}\n',
+  );
+  const invocation = run(root, report);
+  expect(invocation.exitCode).not.toBe(0);
+  expect(stderrOf(invocation)).toMatch(
+    /^ValidationError: Validation failed: schemaVersion must be 1 \(was 2\)$/m,
+  );
+  expect(() => readFileSync(report)).toThrow();
+});
+
 test('refuses missing policy and unreadable selector root after clearing stale JUnit', () => {
   const { root, report } = fixture();
   writeFileSync(report, '<testsuites><testcase name="stale"/></testsuites>');

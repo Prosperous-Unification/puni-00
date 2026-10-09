@@ -26,6 +26,8 @@ export function runArchitectureLevel(root: string, report: string): void {
   const policyPath = join(root, 'src/architecture-fixtures.json');
   const source = new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(policyPath));
   const input: unknown = JSON.parse(source);
+  // Proof: replacing this parse with a trust cast made the malformed-policy production test
+  // run schemaVersion 2 as a green Architecture target instead of refusing it.
   const policy = parseOrThrow(FixturePolicy, input);
   // Proof: disabling this guard made the empty-map production negative fail at a later
   // unmapped-file refusal instead of reporting no-cases at the runner boundary.
@@ -39,8 +41,8 @@ export function runArchitectureLevel(root: string, report: string): void {
   const selected = new Set<string>();
   const mappedRules = new Set<string>();
   for (const fixture of policy.fixtures) {
-    // Proof: architecture-level.test.ts maps F7 to src/unit.test.ts; disabling this guard
-    // lets the production runner collect that Unit file and create a passing JUnit report.
+    // Proof: disabling this guard made the mixed-level production test fail at the later
+    // exact rule-file check, which refused F7's src/unit.test.ts with the wrong diagnosis.
     if (!ARCHITECTURE_FILE.test(fixture.file)) {
       throw new Error(`Architecture target cannot collect Unit file ${fixture.file}`);
     }
