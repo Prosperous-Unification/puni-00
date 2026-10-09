@@ -100,6 +100,25 @@ describe('the browser gate’s port shift', () => {
     ]);
   });
 
+  it('writes a JUnit report for the ordinary Browser suite', async () => {
+    const previousCi = process.env['CI'];
+    try {
+      for (const ci of [false, true]) {
+        if (ci) process.env['CI'] = '1';
+        else delete process.env['CI'];
+        // Proof: removing the ordinary JUnit reporter from each branch separately made this
+        // case fail on the local and CI configurations, respectively (2026-10-09).
+        expect((await loadConfig()).reporter).toContainEqual([
+          'junit',
+          { outputFile: join(repoRoot, 'tmp', 'junit', 'wbs-fe-01.browser.ordinary.xml') },
+        ]);
+      }
+    } finally {
+      if (previousCi === undefined) delete process.env['CI'];
+      else process.env['CI'] = previousCi;
+    }
+  });
+
   it('starts every tier from its namespaced application root', async () => {
     const servers = serversOf(await loadConfig());
     // Proof: removing the `wbs` segment from the production server helper
@@ -364,6 +383,12 @@ describe('the packaged browser gate', () => {
     // (`.../dist/apps/fe-01 holds no index.html`, 2026-09-14).
     expect(config.testDir).toBe(join(appRoot, 'e2e-packaged'));
     expect(config.outputDir).toBe(join(appRoot, 'test-results-packaged'));
+    // Proof: removing this reporter made the packaged config case fail with reporter [["list"]]
+    // instead of the expected JUnit path (2026-10-09).
+    expect(config.reporter).toContainEqual([
+      'junit',
+      { outputFile: join(root, 'tmp', 'junit', 'wbs-fe-01.browser.packaged.xml') },
+    ]);
     expect(servers).toHaveLength(1);
     expect(servers[0]?.command).toContain(`-v ${site}:/srv/www:ro`);
     expect(servers[0]?.command).toContain(

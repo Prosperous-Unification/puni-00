@@ -52,7 +52,10 @@ export default defineConfig({
   retries: 0,
   timeout: 60_000,
   expect: { timeout: 10_000 },
-  reporter: [['list']],
+  reporter: [
+    ['list'],
+    ['junit', { outputFile: join(repoRoot, 'tmp', 'junit', 'wbs-fe-01.browser.packaged.xml') }],
+  ],
   use: {
     baseURL: `http://localhost:${String(PORT)}`,
     screenshot: 'only-on-failure',

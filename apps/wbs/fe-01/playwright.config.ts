@@ -215,8 +215,15 @@ export default defineConfig({
    */
   expect: { timeout: isCi ? 30_000 : 10_000 },
   reporter: isCi
-    ? [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
-    : [['list']],
+    ? [
+        ['list'],
+        ['html', { outputFolder: 'playwright-report', open: 'never' }],
+        ['junit', { outputFile: join(repoRoot, 'tmp', 'junit', 'wbs-fe-01.browser.ordinary.xml') }],
+      ]
+    : [
+        ['list'],
+        ['junit', { outputFile: join(repoRoot, 'tmp', 'junit', 'wbs-fe-01.browser.ordinary.xml') }],
+      ],
   use: {
     baseURL: `http://localhost:${String(fePort)}`,
     // The browser's region, pinned, because two checks in `keyboard.spec.ts`
