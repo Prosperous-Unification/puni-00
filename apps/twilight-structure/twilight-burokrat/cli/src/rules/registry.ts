@@ -235,10 +235,12 @@ const performanceRule: RegisteredRule = {
         throw new Error('Performance evidence declaration identity mismatch');
       }
       // Proof: replacing this filter with an empty selection made the production threshold
-      // breach test lose its finding under both enforce and observe modes.
+      // breach test lose its finding under enforce, observe and ratchet modes.
       return verdict.cases
         .filter((performanceCase) => !performanceCase.passed)
         .map((performanceCase) => ({
+          // Proof: replacing the fixture with the declaration path made the ratchet
+          // adopted/outside production test fail and changed the finding subject.
           path: performanceCase.fixture,
           message: `Performance case ${performanceCase.caseId} did not meet its reviewed threshold`,
         }));

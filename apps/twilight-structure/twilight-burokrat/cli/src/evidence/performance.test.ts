@@ -361,7 +361,7 @@ describe('Burokrat Performance judge', () => {
     }
   });
 
-  it('reports an independently measured threshold breach under enforce and observe', () => {
+  it('reports an independently measured threshold breach under enforce, observe and ratchet', () => {
     const fixture = productionFixture();
     const violated = {
       ...execution,
@@ -372,7 +372,12 @@ describe('Burokrat Performance judge', () => {
         },
       ],
     };
-    for (const mode of ['enforce', 'observe'] as const) {
+    for (const scenario of [
+      { mode: 'enforce', adoptedPrefixes: [], effect: 'refusal' },
+      { mode: 'observe', adoptedPrefixes: [], effect: 'debt' },
+      { mode: 'ratchet', adoptedPrefixes: ['apps/wbs/fe-01/e2e-performance'], effect: 'refusal' },
+      { mode: 'ratchet', adoptedPrefixes: ['other'], effect: 'debt' },
+    ] as const) {
       const policy = JSON.parse(readFileSync(fixture.policyPath, 'utf8')) as {
         ruleModes: { ruleId: string; mode: string }[];
       };
@@ -380,8 +385,9 @@ describe('Burokrat Performance judge', () => {
         fixture.policyPath,
         JSON.stringify({
           ...policy,
+          adoptedSet: { adoptedPrefixes: scenario.adoptedPrefixes },
           ruleModes: policy.ruleModes.map((rule) =>
-            rule.ruleId === 'PERF-THRESHOLD' ? { ...rule, mode } : rule,
+            rule.ruleId === 'PERF-THRESHOLD' ? { ...rule, mode: scenario.mode } : rule,
           ),
         }),
       );
@@ -403,15 +409,15 @@ describe('Burokrat Performance judge', () => {
       expect(verdict.findings).toEqual([
         {
           ruleId: 'PERF-THRESHOLD',
-          effect: mode === 'enforce' ? 'refusal' : 'debt',
+          effect: scenario.effect,
           path: performanceCase.fixture,
           message: 'Performance case paint-ready did not meet its reviewed threshold',
         },
       ]);
       expect(verdict.unevaluated).toEqual([]);
-      expect(verdict.allowed).toBe(mode === 'observe');
+      expect(verdict.allowed).toBe(scenario.effect === 'debt');
       expect(verdict.certifies).toBe(false);
-      expect(invocation.exitCode).toBe(mode === 'enforce' ? 1 : 0);
+      expect(invocation.exitCode).toBe(scenario.effect === 'refusal' ? 1 : 0);
     }
   });
 

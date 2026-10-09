@@ -593,3 +593,11 @@ test src/evidence/performance.test.ts --timeout=30000`). Burokrat spec TypeScrip
 changed-file ESLint, Prettier check and `git diff --check` each exited 0. The broader
 rules suite was not rerun for this proof-only correction; its last run was 64/64 at
 `13637f19c`.
+
+The threshold-breach production case also ran in ratchet mode with its fixture directory
+inside the adopted set (finding `refusal`, exit 1) and outside it (finding `debt`, exit 0).
+Both verdicts remain non-certifying. Disabling the failed-case filter removed the finding;
+replacing the finding path with the declaration path changed adoption and made the named
+ratchet test fail. Both mutations were restored.
+The final focused Performance suite passed 18/18 with 149 assertions; Burokrat spec
+TypeScript, changed-file ESLint, Prettier check and `git diff --check` exited 0.
