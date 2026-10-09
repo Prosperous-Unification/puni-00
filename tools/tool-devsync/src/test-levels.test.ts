@@ -403,6 +403,99 @@ describe('the adopted projects', () => {
 });
 
 describe('declared level targets', () => {
+  it('refuses legacy aggregate Nx envelope drift through the production CLI', async () => {
+    const root = 'libs/wbs/adapters/store-memory';
+    const manifest = await readManifest(root);
+    const entry = manifest.targets['test'];
+    if (entry === undefined) throw new Error('memory test aggregate is absent');
+    for (const changed of [
+      { ...entry, executor: undefined },
+      { ...entry, executor: 'missing:executor' },
+      { ...entry, options: { ...entry.options, args: ['--test-name-pattern=NO_MATCH'] } },
+      { ...entry, options: { ...entry.options, commands: ['echo no-tests'] } },
+      { ...entry, options: { ...entry.options, env: { TZ: 'Pacific/Auckland' } } },
+      { ...entry, options: { ...entry.options, forwardAllArgs: true } },
+      { ...entry, dependsOn: ['test:unit:level'] },
+      { ...entry, configurations: { narrow: {} } },
+      { ...entry, defaultConfiguration: 'narrow' },
+    ]) {
+      const run = auditManifest(root, {
+        ...manifest,
+        targets: { ...manifest.targets, test: changed },
+      });
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr).toContain(
+        'wbs-store-memory:test aggregate members differ from declaration',
+      );
+    }
+  });
+
+  it('refuses a missing or changed frontend Unit dependency target through the production CLI', async () => {
+    const root = 'apps/wbs/fe-01';
+    const manifest = await readManifest(root);
+    const missing = { ...manifest.targets };
+    delete missing['test:unit'];
+    const absent = auditManifest(root, { ...manifest, targets: missing });
+    expect(absent.exitCode).toBe(1);
+    expect(absent.stderr).toContain('wbs-fe-01:test:unit dependency differs from declaration');
+    const changed = auditManifest(root, {
+      ...manifest,
+      targets: {
+        ...manifest.targets,
+        'test:unit': {
+          ...manifest.targets['test:unit'],
+          options: { ...manifest.targets['test:unit']?.options, command: 'echo no-tests' },
+        },
+      },
+    });
+    expect(changed.exitCode).toBe(1);
+    expect(changed.stderr).toContain('wbs-fe-01:test:unit dependency differs from declaration');
+    const filtered = auditManifest(root, {
+      ...manifest,
+      targets: {
+        ...manifest.targets,
+        'test:unit': {
+          ...manifest.targets['test:unit'],
+          options: {
+            ...manifest.targets['test:unit']?.options,
+            args: ['--test-name-pattern=NO_MATCH'],
+          },
+        },
+      },
+    });
+    expect(filtered.exitCode).toBe(1);
+    expect(filtered.stderr).toContain('wbs-fe-01:test:unit dependency differs from declaration');
+  });
+
+  it('refuses a second conflicting Bun report output through the production CLI', async () => {
+    const root = 'libs/wbs/adapters/store-memory';
+    const manifest = await readManifest(root);
+    const entry = manifest.targets['test:unit:level'];
+    const command = entry?.options?.command;
+    if (entry === undefined || command === undefined)
+      throw new Error('memory Unit command is absent');
+    const expected = '--reporter-outfile=../../../../tmp/junit/wbs-store-memory.unit.xml';
+    const wrong = '--reporter-outfile=../../../../tmp/junit/wrong.xml';
+    for (const [changed, diagnostic] of [
+      [`${command} ${wrong}`, 'wbs-store-memory:test:unit:level report differs from declaration'],
+      [command.replace(expected, `${wrong} ${expected}`), 'guarded level target clears'],
+      [
+        `${command} ${expected}`,
+        'wbs-store-memory:test:unit:level report differs from declaration',
+      ],
+    ]) {
+      const run = auditManifest(root, {
+        ...manifest,
+        targets: {
+          ...manifest.targets,
+          'test:unit:level': { ...entry, options: { ...entry.options, command: changed } },
+        },
+      });
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr).toContain(diagnostic);
+    }
+  });
+
   it('refuses Bun Nx envelope and report drift through the production CLI', async () => {
     const root = SQLITE;
     const manifest = await readManifest(root);

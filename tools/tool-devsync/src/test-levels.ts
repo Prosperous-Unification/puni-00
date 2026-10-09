@@ -183,6 +183,8 @@ export function readNodeSuiteManifest(
   const files = new Set<string>();
   const suites: readonly unknown[] = source.suites;
   for (const entry of suites) {
+    // Proof: disabling entry shape and reason validation made the malformed
+    // entry and blank-reason manifest CLI fixtures miss their named refusals.
     if (
       typeof entry !== 'object' ||
       entry === null ||
@@ -301,9 +303,11 @@ export function assertBunReport(target: LevelTarget, command: string): void {
   const parsed = parseLevelCommand(command);
   const report = reportPathFrom(target.root, target.report);
   // Proof: changing both clear and write paths to wrong.xml made the named CLI
-  // report negative pass when this identity guard was disabled.
+  // report negative pass when this identity guard was disabled. Removing the
+  // outfile-family count made the duplicate-output CLI negative fail.
   if (
     parsed.flags.filter((flag) => flag === '--reporter=junit').length !== 1 ||
+    parsed.flags.filter((flag) => flag.startsWith('--reporter-outfile=')).length !== 1 ||
     parsed.flags.filter((flag) => flag === `--reporter-outfile=${report}`).length !== 1
   )
     throw new Error(`${label} report differs from declaration`);
@@ -592,8 +596,8 @@ export async function verifyTargetInventory(
           }),
         ),
       );
-      // Proof: bypassing this refusal made the injected `test:mixed` target pass the
-      // production inventory check despite collecting real Conformance and Unit files.
+      // Proof: bypassing this refusal lost the injected `test:mixed` target's
+      // named mixed-level diagnostic; the later unknown-target guard still refused it.
       if (levels.size > 1)
         throw new Error(
           `${qualified} is an undeclared mixed target collecting ${[...levels].sort().join(' and ')}`,
@@ -665,6 +669,18 @@ export async function assertAggregateMembership(
       Object.keys(entry.options).some((key) => !['command', 'cwd'].includes(key))
     )
       throw new Error(`${aggregate.qualified} aggregate members differ from declaration`);
+    const unit = manifest.targets['test:unit'];
+    // Proof: deleting or replacing FE test:unit with `echo no-tests` made the
+    // named production CLI dependency assertion fail when this join was removed.
+    if (
+      unit?.executor !== 'nx:run-commands' ||
+      unit.options?.cwd !== root ||
+      unit.options.command !==
+        'TZ=UTC bunx vitest run --config vitest.node.config.ts --testTimeout=30000 --hookTimeout=30000' ||
+      Object.keys(unit).some((key) => !['executor', 'options'].includes(key)) ||
+      Object.keys(unit.options).some((key) => !['command', 'cwd'].includes(key))
+    )
+      throw new Error('wbs-fe-01:test:unit dependency differs from declaration');
     return;
   }
   const command = entry.options?.command ?? '';
@@ -673,6 +689,16 @@ export async function assertAggregateMembership(
     scope === 'all'
       ? 'bun test --coverage --coverage-reporter=lcov --timeout=30000'
       : 'bun test src --coverage --coverage-reporter=lcov --timeout=10000';
+  // Proof: removing this envelope check made the memory aggregate's missing
+  // executor and options.args CLI faults miss their named refusals.
+  if (
+    entry.executor !== 'nx:run-commands' ||
+    Object.keys(entry).some(
+      (key) => !['executor', 'cache', 'inputs', 'options', 'outputs'].includes(key),
+    ) ||
+    Object.keys(entry.options ?? {}).some((key) => !['command', 'cwd'].includes(key))
+  )
+    throw new Error(`${aggregate.qualified} aggregate members differ from declaration`);
   // Proof: removing this check made the mutated memory test:unit runner selecting
   // only Conformance and a separate test-name-filter mutation pass their named negatives.
   if (entry.options?.cwd !== root || command !== expectedCommand)
