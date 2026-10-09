@@ -20,6 +20,10 @@
     {
       "ruleId": "MOD-LAYOUT",
       "file": "src/architecture/mod-layout.architecture.test.ts"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "file": "src/architecture/rel-extract.architecture.test.ts"
     }
   ]
 }
