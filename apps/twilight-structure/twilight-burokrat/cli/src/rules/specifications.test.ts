@@ -754,6 +754,20 @@ test('production selector refuses another change targeting the rename destinatio
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('competing');
 });
 
+test('production selector refuses an empty rename section beside a valid operation', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    'openspec/changes/rename/specs/example/spec.md':
+      '## RENAMED Requirements\n\n## ADDED Requirements\n' +
+      '### Requirement: New requirement\n#### Scenario: New case\n',
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
+    'malformed requirement rename pair',
+  );
+});
+
 test.each([
   [
     'missing predecessor',

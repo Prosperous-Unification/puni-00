@@ -113,15 +113,20 @@ function parseRequirements(spec: SpecInput): {
               .split(/\r?\n/)
               .map((line) => line.trim())
               .filter(Boolean);
-            // Proof: deleting this shape guard made the production missing/duplicate endpoint
-            // negatives accept incomplete rename pairs.
-            if (lines.length === 0 || lines.length % 2 !== 0)
+            // Proof: disabling this empty-section guard made a RENAMED section beside a
+            // valid ADDED operation pass without a FROM/TO pair.
+            if (lines.length === 0)
               throw new Error(`malformed requirement rename pair: ${spec.path}`);
             for (let index = 0; index < lines.length; index += 2) {
               const from = /^- FROM: `### Requirement: (.+)`$/.exec(lines[index]);
-              const to = /^- TO: `### Requirement: (.+)`$/.exec(lines[index + 1]);
-              // Proof: deleting this pair guard made the production malformed FROM/TO
-              // negatives pass through to an unrelated later refusal.
+              const destinationLine = lines.at(index + 1);
+              const to =
+                destinationLine === undefined
+                  ? null
+                  : /^- TO: `### Requirement: (.+)`$/.exec(destinationLine);
+              // Proof: deleting this pair guard made the reversed-endpoint and odd
+              // missing-TO production negatives fail with null-access errors instead
+              // of the modeled refusal.
               if (from === null || to === null)
                 throw new Error(`malformed requirement rename pair: ${spec.path}`);
               // Proof: disabling exact nonblank titles made the whitespace-only TO
@@ -244,8 +249,8 @@ export function selectActiveSpecifications(inputs: readonly SpecInput[]): Active
     if (from === undefined) throw new Error('requirement rename source is absent');
     const sourceKey = keyOf({ capability: requirement.capability, title: from });
     const destinationKey = keyOf(requirement);
-    // Proof: disabling endpoint uniqueness made the production chain and duplicate-pair
-    // negatives select a path-order-dependent lineage.
+    // Proof: disabling endpoint uniqueness made the production chain negative
+    // exit 0 with a path-order-dependent lineage.
     if (renameEndpoints.has(sourceKey) || renameEndpoints.has(destinationKey))
       throw new Error(`competing requirement rename endpoint: ${requirement.capability}: ${from}`);
     const predecessor = canonical.get(sourceKey);
@@ -279,8 +284,8 @@ export function selectActiveSpecifications(inputs: readonly SpecInput[]): Active
     if (kind === 'RENAMED') continue;
     const key = keyOf(requirement);
     const rename = renameEndpoints.get(key);
-    // Proof: disabling this endpoint guard made the production competing-change negative
-    // accept a change targeting the old name beside an active rename.
+    // Proof: disabling this endpoint guard made the production competing-destination
+    // negative accept a different change's modification beside an active rename.
     if (
       rename !== undefined &&
       !(kind === 'MODIFIED' && key === rename.destination && requirement.source === rename.source)
