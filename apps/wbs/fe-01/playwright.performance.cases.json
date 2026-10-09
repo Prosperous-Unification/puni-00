@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "config": "apps/wbs/fe-01/playwright.performance.config.ts",
+  "project": "chromium",
+  "cases": []
+}

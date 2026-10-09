@@ -55,6 +55,14 @@
         "forwardAllArgs": false
       }
     },
+    "test:performance:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-devsync/src/performance-level.ts",
+        "forwardAllArgs": false
+      }
+    },
     "e2e": {
       "executor": "nx:run-commands",
       "options": {

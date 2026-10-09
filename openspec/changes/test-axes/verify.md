@@ -468,3 +468,43 @@ At this increment, actual ordinary, packaged and portable Browser target executi
 The actual Playwright JUnit has `<testsuite name="portable-composition.spec.ts" hostname="chromium">` and two `<testcase classname="portable-composition.spec.ts">` entries, but no testcase `file` attribute. The installed Playwright reporter implementation constructs `classname: suiteName` and no `file`. Burokrat's current `readJUnitReport` rejects a testcase without `file`; no file-level scenario join or candidate-bound report claim is made from this XML alone. The companion manifest/adapter remains required before ledger consumption.
 
 Scoped `NX_CACHE_PROJECT_GRAPH=false bunx eslint` on the portable config and new test exited 0 after sorting the test imports. Prettier check and `git diff --check` exited 0. The h2puni gate was not run for this slice.
+
+## Performance declaration and empty-target checkpoint — 2026-10-09
+
+This is an intermediate Task 2.1 slice. The candidate-owned declaration is valid and empty.
+`wbs-fe-01:test:performance:level` clears prior JUnit and binding files, validates the
+declaration, and exits nonzero with `no-cases: no performance fixtures declare thresholds`
+before Playwright. A nonempty declaration currently exits with the explicit
+`Performance runner execution is not yet implemented` error; it does not emit a pass.
+
+| Check                                                                                                                   | Fresh observation                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bun test src/performance-level.test.ts` in `tools/tool-devsync`                                                        | Exit 0; 7 pass, 0 fail, 28 assertions. These call the production adapter and distinguish absent `ENOENT`, unreadable directory `EISDIR`, malformed JSON, absent/unreadable config, path/threshold/schema/identity faults and stale report removal.                                                                                                                       |
+| `bun test src/index.test.ts` in `libs/shared/domain/test-evidence`                                                      | Exit 0; 5 pass, 0 fail, 13 assertions.                                                                                                                                                                                                                                                                                                                                   |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/puni-nx-axes bunx nx run wbs-fe-01:test:performance:level` | Exit 1; actual Nx target invoked `bun tools/tool-devsync/src/performance-level.ts` and printed the named `no-cases` error. Neither `tmp/junit/wbs-fe-01.performance.xml` nor its companion manifest existed afterward. An earlier Nx invocation without the three environment settings exited 0 after socket warnings without running any target, so it is not evidence. |
+| Scoped TypeScript for devsync, shared evidence and frontend E2E tsconfigs                                               | Exit 0.                                                                                                                                                                                                                                                                                                                                                                  |
+| Scoped ESLint after generating the Nx project graph                                                                     | Exit 0. Immediately after `nx reset`, ESLint warned that it skipped the module boundary rule for lack of a cached graph; that run is excluded.                                                                                                                                                                                                                           |
+
+Production-path fault probes were restored after each observed failure:
+
+| Disabled check                                             | Named test failure observed                                                                                                      |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Empty-case predicate                                       | Expected `no-cases`, received the nonempty-runner error.                                                                         |
+| Prior JUnit removal                                        | The stale passing XML remained readable after `no-cases`.                                                                        |
+| Prior binding removal                                      | The stale passing manifest remained readable after `no-cases`.                                                                   |
+| Config path validation                                     | Expected normalized-path refusal for `../outside.config.ts`, received a later config-identity error.                             |
+| Fixture path validation, and separately its `..` branch    | Expected normalized-path refusal for `../outside.perf.spec.ts`, received the later runner error.                                 |
+| Finite-threshold guard                                     | JSON `1e999` reached the later runner error instead of the finite-threshold refusal.                                             |
+| Nonempty title guard                                       | Empty title hierarchy reached the later runner error.                                                                            |
+| Duplicate case-ID guard                                    | The duplicate was reported only as a runner-tuple collision, failing the case-ID refusal.                                        |
+| Duplicate runner-tuple guard                               | Two IDs claimed one tuple and reached the later runner error.                                                                    |
+| Outer schema undeclared-key rejection                      | An unexpected field reached the later runner error.                                                                              |
+| Case schema undeclared-key rejection                       | A case-local unexpected field reached the later runner error.                                                                    |
+| Schema error branch                                        | An unexpected field became `TypeError: undefined is not an object (evaluating 'path.startsWith')` instead of the schema refusal. |
+| Fixed config and fixed project identity guards, separately | Each changed identity reached the later runner error instead of its named refusal.                                               |
+| Selected config readability check                          | A missing config reached `no-cases` instead of `ENOENT`; the absent/unreadable-config test failed.                               |
+
+The next required slice is strict Playwright JSON discovery, same-selection execution,
+fresh finite observations, independent Burokrat comparison, trusted-policy/candidate binding,
+JUnit plus companion manifest, and a real reviewed Performance fixture/run. No
+Performance pass or Task 2.1 completion is claimed here. `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict` exited 0 with `Change 'test-axes' is valid`. Bare `bunx openspec` could not determine an executable and is excluded. The h2puni gate remains unrun.

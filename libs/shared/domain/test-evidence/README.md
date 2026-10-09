@@ -1,0 +1,5 @@
+# Test evidence
+
+<!-- module-index {"schemaVersion":1,"moduleId":"module.shared.test-evidence","memberships":[{"kind":"directory-prefix","prefix":"src","exclusions":[]},{"kind":"path","path":"project.json"},{"kind":"path","path":"tsconfig.json"},{"kind":"path","path":"tsconfig.lib.json"},{"kind":"path","path":"tsconfig.spec.json"}],"relationshipSelectors":[],"applicableChecks":["check.test-evidence.test","check.test-evidence.lint","check.test-evidence.typecheck"],"inapplicableSections":[{"section":"relationships","reason":"The pure evidence contract has no relationship extraction inputs."},{"section":"invariants","reason":"Declaration invariants are exercised by the colocated tests."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"tools/tool-devsync/src/performance-level.ts"}],"knowledgeLimit":"Only the declared runner adapter consumes this contract today; add Burokrat when its judge is wired."}} -->
+
+The public declaration contract normalizes Performance identities. Runner adapters and Burokrat will consume the same records as execution evidence is implemented.
