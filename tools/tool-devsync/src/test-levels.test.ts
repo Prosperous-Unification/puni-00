@@ -108,6 +108,20 @@ describe('the adopted projects', () => {
 });
 
 describe('declared level targets', () => {
+  it('refuses a guarded target that clears a different JUnit report', async () => {
+    const manifest = await readManifest('libs/wbs/adapters/store-memory');
+    const command = manifest.targets['test:unit:level']?.options?.command;
+    if (command === undefined) throw new Error('memory Unit level has no command');
+    const wrongClear = command.replace(
+      'rm -f ../../../../tmp/junit/wbs-store-memory.unit.xml',
+      'rm -f ../../../../tmp/junit/wrong.xml',
+    );
+    expect(wrongClear).not.toBe(command);
+    expect(() => parseLevelCommand(wrongClear)).toThrow(
+      'guarded level target clears ../../../../tmp/junit/wrong.xml but writes ../../../../tmp/junit/wbs-store-memory.unit.xml',
+    );
+  });
+
   // Proof: with the memory Unit command's empty-file guard changed to inspect "never",
   // this production-command case failed because Bun discovered unrelated.test.ts and exited 0.
   // Removing each selected fixture and deleting each selector root also confirms stale JUnit is

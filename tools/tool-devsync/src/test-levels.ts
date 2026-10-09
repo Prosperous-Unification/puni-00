@@ -287,6 +287,8 @@ export function parseLevelCommand(command: string): LevelCommand {
   }
   if (guarded !== null) {
     const report = flags.find((flag) => flag.startsWith('--reporter-outfile='))?.slice(19);
+    // Proof: disabling this equality made "refuses a guarded target that clears a different
+    // JUnit report" fail: a mutated production command clearing wrong.xml did not throw.
     if (report !== guarded[2]) {
       throw new Error(
         `guarded level target clears ${guarded[2]} but writes ${report ?? 'no report'}`,
