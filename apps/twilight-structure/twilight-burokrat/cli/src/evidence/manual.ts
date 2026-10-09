@@ -5,7 +5,11 @@ import { parseOrThrow, type } from '@shared/validation';
 
 import { RelativePath } from '../contracts/records';
 import { readCandidateBlob } from '../inventory/read-blob';
-import { readCandidate, resolveCandidateRoot } from '../inventory/read-candidate';
+import {
+  CandidateReadError,
+  readCandidate,
+  resolveCandidateRoot,
+} from '../inventory/read-candidate';
 import { readExternalArtifact } from '../policy/trust';
 import { loadRulePolicyWithIdentity } from '../rules/rule-policy';
 import { evaluateSpecifications } from '../rules/specifications';
@@ -111,6 +115,145 @@ export const ManualAcceptanceApproval = type({
   acceptedAt: Instant,
 }).onUndeclaredKey('reject');
 
+function utcInstant(value: string, subject: string, capturedNow: Date): number {
+  const millis = Date.parse(value);
+  const canonical = value.includes('.') ? value : value.replace('Z', '.000Z');
+  // Proof: malformed and future timestamp CLI cases lose their named refusal if this guard is removed.
+  if (
+    !Number.isFinite(millis) ||
+    new Date(millis).toISOString() !== canonical ||
+    millis > capturedNow.getTime()
+  )
+    throw new Error(`${subject} is invalid or in the future: ${value}`);
+  return millis;
+}
+
+function utcDate(value: string, subject: string): number {
+  const millis = Date.parse(`${value}T00:00:00.000Z`);
+  // Proof: an invalid review deadline loses its named refusal without this calendar guard.
+  if (!Number.isFinite(millis) || new Date(millis).toISOString().slice(0, 10) !== value)
+    throw new Error(`${subject} is not a valid UTC date: ${value}`);
+  return millis;
+}
+
+/** Evaluates only exact approval, binding, time and step evidence; source-history currency follows in 3.1.4. */
+function evaluateManualChain(
+  chain: {
+    disposition: typeof ManualDisposition.infer;
+    procedure: typeof ManualProcedure.infer;
+    report: typeof ManualReport.infer;
+    environment: typeof ManualEnvironment.infer;
+    review: typeof ManualReviewApproval.infer;
+    acceptance: typeof ManualAcceptanceApproval.infer;
+    dispositionDigest: string;
+    procedureDigest: string;
+    reportDigest: string;
+    environmentDigest: string;
+  },
+  capturedNow: Date,
+): void {
+  const { disposition, procedure, report, environment, review, acceptance } = chain;
+  // Proof: repinned report identity CLI negatives fail their named assertions when this guard is removed.
+  if (report.scenarioId !== disposition.scenarioId || report.title !== disposition.title)
+    throw new Error('Manual report scenario differs from disposition');
+  // Proof: a repinned whitespace run ID made the named CLI assertion fail when this guard was removed.
+  if (report.runId.trim().length === 0) throw new Error('Manual report run ID is blank');
+  // Proof: repinned report digest CLI negatives fail their named assertions when this guard is removed.
+  if (report.dispositionDigest !== chain.dispositionDigest)
+    throw new Error('Manual report disposition digest differs');
+  // Proof: removing this join made the repinned report-procedure CLI assertion fail.
+  if (report.procedureDigest !== chain.procedureDigest)
+    throw new Error('Manual report procedure digest differs');
+  // Proof: removing this join made the repinned review-scenario CLI assertion fail.
+  if (review.scenarioId !== disposition.scenarioId)
+    throw new Error('Manual review scenario differs');
+  // Proof: removing this join made the repinned review-disposition CLI assertion fail.
+  if (review.dispositionDigest !== chain.dispositionDigest)
+    throw new Error('Manual review disposition digest differs');
+  // Proof: removing this join made the repinned review-procedure CLI assertion fail.
+  if (review.procedureDigest !== chain.procedureDigest)
+    throw new Error('Manual review procedure digest differs');
+  // Proof: removing this join made the repinned review-scope CLI assertion fail.
+  if (hashCanonical(review.reviewedScope) !== hashCanonical(report.reviewedScope))
+    throw new Error('Manual review scope differs from report');
+  // Proof: removing this guard made the self-asserted review-identity CLI assertion fail.
+  if (
+    review.reviewer.trim().length === 0 ||
+    review.reference.trim().length === 0 ||
+    review.reviewer === report.operator
+  )
+    throw new Error('Manual review identity is self-asserted or blank');
+  // Proof: removing this guard made the repinned blank-operator CLI assertion fail.
+  if (report.operator.trim().length === 0) throw new Error('Manual report operator is blank');
+  // Proof: removing this join made the wrong tested-revision CLI assertion fail.
+  if (environment.sourceRevision !== report.sourceRevision)
+    throw new Error('Manual environment source revision differs from report');
+  // Proof: removing this join made the repinned environment-digest CLI assertion fail.
+  if (report.environmentDigest !== chain.environmentDigest)
+    throw new Error('Manual report environment digest differs');
+  // Proof: removing this guard made the blank environment-attributes CLI assertion fail.
+  if (
+    environment.observationId.trim().length === 0 ||
+    environment.environmentId.trim().length === 0 ||
+    Object.keys(environment.attributes).length === 0 ||
+    Object.entries(environment.attributes).some(
+      ([name, value]) => name.trim().length === 0 || value.trim().length === 0,
+    )
+  )
+    throw new Error('Manual environment attributes or identity are blank');
+  // Proof: removing this join made the repinned acceptance-report CLI assertion fail.
+  if (acceptance.reportDigest !== chain.reportDigest)
+    throw new Error('Manual acceptance report digest differs');
+  // Proof: removing this join made the repinned acceptance-environment CLI assertion fail.
+  if (acceptance.environmentDigest !== chain.environmentDigest)
+    throw new Error('Manual acceptance environment digest differs');
+  // Proof: removing this join made the repinned acceptance-run CLI assertion fail.
+  if (acceptance.runId !== report.runId) throw new Error('Manual acceptance run differs');
+  // Proof: removing this join made the repinned acceptance-operator CLI assertion fail.
+  if (acceptance.operator !== report.operator)
+    throw new Error('Manual acceptance operator differs');
+  // Proof: removing this join made the repinned acceptance-times CLI assertion fail.
+  if (acceptance.startedAt !== report.startedAt || acceptance.completedAt !== report.completedAt)
+    throw new Error('Manual acceptance times differ');
+  // Proof: removing this guard made the self-asserted acceptance-identity CLI assertion fail.
+  if (
+    acceptance.reviewer.trim().length === 0 ||
+    acceptance.reference.trim().length === 0 ||
+    acceptance.reviewer === report.operator
+  )
+    throw new Error('Manual acceptance identity is self-asserted or blank');
+  const started = utcInstant(report.startedAt, 'Manual report startedAt', capturedNow);
+  const completed = utcInstant(report.completedAt, 'Manual report completedAt', capturedNow);
+  const accepted = utcInstant(acceptance.acceptedAt, 'Manual acceptance acceptedAt', capturedNow);
+  const reviewed = utcInstant(review.reviewedAt, 'Manual review reviewedAt', capturedNow);
+  utcInstant(environment.observedAt, 'Manual environment observedAt', capturedNow);
+  // Proof: removing this guard made the reversed-run CLI assertion fail.
+  if (started > completed) throw new Error('Manual run chronology is invalid');
+  // Proof: removing this guard made the early-acceptance CLI assertion fail.
+  if (completed > accepted) throw new Error('Manual acceptance chronology is invalid');
+  const deadline = utcDate(review.reviewBy, 'Manual review deadline');
+  // Proof: removing this guard made the deadline-before-review CLI assertion fail.
+  if (deadline < Date.parse(new Date(reviewed).toISOString().slice(0, 10) + 'T00:00:00.000Z'))
+    throw new Error('Manual review deadline predates review');
+  // Proof: overdue review CLI negative loses its scenario/date refusal without this guard.
+  if (capturedNow.toISOString().slice(0, 10) > review.reviewBy)
+    throw new Error(`${disposition.scenarioId} review overdue on ${review.reviewBy}`);
+  // Proof: missing, duplicate and extra report-step CLI negatives lose their named refusal without this exact comparison.
+  if (
+    report.steps.length !== procedure.steps.length ||
+    report.steps.some((step, index) => step.stepId !== procedure.steps[index]?.stepId)
+  )
+    throw new Error('Manual report steps differ from ordered procedure');
+  // Proof: failed and skipped report-step CLI negatives lose their named refusal without this guard.
+  if (
+    report.steps.some((step) => step.outcome !== 'passed' || step.observation.trim().length === 0)
+  )
+    throw new Error('Manual report step outcome is not a passing observation');
+  // Proof: failed or skipped aggregate CLI negatives lose their named refusal without this guard.
+  if (report.outcome !== 'passed')
+    throw new Error('Manual report outcome differs from passing steps');
+}
+
 function assertCanonicalExternalPath(path: string, subject: string): void {
   // Proof: removing this guard made the named traversal CLI test fail its canonical-path assertion;
   // it fell through to the distinct report-pin mismatch instead of refusing this spelling here.
@@ -197,12 +340,13 @@ function readCandidateRecord(
   return { input, digest: hashBytes(bytes) };
 }
 
-/** Decodes a committed Manual evidence chain and resolves its scenario through B3. Review, report and freshness checks remain unevaluated. */
+/** Inspects committed Manual records and exact policy-pinned approvals; source-history currency remains unevaluated. */
 export function inspectManual(
   repository: string,
   revision: string,
   policyPath: string,
   reportPath: string,
+  capturedNow: Date,
 ) {
   const root = resolveCandidateRoot(repository);
   const selected = readCandidate(root, { kind: 'committed', revision });
@@ -319,15 +463,15 @@ export function inspectManual(
       `Manual scenario title differs from effective specification: ${dispositionRecord.scenarioId}`,
     );
   const environment = readExternal(root, reportRecord.environmentPath, 'manual environment');
-  parseOrThrow(ManualEnvironment, environment.input);
+  const environmentRecord = parseOrThrow(ManualEnvironment, environment.input);
   const review = readExternal(root, reportRecord.reviewApprovalPath, 'manual review approval');
-  parseOrThrow(ManualReviewApproval, review.input);
+  const reviewRecord = parseOrThrow(ManualReviewApproval, review.input);
   const acceptance = readExternal(
     root,
     reportRecord.acceptanceApprovalPath,
     'manual acceptance approval',
   );
-  parseOrThrow(ManualAcceptanceApproval, acceptance.input);
+  const acceptanceRecord = parseOrThrow(ManualAcceptanceApproval, acceptance.input);
   for (const [subject, path, digest] of [
     ['environment', reportRecord.environmentPath, environment.digest],
     ['approval', reportRecord.reviewApprovalPath, review.digest],
@@ -338,12 +482,50 @@ export function inspectManual(
     if (pins.filter((pin) => pin.path === path && pin.digest === digest).length !== 1)
       throw new Error(`Manual ${subject} differs from external policy pin: ${path}`);
   }
+  evaluateManualChain(
+    {
+      disposition: dispositionRecord,
+      procedure: procedureRecord,
+      report: reportRecord,
+      environment: environmentRecord,
+      review: reviewRecord,
+      acceptance: acceptanceRecord,
+      dispositionDigest: disposition.digest,
+      procedureDigest: procedure.digest,
+      reportDigest: report.digest,
+      environmentDigest: environment.digest,
+    },
+    capturedNow,
+  );
+  try {
+    // Proof: replacing this committed-object read with a no-op made the pinned nonexistent
+    // tested-SHA CLI assertion fail by accepting a report bound to no Git commit.
+    const tested = readCandidate(root, {
+      kind: 'committed',
+      revision: reportRecord.sourceRevision,
+    });
+    if (
+      tested.selection.kind !== 'committed' ||
+      tested.selection.revision !== reportRecord.sourceRevision
+    )
+      throw new Error(
+        `Manual tested revision is not an exact commit: ${reportRecord.sourceRevision}`,
+      );
+  } catch (cause) {
+    if (cause instanceof CandidateReadError && cause.failure === 'absent-revision')
+      throw new Error(`absent tested revision: ${reportRecord.sourceRevision}`, { cause });
+    throw cause;
+  }
   return {
     schemaVersion: 1 as const,
-    state: 'unevaluated' as const,
-    reason: 'Manual validation incomplete',
+    state: 'passing' as const,
+    validation: 'passed' as const,
+    outcome: 'passed' as const,
+    currency: 'unevaluated' as const,
+    provenance: 'synthetic-external-approval' as const,
     certifies: false as const,
     revision: selected.selection.revision,
+    testedRevision: reportRecord.sourceRevision,
     policyDigest: authority.digest,
     scenarioId: dispositionRecord.scenarioId,
     selectedScenario: { id: dispositionRecord.scenarioId, title: selectedScenario.title },

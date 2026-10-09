@@ -424,8 +424,9 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
         'usage: twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path>',
       );
     return import('./evidence/manual').then(({ inspectManual }) => {
+      const capturedNow = new Date();
       process.stdout.write(
-        `${JSON.stringify(inspectManual(args[1], args[2], args[3], args[4]))}\n`,
+        `${JSON.stringify(inspectManual(args[1], args[2], args[3], args[4], capturedNow))}\n`,
       );
     });
   }

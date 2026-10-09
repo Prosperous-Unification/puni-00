@@ -171,18 +171,336 @@ afterEach(() => {
   for (const path of scratch.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
-test('inspect-manual decodes exact committed and external identities into an incomplete noncertifying state', () => {
+test('inspect-manual accepts an exact external approval chain as a noncertifying passing observation', () => {
   const setup = fixture();
   const call = inspect(setup);
   expect(call.exitCode, call.stderr.toString()).toBe(0);
   const observation = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
-  expect(observation['state']).toBe('unevaluated');
+  expect(observation['state']).toBe('passing');
+  expect(observation['validation']).toBe('passed');
+  expect(observation['outcome']).toBe('passed');
   expect(observation['certifies']).toBe(false);
   expect(observation['scenarioId']).toBe('EXAMPLE-001');
   expect(observation['runId']).toBe('run-one');
   expect(observation['revision']).toBe(setup.revision);
+  expect(observation['testedRevision']).toBe(setup.revision);
   expect(observation['reportDigest']).toBe(digest(setup.records.report));
   expect(Object.hasOwn(observation, 'coverage')).toBe(false);
+});
+
+test('inspect-manual keeps an earlier tested commit distinct from an unrelated selected descendant', () => {
+  const setup = fixture();
+  writeFileSync(join(setup.root, 'unrelated.txt'), 'unrelated change');
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'unrelated descendant']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  const observation = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
+  expect(observation['revision']).toBe(revision);
+  expect(observation['testedRevision']).toBe(setup.revision);
+  expect(observation['currency']).toBe('unevaluated');
+  expect(observation['certifies']).toBe(false);
+});
+
+test('inspect-manual refuses a pinned tested SHA that is not a commit object', () => {
+  const setup = fixture();
+  setup.records.report.sourceRevision = 'a'.repeat(40);
+  setup.records.environment.sourceRevision = setup.records.report.sourceRevision;
+  setup.records.report.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
+  const call = inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('absent tested revision');
+});
+
+function writeApprovedChain(setup: ReturnType<typeof fixture>): void {
+  for (const [name, record] of Object.entries(setup.records))
+    writeFileSync(join(setup.base, `${name}.json`), JSON.stringify(record));
+  const manual = {
+    ...setup.manual,
+    reports: [{ path: setup.reportPath, digest: digest(setup.records.report) }],
+    environments: [
+      { path: join(setup.base, 'environment.json'), digest: digest(setup.records.environment) },
+    ],
+    approvals: [
+      { path: join(setup.base, 'review.json'), digest: digest(setup.records.review) },
+      { path: join(setup.base, 'acceptance.json'), digest: digest(setup.records.acceptance) },
+    ],
+  };
+  writeFileSync(setup.policyPath, JSON.stringify({ ...setup.policy, manual }));
+}
+
+test.each([
+  [
+    'report scenario',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.scenarioId = 'EXAMPLE-002';
+    },
+    'Manual report scenario',
+  ],
+  [
+    'report disposition digest',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.dispositionDigest = 'c'.repeat(64);
+    },
+    'Manual report disposition digest',
+  ],
+  [
+    'report procedure digest',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.procedureDigest = 'c'.repeat(64);
+    },
+    'Manual report procedure digest',
+  ],
+  [
+    'blank run ID',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.runId = ' ';
+      s.records.acceptance.runId = ' ';
+    },
+    'Manual report run ID',
+  ],
+  [
+    'blank operator',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.operator = ' ';
+      s.records.acceptance.operator = ' ';
+    },
+    'Manual report operator',
+  ],
+  [
+    'review disposition digest',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.review.dispositionDigest = 'c'.repeat(64);
+    },
+    'Manual review disposition digest',
+  ],
+  [
+    'review procedure digest',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.review.procedureDigest = 'c'.repeat(64);
+    },
+    'Manual review procedure digest',
+  ],
+  [
+    'review scope',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.review.reviewedScope = {
+        ...s.records.report.reviewedScope,
+        requirementDigest: 'c'.repeat(64),
+      };
+    },
+    'Manual review scope',
+  ],
+  [
+    'review scenario',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.review.scenarioId = 'EXAMPLE-002';
+    },
+    'Manual review scenario',
+  ],
+  [
+    'review identity',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.review.reviewer = s.records.report.operator;
+    },
+    'Manual review identity',
+  ],
+  [
+    'acceptance identity',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.acceptance.reviewer = s.records.report.operator;
+    },
+    'Manual acceptance identity',
+  ],
+  [
+    'acceptance report digest',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.acceptance.reportDigest = 'c'.repeat(64);
+    },
+    'Manual acceptance report digest',
+  ],
+  [
+    'acceptance environment digest',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.acceptance.environmentDigest = 'c'.repeat(64);
+    },
+    'Manual acceptance environment digest',
+  ],
+  [
+    'acceptance run',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.acceptance.runId = 'other-run';
+    },
+    'Manual acceptance run',
+  ],
+  [
+    'acceptance operator',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.acceptance.operator = 'other-operator';
+    },
+    'Manual acceptance operator',
+  ],
+  [
+    'acceptance times',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.acceptance.startedAt = '2026-10-08T10:01:01.000Z';
+    },
+    'Manual acceptance times',
+  ],
+  [
+    'environment digest',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.environmentDigest = 'c'.repeat(64);
+    },
+    'Manual report environment digest',
+  ],
+  [
+    'environment revision',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.environment.sourceRevision = 'a'.repeat(40);
+    },
+    'Manual environment source revision',
+  ],
+  [
+    'environment attributes',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.environment.attributes = { host: '' };
+    },
+    'Manual environment attributes',
+  ],
+  [
+    'wrong tested revision',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.sourceRevision = 'a'.repeat(40);
+    },
+    'Manual environment source revision',
+  ],
+  [
+    'malformed timestamp',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.startedAt = '2026-02-30T10:01:00.000Z';
+    },
+    'Manual report startedAt',
+  ],
+  [
+    'future timestamp',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.environment.observedAt = '2999-01-01T00:00:00.000Z';
+    },
+    'Manual environment observedAt',
+  ],
+  [
+    'future review',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.review.reviewedAt = '2999-01-01T00:00:00.000Z';
+    },
+    'Manual review reviewedAt',
+  ],
+  [
+    'future acceptance',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.acceptance.acceptedAt = '2999-01-01T00:00:00.000Z';
+    },
+    'Manual acceptance acceptedAt',
+  ],
+  [
+    'malformed deadline',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.review.reviewBy = '2026-02-30';
+    },
+    'Manual review deadline is not a valid UTC date',
+  ],
+  [
+    'deadline before review',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.review.reviewBy = '2026-10-06';
+    },
+    'Manual review deadline predates review',
+  ],
+  [
+    'run order',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.startedAt = '2026-10-08T10:04:00.000Z';
+    },
+    'Manual run chronology',
+  ],
+  [
+    'acceptance order',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.acceptance.acceptedAt = '2026-10-08T10:00:00.000Z';
+    },
+    'Manual acceptance chronology',
+  ],
+  [
+    'deadline',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.review.reviewBy = '2026-10-07';
+    },
+    'EXAMPLE-001 review overdue on 2026-10-07',
+  ],
+  [
+    'missing step',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.steps = [];
+    },
+    'Manual report steps',
+  ],
+  [
+    'duplicate step',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.steps.push(s.records.report.steps[0]);
+    },
+    'Manual report steps',
+  ],
+  [
+    'extra step',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.steps.push({ stepId: 'extra', outcome: 'passed', observation: 'Extra' });
+    },
+    'Manual report steps',
+  ],
+  [
+    'failed step',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.steps[0].outcome = 'failed';
+    },
+    'Manual report step outcome',
+  ],
+  [
+    'skipped step',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.steps[0].outcome = 'skipped';
+    },
+    'Manual report step outcome',
+  ],
+  [
+    'failed aggregate',
+    (s: ReturnType<typeof fixture>) => {
+      s.records.report.outcome = 'failed';
+    },
+    'Manual report outcome',
+  ],
+] as const)('inspect-manual refuses %s with approved bytes', (name, change, finding) => {
+  const setup = fixture();
+  change(setup);
+  if (name !== 'environment digest')
+    setup.records.report.environmentDigest = digest(setup.records.environment);
+  if (name !== 'acceptance environment digest')
+    setup.records.acceptance.environmentDigest = digest(setup.records.environment);
+  if (name !== 'acceptance report digest')
+    setup.records.acceptance.reportDigest = digest(setup.records.report);
+  if (name !== 'acceptance times') {
+    setup.records.acceptance.startedAt = setup.records.report.startedAt;
+    setup.records.acceptance.completedAt = setup.records.report.completedAt;
+  }
+  writeApprovedChain(setup);
+  const call = inspect(setup);
+  expect(call.exitCode, call.stdout.toString()).toBe(1);
+  expect(call.stderr.toString()).toContain(finding);
 });
 
 test('inspect-manual refuses absent and unreadable external report separately', () => {
@@ -197,6 +515,15 @@ test('inspect-manual refuses absent and unreadable external report separately', 
   const unreadable = inspect({ ...setup, reportPath: directory });
   expect(unreadable.exitCode).toBe(1);
   expect(unreadable.stderr.toString()).toContain('manual report');
+});
+
+test('inspect-manual refuses an absent externally approved acceptance record', () => {
+  const setup = fixture();
+  rmSync(join(setup.base, 'acceptance.json'));
+  const call = inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('cannot inspect manual acceptance approval');
+  expect(call.stderr.toString()).toContain('ENOENT');
 });
 
 test('inspect-manual refuses malformed external UTF-8 and JSON', () => {
