@@ -24,6 +24,10 @@
     {
       "ruleId": "REL-EXTRACT",
       "file": "src/architecture/rel-extract.architecture.test.ts"
+    },
+    {
+      "ruleId": "F1",
+      "file": "src/architecture/f1.architecture.test.ts"
     }
   ]
 }
