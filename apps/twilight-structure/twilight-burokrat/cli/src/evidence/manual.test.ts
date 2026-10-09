@@ -41,10 +41,10 @@ function indexSource(
     externalConsumers: { kind: 'none-known', knowledgeLimit: 'Fixture candidate only.' },
   })} -->\n`;
 }
-function reviewedScope(root: string, revision: string) {
+function reviewedScope(root: string, revision: string, moduleDirectory = 'source') {
   const requirement =
     '### Requirement: Example requirement\n#### Scenario: [EXAMPLE-001] Example\n';
-  const paths = ['source/README.md', 'source/module.ts'];
+  const paths = [`${moduleDirectory}/README.md`, `${moduleDirectory}/module.ts`];
   const entries = paths.map((path) => ({
     path,
     mode: git(root, ['ls-tree', revision, '--', path]).slice(0, 6),
@@ -58,7 +58,7 @@ function reviewedScope(root: string, revision: string) {
         digest: hashCanonical({
           schemaVersion: 1,
           moduleId: 'module-one',
-          indexPath: 'source/README.md',
+          indexPath: `${moduleDirectory}/README.md`,
           entries,
         }),
       },
@@ -508,6 +508,80 @@ test('inspect-manual refuses an empty tested procedure even after the candidate 
   expect(call.stderr.toString()).toContain('Manual tested procedure steps are invalid');
 });
 
+test('inspect-manual refuses a tested procedure title repaired only in the candidate', () => {
+  const setup = fixture();
+  const path = join(setup.root, 'manual/procedure.json');
+  const historical = { ...setup.procedure, title: 'Alternate' };
+  writeFileSync(path, JSON.stringify(historical));
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'wrong tested procedure title']);
+  const tested = git(setup.root, ['rev-parse', 'HEAD']);
+  writeFileSync(path, JSON.stringify(setup.procedure));
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'repair candidate procedure title']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  setup.records.report.sourceRevision = tested;
+  setup.records.environment.sourceRevision = tested;
+  setup.records.report.procedureDigest = digest(historical);
+  setup.records.review.procedureDigest = digest(historical);
+  setup.records.report.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain(
+    'Manual tested procedure scenario differs from disposition',
+  );
+});
+
+test.each([
+  [
+    'unsupported version',
+    (procedure: ReturnType<typeof fixture>['procedure']) => ({ ...procedure, schemaVersion: 99 }),
+    'Manual historical procedure is malformed',
+  ],
+  [
+    'empty steps',
+    (procedure: ReturnType<typeof fixture>['procedure']) => ({ ...procedure, steps: [] }),
+    'Manual historical procedure steps are invalid',
+  ],
+  [
+    'duplicate steps',
+    (procedure: ReturnType<typeof fixture>['procedure']) => ({
+      ...procedure,
+      steps: [...procedure.steps, procedure.steps[0]],
+    }),
+    'Manual historical procedure steps are invalid',
+  ],
+  [
+    'blank instruction',
+    (procedure: ReturnType<typeof fixture>['procedure']) => ({
+      ...procedure,
+      steps: [{ ...procedure.steps[0], instruction: ' ' }],
+    }),
+    'Manual historical procedure steps are invalid',
+  ],
+  [
+    'wrong title',
+    (procedure: ReturnType<typeof fixture>['procedure']) => ({ ...procedure, title: 'Alternate' }),
+    'Manual historical procedure scenario differs from disposition',
+  ],
+])('inspect-manual refuses %s in an intervening procedure', (_subject, change, finding) => {
+  const setup = fixture();
+  const path = join(setup.root, 'manual/procedure.json');
+  writeFileSync(path, JSON.stringify(change(setup.procedure)));
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'malformed historical procedure']);
+  writeFileSync(path, JSON.stringify(setup.procedure));
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'restore valid procedure']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain(finding);
+});
+
 test('inspect-manual ignores Git replacement objects for module indexes', () => {
   const setup = fixture();
   const replacement = join(setup.base, 'replacement.md');
@@ -746,6 +820,81 @@ test('inspect-manual refuses malformed index metadata in an intervening commit',
   expect(call.stderr.toString()).toContain('index metadata malformed');
 });
 
+test('inspect-manual refuses a nonregular historical canonical spec', () => {
+  const setup = fixture();
+  const path = join(setup.root, 'openspec/specs/example/spec.md');
+  const original = readFileSync(path);
+  rmSync(path);
+  symlinkSync('missing-spec.md', path);
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'historical symlink spec']);
+  rmSync(path);
+  writeFileSync(path, original);
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'restore regular spec']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Manual historical specification is not a regular blob');
+});
+
+test('inspect-manual refuses duplicate containing historical scenarios', () => {
+  const setup = fixture();
+  const path = join(setup.root, 'openspec/specs/example/spec.md');
+  const original = readFileSync(path);
+  writeFileSync(
+    path,
+    '## Requirements\n### Requirement: Example requirement\n#### Scenario: [EXAMPLE-001] Example\n### Requirement: Other requirement\n#### Scenario: [EXAMPLE-001] Example\n',
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'duplicate historical scenario']);
+  writeFileSync(path, original);
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'restore unique scenario']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Manual historical scenario is ambiguous or absent');
+});
+
+test('inspect-manual refuses a historical journal title conflicting with its spec', () => {
+  const setup = fixture();
+  const path = join(setup.root, 'openspec/scenario-allocations.json');
+  const original = readFileSync(path);
+  writeFileSync(
+    path,
+    JSON.stringify({
+      schemaVersion: 1,
+      events: [
+        {
+          kind: 'import',
+          id: 'EXAMPLE-001',
+          source: 'openspec/specs/example/spec.md',
+          title: 'Example',
+        },
+        {
+          kind: 'rename',
+          id: 'EXAMPLE-001',
+          priorTitle: 'Example',
+          title: 'Alternate',
+          priorRevision: setup.revision,
+        },
+      ],
+    }),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'historical journal title drift']);
+  writeFileSync(path, original);
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'restore journal title']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain(
+    'Manual historical scenario journal differs from selected specification',
+  );
+});
+
 test('inspect-manual sees a relevant second-parent edge of a pretested side merge', () => {
   const setup = fixture(false);
   const branch = git(setup.root, ['branch', '--show-current']);
@@ -764,6 +913,72 @@ test('inspect-manual sees a relevant second-parent edge of a pretested side merg
   git(setup.root, ['checkout', branch]);
   git(setup.root, ['merge', '--no-ff', '-s', 'ours', '-m', 'merge side into selected', 'side']);
   const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(readCurrency(call)).toBe('stale');
+});
+
+test('inspect-manual refuses a missing older blob on an excluded side-merge parent', () => {
+  const setup = fixture(false);
+  const branch = git(setup.root, ['branch', '--show-current']);
+  const earlier = git(setup.root, ['rev-parse', `${setup.baseRevision}^`]);
+  git(setup.root, ['checkout', '-b', 'side', earlier]);
+  git(setup.root, ['commit', '--allow-empty', '-m', 'older side branch']);
+  git(setup.root, [
+    'merge',
+    '--no-ff',
+    '-s',
+    'ours',
+    '-m',
+    'merge older base into side',
+    setup.baseRevision,
+  ]);
+  git(setup.root, ['checkout', branch]);
+  git(setup.root, ['merge', '--no-ff', '-s', 'ours', '-m', 'merge side into selected', 'side']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const olderBlob = git(setup.root, ['rev-parse', `${setup.baseRevision}:source/module.ts`]);
+  rmSync(join(setup.root, '.git/objects', olderBlob.slice(0, 2), olderBlob.slice(2)));
+  const call = inspect({ ...setup, revision });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('cannot verify Manual side-branch parent objects');
+});
+
+test('inspect-manual detects a pretested side edit under a BOM-prefixed module path', () => {
+  const setup = fixture();
+  const moduleDirectory = '\uFEFFsource';
+  git(setup.root, ['mv', 'source', moduleDirectory]);
+  writeFileSync(
+    join(setup.root, 'README.md'),
+    indexSource('module-root', [
+      { kind: 'directory-prefix', prefix: 'openspec', exclusions: [] },
+      { kind: 'directory-prefix', prefix: 'manual', exclusions: [] },
+      { kind: 'path', path: `${moduleDirectory}/README.md` },
+    ]),
+  );
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'move module to BOM path']);
+  const fork = git(setup.root, ['rev-parse', 'HEAD']);
+  git(setup.root, ['commit', '--allow-empty', '-m', 'tested after BOM move']);
+  const tested = git(setup.root, ['rev-parse', 'HEAD']);
+  const branch = git(setup.root, ['branch', '--show-current']);
+  git(setup.root, ['checkout', '-b', 'side', fork]);
+  writeFileSync(join(setup.root, moduleDirectory, 'module.ts'), 'export const lamp = false;\n');
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'change BOM module']);
+  writeFileSync(join(setup.root, moduleDirectory, 'module.ts'), 'export const lamp = true;\n');
+  git(setup.root, ['add', '.']);
+  git(setup.root, ['commit', '-m', 'restore BOM module']);
+  git(setup.root, ['checkout', branch]);
+  git(setup.root, ['merge', '--no-ff', '-m', 'merge BOM side branch', 'side']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  setup.records.report.sourceRevision = tested;
+  setup.records.environment.sourceRevision = tested;
+  setup.records.report.reviewedScope = reviewedScope(setup.root, tested, moduleDirectory);
+  setup.records.review.reviewedScope = setup.records.report.reviewedScope;
+  setup.records.report.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.environmentDigest = digest(setup.records.environment);
+  setup.records.acceptance.reportDigest = digest(setup.records.report);
+  writeApprovedChain(setup);
   const call = inspect({ ...setup, revision });
   expect(call.exitCode, call.stderr.toString()).toBe(0);
   expect(readCurrency(call)).toBe('stale');
@@ -907,6 +1122,32 @@ test('inspect-manual refuses truncated Git path output on a side branch', () => 
   );
   expect(call.exitCode).toBe(1);
   expect(call.stderr.toString()).toContain('malformed Manual side-branch changes paths');
+});
+
+test('inspect-manual refuses malformed Git parent output on a side branch', () => {
+  const setup = fixture();
+  const branch = git(setup.root, ['branch', '--show-current']);
+  git(setup.root, ['checkout', '-b', 'side', setup.baseRevision]);
+  git(setup.root, ['commit', '--allow-empty', '-m', 'side commit']);
+  git(setup.root, ['checkout', branch]);
+  git(setup.root, ['merge', '--no-ff', '-m', 'merge side commit', 'side']);
+  const revision = git(setup.root, ['rev-parse', 'HEAD']);
+  const tools = join(setup.base, 'tools');
+  mkdirSync(tools);
+  const wrapper = join(tools, 'git');
+  writeFileSync(
+    wrapper,
+    '#!/bin/sh\nif [ "$3" = "rev-list" ] && [ "$4" = "--parents" ]; then printf "invalid-parent\\n"; exit 0; fi\nexec /usr/bin/git "$@"\n',
+  );
+  chmodSync(wrapper, 0o755);
+  const inheritedPath = process.env['PATH'];
+  if (inheritedPath === undefined) throw new Error('test PATH is absent');
+  const call = inspect(
+    { ...setup, revision },
+    { ...process.env, PATH: `${tools}:${inheritedPath}` },
+  );
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('malformed Manual side-branch parent list');
 });
 
 test('inspect-manual marks a changed effective overlay requirement stale', () => {

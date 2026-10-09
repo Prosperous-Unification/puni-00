@@ -368,7 +368,11 @@ function gitPaths(repository: string, args: readonly string[], subject: string):
     throw new Error(
       `cannot verify Manual ${subject}: ${invocation.stderr.toString('utf8').trim()}`,
     );
-  const decoded = new TextDecoder('utf-8', { fatal: true }).decode(invocation.stdout);
+  // Proof: default BOM stripping made the U+FEFF-prefixed module side edit/revert CLI
+  // report current; preserving the path byte identity makes it stale.
+  const decoded = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
+    invocation.stdout,
+  );
   if (decoded.length === 0) return [];
   // Proof: removing this terminator guard made the truncated-Git-output production CLI
   // assertion accept a side-branch path after dropping its final byte.
@@ -424,13 +428,19 @@ function historyRevisions(repository: string, tested: string, candidate: string)
   return [tested, ...later.split('\n').filter((revision) => revision.length > 0)];
 }
 
-function sideBranchChanges(repository: string, revision: string): string[] {
+function sideBranchChanges(
+  repository: string,
+  revision: string,
+  verifiedParentObjects: Set<string>,
+): string[] {
   const line = gitText(
     repository,
     ['rev-list', '--parents', '-n', '1', revision],
     'side-branch parents',
   );
   const [commit, ...parents] = line.split(' ');
+  // Proof: disabling this guard made the malformed-parent-output production CLI
+  // lose its named refusal when Git returned `invalid-parent`.
   if (
     commit !== revision ||
     parents.some((parent) => !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(parent))
@@ -446,6 +456,16 @@ function sideBranchChanges(repository: string, revision: string): string[] {
   // report current; the second-parent module edge requires stale.
   return parents.flatMap((parent) => {
     gitText(repository, ['cat-file', '-e', `${parent}^{tree}`], 'side-branch parent tree');
+    // Proof: deleting the older base module blob on the second parent of a pretested side
+    // merge made the production CLI accept stale; this closure check now refuses it.
+    if (!verifiedParentObjects.has(parent)) {
+      gitText(
+        repository,
+        ['rev-list', '--objects', '--missing=error', parent],
+        'side-branch parent objects',
+      );
+      verifiedParentObjects.add(parent);
+    }
     return gitPaths(
       repository,
       ['diff-tree', '--no-renames', '--name-only', '-r', '-z', parent, revision],
@@ -486,6 +506,8 @@ function selectedRequirement(
     const change = ActiveChangeSpec.exec(entry.path);
     const capability = main?.[1] ?? change?.[2];
     if (capability === undefined) continue;
+    // Proof: disabling this guard made the intermediate symlink-spec CLI assertion
+    // lose its historical regular-blob refusal.
     if (entry.mode !== '100644' && entry.mode !== '100755')
       throw new Error(`Manual historical specification is not a regular blob: ${entry.path}`);
     const markdown = new TextDecoder('utf-8', { fatal: true }).decode(
@@ -505,9 +527,13 @@ function selectedRequirement(
       .filter((scenario) => scenario.id === scenarioId)
       .map((scenario) => ({ requirement, scenario })),
   );
+  // Proof: disabling this guard made the intermediate two-requirement duplicate-ID
+  // CLI assertion accept one arbitrary containing requirement.
   if (matches.length !== 1)
     throw new Error(`Manual historical scenario is ambiguous or absent: ${scenarioId}`);
   const match = matches[0];
+  // Proof: disabling the title join made the intermediate journal-rename/spec-title
+  // CLI assertion accept mismatched historical scenario identity.
   if (
     identity.title !== match.scenario.title ||
     identity.source.split('/').at(-2) !== match.requirement.capability
@@ -600,6 +626,32 @@ function evaluateSourceCurrency(
       procedurePath,
       'Manual historical procedure',
     );
+    if (revision !== testedRevision && revision !== candidate.selection.revision) {
+      let intermediate: typeof ManualProcedure.infer;
+      try {
+        // Proof: removing this parse made the intervening version-99 procedure CLI case
+        // return stale instead of refusing malformed trusted history.
+        intermediate = parseOrThrow(ManualProcedure, procedure.input);
+      } catch (cause) {
+        throw new Error('Manual historical procedure is malformed', { cause });
+      }
+      // Proof: disabling nonempty, duplicate-ID and blank-instruction branches separately
+      // made their named intervening-procedure CLI assertions return stale.
+      if (
+        intermediate.steps.length === 0 ||
+        new Set(intermediate.steps.map((step) => step.stepId)).size !== intermediate.steps.length ||
+        intermediate.steps.some(
+          (step) =>
+            step.stepId.trim().length === 0 ||
+            step.instruction.trim().length === 0 ||
+            step.expectedObservation.trim().length === 0,
+        )
+      )
+        throw new Error('Manual historical procedure steps are invalid');
+      // Proof: disabling this join made the intervening wrong-title CLI assertion return stale.
+      if (intermediate.scenarioId !== scenarioId || intermediate.title !== reviewedTitle)
+        throw new Error('Manual historical procedure scenario differs from disposition');
+    }
     const modules = moduleScope(repository, snapshot, touchedModules);
     for (const index of checkIndexes(repository, snapshot).indexes) {
       if (touchedModules.includes(index.moduleId))
@@ -636,8 +688,9 @@ function evaluateSourceCurrency(
   }
   if (testedProcedure === undefined) throw new Error('Manual tested source history is absent');
   if (capability === undefined) throw new Error('Manual tested requirement capability is absent');
+  const verifiedParentObjects = new Set<string>();
   for (const revision of sideBranches) {
-    const changed = sideBranchChanges(repository, revision);
+    const changed = sideBranchChanges(repository, revision, verifiedParentObjects);
     // Proof: removing the touched-directory predicate made the pretested side-branch module
     // edit/revert CLI assertion report current. The README clause is conservative ownership scope.
     if (
@@ -850,6 +903,8 @@ export function inspectManual(
     )
   )
     throw new Error('Manual tested procedure steps are invalid');
+  // Proof: disabling this join made the tested-procedure-title CLI assertion accept a
+  // report whose reviewed procedure title differs from the current disposition.
   if (
     testedProcedureRecord.scenarioId !== dispositionRecord.scenarioId ||
     testedProcedureRecord.title !== dispositionRecord.title
