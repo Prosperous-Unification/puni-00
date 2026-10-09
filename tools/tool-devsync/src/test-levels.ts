@@ -280,7 +280,7 @@ export function reportPathFrom(root: string, report: string): string {
 export const ADOPTED_CAPABILITY = 'project-assignment-reads';
 
 /** The shape of every scenario identifier: the capability's name, then an ordinal. */
-export const SCENARIO_IDENTIFIER = /^\[([A-Z][A-Z0-9-]*-\d{3})\] \S/;
+export const SCENARIO_IDENTIFIER = /^\[([A-Z][A-Z0-9-]*-\d{3,})\] \S/;
 
 /** @throws when `specMarkdown` holds no requirement or no scenario heading. */
 function assertSpecification(specMarkdown: string): void {
@@ -318,7 +318,7 @@ export function scenarioIdentifiers(specMarkdown: string): readonly string[] {
   if (unidentified.length > 0) {
     throw new Error(`these scenarios carry no identifier: ${unidentified.join('; ')}`);
   }
-  return [...specMarkdown.matchAll(/^#### Scenario: \[([A-Z][A-Z0-9-]*-\d{3})\]/gm)].map(
+  return [...specMarkdown.matchAll(/^#### Scenario: \[([A-Z][A-Z0-9-]*-\d{3,})\]/gm)].map(
     ([, id]) => id,
   );
 }

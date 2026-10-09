@@ -41,15 +41,23 @@ const JournalRecord = type({
 
 /** Decodes the checked-in allocation journal at the external input boundary. */
 export function decodeScenarioJournal(input: unknown): ScenarioJournal {
+  // Proof: bypassing this schema boundary made wrong version and wrong field-type
+  // journals reach provenance checking; both production CLI negatives failed.
   const journal = parseOrThrow(JournalRecord, input);
+  // Proof: skipping this check made a schema-valid duplicate-event journal lose the
+  // "malformed scenario journal" CLI boundary; its negative failed on raw reservation text.
   deriveScenarioIndex(journal);
   return journal;
 }
 
 function readText(path: string, label: string): string {
   try {
+    // Proof: removing fatal UTF-8 decoding made the production invalid-byte journal
+    // negative report malformed JSON with a replacement character instead of a read error.
     return new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(path));
   } catch (cause) {
+    // Proof: replacing this rethrow with an empty string made the production absent-journal
+    // negative report malformed JSON instead of ENOENT; the unreadable path separately reports EISDIR.
     throw new Error(
       `cannot read ${label} ${path}: ${cause instanceof Error ? cause.message : String(cause)}`,
       { cause },
@@ -64,6 +72,8 @@ function readJournal(repository: string): ScenarioJournal {
   try {
     input = JSON.parse(source) as unknown;
   } catch (cause) {
+    // Proof: rethrowing raw JSON syntax failure made the production malformed-journal
+    // CLI negative lose its named boundary diagnostic.
     throw new Error(
       `malformed scenario journal ${path}: ${cause instanceof Error ? cause.message : String(cause)}`,
       { cause },
@@ -72,6 +82,8 @@ function readJournal(repository: string): ScenarioJournal {
   try {
     return decodeScenarioJournal(input);
   } catch (cause) {
+    // Proof: rethrowing a schema failure made the production wrong-version journal
+    // negative lose its named malformed-journal diagnostic.
     throw new Error(
       `malformed scenario journal ${path}: ${cause instanceof Error ? cause.message : String(cause)}`,
       { cause },
@@ -82,6 +94,8 @@ function readJournal(repository: string): ScenarioJournal {
 /** Pure proposed import/allocation or provenance check for one selected OpenSpec source. */
 export function writeScenarioCommand(argv: readonly string[]): void {
   const [command, action, repository, rawSource, flag, predecessor] = argv;
+  // Proof: replacing this usage refusal with `return` made unsupported `destroy` exit 0;
+  // the production CLI negative expected exit 1.
   if (
     command !== 'scenario' ||
     (action !== 'import' && action !== 'allocate' && action !== 'validate') ||
@@ -92,6 +106,8 @@ export function writeScenarioCommand(argv: readonly string[]): void {
       'usage: twilight-burokrat scenario <import|allocate|validate> <repository> <openspec-spec-path> [--predecessor <id>]',
     );
   }
+  // Proof: bypassing SourcePath made the invalid-source CLI negative report a missing
+  // specification file instead of rejecting the path at the input boundary.
   const source = parseOrThrow(SourcePath, rawSource);
   const root = resolve(repository);
   const specPath = resolve(root, source);
@@ -114,9 +130,10 @@ export function writeScenarioCommand(argv: readonly string[]): void {
     argv.length === 4
       ? {}
       : Object.fromEntries(
-          [...specMarkdown.matchAll(/^#### Scenario: (.*)$/gm)]
-            .filter((match) => !/^\[[A-Z][A-Z0-9-]*-\d{3}\] /.test(match[1]))
-            .map((match) => [match[1], predecessor]),
+          [...specMarkdown.matchAll(/^#### Scenario: (.*)$/gm)].map((match) => [
+            match[1],
+            predecessor,
+          ]),
         );
   process.stdout.write(
     `${JSON.stringify(proposeScenarioAllocation(journal, source, specMarkdown, predecessors))}\n`,

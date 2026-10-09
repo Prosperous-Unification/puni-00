@@ -230,6 +230,12 @@ describe('the adopted capability', () => {
     ]);
   });
 
+  it('reads a four digit identifier after the ordinal passes 999', () => {
+    const specification = '### Requirement: example\n#### Scenario: [EXAMPLE-1000] Later case\n';
+    expect(scenariosWithoutIdentifier(specification)).toEqual([]);
+    expect(scenarioIdentifiers(specification)).toEqual(['EXAMPLE-1000']);
+  });
+
   it('refuses a specification that holds no scenario', () => {
     expect(() => scenariosWithoutIdentifier('### Requirement: alone\n')).toThrow(
       'no `#### Scenario:`',
