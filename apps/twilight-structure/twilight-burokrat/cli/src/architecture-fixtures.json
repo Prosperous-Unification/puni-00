@@ -12,6 +12,10 @@
     {
       "ruleId": "MOD-DIRECT-ENTRIES",
       "file": "src/architecture/mod-direct-entries.architecture.test.ts"
+    },
+    {
+      "ruleId": "F7",
+      "file": "src/architecture/f7.architecture.test.ts"
     }
   ]
 }
