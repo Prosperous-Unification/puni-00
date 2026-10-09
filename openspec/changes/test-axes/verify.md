@@ -337,8 +337,8 @@ The source-path proof was corrected: a production CLI negative rejects `openspec
 
 Two further defects emerged from production CLI negatives. `EXAMPLE-DETAIL-001` was accepted as an `example` ID because `startsWith('EXAMPLE-')` admitted another namespace after the hyphen. The derived index now checks a numeric suffix. A scenario named `constructor` inherited a function from `Object.prototype` during predecessor lookup; allocation now reads only own predecessor keys. The allocator and the report join accept ordinal 1000 and later. The journal decoder's schema does not cap the ID width; the old three-digit regular expressions in the allocator, CLI predecessor selector and report join were widened consistently.
 
-| Fault injected into the production path                                                | Named CLI negative observed with the fault                                                                           |
-| -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Fault injected | Named negative observed with the fault |
+| --- | --- |
 | Skip journal index derivation after valid JSON/schema decode                           | Failed: expected `malformed scenario journal`, received raw `scenario identifier was already reserved: EXAMPLE-001`. |
 | Remove the numeric suffix test for an `example` event with `EXAMPLE-DETAIL-001`        | Failed: expected namespace mismatch, received `scenario identifier lacks current allocator provenance: EXAMPLE-001`. |
 | Disable import collision check for the same ID with another title                      | Failed: expected exit 1, received 0.                                                                                 |
@@ -348,10 +348,10 @@ Two further defects emerged from production CLI negatives. `EXAMPLE-DETAIL-001` 
 | Return an empty string after missing or unreadable journal read                        | Both failed: expected `ENOENT` or `EISDIR`, received malformed JSON instead.                                         |
 | Read an inherited predecessor for the ordinary title `constructor`                     | Failed: expected exit 0, received 1 and `unknown or inactive scenario predecessor: function Object()`.               |
 | Skip CLI source-path validation                                                        | Failed: received `cannot read scenario specification ... ENOENT` after the invalid path passed the input boundary.   |
-| Restore three-digit allocator identifier parsing                                       | The 999→1000 case failed with `scenario identifier does not match ... EXAMPLE-1000`.                                 |
-| Restore three-digit report-join identifier parsing                                     | The four-digit test failed: expected `['EXAMPLE-1000']`, received an unidentified scenario.                          |
+| Restore three-digit allocator identifier parsing | Direct allocator test failed with `scenario identifier does not match ... EXAMPLE-1000`. |
+| Restore three-digit report-join identifier parsing | Direct report-join test failed: expected `['EXAMPLE-1000']`, received an unidentified scenario. |
 
-The production negatives with intact guards also distinguish absent journal `ENOENT` from unreadable journal-path `EISDIR`; reject unsupported action, extra argument and predecessor on import; reject an allocation with no unidentified headings; and reject an imported ID assigned another title. The source-path and duplicate-heading faults are recorded above. Every injected fault was restored before the final focused checks. These are exact command-path proofs for the listed checks, while the earlier trusted-journal extension guards still have no production caller.
+The production negatives with intact guards also distinguish absent journal `ENOENT` from unreadable journal-path `EISDIR`; reject unsupported action, extra argument and predecessor on import; reject an allocation with no unidentified headings; and reject an imported ID assigned another title. The source-path and duplicate-heading faults are recorded above. Every injected fault was restored before the final focused checks. These are exact path proofs for the listed checks. Candidate/base continuity is deferred until it has a production caller.
 
 | Restored-tree check                                                     | Fresh observation                             |
 | ----------------------------------------------------------------------- | --------------------------------------------- |
