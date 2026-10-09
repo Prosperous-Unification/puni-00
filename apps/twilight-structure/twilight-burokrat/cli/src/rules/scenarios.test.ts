@@ -150,6 +150,37 @@ describe('scenario allocation journal', () => {
     expect(readFileSync(join(repository, source), 'utf8')).toBe(blank);
   });
 
+  test('production CLI allocates only AST headings and preserves indentation, CR and raw title', () => {
+    const markdown =
+      '#### Scenario: [EXAMPLE-001] First case\r' +
+      '```md\r#### Scenario: Example inside fence\r```\r' +
+      '    #### Scenario: Indented code example\r' +
+      '   #### Scenario: New `literal` case\r';
+    const journal: ScenarioJournal = {
+      schemaVersion: 1,
+      events: [{ kind: 'import', id: 'EXAMPLE-001', source, title: 'First case' }],
+    };
+    const repository = repositoryWith(markdown, JSON.stringify(journal));
+    const invocation = runScenarioCli(['allocate', repository, source]);
+    expect(invocation.exitCode, outputOf(invocation.stderr)).toBe(0);
+    const proposal = JSON.parse(outputOf(invocation.stdout)) as ScenarioProposal;
+    expect(proposal.specMarkdown).toBe(
+      markdown.replace(
+        '   #### Scenario: New `literal` case',
+        '   #### Scenario: [EXAMPLE-002] New `literal` case',
+      ),
+    );
+    expect(proposal.events).toEqual([
+      { kind: 'allocate', id: 'EXAMPLE-002', source, title: 'New `literal` case' },
+    ]);
+    const validation = runScenarioCli([
+      'validate',
+      repositoryWith(proposal.specMarkdown, JSON.stringify(proposal.journal)),
+      source,
+    ]);
+    expect(validation.exitCode, outputOf(validation.stderr)).toBe(0);
+  });
+
   test('production CLI continues allocation past identifier 999', () => {
     const journal: ScenarioJournal = {
       schemaVersion: 1,

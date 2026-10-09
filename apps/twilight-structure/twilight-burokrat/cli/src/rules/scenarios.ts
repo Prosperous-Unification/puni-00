@@ -1,3 +1,5 @@
+import { extractScenarioHeadings } from './scenario-headings';
+
 /** A scenario's append-only provenance event. The first event reserves its ID forever. */
 export type ScenarioEvent =
   | {
@@ -41,7 +43,6 @@ export interface ScenarioProposal {
   readonly journal: ScenarioJournal;
 }
 
-const heading = /^#### Scenario: (.*)$/gm;
 const identifiedTitle = /^\[([A-Z][A-Z0-9-]*-\d{3,})\] (.+)$/;
 
 function capabilityOf(source: string): string {
@@ -66,7 +67,7 @@ function prefixOf(source: string): string {
 }
 
 function headingsOf(specMarkdown: string): readonly { title: string; id?: string }[] {
-  const titles = [...specMarkdown.matchAll(heading)].map((match) => match[1]);
+  const titles = extractScenarioHeadings(specMarkdown).map((heading) => heading.title);
   // Proof: disabling this guard made production `scenario import` exit 0 for a
   // specification with no scenario headings; its CLI negative expected exit 1.
   if (titles.length === 0) throw new Error('specification has no scenario headings');
@@ -214,10 +215,9 @@ export function proposeScenarioAllocation(
     .map((id) => Number(id.slice(prefix.length + 1)));
   let ordinal = Math.max(0, ...numbered);
   const events: ScenarioEvent[] = [];
-  const lines = specMarkdown.split('\n').map((line) => {
-    if (!line.startsWith('#### Scenario: ')) return line;
-    const title = line.slice('#### Scenario: '.length);
-    if (identifiedTitle.test(title)) return line;
+  const insertions: { offset: number; id: string }[] = [];
+  for (const { title, titleStart } of extractScenarioHeadings(specMarkdown)) {
+    if (identifiedTitle.test(title)) continue;
     ordinal += 1;
     const id = `${prefix}-${String(ordinal).padStart(3, '0')}`;
     // Proof: without an own-key lookup, production `scenario allocate` treated the ordinary
@@ -228,14 +228,17 @@ export function proposeScenarioAllocation(
         ? { kind: 'allocate', id, source, title }
         : { kind: 'split', id, source, title, predecessor };
     events.push(event);
-    return `#### Scenario: [${id}] ${title}`;
-  });
+    insertions.push({ offset: titleStart, id });
+  }
   // Proof: disabling this guard made production `scenario allocate` exit 0 for a spec
   // containing only an identified heading; its CLI negative expected exit 1.
   if (events.length === 0) throw new Error(`no unidentified scenarios in ${source}`);
   const proposal = { schemaVersion: 1, events: [...journal.events, ...events] } as const;
   deriveScenarioIndex(proposal);
-  const updated = lines.join('\n');
+  let updated = specMarkdown;
+  for (const { offset, id } of insertions.reverse()) {
+    updated = `${updated.slice(0, offset)}[${id}] ${updated.slice(offset)}`;
+  }
   validateScenarioProvenance(proposal, source, updated);
   return { specMarkdown: updated, events, journal: proposal };
 }

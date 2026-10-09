@@ -2,6 +2,7 @@ import { hashBytes, hashCanonical } from '../evidence/content-manifest';
 import { readCandidateBlob } from '../inventory/read-blob';
 import { type CandidateSnapshot, readCandidate } from '../inventory/read-candidate';
 import { decodeScenarioJournal } from './scenario-command';
+import { extractScenarioHeadings } from './scenario-headings';
 import { deriveScenarioIndex, type ScenarioJournal } from './scenarios';
 
 const JournalPath = 'openspec/scenario-allocations.json';
@@ -174,39 +175,6 @@ function canonicalSpecs(
   return selected;
 }
 
-function scenarioHeadings(markdown: string): readonly string[] {
-  const headings: string[] = [];
-  let fence: { marker: '`' | '~'; length: number } | undefined;
-  for (const line of markdown.split(/\r?\n/)) {
-    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
-    if (fence !== undefined) {
-      // Proof: accepting a shorter close makes both production nested-fence tests see an
-      // unallocated heading inside the containing fence and exit 1.
-      if (
-        marker?.startsWith(fence.marker) &&
-        marker.length >= fence.length &&
-        // Proof: replacing horizontal whitespace with spaces only makes the production
-        // trailing-tab close test exit 0 by hiding EXAMPLE-999 after the valid close.
-        /^[ \t]*$/.test(line.slice(line.indexOf(marker) + marker.length))
-      ) {
-        fence = undefined;
-      }
-      continue;
-    }
-    if (marker !== undefined) {
-      // Proof: omitting the backtick-info rejection makes the production invalid-opener
-      // test exit 0 by treating EXAMPLE-999 as fenced content.
-      if (marker.startsWith('`') && line.slice(line.indexOf(marker) + marker.length).includes('`'))
-        continue;
-      fence = { marker: marker.startsWith('`') ? '`' : '~', length: marker.length };
-      continue;
-    }
-    const heading = /^#### Scenario: (.*)$/.exec(line);
-    if (heading !== null) headings.push(heading[1]);
-  }
-  return headings;
-}
-
 /** Judges selected immutable journal and active spec blobs against one external reviewed base. */
 export function evaluateSpecifications(
   repository: string,
@@ -259,10 +227,13 @@ export function evaluateSpecifications(
   const unidentified: { path: string; title: string }[] = [];
   const specs = canonicalSpecs(repository, candidate);
   for (const spec of specs) {
-    const headings = scenarioHeadings(spec.markdown);
+    // Proof: replacing the shared AST extraction with the former line/fence scanner made the
+    // production list-boundary, HTML pre, lone-CR and indented-heading negatives accept
+    // unallocated EXAMPLE-999 (exit 0 instead of 1).
+    const headings = extractScenarioHeadings(spec.markdown);
     if (headings.length === 0)
       throw new Error(`canonical specification has no scenario headings: ${spec.path}`);
-    for (const text of headings) {
+    for (const { title: text } of headings) {
       const identified = Identified.exec(text);
       if (identified === null) {
         unidentified.push({ path: spec.path, title: text });

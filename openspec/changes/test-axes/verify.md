@@ -839,6 +839,36 @@ Performance execution, and Tasks 2.1, 2.2 and 3.1 remain open.
 
 ## B3 specifications rule checkpoint
 
+### B3 scenario heading AST correction — 2026-10-09
+
+The canonical specification evaluator, scenario importer, allocator and CLI predecessor mapping
+now use one `mdast-util-from-markdown` heading extractor. It selects only top-level, depth-four
+ATX headings whose source starts with the literal `#### Scenario: ` prefix. It uses AST block
+structure to exclude fenced code, indented code, HTML blocks and nested headings. The journal
+title remains the exact raw source after the prefix, including inline Markdown and trailing
+whitespace. Allocation inserts only `[ID] ` at the source title offset, preserving indentation
+and original line endings. A separate production CLI case checks an indented scenario with CR
+line endings and a literal backtick title while ignoring fenced and indented-code examples.
+
+Four production `check --rule SPEC-SCENARIOS` negatives cover a list container ending before a
+heading, backticks inside an HTML `<pre>` block, a lone-CR fence close and a three-space
+scenario heading. Before the AST replacement, each candidate with unallocated `EXAMPLE-999`
+exited 0 despite the test expecting 1. The restored AST evaluator exits 1 for each and names
+`EXAMPLE-999` in its unevaluated reason. As a guard-disabled proof, the previous fence scanner
+from the committed version was temporarily restored at the evaluator call, and all four tests
+again failed with expected exit 1, received 0 (0 passes, 4 failures); the source was restored
+byte for byte afterward. Task 2.2 remains open.
+
+The source-offset refusal has a broken-parser dependency test. Deleting the parsed heading's
+position makes the extractor throw `scenario heading has no source offsets`; replacing that
+refusal with `if (false)` made the same test fail with `Received function did not throw` and an
+empty heading list. The guard was restored before final checks.
+
+The final scoped Burokrat scenario/specification suite exited 0 with 81 passes, 0 failures and
+609 assertions across three files in 69.79 seconds. The Burokrat CLI TypeScript build and
+package build both exited 0. Changed-file lint, Prettier and `git diff --check` were rerun after
+the last formatting fix. OpenSpec validation covered 158 of 158 items with no failures.
+
 The production `check --rule SPEC-SCENARIOS` path now requires external
 `RulePolicy.scenarios` authority. It selects an immutable base and candidate,
 compares journal event values as an append-only prefix, checks active canonical

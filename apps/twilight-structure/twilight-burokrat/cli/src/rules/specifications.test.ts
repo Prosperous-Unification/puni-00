@@ -404,6 +404,28 @@ test('production check rejects a backtick fence opener with a backtick in its in
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('EXAMPLE-999');
 });
 
+test.each([
+  [
+    'list boundary',
+    `${heading}\n- example\n\n  \`\`\`\n  code\n\n#### Scenario: [EXAMPLE-999] Missing allocation\n`,
+  ],
+  [
+    'HTML pre backticks',
+    `${heading}\n<pre>\n\`\`\`\n</pre>\n#### Scenario: [EXAMPLE-999] Missing allocation\n`,
+  ],
+  [
+    'lone carriage return fence close',
+    `${heading}\n\`\`\`md\r\`\`\`\r#### Scenario: [EXAMPLE-999] Missing allocation\r`,
+  ],
+  ['three-space heading', `${heading}\n   #### Scenario: [EXAMPLE-999] Missing allocation\n`],
+])('production check sees a scenario after %s', (_case, markdown) => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, { [source]: markdown });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain('EXAMPLE-999');
+});
+
 test('production check reports unidentified legacy headings as debt or refusal by mode', () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, { [source]: `${heading}#### Scenario: Legacy case\n` });

@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
+import { extractScenarioHeadings } from './scenario-headings';
 import {
   deriveScenarioIndex,
   importScenarioIdentifiers,
@@ -130,10 +131,7 @@ export function writeScenarioCommand(argv: readonly string[]): void {
     argv.length === 4
       ? {}
       : Object.fromEntries(
-          [...specMarkdown.matchAll(/^#### Scenario: (.*)$/gm)].map((match) => [
-            match[1],
-            predecessor,
-          ]),
+          extractScenarioHeadings(specMarkdown).map(({ title }) => [title, predecessor]),
         );
   process.stdout.write(
     `${JSON.stringify(proposeScenarioAllocation(journal, source, specMarkdown, predecessors))}\n`,
