@@ -1336,6 +1336,14 @@ The reusable toolkit for module knowledge, review evidence and trusted repositor
 admission that supports Radical Modularity.
 _Avoid_: tool-wiki (as the product name), LLM wiki (as the product name)
 
+**Scenario allocation journal**:
+The versioned record of imported, issued, renamed, split and retired OpenSpec scenario identities. It reserves every recorded identifier, including retired ones.
+_Avoid_: scenario registry, identifier list
+
+**Scenario predecessor**:
+The earlier scenario identity from which a newly issued scenario was split.
+_Avoid_: replacement ID, reused ID
+
 **Fleet**:
 The managed set of hosts and their assigned cluster memberships and capabilities,
 independent of which machines currently provide them.
