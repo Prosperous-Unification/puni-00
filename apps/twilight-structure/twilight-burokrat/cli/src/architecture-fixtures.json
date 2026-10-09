@@ -4,6 +4,10 @@
     {
       "ruleId": "MOD-INDEX",
       "file": "src/architecture/mod-index.architecture.test.ts"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "file": "src/architecture/inv-classify.architecture.test.ts"
     }
   ]
 }
