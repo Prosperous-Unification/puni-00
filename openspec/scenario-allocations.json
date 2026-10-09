@@ -462,6 +462,30 @@
       "id": "TEST-AXES-029",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Only the reviewed base changes"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-030",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A modified requirement loses a canonical scenario"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-031",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Concurrent changes modify one requirement"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-032",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A removed adopted requirement lacks retirement"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-033",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "An active input changes without changing effective requirements"
     }
   ]
 }

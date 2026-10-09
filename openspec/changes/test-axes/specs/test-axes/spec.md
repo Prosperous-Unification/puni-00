@@ -137,6 +137,8 @@ Twilight Burokrat SHALL select an externally pinned full Git commit as the prede
 
 The specifications rule SHALL select active OpenSpec spec paths, excluding archived changes and headings in fenced code, and compare identified headings with the current journal index in both directions. A missing allocation, duplicate identifier or active allocation without a selected heading SHALL refuse evaluation. Unidentified legacy headings SHALL appear as findings subject to rule mode. The evidence identity SHALL bind the external policy bytes, resolved base, base and candidate journal bytes, selector version and selected spec bytes.
 
+The active selector SHALL parse immutable specification ASTs and apply `ADDED`, `MODIFIED`, and `REMOVED` operations by the exact capability and requirement title. It SHALL retain canonical requirement order and append new requirements in stable key order. A `MODIFIED` requirement SHALL retain every canonical scenario by identifier, or by exact title when unidentified. A removed adopted identifier SHALL have a journal retirement. Duplicate or competing operations, absent predecessors, unsupported operation sections and scenario headings outside a requirement SHALL refuse evaluation. Synced identical `ADDED` requirements SHALL share one lineage. Selector version 2 evidence SHALL bind every active input path and content digest, effective requirements and source aliases, applied operations and removals.
+
 #### Scenario: [TEST-AXES-028] An allocated heading disappears
 
 - **GIVEN** an active journal identity and its canonical identified heading
@@ -148,6 +150,30 @@ The specifications rule SHALL select active OpenSpec spec paths, excluding archi
 - **GIVEN** two valid ancestor commits holding the same journal bytes
 - **WHEN** the external policy pins each base for the same candidate
 - **THEN** their specifications evidence identities differ
+
+#### Scenario: [TEST-AXES-030] A modified requirement loses a canonical scenario
+
+- **GIVEN** an active canonical requirement with an adopted scenario
+- **WHEN** a change modifies that requirement without retaining the scenario identifier
+- **THEN** the specifications rule refuses the overlay
+
+#### Scenario: [TEST-AXES-031] Concurrent changes modify one requirement
+
+- **GIVEN** two active changes target the same capability and requirement title
+- **WHEN** both declare an operation on that requirement
+- **THEN** the specifications rule refuses the competing operations without choosing by path order
+
+#### Scenario: [TEST-AXES-032] A removed adopted requirement lacks retirement
+
+- **GIVEN** a canonical requirement with an active allocated identifier
+- **WHEN** an active change removes the requirement without a journal retirement
+- **THEN** the specifications rule refuses the removal
+
+#### Scenario: [TEST-AXES-033] An active input changes without changing effective requirements
+
+- **GIVEN** a synced duplicate requirement in an active change
+- **WHEN** the active change spec path or content changes
+- **THEN** the selector version 2 evidence identity changes and records the input and alias
 
 ### Requirement: T1 unit tests need no scenario citation
 

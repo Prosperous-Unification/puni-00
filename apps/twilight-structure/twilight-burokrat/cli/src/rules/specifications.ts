@@ -1,14 +1,17 @@
 import { hashBytes, hashCanonical } from '../evidence/content-manifest';
 import { readCandidateBlob } from '../inventory/read-blob';
 import { type CandidateSnapshot, readCandidate } from '../inventory/read-candidate';
+import {
+  type ActiveSpecSelection,
+  selectActiveSpecifications,
+  type SpecInput,
+} from './active-spec-selector';
 import { decodeScenarioJournal } from './scenario-command';
-import { extractScenarioHeadings } from './scenario-headings';
 import { deriveScenarioIndex, type ScenarioJournal } from './scenarios';
 
 const JournalPath = 'openspec/scenario-allocations.json';
 const MainSpec = /^openspec\/specs\/([a-z][a-z0-9-]*)\/spec\.md$/;
 const ChangeSpec = /^openspec\/changes\/([a-z][a-z0-9-]*)\/specs\/([a-z][a-z0-9-]*)\/spec\.md$/;
-const Identified = /^\[([A-Z][A-Z0-9-]*-\d{3,})\] (.+)$/;
 const FullSha = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
 export interface SpecificationsAuthority {
@@ -22,11 +25,12 @@ export interface SpecificationsAuthority {
 }
 
 export interface SpecificationsReport {
-  readonly selectorVersion: 1;
+  readonly selectorVersion: 2;
   readonly baseRevision: string;
   readonly baseJournalDigest: string | null;
   readonly candidateJournalDigest: string;
   readonly unidentified: readonly { path: string; title: string }[];
+  readonly selection: ActiveSpecSelection;
   readonly evidenceDigest: string;
 }
 
@@ -126,51 +130,30 @@ function readJournal(
   }
 }
 
-function canonicalSpecs(
-  repository: string,
-  candidate: CandidateSnapshot,
-): readonly {
-  path: string;
-  capability: string;
-  markdown: string;
-  digest: string;
-}[] {
-  const grouped = new Map<string, { path: string; blob: string; mode: string }[]>();
+function canonicalSpecs(repository: string, candidate: CandidateSnapshot): readonly SpecInput[] {
+  const selected: SpecInput[] = [];
   for (const entry of candidate.entries) {
     const main = MainSpec.exec(entry.path);
     const change = ChangeSpec.exec(entry.path);
     const capability = main?.[1] ?? change?.[2];
     if (capability === undefined) continue;
-    grouped.set(capability, [
-      ...(grouped.get(capability) ?? []),
-      { path: entry.path, blob: entry.blob, mode: entry.mode },
-    ]);
-  }
-  // Proof: the production empty-inventory negative refuses a candidate with no active specs.
-  if (grouped.size === 0) throw new Error('active canonical specification inventory is absent');
-  const selected: { path: string; capability: string; markdown: string; digest: string }[] = [];
-  for (const [capability, copies] of grouped) {
-    for (const copy of copies) {
-      if (copy.mode !== '100644' && copy.mode !== '100755') {
-        throw new Error(`canonical specification must be a regular blob: ${copy.path}`);
-      }
+    if (entry.mode !== '100644' && entry.mode !== '100755') {
+      throw new Error(`canonical specification must be a regular blob: ${entry.path}`);
     }
-    const distinct = new Set(copies.map((copy) => copy.blob));
-    // Identical active copies are one lineage. A different overlay needs a requirement-level
-    // merger and cannot be chosen by pathname order.
-    // Proof: the conflicting-active-copy production negative refuses instead of silently picking
-    // the lexicographically first copy; the archive-copy negative remains allowed.
-    if (distinct.size !== 1)
-      throw new Error(`conflicting active specification copies: ${capability}`);
-    const copy = copies.find((entry) => MainSpec.test(entry.path)) ?? copies[0];
-    const bytes = readCandidateBlob(repository, copy.blob, copy.path);
+    const bytes = readCandidateBlob(repository, entry.blob, entry.path);
     let markdown: string;
     try {
       markdown = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     } catch (cause) {
-      throw new Error(`canonical specification is not UTF-8: ${copy.path}`, { cause });
+      throw new Error(`canonical specification is not UTF-8: ${entry.path}`, { cause });
     }
-    selected.push({ path: copy.path, capability, markdown, digest: hashBytes(bytes) });
+    selected.push({
+      path: entry.path,
+      capability,
+      markdown,
+      digest: hashBytes(bytes),
+      kind: main === null ? 'change' : 'main',
+    });
   }
   return selected;
 }
@@ -225,27 +208,48 @@ export function evaluateSpecifications(
   );
   const seen = new Set<string>();
   const unidentified: { path: string; title: string }[] = [];
-  const specs = canonicalSpecs(repository, candidate);
-  for (const spec of specs) {
-    // Proof: replacing the shared AST extraction with the former line/fence scanner made the
-    // production list-boundary, HTML pre, lone-CR and indented-heading negatives accept
-    // unallocated EXAMPLE-999 (exit 0 instead of 1).
-    const headings = extractScenarioHeadings(spec.markdown);
-    if (headings.length === 0)
-      throw new Error(`canonical specification has no scenario headings: ${spec.path}`);
-    for (const { title: text } of headings) {
-      const identified = Identified.exec(text);
-      if (identified === null) {
-        unidentified.push({ path: spec.path, title: text });
+  const selected = selectActiveSpecifications(canonicalSpecs(repository, candidate));
+  const selection: ActiveSpecSelection = {
+    ...selected,
+    effective: selected.effective.map((requirement) => ({
+      ...requirement,
+      aliases: [
+        ...new Set([
+          ...requirement.aliases,
+          ...requirement.scenarios.flatMap((scenario) => {
+            if (scenario.id === undefined) return [];
+            const source = identities.get(scenario.id)?.source;
+            return source === undefined || source === requirement.source ? [] : [source];
+          }),
+        ]),
+      ].sort(),
+    })),
+  };
+  for (const removal of selection.removals) {
+    // Proof: without this guard, the production removed-requirement negative reports only
+    // a later missing heading and fails to enforce an explicit journal retirement.
+    if (removal.ids.some((id) => active.has(id)))
+      throw new Error(
+        `removed adopted requirement requires retirement: ${removal.capability}: ${removal.title}`,
+      );
+  }
+  for (const requirement of selection.effective) {
+    for (const scenario of requirement.scenarios) {
+      if (scenario.id === undefined) {
+        unidentified.push({ path: requirement.source, title: scenario.title });
         continue;
       }
-      const [id, title] = [identified[1], identified[2]];
+      const [id, title] = [scenario.id, scenario.title];
       // Proof: production duplicate and unallocated-ID negatives refuse active inventory drift.
       if (seen.has(id)) throw new Error(`duplicate canonical scenario identifier: ${id}`);
       seen.add(id);
       const identity = active.get(id);
       const capability = identity?.source.split('/').at(-2);
-      if (identity === undefined || capability !== spec.capability || identity.title !== title) {
+      if (
+        identity === undefined ||
+        capability !== requirement.capability ||
+        identity.title !== title
+      ) {
         throw new Error(`scenario identifier lacks canonical allocator provenance: ${id}`);
       }
     }
@@ -258,22 +262,23 @@ export function evaluateSpecifications(
   }
   const evidenceDigest = hashCanonical({
     schemaVersion: 1,
-    selectorVersion: 1,
+    selectorVersion: 2,
     policyDigest,
     candidateDigest,
     baseRevision,
     baseJournalDigest,
     candidateJournalDigest: candidateJournal.digest,
     bootstrap: authority.bootstrap ?? null,
-    selected: specs.map(({ path, capability, digest }) => ({ path, capability, digest })),
+    selection,
     unidentified,
   });
   return {
-    selectorVersion: 1,
+    selectorVersion: 2,
     baseRevision,
     baseJournalDigest,
     candidateJournalDigest: candidateJournal.digest,
     unidentified,
+    selection,
     evidenceDigest,
   };
 }

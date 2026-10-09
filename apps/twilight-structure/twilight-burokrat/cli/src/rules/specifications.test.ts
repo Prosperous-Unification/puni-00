@@ -10,7 +10,7 @@ import { registeredRules } from './registry';
 
 const source = 'openspec/specs/example/spec.md';
 const journalPath = 'openspec/scenario-allocations.json';
-const heading = '#### Scenario: [EXAMPLE-001] First case\n';
+const heading = '### Requirement: First requirement\n#### Scenario: [EXAMPLE-001] First case\n';
 const initialJournal = JSON.stringify({
   schemaVersion: 1,
   events: [{ kind: 'import', id: 'EXAMPLE-001', source, title: 'First case' }],
@@ -77,6 +77,12 @@ interface CheckVerdict {
     unidentified: unknown[];
     evidenceDigest?: string;
     selectorVersion?: number;
+    selection?: {
+      inputs: { path: string; digest: string }[];
+      effective: { title: string; source: string; aliases: string[] }[];
+      operations: { kind: string; title: string; source: string }[];
+      removals: { title: string; ids: string[] }[];
+    };
   };
 }
 
@@ -138,7 +144,7 @@ test('production check accepts an unchanged journal with an ancestor base and bi
   expect(response.exitCode, response.stderr).toBe(0);
   expect(response.verdict?.allowed).toBe(true);
   expect(response.verdict?.scenarios).toMatchObject({
-    selectorVersion: 1,
+    selectorVersion: 2,
     baseRevision: base,
     baseJournalDigest: hashBytes(new TextEncoder().encode(initialJournal)),
     candidateJournalDigest: hashBytes(new TextEncoder().encode(initialJournal)),
@@ -454,7 +460,7 @@ test('production evidence identity changes when only the trusted base changes', 
   expect(first.verdict?.scenarios?.candidateJournalDigest).toBe(
     second.verdict?.scenarios?.candidateJournalDigest,
   );
-  expect(first.verdict?.scenarios?.selectorVersion).toBe(1);
+  expect(first.verdict?.scenarios?.selectorVersion).toBe(2);
   expect(first.verdict?.scenarios?.evidenceDigest).toMatch(/^[0-9a-f]{64}$/);
   expect(second.verdict?.scenarios?.evidenceDigest).not.toBe(
     first.verdict?.scenarios?.evidenceDigest,
@@ -463,7 +469,9 @@ test('production evidence identity changes when only the trusted base changes', 
 
 test('production check refuses a removed identified heading that remains active in the journal', () => {
   const { repository, base } = fixture();
-  const candidate = nextCommit(repository, { [source]: '#### Scenario: Legacy case\n' });
+  const candidate = nextCommit(repository, {
+    [source]: '### Requirement: First requirement\n#### Scenario: Legacy case\n',
+  });
   const response = check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
@@ -519,7 +527,9 @@ test('production check refuses an identified heading without allocation', () => 
 
 test('production check refuses a duplicated canonical identifier', () => {
   const { repository, base } = fixture();
-  const candidate = nextCommit(repository, { [source]: `${heading}${heading}` });
+  const candidate = nextCommit(repository, {
+    [source]: `${heading}#### Scenario: [EXAMPLE-001] First case\n`,
+  });
   const response = check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
@@ -546,11 +556,230 @@ test('production check ignores archive copies but refuses conflicting active cop
   });
   expect(check(repository, archived, { baseRevision: base }).exitCode).toBe(0);
   const conflicting = nextCommit(repository, {
-    'openspec/changes/active/specs/example/spec.md': '#### Scenario: [EXAMPLE-001] Changed case\n',
+    'openspec/changes/active/specs/example/spec.md':
+      '## ADDED Requirements\n### Requirement: First requirement\n#### Scenario: [EXAMPLE-001] Changed case\n',
   });
   const response = check(repository, conflicting, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
-    'conflicting active specification copies',
+    'conflicting active specification requirement',
   );
+});
+
+test('production selector applies modified and added requirements without losing canonical scenarios', () => {
+  const { repository, base } = fixture();
+  const overlay = 'openspec/changes/add-example/specs/example/spec.md';
+  const candidate = nextCommit(repository, {
+    [overlay]:
+      '## MODIFIED Requirements\n### Requirement: First requirement\n' +
+      '#### Scenario: [EXAMPLE-001] First case\n- **THEN** changed behavior\n' +
+      '#### Scenario: [EXAMPLE-002] Added case\n' +
+      '## ADDED Requirements\n### Requirement: Second requirement\n' +
+      '#### Scenario: [EXAMPLE-003] New requirement case\n',
+    [journalPath]: journal([
+      firstEvent,
+      { kind: 'allocate', id: 'EXAMPLE-002', source: overlay, title: 'Added case' },
+      { kind: 'allocate', id: 'EXAMPLE-003', source: overlay, title: 'New requirement case' },
+    ]),
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode, response.stderr).toBe(0);
+  expect(response.verdict?.scenarios?.selectorVersion).toBe(2);
+  expect(response.verdict?.scenarios?.selection?.inputs.map(({ path }) => path)).toEqual([
+    overlay,
+    source,
+  ]);
+  expect(response.verdict?.scenarios?.selection?.effective.map(({ title }) => title)).toEqual([
+    'First requirement',
+    'Second requirement',
+  ]);
+  expect(response.verdict?.scenarios?.selection?.effective[0]?.aliases).toEqual([source]);
+  expect(response.verdict?.scenarios?.selection?.operations.map(({ kind }) => kind)).toEqual([
+    'MODIFIED',
+    'ADDED',
+  ]);
+});
+
+test.each([
+  [
+    'missing predecessor',
+    '## MODIFIED Requirements\n### Requirement: Unknown\n#### Scenario: Other\n',
+    'has no predecessor',
+  ],
+  [
+    'unsupported rename',
+    '## RENAMED Requirements\n### Requirement: First requirement\n#### Scenario: [EXAMPLE-001] First case\n',
+    'unsupported overlay operation',
+  ],
+  [
+    'unknown operation',
+    '## REPLACED Requirements\n### Requirement: First requirement\n#### Scenario: [EXAMPLE-001] First case\n',
+    'unsupported overlay operation',
+  ],
+  [
+    'removed retained case',
+    '## MODIFIED Requirements\n### Requirement: First requirement\n#### Scenario: New case\n',
+    'drops canonical scenario',
+  ],
+  [
+    'competing modifications',
+    '## MODIFIED Requirements\n### Requirement: First requirement\n#### Scenario: [EXAMPLE-001] First case\n',
+    'competing overlay operation',
+  ],
+])('production selector refuses %s', (label, overlayMarkdown, reason) => {
+  const { repository, base } = fixture();
+  const first = 'openspec/changes/a/specs/example/spec.md';
+  const second = 'openspec/changes/b/specs/example/spec.md';
+  const files: Record<string, string> = { [first]: overlayMarkdown };
+  if (label === 'competing modifications') files[second] = overlayMarkdown;
+  const candidate = nextCommit(repository, files);
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain(reason);
+});
+
+test('production selector refuses a scenario outside its requirement section', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    [source]: `${heading}## Notes\n#### Scenario: [EXAMPLE-999] Orphan\n`,
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain('outside a requirement');
+});
+
+test.each([
+  [
+    'missing operation',
+    '## Notes\n### Requirement: First requirement\n#### Scenario: [EXAMPLE-001] First case\n',
+    'overlay requirement has no operation',
+  ],
+  [
+    'empty requirement inventory',
+    '## ADDED Requirements\n',
+    'active specification has no requirements',
+  ],
+  [
+    'scenario-free requirement',
+    '## ADDED Requirements\n### Requirement: New requirement\nNo scenario yet.\n',
+    'active requirement has no scenarios',
+  ],
+])('production selector refuses %s', (_label, markdown, reason) => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    'openspec/changes/invalid/specs/example/spec.md': markdown,
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain(reason);
+});
+
+test('production selector refuses duplicate canonical requirement titles', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, { [source]: `${heading}${heading}` });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
+    'duplicate canonical requirement',
+  );
+});
+
+test('production selector requires retirement when a removed requirement contained adopted IDs', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    'openspec/changes/remove-example/specs/example/spec.md':
+      '## REMOVED Requirements\n### Requirement: First requirement\n',
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain('requires retirement');
+});
+
+test('production selector accepts a removed requirement after its identifier is retired', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, {
+    'openspec/changes/remove-example/specs/example/spec.md':
+      '## REMOVED Requirements\n### Requirement: First requirement\n',
+    [journalPath]: journal([firstEvent, { kind: 'retire', id: 'EXAMPLE-001' }]),
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode, response.stderr).toBe(0);
+  expect(response.verdict?.scenarios?.selection?.removals).toEqual([
+    { capability: 'example', title: 'First requirement', ids: ['EXAMPLE-001'] },
+  ]);
+});
+
+test('production selector retains unidentified canonical titles through modification', () => {
+  const { repository } = fixture();
+  const canonical = nextCommit(repository, { [source]: `${heading}#### Scenario: Legacy case\n` });
+  const candidate = nextCommit(repository, {
+    'openspec/changes/change-example/specs/example/spec.md':
+      '## MODIFIED Requirements\n### Requirement: First requirement\n' +
+      '#### Scenario: [EXAMPLE-001] First case\n#### Scenario: Renamed legacy case\n',
+  });
+  const response = check(repository, candidate, { baseRevision: canonical });
+  expect(response.exitCode).toBe(1);
+  expect(JSON.stringify(response.verdict?.unevaluated)).toContain('drops canonical scenario');
+});
+
+test('production selector appends independent new requirements in stable title order', () => {
+  const { repository, base } = fixture();
+  const zed = 'openspec/changes/a-zed/specs/example/spec.md';
+  const alpha = 'openspec/changes/z-alpha/specs/example/spec.md';
+  const candidate = nextCommit(repository, {
+    [zed]: '## ADDED Requirements\n### Requirement: Zed\n#### Scenario: [EXAMPLE-002] Zed case\n',
+    [alpha]:
+      '## ADDED Requirements\n### Requirement: Alpha\n#### Scenario: [EXAMPLE-003] Alpha case\n',
+    [journalPath]: journal([
+      firstEvent,
+      { kind: 'allocate', id: 'EXAMPLE-002', source: zed, title: 'Zed case' },
+      { kind: 'allocate', id: 'EXAMPLE-003', source: alpha, title: 'Alpha case' },
+    ]),
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode, response.stderr).toBe(0);
+  expect(response.verdict?.scenarios?.selection?.effective.map(({ title }) => title)).toEqual([
+    'First requirement',
+    'Alpha',
+    'Zed',
+  ]);
+});
+
+test('production evidence binds every active overlay even when effective requirements are unchanged', () => {
+  const { repository, base, candidate: initial } = fixture();
+  const alias = 'openspec/changes/duplicate/specs/example/spec.md';
+  const candidate = nextCommit(repository, {
+    [alias]: `## ADDED Requirements\n${heading}`,
+  });
+  const before = check(repository, initial, { baseRevision: base });
+  const after = check(repository, candidate, { baseRevision: base });
+  expect(before.exitCode, before.stderr).toBe(0);
+  expect(after.exitCode, after.stderr).toBe(0);
+  expect(after.verdict?.scenarios?.selection?.inputs).toEqual([
+    {
+      path: alias,
+      digest: hashBytes(new TextEncoder().encode(`## ADDED Requirements\n${heading}`)),
+    },
+    { path: source, digest: hashBytes(new TextEncoder().encode(heading)) },
+  ]);
+  expect(after.verdict?.scenarios?.selection?.effective[0]?.aliases).toEqual([alias]);
+  expect(after.verdict?.scenarios?.evidenceDigest).not.toBe(
+    before.verdict?.scenarios?.evidenceDigest,
+  );
+});
+
+test('production selection preserves an adopted journal source after its change is synced', () => {
+  const repository = mkdtempSync(join(tmpdir(), 'burokrat-synced-source-'));
+  scratchRoots.push(repository);
+  runGit(repository, ['init', '--initial-branch=main']);
+  runGit(repository, ['config', 'user.email', 'scenario@example.test']);
+  runGit(repository, ['config', 'user.name', 'Scenario Fixture']);
+  const importedFrom = 'openspec/changes/old/specs/example/spec.md';
+  write(repository, source, heading);
+  write(repository, journalPath, journal([{ ...firstEvent, source: importedFrom }]));
+  const base = commit(repository, 'synced base');
+  const candidate = commit(repository, 'synced candidate');
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode, response.stderr).toBe(0);
+  expect(response.verdict?.scenarios?.selection?.effective[0]?.aliases).toEqual([importedFrom]);
 });
