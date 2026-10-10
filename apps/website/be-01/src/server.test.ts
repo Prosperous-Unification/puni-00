@@ -3217,3 +3217,121 @@ test('repeated conversation reads reuse the day salt and write nothing', async (
   expect(salts.reads).toBe(readsAfterIntake);
   api.close();
 });
+
+const funnelDay = Date.UTC(2026, 9, 7, 12);
+const funnelCanary = 'canary-funnel-5d1e';
+
+/**
+ * Seeds the D6 day: three drafts, two started conversations (one exhausted on `turns`, one
+ * handed off with a captured brief) and two proposals, one manual and one from chat. Every text
+ * column carries {@link funnelCanary}.
+ */
+function seedFunnelDay(databasePath: string): void {
+  const database = new Database(databasePath);
+  const at = funnelDay - 60 * 60_000;
+  for (const id of ['draft-a', 'draft-b', 'draft-c'])
+    database
+      .query(
+        'INSERT INTO intake_draft (id, description, brief, claim_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+      .run(
+        id,
+        `${funnelCanary} description`,
+        `${funnelCanary} brief`,
+        `${funnelCanary}-claim-${id}`,
+        at,
+        at + 86_400_000,
+      );
+  const conversation = database.query(
+    'INSERT INTO conversation (id, draft_id, source_hash, state, exhausted_reason, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+  );
+  conversation.run('conversation-a', 'draft-a', `${funnelCanary}-source`, 'exhausted', 'turns', at);
+  conversation.run('conversation-b', 'draft-b', `${funnelCanary}-source`, 'handed_off', null, at);
+  const operation = database.query(
+    "INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, settled_micro_usd, settlement, reply, brief_capture, created_at) VALUES (?, ?, ?, ?, 'hash', ?, 0, ?, 'puni-sales-v1', 'completed', '2026-10-07', 1000, 900, 'usage', ?, ?, ?)",
+  );
+  operation.run(
+    'operation-a',
+    'conversation-a',
+    'initial:a',
+    `${funnelCanary}-source`,
+    `${funnelCanary} message`,
+    'clarify',
+    `${funnelCanary} reply`,
+    null,
+    at,
+  );
+  operation.run(
+    'operation-b',
+    'conversation-b',
+    'turn-3',
+    `${funnelCanary}-source`,
+    `${funnelCanary} message`,
+    'brief',
+    `${funnelCanary} reply`,
+    'marked',
+    at,
+  );
+  const proposal = database.query(
+    "INSERT INTO proposal_submission (id, draft_id, email, brief, receipt, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'submitted', ?, ?)",
+  );
+  for (const id of ['draft-b', 'draft-c'])
+    proposal.run(
+      `proposal-${id}`,
+      id,
+      `${funnelCanary}@example.test`,
+      `${funnelCanary} brief`,
+      `${funnelCanary}-receipt-${id}`,
+      at,
+      at,
+    );
+  database.close();
+}
+
+async function readFunnel(cookie?: string) {
+  const { config } = fixture();
+  const api = mountApi({ ...config, clock: () => funnelDay });
+  seedFunnelDay(config.databasePath);
+  const login = await api.fetch(
+    request('/operator/session', 'POST', config.appOrigin, { password: config.operatorPassword }),
+  );
+  const operatorCookie = cookie ?? login.headers.get('set-cookie')?.split(';')[0];
+  const response = await api.fetch(
+    request('/operator/funnel', 'GET', config.appOrigin, undefined, operatorCookie),
+  );
+  api.close();
+  return response;
+}
+
+test("the funnel overview counts the day's rows", async () => {
+  const response = await readFunnel();
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  const body = (await response.json()) as { days: Record<string, unknown>[] };
+  expect(body.days).toHaveLength(30);
+  expect(body.days[0]).toEqual({
+    utcDay: '2026-10-07',
+    drafts: 3,
+    conversationsStarted: 2,
+    briefsCaptured: 1,
+    exhausted: { turns: 1, conversation_spend: 0, source_spend: 0, site_spend: 0 },
+    proposals: { manual: 1, fromChat: 1 },
+    ceilingSettled: { count: 0, microUsd: 0 },
+  });
+});
+
+test('the funnel overview carries no canary text', async () => {
+  const response = await readFunnel();
+  expect(response.status).toBe(200);
+  // Proof: adding `intake_draft.description` to each day row put the canary in this body.
+  expect(await response.text()).not.toContain(funnelCanary);
+});
+
+test('the funnel overview needs an operator session', async () => {
+  // Proof: serving the route without the operator check answered 200 here.
+  const missing = await readFunnel('');
+  expect(missing.status).toBe(401);
+  expect(await missing.json()).toEqual({ code: 'operator_unauthorized' });
+  const forged = await readFunnel(`puni_operator=${'a'.repeat(64)}`);
+  expect(forged.status).toBe(401);
+});

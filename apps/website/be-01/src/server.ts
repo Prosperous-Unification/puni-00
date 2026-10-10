@@ -2217,6 +2217,14 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         origin,
       );
     }
+    if (path === '/operator/funnel' && request.method === 'GET') {
+      if (!operatorSession(request, now))
+        return attachCors(failure('operator_unauthorized', 401), origin);
+      return attachCors(
+        json(store.readFunnelCounts(now), 200, { 'Cache-Control': 'no-store' }),
+        origin,
+      );
+    }
     if (
       (path === '/operator/inference/pause' || path === '/operator/inference/resume') &&
       request.method === 'POST'
