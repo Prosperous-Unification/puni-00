@@ -13,7 +13,11 @@ import { readCandidate } from '../inventory/read-candidate';
 import { registeredRules } from '../rules/registry';
 import { loadRulePolicyWithIdentity } from '../rules/rule-policy';
 import { hashBytes, hashCanonical } from './content-manifest';
-import { digestPerformanceCase, evaluatePerformanceRun } from './performance';
+import {
+  digestPerformanceCase,
+  evaluatePerformanceRun,
+  type PerformanceSelection,
+} from './performance';
 
 const roots: string[] = [];
 const performanceCase: PerformanceCases['cases'][number] = {
@@ -586,11 +590,12 @@ describe('Burokrat Performance judge', () => {
         listArguments: [...selection.listArguments, '--grep=ordinary'],
       }),
     ).toThrow('discovery selection arguments mismatch');
-    for (const selectionEnvironment of [
+    const refusedEnvironments: readonly PerformanceSelection['selectionEnvironment'][] = [
       {},
       { CI: '1', E2E_PORT_SHIFT: '0' },
       { CI: '1', E2E_PORT_SHIFT: '6000', PLAYWRIGHT_GREP: 'ordinary' },
-    ]) {
+    ];
+    for (const selectionEnvironment of refusedEnvironments) {
       expect(() =>
         evaluatePerformanceRun(declaration, execution, authority, {
           ...selection,
