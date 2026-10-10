@@ -59,12 +59,16 @@ const ALLOWED_INFRA_TO_PRODUCT_EDGES = [
   ['@wbs/domain', 'wbs-domain'],
 ] as const;
 
-// Proof: omitting this sole app-to-infra pair made the real graph oracle report
-// `twilight-dash -> tool-fleet`. This graph oracle sees project pairs, not source
-// files or import specifiers. The product-local effective ESLint test pins only
-// @tools/fleet-plan from cli.ts and refuses the same alias from another file or
-// a sibling infra alias from cli.ts.
-const ALLOWED_DASH_TO_FLEET_EDGE = ['twilight-dash', 'tool-fleet'] as const;
+// Proof: omitting the fleet pair made the real graph oracle report
+// `twilight-dash -> tool-fleet`; omitting the scratch pair reported
+// `twilight-dash -> tool-test-scratch` (2026-10-11). This graph oracle sees project pairs,
+// not source files or import specifiers. The product-local effective ESLint tests pin
+// @tools/fleet-plan to cli.ts and its tests, @tools/test-scratch to tests, and refuse a
+// sibling infra alias from both.
+const ALLOWED_DASH_TO_INFRA_EDGES = [
+  ['twilight-dash', 'tool-fleet'],
+  ['twilight-dash', 'tool-test-scratch'],
+] as const;
 
 /** Every `from '…';` specifier under `root`, skipping comment lines that merely name one. */
 async function importSpecifiersOf(root: string): Promise<readonly string[]> {
@@ -438,8 +442,9 @@ describe('productConstraints', () => {
           continue;
         }
         if (
-          project.name === ALLOWED_DASH_TO_FLEET_EDGE[0] &&
-          target.name === ALLOWED_DASH_TO_FLEET_EDGE[1]
+          ALLOWED_DASH_TO_INFRA_EDGES.some(
+            ([source, reached]) => project.name === source && target.name === reached,
+          )
         ) {
           continue;
         }

@@ -8,13 +8,13 @@ The first `bun test apps/twilight-structure/twilight-dash/cli/src/cli.test.ts` f
 
 Final observed checks:
 
-| Command                                                                                                                                                                            | Result                                                                                                                                                                                  |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false BUN_TMPDIR=/tmp/dash-08019-bun-tmp bunx nx run-many -t test lint typecheck build -p twilight-dash --skip-nx-cache --output-style=static` | Exit 0; all four Dash targets and `tool-test-scratch:build` appeared; 22/22 tests, 66 assertions; Bun bundled 292 modules (`/tmp/dash-08019-11-nx-final.log`).                          |
-| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test tools/tool-devsync/src/workspace-projects.test.ts tools/tool-devsync/src/namespace-layout.test.ts`                              | 40/40, 45 assertions (`/tmp/dash-08019-11-devsync-full-green.log`).                                                                                                                     |
-| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test tools/tool-devsync/src/workspace-targets.test.ts`                                                                               | 22/22, 75 assertions (`/tmp/dash-08019-11-workspace-targets-final.log`). An earlier invocation named a nonexistent `product-policies.test.ts`; Bun ignored it, so that log is excluded. |
-| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test tools/tool-devsync/src/eslint-boundaries.test.ts`                                                                               | 18/18, 84 assertions (`/tmp/dash-08019-11-eslint-boundaries.log`).                                                                                                                      |
-| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false BUN_TMPDIR=/tmp/dash-08019-bun-tmp bunx nx run-many -t lint typecheck -p tool-devsync --skip-nx-cache --output-style=static`             | Exit 0; both named targets appeared (`/tmp/dash-08019-11-devsync-targets.log`).                                                                                                         |
+| Command                                                                                                                                                                            | Result                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false BUN_TMPDIR=/tmp/dash-08019-bun-tmp bunx nx run-many -t test lint typecheck build -p twilight-dash --skip-nx-cache --output-style=static` | Exit 0; all four Dash targets and `tool-test-scratch:build` appeared; 22/22 tests, 66 assertions (`/tmp/dash-08019-11-nx-final.log`). The `build` target was removed in the 2026-10-11 review fixes. |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test tools/tool-devsync/src/workspace-projects.test.ts tools/tool-devsync/src/namespace-layout.test.ts`                              | 40/40, 45 assertions (`/tmp/dash-08019-11-devsync-full-green.log`).                                                                                                                                  |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test tools/tool-devsync/src/workspace-targets.test.ts`                                                                               | 22/22, 75 assertions (`/tmp/dash-08019-11-workspace-targets-final.log`). An earlier invocation named a nonexistent `product-policies.test.ts`; Bun ignored it, so that log is excluded.              |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test tools/tool-devsync/src/eslint-boundaries.test.ts`                                                                               | 18/18, 84 assertions (`/tmp/dash-08019-11-eslint-boundaries.log`).                                                                                                                                   |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false BUN_TMPDIR=/tmp/dash-08019-bun-tmp bunx nx run-many -t lint typecheck -p tool-devsync --skip-nx-cache --output-style=static`             | Exit 0; both named targets appeared (`/tmp/dash-08019-11-devsync-targets.log`).                                                                                                                      |
 
 Watched faults; each temporary source/policy mutation was restored before final validation:
 
@@ -201,7 +201,7 @@ installed 1371 packages. All commands ran under `env -u CLAUDECODE -u CLAUDE_COD
 
 | Command                                                                                                                                           | Result                                                                                                                                                                                                  |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false bunx nx run-many -t test lint typecheck build -p twilight-dash --skip-nx-cache --output-style=static`                            | Exit 0; `tool-test-scratch:build` and all four Dash targets ran; 38/38 tests, 239 assertions; Bun bundled 292 modules.                                                                                  |
+| `NX_DAEMON=false bunx nx run-many -t test lint typecheck build -p twilight-dash --skip-nx-cache --output-style=static`                            | Exit 0; `tool-test-scratch:build` and all four Dash targets ran; 38/38 tests, 239 assertions. Superseded by the review-fix run below.                                                                   |
 | `NX_DAEMON=false bunx nx show project twilight-dash --json`                                                                                       | Root `apps/twilight-structure/twilight-dash/cli`; targets build, lint, test, typecheck; test command `bun test src --timeout=30000`.                                                                    |
 | `bun test --preload ../test/scratch/preload.ts --timeout=30000 src/cli.test.ts src/plan.test.ts src/lab-provider.test.ts` from `tools/tool-fleet` | 24/24, 184 assertions.                                                                                                                                                                                  |
 | `NX_DAEMON=false bun test` on devsync `workspace-projects`, `namespace-layout`, `workspace-targets`, `eslint-boundaries`                          | 81/81, 211 assertions.                                                                                                                                                                                  |
@@ -220,3 +220,59 @@ and `namespace-layout.test.ts` accept it.
 Not run here: `bin/h2puni-gate.sh <sha>` and exact-head CI. Those belong to the orchestrator
 after review. Task 2.2 stays open until both receipts exist. No host operation, authority
 bootstrap or relocation happened.
+
+## Task 2.2 Fable review fixes (2026-10-11)
+
+Fable's review of `4945755e` came back MERGE AFTER FIXES. Each fix:
+
+- **I1 (spec requirement, not test convenience).** The clause "diagnostics SHALL NOT dump their
+  contents or credentials" was false. `runPlan` attached the raw YAML parser error as `cause`,
+  and Bun printed the offending source line.
+  - The fix keeps only the YAML parser's `code` and line/column. The JSON observation error had
+    the same leak (`Unexpected identifier "<token>"`) and now drops its cause too.
+  - Both throws carry an adjacent `preserve-caught-error` justification.
+  - New negatives: `tools/tool-fleet/src/cli.test.ts` `reports malformed required state without
+echoing its contents`, and the same-named Dash entrypoint test. Both write
+    `SECRETMARKER_TOKEN_abc123` into a malformed fleet file and a malformed observation file,
+    then assert stderr lacks it.
+  - RED: before the fix, the fleet test printed `SECRETMARKER_TOKEN_abc123: oops` from the
+    `YAMLParseError` cause. On the final bytes, re-attaching `{ cause }` to the YAML throw and to
+    the JSON throw, one at a time, failed both tests (fleet 0/1, Dash 0/1 each). Restored: 1/1 each.
+  - Not changed: the receipt and operation-plan JSON readers (retirement, fence, upgrade,
+    replacement and apply plan) still attach `cause`. They are outside Dash's enrollment path and
+    outside this spec.
+- **I2.** Removed the `build` target. Nothing consumes the bundle, and inside `dist/`,
+  `import.meta.dir` breaks the PRODUCTION_FLEETS root computation. No `dist/` was committed.
+  `workspace-targets.test.ts` accepts an app without `build` (tool-devsync 394/394).
+- **I3.** `@tools/fleet-plan` now resolves to `tools/tool-fleet/src/plan-facade.ts`
+  (`export { runPlan } from './cli'`). The Dash test `the fleet planner alias exposes only
+runPlan` asserts `Object.keys(await import('@tools/fleet-plan'))` equals `['runPlan']`.
+  - RED: pointing the alias back at `cli.ts` failed it with `runApply`,
+    `runTerragruntDestroyPlan` and `runTerragruntPlan` added.
+- **M1.** `declaration: false` in the Dash `tsconfig.json` and `tsconfig.lib.json`. Typecheck
+  now emits zero `.d.ts`.
+- **M2.** The fixture uses `scratchSync('dash-enrollment-')`, and the test command preloads
+  `../../../../tools/test/scratch/preload.ts`.
+  - This needed two exact test-only exceptions. The product-local
+    `eslint.product.mjs` override for `src/**/*.test.ts` allows exactly `^@tools/fleet-plan$`
+    and `^@tools/test-scratch$`, and the graph oracle acknowledges
+    `twilight-dash -> tool-test-scratch`.
+  - Omitting the override failed uncached Dash lint on both imports. Omitting the graph pair
+    reported `twilight-dash -> tool-test-scratch`.
+  - New `eslint-boundaries` case: the test options equal the production peer apart from the
+    allow list, and a sibling `@tools/deploy-contract` import is still refused. Widening the
+    override to `['^@tools/']` failed it.
+- **M3.** Renamed `tools`→`canaryExecutables`, `change`→`observationVariant` and
+  `arguments_`→`planArguments`.
+- **M4.** Added the `twilight-dash` route line to LLM_README.md (135 lines).
+- **M5.** The Dash README says `twilight-dash:test` needs a non-root runner.
+
+Acceptance rerun on the fixed bytes:
+
+| Command                                                                                                     | Result                                                                    |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `NX_DAEMON=false bunx nx run-many -t test lint typecheck -p tool-fleet twilight-dash --skip-nx-cache`       | Exit 0. Dash 40/40, tool-fleet 389/389, both lint and typecheck green.    |
+| `NX_DAEMON=false bunx nx run-many -t test lint typecheck -p tool-devsync --skip-nx-cache`                   | Exit 0, 394/394.                                                          |
+| `nx show project twilight-dash`                                                                             | Targets lint, test, typecheck. The test command runs the scratch preload. |
+| `bunx @fission-ai/openspec@1.12.0 validate dash-local-plan-facade --strict --json`, `validate --all --json` | 1/1 and 158/158.                                                          |
+| Scoped `bunx prettier --check`, `git diff --check`                                                          | Clean.                                                                    |

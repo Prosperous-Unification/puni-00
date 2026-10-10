@@ -120,3 +120,9 @@ describe('Dash enrollment planning dispatcher', () => {
     );
   });
 });
+
+test('the fleet planner alias exposes only runPlan', async () => {
+  // Proof: pointing `@tools/fleet-plan` in tsconfig.base.json back at tools/tool-fleet/src/cli.ts
+  // failed this test with `runApply` and the other fleet commands in the export list (2026-10-11).
+  expect(Object.keys(await import('@tools/fleet-plan'))).toEqual(['runPlan']);
+});

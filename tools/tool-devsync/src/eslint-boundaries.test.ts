@@ -83,6 +83,24 @@ describe('the effective production and test boundaries', () => {
     );
   }, 30_000);
 
+  it('lets Dash tests reach only the planner facade and scratch helper', async () => {
+    const testPath = 'apps/twilight-structure/twilight-dash/cli/src/cli.test.ts';
+    const peerPath = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
+    const testOptions = boundaryOf(await lint.calculateConfigForFile(testPath))[1];
+    const peerOptions = boundaryOf(await lint.calculateConfigForFile(peerPath))[1];
+    if (!isRecord(testOptions) || !isRecord(peerOptions)) {
+      throw new Error('Dash test boundary options are malformed');
+    }
+    expect(testOptions['allow']).toEqual(['^@tools/fleet-plan$', '^@tools/test-scratch$']);
+    const withoutLocalAliases: Readonly<Record<string, unknown>> = { ...testOptions, allow: [] };
+    expect(withoutLocalAliases).toEqual(peerOptions);
+    // Proof: widening the Dash test override to `['^@tools/']` failed this test at the exact
+    // allow-list assertion (2026-10-11); the sibling import below keeps the remaining fences live.
+    expect(await ruleIds(testPath, "await import('@tools/deploy-contract');")).toContain(
+      '@nx/enforce-module-boundaries',
+    );
+  }, 30_000);
+
   it('rejects runtime packages and drivers from core and domain production', async () => {
     // Proof: before the core/domain production override existed, the Elysia
     // probe returned no `no-restricted-imports` diagnostic. Real uncached lint

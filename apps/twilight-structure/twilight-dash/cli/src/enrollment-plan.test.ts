@@ -9,17 +9,17 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
+import { scratchSync } from '@tools/test-scratch';
 import { afterEach, describe, expect, test } from 'bun:test';
 
 const root = resolve(import.meta.dir, '../../../../..');
 const dash = join(import.meta.dir, 'entrypoint.ts');
 const fleet = join(root, 'tools/tool-fleet/src/entrypoint.ts');
 const directories: string[] = [];
-const tools = [
+const canaryExecutables = [
   'ssh',
   'scp',
   'ansible-playbook',
@@ -74,15 +74,15 @@ function serializeFixture(value: unknown): string {
 }
 
 function buildObservationSource(
-  change: 'valid' | 'incomplete' | 'wrong-target' | 'enrolled' | 'lab' = 'valid',
+  observationVariant: 'valid' | 'incomplete' | 'wrong-target' | 'enrolled' | 'lab' = 'valid',
 ): string {
   const observedAt = '2026-09-17T09:00:00.000Z';
-  const provider = change === 'lab' ? 'lab-provider:fixture' : 'provider:fixture';
+  const provider = observationVariant === 'lab' ? 'lab-provider:fixture' : 'provider:fixture';
   const body = {
     schemaVersion: 1,
     desiredRevision: 'dash-fixture-1',
     observedAt,
-    complete: change !== 'incomplete',
+    complete: observationVariant !== 'incomplete',
     sources: [
       provider,
       'kubernetes-nodes:fixture',
@@ -113,14 +113,15 @@ function buildObservationSource(
         clusterId: 'fixture',
         desiredNodeId: 'fixture-agent',
         displayName: 'fixture-agent',
-        providerIdentity: change === 'wrong-target' ? 'ssh:another-machine' : 'ssh:fixture-machine',
+        providerIdentity:
+          observationVariant === 'wrong-target' ? 'ssh:another-machine' : 'ssh:fixture-machine',
         identitySource: 'ssh-facts:fixture/fixture-agent',
         privateAddress: '192.0.2.10',
-        machineId: change === 'wrong-target' ? 'another-machine' : 'fixture-machine',
+        machineId: observationVariant === 'wrong-target' ? 'another-machine' : 'fixture-machine',
         capabilities: ['execution'],
         capabilitiesObserved: true,
-        ...(change === 'enrolled' ? { kubernetesNodeUid: 'fixture-agent-uid' } : {}),
-        states: [change === 'enrolled' ? 'enrolled' : 'discovered-unenrolled'],
+        ...(observationVariant === 'enrolled' ? { kubernetesNodeUid: 'fixture-agent-uid' } : {}),
+        states: [observationVariant === 'enrolled' ? 'enrolled' : 'discovered-unenrolled'],
         storageAttachments: [],
       },
     ],
@@ -128,10 +129,9 @@ function buildObservationSource(
   return `${JSON.stringify({ ...body, digest: createHash('sha256').update(serializeFixture(body)).digest('hex') })}\n`;
 }
 
-function createFixture(change: Parameters<typeof buildObservationSource>[0] = 'valid') {
-  const directory = join(tmpdir(), `dash-enrollment-${crypto.randomUUID()}`);
+function createFixture(observationVariant: Parameters<typeof buildObservationSource>[0] = 'valid') {
+  const directory = scratchSync('dash-enrollment-');
   directories.push(directory);
-  mkdirSync(directory);
   const git = Bun.spawnSync(['git', 'init', '--quiet', directory]);
   if (git.exitCode !== 0) throw new Error(git.stderr.toString());
   const inputs = join(directory, 'inputs');
@@ -143,9 +143,9 @@ function createFixture(change: Parameters<typeof buildObservationSource>[0] = 'v
   const fleetPath = join(inputs, 'fleet.yaml');
   const observation = join(inputs, 'observation.json');
   writeFileSync(fleetPath, fleetSource);
-  writeFileSync(observation, buildObservationSource(change));
+  writeFileSync(observation, buildObservationSource(observationVariant));
   const canaries = join(directory, 'mutations.log');
-  for (const executable of tools) {
+  for (const executable of canaryExecutables) {
     const path = join(bin, executable);
     writeFileSync(
       path,
@@ -180,7 +180,7 @@ function buildArguments(fixture: ReturnType<typeof createFixture>, output: strin
 function invokeEntrypoint(
   fixture: ReturnType<typeof createFixture>,
   command: 'dash' | 'fleet',
-  arguments_: readonly string[],
+  planArguments: readonly string[],
 ) {
   const commandPath = process.env['PATH'];
   if (commandPath === undefined) throw new Error('PATH is required for the mutation-canary test');
@@ -190,7 +190,7 @@ function invokeEntrypoint(
       command === 'dash' ? dash : fleet,
       command === 'dash' ? 'plan-enrollment' : 'plan',
       ...(command === 'fleet' ? ['--operation', 'enroll'] : []),
-      ...arguments_,
+      ...planArguments,
     ],
     cwd: fixture.directory,
     env: {
@@ -265,12 +265,13 @@ describe('Dash real enrollment planning', () => {
           fleetSource.replace('fixture-machine', 'operator-input:fixture-machine'),
         );
       const output = join(fixture.outputs, 'dash.json');
-      const arguments_ = buildArguments(fixture, output);
+      const planArguments = buildArguments(fixture, output);
       if (boundary === 'digest')
-        arguments_[arguments_.indexOf('--inventory-sha256') + 1] = 'malformed';
-      if (boundary === 'wrong-cluster') arguments_[arguments_.indexOf('--cluster') + 1] = 'other';
+        planArguments[planArguments.indexOf('--inventory-sha256') + 1] = 'malformed';
+      if (boundary === 'wrong-cluster')
+        planArguments[planArguments.indexOf('--cluster') + 1] = 'other';
       const inputs = [readFileSync(fixture.fleet), readFileSync(fixture.observation)];
-      const refusal = invokeEntrypoint(fixture, 'dash', arguments_);
+      const refusal = invokeEntrypoint(fixture, 'dash', planArguments);
       expect(refusal.exitCode).not.toBe(0);
       const diagnostics = {
         incomplete: /complete observation|complete must be true/,
@@ -343,6 +344,34 @@ describe('Dash required files and exclusive output', () => {
       });
     }
   }
+
+  test('reports malformed required state without echoing its contents', () => {
+    // Spec requirement: "diagnostics SHALL NOT dump their contents or credentials".
+    // Proof: re-attaching the raw YAML or JSON parser `cause` in tool-fleet `runPlan`, each
+    // separately, failed this test with the marker in stderr (2026-10-11).
+    const marker = 'SECRETMARKER_TOKEN_abc123';
+    for (const state of ['fleet', 'observation'] as const) {
+      const fixture = createFixture();
+      writeFileSync(
+        fixture[state],
+        state === 'fleet'
+          ? `nodes:\n  - id: a\n${marker}: oops\n  bad: [\n`
+          : `{"token": ${marker}}`,
+      );
+      const refusal = invokeEntrypoint(
+        fixture,
+        'dash',
+        buildArguments(fixture, join(fixture.outputs, 'dash.json')),
+      );
+      expect(refusal.exitCode).not.toBe(0);
+      expect(refusal.stderr.toString()).toContain(
+        `Required ${state} at ${fixture[state]} is malformed`,
+      );
+      expect(refusal.stderr.toString()).not.toContain(marker);
+      expect(refusal.stdout.toString()).toBe('');
+      assertNoAuthority(fixture);
+    }
+  });
 
   test('preserves occupied output bytes and refuses without success text', () => {
     const fixture = createFixture();

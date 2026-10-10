@@ -40,11 +40,16 @@ apply, discovery, build, deploy, operation-selection or executable-selection opt
 This local facade does not relocate lease authority.
 
 The declared [Nx project](project.json) runs its real dispatcher and entrypoint
-tests with the ordinary acceptance targets:
+tests with the ordinary acceptance targets. It has no `build` target: the CLI runs
+from source, and nothing consumes a bundle.
 
 ```sh
-bunx nx run-many -t test lint typecheck build -p twilight-dash --skip-nx-cache
+bunx nx run-many -t test lint typecheck -p twilight-dash --skip-nx-cache
 ```
+
+`twilight-dash:test` needs a non-root runner. The unreadable-input and
+unwritable-output proofs rely on file modes, so under uid 0 they throw instead of
+passing vacuously.
 
 The [OpenSpec verification ledger](../../../../openspec/changes/dash-local-plan-facade/verify.md)
 records byte equivalence, mutation canaries, required-state/output refusals and

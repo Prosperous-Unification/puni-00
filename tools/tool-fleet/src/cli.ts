@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { parse } from 'yaml';
+import { parse, YAMLParseError } from 'yaml';
 
 import { type ApplyDependencies, applyOperation } from './apply';
 import {
@@ -519,14 +519,34 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
   } catch (cause) {
     // Proof: removing this context made the malformed-YAML production CLI negative expose the
     // parser diagnostic without the required fleet path.
-    throw new Error(`Required fleet at ${fleetPath} is malformed YAML`, { cause });
+    // The parser's message and cause quote the offending source line, so only its code and
+    // position survive; required state may hold credentials.
+    // Proof: re-attaching `{ cause }` failed `reports malformed required state without echoing
+    // its contents` with the marker line in stderr (2026-10-11).
+    if (!(cause instanceof YAMLParseError)) throw cause;
+    const position = cause.linePos?.[0];
+    const where =
+      position === undefined
+        ? ''
+        : ` at line ${String(position.line)}, column ${String(position.col)}`;
+    // The cause is withheld on purpose: it quotes input bytes, and this throw is the boundary
+    // where required state becomes a diagnostic.
+    // eslint-disable-next-line preserve-caught-error -- cause quotes input bytes; see above.
+    throw new Error(`Required fleet at ${fleetPath} is malformed YAML (${cause.code}${where})`);
   }
   try {
     observationInput = JSON.parse(observationSource) as unknown;
   } catch (cause) {
     // Proof: removing this context made the malformed-JSON production CLI negative expose a raw
     // parser diagnostic without the required observation path.
-    throw new Error(`Required observation at ${observationPath} is malformed JSON`, { cause });
+    // The engine's message quotes the offending token, so neither it nor the cause is kept.
+    // Proof: re-attaching `{ cause }` failed `reports malformed required state without echoing
+    // its contents` with the marker token in stderr (2026-10-11).
+    if (!(cause instanceof SyntaxError)) throw cause;
+    // The cause is withheld on purpose: it quotes input bytes, and this throw is the boundary
+    // where required state becomes a diagnostic.
+    // eslint-disable-next-line preserve-caught-error -- cause quotes input bytes; see above.
+    throw new Error(`Required observation at ${observationPath} is malformed JSON`);
   }
   const fleet = decodeFleet(fleetInput);
   if (
