@@ -1,6 +1,6 @@
 # wbs-tool — manual browser test suite (dev), 11 Aug 2026
 
-Historical August 2026 test plan, published 2026-10-06. It records the UI and
+Historical August 2026 test plan, prepared for publication 2026-10-06. It records the UI and
 build assumptions of that date; it is not the current product contract. Execute
 only against an authorized disposable test instance, never customer projects.
 No cases were rerun as part of this archival publication.
