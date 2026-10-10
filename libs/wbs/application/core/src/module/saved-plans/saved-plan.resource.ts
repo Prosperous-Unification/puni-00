@@ -1,3 +1,5 @@
+import { holdingRefusal, type SavedPlanQuota, type SavedPlanQuotaRefusal } from '@wbs/domain';
+
 import type { Digest } from '../../ports/runtime';
 import type { PlanInputReads, SavedPlanCaptureStore } from '../../ports/saved-plan-capture-store';
 import type {
@@ -9,8 +11,6 @@ import type {
   ScopedSavedPlanWrite,
   StoredSavedPlan,
 } from '../../ports/saved-plan-store';
-import type { SavedPlanQuota, SavedPlanQuotaRefusal } from '../../service/saved-plan-quota';
-import { holdingRefusal } from '../../service/saved-plan-quota';
 import type { SavedPlanIntegrityRefusal } from './saved-plan-integrity';
 import {
   assertKnownBodyVersion,

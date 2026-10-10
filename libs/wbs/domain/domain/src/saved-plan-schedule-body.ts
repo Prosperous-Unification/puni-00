@@ -1,11 +1,5 @@
-import {
-  addWorkdays,
-  firstWorkdayOf,
-  type IsoDate,
-  lastWorkdayOf,
-  type Schedule,
-  type Scheduled,
-} from '@wbs/domain';
+import type { Schedule, Scheduled } from './schedule';
+import { addWorkdays, firstWorkdayOf, type IsoDate, lastWorkdayOf } from './workday';
 
 /**
  * The schedule body's own schema version, written into every body.

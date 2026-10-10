@@ -28,7 +28,7 @@ function pad(value: number): string {
  * across a DST boundary. The trailing `UTC` is not decoration — without it the
  * string is a local time to whoever reads it.
  *
- * @param createdAt Epoch **seconds**, as {@link SavedPlanServiceOptions.now}
+ * @param createdAt Epoch **seconds**, as the Saved plans feature's `now` option
  *   returns and `saved_plan.created_at` stores.
  */
 export function defaultSavedPlanName(createdAt: number): string {

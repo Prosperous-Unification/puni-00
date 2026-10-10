@@ -5,6 +5,8 @@ export * from './assumed-duration';
 // caller must arrange a plan exactly one way (ADR 0023).
 export * from './arrange-siblings';
 export * from './capacity';
+// The one trim-or-refuse rule every directory entry and step name goes through.
+export * from './clean-name';
 // The read-time resolution of stored deadline dates to `schedule()`'s offsets,
 // beside `dependency-reach` rather than inside `leaf-constraints`: the fold is
 // TASK-219's and expands offsets down the tree, where this one only turns dates
@@ -75,6 +77,11 @@ export * from './public-email-domain';
 // Types and one pure function: the reads it is folded from live in be-01, and
 // the hash is taken over this module's serialization.
 export * from './saved-plan';
+// A Saved plan's default name, size limits and schedule body: pure decisions the
+// Saved plans feature calls, moved out of the core's `service/` on 2026-10-11.
+export * from './saved-plan-default-name';
+export * from './saved-plan-quota';
+export * from './saved-plan-schedule-body';
 // Moved out of `apps/wbs/be-01/src/service/` on 2026-09-02, once its last storage
 // type was gone. 2,212 lines of pure planning that read five fields of a row
 // and answer a question about a plan's shape — which is what everything else in
@@ -117,6 +124,7 @@ export * from './slice-groups';
 // quantisation of `durationOf` anywhere. It lives here rather than in
 // `schedule.ts` because the quantum is a fact about CP-SAT and not about the
 // calendar: 2,212 lines of placement have no business knowing the wire's unit.
+export * from './smoke-echo';
 export * from './solver-quantum';
 export * from './solver-quantum-golden-corpus';
 export * from './step';
