@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { parse } from 'yaml';
+import { type } from 'arktype';
+import { isScalar, parseDocument, visit, YAMLParseError } from 'yaml';
 
 import { type ApplyDependencies, applyOperation } from './apply';
 import {
@@ -261,6 +262,8 @@ async function readRequiredState(path: string, label: string): Promise<string> {
   } catch (cause) {
     // Proof: removing this context made the absent/unreadable fleet and observation production CLI
     // negatives expose raw ENOENT/EISDIR instead of naming the required state boundary.
+    // Proof: returning empty text here made the real Dash absent/unreadable fleet and observation
+    // tests fail their required-read path diagnostics; lower decoders still refused, without context.
     throw new Error(`Cannot read required ${label} at ${path}`, { cause });
   }
 }
@@ -501,6 +504,29 @@ async function requireReplacementAuthorization(
   return { nodeId: oldNode.id, providerIdentity };
 }
 
+/** Keep schema diagnostics at the required-file boundary free of input values and causes. */
+function decodeRequiredState<T>(
+  decode: (input: unknown) => T,
+  input: unknown,
+  state: 'fleet' | 'observation',
+  path: string,
+): T {
+  try {
+    return decode(input);
+  } catch (cause) {
+    if (!(cause instanceof Error) || !(cause.cause instanceof type.errors)) throw cause;
+    const detail =
+      state === 'observation' && isRecordValue(input) && input['complete'] === false
+        ? ': complete must be true'
+        : '';
+    // ArkErrors retain raw values in both summary and cause. This file boundary exposes neither.
+    // Proof: bypassing this wrapper failed both entrypoints' fleet-schema and observation-schema
+    // marker negatives (2026-10-11).
+    // eslint-disable-next-line preserve-caught-error -- schema diagnostics contain input values.
+    throw new Error(`Required ${state} at ${path} failed validation${detail}`);
+  }
+}
+
 /** Run the fleet planning command and persist the exact digest-bearing JSON. */
 export async function runPlan(argv: readonly string[]): Promise<void> {
   const flags = readFlags(argv);
@@ -513,20 +539,84 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
   let fleetInput: unknown;
   let observationInput: unknown;
   try {
-    fleetInput = parse(fleetSource) as unknown;
+    // parse() emits source-bearing warnings before it throws; parseDocument retains them.
+    // Proof: reverting to parse() failed both entrypoints' yaml-warning marker negatives
+    // before the sanitized syntax-error catch ran (2026-10-11).
+    // The library also warns during toJS(), after document.warnings has been collected.
+    // Error logging suppresses that source-bearing side channel without clearing diagnostics.
+    // Proof: with the key guard bypassed, restoring default logging leaked collection and
+    // binary-key markers through both entrypoints (2026-10-11).
+    const document = parseDocument(fleetSource, { logLevel: 'error' });
+    // Proof: clearing retained errors made both multiple-document entrypoint negatives
+    // publish a plan instead of refusing (2026-10-11).
+    if (document.errors.length > 0) throw document.errors[0];
+    if (document.warnings.length > 0) {
+      const warning = document.warnings[0];
+      const position = warning.linePos?.[0];
+      const where =
+        position === undefined
+          ? ''
+          : ` at line ${String(position.line)}, column ${String(position.col)}`;
+      // Proof: allowing this warning to continue made otherwise-schema-valid tagged fleets
+      // publish plans in both production-entrypoint negatives (2026-10-11).
+      throw new Error(`Required fleet at ${fleetPath} has YAML warning (${warning.code}${where})`);
+    }
+    visit(document, (key, node) => {
+      // Fleet contracts have string field names. Collection and alias keys must never reach
+      // toJS(), which otherwise stringifies collections and emits their contents as a warning.
+      // Proof: removing this guard failed the collection-key and binary-key entrypoint negatives
+      // at the modeled refusal assertion; error-only logging still excluded their markers
+      // (2026-10-11).
+      if (key === 'key' && (!isScalar(node) || typeof node.value !== 'string')) {
+        throw new Error(
+          `Required fleet at ${fleetPath} is malformed YAML (non-string mapping key)`,
+        );
+      }
+    });
+    try {
+      fleetInput = document.toJS() as unknown;
+    } catch (cause) {
+      // YAML conversion models unresolved aliases as ReferenceError and excessive expansion as
+      // RangeError. Unknown failures still escape; these modeled failures may quote anchor names.
+      if (!(cause instanceof ReferenceError) && !(cause instanceof RangeError)) throw cause;
+      // Proof: rethrowing this cause failed both yaml-alias production-entrypoint marker negatives
+      // with the supplied anchor name in stderr (2026-10-11).
+      // eslint-disable-next-line preserve-caught-error -- YAML conversion quotes input anchor names.
+      throw new Error(`Required fleet at ${fleetPath} is malformed YAML (invalid alias)`);
+    }
   } catch (cause) {
     // Proof: removing this context made the malformed-YAML production CLI negative expose the
     // parser diagnostic without the required fleet path.
-    throw new Error(`Required fleet at ${fleetPath} is malformed YAML`, { cause });
+    // The parser's message and cause quote the offending source line, so only its code and
+    // position survive; required state may hold credentials.
+    // Proof: re-attaching `{ cause }` failed `reports malformed required state without echoing
+    // its contents` with the marker line in stderr (2026-10-11).
+    if (!(cause instanceof YAMLParseError)) throw cause;
+    const position = cause.linePos?.[0];
+    const where =
+      position === undefined
+        ? ''
+        : ` at line ${String(position.line)}, column ${String(position.col)}`;
+    // The cause is withheld on purpose: it quotes input bytes, and this throw is the boundary
+    // where required state becomes a diagnostic.
+    // eslint-disable-next-line preserve-caught-error -- cause quotes input bytes; see above.
+    throw new Error(`Required fleet at ${fleetPath} is malformed YAML (${cause.code}${where})`);
   }
   try {
     observationInput = JSON.parse(observationSource) as unknown;
   } catch (cause) {
     // Proof: removing this context made the malformed-JSON production CLI negative expose a raw
     // parser diagnostic without the required observation path.
-    throw new Error(`Required observation at ${observationPath} is malformed JSON`, { cause });
+    // The engine's message quotes the offending token, so neither it nor the cause is kept.
+    // Proof: re-attaching `{ cause }` failed `reports malformed required state without echoing
+    // its contents` with the marker token in stderr (2026-10-11).
+    if (!(cause instanceof SyntaxError)) throw cause;
+    // The cause is withheld on purpose: it quotes input bytes, and this throw is the boundary
+    // where required state becomes a diagnostic.
+    // eslint-disable-next-line preserve-caught-error -- cause quotes input bytes; see above.
+    throw new Error(`Required observation at ${observationPath} is malformed JSON`);
   }
-  const fleet = decodeFleet(fleetInput);
+  const fleet = decodeRequiredState(decodeFleet, fleetInput, 'fleet', fleetPath);
   if (
     isRecordValue(observationInput) &&
     Array.isArray(observationInput['sources']) &&
@@ -539,9 +629,15 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
   ) {
     // Proof: without this refusal a lab observation planned against infra/fleet/desired.yaml in
     // the lab-provider production CLI negative.
+    // Proof: omitting this binding made the real Dash lab/production refusal test exit 0.
     requireLabFleet(fleet, fleetPath, join(import.meta.dir, '../../..'));
   }
-  const observation = decodeObservation(observationInput);
+  const observation = decodeRequiredState(
+    decodeObservation,
+    observationInput,
+    'observation',
+    observationPath,
+  );
   if (request.kind === 'destroy') await requireRetirementReceipt(outputPath, fleet, request);
   const replacementFence =
     request.kind === 'replace' ? await requireFenceReceipt(outputPath, fleet, request) : undefined;
@@ -552,7 +648,13 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
       ? await requireReplacementAuthorization(outputPath, fleet, request)
       : undefined;
   if (request.kind === 'enroll') {
-    requireEnrollmentTarget(fleet, decodeFleetObservation(observationInput), request.nodeId);
+    // Proof: omitting this binding made the real Dash wrong-target refusal test persist a
+    // plan and exit 0 for another observed machine identity.
+    requireEnrollmentTarget(
+      fleet,
+      decodeRequiredState(decodeFleetObservation, observationInput, 'observation', observationPath),
+      request.nodeId,
+    );
   }
   let plan = planOperation(fleet, observation, request);
   if (request.kind === 'provision' && replacementAuthorization !== undefined) {
@@ -569,7 +671,7 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
   if (request.kind === 'retire') {
     const retirement = planRetirement(
       fleet,
-      decodeFleetObservation(observationInput),
+      decodeRequiredState(decodeFleetObservation, observationInput, 'observation', observationPath),
       request.nodeId,
     );
     const { planSha256: _planSha256, ...body } = plan;
@@ -593,7 +695,7 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
   if (request.kind === 'replace') {
     const replacement = planReplacement(
       fleet,
-      decodeFleetObservation(observationInput),
+      decodeRequiredState(decodeFleetObservation, observationInput, 'observation', observationPath),
       request.nodeId,
       replacementFence,
     );
@@ -620,7 +722,12 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
       throw new Error(`Upgrade target ${request.version} differs from the locked k3s version`);
     }
     if (upgradeEvidence === undefined) throw new Error('Upgrade evidence is unavailable');
-    const detailedObservation = decodeFleetObservation(observationInput);
+    const detailedObservation = decodeRequiredState(
+      decodeFleetObservation,
+      observationInput,
+      'observation',
+      observationPath,
+    );
     const upgrade = planUpgrade(fleet, detailedObservation, request.version, upgradeEvidence);
     const next = upgrade.nodes[0];
     if (next.nodeId !== request.nodeId) {
@@ -648,6 +755,7 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
   }
   try {
     await writeFile(outputPath, `${JSON.stringify(plan, undefined, 2)}\n`, {
+      // Proof: using overwrite mode made the real Dash occupied-output test replace reviewed bytes.
       flag: 'wx',
       mode: 0o600,
     });

@@ -57,6 +57,50 @@ function boundaryOf(config: unknown): readonly unknown[] {
 }
 
 describe('the effective production and test boundaries', () => {
+  it('keeps every root production boundary for the Dash planner except its exact local alias', async () => {
+    const cliPath = 'apps/twilight-structure/twilight-dash/cli/src/cli.ts';
+    const peerPath = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
+    const cliBoundary = boundaryOf(await lint.calculateConfigForFile(cliPath));
+    const peerBoundary = boundaryOf(await lint.calculateConfigForFile(peerPath));
+    const cliOptions = cliBoundary[1];
+    const peerOptions = peerBoundary[1];
+    if (!isRecord(cliOptions) || !isRecord(peerOptions)) {
+      throw new Error('Dash production boundary options are malformed');
+    }
+    expect(cliBoundary[0]).toEqual(peerBoundary[0]);
+    expect(cliOptions['allow']).toEqual(['^@tools/fleet-plan$']);
+    const withoutLocalAlias: Readonly<Record<string, unknown>> = { ...cliOptions, allow: [] };
+    expect(withoutLocalAlias).toEqual(peerOptions);
+
+    expect(await ruleIds(cliPath, "await import('@tools/fleet-plan');")).not.toContain(
+      '@nx/enforce-module-boundaries',
+    );
+    expect(await ruleIds(cliPath, "await import('@tools/deploy-contract');")).toContain(
+      '@nx/enforce-module-boundaries',
+    );
+    expect(await ruleIds(peerPath, "await import('@tools/fleet-plan');")).toContain(
+      '@nx/enforce-module-boundaries',
+    );
+  }, 30_000);
+
+  it('lets Dash tests reach only the planner facade and scratch helper', async () => {
+    const testPath = 'apps/twilight-structure/twilight-dash/cli/src/cli.test.ts';
+    const peerPath = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
+    const testOptions = boundaryOf(await lint.calculateConfigForFile(testPath))[1];
+    const peerOptions = boundaryOf(await lint.calculateConfigForFile(peerPath))[1];
+    if (!isRecord(testOptions) || !isRecord(peerOptions)) {
+      throw new Error('Dash test boundary options are malformed');
+    }
+    expect(testOptions['allow']).toEqual(['^@tools/fleet-plan$', '^@tools/test-scratch$']);
+    const withoutLocalAliases: Readonly<Record<string, unknown>> = { ...testOptions, allow: [] };
+    expect(withoutLocalAliases).toEqual(peerOptions);
+    // Proof: widening the Dash test override to `['^@tools/']` failed this test at the exact
+    // allow-list assertion (2026-10-11); the sibling import below keeps the remaining fences live.
+    expect(await ruleIds(testPath, "await import('@tools/deploy-contract');")).toContain(
+      '@nx/enforce-module-boundaries',
+    );
+  }, 30_000);
+
   it('rejects runtime packages and drivers from core and domain production', async () => {
     // Proof: before the core/domain production override existed, the Elysia
     // probe returned no `no-restricted-imports` diagnostic. Real uncached lint
