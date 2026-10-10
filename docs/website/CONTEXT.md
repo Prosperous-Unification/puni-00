@@ -62,10 +62,10 @@ _Avoid_: Analytics event, conversion beacon
 The private view in which an authorized PUNI operator reviews proposal requests and their contact status.
 
 **Expired anonymous draft**:
-An intake draft whose browser access period ended before it was attached to an account or submitted for a proposal.
+An intake draft whose browser access period ended before it was submitted for a proposal or started a conversation.
 
 **Retention subject**:
-An account-owned software request or a standalone manual proposal submission, identified separately for deadline, classification and erasure decisions.
+A software request or a standalone manual proposal submission, identified separately for deadline, classification and erasure decisions.
 _Avoid_: Software request as a name for every proposal
 
 **Retention deadline**:

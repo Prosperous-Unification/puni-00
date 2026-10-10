@@ -35,7 +35,7 @@ The API SHALL permit only the same browser's unexpired claim to resume its descr
 
 ### Requirement: Claim-bound identity for AI
 
-When a visitor chooses AI, the PUNI API SHALL authorize the conversation by the same host-only browser draft claim and draft CSRF header that govern the manual brief, from the exact app Origin, without accepting WBS cookies or audiences. No prospect account, session or sign-in SHALL exist on the funnel; a configured `OIDC_*` setting SHALL stop the API at startup. Manual submission SHALL remain available at every conversation state.
+When a visitor chooses AI, the PUNI API SHALL authorize the conversation by the same host-only browser draft claim and draft CSRF header that govern the manual brief, from the exact app Origin, without accepting WBS cookies or audiences. No prospect account, session or sign-in SHALL exist on the funnel; a configured `OIDC_*` setting SHALL stop the API at startup. Manual submission SHALL remain available at every conversation state. The manual brief SHALL link to Build while the draft claim is live and AI is enabled, and SHALL NOT link to Build otherwise.
 
 #### Scenario: Stolen, stale or reused claim
 
@@ -46,6 +46,11 @@ When a visitor chooses AI, the PUNI API SHALL authorize the conversation by the 
 
 - **WHEN** a WBS cookie, wrong OAuth audience, unapproved CORS Origin or absent CSRF proof reaches a PUNI write
 - **THEN** the API refuses the write without mutating request state
+
+#### Scenario: Manual brief route to Build
+
+- **WHEN** the manual brief loads a live draft claim while the conversation provider is disabled or paused
+- **THEN** it shows no link to Build, and with the provider enabled it shows one
 
 #### Scenario: Retired sign-in routes
 
