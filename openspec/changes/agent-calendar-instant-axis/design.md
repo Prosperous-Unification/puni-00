@@ -61,9 +61,10 @@ equal today's, which `live-plan-identity.test.ts` and both golden corpora assert
 ## D3 — CP-SAT
 
 `durationUnits` become minutes (quantum 1); the request carries each slice's calendar as
-forbidden intervals over the horizon (window calendar) or none (continuous). Horizon in
-minutes stays under `2^31` by `MAX_ESTIMATE_MINUTES`. The proof script of D0 is the model;
-`solver-preflight` gains a horizon check in minutes. `revalidate-solver-result.ts` checks a
+forbidden intervals over the horizon (window calendar) or none (continuous). The
+`solver-preflight` horizon check in minutes is the guard (`horizon-overflow`);
+`MAX_ESTIMATE_MINUTES` bounds a single slice, not the horizon. The proof script of D0 is the
+model. `revalidate-solver-result.ts` checks a
 window slice never occupies a forbidden interval.
 
 ## D4 — Gantt
