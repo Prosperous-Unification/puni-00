@@ -24,7 +24,7 @@ Dany's request (verbatim): "now - i need to redesign the build section - (1) i w
 
 ### Superseded spec lines
 
-The following still-open delta lines are superseded by this change. They are not edited in place (their changes are unarchived); archiving this change supersedes them:
+The following still-open delta lines are superseded by this change. The `puni-website-funnel` lines were edited in place on 2026-10-11 (batch 10 D1–D4); the `assistant-ui-build` lines are retired by `retire-prospect-sign-in`:
 
 - `openspec/changes/assistant-ui-build/specs/build-experience/spec.md`, "Google sign-in": "require authentication before paid inference" → sign-in is optional; paid inference is admitted by the browser claim.
 - Same file, "Customer conversation": "After sign-in, Build SHALL show the saved Home request and wait for the customer to press Send" → the same explicit-Send rule applies to the anonymous visitor without the sign-in precondition.

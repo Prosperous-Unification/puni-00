@@ -33,35 +33,30 @@ The API SHALL permit only the same browser's unexpired claim to resume its descr
 - **WHEN** a caller lacks the browser claim, CSRF proof, exact app Origin or rate capacity
 - **THEN** the API refuses brief edits and submission without changing stored state
 
-### Requirement: Independent prospect identity for AI
+### Requirement: Claim-bound identity for AI
 
-When a prospect chooses AI, the PUNI API SHALL authenticate them through its own OIDC session and exact app Origin/CSRF controls, without accepting WBS cookies or audiences. It SHALL atomically attach a valid same-browser draft to the signed-in account once and SHALL present explicit lost, expired and cancelled-login recovery states. Manual submission SHALL remain available if sign-in is cancelled.
-
-#### Scenario: Login consumes draft
-
-- **WHEN** the browser returns from valid state/PKCE login with its unexpired draft claim
-- **THEN** exactly one owner-scoped software request contains the original description and the app presents it as an unsent message
+When a visitor chooses AI, the PUNI API SHALL authorize the conversation by the same host-only browser draft claim and draft CSRF header that govern the manual brief, from the exact app Origin, without accepting WBS cookies or audiences. No prospect account, session or sign-in SHALL exist on the funnel; a configured `OIDC_*` setting SHALL stop the API at startup. Manual submission SHALL remain available at every conversation state.
 
 #### Scenario: Stolen, stale or reused claim
 
 - **WHEN** the claim is missing, expired, consumed or bound to a different browser
-- **THEN** no other account gains its text and the app offers a new-description path without exposing prior content
+- **THEN** no other browser gains its text and the app offers a new-description path without exposing prior content
 
 #### Scenario: Cross-origin credential refusal
 
 - **WHEN** a WBS cookie, wrong OAuth audience, unapproved CORS Origin or absent CSRF proof reaches a PUNI write
 - **THEN** the API refuses the write without mutating request state
 
-#### Scenario: Cancelled login
+#### Scenario: Retired sign-in routes
 
-- **WHEN** the visitor cancels login before the 24-hour claim expires
-- **THEN** the browser-bound draft remains resumable for manual submission or sign-in retry within its lifetime and no account-owned request is created
+- **WHEN** a request reaches `/session`, `/session/oidc/*`, `/session/demo`, `/chat*` or `/concept*`
+- **THEN** the API answers 404 and no row changes
 
 ### Requirement: Durable continuation
 
-The app SHALL reload a browser-claim-scoped manual description and brief before submission or an account-owned description, brief and conversation after sign-in, with a visible unavailable state when the permitted read fails.
+The app SHALL reload a browser-claim-scoped description, brief and conversation before submission, with a visible unavailable state when the permitted read fails.
 
 #### Scenario: Reload after intake or conversation
 
-- **WHEN** a visitor reloads the manual page before submission or an account owner reloads after a chat turn
-- **THEN** the content allowed by that visitor's claim or account reappears without retyping
+- **WHEN** a visitor reloads the manual page before submission or after a conversation turn
+- **THEN** the content allowed by that visitor's claim reappears without retyping
