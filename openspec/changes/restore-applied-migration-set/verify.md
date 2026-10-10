@@ -646,3 +646,100 @@ Astra independently cleared the exact three-file reconciliation diff against
 35/35, 114 assertions, exit 0 (`/tmp/puni-07012-astra-reconciliation.log`), and
 `git diff --check` passed. The watched early-directory RED and adjacent production
 `Proof:` comment agree; no runtime behavior changed.
+
+## Batch 10: live 3.1 rehearsal and 3.2 offline checks (2026-10-11)
+
+Branch `batch-10/070-12-restore-applied-migration-set` started at `a12bf6721` and merged
+`origin/main` (`a3b1526bd`) without conflicts as `73c6b3f51`. ADR 0036 is taken on main
+(`0036-private-companions-are-nested-ignored-clones.md`), so this change's ADR is now
+[0041](../../../docs/adr/0041-deployment-rollback-restores-a-captured-migration-set.md)
+(`d4ac418c1`, which also updates the status/down CLI headers to the exact-set interface).
+No product migration is added; the lab fixtures `20261001015000_lab_older_candidate` and
+`29991231010000_lab_rollback_failure` sort where the scenarios need them and ship `down.sql`.
+
+Focused suites after the merge, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`: backend CLI
+plus SQLite rollback 65/65 (500 assertions); Compose swap 100/100 (266); tool-deploy
+release/execute/journal/execute-adapter/lab-migration 134/134 (524). The same counts held
+on `d4ac418c1`.
+
+### 3.1 live rehearsal on a disposable k3d cluster
+
+Host `pop-os` (workstation, Docker 29.7.2), locked k3d v5.9.0 and kubectl v1.36.4 verified
+against `infra/versions/toolchain.json` SHA-256. `bin/with-heavy-lock.sh` cannot run here:
+`HEAVY_LOCK_WAIT_SECONDS=0 bin/with-heavy-lock.sh -- true` printed
+`heavy lock: /home/puni1/.cache does not exist`, exit 70, because the Linux lock path is
+h2puni's. The lab therefore ran unwrapped, as `docs/infra/deployment.md` documents and the
+`infra-check` CI job runs it, after confirming no `puni-f8-*` cluster, container or network
+existed.
+
+`K3D=… KUBECTL=… bunx nx run tool-deploy:test:k3s --skip-nx-cache` on source `73c6b3f51`:
+**exit 0, 66 assertions, `all lab assertions passed`**, 16m16s. Backend images: v2
+`sha256:1818f476b0c6…0767`, v3 `sha256:dfb9dadc2e3e…5abd`. Release ids
+`73c6b3f5164a-cf14efab79fe` (failed health), `-995b808dade5` (SIGKILL then resume),
+`-837170bf6e47` (additive promote), `-df27b54bdf99` (failed down). Observed:
+
+- Before upgrade the newer `20261005110000_add_shared_people` baseline is applied and the
+  older candidate absent; capture recorded pending
+  `[20261001015000_lab_older_candidate, 29991231000000_lab_additive]`.
+- Scenarios 1 and 2 ended `rolled-back` with the complete name/hash ledger, table set,
+  work-item columns and project sentinel rows equal to the pre-upgrade evidence, writes
+  reopened, Lease released, at most one writer (270 and 114 samples).
+- Scenario 3 applied the older candidate table and identity and promoted.
+- Scenario 5: the blocked down SQL ended `rollback-failed`; writes remained fenced, no
+  active writer, the held Lease parked, and the exact retained manual command printed
+  (`migrate-down-cli.ts --capture-file=… --capture-sha256=b96e1f71… --attempt=73c6b3f5164a-df27b54bdf99-151d40 …`).
+  After the admitted unblock Job, that command restored the complete ledger, tables, columns
+  and sentinel rows without reopening writes or releasing the Lease (232 writer samples).
+- Cleanup: afterwards `k3d cluster list` was empty and no `f8` container or network remained.
+
+Live R5 fault, source `d4ac418c1` plus one line in `failStep` mapping a failed
+`rollback-schema` to `rollback-schema-restored`: the lab exited 1 with
+`ASSERTION FAILED: the blocked down SQL ended rollback-failed`; cluster, containers and
+network were again absent and the source was restored. The adjacent `Proof:` comment is on
+`failStep` in `release.ts`. Logs are retained in the private plan repository under
+`batch-10/lanes/migration-set-070-12.k3s-{run1,fault-reopen}.log`.
+
+### 3.2 R5 fault table re-run on `d4ac418c1`
+
+Each fault was injected alone in a separate worktree, its production-path suite run, and
+the file restored (final `git status` clean). Every fault failed its suite (exit 1):
+
+| Fault                         | Injected change                                     | Observed failing test (suite)                                                                                  |
+| ----------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| F01 exact selection           | timestamp cutoff in capture's pending filter        | `restores an older newly introduced migration after a newer shared-people baseline` (CLI, 2 fail)              |
+| F02 baseline preservation     | captured applied rows added to `doomed`             | `preserves an older migration already captured…` and 5 more (CLI)                                              |
+| F03 duplicate identities      | duplicate-name refusal removed                      | `refuses duplicate migration identity before reversing an addition` (CLI)                                      |
+| F04 capture ownership         | target/attempt/candidate comparison disabled        | three `refuses a capture belonging to another …` (CLI)                                                         |
+| F05 ledger identity           | observed-row membership/hash check disabled         | `refuses an unexpected applied migration…`, `refuses a changed pending ledger identity…` (CLI)                 |
+| F06 script identity           | down-hash comparison disabled                       | `refuses changed down.sql bytes before reversing either candidate` (CLI)                                       |
+| F07 per-migration transaction | COMMIT after each down statement                    | `rolls back a failed down statement and its ledger deletion…` (CLI)                                            |
+| F08 convergence               | absent pending row treated as applied               | `resumes exact restoration after one down script…`, `restores a partial forward application…` and 2 more (CLI) |
+| F09 durable capture           | readback byte equality disabled                     | `refuses migration when the persisted capture cannot be read back unchanged` (swap)                            |
+| F10a final equality, Compose  | restored-set comparison replaced by `false`         | `does not accept a zero-exit down command that leaves the candidate recorded` (swap)                           |
+| F10b final equality, k8s      | restored identity comparison disabled               | `refuses changed restored hash…`, `refuses duplicate restored identities…` (deploy)                            |
+| F11 transport                 | `PUNI_CAPTURE_BYTES` replaced by `{}`               | `reverses an older candidate migration after a newer baseline using the generated script` and 2 more (deploy)  |
+| F12 legacy compatibility      | schemaVersion 1 route disabled                      | `refuses a legacy in-flight journal without replacing its bytes` (deploy)                                      |
+| F13 manual recovery           | `--capture-sha256` dropped from the printed command | `manual recovery refuses a tampered retained capture before deleting the baseline` (swap)                      |
+| C01 DB-free advertisement     | capability CLI requires `DB_PATH`                   | `advertises exact-set capabilities without a database or DB_PATH` (CLI)                                        |
+| C02 capability invocation     | spawn replaced by a fabricated success              | `refuses a legacy --to-only candidate before taking a capture snapshot` and 14 more (deploy)                   |
+| C03 nonzero exit              | exit-code check disabled                            | `refuses nonzero exit before opening SQLite or creating a snapshot` and 3 more (deploy)                        |
+| C04 response shape            | exact-key check removed                             | `refuses unknown field before opening SQLite…` (deploy)                                                        |
+| C05 required capability       | `restore-v1-sha256` requirement removed             | `refuses unknown capability before opening SQLite…` (deploy)                                                   |
+| C06 coordinator admission     | capture-boundary validation removed                 | `refuses a foreign capture before journal persistence` (deploy)                                                |
+| C07 advertisement truth       | capture digest verification disabled                | `backs its advertised exact-set protocol with the real capture and digest-pinned down CLIs` (CLI)              |
+
+Restored positives on the same tree: 65/65, 100/100 and 134/134 as above. The capability
+ordering fault (probe after VACUUM) was not re-injected; its earlier observation stands.
+
+`bunx @fission-ai/openspec@1.12.0 validate --all --json`: 159/159 passed (141 changes,
+18 specs). Scoped Prettier on touched files passed. `nx run-many -t lint:fast typecheck test
+build` for `wbs-be-01`, `wbs-store-sqlite`, `tool-deploy` and `tool-remote-scripts` exited 1
+under host load average 20–27: lint, typecheck and build passed; three
+`assertTierEnvComplete against the release configuration` cases (tool-remote-scripts) and
+`a committed revocation refuses the old browser pair…` (be-01) hit the 10 s test timeout.
+Each file rerun alone passed (99/99 and
+8/8 twice). At load average 6–11 the rerun
+`nx run-many -t test -p tool-remote-scripts wbs-be-01 tool-deploy wbs-store-sqlite --skip-nx-cache`
+exited 0: 325, 373, 1288 and 1918 tests, 0 fail.
+
+The exact-SHA `bin/h2puni-gate.sh` run and CI remain open, so 3.2 stays unchecked.

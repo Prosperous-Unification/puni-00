@@ -42,7 +42,7 @@ migration identity. No dependency on host enrollment or completion of 070.09.
 
 ## 3. Integrated failure proof and delivery
 
-- [ ] 3.1 Extend the existing disposable k3s release rehearsal with a separately named older
+- [x] 3.1 Extend the existing disposable k3s release rehearsal with a separately named older
       candidate migration and a newer pre-applied baseline, fail health, and prove exact
       ledger/schema restoration plus preserved baseline rows. Do not change LAB_MIGRATION or
       reopen 070.01. Prove rollback-failed retains its writer fence and usable manual command

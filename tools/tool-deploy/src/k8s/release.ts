@@ -438,6 +438,8 @@ export function failStep(
   manualCommand: string | null,
 ): ReleaseState {
   const failure: ReleaseFailure = { step: step.kind, message, manualCommand };
+  // Proof: mapping a failed rollback-schema to rollback-schema-restored made the live k3s
+  // lab (2026-10-11) fail `the blocked down SQL ended rollback-failed`, exit 1.
   if (!isForward(state.phase)) {
     return { ...state, phase: 'rollback-failed', failure };
   }
