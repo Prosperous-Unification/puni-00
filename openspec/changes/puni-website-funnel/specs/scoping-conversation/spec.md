@@ -2,11 +2,11 @@
 
 ### Requirement: Bounded prospect conversation
 
-The API SHALL accept scoping turns only from the request owner after explicit send. Pilot admission SHALL enforce 4,000 characters per later message, at most 12 user turns per brief including the original description, one active inference per account, four site-wide, two active briefs per account, 1,024 completion tokens and a 30-second server deadline. The UI SHALL show remaining allowance and offer brief review or proposal request when a limit is reached.
+The API SHALL accept conversation turns only from the draft claim's browser after explicit Send. Admission SHALL enforce the conversation allowance of `anonymous-conversation`: 1,500 characters per later message, at most 8 visitor turns per conversation including the Home request, one in-flight operation per conversation, four in-flight paid calls site-wide, the configured completion cap and a 30-second server deadline. `GET /conversation` SHALL report `visitorTurnLimit` and `visitorTurnsRemaining`, and the UI SHALL render both from that response and offer brief review or a proposal request when a limit is reached.
 
 #### Scenario: Explicit first send
 
-- **WHEN** sign-in attaches the original description but the prospect has not selected Send
+- **WHEN** Build loads the saved Home request and the visitor has not pressed Send
 - **THEN** the description is visible as an unsent composer draft and no provider call occurs
 
 #### Scenario: Turn, concurrency or active-brief limit
@@ -16,7 +16,7 @@ The API SHALL accept scoping turns only from the request owner after explicit se
 
 ### Requirement: Conservative paid admission and settlement
 
-Before a paid call, the API MUST atomically reserve a conservative worst-case amount against proposed pilot allowances of $0.50 per brief including preview, $1 per account per UTC day and $10 site-wide per UTC day; the dedicated key SHALL have a $100 monthly ceiling. Missing key, price, allowance or compatible endpoint MUST disable inference visibly. Cancellation, timeout, stream failure or missing final usage MUST retain an unsettled reservation until bounded reconciliation; unresolved usage MUST block further spend. No ambiguous generation SHALL be automatically retried.
+Before a paid call, the API MUST atomically reserve the byte-bound input estimate plus the configured completion cap at the pinned rates against $0.15 per conversation, $0.30 and three conversations per source per UTC day and $10 site-wide per UTC day; the dedicated key SHALL have a $100 monthly ceiling. Missing key, price, allowance or compatible endpoint MUST disable inference visibly. Cancellation, disconnect, timeout, non-refusal stream failure or missing final usage MUST settle the operation at its full reservation, keep the conversation open and allow a new attempt under the same key; recorded spend MAY over-count and SHALL never under-count. The operator overview SHALL show the day's count and amount of ceiling-settled operations. No ambiguous generation SHALL be automatically retried.
 
 #### Scenario: Concurrent budget boundary
 
@@ -31,7 +31,7 @@ Before a paid call, the API MUST atomically reserve a conservative worst-case am
 #### Scenario: Cancelled stream without usage
 
 - **WHEN** a client disconnects after generation begins but before final usage arrives
-- **THEN** the generation stays unsettled, its reservation remains held, and bounded reconciliation or an operator hold determines the next admission
+- **THEN** the operation is settled at its full reservation, the conversation stays open and the next admission counts that amount
 
 ### Requirement: Restricted scope and provider
 

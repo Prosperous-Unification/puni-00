@@ -18,17 +18,17 @@ Dany's request (verbatim): "now - i need to redesign the build section - (1) i w
 2. The layout is a typical AI chat harness: full-height conversation, streaming assistant messages, user messages, a composer pinned at the bottom in the site's liquid-glass style, a stop button, visible thinking/streaming/error states. The Home request is the first user message. Mobile-first and keyboard friendly.
 3. A real OpenRouter integration through the existing server-only adapter, routing safeguards and reservation accounting.
 4. The chat is a short sales/conversion conversation (clarify, brief, confidence, email, proposal). It never agrees to price, dates or contracts; it stays on software-request scope and resists prompt injection.
-5. **ASSUMPTION (orchestrator; Dany may override): no sign-in wall.** Anonymous chat bound to the browser draft claim under strict caps. Google sign-in stays optional.
+5. **Decided 2026-10-11 (ADR 0039 accepted): no sign-in at all.** Anonymous chat bound to the browser draft claim under strict caps.
 6. The privacy notice names OpenRouter and the model provider before chat is enabled.
 7. Dany supplies the OpenRouter key into the host runtime env; it is never stored in a repo or chat; the app shows a visibly disabled state without it.
 
 ### Superseded spec lines
 
-The following still-open delta lines are superseded by this change. They are not edited in place (their changes are unarchived); archiving this change supersedes them:
+The following still-open delta lines are superseded by this change. The `puni-website-funnel` lines were edited in place on 2026-10-11 (batch 10 D1–D4); the `assistant-ui-build` lines are retired by `retire-prospect-sign-in`:
 
 - `openspec/changes/assistant-ui-build/specs/build-experience/spec.md`, "Google sign-in": "require authentication before paid inference" → sign-in is optional; paid inference is admitted by the browser claim.
 - Same file, "Customer conversation": "After sign-in, Build SHALL show the saved Home request and wait for the customer to press Send" → the same explicit-Send rule applies to the anonymous visitor without the sign-in precondition.
-- `openspec/changes/puni-website-funnel/specs/request-handoff/spec.md`, "Independent prospect identity for AI": "When a prospect chooses AI, the PUNI API SHALL authenticate them through its own OIDC session" → OIDC remains for account continuity, not as the chat gate.
+- `openspec/changes/puni-website-funnel/specs/request-handoff/spec.md`, "Independent prospect identity for AI": "When a prospect chooses AI, the PUNI API SHALL authenticate them through its own OIDC session" → retired; the conversation is claim-bound (D1).
 - `openspec/changes/puni-website-funnel/specs/scoping-conversation/spec.md`, "Bounded prospect conversation": "at most 12 user turns per brief ... 1,024 completion tokens" → 8 visitor turns and 400 completion tokens for the anonymous conversation; the account path keeps its figures until removed.
 - `docs/website/README.md`: "Choosing AI requires sign-in before any model call."; `docs/website/openrouter-research.md`: "do not call the model before sign-in"; private `docs/website/build-experience.md`: "Sign-in precedes the first paid model turn."
 
@@ -227,5 +227,4 @@ Each slice ends with: (1) `bunx nx run-many -t test lint typecheck build -p webs
 
 ## Open Questions
 
-- Dany confirms or overrides the no-sign-in assumption and the $10 site-day ceiling.
-- Whether the account workspace (`/chat*`, concept preview) is retired or restyled is a later change.
+- Decided 2026-10-11: retired in `retire-prospect-sign-in` (S3/S4).
