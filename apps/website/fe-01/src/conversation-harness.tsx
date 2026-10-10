@@ -20,7 +20,6 @@ import {
 
 /** Characters a visitor may send after the Home request; the API refuses longer messages. */
 const messageLimit = 1_500;
-const turnLimit = 8;
 const proposalKeyName = 'puni_build_proposal_key';
 const interruptedText = 'The reply stopped before it was confirmed. You can retry.';
 
@@ -523,7 +522,7 @@ export function LiveHarness({
               </div>
               <p className="harness-meta">
                 <span>
-                  {remaining} of {turnLimit} messages left
+                  {remaining} of {conversation.visitorTurnLimit} messages left
                   {isSimulated ? ' · Simulated' : ''}
                 </span>
                 <span className="harness-shortcut">

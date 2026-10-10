@@ -2334,6 +2334,7 @@ test('GET /conversation reads only the claimed draft and reports the disabled pr
     stage: 'clarify',
     turns: [],
     visitorTurnsRemaining: 8,
+    visitorTurnLimit: 8,
     provider: 'disabled',
     brief: '',
     challenge: null,

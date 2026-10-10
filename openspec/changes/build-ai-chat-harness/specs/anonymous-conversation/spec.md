@@ -7,7 +7,7 @@ The API SHALL expose `GET /conversation`, `POST /conversation/stream` and `POST 
 #### Scenario: Owner reads the conversation
 
 - **WHEN** the browser that created the draft requests `GET /conversation` from the app origin
-- **THEN** it receives the description, saved turns, stage, remaining visitor turns, provider availability and its CSRF token
+- **THEN** it receives the description, saved turns, stage, remaining visitor turns, the visitor turn limit, provider availability and its CSRF token
 
 #### Scenario: Foreign browser or origin
 

@@ -212,6 +212,7 @@ interface View {
   stage: string;
   turns: { role: string; content: string }[];
   visitorTurnsRemaining: number;
+  visitorTurnLimit: number;
   provider: string;
   brief: string;
   csrfToken: string;
@@ -356,6 +357,23 @@ function fillSiteDay(databasePath: string, remaining: number): void {
     .run(10_000_000 - remaining, 10_000_000 - remaining);
   database.close();
 }
+
+test('GET /conversation reports the visitor turn limit beside the remaining count', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Who will book the repairs?' }));
+  const api = mountApi(paidConfig(fake.providerFetch));
+  const visitor = await beginVisitor(api);
+  expect(await readConversation(api, visitor.cookie)).toMatchObject({
+    visitorTurnLimit: 8,
+    visitorTurnsRemaining: 8,
+  });
+  const first = await sendInitial(api, visitor);
+  expect(first.status).toBe(200);
+  await first.text();
+  expect(await readConversation(api, visitor.cookie)).toMatchObject({
+    visitorTurnLimit: 8,
+    visitorTurnsRemaining: 7,
+  });
+});
 
 test('the owner streams the initial reply, reads it back and replays it without a second call', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Who will book the repairs?' }));
