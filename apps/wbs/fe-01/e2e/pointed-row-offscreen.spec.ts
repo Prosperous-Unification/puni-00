@@ -33,7 +33,11 @@ test('pointing a visible bar leaves its linked offscreen table row in place', as
   await page.evaluate(
     () =>
       new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            resolve();
+          }),
+        ),
       ),
   );
 
@@ -147,7 +151,11 @@ test('pointing a visible bar leaves its linked offscreen table row in place', as
     await page.evaluate(
       () =>
         new Promise<void>((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              resolve();
+            }),
+          ),
         ),
     );
     const resizedLayout = await measurePremise();
@@ -184,7 +192,11 @@ test('pointing a visible bar leaves its linked offscreen table row in place', as
   await page.evaluate(
     () =>
       new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            resolve();
+          }),
+        ),
       ),
   );
   const before = await page.evaluate(() => {
@@ -219,7 +231,12 @@ test('pointing a visible bar leaves its linked offscreen table row in place', as
     await page.mouse.move(chosen.point.x, chosen.point.y);
     for (let frame = 0; frame < 3; frame += 1) {
       await page.evaluate(
-        () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => {
+              resolve();
+            }),
+          ),
       );
       expect(page.url(), 'bar hover changed the page URL').toBe(url);
       expect(navigations, 'bar hover made a navigation request').toEqual([]);
