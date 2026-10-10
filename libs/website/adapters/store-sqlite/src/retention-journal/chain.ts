@@ -12,8 +12,17 @@ import {
 } from './record';
 import { JournalRemoteError, type RetentionJournalRemote } from './remote';
 
-/** Why a reader refused the remote journal; design §6 rows 1–9. */
+/**
+ * Why a reader or writer refused the remote journal: design §6 rows 1–9, plus the session's
+ * `unavailable` (a write did not complete), `behind` (the remote is ahead; replay first),
+ * `detached` (the database is not bound to a journal) and `ineligible` (a snapshot lacks a
+ * subject a later designation, correction, hold or resolution names).
+ */
 export type JournalRefusal =
+  | 'unavailable'
+  | 'behind'
+  | 'detached'
+  | 'ineligible'
   | 'uninitialised'
   | 'missing'
   | 'unreadable'
