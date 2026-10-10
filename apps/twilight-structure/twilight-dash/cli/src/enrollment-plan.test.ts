@@ -373,6 +373,85 @@ describe('Dash required files and exclusive output', () => {
     }
   });
 
+  for (const fault of [
+    'yaml-warning',
+    'yaml-alias',
+    'fleet-schema',
+    'observation-schema',
+  ] as const) {
+    for (const command of ['dash', 'fleet'] as const) {
+      test(`${command} keeps ${fault} input contents out of diagnostics`, () => {
+        const fixture = createFixture();
+        const marker = 'SECRETMARKER_DIAGNOSTIC_abc123';
+        if (fault === 'yaml-warning') {
+          writeFileSync(fixture.fleet, `token: !secret ${marker}\n  bad: [\n`);
+        } else if (fault === 'yaml-alias') {
+          writeFileSync(fixture.fleet, `token: *${marker}\n`);
+        } else if (fault === 'fleet-schema') {
+          writeFileSync(
+            fixture.fleet,
+            fleetSource.replace('"schemaVersion":1', `"schemaVersion":"${marker}"`),
+          );
+        } else {
+          writeFileSync(
+            fixture.observation,
+            buildObservationSource().replace('"complete":true', `"complete":"${marker}"`),
+          );
+        }
+        const inputs = [readFileSync(fixture.fleet), readFileSync(fixture.observation)];
+        const refusal = invokeEntrypoint(
+          fixture,
+          command,
+          buildArguments(fixture, join(fixture.outputs, 'plan.json')),
+        );
+        expect(refusal.exitCode).not.toBe(0);
+        expect(refusal.stderr.toString()).not.toContain(marker);
+        expect(refusal.stderr.toString()).toContain(
+          fault === 'observation-schema' ? fixture.observation : fixture.fleet,
+        );
+        expect(refusal.stdout.toString()).toBe('');
+        expect(readdirSync(fixture.outputs)).toEqual([]);
+        expect(readFileSync(fixture.fleet)).toEqual(inputs[0]);
+        expect(readFileSync(fixture.observation)).toEqual(inputs[1]);
+        assertNoAuthority(fixture);
+      });
+    }
+  }
+
+  for (const command of ['dash', 'fleet'] as const) {
+    test(`${command} refuses otherwise-valid fleet YAML with unresolved tags`, () => {
+      const fixture = createFixture();
+      const marker = 'SECRETMARKER_WARNING_abc123';
+      writeFileSync(fixture.fleet, `!${marker}\n${fleetSource}`);
+      const planned = invokeEntrypoint(
+        fixture,
+        command,
+        buildArguments(fixture, join(fixture.outputs, 'plan.json')),
+      );
+      expect(planned.exitCode).not.toBe(0);
+      expect(planned.stderr.toString()).toContain('YAML warning (TAG_RESOLVE_FAILED');
+      expect(planned.stderr.toString()).not.toContain(marker);
+      expect(planned.stdout.toString()).toBe('');
+      expect(readdirSync(fixture.outputs)).toEqual([]);
+      assertNoAuthority(fixture);
+    });
+
+    test(`${command} refuses multiple YAML documents`, () => {
+      const fixture = createFixture();
+      writeFileSync(fixture.fleet, `${fleetSource}---\n${fleetSource}`);
+      const refusal = invokeEntrypoint(
+        fixture,
+        command,
+        buildArguments(fixture, join(fixture.outputs, 'plan.json')),
+      );
+      expect(refusal.exitCode).not.toBe(0);
+      expect(refusal.stderr.toString()).toContain('MULTIPLE_DOCS');
+      expect(refusal.stdout.toString()).toBe('');
+      expect(readdirSync(fixture.outputs)).toEqual([]);
+      assertNoAuthority(fixture);
+    });
+  }
+
   test('preserves occupied output bytes and refuses without success text', () => {
     const fixture = createFixture();
     const output = join(fixture.outputs, 'reviewed.json');

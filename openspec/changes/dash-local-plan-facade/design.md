@@ -56,8 +56,9 @@ rules; if a narrow fleet public export is required, expose the existing function
 without changing its implementation or widening global lint policy.
 
 Only caller-supplied planning documents and digests are accepted. The CLI has no
-credential flags or adapter/executable selectors. A failure preserves its cause
-and exits nonzero. Documentation states the plan is prepared, not applied, and
+credential flags or adapter/executable selectors. A failure exits nonzero with required-file context. Schema errors and YAML/JSON
+parser diagnostics expose no input values or raw causes; YAML warnings fail closed
+with only their code and position, without printing source lines. Documentation states the plan is prepared, not applied, and
 points execution users to the existing fleet procedure.
 
 ## Risks / Trade-offs

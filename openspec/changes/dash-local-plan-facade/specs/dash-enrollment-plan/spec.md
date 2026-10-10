@@ -51,6 +51,11 @@ remain unchanged, and diagnostics SHALL NOT dump their contents or credentials.
 - **WHEN** a required fixture file is absent, or separately exists but cannot be read by the invoking user
 - **THEN** each invocation fails with its path/context and creates no plan
 
+#### Scenario: YAML warning or schema-invalid required state
+
+- **WHEN** fleet YAML has an unresolved tag, including on otherwise schema-valid input, or fleet/observation schema validation fails
+- **THEN** planning refuses with required-file context, creates no output, and diagnostics contain no supplied input values or raw parser/schema causes
+
 #### Scenario: Existing output cannot be replaced
 
 - **WHEN** output already contains reviewed bytes

@@ -276,3 +276,70 @@ Acceptance rerun on the fixed bytes:
 | `nx show project twilight-dash`                                                                             | Targets lint, test, typecheck. The test command runs the scratch preload. |
 | `bunx @fission-ai/openspec@1.12.0 validate dash-local-plan-facade --strict --json`, `validate --all --json` | 1/1 and 158/158.                                                          |
 | Scoped `bunx prettier --check`, `git diff --check`                                                          | Clean.                                                                    |
+
+## Task 2.2 diagnostic review fix (2026-10-11)
+
+Independent verification began from exact PR #288 head
+`3dcd7e9b5252d70f412af7769fda44a0a1d3899d` in
+`/tmp/puni-dash-288-independent-3dcd7e9b`. Dependencies were installed with
+`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT BUN_TMPDIR=/tmp bun install --frozen-lockfile`
+(Bun 1.4.2, exit 0, 1371 packages). The lockfile SHA-256 remained
+`dadf2efe7a7d123e79d611d4d69c3abe7d51474af291105adfeaf52c7989d1b3`.
+
+The former syntax-only marker negatives passed while source-bearing YAML warnings
+and ArkErrors still leaked markers. Six new production-entrypoint negatives
+(Dash and direct fleet, each with YAML warning + syntax error, fleet schema error,
+and observation schema error) failed before the fix: 0 pass / 6 fail, exit 1,
+`/tmp/dash-288-diagnostics-red.log`. A separate unresolved-alias marker reproduction
+failed 0/2 through both entrypoints (`/tmp/dash-288-diagnostics-alias-red.log`).
+
+`runPlan` now uses `parseDocument`, checks retained errors, and rejects retained
+warnings with only code and position. YAML conversion ReferenceError/RangeError
+failures expose no raw anchor names. The required-file decoder boundary strips
+only modeled ArkErrors summaries and causes; unexpected errors still throw.
+The existing explicit completeness diagnostic remains observable. A separately
+schema-valid fleet with an unresolved root tag produced a successful plan before
+warning refusal (0/2 negatives, exit 1,
+`/tmp/dash-288-diagnostics-warning-refusal-red.log`). Warnings now refuse without
+output. No `logLevel: 'silent'` is used; multi-document YAML still refuses.
+
+### Observed production-path faults
+
+Each fault was injected alone, its command exited 1, and the exact saved source
+bytes were restored before running normal checks. The test command prefix was
+`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 apps/twilight-structure/twilight-dash/cli/src/enrollment-plan.test.ts --test-name-pattern`.
+
+| Fault                                                               | Pattern                                                                  | Observed negative evidence                                                                                            |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Restore source-printing `parse()` before controlled parsing         | `yaml-warning input contents out\|YAML warnings`                         | 0 pass / 4 fail; marker leaked, `/tmp/dash-288-diagnostics-fault-yaml-warning.log` (before warning-refusal revision). |
+| Rethrow ArkErrors-bearing error instead of safe required-file error | `fleet-schema input contents out\|observation-schema input contents out` | 0 pass / 4 fail; marker leaked, `/tmp/dash-288-diagnostics-fault-schema.log`.                                         |
+| Rethrow modeled alias conversion cause                              | `yaml-alias input contents out`                                          | 0 pass / 2 fail; marker leaked, `/tmp/dash-288-diagnostics-fault-alias.log`.                                          |
+| Clear document errors instead of refusing them                      | `multiple YAML`                                                          | 0 pass / 2 fail; both entrypoints published plans, `/tmp/dash-288-diagnostics-fault-yaml-errors-final.log`.           |
+| Remove warning refusal                                              | `otherwise-valid fleet YAML`                                             | 0 pass / 2 fail; both entrypoints published plans, `/tmp/dash-288-diagnostics-fault-warning-refusal.log`.             |
+
+After restoration, `--test-name-pattern 'otherwise-valid fleet YAML|input contents out|multiple YAML'`
+passed 12/12, 122 assertions (`/tmp/dash-288-diagnostics-warning-refusal-green.log`).
+Adjacent production `Proof:` comments identify the guards and observed negatives.
+Task 2.1 now names only the actual Dash test/lint/typecheck targets; the removed
+build target is intentional because bundling changes the fleet production-root
+resolution. Task 2.2 remains unchecked pending review, canonical exact-SHA host gate,
+exact-head CI and coordinator integration. This evidence completes no later
+080.19 authority relocation work.
+
+### Final acceptance after warning refusal
+
+`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test lint typecheck -p tool-fleet twilight-dash tool-devsync --skip-nx-cache --output-style=stream`
+exited 0: all nine targets passed, Dash 52/52, fleet 389/389, devsync 394/394.
+Log: `/tmp/dash-288-diagnostics-final-acceptance-dissociated.log`.
+An earlier full devsync run failed 1/394 because the initial local `--shared`
+clone retained Git object alternates; its poller test correctly refused a target
+borrowing source objects. `git repack -a -d` followed by removing only this clone's
+`.git/objects/info/alternates` made it independent; the complete rerun above passed.
+No devsync source was changed. The four initially requested focused devsync suites
+also passed 82/82 on the unmodified 3dcd head
+(`/tmp/dash-288-3dcd7e9b-devsync.log`).
+
+Final pinned `bunx @fission-ai/openspec@1.12.0 validate dash-local-plan-facade --strict --json`
+and `validate --all --json` each exited 0, 1/1 and 158/158 respectively
+(`/tmp/dash-288-diagnostics-final-openspec-{strict,all}.json`).
+`git diff --check` exited 0. No canonical host gate, push or integration was run.
