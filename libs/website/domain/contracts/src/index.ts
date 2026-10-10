@@ -18,9 +18,6 @@ export type ConversationReplyStage = 'clarify' | 'brief' | 'contact';
 /** Stored lifecycle of an anonymous conversation; see {@link deriveStage}. */
 export type ConversationState = 'open' | 'exhausted' | 'handed_off';
 
-/** Visitor turns per anonymous conversation, the Home request included. */
-export const conversationTurnLimit = 8;
-
 /**
  * The stage of the reply to the next visitor turn: the first two are `clarify`, the third is
  * `brief` and every later one is `contact`.
@@ -65,6 +62,8 @@ export interface ConversationView {
   stage: ConversationStage;
   turns: { role: 'user' | 'assistant'; content: string }[];
   visitorTurnsRemaining: number;
+  /** Visitor turns per conversation, the Home request included; `conversationAllowance.visitorTurns`. */
+  visitorTurnLimit: number;
   provider: ConversationProvider;
   brief: string;
   description: string;

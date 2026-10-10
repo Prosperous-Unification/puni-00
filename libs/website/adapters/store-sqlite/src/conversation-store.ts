@@ -3,7 +3,6 @@ import {
   type ConversationExhaustedReason,
   type ConversationReplyStage,
   type ConversationState,
-  conversationTurnLimit,
   deriveReplyStage,
 } from '@website/contracts';
 import type { Database } from 'bun:sqlite';
@@ -32,10 +31,12 @@ export interface ConversationOperationRecord {
 }
 
 /**
- * Spend and concurrency ceilings in micro-USD and calls. The site-day ceiling and the site-wide
- * unsettled-call count are shared with account reservations in `provider_call`.
+ * Turn, spend and concurrency ceilings in turns, micro-USD and calls. `visitorTurns` counts the
+ * Home request and is reported to the browser as `visitorTurnLimit`. The site-day ceiling and the
+ * site-wide unsettled-call count are shared with account reservations in `provider_call`.
  */
 export const conversationAllowance = {
+  visitorTurns: 8,
   conversationMicroUsd: 150_000,
   sourceDayMicroUsd: 300_000,
   sourceDayConversations: 3,
@@ -403,7 +404,8 @@ export function admitConversationOperation(
       if (request.initial && visitorTurns > 0) return { kind: 'turn_limit' };
       if (!request.initial && visitorTurns === 0) return { kind: 'initial_required' };
       // Proof: removing this cap made the ninth-turn admission test start an operation.
-      if (visitorTurns >= conversationTurnLimit) return exhaust(database, conversation.id, 'turns');
+      if (visitorTurns >= conversationAllowance.visitorTurns)
+        return exhaust(database, conversation.id, 'turns');
       const running = single(
         database
           .query<{ count: number }, [string]>(

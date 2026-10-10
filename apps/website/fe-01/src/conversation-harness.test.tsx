@@ -27,6 +27,7 @@ const briefed: Conversation = {
     { role: 'assistant', content: reply },
   ],
   visitorTurnsRemaining: 5,
+  visitorTurnLimit: 8,
   provider: 'openrouter',
   brief: '- Users: workshop volunteers',
   description: 'A booking tool',
@@ -51,6 +52,18 @@ test('the rendered thread never shows brief markers', () => {
   // Proof: rendering `turn.content` unfiltered put both markers in this markup.
   expect(markup).not.toContain('[brief]');
   expect(markup).not.toContain('[/brief]');
+});
+
+test("the allowance line uses the server's turn limit", () => {
+  const markup = renderToStaticMarkup(
+    <LiveHarness
+      initial={{ ...briefed, visitorTurnLimit: 5, visitorTurnsRemaining: 2 }}
+      onReload={() => undefined}
+      onHandedOff={() => undefined}
+    />,
+  );
+  // Proof: rendering the limit from a FE constant of 8 made this markup read "2 of 8".
+  expect(markup.replaceAll('<!-- -->', '')).toContain('2 of 5 messages left');
 });
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', {

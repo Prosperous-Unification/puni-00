@@ -174,6 +174,8 @@ export interface Conversation {
   stage: ConversationStage;
   turns: { role: 'user' | 'assistant'; content: string }[];
   visitorTurnsRemaining: number;
+  /** Server-owned visitor turns per conversation, the Home request included. */
+  visitorTurnLimit: number;
   provider: ConversationProvider;
   brief: string;
   description: string;
@@ -286,6 +288,15 @@ export function parseConversation(value: unknown): Conversation {
     Number(value.visitorTurnsRemaining) < 0
   )
     throw new InvalidConversation('visitorTurnsRemaining');
+  // Proof: defaulting an absent visitorTurnLimit to 8 made build-contract.test.ts "a conversation
+  // without visitorTurnLimit is malformed" stop throwing.
+  if (
+    !('visitorTurnLimit' in value) ||
+    !Number.isSafeInteger(value.visitorTurnLimit) ||
+    Number(value.visitorTurnLimit) < 1 ||
+    Number(value.visitorTurnsRemaining) > Number(value.visitorTurnLimit)
+  )
+    throw new InvalidConversation('visitorTurnLimit');
   if (!('turns' in value) || !Array.isArray(value.turns)) throw new InvalidConversation('turns');
   const turns = value.turns.map((turn: unknown) => {
     if (
@@ -337,6 +348,7 @@ export function parseConversation(value: unknown): Conversation {
     stage,
     turns,
     visitorTurnsRemaining: Number(value.visitorTurnsRemaining),
+    visitorTurnLimit: Number(value.visitorTurnLimit),
     provider,
     brief,
     description,

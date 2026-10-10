@@ -147,6 +147,7 @@ describe('conversation provider values', () => {
     stage: 'clarify',
     turns: [],
     visitorTurnsRemaining: 8,
+    visitorTurnLimit: 8,
     brief: '',
     description: 'A booking tool',
     csrfToken: 'a'.repeat(64),
@@ -160,6 +161,23 @@ describe('conversation provider values', () => {
     expect(parseConversation({ ...view, provider: 'paused' }).provider).toBe('paused');
     for (const provider of ['suspended', 'PAUSED', null])
       expect(() => parseConversation({ ...view, provider })).toThrow(InvalidConversation);
+  });
+
+  test('a conversation without visitorTurnLimit is malformed', () => {
+    const { visitorTurnLimit: _limit, ...withoutLimit } = view;
+    // Proof: defaulting an absent visitorTurnLimit to 8 in parseConversation made this pass
+    // without a throw.
+    expect(() => parseConversation({ ...withoutLimit, provider: 'openrouter' })).toThrow(
+      InvalidConversation,
+    );
+    for (const visitorTurnLimit of [0, -1, 2.5, '8', null])
+      expect(() =>
+        parseConversation({ ...view, provider: 'openrouter', visitorTurnLimit }),
+      ).toThrow(InvalidConversation);
+    expect(() =>
+      parseConversation({ ...view, provider: 'openrouter', visitorTurnsRemaining: 9 }),
+    ).toThrow(InvalidConversation);
+    expect(parseConversation({ ...view, provider: 'openrouter' }).visitorTurnLimit).toBe(8);
   });
 
   test('requires the challenge field and validates an offered challenge', () => {
