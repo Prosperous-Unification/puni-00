@@ -1,5 +1,5 @@
 {
-  "reviewed": "2026-10-07",
+  "reviewed": "2026-10-11",
   "entries": [
     {
       "path": "apps/wbs/be-01/src/service/optimization-dequeue-reservation.ts",
@@ -38,18 +38,6 @@
       "rationale": "buildServices binds an optional OptimizedScheduleAdapter into the core Scheduler through optimizerWiring, while service fixtures reuse its Fast-only scheduler"
     },
     {
-      "path": "apps/wbs/be-01/src/service/solver-exit-outcome.ts",
-      "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "OptimizationCoordinator calls evaluateSolverOutcome as a pure transformation of ScheduleInput, a solver request and a captured process outcome with no store, clock, socket or process access"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/solver-request-pair.ts",
-      "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "OptimizationCoordinator calls it to derive two solver requests from one ScheduleInput and quantised baseline without reading a store, clock, socket or process"
-    },
-    {
       "path": "libs/wbs/application/core/src/service/assumed-assignee.ts",
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
@@ -60,12 +48,6 @@
       "kind": "support",
       "disposition": "compatibility adapter for direct store-based AuthService construction; delete when callers install the authentication module",
       "rationale": "The sealed Authentication feature uses AccountResource, while direct callers still construct AuthService with UserStore and optional OidcIdentityStore."
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/clean-name.ts",
-      "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "directory.service.ts, prepare-import.ts and step.service.ts call its pure name normalization with no store or clock"
     },
     {
       "path": "libs/wbs/application/core/src/service/committed-fanout.ts",
@@ -140,28 +122,10 @@
       "rationale": "WorkItemService folds each row's status from its progress reading, hold, readiness and the dependency graph with the @wbs/domain folds, with no store or clock access"
     },
     {
-      "path": "libs/wbs/application/core/src/service/saved-plan-default-name.ts",
-      "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "SavedPlanService calls its pure UTC name rendering over an already supplied creation instant, with no store or clock access"
-    },
-    {
       "path": "libs/wbs/application/core/src/service/saved-plan-input.ts",
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "SavedPlanService calls planInputRowsOf to transform detached PlanInputReads into canonical saved-plan values without asking a store, clock or runtime port"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/saved-plan-quota.ts",
-      "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "SavedPlanService calls its pure body-size, plan-count and project-byte limit decisions over supplied saved-plan holdings with no store or clock access"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/saved-plan-schedule-body.ts",
-      "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "SavedPlanService calls its pure schedule-body and stable-serialization transformations over captured schedule values with no store, clock or runtime port"
     },
     {
       "path": "libs/wbs/application/core/src/service/saved-plan-schedule.ts",
@@ -186,12 +150,6 @@
       "kind": "resource",
       "term": "Influencer closure",
       "rationale": "SharedPeopleReader reads the authorized influencer closure through ChainSnapshotStore, selecting displayed schedules and projecting bookings within one coherent read snapshot."
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/smoke.service.ts",
-      "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "smokeRoutes is its only production caller and uses echo as a pure text transformation with no store, clock or external port"
     },
     {
       "path": "libs/wbs/application/core/src/service/standalone-rank.ts",

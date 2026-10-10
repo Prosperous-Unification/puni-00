@@ -1,26 +1,31 @@
-import type { BuiltSolverRequest } from '@wbs/contracts/solver/build-request';
-import { materialiseOptimized } from '@wbs/contracts/solver/materialise-optimized';
-import { publishOptimizedResult } from '@wbs/contracts/solver/optimized-result';
-import { parseSolverResponse } from '@wbs/contracts/solver/parse-solver-response';
-import {
-  type PlanInfeasibleResult,
-  planInfeasibleResultOf,
-} from '@wbs/contracts/solver/plan-infeasible';
-import {
-  revalidateOptimizedDeadlines,
-  revalidateSolverResult,
-} from '@wbs/contracts/solver/revalidate-solver-result';
+import { guardRealPublication, SOLVER_QUANTUM } from '@wbs/domain';
+import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
+
+import type { BuiltSolverRequest } from './build-solver-request';
+import { materialiseOptimized } from './materialise-optimized';
+import { type OptimizedResult, publishOptimizedResult } from './optimized-result-dto';
+import { parseSolverResponse } from './parse-solver-response';
+import { type PlanInfeasibleResult, planInfeasibleResultOf } from './plan-infeasible-dto';
+import { revalidateOptimizedDeadlines, revalidateSolverResult } from './revalidate-solver-result';
 import {
   dispositionOfParseFailure,
   dispositionOfRevalidationFailure,
   type SolverFailureReason,
-} from '@wbs/contracts/solver/solver-failure-disposition';
-import { guardRealPublication, SOLVER_QUANTUM } from '@wbs/domain';
-import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
-
-import type { OptimizationOutcome } from '../module/optimization/contract';
+} from './solver-failure-disposition';
 
 type SolverRequest = Extract<BuiltSolverRequest, { readonly ok: true }>['request'];
+
+/** The answer one solver attempt earned: a published result, a failure or a certificate. */
+export type OptimizationOutcome =
+  | {
+      readonly kind: 'ok';
+      readonly optimized: OptimizedResult;
+    }
+  | { readonly kind: 'failed'; readonly reason: SolverFailureReason }
+  | {
+      readonly kind: 'plan-infeasible';
+      readonly certificate: PlanInfeasibleResult;
+    };
 
 /** The process supervisor classifies OS failures before this deterministic seam. */
 export type SolverProcessOutcome =

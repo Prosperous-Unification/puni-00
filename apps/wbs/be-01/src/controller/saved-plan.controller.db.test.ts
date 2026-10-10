@@ -6,7 +6,7 @@ import { AnnouncementCollector } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { UnknownSavedPlanBodyVersionError } from '@wbs/core/module/saved-plans/saved-plan-integrity';
 import { type AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
-import { defaultSavedPlanName } from '@wbs/core/service/saved-plan-default-name';
+import { defaultSavedPlanName } from '@wbs/domain';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn, test } from 'bun:test';
 

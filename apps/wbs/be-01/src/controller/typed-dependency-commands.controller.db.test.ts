@@ -2,6 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { evaluateSolverOutcome } from '@wbs/contracts/solver/solver-exit-outcome';
+import { buildSolverRequestPair } from '@wbs/contracts/solver/solver-request-pair';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
@@ -31,8 +33,6 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { fastScheduler } from '../service/optimizer-wiring';
-import { evaluateSolverOutcome } from '../service/solver-exit-outcome';
-import { buildSolverRequestPair } from '../service/solver-request-pair';
 import { buildStores } from '../services';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
