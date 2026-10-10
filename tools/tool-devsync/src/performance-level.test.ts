@@ -92,8 +92,10 @@ async function runPerformanceLevel(
     | 'descriptor-missing'
     | 'descriptor-nonzero'
     | 'descriptor-inherited-pipe'
+    | 'descriptor-cancel-reject'
     | 'descriptor-stderr-open'
     | 'descriptor-output-close'
+    | 'descriptor-output-close-rename'
     | 'descriptor-hang',
 ): Promise<void> {
   const supervisorRoot = await mkdtemp(join(tmpdir(), 'performance-supervisor-'));
@@ -196,8 +198,10 @@ async function committedPerformanceFixture(
     | 'descriptor-missing'
     | 'descriptor-nonzero'
     | 'descriptor-inherited-pipe'
+    | 'descriptor-cancel-reject'
     | 'descriptor-stderr-open'
     | 'descriptor-output-close'
+    | 'descriptor-output-close-rename'
     | 'descriptor-hang' = 'none',
   title = 'records readiness',
 ): Promise<{
@@ -323,6 +327,7 @@ async function committedPerformanceFixture(
   const transportFaults: Record<string, string> = {
     'descriptor-output-large': "process.stdout.write('x'.repeat(65537));",
     'descriptor-output-close': "process.stdout.write('x'.repeat(65537));",
+    'descriptor-output-close-rename': "process.stdout.write('x'.repeat(65537));",
     'descriptor-error-large': "process.stderr.write('x'.repeat(65537));",
     'descriptor-output-utf8': 'process.stdout.write(Buffer.from([0xff]));',
     'descriptor-output-shape': "process.stdout.write('{}');",
@@ -330,6 +335,7 @@ async function committedPerformanceFixture(
     'descriptor-required-shape': 'process.stdout.write(\'[{"command":1},{},{}]\');',
     'descriptor-nonzero': "process.stderr.write('producer diagnostic'); process.exit(23);",
     'descriptor-inherited-pipe': `const descendant = Bun.spawn(['setsid', 'sleep', '30'], {stdout:1, stderr:2, stdin:'ignore'}); await Bun.write(${JSON.stringify(orphanMarkers[1])}, String(descendant.pid)); process.exit(0);`,
+    'descriptor-cancel-reject': `const descendant = Bun.spawn(['setsid', 'sleep', '30'], {stdout:1, stderr:2, stdin:'ignore'}); await Bun.write(${JSON.stringify(orphanMarkers[1])}, String(descendant.pid)); process.exit(0);`,
     'descriptor-hang': 'await Bun.sleep(12000);',
   };
   const transportSource = Object.hasOwn(transportFaults, fault)
@@ -1011,10 +1017,30 @@ describe('Performance level target production boundary', () => {
     await expectFailure(readFile(`/proc/${String(descendantPid)}/stat`), 'ENOENT');
   }, 30_000);
 
+  it('retains a rejecting reader cancellation after the whole-phase timeout', async () => {
+    const fixture = await committedPerformanceFixture(180, 'descriptor-cancel-reject');
+    await expectFailure(
+      runPerformanceLevel(fixture.root, fixture.policyPath, undefined, 'descriptor-cancel-reject'),
+      'service descriptor producer timed out',
+    );
+    const bundles = await readdir(join(fixture.root, 'tmp/junit/performance'));
+    const diagnostic = JSON.parse(
+      await readFile(
+        join(fixture.root, 'tmp/junit/performance', bundles[0], 'failure.json'),
+        'utf8',
+      ),
+    ) as { executionFailure: string };
+    expect(diagnostic.executionFailure).toContain('injected descriptor cancellation failure');
+    await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
+    const descendantPid = Number(await readFile(fixture.orphanMarkers[1], 'utf8'));
+    await expectFailure(readFile(`/proc/${String(descendantPid)}/stat`), 'ENOENT');
+  }, 30_000);
+
   it('closes staged handles and retains capture plus close errors', async () => {
     for (const [fault, phrase] of [
       ['descriptor-stderr-open', 'injected descriptor stderr open failure'],
       ['descriptor-output-close', 'injected descriptor stdout close failure'],
+      ['descriptor-output-close-rename', 'injected descriptor stderr rename failure'],
     ] as const) {
       const fixture = await committedPerformanceFixture(180, fault);
       const attempt = runPerformanceLevel(fixture.root, fixture.policyPath, undefined, fault);
@@ -1036,7 +1062,7 @@ describe('Performance level target production boundary', () => {
             'utf8',
           ),
         ).toBe('yes');
-      } else {
+      } else if (fault === 'descriptor-output-close') {
         expect(
           (
             await stat(
@@ -1045,6 +1071,25 @@ describe('Performance level target production boundary', () => {
           ).size,
         ).toBe(64 * 1024);
         expect(entries.some((entry) => entry.endsWith('.tmp'))).toBe(false);
+      } else {
+        expect(entries.filter((entry) => entry.startsWith('ordinary-services'))).toEqual([]);
+        expect(entries.some((entry) => entry.endsWith('.tmp'))).toBe(false);
+      }
+      if (fault !== 'descriptor-stderr-open') {
+        const diagnostic = JSON.parse(
+          await readFile(
+            join(fixture.root, 'tmp/junit/performance', bundles[0], 'failure.json'),
+            'utf8',
+          ),
+        ) as { executionFailure: string };
+        // Proof: flattening the outer AggregateError dropped the real overflow
+        // and close causes; a simultaneous rename fault also masked them.
+        expect(diagnostic.executionFailure).toContain('output exceeds 64 KiB');
+        expect(diagnostic.executionFailure).toContain('injected descriptor stdout close failure');
+        if (fault === 'descriptor-output-close-rename')
+          expect(diagnostic.executionFailure).toContain(
+            'injected descriptor stderr rename failure',
+          );
       }
     }
   }, 30_000);

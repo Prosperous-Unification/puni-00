@@ -25,6 +25,17 @@ let inventoryReads = 0;
 let armedInventory = false;
 let failedInventory = false;
 
+if (fault === 'descriptor-cancel-reject') {
+  const nativeCancel: unknown = Reflect.get(ReadableStreamDefaultReader.prototype, 'cancel');
+  if (typeof nativeCancel !== 'function')
+    throw new Error('ReadableStreamDefaultReader.cancel is unavailable to the fault preload');
+  ReadableStreamDefaultReader.prototype.cancel = function (reason?: unknown): Promise<void> {
+    return (Reflect.apply(nativeCancel, this, [reason]) as Promise<void>).then(() => {
+      throw new Error('injected descriptor cancellation failure');
+    });
+  };
+}
+
 if (fault?.startsWith('verdict-') === true) {
   // Test-only Burokrat transport fault in the isolated invocation supervisor.
   Bun.spawnSync = ((...args: Parameters<typeof Bun.spawnSync>) => {
@@ -122,9 +133,21 @@ if (fault === 'partial-evidence' || fault === 'inventory-after-run') {
   }));
 }
 
-if (fault === 'descriptor-stderr-open' || fault === 'descriptor-output-close') {
+if (
+  fault === 'descriptor-stderr-open' ||
+  fault === 'descriptor-output-close' ||
+  fault === 'descriptor-output-close-rename'
+) {
   await mock.module('node:fs/promises', () => ({
     ...fsPromises,
+    rename: (async (...args: Parameters<typeof nativeRename>) => {
+      if (
+        fault === 'descriptor-output-close-rename' &&
+        String(args[1]).endsWith('/ordinary-services.stderr')
+      )
+        throw new Error('injected descriptor stderr rename failure');
+      return nativeRename(...args);
+    }) as typeof fsPromises.rename,
     open: (async (...args: Parameters<typeof nativeOpen>) => {
       const path = String(args[0]);
       if (fault === 'descriptor-stderr-open' && path.includes('ordinary-services.stderr.'))
@@ -140,7 +163,10 @@ if (fault === 'descriptor-stderr-open' || fault === 'descriptor-output-close') {
           );
         };
       }
-      if (fault === 'descriptor-output-close' && path.includes('ordinary-services.json.')) {
+      if (
+        (fault === 'descriptor-output-close' || fault === 'descriptor-output-close-rename') &&
+        path.includes('ordinary-services.json.')
+      ) {
         const nativeClose = artifact.close.bind(artifact);
         artifact.close = async () => {
           await nativeClose();

@@ -376,18 +376,23 @@ async function readCandidateServiceDescriptors(
       capturesClosed = false;
       const cleanupFailures: unknown[] = [];
       // Cancellation releases inherited pipes; the outer process owner reaps descendants.
-      const cancellations = [outputCapture.cancel(), errorCapture.cancel()];
+      // Proof: injected reader.cancel rejection stayed in failure.json after
+      // the whole-phase timeout; dropping this aggregation failed its test.
+      // Observe cancellation before awaiting capture closure.
+      const cancellationTask = settleDescriptorCaptures([
+        outputCapture.cancel(),
+        errorCapture.cancel(),
+      ]).then(
+        (failures) => failures,
+        (failure: unknown) => [failure],
+      );
       try {
         cleanupFailures.push(...(await settleDescriptorCaptures(captures)));
         capturesClosed = true;
       } catch (captureCause) {
         cleanupFailures.push(captureCause);
       }
-      try {
-        cleanupFailures.push(...(await settleDescriptorCaptures(cancellations)));
-      } catch (cancelCause) {
-        cleanupFailures.push(cancelCause);
-      }
+      cleanupFailures.push(...(await cancellationTask));
       phaseFailure =
         cleanupFailures.length > 0
           ? new AggregateError(
@@ -398,8 +403,20 @@ async function readCandidateServiceDescriptors(
     }
     // Publish complete, bounded diagnostics even for a failed producer.
     if (!capturesClosed) throw phaseFailure;
-    await rename(outputStage, outputPath);
-    await rename(errorStage, errorPath);
+    try {
+      await rename(outputStage, outputPath);
+      await rename(errorStage, errorPath);
+    } catch (renameCause) {
+      // Proof: combined overflow, close and second-rename faults retain all
+      // three causes in failure.json and leave no final or staged stream.
+      if (phaseFailed)
+        throw new AggregateError(
+          [phaseFailure, renameCause],
+          'Performance descriptor producer and diagnostic publication failed',
+          { cause: renameCause },
+        );
+      throw renameCause;
+    }
     published = true;
     if (phaseFailed) throw phaseFailure;
     // Proof: disabling this guard made the exit-23 producer fail the transport
@@ -455,6 +472,39 @@ function executionEnvironment(
     CI: selectionEnvironment.CI,
     E2E_PORT_SHIFT: selectionEnvironment.E2E_PORT_SHIFT,
   };
+}
+
+/** Renders every modeled nested failure within one bounded diagnostic field. */
+function renderFailureChain(failure: unknown): string {
+  const lines: string[] = [];
+  const ancestors = new Set<object>();
+  let length = 0;
+  const appendFailure = (cause: unknown, depth: number): void => {
+    if (depth > 16) throw new Error('Performance failure chain exceeds 16 levels');
+    if (typeof cause === 'object' && cause !== null) {
+      if (ancestors.has(cause)) throw new Error('Performance failure chain has a cycle');
+      ancestors.add(cause);
+    }
+    try {
+      const line =
+        '  '.repeat(depth) +
+        (cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause));
+      length += line.length + 1;
+      if (lines.length >= 64 || length > 256 * 1024)
+        throw new Error('Performance failure chain exceeds diagnostic bound');
+      lines.push(line);
+      if (cause instanceof AggregateError) {
+        const errors: readonly unknown[] = cause.errors;
+        for (const nested of errors) appendFailure(nested, depth + 1);
+      }
+      if (cause instanceof Error && Object.hasOwn(cause, 'cause'))
+        appendFailure(cause.cause, depth + 1);
+    } finally {
+      if (typeof cause === 'object' && cause !== null) ancestors.delete(cause);
+    }
+  };
+  appendFailure(failure, 0);
+  return lines.join('\n');
 }
 
 function requirePerformanceSuccess(
@@ -1446,15 +1496,21 @@ async function runLockedPerformanceLevel(
       try {
         // Proof: the production threshold plus injected pidfd signal fault
         // formerly left failure.json with only the threshold error.
+        // Proof: dropping recursive rendering made the combined capture/close
+        // negative save only the outer AggregateError in failure.json.
+        const executionDiagnostic = hasExecutionFailure
+          ? renderFailureChain(executionFailure)
+          : null;
+        const cleanupDiagnostics = cleanupFailures.map(renderFailureChain);
         await writeBundleArtifact(
           bundle,
           'failure.json',
           `${JSON.stringify({
             schemaVersion: 1,
             invocationId,
-            message: hasExecutionFailure ? String(executionFailure) : 'Performance cleanup failed',
-            executionFailure: hasExecutionFailure ? String(executionFailure) : null,
-            cleanupFailures: cleanupFailures.map((failure) => String(failure)),
+            message: executionDiagnostic ?? 'Performance cleanup failed',
+            executionFailure: executionDiagnostic,
+            cleanupFailures: cleanupDiagnostics,
           })}\n`,
         );
       } catch (cause) {
