@@ -14,7 +14,7 @@ import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const PREVIOUS = '20261001010000_add_browser_credential_revocations';
+const PREVIOUS = '20261005110000_add_shared_people';
 const first: VerifiedOrganizationCredential = {
   kind: 'oidc',
   userId: 'ada',
@@ -384,7 +384,7 @@ test('rollback independently refuses lifecycle-only and association-only residue
       expect(retained.db.all(sql`SELECT * FROM ${sql.raw(retainedTable)}`)).toHaveLength(1);
       expect(
         retained.db.all<{ name: string }>(
-          sql`SELECT name FROM __drizzle_migrations WHERE name = '20261001020000_add_browser_auth_lifecycle'`,
+          sql`SELECT name FROM __drizzle_migrations WHERE name = '20261011120000_add_browser_auth_lifecycle'`,
         ),
       ).toHaveLength(1);
     } finally {
@@ -395,7 +395,7 @@ test('rollback independently refuses lifecycle-only and association-only residue
 
 test('rollback removes both empty lifecycle tables and their migration ledger entry', () => {
   expect(rollbackTo(path, MIGRATIONS, PREVIOUS)).toEqual([
-    '20261001020000_add_browser_auth_lifecycle',
+    '20261011120000_add_browser_auth_lifecycle',
   ]);
   const connection = openConnection(path);
   try {
