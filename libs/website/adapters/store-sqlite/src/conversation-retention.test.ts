@@ -95,7 +95,7 @@ test('conversation content makes a draft-linked request content-bearing in the r
   expect(inspectRequestRetention(databasePath, day).softwareRequest.uncovered).toBe(1);
 });
 
-test('a request attached from a draft with conversation turns anchors to the draft', () => {
+test('a legacy request linked to a draft with conversation turns backfills the draft anchor', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
   store.createDraft(
@@ -107,20 +107,22 @@ test('a request attached from a draft with conversation turns anchors to the dra
     'source-test',
   );
   converse(store, 'claim-1', 2);
-  const account = store.createProspect('owner@example.test', day + 100);
-  expect(store.attachDraft(account.id, 'claim-1', day + 100)).toBe(true);
   store.close();
-  const subjects = () =>
+  const database = new Database(databasePath);
+  database.run(
+    "INSERT INTO prospect_account (id, email, created_at) VALUES ('a', 'a@example.test', 1)",
+  );
+  database.run(
+    `INSERT INTO software_request (id, account_id, draft_id, description, brief, created_at) VALUES ('r', 'a', 'draft-1', 'secret description', '', ${String(day + 100)})`,
+  );
+  database.close();
+  new WebsiteStore(databasePath).close();
+  expect(
     query<{ resolution: string; anchor_at: number | null; anchor_source: string | null }>(
       databasePath,
       "SELECT resolution, anchor_at, anchor_source FROM retention_subject WHERE subject_kind = 'software_request'",
-    );
-  expect(subjects()).toEqual([{ resolution: 'anchored', anchor_at: day, anchor_source: 'draft' }]);
-  const database = new Database(databasePath);
-  database.run('DELETE FROM retention_subject');
-  database.close();
-  new WebsiteStore(databasePath).close();
-  expect(subjects()).toEqual([{ resolution: 'anchored', anchor_at: day, anchor_source: 'draft' }]);
+    ),
+  ).toEqual([{ resolution: 'anchored', anchor_at: day, anchor_source: 'draft' }]);
   expect(inspectRequestRetention(databasePath, day).softwareRequest.ambiguous).toBe(0);
 });
 

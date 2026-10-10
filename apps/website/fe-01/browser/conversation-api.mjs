@@ -26,24 +26,36 @@ const databasePath =
 const wordMilliseconds = Number(env['PUNI_FAKE_WORD_MS'] ?? '45');
 const seededSpend = env['PUNI_FIXTURE_SITE_SPEND_MICRO_USD'];
 
-/** Spends `microUsd` of today's site ceiling through one settled account call. */
+/**
+ * Spends `microUsd` of today's site ceiling through one settled legacy account call, the only row
+ * the site-day sum reads besides conversation operations.
+ */
 function seedSiteSpend(microUsd) {
   const store = new WebsiteStore(databasePath);
   const now = Date.now();
   if (!store.openInferencePause('site_spend', 'system', now) || !store.resumeInferencePause(now))
     throw new Error('Could not resume today’s automatic pause');
-  const account = store.createProspect('fixture-spend@example.test', now);
-  store.ensureBlankRequest(account.id, now);
-  const request = store.findAccountRequest(account.id);
-  const reservation = request ? store.reserveProviderCall(account.id, request.id, 1, now) : null;
-  if (reservation?.kind !== 'reserved') throw new Error('Could not seed the site spend');
-  store.settleProviderCall(reservation.id, 1);
   store.close();
   const database = new Database(databasePath);
-  database
-    .query('UPDATE provider_call SET reserved_micro_usd = ?1, settled_micro_usd = ?1 WHERE id = ?2')
-    .run(microUsd, reservation.id);
-  database.close();
+  try {
+    database.run('PRAGMA foreign_keys = ON');
+    database
+      .query('INSERT INTO prospect_account (id, email, created_at) VALUES (?, ?, ?)')
+      .run('fixture-spend', 'fixture-spend@example.test', now);
+    database
+      .query(
+        'INSERT INTO provider_call (id, account_id, utc_day, reserved_micro_usd, settled_micro_usd, created_at) VALUES (?1, ?2, ?3, ?4, ?4, ?5)',
+      )
+      .run(
+        'fixture-spend-call',
+        'fixture-spend',
+        new Date(now).toISOString().slice(0, 10),
+        microUsd,
+        now,
+      );
+  } finally {
+    database.close();
+  }
 }
 
 if (seededSpend !== undefined) {
