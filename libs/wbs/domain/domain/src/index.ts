@@ -120,11 +120,12 @@ export * from './slice-edges';
 // One grouping, because an edge names its ends by leaf and POSITION and two
 // groupings would disagree about which slice a position is.
 export * from './slice-groups';
+// The deploy smoke's echo; a seam, not a rule (see `smoke-echo.ts`).
+export * from './smoke-echo';
 // The one place the solver's integer time axis is defined, and the only
 // quantisation of `durationOf` anywhere. It lives here rather than in
 // `schedule.ts` because the quantum is a fact about CP-SAT and not about the
 // calendar: 2,212 lines of placement have no business knowing the wire's unit.
-export * from './smoke-echo';
 export * from './solver-quantum';
 export * from './solver-quantum-golden-corpus';
 export * from './step';

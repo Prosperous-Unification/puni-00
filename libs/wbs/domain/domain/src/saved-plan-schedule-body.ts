@@ -46,7 +46,7 @@ export type DatedTiming = Record<string, unknown> & SpanDates;
  * declared loosely on purpose — the writer copies whatever the engine returned
  * rather than a field list, so a tight type here would be a second enumeration
  * to forget to update, which is the exact failure the deep-equality test in
- * `saved-plan-schedule-body.test.ts` exists to prevent.
+ * `apps/wbs/be-01/src/service/saved-plan-schedule-body.db.test.ts` exists to prevent.
  */
 export interface ScheduleBody {
   readonly version: number;

@@ -152,8 +152,6 @@ export type OptimizationCachedVariant =
       readonly state: Exclude<OptimizationVariantState, { state: 'ready' }>;
       readonly schedule: null;
     };
-// Compatibility export: the solver outcome type moved to the domain-ring solver contracts (task 6.2).
-export type { OptimizationOutcome };
 export type OptimizationCachedPair = Readonly<
   Record<SolverObjectiveName, OptimizationCachedVariant>
 >;

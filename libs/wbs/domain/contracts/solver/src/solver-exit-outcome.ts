@@ -15,7 +15,7 @@ import {
 
 type SolverRequest = Extract<BuiltSolverRequest, { readonly ok: true }>['request'];
 
-/** The cache value one solver attempt earned: a published result, a failure or a certificate. */
+/** The answer one solver attempt earned: a published result, a failure or a certificate. */
 export type OptimizationOutcome =
   | {
       readonly kind: 'ok';
