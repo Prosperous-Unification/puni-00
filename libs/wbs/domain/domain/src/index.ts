@@ -144,3 +144,11 @@ export * from './stored-vocabularies';
 export * from './tree-order';
 export * from './typed-dependency';
 export * from './workday';
+// The plan's stored records — work items, directory entries, dependencies, per-step values and
+// a Saved plan's captured reads. Types only, moved from the core's ports on 2026-10-11 (A12) so
+// the domain rules that read them need not import the application ring; the ports re-export them.
+export type * from './dependency-values';
+export type * from './directory-values';
+export type * from './saved-plan-capture-values';
+export type * from './step-values';
+export type * from './work-item-values';

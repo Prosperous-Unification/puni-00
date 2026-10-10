@@ -1,9 +1,8 @@
-import type { TypedDependency } from '@wbs/domain';
+import type { StoredTypedDependency } from '@wbs/domain';
 
 import type { WriteStamp } from './write-stamp';
 
-/** A typed link with the project that owns it. */
-export type StoredTypedDependency = TypedDependency & { projectId: string };
+export type { StoredTypedDependency } from '@wbs/domain';
 
 /** Persistence boundary for typed endpoint links. Duplicate adds must refuse. */
 export interface TypedDependencyStore {
