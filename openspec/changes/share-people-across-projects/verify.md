@@ -1853,11 +1853,11 @@ second link mutation and preserves the earlier rename. Separately, a cascade mus
 at least two real recipient/cause pairs before faulting the second event insert. Name-idempotent
 membership additions are observed normally; zero derived pairs means zero fan-out writes.
 
-| Fault                                | Required distinct witness                                                                            | Result  |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------- | ------- |
-| Whole-service owner                  | Rename remains after second link mutation's after-capture fails; no invented event in zero-pair case | Pending |
-| Record after cascade commit          | Second real insert failure rolls back cascade, first event and sequences; no delivery                | Pending |
-| Emit on any membership/link mutation | Normal zero-pair comparison must stay silent                                                         | Pending |
+| Fault                                | Required distinct witness                                                                            | Result                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Whole-service owner                  | Rename remains after second link mutation's after-capture fails; no invented event in zero-pair case | Closed by the mounted partial-commit and after-capture proofs below |
+| Record after cascade commit          | Second real insert failure rolls back cascade, first event and sequences; no delivery                | Closed by the three-pair control and second-insert fault below      |
+| Emit on any membership/link mutation | Normal zero-pair comparison must stay silent                                                         | Closed by the idempotent-add and spurious-event fault below         |
 
 No product code or proof execution in this amendment. Planning validation uses pinned strict
 OpenSpec, four-file Prettier, diff and normal commit hooks; implementation proofs remain pending.
@@ -2029,6 +2029,50 @@ passed after the ledger reconciliation
 `/tmp/shared-people-6i-review-final-ledger-all.json`,
 `/tmp/shared-people-6i-review-final-ledger-diff.log`). The historical first format/type/lint
 failures above are retained; no blanket pass is inferred from their failed runs.
+
+### 6i reviewed integration checkpoint
+
+Astra's independent scoped rereview cleared implementation candidate
+`0cdd9d55b65abcdf421264328f69660db7b97019` with no remaining findings. Its first
+canonical h2puni gate ran on that exact SHA and exited 1: five stale closed-inventory and
+direct-route test expectations failed in `wbs-conformance`, `wbs-core` and `tool-devsync`
+(`/tmp/shared-people-6i-h2puni-gate.log`). This was not a passing gate. The six-file
+expectation/catalog repair introduced no production behavior change. Focused conformance
+4/4, core route 2/2 and devsync 32/32 then passed; affected Nx test/lint/typecheck passed
+10/10, declared core and tool-devsync builds passed, and format, pinned strict/all OpenSpec,
+diff and normal commit hooks passed. The initial sandboxed devsync `EROFS` run remains
+unavailable evidence; its exact unsandboxed rerun passed
+(`/tmp/shared-people-6i-gatefix-conformance-final.log`,
+`/tmp/shared-people-6i-gatefix-core.log`,
+`/tmp/shared-people-6i-gatefix-devsync-escalated.log`,
+`/tmp/shared-people-6i-gatefix-affected-nx.log`).
+
+Astra's scoped rereview cleared the repaired `b4834769747f131938857ece8e9f3860444619f6`
+with no findings. The canonical host gate printed
+`h2puni gate: running on b4834769747f131938857ece8e9f3860444619f6` and exited 0:
+OpenSpec 148/148, the full 35-project Nx test/lint/typecheck/build set plus five
+dependencies, separate Twilight Burokrat test/typecheck/build and source lint, and the
+solver-image smoke target passed (`/tmp/shared-people-6i-h2puni-gate-b483476.log`). PR
+[#275](https://github.com/Prosperous-Unification/puni-00/pull/275) checked the same head
+against unchanged base `f49cef02a5de5a5ba1284e64b9b0590615d47d07`: workspace and tool
+wiki gates, pixels and all four shards, and CodeQL passed. Only `trusted-wiki/lint` failed
+because the explicitly deferred immutable activation marker is not provisioned. The CI watch
+is `/tmp/shared-people-6i-pr275-checks-watch.log`; this exception does not imply activation.
+PR #275 merged normally at 2026-10-06T12:37:38Z as
+`d1d7399ee71a1d3efa9829352ab75f03f1ee237d`, verified as `origin/main`. The
+post-merge canonical command
+`bin/h2puni-gate.sh d1d7399ee71a1d3efa9829352ab75f03f1ee237d`
+(session `41399`) printed
+`h2puni gate: running on d1d7399ee71a1d3efa9829352ab75f03f1ee237d` and exited 0.
+It passed OpenSpec 148/148, the 35-project Nx target set, separate Twilight Burokrat
+test/typecheck/build and source lint, and solver-image smoke, including real Docker
+orphan cleanup tests (`/tmp/shared-people-6i-merged-main-h2puni-gate-final.log`).
+An earlier invocation exited 64
+before gate execution because the gate checkout's legacy `origin` did not contain this SHA;
+the exact puni-00 merge commit was fetched without checkout before the passing run
+(`/tmp/shared-people-6i-merged-main-h2puni-gate.log`). The 6j–6l fan-out slices, umbrella
+integration, trusted activation, and later solver-image publication/deployment remain open;
+the 6i source branch itself has already been pushed and merged.
 
 ## 6j architecture amendment at merged main d1d7399e
 
