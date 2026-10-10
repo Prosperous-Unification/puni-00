@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 import { dlopen, ptr } from 'bun:ffi';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -453,8 +454,11 @@ async function expectFailureMessage(operation: Promise<unknown>, phrase: string)
   if (!(failure instanceof Error)) throw new Error('Expected an Error from the production runner');
   // Proof: disabling the three-service array guard left its source text in Bun's
   // formatted stack, so a substring assertion passed falsely. Only diagnostic
-  // lines that begin with error: count as the observed failure.
-  const diagnostics = failure.message.split('\n').filter((line) => line.startsWith('error: '));
+  // lines that begin with error: count as the observed failure. Proof: FORCE_COLOR=1
+  // prefixed that line with VT codes and failed the transport negative at six assertions.
+  const diagnostics = stripVTControlCharacters(failure.message)
+    .split('\n')
+    .filter((line) => line.startsWith('error: '));
   expect(diagnostics.some((line) => line.includes(phrase))).toBe(true);
 }
 
