@@ -1,9 +1,8 @@
 import type { BuiltSolverRequest } from '@wbs/contracts/solver/build-request';
-import type { OptimizedResult } from '@wbs/contracts/solver/optimized-result';
-import type { PlanInfeasibleResult } from '@wbs/contracts/solver/plan-infeasible';
+import type { OptimizationOutcome } from '@wbs/contracts/solver/solver-exit-outcome';
 import type { OptimizationVariantState, ProjectEvent, RecordedEvent } from '@wbs/core';
 import type { CommittedProjectEvent } from '@wbs/core/service/committed-fanout';
-import type { SolverFailureReason, SolverObjectiveName } from '@wbs/domain';
+import type { SolverObjectiveName } from '@wbs/domain';
 import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
@@ -153,19 +152,11 @@ export type OptimizationCachedVariant =
       readonly state: Exclude<OptimizationVariantState, { state: 'ready' }>;
       readonly schedule: null;
     };
+// Compatibility export: the solver outcome type moved to the domain-ring solver contracts (task 6.2).
+export type { OptimizationOutcome };
 export type OptimizationCachedPair = Readonly<
   Record<SolverObjectiveName, OptimizationCachedVariant>
 >;
-export type OptimizationOutcome =
-  | {
-      readonly kind: 'ok';
-      readonly optimized: OptimizedResult;
-    }
-  | { readonly kind: 'failed'; readonly reason: SolverFailureReason }
-  | {
-      readonly kind: 'plan-infeasible';
-      readonly certificate: PlanInfeasibleResult;
-    };
 
 export interface SolverSlotIdentity {
   readonly projectId: string;

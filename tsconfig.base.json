@@ -85,6 +85,12 @@
       "@wbs/contracts/solver/revalidate-solver-result": [
         "./libs/wbs/domain/contracts/solver/src/revalidate-solver-result.ts"
       ],
+      "@wbs/contracts/solver/solver-exit-outcome": [
+        "./libs/wbs/domain/contracts/solver/src/solver-exit-outcome.ts"
+      ],
+      "@wbs/contracts/solver/solver-request-pair": [
+        "./libs/wbs/domain/contracts/solver/src/solver-request-pair.ts"
+      ],
       "@wbs/contracts/solver/supervisor-protocol": [
         "./libs/wbs/adapters/solver-supervisor-protocol/src/index.ts"
       ],

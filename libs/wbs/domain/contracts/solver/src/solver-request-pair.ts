@@ -1,7 +1,8 @@
-import { buildSolverRequest, type BuiltSolverRequest } from '@wbs/contracts/solver/build-request';
-import { quantisedFastBaseline } from '@wbs/contracts/solver/quantised-baseline';
 import { sliceKey } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
+
+import { buildSolverRequest, type BuiltSolverRequest } from './build-solver-request';
+import { quantisedFastBaseline } from './quantised-baseline';
 
 /** The two independent solver questions prepared from one canonical plan. */
 export interface SolverRequestPair {

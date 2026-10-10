@@ -38,18 +38,6 @@
       "rationale": "buildServices binds an optional OptimizedScheduleAdapter into the core Scheduler through optimizerWiring, while service fixtures reuse its Fast-only scheduler"
     },
     {
-      "path": "apps/wbs/be-01/src/service/solver-exit-outcome.ts",
-      "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "OptimizationCoordinator calls evaluateSolverOutcome as a pure transformation of ScheduleInput, a solver request and a captured process outcome with no store, clock, socket or process access"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/solver-request-pair.ts",
-      "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "OptimizationCoordinator calls it to derive two solver requests from one ScheduleInput and quantised baseline without reading a store, clock, socket or process"
-    },
-    {
       "path": "libs/wbs/application/core/src/service/assumed-assignee.ts",
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",

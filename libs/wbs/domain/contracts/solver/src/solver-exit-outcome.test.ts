@@ -1,8 +1,8 @@
-import { buildSolverRequest } from '@wbs/contracts/solver/build-request';
 import { schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 
+import { buildSolverRequest } from './build-solver-request';
 import { evaluateSolverOutcome } from './solver-exit-outcome';
 
 const INPUT: ScheduleInput = {
