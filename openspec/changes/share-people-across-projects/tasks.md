@@ -413,7 +413,7 @@ does not fan out twice`. R5: fan out on any insertion, compare only input hash, 
       6l, UI, mode route and deferred activation remain separate.
       Reconciled on the merged integration branch in
       [the 6j/6k reconciliation](verify.md#6j-and-6k-reconciliation-on-current-main-batch-10).
-- [ ] 6l. **Replay and release closure.** RED real event-log/realtime and mounted tests:
+- [x] 6l. **Replay and release closure.** RED real event-log/realtime and mounted tests:
       `crash after commit before push replays from a cold process`, `pushRecorded preserves
 sequence`, `push failure retains durable event`, `expired replay requires snapshot` and
       `unauthorized subscription cannot replay cause`. R5: skip durable insert, allocate another
@@ -423,6 +423,11 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       restore guard to observe RED. Record bounds for external engine loss. Exact-SHA canonical
       gate and CI remain required before an integration claim; keep 6.1/6.2 open until their
       full obligations, including remaining UI/activation sequencing, are reconciled.
+      Durable replay, sequence, push-failure, retention and release-boundary proofs are recorded in
+      [the 6l checkpoint](verify.md#6l-durable-replay-checkpoint-batch-10). Closed with a
+      declared dependency (Fable decision, 2026-10-11): replay authorization owed by
+      organization-ownership-and-access 6.1/6.2; `unauthorized subscription cannot replay cause`
+      moves there and is not built here.
 
 ## 7. fe
 

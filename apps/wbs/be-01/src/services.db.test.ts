@@ -7417,3 +7417,139 @@ describe('buildServices', () => {
     await services.optimizer?.drain();
   });
 });
+
+describe('shared-person replay closure (6l)', () => {
+  const ELSEWHERE_B = { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' } as const;
+  const READY_DRAIN = {
+    solverVersion: '0.2.0',
+    budgetMs: 1000,
+    spawn: () => Promise.reject(new Error('replay closure fixture must not launch')),
+  } satisfies Parameters<typeof bootstrap>[0];
+
+  /** A second process over the same file: its own source, buffer and composition, no memory. */
+  function coldProcess(path: string) {
+    const source = openSqliteSource({ dbPath: path });
+    sources.push(source);
+    return buildServices({
+      source,
+      logger: createLogger({ service: 'be-01' }),
+      jwtKey: 'k'.repeat(32),
+      gwUrl: 'http://gw.invalid',
+      internalAuthSecret: 's'.repeat(32),
+      pushFetch: () => Promise.reject(new Error('a cold replay must not push')),
+    });
+  }
+
+  async function commitDrainFanout(
+    db: ReturnType<typeof openDrizzle>,
+    services: ReturnType<typeof buildServices>,
+  ): Promise<string> {
+    const { contractVersion } = await seedReadyRetirement(db, services, 1);
+    expect(
+      await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' }, contractVersion),
+    ).toBe(0);
+    return contractVersion;
+  }
+
+  function sequencerOf(db: ReturnType<typeof openDrizzle>, subscription: string) {
+    return db.all<{ next_seq: number }>(
+      sql`SELECT next_seq FROM event_sequencer WHERE subscription = ${subscription}`,
+    );
+  }
+
+  it('crash after commit before push replays from a cold process', async () => {
+    const deliveryEntered = signal();
+    const releaseDelivery = signal();
+    const { db, path, services } = bootstrap(READY_DRAIN, undefined, () => {
+      deliveryEntered.resolve();
+      return releaseDelivery.promise.then(() => Response.json({ delivered_to_sockets: 0 }));
+    });
+    seedSharedLifecycle(path);
+    const contractVersion = await commitDrainFanout(db, services);
+    const finishing = services.optimizationLifecycle.finishDrain('A', contractVersion);
+    try {
+      // The first process has committed and is stalled before its transport
+      // returns: what a crash between commit and push leaves behind.
+      await deliveryEntered.promise;
+      const cold = coldProcess(path);
+      expect(cold.replayBuffer.covers('project:B', 0)).toBe(false);
+      // Proof (2026-10-11): replacing the orchestrator's log fallback with an
+      // empty list (memory-only replay) made this cold resume answer `denied`
+      // `out_of_range` instead (`.local/6l-memory-only-red.log`, 1 pass, 3 fail).
+      expect(await cold.replay.replay({ 'project:B': -1 })).toEqual({
+        'project:B': { status: 'replaying', events: [{ seq: 0, message: ELSEWHERE_B }] },
+      });
+    } finally {
+      releaseDelivery.resolve();
+    }
+    expect(await finishing).toBe('finished');
+  });
+
+  it('pushRecorded preserves sequence', async () => {
+    const pushed: unknown[] = [];
+    const { db, path, services } = bootstrap(READY_DRAIN, undefined, (_url, init) => {
+      if (typeof init?.body !== 'string') throw new Error('push body must be serialized JSON');
+      pushed.push(JSON.parse(init.body));
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    });
+    seedSharedLifecycle(path);
+    const contractVersion = await commitDrainFanout(db, services);
+    expect(await services.optimizationLifecycle.finishDrain('A', contractVersion)).toBe('finished');
+    const events = await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1);
+    // Proof (2026-10-11): making `pushRecorded` record the event again before
+    // pushing wrote a second durable row at seq 1, failing this assertion and
+    // every cold replay case (`.local/6l-second-sequence-red.log`, 0 pass, 4 fail).
+    expect(events.map(({ seq, message }) => [seq, message])).toEqual([[0, ELSEWHERE_B]]);
+    expect(
+      pushed.filter((body) => (body as { subscription: string }).subscription === 'project:B'),
+    ).toEqual([{ subscription: 'project:B', seq: 0, message: ELSEWHERE_B }]);
+    expect(sequencerOf(db, 'project:B')).toEqual([{ next_seq: 1 }]);
+  });
+
+  it('push failure retains durable event', async () => {
+    const { db, path, services } = bootstrap(READY_DRAIN, undefined, () =>
+      Promise.reject(new Error('gateway unreachable')),
+    );
+    seedSharedLifecycle(path);
+    const contractVersion = await commitDrainFanout(db, services);
+    expect(await services.optimizationLifecycle.finishDrain('A', contractVersion)).toBe('finished');
+    // Proof (2026-10-11): replacing the durable insert in `recordCommittedFanout`
+    // with a fabricated seq-0 record made this cold resume answer `replaying`
+    // with no events, because the log never held the pushed event
+    // (`.local/6l-skip-insert-red.log`, 0 pass, 4 fail).
+    expect(await coldProcess(path).replay.replay({ 'project:B': -1 })).toEqual({
+      'project:B': { status: 'replaying', events: [{ seq: 0, message: ELSEWHERE_B }] },
+    });
+    expect(sequencerOf(db, 'project:B')).toEqual([{ next_seq: 1 }]);
+  });
+
+  it('expired replay requires snapshot', async () => {
+    const { db, path, services } = bootstrap(READY_DRAIN);
+    seedSharedLifecycle(path);
+    const contractVersion = await commitDrainFanout(db, services);
+    expect(await services.optimizationLifecycle.finishDrain('A', contractVersion)).toBe('finished');
+    const log = new DrizzleEventLogStore(db, OPEN);
+    const later = { type: 'calendar_markers_changed' } as const;
+    await log.recordEvent('project:B', later, 3);
+    await log.recordEvent('project:B', later, 4);
+    // The bounded replay sweep's own count rule, keeping the newest two.
+    expect(await log.pruneBeyond(2)).toBeGreaterThan(0);
+    const cold = coldProcess(path);
+    // Proof (2026-10-11): disabling the orchestrator's contiguity guard
+    // (`false &&`) made this expired resume answer `replaying` with only seq
+    // 1–2, a hole the client could not see, instead of the snapshot-required
+    // refusal; only this case failed (`.local/6l-guard-off-red.log`, 3 pass, 1 fail).
+    expect(await cold.replay.replay({ 'project:B': -1 })).toEqual({
+      'project:B': { status: 'denied', reason: 'out_of_range' },
+    });
+    expect(await cold.replay.replay({ 'project:B': 0 })).toEqual({
+      'project:B': {
+        status: 'replaying',
+        events: [
+          { seq: 1, message: later },
+          { seq: 2, message: later },
+        ],
+      },
+    });
+  });
+});
