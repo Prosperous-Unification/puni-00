@@ -131,3 +131,32 @@ Each fault below was applied to `migration.sql` by a scratch runner. The runner 
 - `bun test apps/website/be-01/src --timeout=30000`: `153 pass`, `0 fail`.
 - `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $(git ls-files '*.sql') <010 files>` (the CI step plus the new files): exit 0.
 - `nx run-many -t lint,typecheck -p website-store-sqlite,website-be-01`: success.
+
+### Slice 2: journal records, chain verification, port and memory remote (2026-10-11)
+
+New files in `libs/website/adapters/store-sqlite/src/retention-journal/`:
+
+- `record.ts` holds canonical JSON, `hashEvent`, `sealEvent`, the encoders and the strict parsers. One validator is used both to build and to parse. Parsers refuse unknown or extra fields at every level, a bad hash, an off-pattern evidence reference or actor, and non-canonical bytes. A missing trailing newline counts as truncated.
+- `remote.ts` holds the `RetentionJournalRemote` port. The version-id check lives at the adapter boundary.
+- `memory-remote.ts` is a versioned test double with fault switches.
+- `chain.ts` holds `readJournalTip` and `verifyChain`, which refuse with `uninitialised`, `missing`, `unreadable`, `malformed`, `truncated`, `gapped`, `stale`, `forked` and `foreign`.
+
+Tests: `record.test.ts` (11), `chain.test.ts` (11) and `memory-remote.test.ts` (3).
+
+The fault proofs below were run by the slice's helper agent and are carried by the adjacent `Proof:` comments. In each case one check was removed or broken, the named test was run with `-t`, and the observed failure is listed.
+
+| Check                                       | Observed failure with the check removed                                         |
+| ------------------------------------------- | ------------------------------------------------------------------------------- |
+| unknown fields                              | `parse refuses …`: "hash does not match" instead of the unknown-field refusal   |
+| schema string                               | same test: "hash does not match", not "schema is not one of"                    |
+| evidence pattern                            | `a record with an email-shaped evidence reference is refused`: no error         |
+| hash hex, hash equals body, canonical bytes | the respective parse test: no `JournalRecordError`                              |
+| trailing newline, JSON end-of-input         | `truncated and malformed …`: received `malformed`                               |
+| uninitialised, missing head, gapped         | the refusal test failed with a `TypeError`                                      |
+| unreadable and record-error mapping         | the refusal test received the raw port or record error class                    |
+| foreign (genesis, head, position, event)    | the refusal blamed the wrong key or reported `forked`                           |
+| stale against applied and against seen      | `a rolled-back head is refused as stale naming both sequences` failed           |
+| previousHash, head closes the chain         | `a forked journal is refused` resolved                                          |
+| fork at the same sequence                   | the message lost "head and database disagree" (the closing check still refuses) |
+
+- `bun test libs/website/adapters/store-sqlite/src/retention-journal` (this slice): `25 pass`, `0 fail`.
