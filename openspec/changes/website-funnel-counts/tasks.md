@@ -14,7 +14,7 @@ tests with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`.
 
 ## 2. API
 
-- [ ] 2.1 `GET /operator/funnel` behind the operator session with `Cache-Control: no-store`. Tests:
+- [x] 2.1 `GET /operator/funnel` behind the operator session with `Cache-Control: no-store`. Tests:
       `server.test.ts` "the funnel overview counts the day's rows", "the funnel overview carries no
       canary text", "the funnel overview needs an operator session". Negatives: serve without the
       operator check (the 401 test gets 200); add `intake_draft.description` to each day row (the
