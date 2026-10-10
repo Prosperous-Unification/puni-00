@@ -4027,3 +4027,64 @@ and store-sqlite 1287/1287, exit 0. OpenSpec passed 158/158.
 The 6k.e fourteen-file command recorded above, rerun unchanged on the merged head, passed
 411/411 with 20,553 assertions, exit 0. This is local evidence only: no host gate or CI is
 claimed here, and 6l, 6.1/6.2, UI 7, mode route 8 and trusted activation stay open.
+
+## 6l durable replay checkpoint (batch 10, partial)
+
+Branch `batch-10/010-4-16-capacity-6l`, stacked on the 6j/6k reconciliation. This slice
+adds test assertions only; no production byte changes. The mounted `services.db.test.ts`
+block `shared-person replay closure (6l)` drives the installed `buildServices` graph through
+a real shared-organization final drain (B ← A `elsewhere_changed`), then reads it back
+through a second `openSqliteSource`/`buildServices` over the same file. That second graph
+has its own empty `ReplayBuffer`, so replaying from it depends only on durable state.
+
+| Case                                                         | Observed boundary                                                                                                                                    |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crash after commit before push replays from a cold process` | First process committed and held inside transport; the cold buffer does not cover B; cold resume from −1 replays `[seq 0, elsewhere_changed B←A]`    |
+| `pushRecorded preserves sequence`                            | One durable B row at seq 0; the one B push body carries `seq: 0` and the same message; `event_sequencer.next_seq` stays 1                            |
+| `push failure retains durable event`                         | Gateway rejection leaves the drain `finished`; cold replay returns the original seq-0 event; sequencer unchanged                                     |
+| `expired replay requires snapshot`                           | After two later B events and `pruneBeyond(2)` (the sweep's count rule), cold resume from −1 is `denied out_of_range`; from 0 replays exactly seq 1–2 |
+
+The four cases passed 4/4 before any fault. These are characterization proofs over existing
+durable replay, so the first run was GREEN; RED was observed through production faults, each
+restored by `git checkout` and rerun 4/4:
+
+| Injected production fault                                                           | Result                                                  |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `ReplayOrchestrator` log fallback replaced by `[]` (memory-only replay)             | 1 pass, 3 fail: cold resume `denied out_of_range`       |
+| `GatewayBroadcaster.pushRecorded` records again before buffering (another sequence) | 0 pass, 4 fail: a second B row at seq 1                 |
+| `recordCommittedFanout` durable insert replaced by a fabricated seq-0 record        | 0 pass, 4 fail: cold resume `replaying` with no events  |
+| Replay contiguity guard disabled (`false &&`)                                       | 3 pass, 1 fail: only the expired case, answered seq 1–2 |
+| `SUPPORTED_CAPACITY_MODES` advertises `shared`                                      | `capacity-modes-cli.test.ts` 0 pass, 1 fail             |
+| Shared-restore capability check bypassed (`false &&`)                               | `rejects shared restoration before the first write` 0/1 |
+
+Command for the four cases:
+`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test apps/wbs/be-01/src/services.db.test.ts -t "replay closure" --timeout=30000`.
+
+External engine loss is bounded as design.md states: a process-local engine disappearing has
+no durable transition owner, so this slice adds no event for it. Reads keep their typed
+`engine_unavailable` refusal (6.1f/6.2f), and no instantaneous notification is promised.
+
+**Open: `unauthorized subscription cannot replay cause`.** gw-01 subscribe is a shape check
+only, and be-01's internal resume route replays any subscription that the authenticated
+internal gateway names. `gatewayProjectAccess` exists, but no gateway caller uses it.
+Subscribe and replay authorization belong to `organization-ownership-and-access` tasks 6.1
+and 6.2, which are open. The orchestrator must decide this before 6l can close; see the lane
+record. 6l stays unchecked.
+
+The regression groups were rerun on the 6l head, under
+`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`. The four 6j.f cross-layer commands recorded
+above ran unchanged. The first now includes the four 6l cases. A fifth booking-mutation and
+replay group covered the rank, command and directory fan-out controllers, `boot.db`, replay
+orchestration, broadcaster durability, the core realtime module, committed fan-out and the
+optimizer-trigger broadcaster. All five exited 0:
+
+- 259/259 with 20,013 assertions
+- 186/186 with 724 assertions
+- 219/219 with 958 assertions
+- 199/199 with 15,972 assertions
+- 157/157 with 1,220 assertions
+
+No host gate or CI is claimed here.
+
+`NX_DAEMON=false bunx nx run-many -t lint:fast,typecheck -p wbs-be-01 --skip-nx-cache` printed
+Nx success for `lint:fast`, `typecheck` and `typecheck:module`. OpenSpec all passed 158/158.

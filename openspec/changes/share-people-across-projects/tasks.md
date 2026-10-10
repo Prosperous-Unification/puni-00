@@ -423,6 +423,9 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       restore guard to observe RED. Record bounds for external engine loss. Exact-SHA canonical
       gate and CI remain required before an integration claim; keep 6.1/6.2 open until their
       full obligations, including remaining UI/activation sequencing, are reconciled.
+      Durable replay, sequence, push-failure, retention and release-boundary proofs are recorded in
+      [the 6l checkpoint](verify.md#6l-durable-replay-checkpoint-batch-10-partial); replay
+      authority waits on organization-ownership-and-access 6.1/6.2.
 
 ## 7. fe
 
