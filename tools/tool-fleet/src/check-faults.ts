@@ -110,6 +110,22 @@ const FAULTS: readonly Fault[] = [
       ),
   },
   {
+    family: 'ansible-inventory',
+    description: 'base sysctl template no longer lowers the port floor on ingress hosts',
+    inject: (tree) =>
+      edit(tree, 'infra/ansible/roles/base/templates/k3s-sysctl.conf.j2', (text) =>
+        text.replace('net.ipv4.ip_unprivileged_port_start = 0\n', ''),
+      ),
+  },
+  {
+    family: 'helm',
+    description: 'Traefik web entry point back on the chart default 8000',
+    inject: (tree) =>
+      edit(tree, 'infra/platform/networking/traefik.yaml', (text) =>
+        text.replace('        port: 80\n', '        port: 8000\n'),
+      ),
+  },
+  {
     family: 'kustomize',
     description: 'staging overlay names a resource that does not exist',
     inject: (tree) =>

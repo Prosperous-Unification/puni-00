@@ -11,9 +11,14 @@
 - [Personal assistant](docs/assistant/CONTEXT.md): the secretary and agents the
   person interacts with across requests of any kind. Future possibilities live
   in [parked ideas](docs/assistant/ideas.md).
+- [PUNI website funnel](docs/website/CONTEXT.md): visitor intake, prospect
+  scoping, and proposal requests for Prosperous Unification's services.
 
 ## Relationships
 
+- **PUNI website funnel → Twilight Navigator**: a prospect's software request
+  can become planning work after a human accepts the proposal request; the
+  public conversation does not itself authorize delivery.
 - **Personal assistant → Twilight Structure**: software-delivery requests can
   enter the factory through the assistant; other requests remain in the
   assistant's broader scope.

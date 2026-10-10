@@ -14,7 +14,8 @@ and, once they choose, have lower-priority projects plan around the people highe
 - An organization **shared people** mode. Under `shared`, a project's scheduler works around
   the bookings of higher-ranked projects that name the same people (the `elsewhere` floor), in
   Fast and in CP-SAT.
-- Invalidation: a project whose bookings change tells the projects below it to re-read.
+- Durable invalidation: booking, availability and topology changes tell affected lower projects
+  to re-read, atomically with the originating write.
 - fe-01: a load page, a booked/overlapping column in the directory, the `elsewhere` sentence,
   and a settings switch.
 

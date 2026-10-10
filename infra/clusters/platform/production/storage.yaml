@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  path: ./infra/platform/storage/production
+  path: ./infra/platform/storage/production-existing-hosts
   prune: true
   sourceRef:
     kind: GitRepository

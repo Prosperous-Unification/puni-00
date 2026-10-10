@@ -443,6 +443,51 @@
     ],
     "binaryDeclarations": [
       {
+        "path": "apps/website/fe-01/src/assets/fonts/Geist-variable.ttf",
+        "format": "font/ttf",
+        "consumer": "apps/website/fe-01/src/style.css",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "https://github.com/google/fonts/tree/main/ofl/geist"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/src/assets/fonts/InterTight-variable.ttf",
+        "format": "font/ttf",
+        "consumer": "apps/website/fe-01/src/style.css",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "https://github.com/google/fonts/tree/main/ofl/intertight"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/public/apple-touch-icon.png",
+        "format": "image/png",
+        "consumer": "apps/website/fe-01/index.html",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "https://images.nasa.gov/details/iss071e113312"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/public/favicon-32.png",
+        "format": "image/png",
+        "consumer": "apps/website/fe-01/index.html",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "https://images.nasa.gov/details/iss071e113312"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/public/favicon.ico",
+        "format": "image/vnd.microsoft.icon",
+        "consumer": "apps/website/fe-01/index.html",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "https://images.nasa.gov/details/iss071e113312"
+        }
+      },
+      {
         "path": "docs/assistant/work-view-prototype-A.png",
         "format": "image/png",
         "consumer": "docs/assistant/work-view-prototype.md",

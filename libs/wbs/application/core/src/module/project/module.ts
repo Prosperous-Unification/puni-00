@@ -33,12 +33,14 @@ export const projectModule = DiBag.createBuilder()
         broadcast,
         optimizerAvailable,
         dependencyGraph,
+        beforeUpdate,
       }: {
         projectStore: ProjectStore;
         clock: Clock;
         broadcast: Broadcaster;
         optimizerAvailable: OptimizerAvailability | undefined;
         dependencyGraph: ProjectServiceOptions['dependencyGraph'];
+        beforeUpdate: ProjectServiceOptions['beforeUpdate'];
       }): ProjectServiceOptions => ({
         projects: projectStore,
         clock,
@@ -48,6 +50,7 @@ export const projectModule = DiBag.createBuilder()
         // (4 pass, 1 fail): the update answered `optimizer_unavailable`.
         optimizerAvailable,
         dependencyGraph,
+        beforeUpdate,
       }),
       { factoryReturnKind: 'sync-value' },
     ),

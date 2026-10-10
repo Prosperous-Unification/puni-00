@@ -38,7 +38,9 @@ import type { PriorityBandService } from '@wbs/core/module/priority-band/priorit
 import type { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { StepService } from '@wbs/core/module/step/step.resource';
 import type { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import type { BeforeProjectUpdate, BeforeStepRemoval } from '@wbs/core/ports/fanout-capture-store';
 import type { AuthService } from '@wbs/core/service/auth.service';
+import type { CommittedFanoutDelivery } from '@wbs/core/service/committed-fanout';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
 import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
 import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
@@ -238,12 +240,19 @@ export interface AppOptions {
      * and a route event — out of an open batch. The admission is the one the
      * batch's own unit of work established (see `EditAdmission`).
      */
-    batch: (scope: Scope, broadcast: Broadcaster, admission: EditAdmission) => WritingServices;
+    batch: (
+      scope: Scope,
+      broadcast: Broadcaster,
+      admission: EditAdmission,
+      beforeProjectUpdate?: BeforeProjectUpdate,
+      beforeStepRemoval?: BeforeStepRemoval,
+    ) => WritingServices;
     /**
      * Where a batch's collected announcements go once it has committed and let
      * go of its turn, and where every route publishes directly.
      */
     announcements: Broadcaster;
+    committedFanout: CommittedFanoutDelivery;
   };
   /**
    * The commit the checkout on disk is at, read fresh on every `/health` call.
@@ -290,6 +299,9 @@ export function mountedEndpoints(
     },
     uow: opts.writes.uow,
     announcements: opts.writes.announcements,
+    // Proof: omitting mounted delivery made a cold shared command answer 500
+    // instead of 200, with no downstream row.
+    committedFanout: opts.writes.committedFanout,
   });
   // A project reach change and a step removal read the combined dependency
   // graph before they write, so each runs as one unit of work: a write landing

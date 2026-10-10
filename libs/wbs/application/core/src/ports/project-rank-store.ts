@@ -9,7 +9,8 @@ export interface RankedProject {
   readonly ranked: boolean;
 }
 
-export type RankMoved = { ok: true; order: RankedProject[] } | { ok: false; reason: 'not_found' };
+export type RankMoved =
+  { ok: true; order: RankedProject[] } | { ok: false; reason: 'not_found' | 'forbidden' };
 
 /**
  * The organization's total order over its projects

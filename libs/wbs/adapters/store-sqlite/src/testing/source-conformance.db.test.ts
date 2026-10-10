@@ -741,6 +741,18 @@ const openers: ExistingStoreOpeners = {
     );
   },
   projects: (caseId) => openSqliteCase('projects', caseId),
+  projectRanks: async (caseId) => {
+    const { source, directory } = await seedSqliteSource();
+    source.db.run(
+      sql`INSERT INTO organization (id, name, created_at) VALUES ('rank-conformance-org', 'Rank', 1)`,
+    );
+    for (const projectId of DETERMINISTIC_SEED.projectIds) {
+      source.db.run(
+        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'rank-conformance-org')`,
+      );
+    }
+    return sqliteFixture(source, directory, 'projectRanks', caseId);
+  },
   users: (caseId) => openSqliteCase('users', caseId),
   capacity: (caseId) => openSqliteCase('capacity', caseId),
   priorityBands: (caseId) => openSqliteCase('priorityBands', caseId),
@@ -779,6 +791,15 @@ const declaration: SourceDeclaration = {
       },
     },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
+    projectRanks: {
+      kind: 'offered',
+      gaps: [],
+      open: (caseId) => {
+        if (caseId !== 'projectRanks.orderIn:scoped-move' || openers.projectRanks === undefined)
+          throw new Error('unexpected project rank case');
+        return openers.projectRanks(caseId);
+      },
+    },
     users: { kind: 'offered', gaps: [], open: openers.users },
     capacity: { kind: 'offered', gaps: [], open: openers.capacity },
     priorityBands: { kind: 'offered', gaps: [], open: openers.priorityBands },

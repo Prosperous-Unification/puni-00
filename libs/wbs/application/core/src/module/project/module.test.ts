@@ -49,6 +49,7 @@ const hostRequirements = () => {
     dependencyGraph: DiBag.createProvider(() => new DependencyGraphGuard(source.stores), {
       factoryReturnKind: 'sync-value',
     }),
+    beforeUpdate: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
   };
 };
 

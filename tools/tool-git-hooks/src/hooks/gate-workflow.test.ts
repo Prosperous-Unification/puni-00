@@ -1,6 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { scratchSync } from '@tools/test-scratch';
 import { describe, expect, test } from 'bun:test';
 
 interface WorkflowStep {
@@ -131,5 +132,55 @@ describe('the CI gate check', () => {
     }
     expect(reduceGate({ ...green, toolWiki: '', toolWikiResult: 'skipped' })).not.toBe(0);
     expect(reduceGate({ ...green, toolWiki: 'skip', toolWikiResult: 'success' })).not.toBe(0);
+  });
+});
+
+/**
+ * The CI copy of the private-nesting hook is what catches a `--no-verify` commit, so its step
+ * script is run as shipped against scratch repositories rather than matched as text.
+ */
+describe('the CI private-nesting step', () => {
+  const privateNestingStep = (): WorkflowStep => {
+    const step = readWorkflow().jobs?.['gate_workspace']?.steps?.find(
+      ({ name }) => name === 'Private nesting',
+    );
+    expect(step, 'job `gate_workspace` has no `Private nesting` step').toBeDefined();
+    return step ?? {};
+  };
+
+  const runStep = (prepare: (root: string) => void): number => {
+    const run = privateNestingStep().run;
+    if (run === undefined) throw new Error('the Private nesting step has no script');
+    const root = scratchSync('ci-private-nesting-');
+    const git = (...args: string[]) => {
+      const spawned = Bun.spawnSync(['git', '-C', root, ...args], { stderr: 'pipe' });
+      if (spawned.exitCode !== 0) throw new Error(spawned.stderr.toString());
+    };
+    git('init', '--quiet');
+    const hookPath = 'tools/tool-git-hooks/src/hooks/private-nesting.ts';
+    mkdirSync(join(root, 'tools/tool-git-hooks/src/hooks'), { recursive: true });
+    cpSync(join(import.meta.dir, 'private-nesting.ts'), join(root, hookPath));
+    writeFileSync(join(root, '.gitignore'), '/private/\n');
+    git('add', '.gitignore', hookPath);
+    prepare(root);
+    return Bun.spawnSync(['bash', '-c', run], { cwd: root, stdout: 'pipe', stderr: 'pipe' })
+      .exitCode;
+  };
+
+  test('passes a clean tree', () => {
+    expect(runStep(() => undefined)).toBe(0);
+  });
+
+  test('refuses a tracked path under private/ that skipped the pre-commit hook', () => {
+    // Proof (2026-10-06): with the step renamed away in ci.yml both cases failed on the missing
+    // step (0 passed / 2 failed); with its xargs `bun run` lines replaced by `true`, this case
+    // exited 0 (1 passed / 1 failed).
+    expect(
+      runStep((root) => {
+        mkdirSync(join(root, 'private/puni-fleet'), { recursive: true });
+        writeFileSync(join(root, 'private/puni-fleet/README.md'), 'private\n');
+        Bun.spawnSync(['git', '-C', root, 'add', '-f', 'private/puni-fleet/README.md']);
+      }),
+    ).not.toBe(0);
   });
 });

@@ -217,7 +217,14 @@ const retryRefusal = responseSchema(
       code: "'not-retryable'",
       state: "'ready' | 'pending' | 'retrying' | 'failed' | 'corrupt' | 'plan-infeasible' | 'idle'",
     })
-    .or({ code: "'already-running'" }),
+    .or({ code: "'already-running'" })
+    // Proof: removing this variant made the typed client classify its modeled
+    // 409 Retry refusal as invalid_response rather than a refusal.
+    .or({
+      code: "'schedule-input-unavailable'",
+      reason: "'engine_unavailable' | 'cycle' | 'calendar_range'",
+      projectId: 'string',
+    }),
 );
 
 /** Retries one retained failed or corrupt optimizer variant against the current plan input. */

@@ -316,6 +316,23 @@ export class DirectoryRepository implements DirectoryStore {
     private readonly gate: Gate,
   ) {}
 
+  inspectMissingOwnership(catalog: NamedCatalog, resourceId: string): Promise<void> {
+    const { root, side } = CATALOG_TABLES[catalog];
+    const present = this.db
+      .all<{ id: string }>(sql`SELECT id FROM ${sql.raw(root)} WHERE id = ${resourceId}`)
+      .at(0);
+    if (present === undefined) return Promise.resolve();
+    const owners = this.db.all<{ organization_id: string }>(
+      sql`SELECT organization_id FROM ${sql.raw(side)} WHERE resource_id = ${resourceId}`,
+    );
+    // Proof: coercing this missing-map branch to absence made a present scoped
+    // orphan answer not_found instead of throwing in the standalone DB test.
+    if (owners.length === 0) throw new Error(`present ${catalog} directory row lacks ownership`);
+    if (owners.length !== 1)
+      throw new Error(`present ${catalog} directory row has conflicting ownership`);
+    return Promise.resolve();
+  }
+
   /**
    * One organization's catalog, read from its ownership side table: the side
    * row is both the ownership and the organization-local display name, so the

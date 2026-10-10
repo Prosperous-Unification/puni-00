@@ -13,6 +13,7 @@ import {
   assertRetainedClaims,
   assertSecretClosure,
   assertStagePlacement,
+  assertTenantIsolation,
   assertTrustedPolicyScope,
   assertTrustedWorkloadImages,
   readPlatformManifests,
@@ -147,6 +148,9 @@ const platformKustomizations: readonly (readonly [string, readonly string[]])[] 
   ['registry/production/kustomization.yaml', ['../base', 'issuers.yaml']],
   ['storage/local/kustomization.yaml', ['storage-class.yaml']],
   ['storage/production/kustomization.yaml', ['hcloud-ccm.yaml', 'hcloud-csi.yaml']],
+  // Proof: dropping this entry made the diverging production-existing-hosts negative in
+  // platform.test.ts resolve instead of reject on 2026-10-07.
+  ['storage/production-existing-hosts/kustomization.yaml', ['../local']],
   ['observability/eck/kustomization.yaml', ['eck-operator.yaml']],
   ['observability/elastic/local/kustomization.yaml', ['elasticsearch.yaml']],
   ['observability/elastic/production/kustomization.yaml', ['elasticsearch.yaml']],
@@ -236,9 +240,21 @@ const stageDependencies = {
   },
 } as const satisfies Record<'platform' | 'workers', Record<string, string>>;
 
+/**
+ * The Flux path each stage of a cluster must reconcile. `platform-production` runs on the
+ * adopted h4claw and h3mon hosts, whose kubelets have no external cloud provider and whose node
+ * names differ from the Hetzner server names, so its storage stage is the node-local
+ * `production-existing-hosts` overlay (`puni-retain` on local-path, Retain) until the hcloud
+ * storage packet (WBS 070.8) moves it; `workers-production` keeps the hcloud overlay.
+ */
 function platformStagePath(stageName: string, cluster: string, environment: string): string {
   if (stageName === 'target') return './infra/platform/target';
   if (stageName === 'controllers') return './infra/platform/networking';
+  // Proof: matching no cluster here made the platform-production hcloud-storage negative in
+  // platform.test.ts resolve instead of reject on 2026-10-07.
+  if (stageName === 'storage' && cluster === 'platform-production') {
+    return './infra/platform/storage/production-existing-hosts';
+  }
   if (stageName === 'storage') return `./infra/platform/storage/${environment}`;
   if (stageName === 'policy') return './infra/platform/policy';
   if (stageName === 'secrets') return `./infra/platform/secrets/${cluster}`;
@@ -384,6 +400,7 @@ export async function validatePlatform(root: string): Promise<{
   assertRetainedClaims(manifests);
   assertTrustedWorkloadImages(manifests);
   assertTrustedPolicyScope(manifests);
+  assertTenantIsolation(manifests);
 
   const fluxInstall = await readFile(join(root, 'infra/platform/flux/install.yaml'));
   const fluxInstallSha256 = createHash('sha256').update(fluxInstall).digest('hex');
