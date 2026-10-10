@@ -209,13 +209,12 @@ export function flushCell(node: CellElement): Promise<CommitOutcome> {
  *    texts in that window are two edits and both go out; {@link submissions}
  *    is what stops the slower answer writing over the faster one.
  *
- * **What a new face inherits, and what it does not.** The held refusal, and
- * only that. `shown`, `typed`, `sent` and `latest` are re-derived from the
- * server value the new face was given, which is what the component's refs did
- * when they died with it — carrying them across a remount would change rule 5
- * and rule 2 in ways nothing here tests, and `openspec/changes/
- * live-editing-extraction/verify.md` records the choice rather than making it
- * silently.
+ * **What a new face inherits.** An ordinary remount constructs a new field
+ * from the server value and restores only a held refusal. During a Board
+ * handoff, the selected runtime's PlanInteractionScope instead retains this
+ * field for a suspended cell identity. A new face for that surviving identity
+ * reuses it, preserving the unsent text and its original baseline until
+ * refocus. Authoritative deletion or runtime withdrawal discards that hold.
  */
 export class LiveField {
   /** The box this field is rendered as, or null before the face has attached one. */

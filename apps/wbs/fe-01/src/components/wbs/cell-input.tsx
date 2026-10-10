@@ -204,9 +204,9 @@ export function CellInput({
 }: CellInputProps) {
   const interaction = usePlanInteractionScope();
   /**
-   * This face's field. Constructed once per mount, which is what re-derives
-   * everything but the held refusal from the server value — see
-   * {@link LiveField} for what a new face inherits and what it does not.
+   * This face's field, selected once per mount. The Plan interaction scope
+   * reuses a suspended identity's field across face remounts; otherwise a new
+   * {@link LiveField} derives its state from the server value and held refusal.
    */
   const held = useRef<LiveField>(undefined);
   held.current ??= interaction?.fieldFor(cellKey, value) ?? new LiveField(cellKey, value);

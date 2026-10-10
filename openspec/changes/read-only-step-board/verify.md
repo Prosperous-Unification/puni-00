@@ -496,3 +496,20 @@ completed with exit 0 for all three targets and their module typecheck dependenc
 (`/tmp/board-wrapping-targets.log`). Scoped Prettier on the three changed paths
 and `git diff --check` also exited 0. Full canonical checks remain with the
 coordinator as stated above.
+
+## 2026-10-10 exact-candidate independent review
+
+The coordinator reported Astra high's independent approval of exact candidate
+`4a08e2917b2f9f0ed95d2b5310b7ca5ee303943f`. The review found one Minor:
+`LiveField` and `CellInput` remount comments still described only the ordinary
+remount path and omitted the selected runtime's suspended-field reuse. Inspection
+of `PlanInteractionScope.fieldFor` confirmed that it returns the retained
+`LiveField` for a surviving suspended identity. Both comments now state that
+boundary, including the ordinary fresh-field behavior and deletion/withdrawal
+cleanup. This follow-up changes comments and acceptance records only.
+
+Task 3.1 is checked on the recorded local checks, watched faults and Astra review.
+The follow-up's scoped Prettier check and `git diff --check` exited 0. Runtime
+suites were not repeated for this documentation-only follow-up; their exact
+candidate evidence remains above. Task 3.2 remains unchecked for the coordinator's
+post-Spaces composition, canonical exact-SHA host gate and exact-head CI.
