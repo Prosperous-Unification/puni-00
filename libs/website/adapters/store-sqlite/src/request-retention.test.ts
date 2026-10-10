@@ -923,3 +923,36 @@ test('the schema refuses to rewrite an operator resolution', () => {
     }
   });
 });
+
+test('resolve validation waits for a concurrent writer', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'puni-retention-resolve-busy-'));
+  const databasePath = join(directory, 'website.sqlite');
+  try {
+    historicDatabase(databasePath);
+    new WebsiteStore(databasePath).close();
+    const resolverPath = join(directory, 'resolver.ts');
+    writeFileSync(
+      resolverPath,
+      `import { resolveRetentionAnchor } from ${JSON.stringify(join(import.meta.dir, 'store.ts'))};
+resolveRetentionAnchor(Bun.argv[2] ?? '', { kind: 'software_request', subjectId: 'early-draft', anchorAt: 100, evidenceReference: 'ops-ticket:1', actor: 'operator-1' }, 20_000);
+`,
+    );
+    const holder = new Database(databasePath);
+    holder.run('BEGIN EXCLUSIVE');
+    const resolver = Bun.spawn(['bun', resolverPath, databasePath], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    await Bun.sleep(700);
+    holder.run('COMMIT');
+    holder.close();
+    const exitCode = await resolver.exited;
+    const error = await new Response(resolver.stderr).text();
+    expect({ exitCode, error }).toEqual({ exitCode: 0, error: '' });
+    expect(subject(databasePath, 'software_request', 'early-draft')?.anchor_source).toBe(
+      'operator',
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

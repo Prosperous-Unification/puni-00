@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -223,6 +223,73 @@ test('a second open inference pause is refused by the open-pause index', () => {
         .get()?.count,
     ).toBe(1);
     database.close();
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+/**
+ * Runs `script` in a child after it opened the store, while this process holds a write lock
+ * with a pending change for `holdMilliseconds`; resolves the child's exit code and stderr.
+ */
+async function writeUnderHeldLock(
+  databasePath: string,
+  directory: string,
+  script: string,
+  holdMilliseconds: number,
+): Promise<{ exitCode: number; error: string }> {
+  const writerPath = join(directory, 'writer.ts');
+  writeFileSync(
+    writerPath,
+    `import { WebsiteStore } from ${JSON.stringify(join(import.meta.dir, 'store.ts'))};
+const store = new WebsiteStore(Bun.argv[2] ?? '');
+console.log('ready');
+for await (const line of console) if (line === 'go') break;
+${script}
+store.close();
+`,
+  );
+  const writer = Bun.spawn(['bun', writerPath, databasePath], {
+    stdin: 'pipe',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const reader = writer.stdout.getReader();
+  const ready = await reader.read();
+  expect(new TextDecoder().decode(ready.value)).toContain('ready');
+  const holder = new Database(databasePath);
+  holder.run('PRAGMA busy_timeout = 5000');
+  holder.run('BEGIN IMMEDIATE');
+  holder.run('UPDATE retention_journal_position SET applied_sequence = applied_sequence');
+  void writer.stdin.write('go\n');
+  void writer.stdin.flush();
+  await Bun.sleep(holdMilliseconds);
+  holder.run('COMMIT');
+  holder.close();
+  void writer.stdin.end();
+  const exitCode = await writer.exited;
+  return { exitCode, error: await new Response(writer.stderr).text() };
+}
+
+test('a content write waits for a concurrent writer instead of failing busy', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'puni-website-immediate-'));
+  try {
+    const databasePath = join(directory, 'website.sqlite');
+    const store = new WebsiteStore(databasePath);
+    const account = store.createProspect('owner@example.test', 100);
+    store.ensureBlankRequest(account.id, 100);
+    store.close();
+    expect(
+      await writeUnderHeldLock(
+        databasePath,
+        directory,
+        `if (!store.updateAccountBrief(${JSON.stringify(account.id)}, 'A booking app', 200)) throw new Error('no active request');`,
+        700,
+      ),
+    ).toEqual({ exitCode: 0, error: '' });
+    const reopened = new WebsiteStore(databasePath);
+    expect(reopened.findAccountRequest(account.id)?.brief).toBe('A booking app');
+    reopened.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

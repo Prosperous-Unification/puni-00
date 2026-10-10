@@ -502,62 +502,70 @@ function settleConversationOperation(
   truncated: boolean,
   refusal: ConversationRefusal | null,
 ): boolean {
-  return database.transaction(() => {
-    const operation = database
-      .query<
-        {
-          conversation_id: string;
-          message: string;
-          state: ConversationOperationState;
-          stage: ConversationReplyStage;
-          reserved_micro_usd: number | null;
-        },
-        [string]
-      >(
-        'SELECT conversation_id, message, state, stage, reserved_micro_usd FROM conversation_operation WHERE id = ?',
-      )
-      .get(id);
-    if (operation?.state !== 'inflight') return false;
-    if ((operation.reserved_micro_usd === null) !== (actualMicroUsd === null)) return false;
-    // Proof: refusing usage above the reservation made the overrun test's completion return false.
-    const overrun =
-      operation.reserved_micro_usd !== null &&
-      actualMicroUsd !== null &&
-      actualMicroUsd > operation.reserved_micro_usd;
-    // Proof: settling before this transaction left settled usage with no turns in the failed-insert test.
-    // Only the assistant reply is parsed, so brief markers in visitor text never reach the draft.
-    // Proof: parsing `operation.message` here stored the visitor's injected brief in the markers-in-visitor-text test.
-    // Proof: capturing a declined reply stored the decline as the draft brief in the brief-stage refusal test.
-    const capture = operation.stage === 'brief' && refusal === null ? captureBrief(reply) : null;
-    const settled = database
-      .query(
-        "UPDATE conversation_operation SET state = 'completed', reply = ?, truncated = ?, settled_micro_usd = ?, settlement = 'usage', overrun = ?, brief_capture = ?, refusal = ? WHERE id = ? AND state = 'inflight'",
-      )
-      .run(
-        reply,
-        truncated ? 1 : 0,
-        actualMicroUsd,
-        overrun ? 1 : 0,
-        capture?.kind ?? null,
-        refusal,
-        id,
-      );
-    if (settled.changes !== 1) throw new Error('Conversation completion was not atomic');
-    const insertTurn = database.query(
-      'INSERT INTO conversation_turn (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
-    );
-    insertTurn.run(crypto.randomUUID(), operation.conversation_id, 'user', operation.message, now);
-    insertTurn.run(crypto.randomUUID(), operation.conversation_id, 'assistant', reply, now + 1);
-    // Proof: storing the raw reply for an `empty` capture failed the empty-marked-body test.
-    if (capture && capture.kind !== 'empty')
-      // Proof: dropping `brief = ''` overwrote the visitor's saved brief in the kept-brief test.
-      database
-        .query(
-          "UPDATE intake_draft SET brief = ? WHERE id = (SELECT draft_id FROM conversation WHERE id = ?) AND consumed_at IS NULL AND brief = ''",
+  return database
+    .transaction(() => {
+      const operation = database
+        .query<
+          {
+            conversation_id: string;
+            message: string;
+            state: ConversationOperationState;
+            stage: ConversationReplyStage;
+            reserved_micro_usd: number | null;
+          },
+          [string]
+        >(
+          'SELECT conversation_id, message, state, stage, reserved_micro_usd FROM conversation_operation WHERE id = ?',
         )
-        .run(capture.body.slice(0, 4_000), operation.conversation_id);
-    return true;
-  })();
+        .get(id);
+      if (operation?.state !== 'inflight') return false;
+      if ((operation.reserved_micro_usd === null) !== (actualMicroUsd === null)) return false;
+      // Proof: refusing usage above the reservation made the overrun test's completion return false.
+      const overrun =
+        operation.reserved_micro_usd !== null &&
+        actualMicroUsd !== null &&
+        actualMicroUsd > operation.reserved_micro_usd;
+      // Proof: settling before this transaction left settled usage with no turns in the failed-insert test.
+      // Only the assistant reply is parsed, so brief markers in visitor text never reach the draft.
+      // Proof: parsing `operation.message` here stored the visitor's injected brief in the markers-in-visitor-text test.
+      // Proof: capturing a declined reply stored the decline as the draft brief in the brief-stage refusal test.
+      const capture = operation.stage === 'brief' && refusal === null ? captureBrief(reply) : null;
+      const settled = database
+        .query(
+          "UPDATE conversation_operation SET state = 'completed', reply = ?, truncated = ?, settled_micro_usd = ?, settlement = 'usage', overrun = ?, brief_capture = ?, refusal = ? WHERE id = ? AND state = 'inflight'",
+        )
+        .run(
+          reply,
+          truncated ? 1 : 0,
+          actualMicroUsd,
+          overrun ? 1 : 0,
+          capture?.kind ?? null,
+          refusal,
+          id,
+        );
+      if (settled.changes !== 1) throw new Error('Conversation completion was not atomic');
+      const insertTurn = database.query(
+        'INSERT INTO conversation_turn (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
+      );
+      insertTurn.run(
+        crypto.randomUUID(),
+        operation.conversation_id,
+        'user',
+        operation.message,
+        now,
+      );
+      insertTurn.run(crypto.randomUUID(), operation.conversation_id, 'assistant', reply, now + 1);
+      // Proof: storing the raw reply for an `empty` capture failed the empty-marked-body test.
+      if (capture && capture.kind !== 'empty')
+        // Proof: dropping `brief = ''` overwrote the visitor's saved brief in the kept-brief test.
+        database
+          .query(
+            "UPDATE intake_draft SET brief = ? WHERE id = (SELECT draft_id FROM conversation WHERE id = ?) AND consumed_at IS NULL AND brief = ''",
+          )
+          .run(capture.body.slice(0, 4_000), operation.conversation_id);
+      return true;
+    })
+    .immediate();
 }
 
 /**

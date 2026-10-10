@@ -264,19 +264,23 @@ export function reserveLoginAttempt(
  * failures still justify stays.
  */
 export function settleLoginSuccess(database: Database, sourceHash: string): void {
-  database.transaction(() => {
-    database
-      .query("DELETE FROM login_failure WHERE scope = 'source' AND key_hash = ?")
-      .run(sourceHash);
-    database
-      .query(
-        "UPDATE login_failure SET failures = failures - 1, locked_until = CASE WHEN failures - 1 < ? THEN NULL ELSE locked_until END WHERE scope = 'account' AND key_hash = ? AND failures > 1",
-      )
-      .run(guardrailAllowance.accountLoginFailures, operatorAccountKey);
-    database
-      .query("DELETE FROM login_failure WHERE scope = 'account' AND key_hash = ? AND failures = 1")
-      .run(operatorAccountKey);
-  })();
+  database
+    .transaction(() => {
+      database
+        .query("DELETE FROM login_failure WHERE scope = 'source' AND key_hash = ?")
+        .run(sourceHash);
+      database
+        .query(
+          "UPDATE login_failure SET failures = failures - 1, locked_until = CASE WHEN failures - 1 < ? THEN NULL ELSE locked_until END WHERE scope = 'account' AND key_hash = ? AND failures > 1",
+        )
+        .run(guardrailAllowance.accountLoginFailures, operatorAccountKey);
+      database
+        .query(
+          "DELETE FROM login_failure WHERE scope = 'account' AND key_hash = ? AND failures = 1",
+        )
+        .run(operatorAccountKey);
+    })
+    .immediate();
 }
 
 /** The operator account lock's end and the number of locked sources at `now`. */
@@ -333,14 +337,16 @@ export function openInferencePause(
   pausedBy: InferencePause['pausedBy'],
   now: number,
 ): string | null {
-  return database.transaction(() => {
-    if (findOpenInferencePause(database)) return null;
-    const id = crypto.randomUUID();
-    database
-      .query('INSERT INTO inference_pause (id, paused_at, reason, paused_by) VALUES (?, ?, ?, ?)')
-      .run(id, now, reason, pausedBy);
-    return id;
-  })();
+  return database
+    .transaction(() => {
+      if (findOpenInferencePause(database)) return null;
+      const id = crypto.randomUUID();
+      database
+        .query('INSERT INTO inference_pause (id, paused_at, reason, paused_by) VALUES (?, ?, ?, ?)')
+        .run(id, now, reason, pausedBy);
+      return id;
+    })
+    .immediate();
 }
 
 /** Closes the open pause as the operator; false, writing nothing, when none is open. */

@@ -371,6 +371,8 @@ function withReadonlyDatabase<T>(databasePath: string, read: (database: Database
   const path = existingDatabasePath(databasePath, false, purpose);
   const database = new Database(path, { readonly: true });
   try {
+    // Proof: without this timeout, the resolve-validation-waits test's child failed "database is locked" under a held EXCLUSIVE lock.
+    database.run(`PRAGMA busy_timeout = ${String(busyTimeoutMilliseconds)}`);
     validateDatabase(database, purpose);
     return read(database);
   } finally {
