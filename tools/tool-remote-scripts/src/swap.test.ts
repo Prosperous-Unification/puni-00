@@ -6,9 +6,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { assembleCaddyfile } from './lib/caddy';
 import {
+  capacityModesCommand,
   holdKindsCommand,
   readinessKindsCommand,
   relationshipTypesCommand,
+  storedCapacityModesCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
@@ -416,6 +418,185 @@ describe('startGreen env preflight', () => {
   });
 });
 
+const COMPLETE_OIDC_ENV =
+  'AUTH_ISSUER_DISCOVERY_URL=https://issuer.example/\nAUTH_CLIENT_ID=client\n' +
+  'AUTH_CLIENT_SECRET=client-secret-value\n' +
+  'AUTH_REDIRECT_URI=https://wbs.example/api/auth/okta/callback\nAUTH_AUDIENCE=https://api.example\n';
+
+describe('startGreen required-key preflight', () => {
+  const OIDC_ENV_PATH = '/fixture/oidc.env';
+  const IMAGES = {
+    be: 'registry.infra.bulletpoints.club/wbs-be-01@sha256:' + 'a'.repeat(64),
+    gw: 'registry.infra.bulletpoints.club/wbs-gw-01@sha256:' + 'a'.repeat(64),
+  } as const;
+  const APP_ENV = {
+    be: 'PORT=3100\nLOG_LEVEL=info\nGW_URL=http://gw-01:3200\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\n',
+    gw: 'PORT=3200\nLOG_LEVEL=info\nBE_URL=http://be-01.internal:3100\nAUTH_MODE=oidc\n',
+  } as const;
+  const SHARED_ENV =
+    'INTERNAL_AUTH_SECRET=shared-internal-secret-value-of-32-chars\nJWT_SIGNING_KEY_CURRENT=signing-key-value-at-least-32-characters\n';
+
+  async function runStartGreen(
+    tier: 'be' | 'gw',
+    files: { app?: string; shared?: string; oidc?: string; oidcEnvPath?: string | null },
+  ): Promise<{ events: string[]; message: string }> {
+    const events: string[] = [];
+    const deps: StartGreenDeps = {
+      oidcEnvPath: files.oidcEnvPath === undefined ? OIDC_ENV_PATH : files.oidcEnvPath,
+      readText: (path) => {
+        if (path.endsWith(`/${tier}-01.env`)) {
+          events.push('read:app');
+          return Promise.resolve(files.app ?? APP_ENV[tier]);
+        }
+        if (path === OIDC_ENV_PATH) {
+          events.push('read:oidc');
+          return Promise.resolve(files.oidc ?? COMPLETE_OIDC_ENV);
+        }
+        events.push('read:shared');
+        return Promise.resolve(files.shared ?? SHARED_ENV);
+      },
+      writePhaseFile: (_path, phase) => {
+        events.push(`phase:${phase}`);
+        return Promise.resolve();
+      },
+      writeAtomicFile: (path) => {
+        events.push(`write:${path.split('/').pop() ?? path}`);
+        return Promise.resolve();
+      },
+      runDocker: () => {
+        events.push('docker');
+        return Promise.resolve('');
+      },
+    };
+    let message = '';
+    try {
+      await startGreen(tier, 'green', IMAGES[tier], `/fixture/${tier}.phase`, deps);
+    } catch (error: unknown) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    return { events, message };
+  }
+
+  const READS_ONLY = ['read:app', 'read:oidc', 'read:shared'];
+
+  it('admits complete be and gw env files and reaches Docker', async () => {
+    for (const tier of ['be', 'gw'] as const) {
+      const { events, message } = await runStartGreen(tier, {});
+      expect(message).toBe('');
+      expect(events).toContain('phase:preparing');
+      expect(events.at(-1)).toBe('docker');
+    }
+  });
+
+  it('refuses a be env file without GW_URL before any side effect, naming key and file', async () => {
+    const { events, message } = await runStartGreen('be', {
+      app: APP_ENV.be.replace('GW_URL=http://gw-01:3200\n', ''),
+    });
+    expect(message).toContain('GW_URL (/home/puni1/wbs/be-01.env)');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses an empty required value as missing', async () => {
+    const { events, message } = await runStartGreen('gw', {
+      app: APP_ENV.gw.replace('BE_URL=http://be-01.internal:3100', 'BE_URL='),
+    });
+    expect(message).toContain('BE_URL (/home/puni1/wbs/gw-01.env)');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses a shared env without the signing key, naming every missing key and no value', async () => {
+    const { events, message } = await runStartGreen('gw', {
+      app: APP_ENV.gw.replace('LOG_LEVEL=info\n', ''),
+      shared: 'INTERNAL_AUTH_SECRET=shared-internal-secret-value-of-32-chars\n',
+    });
+    expect(message).toContain('LOG_LEVEL (/home/puni1/wbs/gw-01.env)');
+    expect(message).toContain('JWT_SIGNING_KEY_CURRENT (/home/puni1/wbs/.env)');
+    expect(message).not.toContain('shared-internal-secret-value-of-32-chars');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses an OIDC carrier without AUTH_AUDIENCE', async () => {
+    const { events, message } = await runStartGreen('be', {
+      oidc: COMPLETE_OIDC_ENV.replace('AUTH_AUDIENCE=https://api.example\n', ''),
+    });
+    expect(message).toContain(`AUTH_AUDIENCE (${OIDC_ENV_PATH})`);
+    expect(message).not.toContain('client-secret-value');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses a 20-character signing key without printing it', async () => {
+    const { events, message } = await runStartGreen('be', {
+      shared: SHARED_ENV.replace(
+        'signing-key-value-at-least-32-characters',
+        'august-key-20-chars!',
+      ),
+    });
+    expect(message).toContain(
+      'JWT_SIGNING_KEY_CURRENT (/home/puni1/wbs/.env) must be at least 32 characters',
+    );
+    expect(message).not.toContain('august-key-20-chars!');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses a quoted empty secret that Compose would deliver empty', async () => {
+    const { events, message } = await runStartGreen('gw', {
+      shared: SHARED_ENV.replace('signing-key-value-at-least-32-characters', '""'),
+    });
+    expect(message).toContain('JWT_SIGNING_KEY_CURRENT (/home/puni1/wbs/.env) is quoted');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses a non-integer PORT and an unknown LOG_LEVEL', async () => {
+    const { events, message } = await runStartGreen('gw', {
+      app: APP_ENV.gw
+        .replace('PORT=3200', 'PORT=32o0')
+        .replace('LOG_LEVEL=info', 'LOG_LEVEL=verbose'),
+    });
+    expect(message).toContain('PORT (/home/puni1/wbs/gw-01.env) must be an integer');
+    expect(message).toContain('LOG_LEVEL (/home/puni1/wbs/gw-01.env) must be one of');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses an empty optional signing key that gw would refuse', async () => {
+    const { events, message } = await runStartGreen('gw', {
+      shared: `${SHARED_ENV}JWT_SIGNING_KEY_PREVIOUS=\n`,
+    });
+    expect(message).toContain('JWT_SIGNING_KEY_PREVIOUS (/home/puni1/wbs/.env)');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses a PORT with a leading zero', async () => {
+    const { events, message } = await runStartGreen('be', {
+      app: APP_ENV.be.replace('PORT=3100', 'PORT=0100'),
+    });
+    expect(message).toContain('PORT (/home/puni1/wbs/be-01.env) must be an integer');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses AUTH_MODE=local, which the production image cannot boot', async () => {
+    const { events, message } = await runStartGreen('be', {
+      app: APP_ENV.be.replace('AUTH_MODE=oidc', 'AUTH_MODE=local'),
+    });
+    expect(message).toContain('AUTH_MODE=local');
+    expect(message).toContain('NODE_ENV=production');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses AUTH_MODE=oidc in a layout with no OIDC carrier', async () => {
+    const { events, message } = await runStartGreen('gw', { oidcEnvPath: null });
+    expect(message).toContain('names no OIDC carrier');
+    expect(events).toEqual(['read:app', 'read:shared']);
+  });
+
+  it('refuses an env file without AUTH_MODE', async () => {
+    const { events, message } = await runStartGreen('be', {
+      app: APP_ENV.be.replace('AUTH_MODE=oidc\n', ''),
+    });
+    expect(message).toContain('AUTH_MODE (/home/puni1/wbs/be-01.env)');
+    expect(events).toEqual(READS_ONLY);
+  });
+});
+
 describe('runSwaps', () => {
   function fakeRunDeps(overrides: Partial<SwapRunDeps> = {}): SwapRunDeps {
     return {
@@ -665,12 +846,14 @@ it('startGreen admits merged backend config and writes the supervisor directory 
     'registry.infra.bulletpoints.club/wbs-be-01@sha256:' + 'a'.repeat(64),
     '/fixture/be.phase',
     {
-      oidcEnvPath: null,
+      oidcEnvPath: '/fixture/oidc.env',
       readText: (path) =>
         Promise.resolve(
           path.endsWith('/be-01.env')
             ? 'PORT=3100\nLOG_LEVEL=error\nGW_URL=http://gw\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAPP_ORIGIN=https://operator.example\nSOLVER_BUDGET_MS=120000\nSOLVER_SEARCH_WORKERS=2\nSOLVER_MEMORY_LIMIT_MB=512\n'
-            : 'INTERNAL_AUTH_SECRET=s\nJWT_SIGNING_KEY_CURRENT=k\n',
+            : path === '/fixture/oidc.env'
+              ? COMPLETE_OIDC_ENV
+              : `INTERNAL_AUTH_SECRET=${'s'.repeat(32)}\nJWT_SIGNING_KEY_CURRENT=${'k'.repeat(32)}\n`,
         ),
       writePhaseFile: () => Promise.resolve(),
       writeAtomicFile: (path, content) => {
@@ -711,6 +894,10 @@ describe('execute, stored vocabulary rollback guard', () => {
     const io: SwapExecutionIo = {
       sh: (args) => {
         ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
+          return Promise.resolve('["isolated"]');
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
         if (JSON.stringify(args) === JSON.stringify(relationshipTypesCommand('be-01-green'))) {
           return failure === 'reader'
             ? Promise.reject(new Error('reader failed'))
@@ -913,6 +1100,93 @@ describe('execute, stored vocabulary rollback guard', () => {
   });
 });
 
+describe('execute, pre-migration backup', () => {
+  async function runBackup(backup: (path: string) => Promise<string>) {
+    const ran: string[][] = [];
+    const phases: string[] = [];
+    const io: SwapExecutionIo = {
+      sh: (args) => {
+        ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
+          return Promise.resolve('["isolated"]');
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
+        if (args.includes('src/backup-db-cli.ts')) return backup(args.at(-1) ?? '');
+        if (args[0] === 'stop') return Promise.resolve('');
+        if (args.includes('src/migrate-status-cli.ts')) return Promise.resolve('none');
+        if (args.includes('src/migrate-cli.ts')) return Promise.resolve('migrated');
+        throw new Error(`unexpected Docker command: ${args.join(' ')}`);
+      },
+      readPhase: () => Promise.resolve('committed'),
+      writePhase: (_path, phase) => {
+        phases.push(phase);
+        return Promise.resolve();
+      },
+      writeAtomic: () => Promise.reject(new Error('routing must not change')),
+    };
+    let caught: unknown;
+    try {
+      await execute(
+        { tier: 'be', from: 'blue', to: 'green', steps: ['backup-db', 'migrate'] },
+        'registry/be-01@sha256:abc',
+        'deadbeef',
+        io,
+      );
+    } catch (error) {
+      caught = error;
+    }
+    return { ran, phases, caught };
+  }
+
+  const migrated = (ran: string[][]) => ran.some((args) => args.includes('src/migrate-cli.ts'));
+
+  it('snapshots the database from green before migrating', async () => {
+    const attempt = await runBackup((path) =>
+      Promise.resolve(JSON.stringify({ path, sha256: 'x', bytes: 1, migrations: ['m'] })),
+    );
+    expect(attempt.caught).toBeUndefined();
+    const backup = attempt.ran.findIndex((args) => args.includes('src/backup-db-cli.ts'));
+    expect(attempt.ran[backup].slice(0, 5)).toEqual([
+      'exec',
+      'be-01-green',
+      'bun',
+      'run',
+      'src/backup-db-cli.ts',
+    ]);
+    expect(attempt.ran[backup][5]).toMatch(/^\/data\/backups\/wbs-pre-deadbeef-\d{8}T\d{9}Z\.db$/);
+    expect(backup).toBeLessThan(
+      attempt.ran.findIndex((args) => args.includes('src/migrate-cli.ts')),
+    );
+  });
+
+  // Proof: removing 'backup-db' from ABORTABLE_STEPS made this case fail
+  // (76 pass, 1 fail): the failure threw bare, so green was never stopped
+  // (2026-09-29).
+  it('aborts without migrating when the backup fails, and stops green', async () => {
+    const attempt = await runBackup(() => Promise.reject(new Error('disk full')));
+    expect(attempt.caught).toHaveProperty('message', expect.stringContaining('disk full'));
+    expect(migrated(attempt.ran)).toBe(false);
+    expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    expect(attempt.phases).toEqual(['committed']);
+  });
+
+  it('aborts when the backup reports a different path or no migrations', async () => {
+    for (const output of [
+      JSON.stringify({ path: '/data/elsewhere.db', migrations: ['m'] }),
+      'not json',
+    ]) {
+      const attempt = await runBackup(() => Promise.resolve(output));
+      expect(attempt.caught).toHaveProperty('message', expect.stringContaining('backup-db'));
+      expect(migrated(attempt.ran)).toBe(false);
+    }
+    const empty = await runBackup((path) =>
+      Promise.resolve(JSON.stringify({ path, migrations: [] })),
+    );
+    expect(empty.caught).toHaveProperty('message', expect.stringContaining('verified snapshot'));
+    expect(migrated(empty.ran)).toBe(false);
+  });
+});
+
 describe('execute, after routing has moved', () => {
   it('refuses a hold written after the first check once blue stops, without committing', async () => {
     const ran: string[][] = [];
@@ -921,6 +1195,10 @@ describe('execute, after routing has moved', () => {
     const io: SwapExecutionIo = {
       sh: (args) => {
         ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
+          return Promise.resolve('["isolated"]');
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
         const is = (command: string[]) => JSON.stringify(args) === JSON.stringify(command);
         if (is(relationshipTypesCommand('be-01-green'))) return Promise.resolve('["FS"]');
         if (is(storedRelationshipTypesCommand('be-01-green'))) return Promise.resolve('[]');
@@ -986,6 +1264,10 @@ describe('execute, after routing has moved', () => {
     const io: SwapExecutionIo = {
       sh: (args) => {
         ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
+          return Promise.resolve('["isolated"]');
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
         if (JSON.stringify(args) === JSON.stringify(relationshipTypesCommand('be-01-green')))
           return Promise.resolve('["FS"]');
         if (JSON.stringify(args) === JSON.stringify(holdKindsCommand('be-01-green')))
@@ -1064,6 +1346,10 @@ describe('execute, after routing has moved', () => {
     const io: SwapExecutionIo = {
       sh: (args) => {
         ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
+          return Promise.resolve('["isolated"]');
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
         return Promise.reject(new Error(`docker ${args.join(' ')} failed: no such table: step`));
       },
       readPhase: () => Promise.resolve('old-stopped'),
@@ -1097,5 +1383,127 @@ describe('execute, after routing has moved', () => {
     expect(ran).toEqual([['exec', 'be-01-green', 'bun', 'run', 'src/backfill-step-codes-cli.ts']]);
     // Not abortable, and not committed: green stays live, the deploy unrecorded.
     expect(written).toEqual([]);
+  });
+});
+
+describe('execute, capacity mode guard', () => {
+  async function runCapacity(
+    supported: string,
+    stored: (read: number) => string,
+    afterStop = false,
+    fault?: 'reader' | 'store',
+  ) {
+    const ran: string[][] = [];
+    const phases: string[] = [];
+    let reads = 0;
+    const io: SwapExecutionIo = {
+      sh: (args) => {
+        ran.push(args);
+        const is = (command: string[]) => JSON.stringify(args) === JSON.stringify(command);
+        if (is(capacityModesCommand('be-01-green')))
+          return fault === 'reader'
+            ? Promise.reject(new Error('capacity reader failed'))
+            : Promise.resolve(supported);
+        if (is(storedCapacityModesCommand('be-01-green')))
+          return fault === 'store'
+            ? Promise.reject(new Error('capacity database failed'))
+            : Promise.resolve(stored(++reads));
+        if (is(relationshipTypesCommand('be-01-green'))) return Promise.resolve('["FS"]');
+        if (
+          is(holdKindsCommand('be-01-green')) ||
+          is(readinessKindsCommand('be-01-green')) ||
+          is(storedRelationshipTypesCommand('be-01-green')) ||
+          is(storedHoldsCommand('be-01-green')) ||
+          is(storedReadinessesCommand('be-01-green'))
+        )
+          return Promise.resolve('[]');
+        if (args.includes('src/migrate-status-cli.ts')) return Promise.resolve('none');
+        if (args.includes('src/migrate-cli.ts')) return Promise.resolve('migrated');
+        if (args[0] === 'stop') return Promise.resolve('');
+        throw new Error(`unexpected Docker command: ${args.join(' ')}`);
+      },
+      readPhase: () => Promise.resolve('committed'),
+      writePhase: (_path, phase) => {
+        phases.push(phase);
+        return Promise.resolve();
+      },
+      writeAtomic: () => Promise.reject(new Error('commit must not happen')),
+    };
+    let caught: unknown;
+    try {
+      await execute(
+        {
+          tier: 'be',
+          from: 'blue',
+          to: 'green',
+          steps: afterStop
+            ? [
+                'stored-vocabularies',
+                'migrate',
+                'stop-blue',
+                'stored-vocabularies-after-stop',
+                'commit',
+              ]
+            : ['stored-vocabularies', 'migrate'],
+        },
+        'registry/be-01@sha256:abc',
+        'deadbeef',
+        io,
+      );
+    } catch (failure) {
+      caught = failure;
+    }
+    return { ran, phases, reads, caught };
+  }
+
+  it('refuses isolated-only code over shared capacity before migration and stops green', async () => {
+    const attempt = await runCapacity('["isolated"]', () => '[{"mode":"shared","count":2}]');
+    expect(attempt.caught).toHaveProperty('message', expect.stringContaining('shared (2)'));
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('shared-people-rollback-cli.ts save|remove'),
+    );
+    expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+  });
+
+  it('allows isolated stored capacity without claiming shared support', async () => {
+    const attempt = await runCapacity('["isolated"]', () => '[{"mode":"isolated","count":2}]');
+    expect(attempt.caught).toBeUndefined();
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(true);
+  });
+
+  it('refuses capacity reader/store failures and malformed capabilities or counts', async () => {
+    for (const fault of ['reader', 'store'] as const) {
+      const attempt = await runCapacity('["isolated"]', () => '[]', false, fault);
+      expect(attempt.caught).toHaveProperty('message', expect.stringContaining('failed'));
+      expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    }
+    for (const [supported, stored] of [
+      ['["isolated",1]', '[]'],
+      ['["isolated"]', '[{"mode":"shared","count":0}]'],
+      ['["isolated"]', '[{"mode":"shared","count":1.5}]'],
+      ['["isolated"]', '[{"kind":"shared","count":1}]'],
+    ]) {
+      const attempt = await runCapacity(supported, () => stored);
+      expect(attempt.caught).toHaveProperty('message', expect.stringContaining('malformed'));
+      expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    }
+  });
+
+  it('refuses shared capacity introduced after the first check once blue stops', async () => {
+    const attempt = await runCapacity(
+      '["isolated"]',
+      (read) => (read === 1 ? '[]' : '[{"mode":"shared","count":1}]'),
+      true,
+    );
+    expect(attempt.caught).toHaveProperty('message', expect.stringContaining('shared (1)'));
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('after the outgoing colour stopped'),
+    );
+    expect(attempt.reads).toBe(2);
+    expect(attempt.phases).toEqual(['old-stopped']);
+    expect(attempt.ran.some((args) => args[0] === 'stop' && args[1] === 'be-01-green')).toBe(false);
   });
 });

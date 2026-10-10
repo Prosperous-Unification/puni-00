@@ -246,11 +246,32 @@ async function readPid(path: string): Promise<number | undefined> {
   return pid;
 }
 
-async function processArguments(pid: number): Promise<readonly string[] | undefined> {
+/** Reads one `/proc/<pid>/cmdline`; injected only so tests can model kernel read races. */
+export type ReadProcessCommandLine = (path: string) => Promise<string>;
+
+const readProcessCommandLine: ReadProcessCommandLine = (path) => readFile(path, 'utf8');
+
+/**
+ * Return a live process's argv, or `undefined` once it is gone. A process that exits between the
+ * open and the read of its cmdline makes Linux fail the read with ESRCH, the same outcome as
+ * ENOENT. Any other failure throws with the pid as context.
+ */
+export async function processArguments(
+  pid: number,
+  read: ReadProcessCommandLine = readProcessCommandLine,
+): Promise<readonly string[] | undefined> {
   try {
-    return (await readFile(`/proc/${String(pid)}/cmdline`, 'utf8')).split('\0');
+    return (await read(`/proc/${String(pid)}/cmdline`)).split('\0');
   } catch (cause) {
-    if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return undefined;
+    // Proof: with the ESRCH branch removed, an injected reader rejecting with code ESRCH made
+    // lab.test.ts "treats a process that exits before or during the read as gone" fail.
+    if (
+      cause instanceof Error &&
+      'code' in cause &&
+      (cause.code === 'ENOENT' || cause.code === 'ESRCH')
+    ) {
+      return undefined;
+    }
     throw new Error(`Cannot inspect process ${String(pid)}`, { cause });
   }
 }

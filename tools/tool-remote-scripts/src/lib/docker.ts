@@ -296,6 +296,227 @@ export function assertTierEnvAllowed(tier: Tier, envText: string): void {
   }
 }
 
+/**
+ * Keys each tier's release refuses to boot without, in the tier's own env
+ * file. Mirrors the required keys of `apps/wbs/be-01/src/config.ts` and
+ * `apps/wbs/gw-01/src/config.ts`. `APP_ORIGIN` is absent because the rendered
+ * Compose `environment:` supplies it (`tierComposeContext`); solver and
+ * delegation keys are absent because the release defaults or disables them.
+ */
+const APP_ENV_REQUIRED_KEYS: Record<Tier, readonly string[]> = {
+  // Proof: dropping GW_URL here made `refuses a be env file without GW_URL`
+  // and `demands only keys the be release refuses to boot without` fail
+  // (164 pass, 2 fail, 2026-09-29).
+  be: ['PORT', 'LOG_LEVEL', 'GW_URL', 'DB_PATH', 'AUTH_MODE'],
+  gw: ['PORT', 'LOG_LEVEL', 'BE_URL', 'AUTH_MODE'],
+  fe: [],
+};
+
+/** Shared-file secrets each tier needs; gw's `JWT_SIGNING_KEY_PREVIOUS` is optional. */
+const SECRET_REQUIRED_KEYS: Record<Tier, readonly string[]> = {
+  be: ['INTERNAL_AUTH_SECRET', 'JWT_SIGNING_KEY_CURRENT'],
+  gw: ['INTERNAL_AUTH_SECRET', 'JWT_SIGNING_KEY_CURRENT'],
+  fe: [],
+};
+
+/**
+ * Provider keys `AUTH_MODE=oidc` needs in be (`oidcRouteOptionsFromEnv`) and
+ * gw (`oidcTokenVerifierFromEnv`); `AUTH_SCOPE` and `AUTH_GROUPS_CLAIM` default.
+ */
+const OIDC_REQUIRED_KEYS: readonly string[] = [
+  'AUTH_ISSUER_DISCOVERY_URL',
+  'AUTH_CLIENT_ID',
+  'AUTH_CLIENT_SECRET',
+  'AUTH_REDIRECT_URI',
+  'AUTH_AUDIENCE',
+];
+
+/** The operator-authored env text one tier's start-green reads, by source file. */
+export interface TierEnvSources {
+  readonly appEnvText: string;
+  /** The shared `.env`; null only for a tier with no secrets (fe). */
+  readonly sharedEnvText: string | null;
+  /** The OIDC carrier; null when the layout names none or the tier takes none. */
+  readonly oidcEnvText: string | null;
+}
+
+/** `KEY=VALUE` lines keyed by name, with `envKeysOf`'s skip rules; a later line wins, as in `env_file`. */
+function envValuesOf(envText: string): Map<string, string> {
+  const values = new Map<string, string>();
+  for (const rawLine of envText.split('\n')) {
+    const line = rawLine.trim();
+    if (line === '' || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    values.set(line.slice(0, eq), line.slice(eq + 1));
+  }
+  return values;
+}
+
+const LOG_LEVELS: ReadonlySet<string> = new Set([
+  'trace',
+  'debug',
+  'info',
+  'warn',
+  'error',
+  'fatal',
+]);
+
+const atLeast32 = (value: string): string | null =>
+  value.length >= 32 ? null : 'must be at least 32 characters';
+/**
+ * ArkType's `string.integer.parse` refuses leading zeros, so `0100` is not an
+ * integer to the loaders even though `Number` reads it as 100.
+ */
+const INTEGER = /^(?:0|[1-9]\d*)$/;
+const positiveInteger = (value: string): string | null =>
+  INTEGER.test(value) && Number(value) > 0 ? null : 'must be a positive integer';
+
+/**
+ * The value shapes the be-01 and gw-01 loaders enforce, as a reason or null.
+ * Written out here rather than imported: the swap bundle runs on the host and
+ * a tool may not import an app (`apps/wbs/<app>/src/config.ts` has no library
+ * alias). `assertTierEnvComplete against the release configuration` in
+ * docker.test.ts holds each rule to the real loaders: a value refused here is
+ * refused there, and a set admitted here boots there.
+ */
+const VALUE_RULES: Readonly<Partial<Record<string, (value: string) => string | null>>> = {
+  // Proof: restoring `/^\d+$/` as INTEGER made both release-coherence shape
+  // cases (PORT=0100, SOLVER_BUDGET_MS=007) and `refuses a PORT with a
+  // leading zero` fail (173 pass, 3 fail, 2026-09-29).
+  PORT: (value) => (INTEGER.test(value) ? null : 'must be an integer without leading zeros'),
+  LOG_LEVEL: (value) =>
+    LOG_LEVELS.has(value) ? null : `must be one of ${[...LOG_LEVELS].join('|')}`,
+  INTERNAL_AUTH_SECRET: atLeast32,
+  JWT_SIGNING_KEY_CURRENT: atLeast32,
+  JWT_SIGNING_KEY_PREVIOUS: atLeast32,
+  SOLVER_BUDGET_MS: positiveInteger,
+  SOLVER_SEARCH_WORKERS: positiveInteger,
+  SOLVER_MEMORY_LIMIT_MB: positiveInteger,
+  AUTH_REDIRECT_URI: (value) => {
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      return 'must be an absolute URL';
+    }
+    const ok =
+      (url.protocol === 'https:' || url.protocol === 'http:') &&
+      url.username === '' &&
+      url.password === '' &&
+      url.pathname === '/api/auth/okta/callback' &&
+      url.search === '' &&
+      url.hash === '';
+    return ok ? null : 'must be an HTTP URL ending in /api/auth/okta/callback';
+  },
+};
+
+/**
+ * Why Compose would not hand a value to the container byte for byte, or null.
+ * Compose strips surrounding quotes and an unquoted ` #` comment, and neither
+ * the swap nor its preflight parses either, so `KEY=""` would look nonempty
+ * here and arrive empty. Such values are refused rather than reinterpreted.
+ */
+function composeRewriteOf(value: string): string | null {
+  if (value.startsWith('"') || value.startsWith("'")) {
+    return 'is quoted; write it bare, because Compose strips the quotes';
+  }
+  if (/\s#/.test(value)) return 'contains " #", which Compose strips as a comment';
+  return null;
+}
+
+/**
+ * Throws, naming every missing key and the file that must carry it (never a
+ * value), when a tier's env files lack a key its release requires or name an
+ * auth mode it cannot boot in. `startGreen` runs this before any phase,
+ * Compose or Docker side effect, so an env file written for an older release
+ * refuses the swap instead of failing the health gate after migrating.
+ *
+ * An empty value counts as missing: `defineConfig`, `authModeOf` and
+ * `oidcRouteOptionsFromEnv` each reject `KEY=` as they reject an absent key.
+ * A present value must also have the shape its loader demands
+ * ({@link VALUE_RULES}) and reach the container unchanged by Compose
+ * ({@link composeRewriteOf}); each such refusal names key, file and rule.
+ * `AUTH_MODE=local` is refused because the be-01 and gw-01 images set
+ * `NODE_ENV=production`, no env file may override it (`APP_ENV_ALLOWED_KEYS`),
+ * and `authModeOf` refuses local mode in production.
+ *
+ * @throws When a required key is missing or empty, when the mode is not oidc,
+ * or when oidc is named and the layout has no carrier or it was not read.
+ */
+export function assertTierEnvComplete(
+  tier: Tier,
+  sources: TierEnvSources,
+  layout: EnvLayout = CURRENT_ENV,
+): void {
+  const appPath = `${layout.root}/${APP_NAME[tier]}.env`;
+  const app = envValuesOf(sources.appEnvText);
+  const missing: string[] = [];
+  const malformed: string[] = [];
+  const collectMissing = (keys: readonly string[], text: string, path: string): void => {
+    const values = envValuesOf(text);
+    for (const key of keys) {
+      const value = values.get(key);
+      if (value === undefined || value === '') missing.push(`${key} (${path})`);
+    }
+    for (const [key, value] of values) {
+      // An empty optional key still reaches the loader, which refuses it
+      // (`JWT_SIGNING_KEY_PREVIOUS=` fails gw's `string>=32`), so only keys
+      // without a rule may be empty here.
+      // Proof: skipping every empty value again made `refuses an empty
+      // optional signing key` and both release-coherence shape cases fail
+      // (173 pass, 3 fail, 2026-09-29).
+      if (value === '' && VALUE_RULES[key] === undefined) continue;
+      // Proof: skipping this line's rules made five cases fail (169 pass,
+      // 5 fail, 2026-09-29): the 20-character signing key, the quoted `""`,
+      // PORT=32o0, LOG_LEVEL=verbose and both release-coherence shape cases.
+      const reason = composeRewriteOf(value) ?? VALUE_RULES[key]?.(value) ?? null;
+      if (reason !== null) malformed.push(`${key} (${path}) ${reason}`);
+    }
+  };
+  collectMissing(APP_ENV_REQUIRED_KEYS[tier], sources.appEnvText, appPath);
+  if (SECRET_REQUIRED_KEYS[tier].length > 0) {
+    if (sources.sharedEnvText === null) {
+      throw new Error(`tier "${tier}" needs ${layout.sharedEnvPath}, which was not read`);
+    }
+    collectMissing(SECRET_REQUIRED_KEYS[tier], sources.sharedEnvText, layout.sharedEnvPath);
+  }
+  const mode = app.get('AUTH_MODE');
+  // Proof: narrowing this to fe made both `refuses AUTH_MODE=local` suites
+  // fail on the missing NODE_ENV=production reason (163 pass, 3 fail, 2026-09-29).
+  if (mode === 'local') {
+    throw new Error(
+      `${appPath} sets AUTH_MODE=local, which the ${APP_NAME[tier]} image refuses at startup: ` +
+        'the image sets NODE_ENV=production and no env file may override it. Use ' +
+        'AUTH_MODE=oidc with the OIDC carrier (docs/runbook-prod-deploy.md#first-product-deploy).',
+    );
+  }
+  if (mode === 'oidc') {
+    if (layout.oidcEnvPath === null) {
+      throw new Error(
+        `${appPath} sets AUTH_MODE=oidc but the ${layout.env} layout names no OIDC carrier, ` +
+          `so ${OIDC_REQUIRED_KEYS.join(', ')} cannot reach the container.`,
+      );
+    }
+    if (sources.oidcEnvText === null) {
+      throw new Error(`tier "${tier}" needs ${layout.oidcEnvPath}, which was not read`);
+    }
+    collectMissing(OIDC_REQUIRED_KEYS, sources.oidcEnvText, layout.oidcEnvPath);
+  } else if (mode !== undefined && mode !== '') {
+    throw new Error(`${appPath} sets AUTH_MODE=${mode}; the release accepts only oidc`);
+  }
+  if (missing.length > 0 || malformed.length > 0) {
+    const parts = [
+      missing.length > 0 ? `missing key(s) its release requires: ${missing.join(', ')}` : '',
+      malformed.length > 0 ? `malformed value(s): ${malformed.join('; ')}` : '',
+    ].filter((part) => part !== '');
+    throw new Error(
+      `tier "${tier}" has ${parts.join('; and ')}. Fix them before deploying; the release ` +
+        'would otherwise fail its health gate after migrating.',
+    );
+  }
+}
+
 function envFilesBlock(tier: Tier, layout: EnvLayout = CURRENT_ENV): string {
   const lines = tierEnvFiles(tier, layout).map((f) => `      - ${f}`);
   return `    env_file:\n${lines.join('\n')}\n`;
@@ -533,6 +754,22 @@ export function revokeAliasCommands(from: Color): string[][] {
 }
 
 /**
+ * Where the `backup-db` step writes its snapshot, as the incoming container
+ * sees the data volume (`volumesBlock` mounts `<root>/data` at `/data`). The
+ * stamp keeps a rerun of the same release from colliding with an earlier
+ * backup, which `snapshotDatabase` would refuse to overwrite.
+ */
+export function backupSnapshotPath(sha: string, now: Date): string {
+  const stamp = now.toISOString().replaceAll(/[-:.]/g, '');
+  return `/data/backups/wbs-pre-${sha}-${stamp}.db`;
+}
+
+/** Takes the pre-migration backup from inside the incoming container. */
+export function backupDbCommand(container: string, snapshotPath: string): string[] {
+  return ['exec', container, 'bun', 'run', 'src/backup-db-cli.ts', snapshotPath];
+}
+
+/**
  * Reads which migrations are already applied, from inside the container that
  * is about to apply more. Run immediately before the migrate step: its output
  * is the only thing that tells an abort how far back to unwind.
@@ -669,4 +906,50 @@ export function migrateDownCommand(container: string, baseline: string): string[
     throw new Error('migrateDownCommand needs a baseline migration name, or "none"');
   }
   return ['exec', container, 'bun', 'run', 'src/migrate-down-cli.ts', `--to=${baseline}`];
+}
+
+/**
+ * Incoming runtime capability; only an absent CLI under readable source denotes an isolated older release.
+ * Proof: removing the symlink or source guard fails the physical dangling-link/missing-source negatives.
+ */
+export function capacityModesCommand(container: string): string[] {
+  return [
+    'exec',
+    container,
+    'sh',
+    '-c',
+    'if test -f src/capacity-modes-cli.ts; then bun run src/capacity-modes-cli.ts; elif test -e src/capacity-modes-cli.ts || test -L src/capacity-modes-cli.ts; then exit 73; elif test -d src && test -r src && test -x src; then printf \'["isolated"]\\n\'; else exit 74; fi',
+  ];
+}
+
+/**
+ * Reads real SQLite encodings without relying on the incoming release's decoder. An absent old
+ * column denotes isolated mode; a present malformed encoding or unreadable database throws.
+ * Proof: forcing old-column detection hides real shared counts; mutable opening creates the absent database.
+ */
+export function storedCapacityModesCommand(container: string): string[] {
+  return [
+    'exec',
+    container,
+    'bun',
+    '-e',
+    `import { Database } from 'bun:sqlite';
+const path = process.env.DB_PATH;
+if (!path) throw new Error('DB_PATH must be set');
+const db = new Database(path, { readonly: true });
+try {
+  // Proof: treating a missing table as empty fails the physical malformed-schema negative.
+  const table = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='organization'").get();
+  if (table === null) throw new Error('organization table is missing');
+  const column = db.query("SELECT name FROM pragma_table_info('organization') WHERE name='shared_people'").get();
+  const rows = column === null
+      ? db.query("SELECT 'isolated' AS mode, count(*) AS count FROM organization HAVING count(*) > 0").all()
+      : db.query('SELECT shared_people AS encoding, count(*) AS count FROM organization GROUP BY shared_people ORDER BY shared_people').all().map((row) => {
+          // Proof: bypassing decoding accepts corrupt modes in the physical SQLite probe test.
+          if (row.encoding !== 0 && row.encoding !== 1) throw new Error('invalid stored shared_people');
+          return { mode: row.encoding === 0 ? 'isolated' : 'shared', count: row.count };
+        });
+  console.log(JSON.stringify(rows));
+} finally { db.close(); }`,
+  ];
 }

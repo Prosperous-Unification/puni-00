@@ -3,9 +3,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { clockOf } from '@wbs/core';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import type { ReservedSolverChild, ReservedSpawnRequest } from '../module/optimization/contract';
+import { OptimizationCoordinator } from '../module/optimization/optimization.feature';
+import {
+  runSolverChildLifecycle,
+  type SolverChildLifecycleOptions,
+  type SolverChildSlot,
+} from '../module/optimization/solver-child-lifecycle';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
@@ -19,17 +27,6 @@ import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { optimizedScheduleCache, solverQueue, solverSlot } from '../repository/schema';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
-import {
-  OptimizationCoordinator,
-  type ReservedSolverChild,
-  type ReservedSpawnRequest,
-} from './optimization-coordinator';
-import { ProjectService } from './project.service';
-import {
-  runSolverChildLifecycle,
-  type SolverChildLifecycleOptions,
-  type SolverChildSlot,
-} from './solver-child-lifecycle';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '7+1.0.0';
@@ -234,7 +231,7 @@ describe('cross-coordinator cancellation', () => {
       repository: createOptimizationRepository(blue, new DrizzleEventLogStore(blue, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -263,11 +260,11 @@ describe('cross-coordinator cancellation', () => {
         if (attempt === undefined) throw new Error('spawned child was not recorded');
         return runSolverChildLifecycle({ ...options, sleep: attempt.heartbeat.sleep });
       },
-      pushRecorded: () => Promise.resolve(),
+      deliverCommitted: () => Promise.resolve(),
       onChildError: (error) => errors.push(error),
     });
 
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input })).toBeNull();
     await until(
       () =>
         attempts.length === 2 &&

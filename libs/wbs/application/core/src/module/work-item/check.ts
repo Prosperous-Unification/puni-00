@@ -17,6 +17,9 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
   const bag = DiBag.createBuilder()
     .withInstalledModules([workItemModule])
     .withServices({
+      livePlans: DiBag.createProvider(() => requirements.livePlans, {
+        factoryReturnKind: 'sync-value',
+      }),
       workItemStore: DiBag.createProvider(() => requirements.workItems, {
         factoryReturnKind: 'sync-value',
       }),
@@ -63,6 +66,11 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
         factoryReturnKind: 'sync-value',
       }),
       scheduler: DiBag.createProvider(() => requirements.scheduler, {
+        factoryReturnKind: 'sync-value',
+      }),
+      // Proof: returning undefined here made the isolated mounted arrange
+      // enter live admission and answer 500 instead of 200.
+      schedulerMode: DiBag.createProvider(() => requirements.schedulerMode, {
         factoryReturnKind: 'sync-value',
       }),
       clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),

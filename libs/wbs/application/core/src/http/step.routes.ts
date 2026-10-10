@@ -3,9 +3,9 @@ import { allowancePercentOf, NO_ALLOWANCE } from '@wbs/domain';
 
 import type { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
 import { runCommandBatchAfter } from '../module/plan-commands/run-command-batch';
+import type { StepOutcome, StepService } from '../module/step/step.resource';
 import type { OrganizationAccess, ResourceAccess } from '../ports/organization-access';
 import type { Step } from '../ports/step-store';
-import type { StepOutcome, StepService } from '../service/step.service';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 import { type RecoveryWriteBoundary, runRecoveryWrite } from './recovery-write';

@@ -1,17 +1,17 @@
 import { clockOf } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
-import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { AuthService } from '../service/auth.service';
 import type {
   OptimizationCoordinator,
   OptimizationRetryResult,
-} from '../service/optimization-coordinator';
-import { ProjectService } from '../service/project.service';
-import { WorkItemService } from '../service/work-item.service';
+} from '../module/optimization/optimization.feature';
+import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
@@ -35,6 +35,7 @@ import {
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects, memoryProjectTables, projectRow } from '../testing/project-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
@@ -125,6 +126,7 @@ function buildHarness(
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
+    projectRanks: refusingProjectRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
@@ -271,7 +273,7 @@ describe('projects', () => {
       slices: unknown[];
     };
     expect(body.project).toMatchObject({ id: project.id, name: 'Export me' });
-    expect(body.document).toMatchObject({ format: 'wbs-plan', version: 5 });
+    expect(body.document).toMatchObject({ format: 'wbs-plan', version: 6 });
     expect(Number.isNaN(Date.parse(body.document.exportedAt))).toBe(false);
     expect(body.settings).toMatchObject({
       name: 'Export me',

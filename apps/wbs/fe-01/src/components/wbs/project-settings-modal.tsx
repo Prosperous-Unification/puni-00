@@ -369,6 +369,11 @@ export function ProjectSettingsModal({
           variant="outline"
           size={trigger === 'glyph' ? 'square' : 'sm'}
           type="button"
+          // Proof: withholding the initial work-items GET with this guard absent
+          // made project-settings.spec.ts's initial-read regression fail:
+          // expected disabled, received enabled. Empty bands precede the first
+          // authoritative read (usePlanReadState); mounted drafts must not reseed.
+          disabled={priorities.bands.length === 0}
           aria-label="Project settings"
           data-hint="Teams, priorities and steps of this project"
         >

@@ -55,13 +55,12 @@ interface ImportRule {
  * `apps/wbs/be-01/src/repository/optimization-admission.ts`,
  * `libs/wbs/adapters/store-sqlite/src/optimization-admission.ts` and
  * `apps/wbs/be-01/src/module/optimization/solver-child-lifecycle.ts` (0 pass, 1 fail each).
- * Proof (2026-09-24): prepending
- * `import type { ReservedSpawner as FeatureSpawner } from '../../service/optimization-coordinator';`
- * to `module/solver-supervisor/solver-supervisor-spawner.ts` failed it with exactly
- * `'../../service/optimization-coordinator' reaches apps/wbs/be-01/src/service/optimization-coordinator.ts`;
- * prepending `import '../optimization/optimization.feature';` instead failed it with exactly
+ * Proof (2026-09-24): prepending `import '../optimization/optimization.feature';` to
+ * `module/solver-supervisor/solver-supervisor-spawner.ts` failed it with exactly
  * `'../optimization/optimization.feature' reaches apps/wbs/be-01/src/module/optimization/optimization.feature.ts`
- * (0 pass, 1 fail each).
+ * (0 pass, 1 fail). The former `service/optimization-coordinator.ts` shim, which this rule
+ * also refused, was retired with its importers; the same injected import failed the narrowed
+ * rule with the same single violation (2026-09-29, 0 pass, 1 fail).
  */
 const rules: readonly ImportRule[] = [
   // Proof (2026-09-27): an injected import through ../../repository/optimization-admission
@@ -94,9 +93,8 @@ const rules: readonly ImportRule[] = [
   {
     from: (path) => path.startsWith('module/solver-supervisor/'),
     reaches: (declared) =>
-      declared === 'apps/wbs/be-01/src/service/optimization-coordinator.ts' ||
-      (declared.startsWith('apps/wbs/be-01/src/module/optimization/') &&
-        declared !== 'apps/wbs/be-01/src/module/optimization/contract.ts'),
+      declared.startsWith('apps/wbs/be-01/src/module/optimization/') &&
+      declared !== 'apps/wbs/be-01/src/module/optimization/contract.ts',
   },
 ];
 

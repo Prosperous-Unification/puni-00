@@ -7,11 +7,11 @@ import type { PlanTransactionalStores } from '../../ports/stores';
 import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
 import type { Scope } from '../../ports/unit-of-work';
 import type { LabelledWorkItem } from '../../ports/work-item-store';
-import { createWorkingPlanDirectory } from './working-plan-directory';
-import { createWorkingPlanEdges } from './working-plan-edges';
-import { createWorkingPlanRows } from './working-plan-rows';
-import { createWorkingPlanSubtrees } from './working-plan-subtrees';
-import { createWorkingPlanValues } from './working-plan-values';
+import { createWorkingPlanDirectory } from './working-plan-directory.resource';
+import { createWorkingPlanEdges } from './working-plan-edges.resource';
+import { createWorkingPlanRows } from './working-plan-rows.resource';
+import { createWorkingPlanSubtrees } from './working-plan-subtrees.resource';
+import { createWorkingPlanValues } from './working-plan-values.resource';
 
 /** One project's lazily retained reads, owned by one admitted command batch. */
 export interface WorkingPlan {
@@ -374,6 +374,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   );
 
   const stores: PlanTransactionalStores = {
+    get livePlans() {
+      assertOpen();
+      return scope.stores.livePlans;
+    },
     get projects() {
       assertOpen();
       return scope.stores.projects;

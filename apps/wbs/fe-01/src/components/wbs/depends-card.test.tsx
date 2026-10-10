@@ -199,10 +199,37 @@ describe('the dependency-card pointer bridge', () => {
       // 2026-09-13.
       expect(done.getAttribute('data-status')).toBe('done');
       expect(done.style.borderLeft).toBe('3px solid var(--status-done)');
-      expect(going.style.borderLeft).toBe('3px solid transparent');
+      expect(going.style.borderLeft).toBe('3px solid var(--status-in-progress)');
       expect(going.style.paddingLeft).toBe(done.style.paddingLeft);
     },
   );
+
+  itDom('borders each predecessor in its own status colour (add-work-item-statuses)', () => {
+    render(
+      <DependsCard
+        number="050"
+        entries={[
+          { id: 'w1', number: '010', name: 'Strip', status: 'blocked' },
+          { id: 'w2', number: '020', name: 'Sand', status: 'on_hold' },
+          { id: 'w3', number: '030', name: 'Prime', status: 'blocked_by_proxy' },
+          { id: 'w4', number: '040', name: 'Paint', status: 'unknown' },
+        ]}
+        depLights={createDepLights()}
+        rowId="row"
+        onPointEntry={() => undefined}
+        onPointerOutside={() => undefined}
+      />,
+    );
+
+    expect(
+      screen.getAllByTestId('depends-card-target').map((target) => target.style.borderLeft),
+    ).toEqual([
+      '3px solid var(--status-blocked)',
+      '3px solid var(--status-on-hold)',
+      '3px solid var(--status-blocked-by-proxy)',
+      '3px solid transparent',
+    ]);
+  });
 
   itDom('keeps the strip where it stands when the pointer lights one line', () => {
     // Dany, 2026-09-13: "the status badge flickers when focus on tag vs when
@@ -241,7 +268,7 @@ describe('the dependency-card pointer bridge', () => {
 
     expect(done.style.background).toBe('var(--card-dep-lit)');
     expect(boxOf(done)).toEqual(atRest);
-    expect(boxOf(going)).toEqual({ ...atRest, borderLeft: '3px solid transparent' });
+    expect(boxOf(going)).toEqual({ ...atRest, borderLeft: '3px solid var(--status-in-progress)' });
   });
 
   itDom('keeps the surface passive and only the unfocusable rows interactive', () => {

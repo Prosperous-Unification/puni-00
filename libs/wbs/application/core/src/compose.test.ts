@@ -13,17 +13,17 @@ import {
   type SharedComposition,
   type WritingServices,
 } from './compose';
+import { createPlanCommandRunner } from './module/plan-commands/composition';
+import { replay } from './module/realtime/realtime.feature';
+import { savePlan } from './module/saved-plans/save-plan';
 import { clockOf } from './ports/clock';
 import { CREATOR_ADMISSION, type EditAdmission } from './ports/edit-admission';
 import { LEGACY_ACCESS } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
 import type { Scope } from './ports/unit-of-work';
 import type { Decision } from './ports/unit-of-work';
-import { PlanCommandRunner } from './service/plan-commands';
 import { recordingBroadcaster } from './testing/broadcast-fixture';
 import { fastScheduler } from './testing/scheduler-fixture';
-import { replay } from './use-cases/replay';
-import { savePlan } from './use-cases/save-plan';
 
 function signal(): { readonly promise: Promise<void>; readonly resolve: () => void } {
   let resolve = (): void => {
@@ -117,6 +117,73 @@ function fixture() {
     },
   };
 }
+
+test('stored outcome and downstream recipient retain their sequences while reaction precedes held outcome transport', async () => {
+  const given = fixture();
+  const transport = signal();
+  const changed: string[] = [];
+  const pushed: unknown[] = [];
+  const graph = composeServices({
+    source: given.source,
+    shared: fixtureShared,
+    runtime: {
+      ...given.runtime,
+      onPlanChanged: (projectId) => changed.push(projectId),
+      push: {
+        push: async (payload) => {
+          pushed.push(payload);
+          await transport.promise;
+          return { delivered: 1 };
+        },
+      },
+    },
+  });
+  const event = {
+    type: 'elsewhere_changed' as const,
+    projectId: 'recipient',
+    causeProjectId: 'cause',
+  };
+  const outcome = {
+    type: 'schedule_optimization_failed' as const,
+    projectId: 'origin',
+    generation: 1,
+    inputHash: 'captured-input',
+    objective: 'pri' as const,
+    contractVersion: '7+0.2.0',
+    budgetMs: 60_000,
+    failureReason: 'internal-error' as const,
+  };
+  const recordedOutcome = await given.source.stores.eventLog.recordEvent(
+    'project:origin',
+    outcome,
+    1_000,
+  );
+  const recorded = await given.source.stores.eventLog.recordEvent(
+    'project:recipient',
+    event,
+    1_000,
+  );
+  const delivering = graph.committedFanout.deliverCommitted([
+    { projectId: 'origin', event: outcome, recorded: recordedOutcome },
+    { projectId: 'recipient', event, recorded },
+  ]);
+  expect(changed).toEqual(['recipient']);
+  const secondWriter = await given.source.uow.run(() =>
+    Promise.resolve({ commit: true as const, value: 'entered' }),
+  );
+  expect(secondWriter).toBe('entered');
+  expect(pushed).toEqual([
+    { subscription: 'project:origin', seq: recordedOutcome.seq, message: outcome },
+  ]);
+  transport.resolve();
+  await delivering;
+  expect(pushed).toEqual([
+    { subscription: 'project:origin', seq: recordedOutcome.seq, message: outcome },
+    { subscription: 'project:recipient', seq: recorded.seq, message: event },
+  ]);
+  expect(await given.source.stores.eventLog.latestSeq('project:origin')).toBe(recordedOutcome.seq);
+  expect(await given.source.stores.eventLog.latestSeq('project:recipient')).toBe(recorded.seq);
+});
 
 function runtimeOf(services: WritingServices): {
   readonly clock: unknown;
@@ -380,7 +447,7 @@ describe('composeServices', () => {
       graphs.push(services);
       return services;
     };
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       batchServices: observedGraph.batch,
       publicServices: graph,
       uow: graph.uow,

@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
-import { existsSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { LaneProcess } from '../testing/lane-process';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 describe('organization join request decisions', () => {
@@ -24,7 +25,8 @@ describe('organization join request decisions', () => {
     );
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await LaneProcess.stopAll();
     harness.close();
   });
 
@@ -304,49 +306,32 @@ describe('organization join request decisions', () => {
       const workerPath = new URL('../testing/join-request-decision.worker.ts', import.meta.url)
         .pathname;
       const workers = pair.map((decision, lane) =>
-        Bun.spawn(
-          [
-            process.execPath,
-            workerPath,
-            databasePath,
-            harness.userId('owner'),
-            id,
-            decision,
-            `${databasePath}.${String(lane)}`,
-          ],
-          { stdout: 'pipe', stderr: 'pipe' },
-        ),
+        LaneProcess.spawn([
+          process.execPath,
+          workerPath,
+          databasePath,
+          harness.userId('owner'),
+          id,
+          decision,
+          String(lane),
+        ]),
       );
       let locked = false;
       try {
         harness.sqlite.run('BEGIN IMMEDIATE');
         locked = true;
-        for (let wait = 0; wait < 500; wait++) {
-          if (pair.every((_, lane) => existsSync(`${databasePath}.${String(lane)}.ready`))) break;
-          await Bun.sleep(10);
-        }
-        expect(pair.every((_, lane) => existsSync(`${databasePath}.${String(lane)}.ready`))).toBe(
-          true,
-        );
+        await Promise.all(workers.map((worker) => worker.expectLine('ready')));
         writeFileSync(`${databasePath}.go`, 'go');
-        for (let wait = 0; wait < 500; wait++) {
-          if (pair.every((_, lane) => existsSync(`${databasePath}.${String(lane)}.attempt`))) break;
-          await Bun.sleep(10);
-        }
-        expect(pair.every((_, lane) => existsSync(`${databasePath}.${String(lane)}.attempt`))).toBe(
-          true,
-        );
+        await Promise.all(workers.map((worker) => worker.expectLine('attempt')));
         await Bun.sleep(150);
         harness.sqlite.run('COMMIT');
         locked = false;
         const answers = await Promise.all(
           workers.map(async (worker) => {
-            const exit = await worker.exited;
-            const body = await new Response(worker.stdout).text();
-            const errors = await new Response(worker.stderr).text();
-            expect(exit, errors).toBe(0);
-            expect(errors).toBe('');
-            return JSON.parse(body) as { ok: boolean; refusal?: string };
+            const exit = await worker.finish();
+            expect(exit.code, exit.errors).toBe(0);
+            expect(exit.errors).toBe('');
+            return JSON.parse(exit.answer) as { ok: boolean; refusal?: string };
           }),
         );
         expect(answers.map((answer) => answer.ok).sort()).toEqual([false, true]);
@@ -361,7 +346,6 @@ describe('organization join request decisions', () => {
         expect(request.invitation_id === null).toBe(request.status === 'denied');
       } finally {
         if (locked) harness.sqlite.run('ROLLBACK');
-        for (const worker of workers) worker.kill();
       }
     });
   }

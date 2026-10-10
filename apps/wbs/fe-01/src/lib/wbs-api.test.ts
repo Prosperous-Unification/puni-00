@@ -129,7 +129,7 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
     ...tree,
     project: PROJECT,
     stepNodes: [],
-    document: { format: 'wbs-plan', version: 5, exportedAt: '2026-09-14T08:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 6, exportedAt: '2026-09-14T08:30:00.000Z' },
     typedDependencies: [],
     settings: {
       name: PROJECT.name,
@@ -187,7 +187,7 @@ describe('plan JSON transfer', () => {
     expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
   });
 
-  it('downloads a version-5 JSON representation containing a typed dependency', async () => {
+  it('downloads a version-6 JSON representation containing a typed dependency', async () => {
     const document = PLAN_DOCUMENT(['first', 'second']);
     document['typedDependencies'] = [
       {
@@ -893,8 +893,8 @@ describe('what a refused directory change says', () => {
   });
 
   it('has a sentence for every code the directory routes answer with', () => {
-    // The list is `statusFor` and `DirectoryRefusal` in
-    // `apps/wbs/be-01/src/service/directory.service.ts`, plus the one this client
+    // The list is `DirectoryRefusal` in
+    // `libs/wbs/application/core/src/module/directory/directory.resource.ts`, plus the one this client
     // raises itself. A code with no sentence would reach the page as itself.
     for (const code of [
       'name_required',
@@ -1416,6 +1416,28 @@ describe('read ownership across API lifetimes', () => {
       systemId: 'sys-jira',
       url: 'https://jira.example.test/browse/WBS-7',
     });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
+    );
+
+    await expect(httpProjectApi('t').tree('p1')).rejects.toMatchObject({
+      message: 'invalid_response',
+      problem: { kind: 'failure', failure: { code: 'invalid_response' } },
+    });
+  });
+
+  it('rejects a status word it does not know, so the plan reads as a failed query and never a blank glyph', async () => {
+    // `add-work-item-statuses`: the Status cell draws `STATUS_GLYPH[status]`,
+    // which is nothing for a word this client has never heard of. The read's
+    // own schema is where that is caught, once, and the page's query-failure
+    // state is what a rejected tree read renders.
+    // Proof: with the contract's `status` widened to `string` in
+    // `libs/wbs/domain/contracts/src/http/work-item-response.ts`, this failed
+    // on `promise resolved … instead of rejecting`; watched 2026-09-29.
+    const tree = JSON.parse(TREE('p1', ['w1'])) as { workItems: { status: string }[] };
+    const [row] = tree.workItems;
+    row.status = 'paused';
     vi.stubGlobal(
       'fetch',
       vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),

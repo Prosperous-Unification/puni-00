@@ -1,6 +1,6 @@
+import type { OptimizedScheduleAdapter } from '@wbs/core';
 import { describe, expect, it } from 'bun:test';
 
-import type { OptimizedScheduleReader } from './optimized-schedule-reader';
 import { optimizerWiring } from './optimizer-wiring';
 
 /**
@@ -22,7 +22,7 @@ describe('optimizerWiring', () => {
   it('reports available exactly when it is holding the reader it hands out', () => {
     // Never called: what is under test is the pairing, not the read. A reader
     // that threw would prove the same thing, and less clearly.
-    const read: OptimizedScheduleReader = () => ({
+    const read: OptimizedScheduleAdapter['readCaptured'] = () => ({
       inputHash: 'hash',
       generation: null,
       contractVersion: '7+test',
@@ -30,7 +30,10 @@ describe('optimizerWiring', () => {
       variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
       schedules: { pri: null, time: null },
     });
-    const wiring = optimizerWiring({ readLive: read, readCaptured: read });
+    const wiring = optimizerWiring({
+      readLive: (ask) => Promise.resolve(read(ask)),
+      readCaptured: read,
+    });
     expect(wiring.scheduler.supports('optimized')).toBe(true);
     expect(wiring.available()).toBe(true);
   });

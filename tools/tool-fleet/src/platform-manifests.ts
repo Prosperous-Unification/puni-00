@@ -579,3 +579,69 @@ export function assertRetainedClaims(manifests: readonly PlatformManifest[]): vo
     throw new Error('The local puni-retain StorageClass must exist once with reclaimPolicy Retain');
   }
 }
+
+/** Namespaces whose workloads come from application repos rather than from the platform. */
+export const tenantNamespaces = ['wbs', 'workers', 'website-dev'] as const;
+
+const RestrictedNamespace = type({
+  kind: "'Namespace'",
+  metadata: {
+    name: 'string>0',
+    labels: {
+      'pod-security.kubernetes.io/enforce': "'restricted'",
+      'pod-security.kubernetes.io/enforce-version': "'latest'",
+    },
+  },
+});
+const NamedNamespace = type({ kind: "'Namespace'", metadata: { name: 'string>0' } });
+const DefaultDeny = type({
+  kind: "'NetworkPolicy'",
+  metadata: { name: "'default-deny'", namespace: 'string>0' },
+  spec: {
+    podSelector: { '+': 'reject' },
+    policyTypes: ["'Ingress'", "'Egress'"],
+    '+': 'reject',
+  },
+});
+
+/**
+ * Require every tenant namespace to be declared by `infra/platform/policy` with Pod Security
+ * `restricted` enforced and a `default-deny` NetworkPolicy that selects every pod and denies
+ * both directions, so an application repo can only add allow rules and never widen admission.
+ *
+ * Throws naming the namespace when either is missing or weaker.
+ */
+export function assertTenantIsolation(manifests: readonly PlatformManifest[]): void {
+  for (const namespace of tenantNamespaces) {
+    const declared = manifests.filter(({ path, document }) => {
+      const named = NamedNamespace(document);
+      return (
+        path.startsWith('policy/') &&
+        !(named instanceof type.errors) &&
+        named.metadata.name === namespace
+      );
+    });
+    if (
+      declared.length !== 1 ||
+      RestrictedNamespace(declared[0]?.document) instanceof type.errors
+    ) {
+      // Proof: with this guard removed, platform.test.ts `rejects a tenant namespace without
+      // restricted Pod Security or default-deny` resolved for the deleted enforce label on
+      // 2026-10-06.
+      throw new Error(`tenant namespace ${namespace} must enforce Pod Security restricted`);
+    }
+    const denied = manifests.some(({ path, document }) => {
+      const policy = DefaultDeny(document);
+      return (
+        path.startsWith('policy/') &&
+        !(policy instanceof type.errors) &&
+        policy.metadata.namespace === namespace
+      );
+    });
+    if (!denied) {
+      // Proof: with this guard removed, the same test resolved for the deleted website-dev
+      // default-deny on 2026-10-06.
+      throw new Error(`tenant namespace ${namespace} has no default-deny NetworkPolicy`);
+    }
+  }
+}

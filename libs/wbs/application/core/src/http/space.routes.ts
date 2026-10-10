@@ -113,6 +113,7 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       const outcome = await spaces.rollUps(principal.id, resolved.access, params.id, projectIds);
+      if ('kind' in outcome) return organizationRefusal(outcome.refusal);
       return outcome.ok
         ? { ok: true, status: 200, body: { rollUps: outcome.value } }
         : refused(outcome.refusal);
@@ -123,6 +124,7 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       const outcome = await spaces.inProgress(principal.id, resolved.access, params.id, limit);
+      if ('kind' in outcome) return organizationRefusal(outcome.refusal);
       return outcome.ok ? { ok: true, status: 200, body: outcome.value } : refused(outcome.refusal);
     }),
     bind(renameSpace, async ({ params, body, principal }) => {

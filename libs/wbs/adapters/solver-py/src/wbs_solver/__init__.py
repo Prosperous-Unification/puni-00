@@ -5,8 +5,8 @@ reads it from here (pyproject.toml `[tool.setuptools.dynamic]`), so the running
 interpreter and the installed metadata cannot drift apart, and the coordinator
 reads the installed metadata as the `solverVersion` half of `contractVersion`.
 
-It is `0.1.4` because FF start weights and integer-infeasibility outcomes
-changed after 0.1.3; old cached certificates must not share this release key.
+It is `0.2.0` because wire 3 requires fixed person calendars; old cached
+certificates must not share this release key.
 The golden request corpus spends the new string.
 See pyproject.toml's header for the full argument; `tests/test_version.py`
 asserts the pin against the corpus rather than restating it.
@@ -19,6 +19,6 @@ gate from the same version-locked distribution.
 
 # Proof: at 0.1.3 the mounted cache regression read an old integer-infeasibility
 # certificate under the current fixture key (expected miss, received certificate).
-__version__ = "0.1.4"
+__version__ = "0.2.0"
 
 __all__ = ["__version__"]

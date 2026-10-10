@@ -172,7 +172,7 @@ export interface DirectoryUsage {
 }
 
 /**
- * Mirrors apps/wbs/be-01/src/service/step.service.ts::StepInUse, including explicit
+ * Mirrors libs/wbs/application/core/src/module/step/step.resource.ts::StepInUse, including explicit
  * assignments omitted by the initial HTTP inventory. Proof (type boundary only):
  * making assignments optional produces TS2578 for its missing-field fixture.
  */
@@ -420,7 +420,12 @@ export type OptimizerRetryRefusal =
       code: 'not-retryable';
       state: 'ready' | 'pending' | 'retrying' | 'failed' | 'corrupt' | 'plan-infeasible' | 'idle';
     }
-  | { code: 'already-running' };
+  | { code: 'already-running' }
+  | {
+      code: 'schedule-input-unavailable';
+      reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
+      projectId: string;
+    };
 
 export type Refusal<C extends RefusalCode = RefusalCode> = ErrorRefusal<C> | OptimizerRetryRefusal;
 

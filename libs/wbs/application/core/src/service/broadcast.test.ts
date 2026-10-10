@@ -3,12 +3,12 @@ import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture'
 import { testCalendarMarkerService } from '@wbs/store-memory/testing/service-fixtures';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
+import type { CalendarMarkerService } from '../module/calendar-marker/calendar-marker.resource';
+import type { WorkItemService } from '../module/work-item/work-item.resource';
 import type { ProjectEvent } from '../ports/project-event';
 import type { Project, ProjectStore } from '../ports/project-store';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryServices } from '../testing/harness';
-import type { CalendarMarkerService } from './calendar-marker.service';
-import type { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
 

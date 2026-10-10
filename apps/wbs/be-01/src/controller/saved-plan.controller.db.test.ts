@@ -3,6 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { AnnouncementCollector } from '@wbs/core';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { UnknownSavedPlanBodyVersionError } from '@wbs/core/module/saved-plans/saved-plan-integrity';
+import { type AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
+import { defaultSavedPlanName } from '@wbs/core/service/saved-plan-default-name';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn, test } from 'bun:test';
 
@@ -16,10 +20,6 @@ import { StepRepository } from '../repository/step';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { type AuthenticatedUser, AuthService } from '../service/auth.service';
-import { ProjectService } from '../service/project.service';
-import { defaultSavedPlanName } from '../service/saved-plan-default-name';
-import { UnknownSavedPlanBodyVersionError } from '../service/saved-plan-integrity';
 import { testApp } from '../testing/app-fixture';
 import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -44,6 +44,7 @@ import {
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { projectRow, testProjectService } from '../testing/project-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { savedPlanServiceOn, testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
@@ -128,6 +129,7 @@ describe('the saved-plan routes', () => {
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
       spaces: refusingSpaces,
+      projectRanks: refusingProjectRanks,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
@@ -1134,6 +1136,7 @@ test('mounted compare preserves last query values, opaque differences, and corru
     'p',
     { kind: 'current' },
     { kind: 'saved', savedPlanId: 's' },
+    { kind: 'legacy' },
   );
   const refusal = {
     reason: 'body_hash_mismatch' as const,

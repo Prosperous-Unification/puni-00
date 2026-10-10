@@ -121,13 +121,15 @@ test.describe('the Status list, in a browser', () => {
 
     await page.getByRole('combobox', { name: 'Status of 010' }).click();
     const lines = page.getByRole('listbox', { name: 'Status for 010' }).getByRole('option');
-    await expect(lines).toHaveCount(2);
+    // A silent row is offered every settable status but Unknown, in the menu
+    // order (`add-work-item-statuses`).
+    await expect(lines).toHaveText(['Draft', 'Ready', 'In progress', 'On hold', 'Blocked', 'Done']);
     // Every line, and the first one is the check: it is the line that lies
     // over the next row, where the Links button would cover it — the last line
     // hangs below the table's final row with nothing under it, and sampled
     // alone it passed with the lift deleted (probed 2026-09-13:
     // `Unknown→BUTTON[Links for 020], Done→LI`).
-    for (const name of ['Unknown', 'Done']) {
+    for (const name of ['Draft', 'Done']) {
       const line = lines.filter({ hasText: name });
       const box = await line.boundingBox();
       if (box === null) throw new Error(`the ${name} line has no browser box`);
@@ -270,5 +272,256 @@ test.describe('marking a row done, in a browser', () => {
     const shot = testInfo.outputPath('done-row.png');
     await page.screenshot({ path: shot });
     await testInfo.attach('the done row and its bar', { path: shot, contentType: 'image/png' });
+  });
+});
+
+test.describe('holding and starting a row, in a browser (add-work-item-statuses)', () => {
+  test('holds a row from its menu, paints the hold on its strip, then starts it with Started on alone', async ({
+    page,
+  }) => {
+    await seedALongRow(page);
+    await showColumn(page, 'Status', 'status');
+    const row = page.locator('tbody tr[data-row-id]').first();
+    const dragCell = row.locator('td[data-column="drag"]');
+    const stripOf = () => dragCell.evaluate((node) => getComputedStyle(node).boxShadow);
+    const tokenColour = (token: string) =>
+      page.evaluate((name) => {
+        // The token resolved the way the strip resolves it: through a probe
+        // element's computed colour, so both sides are the browser's own form.
+        const probe = document.createElement('span');
+        probe.style.color = `var(${name})`;
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).color;
+        probe.remove();
+        return colour;
+      }, token);
+
+    await page.getByRole('button', { name: 'Actions for 010' }).click();
+    await page.getByRole('menuitem', { name: 'Set status to On hold' }).click();
+    await expect(row).toHaveAttribute('data-row-status', 'on_hold');
+    await expect(page.getByRole('combobox', { name: 'Status of 010' })).toHaveValue('‖');
+    // Proof: the `on_hold` strip rule's selector struck in `styles.css`, and
+    // this failed on `Expected substring: "oklch(0.58 0.1 300)" · Received
+    // string: "oklch(0.929 0.013 255.508) -1px -1px 0px 0px inset"` — the row
+    // separator alone; watched in Chromium 2026-09-29.
+    expect(await stripOf()).toContain(await tokenColour('--status-on-hold'));
+
+    await page.getByRole('button', { name: 'Actions for 010' }).click();
+    const statuses = page.getByRole('menuitem').filter({ hasText: /^Set status to / });
+    await expect(statuses).toHaveText([
+      'Set status to Draft',
+      'Set status to Ready',
+      'Set status to In progress',
+      'Set status to Blocked',
+      'Set status to Done',
+      'Set status to Unknown',
+    ]);
+    await page.getByRole('menuitem', { name: 'Set status to In progress' }).click();
+
+    const prompt = page.getByRole('dialog', { name: 'Set 010 to In progress' });
+    await expect(prompt).toBeVisible();
+    await expect(prompt.getByLabel('Started on')).toBeVisible();
+    await expect(prompt.getByLabel('Finished on')).toHaveCount(0);
+    await prompt.getByRole('button', { name: 'Set to In progress' }).click();
+
+    await expect(row).toHaveAttribute('data-row-status', 'in_progress');
+    expect(await stripOf()).toContain(await tokenColour('--status-in-progress'));
+  });
+});
+
+test.describe('each status on the chart, in a browser (add-work-item-statuses)', () => {
+  test('a held row says On hold and draws no bar, its successor is hatched, and a blocked bar is outlined red', async ({
+    page,
+  }, testInfo) => {
+    await seedALongRow(page);
+    await page.getByRole('button', { name: 'Add work item' }).click();
+    const estimate = page.getByLabel('Dev estimate for 020');
+    await estimate.fill('5');
+    await estimate.blur();
+    await expect(estimate).not.toHaveValue('');
+    const depends = page.getByLabel('Add a dependency to 020');
+    await depends.click();
+    await depends.fill('010');
+    await depends.press('Enter');
+    await expect(page.getByRole('button', { name: /^Stop 020 waiting for / })).toHaveCount(1);
+
+    await page.getByRole('button', { name: 'Actions for 010' }).click();
+    await page.getByRole('menuitem', { name: 'Set status to On hold' }).click();
+    await expect(page.locator('tbody tr[data-row-id]').first()).toHaveAttribute(
+      'data-row-status',
+      'on_hold',
+    );
+    await openTheChart(page);
+
+    // 020's two bars, Dev and its unestimated QA, and none of 010's: 010 is
+    // out of the schedule and says so in its row.
+    await expect(page.locator('[data-gantt-bar]')).toHaveCount(2);
+    const held = page.locator('[data-gantt-held]');
+    await expect(held).toHaveText('On hold');
+    await boxOf(held, 'the On hold word');
+    const hatched = page.locator('[data-gantt-bar][data-blocked-by-proxy="true"]');
+    await expect(hatched).toHaveCount(2);
+    const devBar = hatched.first();
+    await expect(devBar).toHaveAttribute('aria-label', /Blocked by proxy — waiting on 010/);
+    // The hatch is painted over the bar, edge to edge: measured, not assumed.
+    // Within a pixel and a half: the bar's box carries its 2px outline's
+    // half-pixel overhang, the hatch's does not.
+    const bar = await boxOf(devBar, 'the hatched bar');
+    // Both are drawn off the same bars in the same order, so the first hatch
+    // is the first hatched bar's.
+    const hatch = await boxOf(page.locator('[data-gantt-bar-hatch]').first(), 'the hatch');
+    expect(
+      Math.abs(hatch.left - bar.left),
+      'the hatch starts where the bar does',
+    ).toBeLessThanOrEqual(1.5);
+    expect(
+      Math.abs(hatch.right - bar.right),
+      'the hatch stops where the bar does',
+    ).toBeLessThanOrEqual(1.5);
+    const shotHeld = testInfo.outputPath('held-and-hatched.png');
+    await page.screenshot({ path: shotHeld });
+    await testInfo.attach('a held row and the bar it stops', {
+      path: shotHeld,
+      contentType: 'image/png',
+    });
+
+    await page.getByRole('button', { name: 'Actions for 010' }).click();
+    await page.getByRole('menuitem', { name: 'Set status to Blocked' }).click();
+    const blocked = page.locator('[data-gantt-bar][data-blocked="true"]');
+    await expect(blocked).toHaveCount(2);
+    await expect(page.locator('[data-gantt-held]')).toHaveCount(0);
+    expect(await blocked.first().evaluate((rect) => getComputedStyle(rect).stroke)).toBe(
+      'rgb(220, 38, 38)',
+    );
+    await expect(page.locator('[data-gantt-bar][data-blocked-by-proxy="true"]')).toHaveCount(2);
+    // The arrow leaving the blocked bar, in the blocked red, whichever kind of
+    // dependency the cell wrote.
+    // The switch only when the arrows are not already on: pressing it turns them off.
+    if ((await page.locator('path[data-gantt-arrow]').count()) === 0) {
+      await page.locator('[data-gantt-detail-toggle]').click();
+    }
+    const leaving = page.locator('path[data-gantt-arrow][data-blocked="true"]');
+    await expect(leaving).toHaveCount(1);
+    expect(await leaving.evaluate((path) => getComputedStyle(path).stroke)).toBe(
+      'rgb(220, 38, 38)',
+    );
+    const shotBlocked = testInfo.outputPath('blocked.png');
+    await page.screenshot({ path: shotBlocked });
+    await testInfo.attach('a blocked row and the bar it stops', {
+      path: shotBlocked,
+      contentType: 'image/png',
+    });
+  });
+});
+
+test.describe('status colours on table surfaces, in a browser (add-work-item-statuses)', () => {
+  test('every status glyph clears 4.5:1 on the table surfaces it can occupy', async ({
+    page,
+  }, testInfo) => {
+    await seedALongRow(page);
+    await page.getByRole('button', { name: 'Add work item' }).click();
+    await showColumn(page, 'Status', 'status');
+    const rows = page.locator('tbody tr[data-row-id]');
+    await expect(rows).toHaveCount(2);
+    const ratios: Record<string, Record<string, number>> = {};
+    const tokens = [
+      '--status-draft',
+      '--status-ready',
+      '--status-in-progress',
+      '--status-blocked-by-proxy',
+      '--status-on-hold',
+      '--status-blocked',
+      '--status-done',
+    ];
+    const measure = async (surface: string, rowIndex: number): Promise<void> => {
+      // Cell backgrounds fade for 100ms when a row changes state.
+      await page.waitForTimeout(150);
+      ratios[surface] = await rows.nth(rowIndex).evaluate((row, statusTokens) => {
+        const cell = row.querySelector('td[data-column="status"]');
+        const glyph = cell?.querySelector('input[data-status-value]');
+        if (!(cell instanceof HTMLTableCellElement) || !(glyph instanceof HTMLInputElement)) {
+          throw new Error('status glyph or its painted cell is absent');
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (context === null) throw new Error('no 2d canvas in this browser');
+        const pixel = (): [number, number, number] => {
+          const rgba = context.getImageData(0, 0, 1, 1).data;
+          if (rgba[3] !== 255) throw new Error('table surface is not opaque');
+          return [rgba[0], rgba[1], rgba[2]];
+        };
+        const paint = (colour: string): void => {
+          context.fillStyle = colour;
+          context.fillRect(0, 0, 1, 1);
+        };
+        const cellStyle = getComputedStyle(cell);
+        if (!cellStyle.backgroundImage.startsWith('linear-gradient(')) {
+          throw new Error('status cell has no row-tint background layer');
+        }
+        context.clearRect(0, 0, 1, 1);
+        paint(cellStyle.backgroundColor);
+        // The first background image is a uniform gradient of --row-tint.
+        // Paint it over the resolved --cell-bg so its alpha is composited.
+        paint(cellStyle.getPropertyValue('--row-tint'));
+        const surfacePixel = pixel();
+        const channel = (value: number): number => {
+          const part = value / 255;
+          return part <= 0.04045 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4;
+        };
+        const luminance = ([red, green, blue]: [number, number, number]): number =>
+          0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue);
+        const ground = luminance(surfacePixel);
+        return Object.fromEntries(
+          statusTokens.map((token) => {
+            glyph.style.color = `var(${token})`;
+            const inkColour = getComputedStyle(glyph).color;
+            context.clearRect(0, 0, 1, 1);
+            paint(inkColour);
+            const ink = luminance(pixel());
+            return [token, (Math.max(ink, ground) + 0.05) / (Math.min(ink, ground) + 0.05)];
+          }),
+        );
+      }, tokens);
+    };
+    for (const tinted of [false, true]) {
+      if (tinted) {
+        await rows.evaluateAll((paintedRows) => {
+          for (const row of paintedRows) row.setAttribute('data-row-status', 'done');
+        });
+      }
+      const prefix = tinted ? 'done tint' : 'plain';
+      for (const [index, parity] of ['normal', 'banded'].entries()) {
+        const row = rows.nth(index);
+        await expect(row).toHaveAttribute('data-row-parity', parity === 'normal' ? 'odd' : 'even');
+        if (tinted) await expect(row).toHaveAttribute('data-row-status', 'done');
+        await page.mouse.move(0, 0);
+        await measure(`${prefix} ${parity}`, index);
+        await row.hover();
+        await expect(row).toHaveAttribute('data-row-lit', 'true');
+        await measure(`${prefix} ${parity} hover`, index);
+        await page.mouse.move(0, 0);
+        await row.evaluate((element) => {
+          element.setAttribute('data-row-lit', 'true');
+        });
+        await expect(row).toHaveAttribute('data-row-lit', 'true');
+        await measure(`${prefix} ${parity} highlighted`, index);
+        await row.evaluate((element) => {
+          element.removeAttribute('data-row-lit');
+        });
+      }
+    }
+    await testInfo.attach('status colour contrast', {
+      body: JSON.stringify(ratios, null, 2),
+      contentType: 'application/json',
+    });
+    // Proof: restoring the old --status-done L 0.54 in styles.css made this
+    // browser test fail on the plain hovered row at 3.973500377557369:1.
+    for (const [surface, colours] of Object.entries(ratios)) {
+      for (const [token, measured] of Object.entries(colours)) {
+        expect(measured, `${token} glyph on ${surface}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
   });
 });

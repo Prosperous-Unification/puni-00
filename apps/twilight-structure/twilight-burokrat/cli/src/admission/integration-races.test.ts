@@ -3,9 +3,11 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   renameSync,
   rmSync,
+  watch,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -351,13 +353,130 @@ async function captureRejection(operation: () => Promise<unknown>): Promise<Erro
   throw new Error('fixture promise resolved unexpectedly');
 }
 
-async function waitForPath(path: string): Promise<void> {
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    if (existsSync(path)) return;
+/** Waits for a child's marker without timing its cold start as a failure. */
+async function waitForPath(
+  path: string,
+  child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>,
+  childStderr: Promise<string>,
+): Promise<void> {
+  if (existsSync(path)) return;
+  const watcher = watch(dirname(path));
+  try {
+    const appeared = new Promise<void>((resolve, reject) => {
+      const check = () => {
+        if (existsSync(path)) resolve();
+      };
+      watcher.on('change', check);
+      watcher.on('error', reject);
+      check();
+    });
+    const exited = child.exited.then(async (code) => {
+      if (existsSync(path)) return;
+      throw new Error(
+        `fixture child exited ${String(code)} before ${path} appeared: ${await childStderr}`,
+      );
+    });
+    await Promise.race([appeared, exited]);
+  } finally {
+    watcher.close();
+  }
+}
+
+/** Kills the isolated process group, including Git and its reference-transaction hook. */
+function killChildGroup(child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>): void {
+  try {
+    process.kill(-child.pid, 'SIGKILL');
+  } catch (cause) {
+    if (cause instanceof Error && 'code' in cause && cause.code === 'ESRCH') return;
+    throw new Error(`cannot kill subprocess group ${String(child.pid)}`, { cause });
+  }
+}
+
+/** Bounds both child exit and inherited output pipes; kills its group if either stays open. */
+async function exitAfterRelease(
+  child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>,
+  role: string,
+  stdout: Promise<string>,
+  stderr: Promise<string>,
+  timeoutMilliseconds = 5_000,
+): Promise<{ code: number; output: string; error: string }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => {
+      resolve(undefined);
+    }, timeoutMilliseconds);
+  });
+  // Proof: replacing allSettled with Promise.all let an injected stdout
+  // rejection strand the prepared Git hook; the test saw its PID survive.
+  const settled = Promise.allSettled([child.exited, stdout, stderr] as const);
+  let response: Awaited<typeof settled> | undefined;
+  try {
+    response = await Promise.race([settled, timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+  const timedOut = response === undefined;
+  if (timedOut || response?.some((outcome) => outcome.status === 'rejected') === true) {
+    killChildGroup(child);
+    response = await Promise.race([settled, Bun.sleep(timeoutMilliseconds).then(() => undefined)]);
+  }
+  if (response === undefined) throw new Error(`${role} did not drain after group kill`);
+  const [exit, output, error] = response;
+  const failed = response.find((outcome) => outcome.status === 'rejected');
+  if (failed?.status === 'rejected') {
+    throw new Error(`${role} output or exit failed after group cleanup: ${String(failed.reason)}`, {
+      cause: failed.reason,
+    });
+  }
+  if (timedOut) throw new Error(`${role} did not drain before group kill`);
+  if (
+    exit.status !== 'fulfilled' ||
+    output.status !== 'fulfilled' ||
+    error.status !== 'fulfilled'
+  ) {
+    throw new Error(`${role} settled without complete output`);
+  }
+  return { code: exit.value, output: output.value, error: error.value };
+}
+
+/** Waits for the real prepared Git hook to disappear after group termination. */
+async function waitForProcessGone(pid: number): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0);
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ESRCH') return;
+      throw new Error(`cannot inspect Git hook ${String(pid)}`, { cause });
+    }
     await Bun.sleep(10);
   }
-  throw new Error(`fixture path did not appear: ${path}`);
+  throw new Error(`Git reference hook ${String(pid)} survived subprocess cleanup`);
 }
+
+test('a child marker may arrive after the old two-second readiness ceiling', async () => {
+  const repository = mkdtempSync(join(tmpdir(), 'wiki-child-readiness-'));
+  scratch.push(repository);
+  const marker = join(repository, 'ready');
+  const child = Bun.spawn([process.execPath, '--eval', 'setInterval(() => undefined, 1000);'], {
+    stderr: 'pipe',
+    stdout: 'pipe',
+  });
+  const childStderr = new Response(child.stderr).text();
+  const announce = setTimeout(() => {
+    writeFileSync(marker, 'ready');
+  }, 2_100);
+  try {
+    // Proof: the former 200 x 10 ms marker poll failed this case at 2.049 s
+    // before the child's 2.1 s readiness marker could appear.
+    await waitForPath(marker, child, childStderr);
+    expect(existsSync(marker)).toBe(true);
+  } finally {
+    clearTimeout(announce);
+    child.kill();
+    await child.exited;
+  }
+});
 
 test('target advance while checks are held refuses the old candidate and recomposes exact bytes', async () => {
   const subject = fixture();
@@ -1210,75 +1329,96 @@ test('a rejecting Git publication hook preserves the exact reservation and throw
   subject.store.close();
 });
 
-test('a competing recovery cannot clear publication while Git holds prepared ref locks', async () => {
-  const subject = fixture();
-  const one = subject.submission('one', 'src/one.ts', 'export const one = 2;\n');
-  const request = { policy, submissions: [one] };
-  const candidate = composeIntegrationCandidate(subject.store, subject.repository, request);
-  enqueueIntegration(subject.store, request, options('prepared-publication'));
-  const checking = recordIntegrationCheck(subject.store, 'prepared-publication', candidate);
-  const checked = certify(candidate);
-  const commit = createIntegrationCommit(
-    subject.repository,
-    checked,
-    checking,
-    options('prepared-publication').commit,
-  );
-  const reserved = reserveIntegrationPublication(
-    subject.store,
-    subject.repository,
-    checked,
-    commit,
-    'prepared-publication',
-    checking.attemptIdentity,
-  );
-  subject.store.close();
+for (const scenario of [
+  'normal',
+  'early-recovery',
+  'release-failure',
+  'output-read-failure',
+] as const) {
+  const recoveryExitsEarly = scenario === 'early-recovery';
+  const releaseFails = scenario === 'release-failure';
+  const outputReadFails = scenario === 'output-read-failure';
+  test(
+    outputReadFails
+      ? 'a failed output read reaps the prepared Git reference hook'
+      : releaseFails
+        ? 'a failed release terminates the prepared Git reference hook'
+        : recoveryExitsEarly
+          ? 'a failed recovery releases the publisher holding prepared Git ref locks'
+          : 'a competing recovery cannot clear publication while Git holds prepared ref locks',
+    async () => {
+      const subject = fixture();
+      const one = subject.submission('one', 'src/one.ts', 'export const one = 2;\n');
+      const request = { policy, submissions: [one] };
+      const candidate = composeIntegrationCandidate(subject.store, subject.repository, request);
+      enqueueIntegration(subject.store, request, options('prepared-publication'));
+      const checking = recordIntegrationCheck(subject.store, 'prepared-publication', candidate);
+      const checked = certify(candidate);
+      const commit = createIntegrationCommit(
+        subject.repository,
+        checked,
+        checking,
+        options('prepared-publication').commit,
+      );
+      const reserved = reserveIntegrationPublication(
+        subject.store,
+        subject.repository,
+        checked,
+        commit,
+        'prepared-publication',
+        checking.attemptIdentity,
+      );
+      subject.store.close();
 
-  const readyPath = join(subject.repository, '.publication-prepared');
-  const releasePath = join(subject.repository, '.publication-release');
-  const secondStartedPath = join(subject.repository, '.second-started');
-  const secondDonePath = join(subject.repository, '.second-done');
-  const hookDirectory = join(subject.repository, '.git', 'fixture-hooks');
-  const hookPath = join(hookDirectory, 'reference-transaction');
-  mkdirSync(hookDirectory);
-  writeFileSync(
-    hookPath,
-    `#!/bin/sh\nif [ "$1" = "prepared" ]; then\n  : > ${JSON.stringify(
-      readyPath,
-    )}\n  while [ ! -e ${JSON.stringify(releasePath)} ]; do sleep 0.01; done\nfi\n`,
-  );
-  chmodSync(hookPath, 0o755);
-  git(subject.repository, ['config', 'core.hooksPath', hookDirectory]);
+      const readyPath = join(subject.repository, '.publication-prepared');
+      const releasePath = join(subject.repository, '.publication-release');
+      const hookPidPath = join(subject.repository, '.publication-hook-pid');
+      const secondStartedPath = join(subject.repository, '.second-started');
+      const secondDonePath = join(subject.repository, '.second-done');
+      const hookDirectory = join(subject.repository, '.git', 'fixture-hooks');
+      const hookPath = join(hookDirectory, 'reference-transaction');
+      mkdirSync(hookDirectory);
+      writeFileSync(
+        hookPath,
+        `#!/bin/sh\nif [ "$1" = "prepared" ]; then\n  echo $$ > ${JSON.stringify(hookPidPath)}\n  : > ${JSON.stringify(
+          readyPath,
+        )}\n  while [ ! -e ${JSON.stringify(releasePath)} ]; do sleep 0.01; done\nfi\n`,
+      );
+      chmodSync(hookPath, 0o755);
+      // Proof: omitting this hook installation made the publishing child exit 0
+      // before `.publication-prepared` appeared, failing the real ref-lock race.
+      git(subject.repository, ['config', 'core.hooksPath', hookDirectory]);
 
-  const payloadPath = join(subject.repository, '.publication-payload.json');
-  writeFileSync(
-    payloadPath,
-    JSON.stringify({
-      request: {
-        policy,
-        submissions: request.submissions.map(({ packet, patch, report }) => ({
-          packet,
-          patch: [...patch],
-          report,
-        })),
-      },
-      reserved,
-    }),
-  );
-  const childPath = join(subject.repository, '.publication-child.ts');
-  const authorityModule = join(import.meta.dir, 'authority-store.ts');
-  const publicationModule = join(import.meta.dir, 'publication.ts');
-  writeFileSync(
-    childPath,
-    `import { writeFileSync } from 'node:fs';
+      const payloadPath = join(subject.repository, '.publication-payload.json');
+      writeFileSync(
+        payloadPath,
+        JSON.stringify({
+          request: {
+            policy,
+            submissions: request.submissions.map(({ packet, patch, report }) => ({
+              packet,
+              patch: [...patch],
+              report,
+            })),
+          },
+          reserved,
+        }),
+      );
+      const childPath = join(subject.repository, '.publication-child.ts');
+      const authorityModule = join(import.meta.dir, 'authority-store.ts');
+      const publicationModule = join(import.meta.dir, 'publication.ts');
+      writeFileSync(
+        childPath,
+        `import { writeFileSync } from 'node:fs';
 import { openAuthorityStore } from ${JSON.stringify(authorityModule)};
 import { integrateWithRecovery, publishReservedIntegration } from ${JSON.stringify(
-      publicationModule,
-    )};
-const [mode, repository, payloadPath, startedPath, donePath] = Bun.argv.slice(2);
+          publicationModule,
+        )};
+const [mode, repository, payloadPath, startedPath, donePath, exitBeforeMarker] = Bun.argv.slice(2);
 if (mode === undefined || repository === undefined || payloadPath === undefined) {
   throw new Error('publication child arguments are absent');
 }
+if (mode === 'recover' && exitBeforeMarker === 'exit-before-marker') process.exit(17);
 const payload = JSON.parse(await Bun.file(payloadPath).text());
 const store = openAuthorityStore(repository, {
   busyDelayMilliseconds: 50,
@@ -1326,62 +1466,204 @@ try {
   store.close();
 }
 `,
-  );
+      );
 
-  const first = Bun.spawn(
-    [process.execPath, childPath, 'publish', subject.repository, payloadPath],
-    {
-      stderr: 'pipe',
-      stdout: 'pipe',
+      const first = Bun.spawn(
+        [process.execPath, childPath, 'publish', subject.repository, payloadPath],
+        {
+          detached: true,
+          stderr: 'pipe',
+          stdout: 'pipe',
+        },
+      );
+      let second: Bun.Subprocess<'ignore', 'pipe', 'pipe'> | undefined;
+      const firstStdout = new Response(first.stdout).text();
+      const firstStderr = new Response(first.stderr).text();
+      let secondStdout: Promise<string> | undefined;
+      let secondStderr: Promise<string> | undefined;
+      let raceFailure: unknown;
+      const cleanupFailures: Error[] = [];
+      let firstExitCode: number | undefined;
+      let secondExitCode: number | undefined;
+      let hookPid: number | undefined;
+      try {
+        await waitForPath(readyPath, first, firstStderr);
+        hookPid = Number(readFileSync(hookPidPath, 'utf8').trim());
+        if (releaseFails || outputReadFails) {
+          process.kill(hookPid, 0);
+          throw new Error(
+            releaseFails ? 'injected publication release failure' : 'injected output read failure',
+          );
+        }
+        const recovery = Bun.spawn(
+          [
+            process.execPath,
+            childPath,
+            'recover',
+            subject.repository,
+            payloadPath,
+            secondStartedPath,
+            secondDonePath,
+            ...(recoveryExitsEarly ? ['exit-before-marker'] : []),
+          ],
+          { detached: true, stderr: 'pipe', stdout: 'pipe' },
+        );
+        second = recovery;
+        const recoveryStdout = new Response(recovery.stdout).text();
+        const recoveryStderr = new Response(recovery.stderr).text();
+        secondStdout = recoveryStdout;
+        secondStderr = recoveryStderr;
+        if (recoveryExitsEarly) {
+          const earlyExit = await captureRejection(() =>
+            waitForPath(secondStartedPath, recovery, recoveryStderr),
+          );
+          expect(earlyExit.message).toMatch(
+            /fixture child exited 17 before .*\.second-started appeared/,
+          );
+        } else {
+          await waitForPath(secondStartedPath, recovery, recoveryStderr);
+          await Bun.sleep(100);
+          const secondWasSerialized = !existsSync(secondDonePath);
+          writeFileSync(releasePath, 'release');
+          const [publisher, recovered] = await Promise.all([
+            exitAfterRelease(first, 'publisher', firstStdout, firstStderr),
+            exitAfterRelease(recovery, 'recovery', recoveryStdout, recoveryStderr),
+          ]);
+
+          expect({
+            publisher: { code: publisher.code, error: publisher.error },
+            recovered: { code: recovered.code, error: recovered.error },
+          }).toEqual({
+            publisher: { code: 0, error: '' },
+            recovered: { code: 0, error: '' },
+          });
+          expect(secondWasSerialized).toBe(true);
+          expect(JSON.parse(publisher.output)).toMatchObject({ commit, status: 'integrated' });
+          expect(JSON.parse(recovered.output)).toMatchObject({ commit, status: 'integrated' });
+          expect(git(subject.repository, ['rev-parse', 'refs/heads/main'])).toBe(commit);
+          expect(git(subject.repository, ['rev-parse', reserved.markerRef])).toBe(commit);
+          const reopened = openAuthorityStore(subject.repository, { clock: { read: () => 1_000 } });
+          expect(reopened.inspect().integrations[0]?.status).toBe('published');
+          expect(reopened.inspect().generations[0]?.status).toBe('integrated');
+          reopened.close();
+        }
+      } catch (cause) {
+        raceFailure = cause;
+      } finally {
+        // A failed readiness wait must still release the first child's real Git
+        // prepared-ref hook. Removing this release strands the publisher.
+        let releaseFailure: unknown = releaseFails
+          ? new Error('injected publication release failure')
+          : undefined;
+        if (!releaseFails && !outputReadFails) {
+          try {
+            writeFileSync(releasePath, 'release');
+          } catch (cause) {
+            releaseFailure = cause;
+          }
+        }
+        if (releaseFailure !== undefined) {
+          cleanupFailures.push(
+            new Error('cannot release prepared publication hook', { cause: releaseFailure }),
+          );
+          for (const child of [first, second]) {
+            if (child === undefined) continue;
+            try {
+              killChildGroup(child);
+            } catch (killCause) {
+              cleanupFailures.push(
+                new Error('cannot kill publication group', { cause: killCause }),
+              );
+            }
+          }
+        }
+        const exits = await Promise.allSettled([
+          exitAfterRelease(
+            first,
+            'publisher',
+            outputReadFails
+              ? Promise.reject(new Error('injected stdout read failure'))
+              : firstStdout,
+            firstStderr,
+            outputReadFails ? 100 : 5_000,
+          ),
+          second === undefined
+            ? Promise.resolve(undefined)
+            : exitAfterRelease(
+                second,
+                'recovery',
+                secondStdout ?? new Response(second.stdout).text(),
+                secondStderr ?? new Response(second.stderr).text(),
+              ),
+        ]);
+        const firstExit = exits[0];
+        const secondExit = exits[1];
+        if (firstExit.status === 'fulfilled') firstExitCode = firstExit.value.code;
+        if (secondExit.status === 'fulfilled') secondExitCode = secondExit.value?.code;
+        if (firstExit.status === 'rejected') {
+          cleanupFailures.push(new Error('cannot reap publisher', { cause: firstExit.reason }));
+        }
+        if (secondExit.status === 'rejected') {
+          cleanupFailures.push(new Error('cannot reap recovery', { cause: secondExit.reason }));
+        }
+        if (outputReadFails) {
+          const drained = await Promise.race([firstStdout, Bun.sleep(2_000).then(() => undefined)]);
+          if (drained === undefined)
+            cleanupFailures.push(new Error('publisher stdout did not drain'));
+        }
+      }
+      if (outputReadFails) {
+        if (hookPid === undefined) throw new Error('prepared Git hook PID was not recorded');
+        try {
+          await waitForProcessGone(hookPid);
+        } finally {
+          writeFileSync(releasePath, 'release');
+        }
+        const readFailure = cleanupFailures.find(
+          (failure) => failure.message === 'cannot reap publisher',
+        );
+        if (!(readFailure?.cause instanceof Error))
+          throw new Error('stdout read failure was not reported');
+        expect(readFailure.cause.message).toContain('injected stdout read failure');
+        expect(raceFailure).toBeInstanceOf(Error);
+        return;
+      }
+      if (releaseFails) {
+        // Proof: a prepared Git hook remains live when its Bun parent alone
+        // receives SIGTERM; the isolated group kill removes the hook itself.
+        if (hookPid === undefined) throw new Error('prepared Git hook PID was not recorded');
+        try {
+          await waitForProcessGone(hookPid);
+        } finally {
+          // The watched single-process-kill mutation leaves the hook alive;
+          // release it even when the negative assertion fails.
+          writeFileSync(releasePath, 'release');
+        }
+        if (!(raceFailure instanceof Error)) {
+          throw new Error('release fault did not reach the race');
+        }
+        expect(raceFailure.message).toBe('injected publication release failure');
+        expect(cleanupFailures.map((failure) => failure.message)).toEqual([
+          'cannot release prepared publication hook',
+        ]);
+        expect(firstExitCode).not.toBe(0);
+        return;
+      }
+      if (raceFailure !== undefined) {
+        cleanupFailures.unshift(new Error('publication race failed', { cause: raceFailure }));
+      }
+      if (cleanupFailures.length > 0) {
+        throw new AggregateError(cleanupFailures, 'publication race or cleanup failed');
+      }
+      if (recoveryExitsEarly) {
+        // Proof: the recovery exits before its marker while the publisher holds
+        // Git's prepared locks; removing the release kills the stuck publisher.
+        expect(firstExitCode).toBe(0);
+        expect(secondExitCode).toBe(17);
+      }
     },
   );
-  const firstStdout = new Response(first.stdout).text();
-  const firstStderr = new Response(first.stderr).text();
-  await waitForPath(readyPath);
-  const second = Bun.spawn(
-    [
-      process.execPath,
-      childPath,
-      'recover',
-      subject.repository,
-      payloadPath,
-      secondStartedPath,
-      secondDonePath,
-    ],
-    { stderr: 'pipe', stdout: 'pipe' },
-  );
-  const secondStdout = new Response(second.stdout).text();
-  const secondStderr = new Response(second.stderr).text();
-  await waitForPath(secondStartedPath);
-  await Bun.sleep(100);
-  const secondWasSerialized = !existsSync(secondDonePath);
-  writeFileSync(releasePath, 'release');
-  const [firstExit, secondExit, firstOutput, secondOutput, firstError, secondError] =
-    await Promise.all([
-      first.exited,
-      second.exited,
-      firstStdout,
-      secondStdout,
-      firstStderr,
-      secondStderr,
-    ]);
-
-  expect({ firstError, firstExit, secondError, secondExit }).toEqual({
-    firstError: '',
-    firstExit: 0,
-    secondError: '',
-    secondExit: 0,
-  });
-  expect(secondWasSerialized).toBe(true);
-  expect(JSON.parse(firstOutput)).toMatchObject({ commit, status: 'integrated' });
-  expect(JSON.parse(secondOutput)).toMatchObject({ commit, status: 'integrated' });
-  expect(git(subject.repository, ['rev-parse', 'refs/heads/main'])).toBe(commit);
-  expect(git(subject.repository, ['rev-parse', reserved.markerRef])).toBe(commit);
-  const reopened = openAuthorityStore(subject.repository, { clock: { read: () => 1_000 } });
-  expect(reopened.inspect().integrations[0]?.status).toBe('published');
-  expect(reopened.inspect().generations[0]?.status).toBe('integrated');
-  reopened.close();
-});
+}
 
 test('publication transactions are synchronous and never replay external effects at commit', async () => {
   const subject = fixture();
@@ -1398,7 +1680,7 @@ test('publication transactions are synchronous and never replay external effects
     { stderr: 'pipe', stdout: 'pipe' },
   );
   const readerStderr = new Response(reader.stderr).text();
-  await waitForPath(readerReady);
+  await waitForPath(readerReady, reader, readerStderr);
   let callbackAttempts = 0;
   expect(
     subject.store.transactPublication((transaction) => {

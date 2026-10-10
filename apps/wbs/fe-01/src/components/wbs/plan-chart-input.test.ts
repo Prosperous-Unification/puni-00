@@ -2,7 +2,13 @@ import { addWorkdays } from '@wbs/domain/workday';
 import { describe, expect, it } from 'vitest';
 
 import { GanttDataError } from './gantt-geometry';
-import { chartTypedDependencies, factEndStopOf, notBeforeOffsetOf } from './plan-chart-input';
+import {
+  chartTypedDependencies,
+  factEndStopOf,
+  heldLeafIdsOf,
+  isHeld,
+  notBeforeOffsetOf,
+} from './plan-chart-input';
 
 it('refuses an unknown typed chart relationship', () => {
   expect(() =>
@@ -66,5 +72,40 @@ describe('notBeforeOffsetOf, as the fact start’s reader', () => {
   it('places a fact start on the workday it names', () => {
     expect(notBeforeOffsetOf(START, addWorkdays(START, 2))).toBe(2);
     expect(notBeforeOffsetOf(null, '2026-08-12')).toBeNull();
+  });
+});
+
+describe('heldLeafIdsOf (add-work-item-statuses)', () => {
+  it('names every leaf whose stored hold is on hold, a held leaf later marked done included', () => {
+    const held = heldLeafIdsOf([
+      { id: 'branch', subRows: [{ id: 'x' }], status: 'on_hold', hold: null },
+      { id: 'strip', subRows: [], status: 'done', hold: 'on_hold' },
+      { id: 'sand', subRows: [], status: 'blocked', hold: 'blocked' },
+      { id: 'paint', subRows: [], status: 'unknown', hold: null },
+    ]);
+    expect([...held]).toEqual(['strip']);
+  });
+});
+
+describe('isHeld (add-work-item-statuses)', () => {
+  const leaf = (status: 'done' | 'on_hold' | 'unknown', hold: 'on_hold' | null) => ({
+    status,
+    hold,
+    subRows: [],
+  });
+
+  it('puts On hold in a held leaf’s row even once it reads done', () => {
+    expect(isHeld(leaf('done', 'on_hold'))).toBe(true);
+    expect(isHeld(leaf('unknown', null))).toBe(false);
+  });
+
+  it('holds a parent only when every leaf beneath it is held', () => {
+    const parent = (subRows: ReturnType<typeof leaf>[]) => ({
+      status: 'on_hold' as const,
+      hold: null,
+      subRows,
+    });
+    expect(isHeld(parent([leaf('on_hold', 'on_hold'), leaf('done', 'on_hold')]))).toBe(true);
+    expect(isHeld(parent([leaf('on_hold', 'on_hold'), leaf('unknown', null)]))).toBe(false);
   });
 });

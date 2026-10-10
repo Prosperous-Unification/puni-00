@@ -28,6 +28,7 @@ function stubPage(routes: Parameters<typeof stubServer>[0]) {
   return stubServer({
     'GET /api/organization/join-requests': [() => answer(200, { requests: [] })],
     'GET /api/organization/domains': [() => answer(200, { domains: [] })],
+    'GET /api/organization/members': [() => answer(200, { members: [] })],
     ...routes,
   });
 }
@@ -121,6 +122,7 @@ describe('organization invitations', () => {
   });
 
   it('revokes, then renders a conflicting revoke in place', async () => {
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
     stubPage({
       'GET /api/organization/invitations': [
         () =>
@@ -176,6 +178,7 @@ describe('organization invitations', () => {
   });
 
   it("clears the organization's rows when a refusal says access was lost", async () => {
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
     stubPage({
       'GET /api/organization/invitations': [
         () => answer(200, { invitations: [offer('a', 'ada@acme.test')] }),
@@ -202,6 +205,7 @@ describe('organization invitations', () => {
       ],
       'GET /api/organization/join-requests': [() => answer(403, { error: 'not_a_member' })],
       'GET /api/organization/domains': [() => answer(200, { domains: [] })],
+      'GET /api/organization/members': [() => answer(200, { members: [] })],
     });
     renderPage();
     expect(await screen.findByRole('alert')).toHaveProperty(

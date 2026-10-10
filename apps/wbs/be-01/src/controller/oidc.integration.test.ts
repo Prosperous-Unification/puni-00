@@ -30,6 +30,7 @@ import {
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { testProjectService } from '../testing/project-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
@@ -174,6 +175,7 @@ function fixture(
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
+    projectRanks: refusingProjectRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
@@ -543,6 +545,9 @@ describe('OIDC browser routes', () => {
       // Auth protocol start uses a fresh first-party password proof instead of a bearer write scope.
       // Proof: 2026-09-28, removing this classification made `guards every registered user-facing mutation with write scope` receive 400 for link start instead of the expected 403 domain-write policy.
       '/api/auth/link/auth0',
+      // Selection writes only a credential-bound browser cookie after checking
+      // current membership; read-only users may choose their organization.
+      '/api/organization/active',
       '/api/smoke/echo',
     ]);
     const mutations = registeredRoutes(f.app.routes as unknown).filter(

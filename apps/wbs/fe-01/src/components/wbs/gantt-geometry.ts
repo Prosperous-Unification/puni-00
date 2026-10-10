@@ -62,7 +62,14 @@ export class GanttDataError extends Error {
  * carrying it came from the optimized path.
  */
 export type BindingFloor =
-  'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'capacity' | 'optimizer';
+  | 'projectStart'
+  | 'predecessor'
+  | 'stepOrder'
+  | 'notBefore'
+  | 'person'
+  | 'elsewhere'
+  | 'capacity'
+  | 'optimizer';
 
 /**
  * The ten colours a person's bars are drawn in, handed out in this order.
@@ -114,6 +121,14 @@ export const UNASSIGNED_BAR_COLOR = '#94a3b8';
  * gantt chart slices … make [the checkmark] green same as in table".
  */
 export const DONE_BAR_STROKE = '#16a34a';
+
+/**
+ * A blocked bar's outline, the hatch on a blocked-by-proxy bar, and the arrows
+ * leaving a blocked bar: the table's `--status-blocked` red, as a hex for
+ * {@link DONE_BAR_STROKE}'s reason — the chart is exported as a standalone SVG
+ * where no custom property resolves (`add-work-item-statuses`).
+ */
+export const BLOCKED_STROKE = '#dc2626';
 
 /**
  * The colour every pool wait is drawn in — see {@link GanttCapacityLink}.
@@ -347,6 +362,21 @@ export interface GanttRow {
    */
   status: WorkItemStatus;
   /**
+   * The direct predecessors that stop this row, as words — each reading on
+   * hold, blocked or blocked by proxy, with its status said
+   * (`010 - Strip (On hold)`). Empty on every other row. What a blocked-by-proxy
+   * bar's card names, so a reader learns which row is in the way
+   * (`add-work-item-statuses`).
+   */
+  stoppedBy: readonly string[];
+  /**
+   * The row is out of the schedule by its stored hold: a leaf whose hold is
+   * `on_hold`, or a parent every leaf of which is — be-01's own rule, which
+   * the status does not follow (a held leaf later marked done reads `done`
+   * and is still held). What puts `On hold` in the row (`add-work-item-statuses`).
+   */
+  held: boolean;
+  /**
    * The workday the row's fact start stands on, or null where it has none or
    * the plan has no calendar to place it on — `notBeforeOffset`'s conversion,
    * for a day that is a record rather than a floor.
@@ -574,6 +604,14 @@ export interface GanttPlan {
    */
   tree: readonly GanttTreeRow[];
   /**
+   * Every leaf whose stored hold is `on_hold`, shown or not
+   * ({@link heldLeafIdsOf}). be-01 takes such a leaf out of the schedule
+   * whatever it reads, done included, so it has no slice in the payload; a branch's arrow leaves from
+   * the leaves still scheduled, and a typed endpoint on a held leaf draws
+   * nothing rather than reading as a broken payload (`add-work-item-statuses`).
+   */
+  heldLeafIds: ReadonlySet<string>;
+  /**
    * Whether a filter is why {@link GanttPlan.rows} is the length it is.
    *
    * A list of rows cannot say why it is short, and the panel must not guess:
@@ -664,6 +702,11 @@ export interface GanttRowLabel {
   name: string;
   depth: number;
   rowIndex: number;
+  /**
+   * The row is on hold: it takes no part in the schedule, so it has no bar and
+   * the panel says `On hold` in its row instead (`add-work-item-statuses`).
+   */
+  held: boolean;
 }
 
 /**
@@ -779,6 +822,14 @@ export interface GanttBar {
    * slice id of its leaf so a person or capacity link still finds it.
    */
   done: boolean;
+  /**
+   * What stops this bar's work, off its row's status: `blocked` is outlined in
+   * the blocked colour and `blocked_by_proxy` hatched; null on every other bar,
+   * a done bar included (`add-work-item-statuses`).
+   */
+  stop: 'blocked' | 'blocked_by_proxy' | null;
+  /** The predecessors that stop it, as words — see {@link GanttRow.stoppedBy}. */
+  stoppedBy: readonly string[];
 }
 
 /**
@@ -820,6 +871,8 @@ export interface GanttDependencyArrow {
   fromFinish: number;
   toRowIndex: number;
   toStart: number;
+  /** Leaves a blocked row, so it is drawn in the blocked colour (`add-work-item-statuses`). */
+  blocked: boolean;
 }
 
 /**
@@ -1144,6 +1197,8 @@ export interface PlacedArrow {
   fromX: number;
   toRowIndex: number;
   toX: number;
+  /** See {@link GanttDependencyArrow.blocked}. */
+  blocked: boolean;
   /** Slice lane centres, when the endpoints are authored step slices. */
   fromY?: number;
   toY?: number;
@@ -1262,6 +1317,7 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
     fromX: stopOf(arrow.fromStart, arrow.fromFinish),
     toRowIndex: arrow.toRowIndex,
     toX: startOf(arrow.toStart),
+    blocked: arrow.blocked,
   }));
   const barBySlice = new Map(bars.map((placed) => [placed.bar.sliceId, placed.bar]));
   const laneMiddle = (sliceId: string): number | undefined => {
@@ -1278,6 +1334,7 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
       arrow.type === 'SS' ? startOf(arrow.fromStart) : stopOf(arrow.fromStart, arrow.fromFinish),
     toRowIndex: arrow.toRowIndex,
     toX: arrow.type === 'FF' ? stopOf(arrow.toStart, arrow.toFinish) : startOf(arrow.toStart),
+    blocked: arrow.blocked,
     type: arrow.type,
     fromY: laneMiddle(arrow.predecessorSliceId),
     toY: laneMiddle(arrow.successorSliceId),
@@ -1760,7 +1817,7 @@ export function routeArrow(
  * itself, so it names the anchor instead, in the same shape as the sibling
  * below it.
  */
-const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person' | 'capacity'>, string> = {
+const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person' | 'capacity' | 'elsewhere'>, string> = {
   projectStart: 'Starts with the project',
   predecessor: 'Waits for a dependency’s first estimated step',
   stepOrder: 'Waits for an earlier step on this item',
@@ -2113,6 +2170,11 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     name: row.name,
     depth: row.depth,
     rowIndex,
+    // Proof: this read replaced by `false`, and `draws no bar for a held leaf
+    // and says On hold in its row instead` failed on `[ 'strip', false ]`;
+    // keyed on `status === 'on_hold'`, `leaves an arrow from a branch holding a
+    // held leaf…` failed on the held-then-done leaf; watched 2026-09-29.
+    held: row.held,
   }));
 
   const slicesByWorkItem = new Map<string, GanttSlice[]>();
@@ -2283,6 +2345,11 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
         // a second answer to the lateness the plan was built with.
         lateBy: slice.lateBy,
         done: false,
+        // Proof: this replaced by `null`, and `hatches the bar a held
+        // predecessor stops…` and `outlines a blocked bar…` failed on `null`
+        // where `blocked_by_proxy` and `blocked` were owed; watched 2026-09-29.
+        stop: row.status === 'blocked' || row.status === 'blocked_by_proxy' ? row.status : null,
+        stoppedBy: row.stoppedBy,
       };
       bars.push(bar);
       barBySliceId.set(slice.id, bar);
@@ -2365,7 +2432,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     });
   }
 
-  const leavesUnder = leavesUnderOf(plan.tree);
+  const leavesUnder = leavesUnderOf(plan.tree, plan.heldLeafIds);
 
   /**
    * The predecessor's anchor span, **selected** from the payload's slices and
@@ -2447,6 +2514,10 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
       fromFinish: reached.finish,
       toRowIndex: to.rowIndex,
       toStart: to.row.schedule.earliestStart,
+      // Proof: this read replaced by `false`, and `outlines a blocked bar and
+      // draws its arrows in the blocked colour…` failed on `[ 'strip', false ]`;
+      // watched 2026-09-29.
+      blocked: from.row.status === 'blocked',
     });
   }
 
@@ -2680,6 +2751,15 @@ function floorWordsOf(
       }
       return personFloorWords(personName, predecessor, rowNames, stepsById);
     }
+    // be-01 can place around bookings elsewhere (`share-people-across-projects`
+    // slice 4) but sends none until an organization shares its people (slice
+    // 8). The sentence that names the holder is slice 7's; until then a bar
+    // held elsewhere is data this chart has no words for, and it reaches the
+    // error boundary the unknown-floor arm below would have sent it to.
+    case 'elsewhere':
+      throw new GanttDataError(
+        `slice ${slice.id} is held elsewhere, which this chart has no words for yet`,
+      );
     default: {
       // `never` here is the type saying the seven above are all of them; the
       // throw is for the runtime, where a payload can carry a seventh.
@@ -2748,7 +2828,7 @@ export function startFloorByRow(
     else own.push(slice);
   }
 
-  const leavesUnder = leavesUnderOf(plan.tree);
+  const leavesUnder = leavesUnderOf(plan.tree, plan.heldLeafIds);
   const predecessorsOf = new Map<string, string[]>();
   for (const edge of plan.dependencies) {
     const own = predecessorsOf.get(edge.successorId);
@@ -2934,7 +3014,10 @@ function latestReachedAmong(
  * answer to "which slice does this edge leave from" — the exact fault the
  * `dep-waits-on-first-role` rule was written once to prevent.
  */
-function leavesUnderOf(tree: readonly GanttTreeRow[]): ReadonlyMap<string, string[]> {
+function leavesUnderOf(
+  tree: readonly GanttTreeRow[],
+  held: ReadonlySet<string>,
+): ReadonlyMap<string, string[]> {
   const childrenOf = new Map<string, GanttTreeRow[]>();
   for (const treeRow of tree) {
     if (treeRow.parentId === null) continue;
@@ -2947,7 +3030,15 @@ function leavesUnderOf(tree: readonly GanttTreeRow[]): ReadonlyMap<string, strin
     const already = found.get(id);
     if (already !== undefined) return already;
     const children = childrenOf.get(id);
-    const leaves = children === undefined ? [id] : children.flatMap((child) => walk(child.id));
+    // A held leaf is out of the schedule and has no slice to leave from; a
+    // branch's arrow leaves from the leaves still in it.
+    // Proof: this filter removed, and `leaves an arrow from a branch with a held
+    // leaf from the leaf still scheduled` threw `strip has no slice in this
+    // payload`; watched 2026-09-29.
+    const leaves =
+      children === undefined
+        ? [id]
+        : children.flatMap((child) => walk(child.id)).filter((leaf) => !held.has(leaf));
     found.set(id, leaves);
     return leaves;
   };
@@ -3105,6 +3196,8 @@ function doneBarOf(
     priority: row.priority,
     lateBy: lateBy.length === 0 ? null : Math.max(...lateBy),
     done: true,
+    stop: null,
+    stoppedBy: [],
   };
 }
 

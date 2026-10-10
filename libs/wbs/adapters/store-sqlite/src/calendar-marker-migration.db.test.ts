@@ -89,6 +89,7 @@ const ORGANIZATION_TABLES = [
   'delegation_use',
   'space',
   'space_project',
+  'project_rank',
   'service_organization',
   'service_team_organization',
   'tag_organization',
@@ -239,6 +240,9 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20261005110000_add_shared_people',
+      '20261001010000_add_browser_credential_revocations',
+      '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
@@ -268,6 +272,7 @@ describe('20260905090000_add_calendar_marker', () => {
       withTable.filter(
         (n) =>
           n !== 'calendar_marker' &&
+          n !== 'browser_credential_revocations' &&
           n !== 'email_challenge' &&
           n !== 'typed_dependency' &&
           !ORGANIZATION_TABLES.includes(n),

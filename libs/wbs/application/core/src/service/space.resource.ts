@@ -16,6 +16,7 @@ import type { Clock } from '../ports/clock';
 import type { ResourceAccess } from '../ports/organization-access';
 import type { Broadcaster } from '../ports/project-event';
 import type { ProjectWithAccess } from '../ports/project-store';
+import type { AccessRefused } from '../ports/shared-people-values';
 import type { Space, SpaceStore } from '../ports/space-store';
 
 /** The address of the virtual All projects space (spec `space-read`). */
@@ -74,8 +75,8 @@ export interface SpaceResourceOptions {
    */
   projects: Pick<ProjectService, 'listWithin' | 'readWithin'>;
   clock: Clock;
-  /** The project page's own read, which every roll-up is computed from. */
-  trees: Pick<WorkItemService, 'treeWithin'>;
+  /** The project page's own read and the shared aggregate projection for cache admission. */
+  trees: Pick<WorkItemService, 'treeWithin' | 'sharedTreesWithin'>;
   /** The project's event sequence, read before the tree to key the cache. */
   sequences: Pick<Broadcaster, 'latestSeq'>;
   /** One process's roll-ups; a fresh cache per process, shared by its requests. */
@@ -99,13 +100,18 @@ export interface RolledProject {
   inProgress: InProgressLeaf[];
 }
 
+type SharedTreeEntry = Extract<
+  Awaited<ReturnType<WorkItemService['sharedTreesWithin']>>,
+  { readonly kind: 'shared' }
+>['entries'][number];
+
 /**
  * A per-process LRU of {@link RolledProject}s (`add-spaces` design, memo §8).
  *
  * Keyed by project, event sequence, project revision, reader access,
- * scheduler contract and roll-up version: every plan write publishes to the
- * sequence and every settings write moves the revision, so a hit is current
- * in the writing process. Another process's write (blue/green overlap) or a
+ * scheduler contract and roll-up version; shared reads add the captured
+ * incoming-calendar basis. Every plan write publishes to the sequence and
+ * every settings write moves the revision. Another process's write or a
  * missed publication converges within {@link RollUpCache.ttlMs}. `capacity`
  * counts entries, one per project and reader, whatever number of leaves each
  * holds.
@@ -123,16 +129,24 @@ export class RollUpCache {
 
   /**
    * The key for one project at one event sequence and one project revision,
-   * as one kind of reader sees it.
+   * as one kind of reader sees it. Shared reads add `basis` while isolated
+   * addresses keep their original bytes.
    * The revision is not redundant with the sequence: a project settings change
    * (start date, PERT weights, reach, estimate method or rounding) advances
    * the revision and moves dates and totals, yet publishes no event.
    */
-  static keyOf(projectId: string, seq: number, revision: number, access: ResourceAccess): string {
+  static keyOf(
+    projectId: string,
+    seq: number,
+    revision: number,
+    access: ResourceAccess,
+    basis?: string,
+  ): string {
     // The access is part of what a tree read answers: scoped reads rename
     // assignees to the organization's own names (`treeWithin`).
     const reader = access.kind === 'legacy' ? 'legacy' : `org:${access.scope.organizationId}`;
-    return `${projectId}:${String(seq)}:${String(revision)}:${reader}:${String(SCHEDULER_CONTRACT_VERSION)}:${String(ROLLUP_DTO_VERSION)}`;
+    const key = `${projectId}:${String(seq)}:${String(revision)}:${reader}:${String(SCHEDULER_CONTRACT_VERSION)}:${String(ROLLUP_DTO_VERSION)}`;
+    return basis === undefined ? key : `${key}:${basis}`;
   }
 
   get(key: string): RolledProject | undefined {
@@ -285,10 +299,11 @@ export class SpaceResource {
     spaceId: string,
     projectIds: readonly string[],
   ): Promise<
-    SpaceAnswer<
-      Record<string, ProjectRollUp | UnavailableRollUp>,
-      'organization_required' | 'not_found'
-    >
+    | SpaceAnswer<
+        Record<string, ProjectRollUp | UnavailableRollUp>,
+        'organization_required' | 'not_found'
+      >
+    | AccessRefused
   > {
     const projects = await this.opts.projects.listWithin(actorId, access);
     const revisions = new Map(projects.map(({ id, revision }) => [id, revision]));
@@ -307,13 +322,22 @@ export class SpaceResource {
     if (projectIds.some((projectId) => !members.has(projectId) || !readable.has(projectId))) {
       return { ok: false, refusal: 'not_found' };
     }
+    const observation = await this.opts.trees.sharedTreesWithin(actorId, access);
+    if (observation.kind === 'access_refused') return observation;
+    const shared =
+      observation.kind === 'shared'
+        ? new Map(observation.entries.map((entry) => [entry.projectId, entry] as const))
+        : null;
     const rollUps: Record<string, ProjectRollUp | UnavailableRollUp> = {};
     for (const projectId of projectIds) {
       const revision = revisions.get(projectId);
       // Checked readable above; absent here would be the list changing mid-call.
       if (revision === undefined) return { ok: false, refusal: 'not_found' };
-      const rolled = await this.rolledOf(projectId, revision, access);
+      const entry = shared?.get(projectId);
+      if (shared !== null && entry === undefined) return { ok: false, refusal: 'not_found' };
+      const rolled = await this.rolledOf(projectId, entry?.revision ?? revision, access, entry);
       if (rolled === null) return { ok: false, refusal: 'not_found' };
+      if ('kind' in rolled && rolled.kind === 'access_refused') return rolled;
       rollUps[projectId] = 'kind' in rolled ? rolled : rolled.rollUp;
     }
     return { ok: true, value: rollUps };
@@ -339,8 +363,13 @@ export class SpaceResource {
     projectId: string,
     revision: number,
     access: ResourceAccess,
-  ): Promise<RolledProject | UnavailableRollUp | null> {
-    const seq = await this.opts.sequences.latestSeq(projectId);
+    shared?: SharedTreeEntry,
+  ): Promise<RolledProject | UnavailableRollUp | AccessRefused | null> {
+    // Proof: accepting a held value before captured availability made an unavailable influencer retain old dates.
+    if (shared !== undefined && 'kind' in shared.tree) return { kind: 'unavailable' };
+    const seq = shared?.seq ?? (await this.opts.sequences.latestSeq(projectId));
+    const basis = shared?.basis ?? undefined;
+    const cacheable = shared?.basis !== null;
     // Proof, observed 2026-09-29: with the sequence left out of this key,
     // `answers a command's new total on the next read, and serves an unchanged
     // one from the cache` in `space.resource.test.ts` received the old total 3
@@ -352,11 +381,17 @@ export class SpaceResource {
     // Proof, observed 2026-09-29: with the access left out of this key, `keeps
     // a legacy read's assignee names from a scoped reader` in
     // `space.resource.test.ts` received the legacy name `Root Kat`.
-    const cached = this.opts.rollUpCache.get(RollUpCache.keyOf(projectId, seq, revision, access));
+    // Proof: omitting basis lookup/storage made mounted warm roll-up and in-progress reads retain old dates.
+    // Proof: omitting the null-basis lookup guard failed mounted `does not reuse isolated load or roll-up entries`: the shared roll-up had no calendar_range.
+    const cached = cacheable
+      ? this.opts.rollUpCache.get(RollUpCache.keyOf(projectId, seq, revision, access, basis))
+      : undefined;
     if (cached !== undefined) return cached;
-    const tree = await this.opts.trees.treeWithin(projectId, access);
+    const tree = shared?.tree ?? (await this.opts.trees.treeWithin(projectId, access));
     if (tree === null) return null;
     // An unavailable engine is not cached: it can recover with no write.
+    // Proof: removing this branch failed mounted revocation: 403 became 200 with unavailable project output.
+    if ('kind' in tree && tree.kind === 'access_refused') return tree;
     if ('kind' in tree) return { kind: 'unavailable' };
     const rollUp = rollUpProject({
       workItems: tree.workItems.map((row) => ({
@@ -385,10 +420,12 @@ export class SpaceResource {
     };
     // Keyed by the sequence and revision the tree itself read, which are the
     // ones its rows are current at.
-    this.opts.rollUpCache.set(
-      RollUpCache.keyOf(projectId, tree.seq, tree.projectRevision, access),
-      rolled,
-    );
+    // Proof: omitting the null-basis storage guard failed the same mounted test: the following isolated roll-up kept calendar_range.
+    if (cacheable)
+      this.opts.rollUpCache.set(
+        RollUpCache.keyOf(projectId, tree.seq, tree.projectRevision, access, basis),
+        rolled,
+      );
     return rolled;
   }
 
@@ -405,10 +442,11 @@ export class SpaceResource {
     spaceId: string,
     limit: number,
   ): Promise<
-    SpaceAnswer<
-      { items: InProgressItem[]; truncated: boolean; unavailable: string[] },
-      'organization_required' | 'not_found'
-    >
+    | SpaceAnswer<
+        { items: InProgressItem[]; truncated: boolean; unavailable: string[] },
+        'organization_required' | 'not_found'
+      >
+    | AccessRefused
   > {
     const projects = await this.opts.projects.listWithin(actorId, access);
     const readable = new Map(projects.map((project) => [project.id, project]));
@@ -429,21 +467,35 @@ export class SpaceResource {
       // in `space.resource.test.ts` threw on the hidden member instead.
       placed = members.filter(({ projectId }) => readable.has(projectId));
     }
+    const observation = await this.opts.trees.sharedTreesWithin(actorId, access);
+    if (observation.kind === 'access_refused') return observation;
+    const shared =
+      observation.kind === 'shared'
+        ? new Map(observation.entries.map((entry) => [entry.projectId, entry] as const))
+        : null;
     const items: InProgressItem[] = [];
     const unavailable: string[] = [];
     for (const { projectId, position } of placed) {
       const project = readable.get(projectId);
       // `placed` holds only readable projects, so this is a broken invariant.
       if (project === undefined) throw new Error(`placed project ${projectId} is not readable`);
-      const rolled = await this.rolledOf(projectId, project.revision, access);
+      const entry = shared?.get(projectId);
+      if (shared !== null && entry === undefined) continue;
+      const rolled = await this.rolledOf(
+        projectId,
+        entry?.revision ?? project.revision,
+        access,
+        entry,
+      );
       // Deleted since the list was read: nothing of it is in progress.
       if (rolled === null) continue;
+      if ('kind' in rolled && rolled.kind === 'access_refused') return rolled;
       if ('kind' in rolled) {
         unavailable.push(projectId);
         continue;
       }
       for (const leaf of rolled.inProgress) {
-        items.push({ ...leaf, projectId, projectName: project.name, position });
+        items.push({ ...leaf, projectId, projectName: entry?.name ?? project.name, position });
       }
     }
     const ordered = sortInProgress(items, ({ dates }) => dates?.endsOn ?? null);

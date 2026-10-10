@@ -81,7 +81,7 @@ from typing import Any, Mapping, Sequence
 
 from ortools.sat.python import cp_model
 
-# The three term names, spelled exactly as `solver-wire.v2.json`'s
+# The three term names, spelled exactly as `solver-wire.v3.json`'s
 # `objectiveValues` spells them. Lowercase is derived rather than chosen: the
 # schema's own `$comment` records that `MAKESPAN`/`PRIORITY`/`MOVEMENT` in
 # design.md are mathematical names and these are the JSON keys.
@@ -92,7 +92,7 @@ MOVEMENT = "movement"
 TERMS: tuple[str, str, str] = (MAKESPAN, PRIORITY, MOVEMENT)
 
 # The lexicographic order each objective minimises, from the request's
-# `objective` enum. `solver-wire.v2.json`: "pri minimises (PRIORITY, MAKESPAN,
+# `objective` enum. `solver-wire.v3.json`: "pri minimises (PRIORITY, MAKESPAN,
 # MOVEMENT) lexicographically; time minimises (MAKESPAN, PRIORITY, MOVEMENT)".
 # MOVEMENT is last in both, which is why it is a tie-breaker and never a driver.
 STAGE_ORDER: Mapping[str, tuple[str, str, str]] = {
@@ -135,7 +135,11 @@ def build_model(request: Mapping[str, Any]) -> BuiltModel:
     """Build the constraint system and the three cost terms for one request.
 
     The request is assumed already validated — schema plus the receiver's cross-field
-    checks in `validate.py`. This function re-derives nothing about
+    checks in `validate.py`. Fixed elsewhere bookings enter each person's no-overlap
+    constraint as constant intervals and never consume a pool slot. Zero-duration
+    selected slices create no occupancy interval.
+
+    This function re-derives nothing about
     well-formedness and would build a nonsense model from a nonsense request,
     which is why `cli.main` validates first and unconditionally.
     """
@@ -235,6 +239,18 @@ def build_model(request: Mapping[str, Any]) -> BuiltModel:
         if person is None or key not in intervals:
             continue
         by_person.setdefault(str(person), []).append(intervals[key])
+    # Fixed bookings share the person's no-overlap constraint; they spend no pool capacity.
+    # Proof: removing this loop made test_fixed_booking_forces_the_selected_person_to_wait
+    # start at 0 instead of 5 and made test_fixed_calendar_can_make_a_deadline_infeasible
+    # publish feasible instead of infeasible through validate_request + solve_request.
+    for person, bookings in request["elsewhere"].items():
+        for index, (start, end) in enumerate(bookings):
+            # JSON Schema accepts 5.0 as integer 5; validation guarantees this conversion
+            # is exact, while CP-SAT requires Python ints instead of integer-valued floats.
+            fixed = model.new_fixed_size_interval_var(
+                int(start), int(end - start), f"elsewhere[{person}][{index}]"
+            )
+            by_person.setdefault(person, []).append(fixed)
     for members in by_person.values():
         if len(members) > 1:
             model.add_no_overlap(members)

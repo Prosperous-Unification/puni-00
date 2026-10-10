@@ -8,6 +8,8 @@ import type {
   TypedDependencyView,
 } from '@/lib/wbs-api';
 
+import type { CommitOutcome } from './live-editing';
+import { didLand } from './live-editing';
 import type { TreeRow } from './wbs-rows';
 
 type ReadEndpoint = TypedDependencyView['predecessor'];
@@ -187,8 +189,8 @@ export function TypedDependencyEditor({
     predecessor: TypedDependencyEndpoint,
     successor: TypedDependencyEndpoint,
     type: TypedDependencyType,
-  ) => Promise<'landed' | 'refused' | 'unsent'>;
-  onRemove?: () => Promise<'landed' | 'refused' | 'unsent'>;
+  ) => Promise<CommitOutcome>;
+  onRemove?: () => Promise<CommitOutcome>;
 }) {
   const initialKey = (endpoint: ReadEndpoint | undefined) =>
     endpoint?.scope === 'whole' ? 'whole' : endpoint?.stepId;
@@ -254,7 +256,7 @@ export function TypedDependencyEditor({
       relationshipType,
     );
     setBusy(false);
-    if (outcome === 'landed') onCancel();
+    if (didLand(outcome)) onCancel();
     else setMessage('Dependency refused. Review the selected scopes and try again.');
   };
   return (
@@ -341,7 +343,7 @@ export function TypedDependencyEditor({
                 setBusy(true);
                 const outcome = await onRemove();
                 setBusy(false);
-                if (outcome === 'landed') onCancel();
+                if (didLand(outcome)) onCancel();
                 else setMessage('Dependency removal refused.');
               })();
             }}

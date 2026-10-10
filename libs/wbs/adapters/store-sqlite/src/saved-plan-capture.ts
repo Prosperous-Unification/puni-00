@@ -1,9 +1,9 @@
-import type { PlanInputReads, SavedPlanCaptureStore } from '@wbs/core';
+import type { ChainAccess, PlanInputReads, SavedPlanCaptureStore } from '@wbs/core';
 
 import { ActualRepository } from './actual';
 import { CapacityRepository } from './capacity';
 import { type CaptureReadSeam, inertSqliteCaptureReadSeam } from './capture-read-seam';
-import type { Connection } from './db';
+import type { Connection, Drizzle } from './db';
 import { drizzleReadTransaction } from './db';
 import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
@@ -130,63 +130,12 @@ export class SavedPlanCaptureRepository implements SavedPlanCaptureStore {
     const connection = this.opts.openConnection();
     try {
       const db = connection.db;
-      const projects = new ProjectRepository(db, OPEN);
-      const directory = new DirectoryRepository(db, OPEN);
       const tx = drizzleReadTransaction(db);
       tx.begin();
       try {
-        const project = await projects.findById(projectId);
-        if (project === null) {
-          // Nothing was read and nothing was written, so the block is closed
-          // rather than rolled back: `COMMIT` on a read-only DEFERRED
-          // transaction releases the snapshot and is not a write.
-          tx.commit();
-          return null;
-        }
-        await this.captureRead.afterFirstRead({ projectId, project });
-        const workItems = await new WorkItemRepository(db, OPEN).listByProject(projectId);
-        const estimates = await new EstimateRepository(db, OPEN).listByProject(projectId);
-        const actuals = await new ActualRepository(db, OPEN).listByProject(projectId);
-        const progress = await new StepProgressRepository(db, OPEN).listByProject(projectId);
-        const measures = await new StepMeasureRepository(db, OPEN).listByProject(projectId);
-        const dependencies = await new DependencyRepository(db, OPEN).listByProject(projectId);
-        const typedDependencies = (
-          await new TypedDependencyRepository(db, OPEN).listByProject(projectId)
-        ).map(({ id, predecessor, successor, type }) => ({ id, predecessor, successor, type }));
-        const { assignments } = await directory.assignmentsInProject(projectId);
-        const steps = await projects.stepsOf(projectId);
-        const capacity = await new CapacityRepository(db, OPEN).slotsFor(projectId);
-        const priorityBands = await new PriorityBandRepository(db, OPEN).listFor(projectId);
-        // Capture the directory whole for independent saved-plan history;
-        // the live tree's assigned-name projection cannot replace these reads.
-        const people = await directory.listPeople();
-        const teams = await directory.listTeams();
-        const services = await directory.listServices();
-        const tags = await directory.listTags();
-        const workItemTypes = await directory.listWorkItemTypes();
-        const externalSystems = await directory.listExternalSystems();
+        const captured = await readPlanInputIn(db, projectId, this.captureRead);
         tx.commit();
-        return {
-          project,
-          steps,
-          workItems,
-          estimates,
-          actuals,
-          progress,
-          measures,
-          dependencies,
-          // Proof: omitting this snapshot read made `keeps captured node endpoints after step reorder and live relationship removal` receive undefined (2026-09-27).
-          typedDependencies,
-          assignments,
-          capacity,
-          priorityBands,
-          people,
-          teams,
-          services,
-          tags,
-          workItemTypes,
-          externalSystems,
-        };
+        return captured;
       } catch (err) {
         // The snapshot is released before the connection closes. Closing a
         // handle with an open transaction would roll it back anyway, but only
@@ -198,4 +147,88 @@ export class SavedPlanCaptureRepository implements SavedPlanCaptureStore {
       connection.close();
     }
   }
+}
+
+/** Reads detached plan values on a caller-owned snapshot; never begins or closes its connection. */
+export async function readPlanInputIn(
+  db: Drizzle,
+  projectId: string,
+  captureRead: CaptureReadSeam = inertSqliteCaptureReadSeam,
+  access?: ChainAccess,
+): Promise<PlanInputReads | null> {
+  const projects = new ProjectRepository(db, OPEN);
+  const directory = new DirectoryRepository(db, OPEN);
+  const project =
+    access?.kind === 'scoped'
+      ? await projects.findInOrganization(projectId, access.scope.organizationId)
+      : await projects.findById(projectId);
+  if (project === null) return null;
+  if (access?.kind === 'scoped') {
+    const crossing = await projects.findCrossReferences(projectId, access.scope.organizationId);
+    // Proof: dropping this check made the crossing-assignee negative accept foreign person assignment.
+    if (crossing.length > 0)
+      throw new Error(`project "${projectId}" holds references outside its organization`);
+  }
+  await captureRead.afterFirstRead({ projectId, project });
+  const workItems = await new WorkItemRepository(db, OPEN).listByProject(projectId);
+  const estimates = await new EstimateRepository(db, OPEN).listByProject(projectId);
+  const actuals = await new ActualRepository(db, OPEN).listByProject(projectId);
+  const progress = await new StepProgressRepository(db, OPEN).listByProject(projectId);
+  const measures = await new StepMeasureRepository(db, OPEN).listByProject(projectId);
+  const dependencies = await new DependencyRepository(db, OPEN).listByProject(projectId);
+  const typedDependencies = (
+    await new TypedDependencyRepository(db, OPEN).listByProject(projectId)
+  ).map(({ id, predecessor, successor, type }) => ({ id, predecessor, successor, type }));
+  const { assignments } = await directory.assignmentsInProject(projectId);
+  const steps = await projects.stepsOf(projectId);
+  const capacity = await new CapacityRepository(db, OPEN).slotsFor(projectId);
+  const priorityBands = await new PriorityBandRepository(db, OPEN).listFor(projectId);
+  // Capture the directory whole for independent saved-plan history;
+  // the live tree's assigned-name projection cannot replace these reads.
+  // Proof: reading the global people list made the scoped capture negative include foreign.
+  const people =
+    access?.kind === 'scoped'
+      ? await directory.listInOrganization('people', access.scope.organizationId)
+      : await directory.listPeople();
+  const teams =
+    access?.kind === 'scoped'
+      ? await directory.listInOrganization('teams', access.scope.organizationId)
+      : await directory.listTeams();
+  const services =
+    access?.kind === 'scoped'
+      ? await directory.listInOrganization('services', access.scope.organizationId)
+      : await directory.listServices();
+  const tags =
+    access?.kind === 'scoped'
+      ? await directory.listInOrganization('tags', access.scope.organizationId)
+      : await directory.listTags();
+  const workItemTypes =
+    access?.kind === 'scoped'
+      ? await directory.listInOrganization('workItemTypes', access.scope.organizationId)
+      : await directory.listWorkItemTypes();
+  const externalSystems =
+    access?.kind === 'scoped'
+      ? await directory.listInOrganization('externalSystems', access.scope.organizationId)
+      : await directory.listExternalSystems();
+  return {
+    project,
+    steps,
+    workItems,
+    estimates,
+    actuals,
+    progress,
+    measures,
+    dependencies,
+    // Proof: omitting this snapshot read made `keeps captured node endpoints after step reorder and live relationship removal` receive undefined (2026-09-27).
+    typedDependencies,
+    assignments,
+    capacity,
+    priorityBands,
+    people,
+    teams,
+    services,
+    tags,
+    workItemTypes,
+    externalSystems,
+  };
 }

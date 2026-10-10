@@ -419,6 +419,19 @@ describe('the directory page', () => {
     expect(subscribed).toHaveBeenCalledTimes(0);
   });
 
+  itDom('draws each person’s load line under their row', async () => {
+    render(
+      <DirectoryPageOverClient
+        api={fakeDirectory([KAT], [PLATFORM])}
+        nav={null}
+        account={null}
+        loadOf={(person) => <span>{`load of ${person.id}`}</span>}
+      />,
+    );
+    await drawn('Kat');
+    expect(screen.getByText('load of p1')).toBeDefined();
+  });
+
   itDom('carries the navigation and the account, and no project controls', async () => {
     pageWith(fakeDirectory([], []));
     await waitFor(() => {

@@ -43,6 +43,8 @@ function deriveTools(body: SchemaShape<unknown> = commands.body) {
     '/health',
     '/metrics',
     '/api/smoke/echo',
+    '/api/organization/memberships',
+    '/api/organization/active',
   ] as const;
   const shapes = [
     { ...commands, body },

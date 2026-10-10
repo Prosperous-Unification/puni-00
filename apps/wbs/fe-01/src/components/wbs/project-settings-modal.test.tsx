@@ -162,6 +162,20 @@ const escape = (): void => {
 };
 
 describe('one modal for the project’s five settings', () => {
+  itDom('does not open settings before the initial priority bands arrive', () => {
+    mounted({
+      priorities: {
+        bands: [],
+        setBands: () => Promise.resolve(),
+        onChanged: () => Promise.resolve(),
+      },
+    });
+
+    expect(trigger()).toBeDisabled();
+    open();
+    expect(screen.queryByRole('dialog', { name: 'Project settings' })).not.toBeInTheDocument();
+  });
+
   itDom('opens on one control and offers every section from its tab list', () => {
     mounted();
     open();

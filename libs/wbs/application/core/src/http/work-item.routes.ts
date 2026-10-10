@@ -14,19 +14,19 @@ import {
 } from '@wbs/contracts';
 import { type, ValidationError } from '@wbs/validation';
 
-import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
-import type { OrganizationAccess } from '../ports/organization-access';
-import type { Digest } from '../ports/runtime';
-import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
-import type { PlanCommand } from '../service/plan-command';
 import type {
   AppliedCommand,
   BatchRefusal,
   PlanCommandRunner,
   WholeBatchRefusal,
-} from '../service/plan-commands';
-import type { UndoOutcome, WorkItemService } from '../service/work-item.service';
-import { runCommandBatch } from '../use-cases/run-command-batch';
+} from '../module/plan-commands/plan-commands.feature';
+import { runCommandBatch } from '../module/plan-commands/run-command-batch';
+import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
+import type { UndoOutcome, WorkItemService } from '../module/work-item/work-item.resource';
+import type { OrganizationAccess } from '../ports/organization-access';
+import type { Digest } from '../ports/runtime';
+import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
+import type { PlanCommand } from '../service/plan-command';
 import { BadCapacity } from './capacity-body';
 import { bind, type HttpReply, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
@@ -408,6 +408,9 @@ export function workItemRoutes(
       if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
       // Proof: removing this branch made the mounted unavailable work-item read
       // receive 500 instead of the required 409.
+      // Proof: removing this mapping failed mounted revocation: expected 403 became 500.
+      if ('kind' in tree && tree.kind === 'access_refused')
+        return organizationRefusal(tree.refusal);
       if ('kind' in tree)
         return {
           ok: false,

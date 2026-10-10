@@ -165,3 +165,57 @@ row, the blank `p2: schedule unavailable` for the unavailable one).
 | a lane without dates draws no bar | the dated filter in `spaceGanttLanesOf` removed           | `labels each undated, loading, unavailable and failed project, and draws it no bar` | crashed with `not an ISO date: undefined` (a crash, not a drawn bar) |
 | in progress follows writes        | the in-progress read made mount-only                      | `refreshes in progress now after a remove`                                          | `Nothing is in progress in this space.` never appeared               |
 | rows keep figures (re-observed)   | every row reset to loading on refresh, on the merged page | `keeps the old figures until the new chunk answers`                                 | `expected 'p1Loading…' to contain 'In progress'`                     |
+
+## Delivery preparation — 2026-10-10
+
+The frontend Gantt candidate `875751175` was merged with `origin/main`
+`a3b1526bde441381b79c997732c44b0373fadbc8` in the isolated
+`agent/sol-spaces-gantt` worktree. The sole conflict was the node-suite inventory;
+both the existing Board suite and the new Spaces Gantt suite remain registered.
+
+Fresh local checks on the merged tree (pop-os, Bun 1.4.2):
+
+| Command                                                                                                                                                  | Observed                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `BUN_TMPDIR=/tmp bun install --frozen-lockfile`                                                                                                          | Exit 0; 79 packages installed. The initial install without the temp override failed with EROFS.                 |
+| `bunx vitest run --config vitest.node.config.ts src/components/spaces/space-gantt.test.ts` (fe-01)                                                       | 1 file, 3 tests passed.                                                                                         |
+| `bunx vitest run src/components/spaces/in-progress-list.test.tsx src/components/spaces/space-page.test.tsx --no-file-parallelism --maxWorkers=1` (fe-01) | 2 files, 13 tests passed.                                                                                       |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                                                                                                             | Exit 0; uncached full frontend lint, 67 seconds. Nx used its main-process fallback after sandbox socket denial. |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck`                                                                               | Exit 0; module and full frontend typechecks, 22 seconds.                                                        |
+| `bunx prettier --check` over the ten feature files                                                                                                       | Exit 0; all matched files use Prettier style.                                                                   |
+| `BUN_TMPDIR=/tmp BUN_INSTALL=/tmp/spaces-bun bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                     | Exit 0; all changes/specs valid.                                                                                |
+
+The existing slice 6 injected-fault evidence above was preserved. The layout regression below adds fresh production fault evidence. The h2puni gate, browser suite,
+CI secrets scan and migration lint have not yet been run for this merged candidate;
+the delivery coordinator will run the pinned host gate before reporting completion.
+
+### Restored Timeline layout regression
+
+The historical candidate lacked the approved October 9 layout fix (commit
+`14706dff`, unavailable in this clone). Recreated normal-flow blank labels,
+`min-h-4 min-w-0` tracks and `break-words`; no source-only HTML fixture was present.
+`spaces-timeline.spec.ts` uses the standard Playwright `chromium` project, which
+builds and previews the application. It first signs in as the real local development
+identity, then opens `/spaces/s` with deterministic space/roll-up route replies.
+The 320 px regression measures text bounds, track bounds, lane separation and
+text overflow, including an 80-character unbroken name.
+
+Command: `BUN_TMPDIR=/tmp E2E_PORT_SHIFT=3900 CI=1 bunx playwright test --config
+apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/e2e/spaces-timeline.spec.ts
+--project=chromium --workers=1`. Original layout failed (scroll width 69 > 49);
+fixed layout passed 1/1. Each following fault was separately injected in the
+production component, observed, and restored:
+
+| Fault                                        | Observed failure                                                                                                                               |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blank label restored to absolute positioning | Text bottom 711 > allowed lane bottom 378.                                                                                                     |
+| `break-words` removed                        | Text right 308.71875 > allowed track right 289.                                                                                                |
+| `min-w-0` removed                            | Track right 1165.21875 > viewport 320. The first draft only bounded the lane element and passed this fault; a direct track bound now fails it. |
+
+The first merge commit attempt ran all mandatory hooks; lint over 972 main-forward
+files exhausted Node's default 4 GB heap. The retry raises only that process's
+heap to 8 GB; hooks remain enabled.
+
+Final restoration run: browser regression passed 1/1 in 7.8 seconds. The added
+browser file's initial scoped lint flagged two redundant undefined checks after
+the asserted two-lane fixture; those checks were removed.

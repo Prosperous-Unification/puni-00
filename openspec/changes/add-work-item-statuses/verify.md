@@ -154,6 +154,107 @@ Undoing a move orders its writes as: clear the parent the row left, move the row
 Held rows keep their stored position when the plan is arranged; an arranged sibling may take
 the same position number, and ADR 0016's id tie-break orders the two.
 
+### Slice 5b — plan document v6
+
+| Check                                   | Fault injected                    | Test that observed it                                                                 | Observed                                                        |
+| --------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| hold vocabulary                         | an unknown hold read as `on_hold` | `refuses a version-6 hold or readiness outside its vocabulary or on a parent…`        | `ok: true` where `invalid_body` at `workItems[1].hold` was owed |
+| no statement on a parent                | parent check disabled             | same case                                                                             | `ok: true` where `workItems[0].hold` was owed                   |
+| the import writes the file's statements | both written as null              | `round-trips a version-6 readiness and hold, and reads a version-5 file with neither` | the imported row held neither                                   |
+
+### Plan document v6 review fixes (Fable review of #225)
+
+The import no longer refuses a hold on done work: `setProgress` keeps a hold, so a leaf held and then marked done exported `hold: "on_hold"` and its own file was refused. With the refusal restored, `re-imports its own export of a leaf held and then marked done` failed on `Expected: true, Received: false` (the re-classification refused the export). `setProgress` is unchanged.
+
+### Slice 6 — fe-01 table and row menu
+
+Each fault was injected into production code, the named test run, and the file restored.
+
+| Check                                            | Fault injected                          | Test that observed it                                                               | Observed                                               |
+| ------------------------------------------------ | --------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| a row is not offered the status it reads         | `status !== row.status` filter removed  | `offers no hold on done work, and In progress to reopen it`                         | `done` offered on a done row                           |
+| a hold that changes nothing is not offered       | leaf hold comparison replaced by `true` | `offers a parent a hold while any unfinished leaf beneath does not already hold it` | `expected [ 'on_hold', … ] to not include 'on_hold'`   |
+| Done and In progress ask before writing          | `chooseStatus` prompt branch removed    | `choosing Done opens the completion prompt…`, `asks for Started on alone…`          | no dialog `Set 010 to Done` / `Set 020 to In progress` |
+| the three `setStatus` refusals are worded        | the three sentences struck              | `says why be-01 refused a status with <code>` ×3                                    | the fallback toast instead                             |
+| each predecessor bordered in its status colour   | done-only strip                         | `borders each predecessor in its own status colour`                                 | `3px solid transparent`                                |
+| an unknown status word never draws a blank glyph | contract `status` widened to `string`   | `rejects a status word it does not know…` (`wbs-api.test.ts`)                       | `promise resolved … instead of rejecting`              |
+| the hold strip is painted in a browser           | the `on_hold` strip selector struck     | `holds a row from its menu, paints the hold on its strip…` (Chromium)               | only the row separator in `box-shadow`                 |
+
+A rejected read renders the page's failed-read state with Retry and no Status cell
+(`shows a plan read refused for a status word it does not know as a failed read`).
+`e2e/status.spec.ts` ran locally with `E2E_PORT_SHIFT=2000`: 3 passed.
+
+### Slice 7 — fe-01 Gantt
+
+| Check                                               | Fault injected                                   | Test that observed it                                                  | Observed                                                        |
+| --------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------- |
+| a held row says On hold                             | `label.held` read as `false`                     | `draws no bar for a held leaf and says On hold in its row instead`     | `[ 'strip', false ]`                                            |
+| the panel prints the word                           | `held` filter inverted                           | `says On hold in a held row and draws it no bar`                       | `expected undefined to be 'On hold'`                            |
+| a bar knows what stops it                           | `stop` read as `null`                            | `hatches the bar a held predecessor stops…`, `outlines a blocked bar…` | `null` where `blocked_by_proxy` / `blocked` owed                |
+| the proxy card names the predecessor                | proxy words returned null                        | `names the held predecessor on a hatched bar`                          | name without `Blocked by proxy — waiting on`                    |
+| the card reads authored predecessors                | predecessors reduced to `dependsOn`              | browser gate `a held row says On hold…`                                | `work it depends on is on hold or blocked`, no `waiting on 010` |
+| a blocked bar is outlined red                       | the `blocked` stroke arm dropped                 | `outlines a blocked bar in the blocked red…`                           | `'#94a3b8'` where `'#dc2626'` owed                              |
+| the critical ring does not paint over it            | `!blocked` dropped from `barClasses`             | browser gate (jsdom passed)                                            | computed stroke `oklch(0.129 0.042 264.695)`                    |
+| stored arrows from a blocked bar are red            | `blocked` read as `false`                        | `outlines a blocked bar and draws its arrows…`                         | `[ 'strip', false ]`                                            |
+| authored arrows from a blocked bar are red          | typed `blocked` read as `false`                  | browser gate                                                           | no `path[data-gantt-arrow][data-blocked]`                       |
+| a branch with a held leaf still draws its arrow     | held-leaf filter removed from `leavesUnderOf`    | `leaves an arrow from a branch with a held leaf…`                      | `GanttDataError: … strip has no slice in this payload`          |
+| an authored dependency on a held leaf draws nothing | held-leaf filter removed from the typed resolver | `draws no typed arrow from a held leaf…`                               | `GanttDataError: missing chart slices for strip`                |
+
+The last two were live faults since slice 4: a held leaf has no slice, and the chart read that
+as a broken payload. `e2e/status.spec.ts` (Chromium, `E2E_PORT_SHIFT=2000`): 4 passed, with the
+held/hatched and blocked screenshots attached.
+
+### Hotfix — the Gantt and held leaves (Fable review of #238)
+
+On main, the chart threw `GanttDataError` and showed "The chart cannot be drawn" whenever an
+authored dependency touched a held leaf or a stored edge left a branch holding one. be-01 sends
+no slice for a leaf whose stored hold is `on_hold`, whatever it reads. The fix is keyed on the
+stored hold (`heldLeafIdsOf`), so a held leaf later marked done is covered.
+
+| Check                                             | Fault injected                                          | Test that observed it                                                                   | Observed                                                                        |
+| ------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| a branch's arrow skips its held leaves            | held-leaf filter removed from `leavesUnderOf` (main)    | `leaves an arrow from a branch holding a held leaf…`                                    | `GanttDataError: dependency branch → paint: strip has no slice in this payload` |
+| an authored endpoint on a held leaf draws nothing | held-leaf filter removed from the typed resolver (main) | `draws no authored arrow to or from a held leaf…`                                       | `GanttDataError: missing chart slices for strip`                                |
+| held means the stored hold                        | keyed on `status === 'on_hold'`                         | `names every leaf whose stored hold is on hold, a held leaf later marked done included` | `expected [] to deeply equal [ 'strip' ]`                                       |
+
+### Task 6.4 — status for assistive tech and contrast
+
+| Check                                                              | Fault injected                            | Test that observed it                        | Observed                                            |
+| ------------------------------------------------------------------ | ----------------------------------------- | -------------------------------------------- | --------------------------------------------------- |
+| blocked by proxy has its own glyph                                 | glyph set back to `⊘`                     | `gives every status its own glyph…`          | `expected 7 to be 8`                                |
+| the Status cell says its word                                      | `aria-describedby` dropped                | `says its status word to assistive tech…`    | empty accessible description                        |
+| the strip says its word with the Status column hidden              | drag handle's `aria-describedby` dropped  | `puts a row on hold at once…`                | empty description on `Reorder 010`                  |
+| status colours reach 3:1, and in progress, blocked and proxy 4.5:1 | in progress back to `oklch(0.72 0.15 72)` | `every status strip reaches 3:1…` (Chromium) | `--status-in-progress as a strip`, `Received: 2.54` |
+
+Measured in Chromium against `--background`: draft 3.64, ready 3.78, blocked by proxy 5.05,
+on hold 4.46, blocked 4.77, done 3.68; in progress at L 0.56 computes to 4.77. Draft, ready,
+on hold and done stay under 4.5:1 as glyph text (raised in the follow-up below).
+
+### Glyph-text contrast for every status (follow-up to #244)
+
+Every status token is glyph text as well as a strip, so the Chromium gate now owes 4.5:1 for
+all seven. With draft, ready, on hold and done at their earlier lightness it failed on
+`--status-draft as glyph text`, `Received: 3.64`. Now: done L 0.54 (4.70), draft 0.56 (4.64),
+ready 0.54 (4.76), on hold 0.56 (4.84), computed OKLCH → sRGB against `--background`, and the
+gate passes in Chromium.
+
 ## Not run
 
 - The h2puni host gate; the orchestrator runs it on the integration branch.
+
+## 2026-10-04 PR #248 contrast correction
+
+The earlier `--background` measurements above describe the initial token
+values only. The status glyph test now composites the row tint over each
+computed cell background and checks all seven tokens on plain and banded rows,
+hovered and highlighted rows, with and without the Done tint. Each measured
+ratio must be at least 4.5:1.
+
+The original values were red in Chromium: Draft on a hovered row measured
+3.920405954:1 and Done on its resting tint measured 4.274764846:1. Restoring
+the old Done lightness after the fix also failed at 3.973500378:1 on a hovered
+row. The final values in `apps/wbs/fe-01/src/styles.css` are Done L 0.48,
+In Progress L 0.49, Draft L 0.49, Ready L 0.48, On Hold L 0.49, Blocked L
+0.50, and Blocked by Proxy L 0.49. The full status browser spec passed 5/5;
+FE lint, FE typecheck, and Prettier passed. The h2puni host gate remains to be
+run by the coordinator.

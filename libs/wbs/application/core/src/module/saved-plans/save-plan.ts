@@ -2,12 +2,13 @@ import type { AuthenticatedUser } from '@wbs/contracts';
 
 import { mayEditProjectWithin, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectService } from '../../service/project.service';
+import type { ProjectService } from '../project/project.resource';
 import type {
   SavedPlanSaveOutcome,
   SavedPlanSaveRequest,
   SavedPlanService,
 } from './saved-plans.feature';
+import { SavedPlanCaptureRefusal } from './saved-plans.feature';
 
 export interface SavePlanGraph {
   readonly projects: Pick<ProjectService, 'readWithin'>;
@@ -24,7 +25,9 @@ export interface SavePlanInput {
 }
 
 export type SavedPlanUseCaseOutcome =
-  SavedPlanSaveOutcome | { readonly outcome: 'not_found' | 'forbidden' | 'insufficient_scope' };
+  | SavedPlanSaveOutcome
+  | { readonly outcome: 'not_found' | 'forbidden' | 'insufficient_scope' }
+  | { readonly outcome: 'access_refused'; readonly refusal: SavedPlanCaptureRefusal['refusal'] };
 
 /** Identifies a failure from the saved-plan write so transports classify only that boundary. */
 export class SavedPlanWriteError extends Error {
@@ -61,6 +64,7 @@ export async function savePlan(
     ...(input.name === undefined ? {} : { name: input.name }),
     createdBy: input.actor.username,
     createdById: input.actor.id,
+    access: input.access,
     ...(input.access.kind === 'scoped'
       ? {
           scoped: {
@@ -75,6 +79,8 @@ export async function savePlan(
   try {
     outcome = await graph.plans.save(request);
   } catch (error) {
+    if (error instanceof SavedPlanCaptureRefusal)
+      return { outcome: 'access_refused', refusal: error.refusal };
     throw new SavedPlanWriteError(error);
   }
   if (outcome.outcome === 'saved') {

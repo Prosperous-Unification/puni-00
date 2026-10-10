@@ -1,0 +1,9 @@
+DROP TABLE concept_preview;
+DROP TABLE account_request;
+DROP TABLE chat_turn;
+DROP TABLE prospect_account;
+DROP TABLE prospect_session;
+DROP TABLE operator_session;
+DROP TABLE submission_replay;
+DROP TABLE proposal_submission;
+DROP TABLE intake_draft;

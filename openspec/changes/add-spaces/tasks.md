@@ -115,3 +115,8 @@
 - [x] 6.2 Negatives: the dated filter in `spaceGanttLanesOf` removed → the lanes crash with
       `not an ISO date: undefined` instead of drawing blanks; the in-progress read made
       mount-only → `refreshes in progress now after a remove` never sees the empty list.
+
+- [x] 6.3 Restore the approved narrow-screen Timeline layout: blank labels grow lanes in
+      normal flow; tracks shrink and long tokens wrap. Authenticated built-preview
+      browser regression checks text containment, lane separation and track overflow at 320 px.
+      Absolute labels, wrapping removal and minimum-width removal each fail the regression.

@@ -1,4 +1,4 @@
-"""The copy of `solver-wire.v2.json` inside the package is the original.
+"""The copy of `solver-wire.v3.json` inside the package is the original.
 
 Two files with the same name in one repository are a drift bug waiting to be
 written, so the drift is a test rather than a convention. It compares **bytes**,

@@ -1,7 +1,7 @@
 import type { DelegationIssuer, DelegationSourceResolver, OrganizationAccess } from '@wbs/core';
+import type { AuthService } from '@wbs/core/service/auth.service';
 import { errors, jwtVerify } from 'jose';
 
-import type { AuthService } from '../service/auth.service';
 import { DelegationSourceIneligible } from './delegation-issuer';
 
 /** A presented credential is absent, invalid or not a native WBS session. */

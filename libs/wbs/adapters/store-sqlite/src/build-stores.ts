@@ -1,3 +1,5 @@
+import type { LivePlanStore } from '@wbs/core/ports/chain-snapshot-store';
+
 import { ActualRepository } from './actual';
 import { CalendarMarkerRepository } from './calendar-marker';
 import { CapacityRepository } from './capacity';
@@ -12,6 +14,7 @@ import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write
 import { PlanEventRepository } from './plan-event';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
+import { ProjectRankRepository } from './project-rank';
 import { StepRepository } from './step';
 import { StepMeasureRepository } from './step-measure';
 import { StepProgressRepository } from './step-progress';
@@ -24,9 +27,12 @@ export function buildStores(
   db: Drizzle,
   gate: Gate,
   lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
+  livePlans?: LivePlanStore,
 ) {
   return {
+    ...(livePlans === undefined ? {} : { livePlans }),
     projects: new ProjectRepository(db, gate),
+    projectRanks: new ProjectRankRepository(db, gate),
     users: new UserRepository(db, gate),
     directory: new DirectoryRepository(db, gate),
     capacity: new CapacityRepository(db, gate),

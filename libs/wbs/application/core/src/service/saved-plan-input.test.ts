@@ -1,7 +1,10 @@
 import { canonicalisePlanInput, sliceKey } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import { schedulePlanInput } from '../module/saved-plans/saved-plan-schedule';
+import {
+  scheduleInputOfCaptured,
+  schedulePlanInput,
+} from '../module/saved-plans/saved-plan-schedule';
 import type { PlanInputReads } from '../ports/saved-plan-capture-store';
 import { planInputRowsOf } from './saved-plan-input';
 
@@ -121,6 +124,28 @@ const reads = {
 const ids = (rows: readonly { id: string }[]): string[] => rows.map((row) => row.id).sort();
 
 describe('planInputRowsOf', () => {
+  it('schedules captured assignments around the detached elsewhere calendar', () => {
+    const captured: PlanInputReads = {
+      ...reads,
+      steps: reads.steps.map((step) => ({ ...step, allowancePercent: 0 })),
+      workItems: reads.workItems.map((row) => ({
+        ...row,
+        deadline: null,
+        readiness: null,
+        hold: null,
+      })),
+      dependencies: [],
+      capacity: new Map(),
+    };
+    const elsewhere = new Map([
+      ['per-1', [{ start: 0, end: 5, projectId: 'upstream', workItemId: 'held' }]],
+    ]);
+    expect(scheduleInputOfCaptured(captured, elsewhere).elsewhere).toEqual(elsewhere);
+    const planned = schedulePlanInput(captured, elsewhere);
+    expect(planned.slices.get(sliceKey('w1', 's1'))?.earliestStart).toBe(5);
+    expect(planned.slices.get(sliceKey('w1', 's1'))?.boundBy).toBe('elsewhere');
+  });
+
   it('schedules a captured node relationship into a later successor step', () => {
     const first = reads.workItems.at(0);
     if (first === undefined) throw new Error('fixture has no work item');

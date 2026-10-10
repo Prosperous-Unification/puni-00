@@ -538,7 +538,7 @@ function SpaceGantt({
         {lanes.map((lane) => (
           <li key={lane.projectId} className="flex items-center gap-2">
             <span className="w-40 shrink-0 truncate">{lane.name}</span>
-            <span className="bg-muted relative h-4 flex-1">
+            <span className="bg-muted relative min-h-4 min-w-0 flex-1">
               {lane.kind === 'bar' ? (
                 <span
                   role="img"
@@ -548,7 +548,7 @@ function SpaceGantt({
                   style={{ left: `${String(lane.left)}%`, width: `${String(lane.width)}%` }}
                 />
               ) : (
-                <span className="text-muted-foreground absolute inset-0 px-2 text-xs">
+                <span className="text-muted-foreground block px-2 text-xs break-words">
                   {lane.label}
                 </span>
               )}

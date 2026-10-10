@@ -28,13 +28,13 @@ const INPUT: ScheduleInput = {
 
 describe('solverSupervisorSpawner', () => {
   it('sends only the reserved attempt and exposes authenticated terminal evidence', async () => {
-    const built = buildSolverRequestPair(INPUT, '0.1.0', 60_000).pri;
+    const built = buildSolverRequestPair(INPUT, '0.2.0', 60_000).pri;
     if (!built.ok) throw new Error('fixture request did not pass preflight');
     const request: ReservedSpawnRequest = {
       key: {
         projectId: '11111111-1111-4111-8111-111111111111',
         inputHash: 'input-hash',
-        contractVersion: '7+0.1.0',
+        contractVersion: '7+0.2.0',
         budgetMs: 60_000,
       },
       objective: 'pri',

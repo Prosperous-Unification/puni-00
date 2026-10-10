@@ -16,7 +16,14 @@ import { organizationMembership } from './schema';
  * supplies the real source; until then production passes
  * {@link NO_BOUND_ORGANIZATION}.
  */
-export type ActiveOrganizationOf = (userId: string) => Promise<string | null>;
+export type ActiveOrganizationOf = (principal: OrganizationPrincipal) => Promise<string | null>;
+
+/** Keeps existing user-only test fixtures explicit during the session-bound migration. */
+export function userBoundOrganizationOf(
+  userOrganization: (userId: string) => Promise<string | null>,
+): ActiveOrganizationOf {
+  return (principal) => userOrganization(principal.id);
+}
 
 /**
  * No session is bound to an organization yet. After activation every protected
@@ -67,7 +74,7 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
     // `delegation.controller.db.test.ts` answer 403; watched 2026-09-28.
     const organizationId =
       principal.delegation === undefined
-        ? await this.activeOrganizationOf(userId)
+        ? await this.activeOrganizationOf(principal)
         : principal.delegation.organizationId;
     // Proof: answering `legacy` here instead made `refuses a session bound to no
     // organization before any lookup` in
@@ -114,7 +121,7 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
  *
  * @throws when the stored role is not one of {@link ORGANIZATION_ROLES}.
  */
-function validateStoredRole(role: string, organizationId: string): OrganizationRole {
+export function validateStoredRole(role: string, organizationId: string): OrganizationRole {
   const known: readonly string[] = ORGANIZATION_ROLES;
   if (!known.includes(role)) {
     throw new Error(`membership in organization "${organizationId}" has a malformed role`);

@@ -3,7 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { EventLogService } from '@wbs/core';
+import { GatewayBroadcaster } from '@wbs/core/module/realtime/gateway-broadcaster';
+import { ReplayBuffer } from '@wbs/core/module/realtime/replay-buffer';
 import { systemTimers } from '@wbs/runtime-portable';
+import { PushClient } from '@wbs/runtime-portable';
 import { expect, it } from 'bun:test';
 
 import { openDrizzle } from '../repository/db';
@@ -11,9 +14,6 @@ import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { testClock } from '../testing/clock-fixture';
-import { GatewayBroadcaster } from './gateway-broadcaster';
-import { PushClient } from './push-client';
-import { ReplayBuffer } from './replay-buffer';
 
 /** A transport barrier exposes the production publisher's record/push ordering. */
 it('allows C to overtake recorded B while its push is held', async () => {

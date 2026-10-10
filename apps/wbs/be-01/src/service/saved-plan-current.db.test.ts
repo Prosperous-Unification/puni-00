@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Scheduler } from '@wbs/core';
+import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
 import {
   diffPlans,
   planDiffIsEmpty,
@@ -26,9 +27,9 @@ import { savedPlan } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { nodeDigest } from '../runtime/bun-runtime';
+import { capturedSchedulerFixture } from '../testing/captured-scheduler-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import { SavedPlanService } from './saved-plan.service';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -156,9 +157,8 @@ describe('projecting the live plan as a comparison side', () => {
       now: () => OPENED_AT,
     });
 
-  const calendarRangeScheduler: Scheduler = {
-    supports: (engine) => fastScheduler.supports(engine),
-    read: (ask) => {
+  const calendarRangeScheduler: Scheduler = capturedSchedulerFixture(
+    (ask) => {
       const answer = fastScheduler.read(ask);
       if (answer.kind !== 'scheduled') return answer;
       const workItems = new Map(answer.fast.workItems);
@@ -167,7 +167,8 @@ describe('projecting the live plan as a comparison side', () => {
       workItems.set(first[0], { ...first[1], earliestFinish: 90_000_000 });
       return { ...answer, fast: { ...answer.fast, workItems } };
     },
-  };
+    (engine) => fastScheduler.supports(engine),
+  );
 
   it('returns null for a project that is not there', async () => {
     expect(await service().projectCurrentPlan('missing')).toBeNull();
@@ -229,13 +230,16 @@ describe('projecting the live plan as a comparison side', () => {
    */
   it('holds no capture connection open while the live plan is scheduled', async () => {
     const sampled: number[] = [];
-    const side = await service('sp-1', {
-      supports: (engine) => fastScheduler.supports(engine),
-      read: (ask) => {
-        sampled.push(live);
-        return fastScheduler.read(ask);
-      },
-    }).projectCurrentPlan('p1');
+    const side = await service(
+      'sp-1',
+      capturedSchedulerFixture(
+        (ask) => {
+          sampled.push(live);
+          return fastScheduler.read(ask);
+        },
+        (engine) => fastScheduler.supports(engine),
+      ),
+    ).projectCurrentPlan('p1');
 
     expect(side).not.toBeNull();
     expect(sampled).toEqual([0]);

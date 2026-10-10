@@ -54,7 +54,11 @@ const LAYOUTS: Readonly<Record<EnvName, EnvLayout>> = {
     network: 'wbs-net',
     containerPrefix: '',
     sharedEnvPath: '/home/puni1/wbs/.env',
-    oidcEnvPath: null,
+    // Prod images bake NODE_ENV=production, which refuses AUTH_MODE=local at
+    // startup, so a prod be/gw can only boot in oidc mode and needs this
+    // carrier. The file is operator-authored on the host (mode 600); nothing
+    // in this repo writes it, and its provider values are the operator's.
+    oidcEnvPath: '/home/puni1/wbs/oidc.env',
     stateDir: '/home/puni1/wbs/state',
     siteCaddyPath: '/home/puni1/wbs/caddy/site.caddy',
     siteAddress: 'wbs.bulletpoints.club',

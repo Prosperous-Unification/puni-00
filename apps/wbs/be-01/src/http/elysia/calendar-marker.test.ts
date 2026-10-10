@@ -1,10 +1,10 @@
 import { createCalendarMarker, removeCalendarMarker, updateCalendarMarker } from '@wbs/contracts';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 
 import { bunPasswordHasher, joseTokenCodec } from '../../runtime/bun-runtime';
 import { REFUSE_DELEGATIONS } from '../../runtime/delegation';
-import { AuthService } from '../../service/auth.service';
 import { inMemoryUsers, TEST_JWT_KEY } from '../../testing/auth-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { bind } from '../endpoint';

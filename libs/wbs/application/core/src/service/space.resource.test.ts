@@ -21,7 +21,10 @@ const MEMBER = scoped('member');
 
 /** Roll-up collaborators for tests that read no roll-up: any tree read is a fault. */
 const noTrees = () => ({
-  trees: { treeWithin: () => Promise.reject(new Error('this test reads no tree')) },
+  trees: {
+    treeWithin: () => Promise.reject(new Error('this test reads no tree')),
+    sharedTreesWithin: () => Promise.resolve({ kind: 'isolated' as const }),
+  },
   sequences: { latestSeq: () => Promise.resolve(0) },
   rollUpCache: new RollUpCache(testClock),
 });
@@ -65,6 +68,7 @@ async function spaceWith(
   projectIds: readonly string[],
 ): Promise<string> {
   const created = await service.create('ada', access, 'Q3');
+  if ('kind' in created) throw new Error('unexpected access refusal');
   if (!created.ok) throw new Error(`create refused: ${created.refusal}`);
   let after: string | null = null;
   for (const projectId of projectIds) {
@@ -302,6 +306,7 @@ describe('SpaceResource roll-ups', () => {
       ]),
     );
     const trees = {
+      sharedTreesWithin: () => Promise.resolve({ kind: 'isolated' as const }),
       treeWithin: (projectId: string, access: ResourceAccess) => {
         treeReads += 1;
         if (unavailable.has(projectId)) {
@@ -391,6 +396,7 @@ describe('SpaceResource roll-ups', () => {
     };
   }
   const totalOf = (answer: Awaited<ReturnType<SpaceResource['rollUps']>>, projectId: string) => {
+    if ('kind' in answer) throw new Error('unexpected access refusal');
     if (!answer.ok) throw new Error(answer.refusal);
     const rolled = answer.value[projectId];
     if (rolled.kind !== 'rolled_up') throw new Error(`${projectId} did not roll up`);
@@ -474,6 +480,7 @@ describe('SpaceResource roll-ups', () => {
     ]);
     leaves.set('a2', [['1', '2026-10-05']]);
     const answer = await service.inProgress('ada', MEMBER, id, 200);
+    if ('kind' in answer) throw new Error('unexpected access refusal');
     if (!answer.ok) throw new Error(answer.refusal);
     expect(answer.value.truncated).toBe(false);
     expect(answer.value.items.map(({ projectId, number }) => `${projectId}/${number}`)).toEqual([
@@ -496,6 +503,7 @@ describe('SpaceResource roll-ups', () => {
       Array.from({ length: 1_001 }, (_, at): [string, string | null] => [String(at + 1), null]),
     );
     const answer = await service.inProgress('ada', MEMBER, id, 1_000);
+    if ('kind' in answer) throw new Error('unexpected access refusal');
     if (!answer.ok) throw new Error(answer.refusal);
     expect(answer.value.items).toHaveLength(1_000);
     expect(answer.value.truncated).toBe(true);
@@ -524,6 +532,7 @@ describe('SpaceResource roll-ups', () => {
     leaves.set('a1', [['1', '2026-10-05']]);
     const namesOf = async (access: ResourceAccess) => {
       const answer = await service.inProgress('ada', access, ALL_PROJECTS, 200);
+      if ('kind' in answer) throw new Error('unexpected access refusal');
       if (!answer.ok) throw new Error(answer.refusal);
       return answer.value.items.flatMap(({ assignees }) => assignees.map(({ name }) => name));
     };

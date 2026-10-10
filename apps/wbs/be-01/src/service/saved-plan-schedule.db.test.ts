@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { captureAndSchedulePlan, schedulePlanInput } from '@wbs/core/service/saved-plan-schedule';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from '../repository/capacity';
@@ -17,7 +18,6 @@ import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { projectRow } from '../testing/project-fixture';
-import { captureAndSchedulePlan, schedulePlanInput } from './saved-plan-schedule';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 

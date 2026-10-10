@@ -1,8 +1,8 @@
 import { importProject } from '@wbs/contracts';
 
+import { classifyPlanDocument } from '../module/plan-document/plan-document.resource';
+import type { ImportOutcome, ImportService } from '../module/plan-import/plan-import.feature';
 import type { OrganizationAccess } from '../ports/organization-access';
-import type { ImportOutcome, ImportService } from '../service/import.service';
-import { classifyPlanDocument } from '../service/plan-document';
 import { bind, type HttpReply, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 

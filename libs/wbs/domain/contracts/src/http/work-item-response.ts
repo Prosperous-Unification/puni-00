@@ -75,10 +75,12 @@ const slice = scheduled.and({
   stepId: 'string | null',
   personId: 'string | null',
   boundBy:
-    "'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'capacity' | 'optimizer'",
+    "'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'elsewhere' | 'capacity' | 'optimizer'",
   resourcePredecessorId: 'string | null',
   capacityPredecessorIds: 'string[]',
   capacityTeamId: 'string | null',
+  // Present exactly when `boundBy` is `'elsewhere'` (`share-people-across-projects`).
+  'elsewhereHolder?': type({ projectId: 'string', workItemId: 'string' }),
   // Proof: widening lateBy admitted text,200 instead of500 in the mounted tree case.
   width: 'number',
   effort: 'number',

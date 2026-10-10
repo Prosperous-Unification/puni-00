@@ -1,10 +1,12 @@
 import { materialiseOptimized } from '@wbs/contracts/solver/materialise-optimized';
 import { quantisedFastBaseline } from '@wbs/contracts/solver/quantised-baseline';
 import { CREATOR_ADMISSION } from '@wbs/core';
+import type { WorkItemServiceOptions } from '@wbs/core/module/work-item/work-item.resource';
 import { sliceKey, SOLVER_QUANTUM } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
+import type { OptimizedScheduleAsk } from '../module/optimization/optimized-schedule-reader';
 import type {
   CapacityStore,
   DirectoryStore,
@@ -17,9 +19,7 @@ import { AvailableWorkItemService as WorkItemService } from '../testing/availabl
 import { testClock } from '../testing/clock-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { projectRow } from '../testing/project-fixture';
-import type { OptimizedScheduleAsk } from './optimized-schedule-reader';
 import { optimizerWiring } from './optimizer-wiring';
-import type { WorkItemServiceOptions } from './work-item.service';
 
 /**
  * tasks.md 4.11 (a)–(c): the materialiser's annotations, asserted **through the
@@ -239,7 +239,10 @@ async function askedInput(): Promise<ScheduleInput> {
   };
   const probe = new WorkItemService({
     ...serviceOptions,
-    scheduler: optimizerWiring({ readLive: read, readCaptured: read }).scheduler,
+    scheduler: optimizerWiring({
+      readLive: (ask) => Promise.resolve(read(ask)),
+      readCaptured: read,
+    }).scheduler,
   });
   await probe.tree(projectId);
   // A length check rather than an `=== undefined` guard on the indexed read:
@@ -304,7 +307,8 @@ async function servedBy(moved: Readonly<Record<string, number>>) {
   });
   const service = new WorkItemService({
     ...serviceOptions,
-    scheduler: optimizerWiring({ readLive: read, readCaptured: read }).scheduler,
+    scheduler: optimizerWiring({ readLive: () => Promise.resolve(read()), readCaptured: read })
+      .scheduler,
   });
   const tree = await service.tree(projectId);
   if (tree === null) throw new Error('project vanished');

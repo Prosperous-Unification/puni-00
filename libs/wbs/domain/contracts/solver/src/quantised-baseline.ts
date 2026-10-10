@@ -2,6 +2,7 @@ import {
   type DependencyEdge,
   type DependencyReach,
   durationUnits,
+  type Elsewhere,
   expandToLeaves,
   groupSlicesByLeaf,
   indexTree,
@@ -17,6 +18,7 @@ import {
 } from '@wbs/domain';
 
 import { buildSolverEdges } from './build-solver-edges';
+import { quantiseElsewhere } from './quantise-elsewhere';
 import { notBeforeUnitsOf } from './solver-units';
 import type { SolverOffsetMap } from './wire-types';
 
@@ -95,7 +97,10 @@ export function quantisedFastBaseline(
   reach: DependencyReach,
   /** The typed dependencies; required, so the baseline cannot drop one the request carries. */
   typed: readonly TypedDependency[],
+  elsewhere: Elsewhere = new Map(),
 ): SolverOffsetMap {
+  const bookings = quantiseElsewhere(elsewhere);
+  if (!bookings.ok) throw new Error(bookings.detail);
   const placed = schedule(
     rows,
     edges,
@@ -107,6 +112,8 @@ export function quantisedFastBaseline(
     // The common-path baseline is the unit-axis Fast placement.
     new Map(),
     typed,
+    undefined,
+    bookings.scaled,
   );
 
   const offsets: Record<string, number> = {};
@@ -186,11 +193,18 @@ export function quantisedFastBaseline(
     if (slice === undefined || duration === undefined) throw new Error(`no canonical slice ${key}`);
     // Proof: omitting the predecessor bound left the 5e-10-day FF predecessor
     // and unknown successor at the same unit; the focused baseline test failed.
-    const start = Math.max(
+    let start = Math.max(
       cursor,
       notBeforeUnitsOf(floors, slice.workItemId),
       predecessorBounds.get(key) ?? 0,
     );
+    // Proof: skipping these fixed intervals placed the serial FF successor
+    // inside a booking at unit 2 (0 pass / 1 fail in elsewhere-wire.test.ts).
+    if (duration > 0 && slice.personId !== null) {
+      for (const booking of bookings.scaled.get(slice.personId) ?? []) {
+        if (start < booking.end && booking.start < start + duration) start = booking.end;
+      }
+    }
     serial[key] = start;
     cursor = start + duration;
     for (const edge of outgoing.get(key) ?? []) {

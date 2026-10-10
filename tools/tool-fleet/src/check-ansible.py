@@ -134,6 +134,39 @@ def run(argv, extra_env):
     return completed.returncode, completed.stdout, completed.stderr
 
 
+def kernel_settings():
+    """Renders the base role's sysctl template for every host of the static inventories.
+
+    Strict undefined, as the template module fails on a missing variable; an inventory that does
+    not list is reported with its error rather than dropped, so the judgement cannot go vacuous.
+    """
+    import jinja2
+
+    with open(os.path.join(ANSIBLE_ROOT, "roles/base/templates/k3s-sysctl.conf.j2")) as source:
+        template = jinja2.Environment(undefined=jinja2.StrictUndefined,
+                                      keep_trailing_newline=True).from_string(source.read())
+    rendered = []
+    for inventory in sorted(glob.glob("inventory/*.yml", root_dir=ANSIBLE_ROOT)):
+        if inventory.endswith(".hcloud.yml"):
+            continue
+        code, stdout, stderr = run(["ansible-inventory", "-i", inventory, "--list"], {})
+        if code != 0:
+            rendered.append({"inventory": inventory, "host": None, "capabilities": None,
+                             "rendered": None, "error": stderr[-2000:]})
+            continue
+        hostvars = json.loads(stdout).get("_meta", {}).get("hostvars", {})
+        for host, variables in sorted(hostvars.items()):
+            entry = {"inventory": inventory, "host": host,
+                     "capabilities": variables.get("puni_node_capabilities"),
+                     "rendered": None, "error": None}
+            try:
+                entry["rendered"] = template.render(**variables)
+            except jinja2.TemplateError as error:
+                entry["error"] = str(error)
+            rendered.append(entry)
+    return rendered
+
+
 def main():
     server_thread = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Api)
     threading.Thread(target=server_thread.serve_forever, daemon=True).start()
@@ -163,6 +196,7 @@ def main():
             "listed": listed, "selectors": sorted(set(STATE["selectors"])),
         })
     server_thread.shutdown()
+    report["kernelSettings"] = kernel_settings()
     json.dump(report, sys.stdout)
 
 

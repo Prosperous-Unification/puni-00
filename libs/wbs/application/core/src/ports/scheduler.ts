@@ -2,6 +2,7 @@ import type { PlanInfeasibleItem } from '@wbs/contracts/solver/plan-infeasible';
 import type {
   DependencyEdge,
   DependencyReach,
+  Elsewhere,
   PlannedRow,
   PoolSizes,
   Schedule,
@@ -13,14 +14,23 @@ import type {
 } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
-export interface ScheduleAsk {
+interface ScheduleAskBase {
   readonly projectId: string;
   readonly input: ScheduleInput;
   readonly engine: ScheduleEngine;
   readonly objective: SolverObjectiveName;
   readonly enabled: boolean;
-  readonly mode: 'live' | 'capture';
 }
+
+export interface LiveScheduleAsk extends ScheduleAskBase {
+  readonly mode: 'live';
+}
+
+export interface CapturedScheduleAsk extends ScheduleAskBase {
+  readonly mode: 'capture';
+}
+
+export type ScheduleAsk = LiveScheduleAsk | CapturedScheduleAsk;
 
 /**
  * Everything the plan read knows and the optimized adapter needs, and nothing
@@ -70,7 +80,7 @@ export interface OptimizedScheduleRead {
 
 /** One installed optimized capability, with live and non-admitting capture reads together. */
 export interface OptimizedScheduleAdapter {
-  readLive(ask: OptimizedScheduleAsk): OptimizedScheduleRead;
+  readLive(ask: OptimizedScheduleAsk): Promise<OptimizedScheduleRead>;
   readCaptured(ask: OptimizedScheduleAsk): OptimizedScheduleRead;
 }
 
@@ -88,7 +98,13 @@ export type ScheduleRead =
       readonly optimization: OptimizedScheduleRead | null;
     };
 
-/** Synchronous Fast scheduling over the canonical input's eight fields. */
+/**
+ * Synchronous Fast scheduling over the canonical input's fields: the eight it
+ * always carried, then the bookings elsewhere (empty for every plan nothing
+ * outranks). `schedule()` itself takes pinned starts between the two, which a
+ * Fast read never supplies, so this is the adapted shape rather than
+ * `schedule` verbatim — `optimizer-wiring.ts` adapts it.
+ */
 export type FastScheduler = (
   rows: readonly PlannedRow[],
   edges: readonly DependencyEdge[],
@@ -98,12 +114,21 @@ export type FastScheduler = (
   reach: DependencyReach,
   deadlines: ReadonlyMap<string, number>,
   typed: readonly TypedDependency[],
+  elsewhere: Elsewhere,
 ) => Schedule;
 
 /** Installed scheduling capabilities and their non-waiting read. */
 export interface Scheduler {
   supports(engine: ScheduleEngine): boolean;
-  read(ask: ScheduleAsk): ScheduleRead;
+  read(ask: CapturedScheduleAsk): ScheduleRead;
+  read(ask: LiveScheduleAsk): Promise<ScheduleRead>;
+  read(ask: ScheduleAsk): ScheduleRead | Promise<ScheduleRead>;
+}
+
+/** Scheduling available to a borrowed snapshot; admission belongs to its owner after closure. */
+export interface CapturedScheduler {
+  supports(engine: ScheduleEngine): boolean;
+  read(ask: CapturedScheduleAsk): ScheduleRead;
 }
 
 /**

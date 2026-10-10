@@ -1,0 +1,67 @@
+# Website repository ownership
+
+## ADDED Requirements
+
+### Requirement: Canonical service ownership
+
+The public repository SHALL own the website frontend, API, contracts, and SQLite adapter at their existing `apps/website` and `libs/website` paths. The private repository MAY retain a pinned snapshot for a local demo and SHALL identify the public source revision. The licensed marketing site SHALL remain in the private repository.
+
+#### Scenario: Reviewed public promotion
+
+- **WHEN** the four eligible service projects are promoted
+- **THEN** public source contains their tracked authored files and no Novaform site, licensed font, generated output, database, or environment secret
+- **AND** the four projects declare public portability visibility and their local dependency closure
+
+#### Scenario: Private source selected for promotion
+
+- **WHEN** the transfer command selects a private classified project or the Astro site for a public destination
+- **THEN** it refuses the copy before writing project files
+
+### Requirement: Public workspace gates
+
+Each promoted project SHALL have an Nx identity with the product, scope, ring, and runtime tags required by workspace policy. Its targets SHALL run with the public Bun toolchain and use real ESLint for lint. The public project inventory and dev restart fingerprint SHALL include the added projects.
+
+#### Scenario: Public source verification
+
+- **WHEN** the promoted projects are checked in the public workspace
+- **THEN** their tests, lint, typecheck, and builds pass through their Nx targets
+- **AND** project inventory and restart coverage tests pass
+
+### Requirement: Behavior preservation
+
+The transfer SHALL preserve existing API routes, frontend journeys, migration files and paired rollback files, and local ports. It SHALL not enable provider calls or deploy hosts as a side effect.
+
+#### Scenario: Existing API contract
+
+- **WHEN** the transferred API tests run
+- **THEN** the anonymous intake, proposal replay, auth, provider admission, concept, and migration refusal cases retain their prior outcomes
+
+#### Scenario: Initial migration is packaged under the standard path
+
+- **WHEN** the adapter or API is built from a clean output directory
+- **THEN** the built package contains `migrations/001_initial/migration.sql` and its paired `down.sql`
+- **AND** the migration name and SQL checksum remain compatible with an already applied `001_initial` migration
+- **AND** the trusted content inventory classifies both files as migrations without a website-specific policy exception
+
+### Requirement: Operator and concept security at the public boundary
+
+The operator password SHALL be checked with an adaptive password hash. Opaque random tokens and CSRF proofs MAY continue using SHA-256. A generated concept subject SHALL contain only a bounded prefix from an explicit plain-text character set, or a fixed fallback.
+
+#### Scenario: Wrong operator password
+
+- **WHEN** a visitor submits an incorrect operator password
+- **THEN** the mounted API returns 401 and grants no operator session
+
+#### Scenario: Markup or URL scheme in request description
+
+- **WHEN** a request description contains nested markup or begins with a URL scheme, including `vbscript:`
+- **THEN** the generated concept uses only an initial allowed plain-text prefix or the fixed fallback, and never carries markup or a URL scheme into the subject
+
+### Requirement: Complete public CI admission
+
+The public PR gate SHALL retain a finite runtime allowance that lets the full project matrix and every subsequent safety check finish for the website promotion candidate.
+
+#### Scenario: Full matrix exceeds the former one-hour limit
+
+- **WHEN** the full Nx gate, packed package suite, solver image smoke, and heavy-lock checks consume about one hour
+- **THEN** the CI job continues to gate head pinning, secrets scan, migration lint, and OpenSpec validation instead of cancelling those checks at the former timeout

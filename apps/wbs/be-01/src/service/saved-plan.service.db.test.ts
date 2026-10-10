@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { OptimizationVariantState, Scheduler } from '@wbs/core';
+import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
 import { SCHEDULE_ALGORITHM_ID } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -22,9 +23,9 @@ import { savedPlan, savedPlanBody } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { nodeDigest } from '../runtime/bun-runtime';
+import { capturedSchedulerFixture } from '../testing/captured-scheduler-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import { SavedPlanService } from './saved-plan.service';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -126,9 +127,8 @@ describe('SavedPlanService.save', () => {
       createdById: null,
     });
 
-  const calendarRangeScheduler: Scheduler = {
-    supports: (engine) => fastScheduler.supports(engine),
-    read: (ask) => {
+  const calendarRangeScheduler: Scheduler = capturedSchedulerFixture(
+    (ask) => {
       const answer = fastScheduler.read(ask);
       if (answer.kind !== 'scheduled') return answer;
       const workItems = new Map(answer.fast.workItems);
@@ -137,7 +137,8 @@ describe('SavedPlanService.save', () => {
       workItems.set(first[0], { ...first[1], earliestFinish: 90_000_000 });
       return { ...answer, fast: { ...answer.fast, workItems } };
     },
-  };
+    (engine) => fastScheduler.supports(engine),
+  );
 
   const selectOptimized = async (projectId = 'p1', enabled = true) => {
     await new ProjectRepository(reader.db, OPEN).update(
@@ -147,26 +148,27 @@ describe('SavedPlanService.save', () => {
     );
   };
 
-  const schedulerWith = (variant: OptimizationVariantState): Scheduler => ({
-    supports: () => true,
-    read: (ask) => {
-      const fast = fastScheduler.read({ ...ask, engine: 'fast' });
-      if (fast.kind !== 'scheduled') throw new Error('Fast scheduler refused a Fast request');
-      const optimized = { ...fast.fast, waitingForCapacity: 73 };
-      return {
-        kind: 'scheduled',
-        fast: fast.fast,
-        optimization: {
-          inputHash: 'captured-key',
-          generation: 9,
-          contractVersion: '2.4',
-          budgetMs: 12_345,
-          variants: { pri: variant, time: { state: 'idle' } },
-          schedules: { pri: variant.state === 'ready' ? optimized : null, time: null },
-        },
-      };
-    },
-  });
+  const schedulerWith = (variant: OptimizationVariantState): Scheduler =>
+    capturedSchedulerFixture(
+      (ask) => {
+        const fast = fastScheduler.read({ ...ask, engine: 'fast' });
+        if (fast.kind !== 'scheduled') throw new Error('Fast scheduler refused a Fast request');
+        const optimized = { ...fast.fast, waitingForCapacity: 73 };
+        return {
+          kind: 'scheduled',
+          fast: fast.fast,
+          optimization: {
+            inputHash: 'captured-key',
+            generation: 9,
+            contractVersion: '2.4',
+            budgetMs: 12_345,
+            variants: { pri: variant, time: { state: 'idle' } },
+            schedules: { pri: variant.state === 'ready' ? optimized : null, time: null },
+          },
+        };
+      },
+      () => true,
+    );
 
   // Unfiltered on purpose, and not only because a service test may not import
   // `drizzle-orm`: each case writes at most one saved plan, so "the rows this

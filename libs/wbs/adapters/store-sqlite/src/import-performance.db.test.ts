@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import type { PlanDocumentImport } from '@wbs/contracts';
 import {
   clockOf,
-  ImportService,
   LEGACY_ACCESS,
   prepareImport,
   servicesOver,
@@ -13,6 +12,7 @@ import {
   type UnitOfWork,
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
+import { createImportService } from '@wbs/core/module/plan-import/composition';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
@@ -116,7 +116,7 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     };
     const clock = clockOf({ now: () => stamp.at, newId: () => crypto.randomUUID() });
     const announcements = recordingBroadcaster();
-    const imports = new ImportService({
+    const imports = createImportService({
       clock,
       scheduler: fastScheduler,
       uow: measuredUow,
