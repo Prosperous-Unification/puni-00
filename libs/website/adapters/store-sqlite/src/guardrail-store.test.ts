@@ -399,3 +399,63 @@ test('plus tags share one per-email cap; dots stay distinct', () => {
   ).toBe('created');
   store.close();
 });
+
+test("the overview counts today's ceiling-settled operations", () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  draft(store, 1);
+  const database = new Database(databasePath);
+  database
+    .query(
+      "INSERT INTO conversation (id, draft_id, source_hash, state, created_at) VALUES ('conversation-1', 'draft-1', 'source-a', 'open', ?)",
+    )
+    .run(day);
+  const seed = database.query(
+    "INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, settled_micro_usd, settlement, reply, created_at) VALUES (?, 'conversation-1', ?, 'source-a', 'hash', 'message', 0, 'clarify', 'puni-sales-v1', ?, ?, ?, ?, ?, ?, ?)",
+  );
+  seed.run(
+    'stop-1',
+    'turn-1',
+    'unknown',
+    '2026-10-07',
+    3_000,
+    3_000,
+    'reserved_ceiling',
+    null,
+    day,
+  );
+  seed.run(
+    'stop-2',
+    'turn-1',
+    'unknown',
+    '2026-10-07',
+    2_000,
+    2_000,
+    'reserved_ceiling',
+    null,
+    day,
+  );
+  seed.run('done-1', 'turn-1', 'completed', '2026-10-07', 4_000, 1_000, 'usage', 'reply', day);
+  seed.run(
+    'stop-0',
+    'turn-0',
+    'unknown',
+    '2026-10-06',
+    9_000,
+    9_000,
+    'reserved_ceiling',
+    null,
+    day - 24 * hour,
+  );
+  database.close();
+  // Proof: counting every operation of the day instead of `unknown` ones made `count` 3 here.
+  expect(store.readGuardrailOverview(day).ceilingSettledToday).toEqual({
+    count: 2,
+    microUsd: 5_000,
+  });
+  expect(store.readGuardrailOverview(day + 24 * hour).ceilingSettledToday).toEqual({
+    count: 0,
+    microUsd: 0,
+  });
+  store.close();
+});
