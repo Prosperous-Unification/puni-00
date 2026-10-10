@@ -3662,7 +3662,7 @@ republish prevention. The 6k.b checkbox is open pending mounted child-path
 tests and watched K9/K10/K13 faults. The earlier owner, rollback, K4 and K5
 proofs remain valid for their stated boundaries; no publication occurred.
 
-### 6k.b installed child-path correction (review pending)
+### 6k.b installed child-path correction (review pending) (resolved: [batch-10 Fable review](#6kbe-independent-review-fable-batch-10))
 
 The earlier 123/759 two-file run and B-held fixture above are historical owner
 evidence, not closure of installed K9/K10/K13. The corrected fixture enters
@@ -3728,7 +3728,7 @@ Changed-path Prettier and `git diff --check` passed
 (`/tmp/shared-people-6kb-followup-{format-check,diff-check}.log`). Normal
 commit hooks remain the final local check.
 
-### 6k.c replacement and eviction (local evidence, review pending)
+### 6k.c replacement and eviction (local evidence, review pending) (resolved: [batch-10 Fable review](#6kbe-independent-review-fable-batch-10))
 
 The reviewed 6k.b outcome owner already encloses the complete synchronous
 `storeOptimizedOutcomeIn` mutation, including admitted failed/corrupt
@@ -3817,7 +3817,7 @@ changed-path Prettier and `git diff --check` exited 0
 hooks and independent exact-SHA review remain pending; no host gate, CI,
 push, merge or trusted activation occurred for 6k.c.
 
-### 6k.d generation observation owner (local evidence, review pending)
+### 6k.d generation observation owner (local evidence, review pending) (resolved: [batch-10 Fable review](#6kbe-independent-review-fable-batch-10))
 
 The installed `buildServices` observation now owns one source writer turn: borrowed
 before-capture, synchronous generation allocation plus pair/request read, borrowed
@@ -3924,7 +3924,7 @@ caller-based rationale, restored the full file to 17/17, 19 assertions
 the watched omission. This is a policy/test/evidence correction only; the
 observation implementation and its 340/340 runtime regression are unchanged.
 
-### 6k.e own-display operation inventory (local candidate, review pending)
+### 6k.e own-display operation inventory (local candidate, review pending) (resolved: [batch-10 Fable review](#6kbe-independent-review-fable-batch-10))
 
 This slice adds test assertions only. The installed observation, reservation,
 Retry, FIFO, release, retirement and reconciliation owners remain the reviewed
@@ -3968,7 +3968,9 @@ in the 6k.b child-path correction. K11's observation/serialization fault
 matrix is in 6k.d (reviewed local `b4ba7e9`). K12's new forced status-event
 RED/GREEN is above. These local reviews do not establish remote integration,
 host gate, CI, trusted activation or 6l replay closure. The 6k.e and parent
-6k task boxes remain unchecked pending final validation and independent review.
+6k task boxes remain unchecked pending final validation and independent review. Resolution:
+the [batch-10 Fable review](#6kbe-independent-review-fable-batch-10) is that independent
+review, and the boxes were checked on its basis.
 
 The seven focused mounted status/display controls passed 7/7, 64 assertions
 (`/tmp/shared-people-6ke-status-controls-green.log`). The final formatted-byte
@@ -4027,3 +4029,50 @@ and store-sqlite 1287/1287, exit 0. OpenSpec passed 158/158.
 The 6k.e fourteen-file command recorded above, rerun unchanged on the merged head, passed
 411/411 with 20,553 assertions, exit 0. This is local evidence only: no host gate or CI is
 claimed here, and 6l, 6.1/6.2, UI 7, mode route 8 and trusted activation stay open.
+
+### 6k.b–e independent review (Fable, batch 10)
+
+Fable reviewed PR #297 at `e8f86b94428fde61501f75ed1f031f7e38e76a02` and returned "MERGE
+AFTER FIXES". It found the production code sound, and this review is the independent review
+of 6k.b–e that the slice sections above left pending. Its findings:
+
+1. This ledger misstated the review state. This section, the amended headings and the 6k.e
+   resolution sentence fix that.
+2. A model-based test was required for the new owners. It is delivered on the stacked
+   `batch-10/010-4-16-capacity-6k-model`.
+3. Every shared-mode `readPlan` takes two whole-organization captures under the writer gate,
+   even on a cache hit (`optimization-observation.ts`). This is inert while `pre_activation`.
+   It is a WBS follow-up, not fixed here.
+4. Twelve checked boxes named RED tests that do not exist under those names. The mapping
+   below names each actual test.
+5. The five re-injected faults, each RED at its named test:
+
+| Re-injected fault                                     | Observed RED assertion                                |
+| ----------------------------------------------------- | ----------------------------------------------------- |
+| F1 observation `after` capture reused (eviction)      | the B eviction row was absent                         |
+| F2 outcome delivery awaited before commit             | `stored outcome waited for recipient transport`       |
+| F2b observation delivery awaited before commit        | `observation decision waited for recipient transport` |
+| F3 observation/outcome borrowed-capture guard removed | a `TypeError` instead of the modeled refusal message  |
+| F4 observation moved outside the source gate          | the staged generation 2 of a held writer was returned |
+
+Planned RED names mapped to the actual tests:
+
+| Box  | Planned name                                                  | Actual `it(...)`                                                                                         | File                                                                                 |
+| ---- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 6k   | `current selected outcome and fan-out commit together`        | `returns a committed selected outcome before held recipient delivery and replays its row after refusal`  | `apps/wbs/be-01/src/services.db.test.ts`                                             |
+| 6k   | `old H1 publication under H2 emits no fan-out`                | `stores an eligible H1 outcome silently while current shared input is H2`                                | `apps/wbs/be-01/src/services.db.test.ts`                                             |
+| 6k   | `nonselected outcome is silent`                               | `keeps a nonselected objective and repeated or stale outcomes silent for B`                              | `apps/wbs/be-01/src/services.db.test.ts`                                             |
+| 6k   | `availability changes despite equal input hash`               | `records empty-booking availability loss from an admitted selected outcome at unchanged canonical input` | `apps/wbs/be-01/src/services.db.test.ts`                                             |
+| 6k   | `event failure rolls back cache and fan-out`                  | `rolls back a selected outcome, all recipients and sequences when the second event insert fails`         | `apps/wbs/be-01/src/services.db.test.ts`                                             |
+| 6k   | `already-recorded outcome does not fan out twice`             | `keeps a nonselected objective and repeated or stale outcomes silent for B` (repeated arm)               | `apps/wbs/be-01/src/services.db.test.ts`                                             |
+| 6i.a | `standalone rename survives later link after-capture failure` | `retains the first rename when the second raw owner fails after capture`                                 | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+| 6i.b | `each raw mutation observes its own before state`             | `opens one owner for each successful raw mutation in compound person and team patches`                   | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+| 6i.b | `invalid standalone service input never captures`             | `returns invalid standalone service input before any owner or capture`                                   | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+| 6i.b | `standalone cascade rolls back a later real event insert`     | `rolls back a standalone cascade and first recipient when a later event insert fails`                    | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+| 6i.c | `standalone contexts cannot cross`                            | `keeps concurrent standalone directory invocation access bound to its own organization`                  | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+| 6i.c | `ordinary announcements retain one publisher`                 | `retains a team rename and one announcement when its second owner fails after capture`                   | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+| 6i.d | `borrowed directory emits once`                               | `records one final fan-out for a project-null directory batch with two used people`                      | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+
+`6i.b`'s planned names appear three times because that box names three REDs. The mapping
+was produced by reading the listed test titles; each file ran green in the merged-head be-01
+suite above.
