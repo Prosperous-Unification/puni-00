@@ -1,13 +1,17 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { fakeProjectApi } from '@/testing/fake-project-api';
+
 import { CellInput } from './cell-input';
 import {
   type CommitOutcome,
   forgetRefusedDrafts,
+  LiveField,
   refusedDraftFor,
   type SendEdit,
 } from './live-editing';
+import { PlanInteractionScope } from './plan-interaction-scope';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -79,6 +83,65 @@ function typeAndLeave(text: string): void {
 
 const refuses = (): Promise<CommitOutcome> => Promise.resolve('refused');
 const takes = (): Promise<CommitOutcome> => Promise.resolve('landed');
+
+itDom(
+  'keeps a suspended unsent text and original baseline through peer sync and a new face',
+  async () => {
+    const field = new LiveField(CELL, 'Original');
+    const oldBox = document.createElement('input');
+    oldBox.value = 'Original';
+    field.takeNode(oldBox);
+    oldBox.value = 'Draft';
+    field.tookAKeystroke();
+
+    expect(field.suspendUnsent()).toBe(true);
+    field.serverSaid('Peer');
+    expect(oldBox.value).toBe('Draft');
+
+    field.takeNode(null);
+    const newBox = document.createElement('input');
+    newBox.value = 'Peer';
+    field.takeNode(newBox);
+    expect(newBox.value).toBe('Draft');
+
+    const submissions: [string, string][] = [];
+    field.send = (typed, baseline) => {
+      submissions.push([typed, baseline]);
+      return takes();
+    };
+    field.resumeUnsent();
+    await field.leave();
+    expect(submissions).toEqual([['Draft', 'Original']]);
+  },
+);
+
+itDom('forgets a suspended step field when the authoritative tree drops its step', async () => {
+  const model = fakeProjectApi();
+  await model.createWorkItem('p1', { parentId: null, afterId: null, name: 'Build' });
+  const scope = new PlanInteractionScope();
+  const key = 'w1::step-dev-final';
+  const field = scope.fieldFor(key, '');
+  const box = document.createElement('input');
+  field.takeNode(box);
+  box.value = '9';
+  field.tookAKeystroke();
+  scope.suspend(field);
+  const tree = await model.tree('p1');
+  scope.prune({ ...tree, steps: tree.steps.filter((step) => step.id !== 'step-dev') });
+  expect(scope.fieldFor(key, '')).not.toBe(field);
+});
+
+itDom('does not relabel an already issued edit as an unsent Board draft', () => {
+  const field = new LiveField(CELL, 'Original');
+  const box = document.createElement('input');
+  box.value = 'Original';
+  field.takeNode(box);
+  box.value = 'Issued';
+  field.tookAKeystroke();
+  field.send = () => new Promise<CommitOutcome>(() => undefined);
+  void field.leave();
+  expect(field.suspendUnsent()).toBe(false);
+});
 
 /** A patch that is out and has not been answered yet. */
 interface PendingCommit {
