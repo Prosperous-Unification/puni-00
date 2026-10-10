@@ -3,7 +3,7 @@ import { readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { type } from 'arktype';
-import { parseDocument, YAMLParseError } from 'yaml';
+import { isScalar, parseDocument, visit, YAMLParseError } from 'yaml';
 
 import { type ApplyDependencies, applyOperation } from './apply';
 import {
@@ -542,7 +542,11 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
     // parse() emits source-bearing warnings before it throws; parseDocument retains them.
     // Proof: reverting to parse() failed both entrypoints' yaml-warning marker negatives
     // before the sanitized syntax-error catch ran (2026-10-11).
-    const document = parseDocument(fleetSource);
+    // The library also warns during toJS(), after document.warnings has been collected.
+    // Error logging suppresses that source-bearing side channel without clearing diagnostics.
+    // Proof: with the key guard bypassed, restoring default logging leaked collection and
+    // binary-key markers through both entrypoints (2026-10-11).
+    const document = parseDocument(fleetSource, { logLevel: 'error' });
     // Proof: clearing retained errors made both multiple-document entrypoint negatives
     // publish a plan instead of refusing (2026-10-11).
     if (document.errors.length > 0) throw document.errors[0];
@@ -557,6 +561,18 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
       // publish plans in both production-entrypoint negatives (2026-10-11).
       throw new Error(`Required fleet at ${fleetPath} has YAML warning (${warning.code}${where})`);
     }
+    visit(document, (key, node) => {
+      // Fleet contracts have string field names. Collection and alias keys must never reach
+      // toJS(), which otherwise stringifies collections and emits their contents as a warning.
+      // Proof: removing this guard failed the collection-key and binary-key entrypoint negatives
+      // at the modeled refusal assertion; error-only logging still excluded their markers
+      // (2026-10-11).
+      if (key === 'key' && (!isScalar(node) || typeof node.value !== 'string')) {
+        throw new Error(
+          `Required fleet at ${fleetPath} is malformed YAML (non-string mapping key)`,
+        );
+      }
+    });
     try {
       fleetInput = document.toJS() as unknown;
     } catch (cause) {

@@ -376,6 +376,8 @@ describe('Dash required files and exclusive output', () => {
   for (const fault of [
     'yaml-warning',
     'yaml-alias',
+    'yaml-collection-key',
+    'yaml-binary-key',
     'fleet-schema',
     'observation-schema',
   ] as const) {
@@ -387,6 +389,13 @@ describe('Dash required files and exclusive output', () => {
           writeFileSync(fixture.fleet, `token: !secret ${marker}\n  bad: [\n`);
         } else if (fault === 'yaml-alias') {
           writeFileSync(fixture.fleet, `token: *${marker}\n`);
+        } else if (fault === 'yaml-collection-key') {
+          writeFileSync(fixture.fleet, `? [${marker}]\n: value\n`);
+        } else if (fault === 'yaml-binary-key') {
+          writeFileSync(
+            fixture.fleet,
+            `%YAML 1.1\n---\n? !!binary ${Buffer.from(marker).toString('base64')}\n: value\n`,
+          );
         } else if (fault === 'fleet-schema') {
           writeFileSync(
             fixture.fleet,
@@ -409,6 +418,10 @@ describe('Dash required files and exclusive output', () => {
         expect(refusal.stderr.toString()).toContain(
           fault === 'observation-schema' ? fixture.observation : fixture.fleet,
         );
+        if (fault === 'yaml-binary-key')
+          expect(refusal.stderr.toString()).not.toContain(Buffer.from(marker).toString('base64'));
+        if (fault === 'yaml-collection-key' || fault === 'yaml-binary-key')
+          expect(refusal.stderr.toString()).toContain('non-string mapping key');
         expect(refusal.stdout.toString()).toBe('');
         expect(readdirSync(fixture.outputs)).toEqual([]);
         expect(readFileSync(fixture.fleet)).toEqual(inputs[0]);

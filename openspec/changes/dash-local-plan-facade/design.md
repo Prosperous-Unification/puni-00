@@ -58,7 +58,10 @@ without changing its implementation or widening global lint policy.
 Only caller-supplied planning documents and digests are accepted. The CLI has no
 credential flags or adapter/executable selectors. A failure exits nonzero with required-file context. Schema errors and YAML/JSON
 parser diagnostics expose no input values or raw causes; YAML warnings fail closed
-with only their code and position, without printing source lines. Documentation states the plan is prepared, not applied, and
+with only their code and position, without printing source lines. YAML-to-object
+conversion runs with error-only library logging and only after a recursive node
+check requires every mapping key to be a literal scalar string; collection,
+alias and object-valued scalar keys refuse before conversion can stringify them. Documentation states the plan is prepared, not applied, and
 points execution users to the existing fleet procedure.
 
 ## Risks / Trade-offs

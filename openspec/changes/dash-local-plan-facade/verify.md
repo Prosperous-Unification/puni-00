@@ -343,3 +343,57 @@ Final pinned `bunx @fission-ai/openspec@1.12.0 validate dash-local-plan-facade -
 and `validate --all --json` each exited 0, 1/1 and 158/158 respectively
 (`/tmp/dash-288-diagnostics-final-openspec-{strict,all}.json`).
 `git diff --check` exited 0. No canonical host gate, push or integration was run.
+
+## Task 2.2 conversion-time YAML warning fix (2026-10-11)
+
+Astra's review of exact `2a6e40b40750e2e9724930c500c9245b8afa0e84`
+identified another source-bearing library path: `document.toJS()` warns while
+stringifying collection mapping keys, even when `document.errors` and
+`document.warnings` are empty. Real Dash and direct fleet CLI marker negatives
+failed 0/2 before this fix (`/tmp/dash-288-collection-red.log`).
+
+The parser now uses `parseDocument(fleetSource, { logLevel: 'error' })`; unlike
+`silent`, this retains diagnostics. A recursive YAML-node visitor requires every
+mapping key to be a literal scalar string before conversion. Collection keys,
+alias keys, numeric/null keys and object-valued scalar keys refuse with only the
+required fleet path and `non-string mapping key` diagnostic. No global console
+state is modified. Both collection keys and YAML 1.1 `!!binary` scalar keys
+(decoded as Buffer objects) have real Dash and direct fleet negatives proving
+marker exclusion, nonzero exit, empty stdout, no output, unchanged input bytes
+and no authority/mutation activity.
+
+The independent dependency probe
+with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT` and the following command:
+
+```sh
+bun -e 'import { parseDocument } from "yaml"; for (const [label, source] of [["warning", "!secret\na: 1\n"], ["multiple-docs", "a: 1\n---\nb: 2\n"], ["bad-indent", "a:\n  b: 1\n c: 2\n"]]) { const doc = parseDocument(source, { logLevel: "error" }); console.log(JSON.stringify({ label, errors: doc.errors.map(e => e.code), warnings: doc.warnings.map(e => e.code) })); }'
+```
+
+recorded `TAG_RESOLVE_FAILED` in warnings and `MULTIPLE_DOCS` / `BAD_INDENT` in
+errors (`/tmp/dash-288-collection-retained-diagnostics.log`). Existing real CLI
+syntax, warning and multi-document negatives also remain in the acceptance suite.
+
+### Observed conversion-path faults
+
+The command was
+`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 apps/twilight-structure/twilight-dash/cli/src/enrollment-plan.test.ts --test-name-pattern 'yaml-collection-key|yaml-binary-key'`.
+
+- Bypassing only the recursive key guard: exit 1, 0 pass / 4 fail at the modeled
+  mapping-key refusal assertion; error-only logging still excluded markers
+  (`/tmp/dash-288-collection-fault-key-guard.log`).
+- With that guard bypassed, also restoring default library logging: exit 1,
+  0 pass / 4 fail with collection/binary markers in stderr
+  (`/tmp/dash-288-collection-fault-conversion-logging.log`). This re-observes both
+  conversion leaks while distinguishing logging containment from input refusal.
+
+Each fault restored the saved source bytes before normal acceptance. Adjacent
+`Proof:` comments identify both mechanisms. Task 2.2 remains unchecked; canonical
+exact-SHA gate, exact-head CI, review and coordinator integration are outstanding.
+
+Final restored acceptance:
+`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test lint typecheck -p tool-fleet twilight-dash tool-devsync --skip-nx-cache --output-style=stream`
+exited 0, all nine targets passed: Dash 56/56, fleet 389/389, devsync 394/394
+(`/tmp/dash-288-collection-final-acceptance.log`). Pinned OpenSpec strict validation
+passed 1/1 and all validation passed 158/158 (both exit 0;
+`/tmp/dash-288-collection-openspec-{strict,all}.json`). Changed-path formatting and
+`git diff --check` passed. No canonical host gate or push was run.

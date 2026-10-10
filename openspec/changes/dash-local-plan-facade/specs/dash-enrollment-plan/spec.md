@@ -56,6 +56,11 @@ remain unchanged, and diagnostics SHALL NOT dump their contents or credentials.
 - **WHEN** fleet YAML has an unresolved tag, including on otherwise schema-valid input, or fleet/observation schema validation fails
 - **THEN** planning refuses with required-file context, creates no output, and diagnostics contain no supplied input values or raw parser/schema causes
 
+#### Scenario: Unsupported YAML mapping keys
+
+- **WHEN** fleet YAML contains a collection mapping key, an alias mapping key, or a scalar mapping key whose decoded value is not a string, including YAML 1.1 binary keys
+- **THEN** both Dash and direct fleet planning refuse before YAML-to-object conversion, identify the required fleet file and unsupported mapping key, print no supplied key contents, and create no output
+
 #### Scenario: Existing output cannot be replaced
 
 - **WHEN** output already contains reviewed bytes
