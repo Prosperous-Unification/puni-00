@@ -179,6 +179,12 @@ test('009_guardrails applies on a fresh database and on one at 008, and down.sql
       ]);
       const guardrails = websiteMigrations().find(({ name }) => name === '009_guardrails');
       if (!guardrails) throw new Error('009_guardrails is not catalogued');
+      for (const later of websiteMigrations()
+        .filter(({ name }) => name > '009_guardrails')
+        .reverse()) {
+        database.run(readFileSync(join(later.directory, 'down.sql'), 'utf8'));
+        database.query('DELETE FROM schema_migration WHERE name = ?').run(later.name);
+      }
       database.run(readFileSync(join(guardrails.directory, 'down.sql'), 'utf8'));
       database.query('DELETE FROM schema_migration WHERE name = ?').run('009_guardrails');
       expect(listGuardrailObjects(database)).toEqual([]);
