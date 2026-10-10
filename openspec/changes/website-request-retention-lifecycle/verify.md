@@ -94,3 +94,21 @@ The concurrent-writer test no longer proves the `pending_content` predicate. Onc
 - The h2puni host gate (`bin/h2puni-gate.sh`) has not run in this slice. The parent session runs it.
 - The private recovery command's known migration list is not updated for 006. That repository is out of scope here, and task 4.1 owns it. Until then, the private restore path may not recognise a database that has migration 006 applied. This has not been checked.
 - No live database was inspected. No content, backup or journal was changed.
+
+## Stage 2 (WBS 060.06.2, batch 10)
+
+Design: Fable 5.1 retention stage 2 design and its slice list (private planning repository, `batch-10/design/060-06-2-*`). Each slice is one stacked PR; commands below ran in `/home/df/wd/puni/b10-retention` under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`.
+
+### Slice 0: immediate write transactions and bounded read-only waits (2026-10-11)
+
+Every `database.transaction(...)` in `store.ts`, `conversation-store.ts` and `guardrail-store.ts` now runs `.immediate()` (22 of 22), and the read-only validation connection of the retention commands sets `PRAGMA busy_timeout`.
+
+| Guard                             | Injected fault                                       | Observed failure                                                                                                                       |
+| --------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Immediate content write           | `updateAccountBrief` as a deferred transaction       | `(fail) a content write waits for a concurrent writer instead of failing busy`: child stderr `SQLiteError: database is locked`, exit 1 |
+| Read-only validation busy timeout | No `PRAGMA busy_timeout` on the read-only connection | `(fail) resolve validation waits for a concurrent writer`: child stderr `SQLiteError: database is locked`                              |
+
+- `bun test libs/website/adapters/store-sqlite/src`: `82 pass`, `0 fail`, 389 expect() calls.
+- `bun test apps/website/be-01/src --timeout=30000`: `153 pass`, `0 fail`.
+- `NX_DAEMON=false bunx nx run-many -t lint,typecheck -p website-store-sqlite,website-be-01`: `Successfully ran targets lint, typecheck for 2 projects`. The projects have no `lint:fast` target.
+- `bunx prettier --check` on the changed files: `All matched files use Prettier code style!`
