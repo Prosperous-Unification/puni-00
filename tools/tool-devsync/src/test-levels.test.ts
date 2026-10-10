@@ -79,7 +79,12 @@ function auditManifest(
     writeFileSync(path, JSON.stringify(manifest));
     const run = Bun.spawnSync(
       ['bun', 'tools/tool-devsync/src/verify-test-levels-cli.ts', '--manifest', root, path],
-      { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+      {
+        cwd: WORKSPACE.pathname,
+        stdout: 'pipe',
+        stderr: 'pipe',
+        env: { ...process.env, FORCE_COLOR: '0' },
+      },
     );
     return { exitCode: run.exitCode, stderr: run.stderr.toString() };
   } finally {
@@ -90,7 +95,12 @@ function auditManifest(
 function auditNodeManifest(path: string): { exitCode: number | null; stderr: string } {
   const run = Bun.spawnSync(
     ['bun', 'tools/tool-devsync/src/verify-test-levels-cli.ts', '--node-manifest', path],
-    { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+    {
+      cwd: WORKSPACE.pathname,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: { ...process.env, FORCE_COLOR: '0' },
+    },
   );
   return { exitCode: run.exitCode, stderr: run.stderr.toString() };
 }
@@ -689,6 +699,7 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
         cwd: WORKSPACE.pathname,
         env: {
           ...process.env,
+          FORCE_COLOR: '0',
           PATH: `${bin}:${process.env['PATH'] ?? ''}`,
           REAL_BUNX: realBunx,
           REAL_BUN: process.execPath,
@@ -990,6 +1001,7 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
   it('refuses a manifest audit for an unknown project root or identity', async () => {
     const scratch = mkdtempSync(join(tmpdir(), 'test-level-identity-'));
     try {
+      const environment = { ...process.env, FORCE_COLOR: '0' };
       const manifest = await readManifest('libs/wbs/adapters/store-memory');
       const path = join(scratch, 'project.json');
       writeFileSync(path, JSON.stringify(manifest));
@@ -1001,7 +1013,7 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
           'wrong/root',
           path,
         ],
-        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe', env: environment },
       );
       expect(unknown.exitCode).toBe(1);
       expect(unknown.stderr.toString()).toContain('unknown manifest override project wrong/root');
@@ -1014,7 +1026,7 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
           'libs/wbs/adapters/store-memory',
           path,
         ],
-        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe', env: environment },
       );
       expect(mismatch.exitCode).toBe(1);
       expect(mismatch.stderr.toString()).toContain(
@@ -1029,13 +1041,13 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
           'libs/wbs/adapters/store-memory',
           path,
         ],
-        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe', env: environment },
       );
       expect(malformed.exitCode).toBe(1);
       expect(malformed.stderr.toString()).toContain(`error: ${path} is not a project manifest`);
       const invalidArgs = Bun.spawnSync(
         ['bun', 'tools/tool-devsync/src/verify-test-levels-cli.ts', '--manifest'],
-        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+        { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe', env: environment },
       );
       expect(invalidArgs.exitCode).toBe(1);
       expect(invalidArgs.stderr.toString()).toContain('error: usage: verify-test-levels-cli.ts');

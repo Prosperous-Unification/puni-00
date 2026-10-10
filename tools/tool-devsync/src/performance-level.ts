@@ -1,6 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { closeSync, constants, mkdtempSync, openSync, rmSync } from 'node:fs';
-import { mkdir, mkdtemp, open, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  type FileHandle,
+  mkdir,
+  mkdtemp,
+  open,
+  readFile,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -13,10 +23,6 @@ import {
 } from '@shared/test-evidence';
 import { dlopen } from 'bun:ffi';
 
-import {
-  ordinaryServerDescriptors,
-  parseOrdinaryPortShift,
-} from '../../../apps/wbs/fe-01/playwright.ordinary-servers';
 import { decodePlaywrightReport } from './performance-playwright';
 import {
   createPerformanceProcessOwner,
@@ -65,6 +71,373 @@ interface PerformanceServiceDescriptor {
   cwd: string;
   url: string;
   env: Record<string, string>;
+}
+
+/** Decodes the candidate WBS producer output before any command is launched. */
+function decodeServiceDescriptors(source: string): PerformanceServiceDescriptor[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source);
+  } catch (cause) {
+    // Proof: rethrowing the malformed candidate producer's SyntaxError made
+    // the production runner test fail instead of naming invalid descriptor JSON.
+    throw new Error('Performance service descriptor output is invalid JSON', { cause });
+  }
+  // Proof: disabling this guard made the production transport test fail at the
+  // object-output fixture (0 pass/1 fail, 33 assertions).
+  if (!Array.isArray(parsed) || parsed.length !== 3)
+    throw new Error('Performance service descriptor output must contain three services');
+  const entries: unknown[] = parsed;
+  return entries.map((entry, index) => {
+    // Proof: disabling this guard made the committed [null,null,null] producer
+    // fail the transport test (0 pass/1 fail, 40 assertions).
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry))
+      throw new Error(`Performance service descriptor ${String(index)} is malformed`);
+    const command: unknown = Reflect.get(entry, 'command');
+    const cwd: unknown = Reflect.get(entry, 'cwd');
+    const url: unknown = Reflect.get(entry, 'url');
+    const environment: unknown = Reflect.get(entry, 'env');
+    // Proof: disabling this guard made the numeric-command/missing-fields
+    // producer fail the transport test (0 pass/1 fail, 47 assertions).
+    if (
+      typeof command !== 'string' ||
+      typeof cwd !== 'string' ||
+      typeof url !== 'string' ||
+      typeof environment !== 'object' ||
+      environment === null ||
+      Array.isArray(environment)
+    )
+      throw new Error(`Performance service descriptor ${String(index)} is malformed`);
+    const environmentEntries: [string, string][] = [];
+    for (const [key, value] of Object.entries(environment)) {
+      // Proof: the candidate producer's numeric PORT reached this decoder and
+      // the transport fault test observed the malformed-environment refusal.
+      if (typeof value !== 'string')
+        throw new Error(`Performance service descriptor ${String(index)} has invalid environment`);
+      environmentEntries.push([key, value]);
+    }
+    // Proof: a candidate JSON environment with an own __proto__ key previously
+    // lost that key during assignment; the production runner accepted it.
+    const env: Record<string, string> = Object.fromEntries(environmentEntries);
+    return { command, cwd, url, env };
+  });
+}
+
+function assertCandidateServiceDescriptors(
+  descriptors: readonly PerformanceServiceDescriptor[],
+  checkoutRoot: string,
+  shift: number,
+  runDatabase: string,
+): void {
+  const bePort = String(3100 + shift);
+  const gwPort = String(3200 + shift);
+  const fePort = String(4200 + shift);
+  const beUrl = `http://localhost:${bePort}`;
+  const gwUrl = `http://localhost:${gwPort}`;
+  const expected: readonly PerformanceServiceDescriptor[] = [
+    {
+      command: 'bun src/main.ts',
+      cwd: join(checkoutRoot, 'apps/wbs/be-01'),
+      url: `${beUrl}/health`,
+      env: {
+        APP_ORIGIN: `http://localhost:${fePort}`,
+        PORT: bePort,
+        GW_URL: gwUrl,
+        DB_PATH: runDatabase,
+        HOSTNAME: 'e2e000000000',
+        MIGRATE_ON_STARTUP: 'true',
+      },
+    },
+    {
+      command: 'bun src/main.ts',
+      cwd: join(checkoutRoot, 'apps/wbs/gw-01'),
+      url: `${gwUrl}/health`,
+      env: { PORT: gwPort, BE_URL: beUrl },
+    },
+    {
+      command: 'bunx vite build --minify=false && bunx vite preview',
+      cwd: join(checkoutRoot, 'apps/wbs/fe-01'),
+      url: `http://localhost:${fePort}`,
+      env: {
+        PORT: fePort,
+        VITE_BE_URL: beUrl,
+        VITE_GW_URL: gwUrl,
+        VITE_WS_URL: `ws://localhost:${gwPort}/ws`,
+      },
+    },
+  ];
+  const sameEnvironment = (left: Record<string, string>, right: Record<string, string>) =>
+    JSON.stringify(Object.entries(left).sort()) === JSON.stringify(Object.entries(right).sort());
+  // Proof: removing this guard let a foreign command reach service launch; the
+  // production runner test failed on readiness instead of the approved-stack refusal.
+  if (
+    descriptors.length !== expected.length ||
+    descriptors.some((descriptor, index) => {
+      const required = expected.at(index);
+      if (required === undefined) return true;
+      return (
+        descriptor.command !== required.command ||
+        descriptor.cwd !== required.cwd ||
+        descriptor.url !== required.url ||
+        !sameEnvironment(descriptor.env, required.env)
+      );
+    })
+  )
+    throw new Error('Performance service descriptors differ from the approved shifted WBS stack');
+}
+
+function captureDescriptorStream(
+  stream: ReadableStream<Uint8Array>,
+  artifact: FileHandle,
+  label: 'output' | 'stderr',
+): { completion: Promise<void>; cancel: () => Promise<void> } {
+  const reader = stream.getReader();
+  let released = false;
+  const completion = (async () => {
+    let capturedBytes = 0;
+    let readFailure: unknown;
+    let failed = false;
+    try {
+      for (;;) {
+        const reading = await reader.read();
+        if (reading.done) break;
+        const bytes = reading.value;
+        const remaining = 64 * 1024 - capturedBytes;
+        // Proof: a candidate producer wrote 65,537 bytes on either stream;
+        // the production fault test retained at most 64 KiB and refused launch.
+        if (bytes.length > remaining) {
+          if (remaining > 0) await artifact.writeFile(bytes.subarray(0, remaining));
+          throw new Error('Performance service descriptor ' + label + ' exceeds 64 KiB');
+        }
+        await artifact.writeFile(bytes);
+        capturedBytes += bytes.length;
+      }
+    } catch (cause) {
+      readFailure = cause;
+      failed = true;
+    }
+    const closeFailures: unknown[] = [];
+    try {
+      reader.releaseLock();
+      released = true;
+    } catch (cause) {
+      closeFailures.push(cause);
+    }
+    try {
+      await artifact.close();
+    } catch (cause) {
+      closeFailures.push(cause);
+    }
+    // Proof: injected read and close faults both survive in failure.json.
+    if (failed && closeFailures.length > 0)
+      throw new AggregateError(
+        [readFailure, ...closeFailures],
+        'Performance descriptor ' + label + ' capture and close failed',
+      );
+    if (closeFailures.length > 0)
+      throw new AggregateError(closeFailures, 'Performance descriptor ' + label + ' close failed');
+    if (failed) throw readFailure;
+  })();
+  return { completion, cancel: () => (released ? Promise.resolve() : reader.cancel()) };
+}
+
+async function closeDescriptorArtifacts(artifacts: readonly FileHandle[]): Promise<void> {
+  const settled = await Promise.allSettled(artifacts.map((artifact) => artifact.close()));
+  const failures: unknown[] = [];
+  for (const entry of settled) if (entry.status === 'rejected') failures.push(entry.reason);
+  if (failures.length > 0)
+    throw new AggregateError(failures, 'Performance descriptor artifact close failed');
+}
+
+async function removeDescriptorStages(paths: readonly string[]): Promise<void> {
+  const settled = await Promise.allSettled(paths.map((path) => rm(path, { force: true })));
+  const failures: unknown[] = [];
+  for (const entry of settled) if (entry.status === 'rejected') failures.push(entry.reason);
+  if (failures.length > 0)
+    throw new AggregateError(failures, 'Performance descriptor staging cleanup failed');
+}
+
+async function awaitDescriptorPhase(
+  child: Bun.Subprocess,
+  captures: readonly Promise<void>[],
+): Promise<number> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // Proof: a producer descendant inherited both pipes after direct exit;
+    // the production runner rejects at this whole-phase deadline.
+    return await Promise.race([
+      Promise.all([child.exited, ...captures]).then(([exitCode]) => exitCode),
+      new Promise<never>((_accept, reject) => {
+        timeout = setTimeout(() => {
+          reject(new Error('Performance service descriptor producer timed out'));
+        }, 10_000);
+      }),
+    ]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
+
+async function settleDescriptorCaptures(captures: readonly Promise<void>[]): Promise<unknown[]> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const settled = await Promise.race([
+      Promise.allSettled(captures),
+      new Promise<never>((_accept, reject) => {
+        timeout = setTimeout(() => {
+          reject(new Error('Performance descriptor capture cleanup timed out'));
+        }, 1_000);
+      }),
+    ]);
+    const failures: unknown[] = [];
+    for (const entry of settled) if (entry.status === 'rejected') failures.push(entry.reason);
+    return failures;
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
+
+async function readCandidateServiceDescriptors(
+  checkoutRoot: string,
+  bundle: string,
+  shift: number,
+  runDatabase: string,
+  owner: PerformanceProcessOwner,
+  selectionEnvironment: { CI: '1'; E2E_PORT_SHIFT: string },
+): Promise<PerformanceServiceDescriptor[]> {
+  const outputPath = join(bundle, 'ordinary-services.json');
+  const errorPath = join(bundle, 'ordinary-services.stderr');
+  const outputStage = outputPath + '.' + randomUUID() + '.tmp';
+  const errorStage = errorPath + '.' + randomUUID() + '.tmp';
+  const stages = [outputStage, errorStage];
+  let published = false;
+  try {
+    const stdout = await open(outputStage, 'wx');
+    let stderr: FileHandle;
+    try {
+      stderr = await open(errorStage, 'wx');
+    } catch (cause) {
+      // Proof: the second-open fault verified the first handle is closed.
+      try {
+        await stdout.close();
+      } catch (closeCause) {
+        throw new AggregateError(
+          [cause, closeCause],
+          'Performance descriptor stderr open and stdout close failed',
+          { cause: closeCause },
+        );
+      }
+      throw cause;
+    }
+    let child: Bun.Subprocess;
+    try {
+      // Proof: omitting the committed producer yielded a named production
+      // runner refusal before any service command could launch.
+      child = owner.spawn(
+        [
+          process.execPath,
+          join(checkoutRoot, 'apps/wbs/fe-01/ordinary-servers-cli.ts'),
+          checkoutRoot,
+          String(shift),
+          runDatabase,
+        ],
+        checkoutRoot,
+        executionEnvironment({}, selectionEnvironment),
+        { stdout: 'pipe', stderr: 'pipe' },
+      );
+    } catch (cause) {
+      try {
+        await closeDescriptorArtifacts([stdout, stderr]);
+      } catch (closeCause) {
+        throw new AggregateError(
+          [cause, closeCause],
+          'Performance descriptor spawn and close failed',
+          { cause: closeCause },
+        );
+      }
+      throw cause;
+    }
+    if (!(child.stdout instanceof ReadableStream) || !(child.stderr instanceof ReadableStream)) {
+      child.kill('SIGKILL');
+      await closeDescriptorArtifacts([stdout, stderr]);
+      throw new Error('Performance service descriptor producer lacks piped output');
+    }
+    const outputCapture = captureDescriptorStream(child.stdout, stdout, 'output');
+    const errorCapture = captureDescriptorStream(child.stderr, stderr, 'stderr');
+    const captures = [outputCapture.completion, errorCapture.completion];
+    let exitCode = 0;
+    let phaseFailure: unknown;
+    let phaseFailed = false;
+    let capturesClosed = true;
+    try {
+      exitCode = await awaitDescriptorPhase(child, captures);
+    } catch (cause) {
+      phaseFailed = true;
+      capturesClosed = false;
+      const cleanupFailures: unknown[] = [];
+      // Cancellation releases inherited pipes; the outer process owner reaps descendants.
+      const cancellations = [outputCapture.cancel(), errorCapture.cancel()];
+      try {
+        cleanupFailures.push(...(await settleDescriptorCaptures(captures)));
+        capturesClosed = true;
+      } catch (captureCause) {
+        cleanupFailures.push(captureCause);
+      }
+      try {
+        cleanupFailures.push(...(await settleDescriptorCaptures(cancellations)));
+      } catch (cancelCause) {
+        cleanupFailures.push(cancelCause);
+      }
+      phaseFailure =
+        cleanupFailures.length > 0
+          ? new AggregateError(
+              [cause, ...cleanupFailures],
+              'Performance descriptor producer failed with cleanup errors: ' + String(cause),
+            )
+          : cause;
+    }
+    // Publish complete, bounded diagnostics even for a failed producer.
+    if (!capturesClosed) throw phaseFailure;
+    await rename(outputStage, outputPath);
+    await rename(errorStage, errorPath);
+    published = true;
+    if (phaseFailed) throw phaseFailure;
+    // Proof: disabling this guard made the exit-23 producer fail the transport
+    // test (0 pass/1 fail, 68 assertions) instead of its named refusal.
+    if (exitCode !== 0)
+      throw new Error(
+        'Performance service descriptor producer failed: ' +
+          String(exitCode) +
+          ': ' +
+          (await readFile(errorPath, 'utf8')).trim(),
+      );
+    const bytes = await readFile(outputPath);
+    let source: string;
+    try {
+      // Proof: candidate stdout containing 0xff made the transport fault test
+      // observe this fatal UTF-8 refusal before the JSON decoder.
+      source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch (cause) {
+      throw new Error('Performance service descriptor output is invalid UTF-8', { cause });
+    }
+    const descriptors = decodeServiceDescriptors(source);
+    assertCandidateServiceDescriptors(descriptors, checkoutRoot, shift, runDatabase);
+    return descriptors;
+  } catch (cause) {
+    const cleanupFailures: unknown[] = [];
+    try {
+      await removeDescriptorStages(published ? stages : [...stages, outputPath, errorPath]);
+    } catch (cleanupCause) {
+      cleanupFailures.push(cleanupCause);
+    }
+    if (cleanupFailures.length > 0)
+      throw new AggregateError(
+        [cause, ...cleanupFailures],
+        'Performance descriptor staging failed with cleanup errors',
+        { cause },
+      );
+    throw cause;
+  }
 }
 
 function executionEnvironment(
@@ -726,11 +1099,11 @@ async function runLockedPerformanceLevel(
     throw new Error('no-cases: no performance fixtures declare thresholds');
   }
 
-  const shift = parseOrdinaryPortShift(process.env['E2E_PORT_SHIFT'], true);
   const selectionEnvironment = decodePerformanceSelectionEnvironment({
     CI: '1',
-    E2E_PORT_SHIFT: String(shift),
+    E2E_PORT_SHIFT: process.env['E2E_PORT_SHIFT'],
   });
+  const shift = Number(selectionEnvironment.E2E_PORT_SHIFT);
   await assertShiftedPortsFree(shift);
   const invocationId = randomUUID();
   const bundleRelative = `${performanceBundleRoot}/${invocationId}`;
@@ -785,14 +1158,17 @@ async function runLockedPerformanceLevel(
     // Proof: the disposable full-mount production Nx target reached BE readiness
     // but BE exited 1 because its per-invocation SQLite path had no tmp parent.
     await mkdir(join(checkoutRoot, 'tmp'), { recursive: true });
+    const runDatabase = join(checkoutRoot, 'tmp', `e2e-performance-${randomUUID()}.db`);
     const descriptors =
       injectedDescriptors ??
-      ordinaryServerDescriptors(
+      (await readCandidateServiceDescriptors(
         checkoutRoot,
+        bundle,
         shift,
-        true,
-        join(checkoutRoot, 'tmp', `e2e-performance-${randomUUID()}.db`),
-      );
+        runDatabase,
+        activeOwner,
+        selectionEnvironment,
+      ));
     const expectedUrls = [
       `http://localhost:${String(3100 + shift)}/health`,
       `http://localhost:${String(3200 + shift)}/health`,

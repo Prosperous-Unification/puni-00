@@ -27,6 +27,10 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['apps/website/fe-01', 'website-fe-01'],
   ['libs/shared/domain/failures', 'shared-failures'],
   ['libs/shared/domain/portability-format', 'shared-portability-format'],
+  // Proof: omitting these committed candidates failed both the root/identity
+  // and product-axis exhaustiveness cases on their exact product:shared tuples.
+  ['libs/shared/domain/test-evidence', 'shared-test-evidence'],
+  ['libs/shared/domain/test-levels', 'shared-test-levels'],
   ['libs/shared/domain/validation', 'shared-validation'],
   ['libs/wbs/adapters/auth', 'wbs-auth'],
   ['libs/wbs/adapters/config', 'wbs-config'],

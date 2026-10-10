@@ -9,6 +9,7 @@ const nativeReadFileSync = fs.readFileSync;
 const nativeReaddirSync = fs.readdirSync;
 const nativeWriteFile = fsPromises.writeFile;
 const nativeRename = fsPromises.rename;
+const nativeOpen = fsPromises.open;
 const nativeDlopen = ffi.dlopen;
 const nativeSpawnSync = Bun.spawnSync;
 let vanishPid: number | undefined;
@@ -118,6 +119,36 @@ if (fault === 'partial-evidence' || fault === 'inventory-after-run') {
       if (fault === 'inventory-after-run' && String(destination).endsWith('/manifest.json'))
         armedInventory = true;
     }) as typeof fsPromises.rename,
+  }));
+}
+
+if (fault === 'descriptor-stderr-open' || fault === 'descriptor-output-close') {
+  await mock.module('node:fs/promises', () => ({
+    ...fsPromises,
+    open: (async (...args: Parameters<typeof nativeOpen>) => {
+      const path = String(args[0]);
+      if (fault === 'descriptor-stderr-open' && path.includes('ordinary-services.stderr.'))
+        throw new Error('injected descriptor stderr open failure');
+      const artifact = await nativeOpen(...args);
+      if (fault === 'descriptor-stderr-open' && path.includes('ordinary-services.json.')) {
+        const nativeClose = artifact.close.bind(artifact);
+        artifact.close = async () => {
+          await nativeClose();
+          await nativeWriteFile(
+            `${path.slice(0, path.lastIndexOf('/'))}/descriptor-stdout-closed`,
+            'yes',
+          );
+        };
+      }
+      if (fault === 'descriptor-output-close' && path.includes('ordinary-services.json.')) {
+        const nativeClose = artifact.close.bind(artifact);
+        artifact.close = async () => {
+          await nativeClose();
+          throw new Error('injected descriptor stdout close failure');
+        };
+      }
+      return artifact;
+    }) as typeof fsPromises.open,
   }));
 }
 

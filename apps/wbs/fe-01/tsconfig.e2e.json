@@ -21,6 +21,7 @@
       "@wbs/validation": ["../../../libs/wbs/domain/validation/src/index.ts"],
       "@shared/failures": ["../../../libs/shared/domain/failures/src/index.ts"],
       "@shared/validation": ["../../../libs/shared/domain/validation/src/index.ts"],
+      "@shared/test-evidence": ["../../../libs/shared/domain/test-evidence/src/index.ts"],
       "@wbs/domain/is-within": ["../../../libs/wbs/domain/domain/src/is-within.ts"],
       "@wbs/domain/derive-numbers": ["../../../libs/wbs/domain/domain/src/derive-numbers.ts"],
       "@wbs/domain/tree-order": ["../../../libs/wbs/domain/domain/src/tree-order.ts"],
@@ -33,8 +34,9 @@
   "include": [
     "e2e/**/*.ts",
     "e2e-packaged/**/*.ts",
-    "playwright.config.ts",
     "playwright.ordinary-servers.ts",
+    "ordinary-servers-cli.ts",
+    "playwright.config.ts",
     "playwright.packaged.config.ts",
     "playwright.performance.config.ts",
     "e2e-performance/**/*.ts"

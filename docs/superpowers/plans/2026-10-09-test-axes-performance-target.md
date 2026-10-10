@@ -66,7 +66,7 @@ logical rows 0, 50 and 99; the editor row must remain mounted in the final sampl
 observation is the maximum of those three samples, with no threshold-based readiness wait.
 The `folded-mounted-cells` observation is a count with comparison `lte 1200`.
 
-The historical geometry budget is documented at [measured-rendering/verify.md:65](../../../openspec/changes/measured-rendering/verify.md#L65); its full-mount negative is at line 628. The 21-column derivation is the eight-step folded envelope: 30 intersecting rows, 12 overscan rows on each side, and a full editor row gives `(30 + 12 + 12 + 1) × 21 = 1155`, rounded to 1200. The proposed two-step, 100-row fixture previously measured 1500 cells when fully mounted. This supports a discriminating 1200 budget. The new exact candidate still must measure its actual maximum before any pass is claimed, and this single case does not prove full-scale rendering or latency.
+The historical geometry budget is documented in the [completed Linux matrix extension](../../../openspec/changes/measured-rendering/verify.md#completed-linux-matrix-extension--2026-09-08); its full-mount negative is at line 628. The 21-column derivation is the eight-step folded envelope: 30 intersecting rows, 12 overscan rows on each side, and a full editor row gives `(30 + 12 + 12 + 1) × 21 = 1155`, rounded to 1200. The proposed two-step, 100-row fixture previously measured 1500 cells when fully mounted. This supports a discriminating 1200 budget. The new exact candidate still must measure its actual maximum before any pass is claimed, and this single case does not prove full-scale rendering or latency.
 
 The lifecycle and publication contract below is the sole definition of process ownership,
 readiness, deadlines, diagnostics and current-evidence publication for this target.
@@ -82,9 +82,12 @@ depended on shifted ports and is retired without an empty fallback.
 ### Lifecycle and publication contract
 
 Reuse the ordinary Browser configuration's exact FE/BE/GW command, cwd, URL and environment
-descriptors through a shared module. The Performance adapter starts those descriptors itself
-after `tools/dev/setup.ts`, with `CI=1`, a validated non-default `E2E_PORT_SHIFT`, and no
-server reuse. It refuses before admission if a selected port is occupied, preserving the
+descriptors through the WBS-owned producer in the detached candidate. The Performance adapter
+runs that producer under its process owner after `tools/dev/setup.ts`, with `CI=1`, a validated
+non-default `E2E_PORT_SHIFT`, and no server reuse. It bounds producer execution to ten seconds,
+reads stdout and stderr through byte-capped pipes into temporary invocation files, publishes complete bounded diagnostics on refusal, and decodes strict
+UTF-8 JSON, and checks the exact shifted WBS stack before starting any service. It refuses before
+admission if a selected port is occupied, preserving the
 existing listener. After launch, it polls all three descriptor URLs for the ordinary config's
 acceptable 2xx/3xx readiness semantics under a startup deadline; only after readiness does
 the separate Playwright execution deadline begin.

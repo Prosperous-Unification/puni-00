@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { classifyTestFile, type TestLevelFacts } from './index';
+import { classifyTestFile, type TestLevel, type TestLevelFacts } from './index';
 
 const facts: TestLevelFacts = {
   frontendSourceRoot: 'apps/wbs/fe-01/src',
@@ -20,7 +20,7 @@ const facts: TestLevelFacts = {
 
 describe('ordered test level table', () => {
   it('uses the first matching rule across all eight levels', () => {
-    const cases: readonly [string, string][] = [
+    const cases: readonly [string, TestLevel][] = [
       ['docs/manual/plan.md', 'manual'],
       ['libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts', 'conformance'],
       ['tools/tool-devsync/src/negative.test.ts', 'architecture'],

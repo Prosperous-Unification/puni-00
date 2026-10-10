@@ -1,5 +1,5 @@
 import { closeSync, constants, openSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -75,12 +75,33 @@ async function runPerformanceLevel(
     | 'verdict-preflight-shape'
     | 'verdict-run-foreign'
     | 'verdict-run-unevaluated'
-    | 'inventory-after-run',
+    | 'inventory-after-run'
+    | 'malformed-descriptor'
+    | 'descriptor-command'
+    | 'descriptor-cwd'
+    | 'descriptor-url'
+    | 'descriptor-env'
+    | 'descriptor-env-type'
+    | 'descriptor-output-large'
+    | 'descriptor-error-large'
+    | 'descriptor-output-utf8'
+    | 'descriptor-output-shape'
+    | 'descriptor-entry-shape'
+    | 'descriptor-required-shape'
+    | 'descriptor-proto-env'
+    | 'descriptor-missing'
+    | 'descriptor-nonzero'
+    | 'descriptor-inherited-pipe'
+    | 'descriptor-stderr-open'
+    | 'descriptor-output-close'
+    | 'descriptor-hang',
 ): Promise<void> {
   const supervisorRoot = await mkdtemp(join(tmpdir(), 'performance-supervisor-'));
   const launchedDescriptors =
-    descriptors ??
-    (root.includes('/performance-execution-') ? healthyScratchDescriptors() : undefined);
+    fault === 'malformed-descriptor' || fault?.startsWith('descriptor-')
+      ? undefined
+      : (descriptors ??
+        (root.includes('/performance-execution-') ? healthyScratchDescriptors() : undefined));
   const encodedDescriptors =
     launchedDescriptors === undefined
       ? '-'
@@ -158,7 +179,26 @@ async function committedPerformanceFixture(
     | 'skipped-run'
     | 'orphan-hang'
     | 'observe-env'
-    | 'invalid-json-utf8' = 'none',
+    | 'invalid-json-utf8'
+    | 'malformed-descriptor'
+    | 'descriptor-command'
+    | 'descriptor-cwd'
+    | 'descriptor-url'
+    | 'descriptor-env'
+    | 'descriptor-env-type'
+    | 'descriptor-output-large'
+    | 'descriptor-error-large'
+    | 'descriptor-output-utf8'
+    | 'descriptor-output-shape'
+    | 'descriptor-entry-shape'
+    | 'descriptor-required-shape'
+    | 'descriptor-proto-env'
+    | 'descriptor-missing'
+    | 'descriptor-nonzero'
+    | 'descriptor-inherited-pipe'
+    | 'descriptor-stderr-open'
+    | 'descriptor-output-close'
+    | 'descriptor-hang' = 'none',
   title = 'records readiness',
 ): Promise<{
   root: string;
@@ -253,6 +293,58 @@ async function committedPerformanceFixture(
         ? `await Bun.write(${JSON.stringify(observedEnvironment)} + '.setup', JSON.stringify({CI:process.env.CI,E2E_PORT_SHIFT:process.env.E2E_PORT_SHIFT}));\n`
         : '// Synthetic committed setup boundary.\n';
   await writeFile(join(root, 'tools/dev/setup.ts'), setupSource);
+  const descriptorFaults = {
+    'descriptor-command': "services[0].command = 'echo foreign';",
+    'descriptor-cwd': "services[0].cwd = '/tmp/foreign';",
+    'descriptor-url': "services[0].url = 'http://localhost:9999/health';",
+    'descriptor-env': "services[0].env['GW_URL'] = 'http://localhost:9999';",
+    'descriptor-env-type': "services[0].env['PORT'] = 9100;",
+    'descriptor-proto-env':
+      "Object.defineProperty(services[0].env, '__proto__', {value:'foreign', enumerable:true});",
+  } as const;
+  if (fault in descriptorFaults) {
+    await writeFile(
+      join(root, 'apps/wbs/fe-01/playwright.ordinary-servers.ts'),
+      await readFile(
+        join(import.meta.dir, '../../../apps/wbs/fe-01/playwright.ordinary-servers.ts'),
+        'utf8',
+      ),
+    );
+  }
+  const descriptorMutation =
+    fault === 'descriptor-command' ||
+    fault === 'descriptor-cwd' ||
+    fault === 'descriptor-url' ||
+    fault === 'descriptor-env' ||
+    fault === 'descriptor-env-type' ||
+    fault === 'descriptor-proto-env'
+      ? descriptorFaults[fault]
+      : '';
+  const transportFaults: Record<string, string> = {
+    'descriptor-output-large': "process.stdout.write('x'.repeat(65537));",
+    'descriptor-output-close': "process.stdout.write('x'.repeat(65537));",
+    'descriptor-error-large': "process.stderr.write('x'.repeat(65537));",
+    'descriptor-output-utf8': 'process.stdout.write(Buffer.from([0xff]));',
+    'descriptor-output-shape': "process.stdout.write('{}');",
+    'descriptor-entry-shape': "process.stdout.write('[null,null,null]');",
+    'descriptor-required-shape': 'process.stdout.write(\'[{"command":1},{},{}]\');',
+    'descriptor-nonzero': "process.stderr.write('producer diagnostic'); process.exit(23);",
+    'descriptor-inherited-pipe': `const descendant = Bun.spawn(['setsid', 'sleep', '30'], {stdout:1, stderr:2, stdin:'ignore'}); await Bun.write(${JSON.stringify(orphanMarkers[1])}, String(descendant.pid)); process.exit(0);`,
+    'descriptor-hang': 'await Bun.sleep(12000);',
+  };
+  const transportSource = Object.hasOwn(transportFaults, fault)
+    ? transportFaults[fault]
+    : undefined;
+  if (fault !== 'descriptor-missing')
+    await writeFile(
+      join(root, 'apps/wbs/fe-01/ordinary-servers-cli.ts'),
+      fault === 'malformed-descriptor'
+        ? "process.stdout.write('{invalid-json');\n"
+        : (transportSource ??
+            (descriptorMutation !== ''
+              ? `import {ordinaryServerDescriptors} from './playwright.ordinary-servers'; const services = ordinaryServerDescriptors(process.argv[2], Number(process.argv[3]), true, process.argv[4]); ${descriptorMutation} process.stdout.write(JSON.stringify(services) + '\\n');\n`
+              : `process.stdout.write(JSON.stringify(${JSON.stringify(healthyScratchDescriptors())}) + '\\n');\n`)),
+    );
   for (const app of ['be-01', 'gw-01', 'fe-01']) {
     await mkdir(join(root, 'apps/wbs', app), { recursive: true });
     await writeFile(join(root, 'apps/wbs', app, '.keep'), 'fixture');
@@ -335,11 +427,44 @@ async function expectFailure(operation: Promise<unknown>, phrase: string): Promi
   expect(String(failure)).toContain(phrase);
 }
 
+async function expectFailureMessage(operation: Promise<unknown>, phrase: string): Promise<void> {
+  const failure: unknown = await operation.then(
+    () => new Error('operation unexpectedly succeeded'),
+    (cause: unknown) => cause,
+  );
+  if (!(failure instanceof Error)) throw new Error('Expected an Error from the production runner');
+  // Proof: disabling the three-service array guard left its source text in Bun's
+  // formatted stack, so a substring assertion passed falsely. Only diagnostic
+  // lines that begin with error: count as the observed failure.
+  const diagnostics = failure.message.split('\n').filter((line) => line.startsWith('error: '));
+  expect(diagnostics.some((line) => line.includes(phrase))).toBe(true);
+}
+
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
 describe('Performance level target production boundary', () => {
+  it('refuses an incomplete WBS descriptor producer invocation', () => {
+    const producer = join(import.meta.dir, '../../../apps/wbs/fe-01/ordinary-servers-cli.ts');
+    const invocation = Bun.spawnSync([process.execPath, producer], {
+      cwd: join(import.meta.dir, '../../..'),
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(invocation.exitCode).not.toBe(0);
+    expect(invocation.stderr.toString()).toContain(
+      'Ordinary server descriptors require root, shift and absolute database path',
+    );
+    const relativeRoot = Bun.spawnSync(
+      [process.execPath, producer, '.', '6000', '/tmp/performance.db'],
+      { cwd: join(import.meta.dir, '../../..'), stdout: 'pipe', stderr: 'pipe' },
+    );
+    expect(relativeRoot.exitCode).not.toBe(0);
+    expect(relativeRoot.stderr.toString()).toContain(
+      'Ordinary server descriptors require root, shift and absolute database path',
+    );
+  });
   it('refuses malformed or unbound Burokrat candidate identities', () => {
     const revision = 'b'.repeat(40);
     const identity = {
@@ -811,6 +936,118 @@ describe('Performance level target production boundary', () => {
     await runPerformanceLevel(fixture.root, fixture.policyPath, descriptors);
     expect(await Bun.file(join(fixture.root, currentPath)).exists()).toBe(true);
   }, 60_000);
+
+  it('refuses malformed WBS service descriptors before launching the stack', async () => {
+    const fixture = await committedPerformanceFixture(180, 'malformed-descriptor');
+    // Proof: bypassing the WBS descriptor producer made this case reach service launch
+    // and fail on readiness instead of refusing the malformed producer output.
+    await expectFailure(
+      runPerformanceLevel(fixture.root, fixture.policyPath, undefined, 'malformed-descriptor'),
+      'Performance service descriptor output is invalid JSON',
+    );
+    await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
+  }, 30_000);
+
+  it('refuses foreign WBS commands, directories, URLs and environment before service launch', async () => {
+    for (const fault of [
+      'descriptor-command',
+      'descriptor-cwd',
+      'descriptor-url',
+      'descriptor-env',
+    ] as const) {
+      const fixture = await committedPerformanceFixture(180, fault);
+      await expectFailure(
+        runPerformanceLevel(fixture.root, fixture.policyPath, undefined, fault),
+        'Performance service descriptors differ from the approved shifted WBS stack',
+      );
+      await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
+    }
+  }, 60_000);
+
+  it('bounds and validates WBS descriptor producer transport before service launch', async () => {
+    for (const [fault, phrase] of [
+      ['descriptor-output-large', 'output exceeds 64 KiB'],
+      ['descriptor-error-large', 'stderr exceeds 64 KiB'],
+      ['descriptor-output-utf8', 'output is invalid UTF-8'],
+      ['descriptor-output-shape', 'output must contain three services'],
+      ['descriptor-entry-shape', 'descriptor 0 is malformed'],
+      ['descriptor-required-shape', 'descriptor 0 is malformed'],
+      ['descriptor-env-type', 'descriptor 0 has invalid environment'],
+      ['descriptor-proto-env', 'descriptors differ from the approved shifted WBS stack'],
+      ['descriptor-missing', 'producer failed'],
+      ['descriptor-nonzero', 'producer failed: 23: producer diagnostic'],
+      ['descriptor-hang', 'service descriptor producer timed out'],
+    ] as const) {
+      const fixture = await committedPerformanceFixture(180, fault);
+      await expectFailureMessage(
+        runPerformanceLevel(fixture.root, fixture.policyPath, undefined, fault),
+        phrase,
+      );
+      await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
+      if (fault === 'descriptor-output-large' || fault === 'descriptor-error-large') {
+        const bundles = await readdir(join(fixture.root, 'tmp/junit/performance'));
+        expect(bundles).toHaveLength(1);
+        const stream =
+          fault === 'descriptor-output-large'
+            ? 'ordinary-services.json'
+            : 'ordinary-services.stderr';
+        expect(
+          (await stat(join(fixture.root, 'tmp/junit/performance', bundles[0], stream))).size,
+        ).toBe(64 * 1024);
+        const entries = await readdir(join(fixture.root, 'tmp/junit/performance', bundles[0]));
+        expect(entries.some((entry) => entry.endsWith('.tmp'))).toBe(false);
+      }
+    }
+  }, 60_000);
+
+  it('bounds a producer descendant that keeps stdout and stderr open after direct exit', async () => {
+    const fixture = await committedPerformanceFixture(180, 'descriptor-inherited-pipe');
+    await expectFailure(
+      runPerformanceLevel(fixture.root, fixture.policyPath, undefined, 'descriptor-inherited-pipe'),
+      'service descriptor producer timed out',
+    );
+    await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
+    const descendantPid = Number(await readFile(fixture.orphanMarkers[1], 'utf8'));
+    await expectFailure(readFile(`/proc/${String(descendantPid)}/stat`), 'ENOENT');
+  }, 30_000);
+
+  it('closes staged handles and retains capture plus close errors', async () => {
+    for (const [fault, phrase] of [
+      ['descriptor-stderr-open', 'injected descriptor stderr open failure'],
+      ['descriptor-output-close', 'injected descriptor stdout close failure'],
+    ] as const) {
+      const fixture = await committedPerformanceFixture(180, fault);
+      const attempt = runPerformanceLevel(fixture.root, fixture.policyPath, undefined, fault);
+      const failure: unknown = await attempt.then(
+        () => new Error('operation unexpectedly succeeded'),
+        (cause: unknown) => cause,
+      );
+      expect(String(failure)).toContain(phrase);
+      if (fault === 'descriptor-output-close')
+        expect(String(failure)).toContain('output exceeds 64 KiB');
+      await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
+      const bundles = await readdir(join(fixture.root, 'tmp/junit/performance'));
+      const entries = await readdir(join(fixture.root, 'tmp/junit/performance', bundles[0]));
+      if (fault === 'descriptor-stderr-open') {
+        expect(entries.filter((entry) => entry.startsWith('ordinary-services'))).toEqual([]);
+        expect(
+          await readFile(
+            join(fixture.root, 'tmp/junit/performance', bundles[0], 'descriptor-stdout-closed'),
+            'utf8',
+          ),
+        ).toBe('yes');
+      } else {
+        expect(
+          (
+            await stat(
+              join(fixture.root, 'tmp/junit/performance', bundles[0], 'ordinary-services.json'),
+            )
+          ).size,
+        ).toBe(64 * 1024);
+        expect(entries.some((entry) => entry.endsWith('.tmp'))).toBe(false);
+      }
+    }
+  }, 30_000);
 
   it('passes one exact selection environment to child setup, services, discovery and execution despite mutation and descriptor overrides', async () => {
     const fixture = await committedPerformanceFixture(180, 'observe-env');

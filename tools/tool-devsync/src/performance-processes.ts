@@ -30,7 +30,7 @@ export interface PerformanceProcessOwner {
     argv: string[],
     cwd: string,
     env: Record<string, string>,
-    output?: { stdout: number; stderr: number },
+    output?: { stdout: number | 'pipe'; stderr: number | 'pipe' },
   ): Bun.Subprocess;
   stop(): Promise<void>;
 }
