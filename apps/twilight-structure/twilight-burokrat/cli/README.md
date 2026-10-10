@@ -53,6 +53,13 @@ It does not run tests or resolve scenario citations. The observation has absent 
 completed, even when a case failed or was skipped. The command retains the Browser inspector's
 policy, publication, discovery and report refusals.
 
+`inspect-test-sources <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable>`
+joins those observed Browser case files to their exact validated module indexes in the same
+selected commit. It reports the source owner, source and index identities, index review debt, and
+an explicitly unresolved test level. Source ownership does not establish the module tested by a
+case. The observation remains unauthenticated, noncertifying, and carries no coverage or admission
+credit.
+
 ## Trust boundary
 
 Candidate changes can propose future validator or policy bytes, but they cannot select the

@@ -466,6 +466,21 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       );
     });
   }
+  if (args[0] === 'inspect-test-sources') {
+    const usage =
+      'usage: twilight-burokrat inspect-test-sources <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable>';
+    // Proof: removing this guard let the extra-operand production CLI call return success.
+    if (args.length !== 5) throw new Error(usage);
+    const mode = args[4];
+    // Proof: removing this guard changed the unsupported Performance CLI refusal into a later
+    // Browser policy error, failing the command's named usage assertion.
+    if (mode !== 'ordinary' && mode !== 'packaged' && mode !== 'portable') throw new Error(usage);
+    return import('./evidence/test-sources').then(({ inspectTestSources }) => {
+      process.stdout.write(
+        `${JSON.stringify(inspectTestSources(args[1], args[2], args[3], mode))}\n`,
+      );
+    });
+  }
   if ((args.length === 2 || args.length === 3 || args.length === 7) && args[0] === 'template') {
     return import('./templates/verify').then(({ writeTemplateCommand }) => {
       writeTemplateCommand(args);
@@ -479,7 +494,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // Proof: replacing this refusal with a successful return made the external package test
   // accept `not-a-command` with exit 0 instead of rejecting the unknown command.
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-browser|inspect-test-reports|inspect-manual|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|submit-admission|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-manual|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|submit-admission|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 

@@ -160,6 +160,53 @@ The observation digest SHALL bind the complete versioned normalized observation,
 - **WHEN** the diagnostic command invokes the Browser inspector
 - **THEN** it SHALL refuse rather than normalize unvalidated report claims
 
+### Requirement: Diagnostic test sources bind exact indexed ownership
+
+The `inspect-test-sources <repository> <full-committed-sha> <external-policy> <ordinary|packaged|portable>` command SHALL inspect a Browser publication through `inspectTestReports` and resolve each reported case file through `checkIndexes` on the same selected committed candidate. It SHALL accept no caller-supplied observation, ownership map or level-membership facts. It SHALL preserve existing report and index refusals and refuse a case with no unique validated index owner. It SHALL read source and index bytes only from selected Git blobs; working files SHALL NOT repair missing committed state. Source ownership SHALL identify the module containing the test file, and SHALL NOT claim which module's behavior the test proves.
+
+The version-1 observation SHALL bind the exact revision and candidate digest, upstream report observation digest, validated index report identity and index review debt. Every case binding SHALL retain its case ID, file, outcome and source mode/content digest, and identify its owner's module ID, index path and index identity. Bindings and review debt SHALL have deterministic ordering. The observation digest SHALL bind the entire versioned payload excluding itself. Every binding SHALL state `level:{kind:'unresolved',reason:'complete-level-membership-unavailable'}`; the diagnostic SHALL NOT replace unknown higher-precedence facts with empty sets or infer Browser level from Playwright membership. Authentication SHALL remain absent and certification false, without scenario coverage, structural coverage, admission or capability-chain credit. Exit zero SHALL mean ownership inspection completed, including admitted failed/skipped observations and explicit unresolved level classification; malformed or unsupported input SHALL exit nonzero with a named refusal and no partial success JSON.
+
+#### Scenario: [TEST-AXES-048] A reported case binds its exact nested index owner
+
+- **GIVEN** an inspected Browser case whose selected regular source belongs to a validated nested module index
+- **WHEN** source ownership is inspected
+- **THEN** its binding SHALL name that nested module and exact index identity rather than an enclosing module or a module inferred from imports
+- **AND** its case ID, source binding and outcome SHALL remain those of the inspected report
+
+#### Scenario: [TEST-AXES-049] A reported source has no unique validated owner
+
+- **GIVEN** a reported case outside every validated module boundary, or index metadata that makes ownership invalid or ambiguous
+- **WHEN** source ownership is inspected
+- **THEN** inspection SHALL refuse with a named diagnostic and no partial success JSON
+- **AND** a working-tree index SHALL NOT supply missing committed ownership
+
+#### Scenario: [TEST-AXES-050] Ownership and report observations select different candidates
+
+- **GIVEN** the report inspector and source-ownership reader report different committed revisions or candidate digests
+- **WHEN** the observations are joined
+- **THEN** inspection SHALL refuse the mismatch rather than bind an owner from another selection
+
+#### Scenario: [TEST-AXES-051] Ownership diagnostics preserve upstream refusals
+
+- **GIVEN** missing, unreadable, malformed or inconsistent committed index state, or an invalid Browser policy, source, publication or report binding
+- **WHEN** source ownership is inspected through the production command
+- **THEN** the responsible upstream refusal SHALL remain observable without a directory-based fallback
+- **AND** omitted, extra or unsupported command arguments SHALL refuse before observation emission
+
+#### Scenario: [TEST-AXES-052] Ownership identity includes index membership and review debt
+
+- **GIVEN** valid observations whose case and index-debt presentation order differs
+- **WHEN** ownership observation digests are computed
+- **THEN** equivalent observations SHALL have equal digests
+- **AND** changing a source binding, outcome, report provenance, owner, index identity, membership identity or index review debt SHALL change the digest
+
+#### Scenario: [TEST-AXES-053] Source ownership does not determine test level or coverage
+
+- **GIVEN** a valid ownership inspection with passing, failing or skipped Browser observations and possibly index review debt
+- **WHEN** the command completes
+- **THEN** it SHALL preserve every outcome and review-debt entry, report level classification explicitly unresolved, and emit authentication absent and certification false
+- **AND** it SHALL emit no tested-module, service-kind, scenario-coverage, structural-coverage or admission claim
+
 ### Requirement: Tests live inside their modules
 
 A test SHALL live inside the module it tests, resolved from the module index.

@@ -27,6 +27,7 @@ const validatorCommands = new Set([
   'scenario',
   'inspect-manual',
   'inspect-test-reports',
+  'inspect-test-sources',
   'template',
   'validate-policy-activation',
 ]);

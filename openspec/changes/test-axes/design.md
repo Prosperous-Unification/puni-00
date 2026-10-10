@@ -30,6 +30,46 @@ The remaining order is: (b) reviewed adapters and exact level/module classificat
 
 Assumptions: committed selections only; the existing three Browser modes are the first supported evidence family; a report's title is an observed claim until B3 joins it; module source membership and human touched-module declarations are not whole-chain witnesses. These assumptions may be revised through a later reviewed slice. The Notes save/close/preview intermittent failure remains open and its two packets remain active; Gantt, column, scheduler review, external activation and message holds are unchanged.
 
+## Diagnostic source ownership for B4 (4.1b.1)
+
+Intent: turn the already inspected Browser case sources into exact indexed ownership observations. A test's source owner and its tested behavior are different facts. This slice supplies only the former, keeps level classification unresolved, and can proceed while 2.1/2.2 and whole-tree source reconciliation remain open. It neither calls B3 nor bypasses B3 to award coverage. The existing Browser observation contract remains unchanged.
+
+The new command is `inspect-test-sources <repository> <full-committed-sha> <external-policy> <ordinary|packaged|portable>`. Its Burokrat-owned entry is `inspectTestSources(repository: string, revision: string, policyPath: string, mode: 'ordinary' | 'packaged' | 'portable')`. The CLI accepts exactly those four operands. Performance and Manual are unsupported operands, not aliases for Browser modes. The command runs no test runner or candidate code and accepts no external observation JSON.
+
+Capture the committed candidate with the existing reader; invoke the real `inspectTestReports` using that resolved full revision and require its revision and canonical candidate digest to match the captured snapshot. Pass the captured snapshot to `checkIndexes`, which remains responsible for metadata, nearest-index membership, links and duplicate module identities. Find the unique returned index whose `members` contains each reported file. No containing-directory guess or first-owner winner is allowed. Preserve inherited duplicate/source validation instead of installing redundant unreachable guards. A uniqueness invariant that can only be violated by an internal dependency fault must be proved with that labeled fault, not a fictional valid publication.
+
+The output has this exact shape (all arrays are readonly in the implementation interface):
+
+```ts
+interface TestSourcesObservation {
+  schemaVersion: 1;
+  revision: string;
+  candidate: string;
+  reportObservationDigest: string;
+  indexIdentity: string;
+  indexReviewDebt: { indexPath: string; directEntries: number; limit: number }[];
+  bindings: {
+    caseId: string;
+    file: string;
+    status: 'passed' | 'failed' | 'skipped';
+    source: { mode: '100644' | '100755'; contentDigest: string };
+    owner: { moduleId: string; indexPath: string; indexIdentity: string };
+    level: { kind: 'unresolved'; reason: 'complete-level-membership-unavailable' };
+  }[];
+  authentication: { kind: 'absent' };
+  certifies: false;
+  observationDigest: string;
+}
+```
+
+`reportObservationDigest` is the actual `inspectTestReports` digest, transitively binding policy, invocation, Browser mode and full case identities; `indexIdentity` is the actual `checkIndexes.identity`, binding its validated indexes and member paths. `owner.indexIdentity` is the owner's returned `identity`. These are source/provenance identities, not signatures. Candidate identity binds selected content and modes even where an index's membership identity alone would not change. Sort bindings by case ID with `compareCanonicalText`, and sort debt by index path; hash the complete normalized payload with `hashCanonical`, excluding only `observationDigest`. Do not drop debt because it is nonfatal to `checkIndexes`, or drop failed/skipped cases because the upstream diagnostic admits them. A successful output can carry unresolved classification and index review debt because both are explicit output states; missing ownership is a refusal, never an empty successful binding.
+
+Use the shared first-match level table only after a later facts assembler proves its complete inputs. Manual disposition, Conformance target membership, Architecture policy fixtures and threshold-bearing Playwright cases all precede Browser. This slice must not create empty sets to stand in for unknown memberships. It reports no service kind: `resolveKinds` describes production kinded files and is not a test-source ownership oracle. A later Performance adapter needs an immutable publication inspector before it can normalize cases; the current `evaluatePerformanceRun` judge alone does not establish publication integrity. A later Manual adapter must call `inspectManual` and preserve its B3, freshness and review refusals; procedure ownership does not replace reviewed touched-module scope.
+
+Implementation scope: create `apps/twilight-structure/twilight-burokrat/cli/src/evidence/test-sources.ts` and its production CLI test file; add thin routing in `cli.ts`/`bin.ts` and owning exports/README as required. Reuse Git readers, `inspectTestReports`, `checkIndexes` and canonical hashing. Do not change their contracts, shared classifier, rule registration/policy, collector, WBS product, canonical specs or archives. Scratch fixtures must supply complete valid indexed READMEs and real Browser publications; the full checked-out repository may still refuse its own outstanding index/source debt. No candidate fixture success is whole-repository acceptance.
+
+Decision costs: reusing full `checkIndexes` means unrelated malformed index/link state can refuse this diagnostic; that is preferable to creating a weaker parallel ownership authority. The new command preserves the 4.1a wire contract but adds a small CLI surface. Explicit unresolved levels avoid false classification and leave a later complete-facts integration step. No permanent new domain term or ADR is introduced: source owner uses the existing module-index vocabulary. Existing 2.1/2.2/2.2a/2.2a.1/4.1 statuses, Notes intermittent obligation, source/review/CI holds and external activation boundary remain unchanged.
+
 ## Level classification and runner evidence
 
 `libs/shared/domain/test-levels` owns the pure ten-row precedence function. It has no runner or policy imports, and its caller supplies the frontend source root. Burokrat supplies Conformance, Architecture, Performance, Browser, frontend Node and manual membership evidence, then applies that function to the selected candidate. Devsync consumes the same public library for target checks. The shared-domain placement satisfies Nx's existing product and scope rules for the Burokrat application and the product-less devsync tool; Burokrat still owns discovery, thresholds and enforcement.

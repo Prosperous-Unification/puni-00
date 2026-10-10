@@ -570,6 +570,42 @@
       "id": "TEST-AXES-047",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "A diagnostic inspection preserves Browser refusals"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-048",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A reported case binds its exact nested index owner"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-049",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A reported source has no unique validated owner"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-050",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Ownership and report observations select different candidates"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-051",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Ownership diagnostics preserve upstream refusals"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-052",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Ownership identity includes index membership and review debt"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-053",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Source ownership does not determine test level or coverage"
     }
   ]
 }
