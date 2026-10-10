@@ -106,7 +106,8 @@ _Avoid_: active work, current tasks
 
 **Project**:
 One work breakdown structure and everything scoped to it — its work items, its steps and
-its restriction. Nothing is shared between projects.
+its restriction. Work items and steps belong to one project; organization directory entities,
+including people, can serve several projects and are not owned by any one of them.
 _Avoid_: workspace, board, plan
 
 **Work item**:
@@ -187,6 +188,20 @@ that pair's estimate, actual, measures, progress, assignment and dependencies. I
 for every leaf and step whether or not anything is stored for it. Not a work item: no
 tree position, title, type or number of its own. A parent has no step nodes.
 _Avoid_: sub-item, step item, task, cell (which is only its table drawing)
+
+**Board card**:
+A view of one step node in a project's progress board. Its subject stays the same
+when the work item is renumbered or the step is renamed.
+_Avoid_: work item, slice, task
+
+**Board column**:
+A grouping of board cards by their step progress: Unknown, In progress or Done.
+It does not state whether work is ready, held or eligible to start.
+_Avoid_: queue, execution state, readiness
+
+**Board lane**:
+A grouping across board columns, independent of the progress each column names.
+_Avoid_: status, column
 
 **Step node ID**:
 A step node's stable identity: a versioned encoding of its work item's ID and its step's
@@ -1279,6 +1294,16 @@ The organization's total order over its projects; a higher project books a share
 first. Ranked projects by position, then every unranked one by creation.
 _Avoid_: project priority
 
+**Influencer**:
+A readable, dated project above another in project rank that shares a person with that project
+or a higher project reached through it. Its displayed bookings can move the lower project.
+_Avoid_: upstream dependency
+
+**Influencer closure**:
+The influencers reached by repeatedly following shared-person edges toward higher project ranks.
+An undated project stops traversal because it neither consumes nor supplies bookings.
+_Avoid_: recursive project dependencies
+
 **Elsewhere**:
 The bookings a project's scheduler works around: those of the people it names, made by the
 projects that outrank it. Named as the `elsewhere` floor on a slice that waited for one.
@@ -1288,6 +1313,16 @@ _Avoid_: foreign load
 An organization's capacity mode, `isolated` (each project schedules its people alone, the
 default) or `shared` (a project works around its people's bookings elsewhere).
 _Avoid_: global capacity, cross-project mode
+
+**Booking change cause**:
+A project whose own scheduling facts, shared-person connections or place in the project
+order are directly affected by an act, including through an organization directory resource.
+_Avoid_: triggering user, transitive recipient
+
+**Unavailable schedule input**:
+A target's canonical scheduling facts cannot currently be obtained because its required
+influencer has no available engine or the target has a cycle or calendar-range failure.
+_Avoid_: stale input, idle optimization, missing project
 
 ### Architecture
 

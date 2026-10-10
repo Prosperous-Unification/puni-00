@@ -7,13 +7,14 @@
     "work\u0000trailing": 96
   },
   "budgetMs": 30000,
-  "contractVersion": "14+0.1.4",
+  "contractVersion": "15+0.2.0",
   "edges": [
     { "predecessorKey": "work\u0000leading", "successorKey": "work\u0000dev", "type": "FS" },
     { "predecessorKey": "work\u0000dev", "successorKey": "work\u0000interior", "type": "FS" },
     { "predecessorKey": "work\u0000interior", "successorKey": "work\u0000finish", "type": "FS" },
     { "predecessorKey": "work\u0000finish", "successorKey": "work\u0000trailing", "type": "FS" }
   ],
+  "elsewhere": {},
   "fastHint": {
     "work\u0000leading": 0,
     "work\u0000dev": 0,
@@ -87,7 +88,7 @@
       "width": 1
     }
   ],
-  "solverVersion": "0.1.4",
+  "solverVersion": "0.2.0",
   "stageBudgetSplit": [0.6, 0.25, 0.15],
-  "wireVersion": 2
+  "wireVersion": 3
 }

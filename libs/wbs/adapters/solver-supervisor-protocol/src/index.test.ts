@@ -98,15 +98,20 @@ describe('decodeSupervisorStartFrame', () => {
     expect(() => decode(frame({ childDeadlineAt: 10_000 }))).toThrow(/deadline/);
   });
 
-  it('accepts both solver wire versions a rolling deploy can send and refuses any other', () => {
+  it('accepts all solver wire versions a rolling deploy can send and refuses any other', () => {
     expect(decode(frame({ request: { wireVersion: 1, objective: 'pri' } })).request).toEqual({
       wireVersion: 1,
       objective: 'pri',
     });
     expect(decode(frame()).request).toEqual({ wireVersion: 2, objective: 'pri' });
-    expect(() => decode(frame({ request: { wireVersion: 3, objective: 'pri' } }))).toThrow(
+    expect(() => decode(frame({ request: { wireVersion: 4, objective: 'pri' } }))).toThrow(
       /wireVersion/,
     );
+  });
+
+  it('carries fixed person calendars on solver wire 3 unchanged', () => {
+    const request = { wireVersion: 3, objective: 'pri', elsewhere: { ana: [[0, 49]] } };
+    expect(decode(frame({ request })).request).toEqual(request);
   });
 
   it('rejects caller resource values above the host caps and mismatched work', () => {

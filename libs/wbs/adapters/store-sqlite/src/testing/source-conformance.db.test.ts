@@ -60,7 +60,8 @@ import type {
   WriteStamp,
 } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { DEFAULT_ESTIMATE_RULE } from '@wbs/domain';
+import { DEFAULT_ESTIMATE_RULE, schedule } from '@wbs/domain';
+import { createScheduler } from '@wbs/runtime-portable';
 import { describe, expect, it } from 'bun:test';
 import { asc, eq, sql } from 'drizzle-orm';
 
@@ -713,7 +714,45 @@ async function seedSubtreeRecords(source: SqliteSource): Promise<void> {
 }
 
 const openers: ExistingStoreOpeners = {
+  livePlans: async (caseId) => {
+    const { source, directory } = await seedSqliteSource();
+    const configured = source.bindLivePlans({
+      schedulerOf: () =>
+        createScheduler((rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
+          schedule(
+            rows,
+            edges,
+            slices,
+            floors,
+            pools,
+            reach,
+            deadlines,
+            typed,
+            undefined,
+            elsewhere,
+          ),
+        ),
+    });
+    return sqliteFixture(
+      withStores(source, { livePlans: configured.stores.livePlans }),
+      directory,
+      'livePlans',
+      caseId,
+    );
+  },
   projects: (caseId) => openSqliteCase('projects', caseId),
+  projectRanks: async (caseId) => {
+    const { source, directory } = await seedSqliteSource();
+    source.db.run(
+      sql`INSERT INTO organization (id, name, created_at) VALUES ('rank-conformance-org', 'Rank', 1)`,
+    );
+    for (const projectId of DETERMINISTIC_SEED.projectIds) {
+      source.db.run(
+        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'rank-conformance-org')`,
+      );
+    }
+    return sqliteFixture(source, directory, 'projectRanks', caseId);
+  },
   users: (caseId) => openSqliteCase('users', caseId),
   capacity: (caseId) => openSqliteCase('capacity', caseId),
   priorityBands: (caseId) => openSqliteCase('priorityBands', caseId),
@@ -742,7 +781,25 @@ const declaration: SourceDeclaration = {
   revision: sourceRevision(),
   historyAdmission: 'immediate-busy',
   capabilities: {
+    livePlans: {
+      kind: 'offered',
+      gaps: [],
+      open: (caseId) => {
+        if (caseId !== 'livePlans.read:legacy-and-absence' || openers.livePlans === undefined)
+          throw new Error('unexpected live plan case');
+        return openers.livePlans(caseId);
+      },
+    },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
+    projectRanks: {
+      kind: 'offered',
+      gaps: [],
+      open: (caseId) => {
+        if (caseId !== 'projectRanks.orderIn:scoped-move' || openers.projectRanks === undefined)
+          throw new Error('unexpected project rank case');
+        return openers.projectRanks(caseId);
+      },
+    },
     users: { kind: 'offered', gaps: [], open: openers.users },
     capacity: { kind: 'offered', gaps: [], open: openers.capacity },
     priorityBands: { kind: 'offered', gaps: [], open: openers.priorityBands },

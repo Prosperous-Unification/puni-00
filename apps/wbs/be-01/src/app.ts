@@ -12,6 +12,7 @@ import type {
   MembershipAdministration,
   Onboarding,
   OrganizationAccess,
+  ProjectRankStore,
   ReplayOrchestrator,
   SavedPlanService,
   SpaceStore,
@@ -25,6 +26,7 @@ import { joinRequestRoutes } from '@wbs/core/http/join-request.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
+import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
@@ -36,8 +38,11 @@ import type { PriorityBandService } from '@wbs/core/module/priority-band/priorit
 import type { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { StepService } from '@wbs/core/module/step/step.resource';
 import type { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import type { BeforeProjectUpdate, BeforeStepRemoval } from '@wbs/core/ports/fanout-capture-store';
 import type { AuthService } from '@wbs/core/service/auth.service';
+import type { CommittedFanoutDelivery } from '@wbs/core/service/committed-fanout';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
+import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
 import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
@@ -179,6 +184,11 @@ export interface AppOptions {
    */
   spaces: SpaceStore;
   /**
+   * The organizations' project rank (`share-people-across-projects`, slice
+   * 3). Required, like `spaces`: the load reads order by it.
+   */
+  projectRanks: ProjectRankStore;
+  /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
    * failing every forward with a 401 that only shows up in a real deployment.
@@ -233,12 +243,19 @@ export interface AppOptions {
      * and a route event — out of an open batch. The admission is the one the
      * batch's own unit of work established (see `EditAdmission`).
      */
-    batch: (scope: Scope, broadcast: Broadcaster, admission: EditAdmission) => WritingServices;
+    batch: (
+      scope: Scope,
+      broadcast: Broadcaster,
+      admission: EditAdmission,
+      beforeProjectUpdate?: BeforeProjectUpdate,
+      beforeStepRemoval?: BeforeStepRemoval,
+    ) => WritingServices;
     /**
      * Where a batch's collected announcements go once it has committed and let
      * go of its turn, and where every route publishes directly.
      */
     announcements: Broadcaster;
+    committedFanout: CommittedFanoutDelivery;
   };
   /**
    * The commit the checkout on disk is at, read fresh on every `/health` call.
@@ -298,12 +315,15 @@ export function mountedEndpoints(
     },
     uow: opts.writes.uow,
     announcements: opts.writes.announcements,
+    // Proof: omitting mounted delivery made a cold shared command answer 500
+    // instead of 200, with no downstream row.
+    committedFanout: opts.writes.committedFanout,
   });
   // A project reach change and a step removal read the combined dependency
   // graph before they write, so each runs as one unit of work: a write landing
   // between the check and the write could otherwise leave a cycle.
   const admitted = createAdmittedWrites(opts.writes);
-  // Spaces stamp their writes; the app's clock is time alone, so ids are
+  // Spaces and rank moves stamp their writes; the app's clock is time alone, so ids are
   // random UUIDs as `services.ts` issues them.
   const spaceClock = clockOf({ now: () => opts.clock.now(), newId: () => crypto.randomUUID() });
   // One cache per app, which is one per process in production (design memo §8).
@@ -378,6 +398,15 @@ export function mountedEndpoints(
         projects: opts.projects,
         workItems: opts.workItems,
         directory: opts.directory,
+        ranks: opts.projectRanks,
+      }),
+      opts.organizations,
+    ),
+    ...projectRankRoutes(
+      new ProjectRankResource({
+        ranks: opts.projectRanks,
+        projects: opts.projects,
+        clock: spaceClock,
       }),
       opts.organizations,
     ),

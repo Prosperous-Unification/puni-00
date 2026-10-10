@@ -2608,3 +2608,32 @@ sources` on `Received: undefined` (3 pass, 1 fail); prepending
 - Second capability audit follow-up (2026-10-01): the same fixture caught a resource method returning `{kind:'empty'} | {kind:'scope'; scope: Scope}` and a getter returning `ProjectStore['findById']`. Both escaped before union-member field traversal and selected-method declaration recognition (0/1, with both names missing). Reverting union members to shape-only traversal missed only `EscapedUnion` (0/1); disabling selected-method classification missed only `EscapedMethod` (0/1). A selected callable repository property `SyntheticCallableRepository['find']` was then watched red (0/1), and passes after resolving its function-type declaration. A private `#scope` and public DTO method or DTO union remain allowed. `bun test libs/wbs/application/core/src/module-boundaries.test.ts --timeout=30000`: 13/13. The focused Import/Commands/transaction/boundary suite: 97/97. Core lib/spec `bunx tsc --noEmit`, changed-file ESLint, Prettier and `git diff --check` passed. ESLint skipped the uncached Nx ProjectGraph rule. `openspec` validation and the h2puni gate remain unavailable in this isolated clone.
 - Indexed resource value follow-up (2026-10-01): a public resource returning `Record<string, Scope>` escaped the resolved audit without a diagnostic (focused test 0/1). Traversing the TypeScript index value now rejects it while allowing `Record<string, Step>`. Replacing capability-mode index inspection with the stricter repository-declaration ownership predicate made the allowed Step case fail (0/1). The full boundary file passed 14/14, and the focused Import/Commands/transaction/boundary suite passed 98/98. Core lib/spec TypeScript, changed-file ESLint, Prettier and `git diff --check` passed. ESLint skipped the uncached Nx ProjectGraph rule; OpenSpec CLI validation and the h2puni gate remain unavailable in this isolated clone.
 - Feature wrapper follow-up (2026-10-01): a discriminated union containing a resource whose public method returns `Scope` escaped the audit in ownership mode. A matrix of plain object, union, intersection, `Promise`, array and `Record` wrappers was watched red with only the union undetected (0/1). Preserving ownership-mode field traversal indiscriminately passed the matrix but produced 38 false findings in the real closed-module audit (14/15). The corrected two-pass union scan preserves shallow declaration ownership and separately inspects nested fields for raw capabilities; full boundary file passed 15/15 and focused Import/Commands/transaction/boundary suite passed 99/99. A parallel DTO-resource union and record remain allowed. Forcing public resource members into ownership mode falsely refused the DTO-resource union (0/1). Core lib/spec TypeScript, changed-file ESLint, Prettier and `git diff --check` passed. ESLint skipped the uncached Nx ProjectGraph rule; OpenSpec CLI validation and the h2puni gate remain unavailable in this isolated clone.
+
+### Realtime test colocation, task 7.9 (WBS 040.07) — 2026-10-04
+
+- Base `42d58ca83cc4800971a69f3d3519f22dbd3b728b`. The shared checkout had unrelated
+  changes, so this slice used an isolated local clone at `/tmp/puni-040-07-realtime-test-colocation`.
+  `bun install --frozen-lockfile` completed with no lockfile changes (`1602` installs checked).
+- Before and after the move, the three named `bun test` files passed: `21` tests across `3` files,
+  `0` failures and `546` expectations on each run. The Realtime directory passed `27` tests across
+  `4` files, `0` failures, `559` expectations. Core discovery with
+  `bun test libs/wbs/application/core/src --timeout=10000` ran `807` tests across `84` files,
+  `0` failures and `2434` expectations; the moved suites were collected under Realtime.
+- Production-path proofs watched after the move and restored: deleting
+  `GatewayBroadcaster.publish`'s `buffer.record` made `fills the buffer the orchestrator replays
+from` fail (`0` pass, `1` fail, `4` filtered), receiving `null` instead of sequence `0`.
+  Removing `ReplayBuffer.record`'s `sweepOneOther` call made `is swept by the traffic on the others,
+not held forever` fail (`0` pass, `1` fail, `12` filtered), receiving sequence `0` instead of
+  `null`.
+- `bunx tsc --noEmit` passed for Realtime `tsconfig.json` and core `tsconfig.lib.json` and
+  `tsconfig.spec.json`; `bun tools/tool-devsync/src/typecheck-modules.ts` passed all `17` core
+  modules. Changed-file ESLint passed after import sorting, but reported that the uncached Nx
+  ProjectGraph caused `@nx/enforce-module-boundaries` to skip. Changed-file Prettier passed.
+- Full core ESLint (`src`, `testing`, and `playwright.config.ts`) exited `0` with the same
+  ProjectGraph warning. The committed-index pilot test, with
+  `TOOL_WIKI_TRUSTED_NODE_MODULES` pointing at this clone's `node_modules`, passed its selected
+  production-CLI case (`1` pass, `21` filtered, `60` expectations). Without that setting the
+  selected case reached observe lint but failed on `trusted TypeScript runtime modules are not
+configured`. The index CLI suite passed `57` tests, `0` failures, `454` expectations.
+  `git diff --check` and changed-file Prettier passed. The canonical h2puni gate is deferred to
+  the final pushed SHA as requested.

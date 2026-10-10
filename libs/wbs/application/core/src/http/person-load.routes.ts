@@ -22,11 +22,9 @@ export function personLoadRoutes(load: PersonLoad, organizations: OrganizationAc
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const window = loadWindowOf(query.from, query.to);
         if (window === null) return invalidQuery;
-        return {
-          ok: true,
-          status: 200,
-          body: await load.readOrganization(window, principal.id, resolved.access),
-        };
+        const read = await load.readOrganization(window, principal.id, resolved.access);
+        if ('kind' in read) return organizationRefusal(read.refusal);
+        return { ok: true, status: 200, body: read };
       },
     ),
     bind(
@@ -37,6 +35,7 @@ export function personLoadRoutes(load: PersonLoad, organizations: OrganizationAc
         const window = loadWindowOf(query.from, query.to);
         if (window === null) return invalidQuery;
         const read = await load.readPerson(params.personId, window, principal.id, resolved.access);
+        if (read !== null && 'kind' in read) return organizationRefusal(read.refusal);
         return read === null
           ? { ok: false, status: 404, body: { error: 'not_found' } }
           : { ok: true, status: 200, body: read };

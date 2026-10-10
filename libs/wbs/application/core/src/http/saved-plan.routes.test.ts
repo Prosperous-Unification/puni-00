@@ -69,9 +69,9 @@ test('direct save and touch bindings pass the admitted actor and announce commit
   });
   expect(f.save).toHaveBeenCalledWith({
     projectId: 'p',
-    name: undefined,
     createdBy: 'Ada',
     createdById: 'actor',
+    access: { kind: 'legacy' },
   });
   expect(
     await f.endpoints[4].handle({ ...direct, params: { id: 's' }, body: { name: '  ' } }),

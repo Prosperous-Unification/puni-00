@@ -1,6 +1,7 @@
 import {
   deadlineOffsetsOf,
   effectiveTeamsOf,
+  type Elsewhere,
   type EstimateRule,
   type IsoDate,
   type Schedule,
@@ -21,11 +22,13 @@ import type { SavedPlanResource } from './saved-plan.resource';
  * Captured arguments to `schedule()` are derived here from {@link PlanInputReads};
  * typed dependencies come from that same snapshot. There is no store, connection,
  * or second read. That is the
- * whole point of slice 3 and the reason {@link PlanInputReads} is kept apart
+ * isolated capture ordering from slice 3 and the reason {@link PlanInputReads} is kept apart
  * from `PlanInputRows` — a scheduling pass is the most expensive thing this
  * feature does, and running it inside the capture's read transaction would hold
  * a WAL reader open for the length of a levelling run on somebody else's
- * database.
+ * database. Shared-mode chain capture deliberately derives and schedules on
+ * its dedicated snapshot so influencer selection is coherent; its detached
+ * target inputs alone cannot replay the historical bookings.
  *
  * The derivation mirrors the live projection's (`work-item.service.ts`
  * `:1320-1448`) and shares its `slicesOf`, so a saved plan and the live plan
@@ -35,7 +38,10 @@ import type { SavedPlanResource } from './saved-plan.resource';
  * (`pending`, and the other reasons), and swallowing it now would leave that
  * row nothing to test.
  */
-export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
+export function scheduleInputOfCaptured(
+  reads: PlanInputReads,
+  elsewhere?: Elsewhere,
+): ScheduleInput {
   // A snapshot holds no facts — `saved-plan-input.ts` says why — and the
   // schedule reads none, so the captured rows are widened to the row shape
   // `slicesOf` takes with both absent. Nothing below this line can read a fact
@@ -121,14 +127,16 @@ export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
       deadlines,
       // Proof: dropping the captured list made `schedules a captured node relationship into a later successor step` observe B.s2 at day 1 instead of 3 (2026-09-27).
       typed: reads.typedDependencies,
+      // Proof: dropping this projection failed the captured elsewhere calendar test (undefined).
+      ...(elsewhere === undefined ? {} : { elsewhere }),
     },
     heldLeafIds,
   );
 }
 
 /** Schedules the canonical input derived from detached capture reads. */
-export function schedulePlanInput(reads: PlanInputReads): Schedule {
-  const input = scheduleInputOfCaptured(reads);
+export function schedulePlanInput(reads: PlanInputReads, elsewhere?: Elsewhere): Schedule {
+  const input = scheduleInputOfCaptured(reads, elsewhere);
   return schedule(
     input.rows,
     input.edges,
@@ -138,6 +146,9 @@ export function schedulePlanInput(reads: PlanInputReads): Schedule {
     input.reach,
     input.deadlines,
     input.typed,
+    undefined,
+    // Proof: omitting this argument places the captured assigned slice at 0 instead of 5.
+    input.elsewhere,
   );
 }
 

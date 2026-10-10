@@ -470,5 +470,11 @@
       neutral `ports/*-values.ts` files behind store re-exports. Behaviour is unchanged: the memory
       and SQLite import source contracts and the organization import and command database tests
       pass unchanged. Proofs and commands are in `verify.md`.
+- [x] 7.9 Colocate the remaining Realtime broadcaster and replay-buffer tests (WBS 040.07).
+      Move `gateway-broadcaster.test.ts`, `replay-buffer.test.ts`, and
+      `replay-buffer.property.test.ts` from `service/` into `module/realtime/`, update their
+      relative imports and the module index, and retain their production-path fault proofs.
+      The pilot wiki membership is a directory prefix, so its registration needs no change.
+      Baseline, moved-suite, module, typecheck, lint, and fault outcomes are recorded in `verify.md`.
 
 The label inference limit recorded in task 7 is closed by `di-bag-label-surface` (WBS `cc9361f6`): the check reads the scanned module's `moduleLabel` getter on di-bag 0.5.1. Historical task evidence remains dated.

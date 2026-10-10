@@ -1,4 +1,4 @@
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { CREATOR_ADMISSION, type OptimizedScheduleAdapter } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
@@ -6,10 +6,7 @@ import { builtByNonOwner, MAX_ESTIMATE_DAYS, type Schedule, schedule } from '@wb
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
-import type {
-  OptimizationVariantState,
-  OptimizedScheduleReader,
-} from '../module/optimization/optimized-schedule-reader';
+import type { OptimizationVariantState } from '../module/optimization/optimized-schedule-reader';
 import { optimizerWiring } from '../service/optimizer-wiring';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -34,13 +31,14 @@ import {
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects, memoryProjectTables } from '../testing/project-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
-function buildHarness(optimized?: OptimizedScheduleReader) {
+function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
   const users = inMemoryUsers();
   const projectTables = memoryProjectTables();
   const plan = inMemoryServices({ projects: inMemoryProjects(users, projectTables) });
@@ -71,7 +69,10 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
           clock: testClock,
           ...plan.stores,
           broadcast: plan.broadcast,
-          scheduler: optimizerWiring({ readLive: optimized, readCaptured: optimized }).scheduler,
+          scheduler: optimizerWiring({
+            readLive: (ask) => Promise.resolve(optimized(ask)),
+            readCaptured: optimized,
+          }).scheduler,
         });
   // The batch writes through the **same** services the routes do: on the
   // in-memory fixtures there is one set of stores and no turn to hold, so the
@@ -94,6 +95,7 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
+    projectRanks: refusingProjectRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
@@ -171,7 +173,7 @@ type Send = (
   init?: { method?: string; body?: string },
 ) => Promise<Response>;
 
-async function setup(optimized?: OptimizedScheduleReader) {
+async function setup(optimized?: OptimizedScheduleAdapter['readCaptured']) {
   const {
     register,
     send,
@@ -755,7 +757,7 @@ describe('work item routes', () => {
     type Variants = Readonly<Record<'pri' | 'time', OptimizationVariantState>>;
     let variants: Variants = { pri: { state: 'pending' }, time: { state: 'pending' } };
     let serve = false;
-    const optimized: OptimizedScheduleReader = (ask) => {
+    const optimized: OptimizedScheduleAdapter['readCaptured'] = (ask) => {
       const empty = ask.input.slices.length === 0;
       const fast = schedule(
         ask.input.rows,

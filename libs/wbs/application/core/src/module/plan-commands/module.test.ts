@@ -41,6 +41,7 @@ async function seeded() {
   const announcements = recordingBroadcaster();
   const handed: Broadcaster[] = [];
   return {
+    source,
     announcements,
     handed,
     requirements: {
@@ -51,6 +52,7 @@ async function seeded() {
       publicServices: graphOver(source.stores, recordingBroadcaster()),
       uow: source.uow,
       announcements,
+      committedFanout: { now: () => 2, deliverCommitted: () => Promise.resolve() },
     },
   };
 }
@@ -74,6 +76,10 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     uow: DiBag.createProvider(() => source.uow, { factoryReturnKind: 'sync-value' }),
+    committedFanout: DiBag.createProvider(
+      () => ({ now: () => 0, deliverCommitted: () => Promise.resolve() }),
+      { factoryReturnKind: 'sync-value' },
+    ),
   };
 };
 
@@ -97,6 +103,48 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Plan commands module', () => {
+  /** Proof: provider omission made this scoped shared command throw missing delivery. */
+  it('passes the committed fan-out capability through its installed command graph', async () => {
+    const { source, requirements } = await seeded();
+    const capture = {
+      capture: () =>
+        Promise.resolve({
+          observation: { mode: 'shared' as const, organizationId: 'org-a', projects: [] },
+          localFacts: new Map<string, string>(),
+        }),
+      authorizeProjectUpdate: () => Promise.resolve({ ok: true as const }),
+      authorizeStepRemoval: () => Promise.resolve({ ok: true as const }),
+    };
+    const uow: typeof source.uow = {
+      run: (act) =>
+        source.uow.run((scope) =>
+          act({
+            ...scope,
+            stores: {
+              ...scope.stores,
+              projects: new Proxy(scope.stores.projects, {
+                get: (projects, key, receiver): unknown => {
+                  if (key === 'admitEditInOrganization') return () => Promise.resolve('ordinary');
+                  if (key === 'findCrossReferences') return () => Promise.resolve([]);
+                  return Reflect.get(projects, key, receiver) as unknown;
+                },
+              }),
+            },
+            fanoutCapture: capture,
+          }),
+        ),
+    };
+    const { commands } = installPlanCommands({ ...requirements, uow });
+    expect(
+      (
+        await commands.runWithin(PROJECT, OWNER, [], {
+          kind: 'scoped',
+          scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
+        })
+      ).ok,
+    ).toBe(true);
+  });
+
   it('drains a committed batch into the broadcaster installPlanCommands wires', async () => {
     const { announcements, requirements } = await seeded();
     const { commands } = installPlanCommands(requirements);
@@ -206,6 +254,7 @@ describe('a step allowance edit over the memory source', () => {
       publicServices: graphOver(source.stores, recordingBroadcaster()),
       uow: source.uow,
       announcements: recordingBroadcaster(),
+      committedFanout: { now: () => 2, deliverCommitted: () => Promise.resolve() },
     });
 
     const edited = await commands.run(PROJECT, OWNER, [

@@ -6,9 +6,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { assembleCaddyfile } from './lib/caddy';
 import {
+  capacityModesCommand,
   holdKindsCommand,
   readinessKindsCommand,
   relationshipTypesCommand,
+  storedCapacityModesCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
@@ -892,6 +894,10 @@ describe('execute, stored vocabulary rollback guard', () => {
     const io: SwapExecutionIo = {
       sh: (args) => {
         ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
+          return Promise.resolve('["isolated"]');
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
         if (JSON.stringify(args) === JSON.stringify(relationshipTypesCommand('be-01-green'))) {
           return failure === 'reader'
             ? Promise.reject(new Error('reader failed'))
@@ -1101,6 +1107,10 @@ describe('execute, pre-migration backup', () => {
     const io: SwapExecutionIo = {
       sh: (args) => {
         ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
+          return Promise.resolve('["isolated"]');
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
         if (args.includes('src/backup-db-cli.ts')) return backup(args.at(-1) ?? '');
         if (args[0] === 'stop') return Promise.resolve('');
         if (args.includes('src/migrate-status-cli.ts')) return Promise.resolve('none');
@@ -1185,6 +1195,10 @@ describe('execute, after routing has moved', () => {
     const io: SwapExecutionIo = {
       sh: (args) => {
         ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
+          return Promise.resolve('["isolated"]');
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
         const is = (command: string[]) => JSON.stringify(args) === JSON.stringify(command);
         if (is(relationshipTypesCommand('be-01-green'))) return Promise.resolve('["FS"]');
         if (is(storedRelationshipTypesCommand('be-01-green'))) return Promise.resolve('[]');
@@ -1250,6 +1264,10 @@ describe('execute, after routing has moved', () => {
     const io: SwapExecutionIo = {
       sh: (args) => {
         ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
+          return Promise.resolve('["isolated"]');
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
         if (JSON.stringify(args) === JSON.stringify(relationshipTypesCommand('be-01-green')))
           return Promise.resolve('["FS"]');
         if (JSON.stringify(args) === JSON.stringify(holdKindsCommand('be-01-green')))
@@ -1328,6 +1346,10 @@ describe('execute, after routing has moved', () => {
     const io: SwapExecutionIo = {
       sh: (args) => {
         ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
+          return Promise.resolve('["isolated"]');
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
         return Promise.reject(new Error(`docker ${args.join(' ')} failed: no such table: step`));
       },
       readPhase: () => Promise.resolve('old-stopped'),
@@ -1361,5 +1383,127 @@ describe('execute, after routing has moved', () => {
     expect(ran).toEqual([['exec', 'be-01-green', 'bun', 'run', 'src/backfill-step-codes-cli.ts']]);
     // Not abortable, and not committed: green stays live, the deploy unrecorded.
     expect(written).toEqual([]);
+  });
+});
+
+describe('execute, capacity mode guard', () => {
+  async function runCapacity(
+    supported: string,
+    stored: (read: number) => string,
+    afterStop = false,
+    fault?: 'reader' | 'store',
+  ) {
+    const ran: string[][] = [];
+    const phases: string[] = [];
+    let reads = 0;
+    const io: SwapExecutionIo = {
+      sh: (args) => {
+        ran.push(args);
+        const is = (command: string[]) => JSON.stringify(args) === JSON.stringify(command);
+        if (is(capacityModesCommand('be-01-green')))
+          return fault === 'reader'
+            ? Promise.reject(new Error('capacity reader failed'))
+            : Promise.resolve(supported);
+        if (is(storedCapacityModesCommand('be-01-green')))
+          return fault === 'store'
+            ? Promise.reject(new Error('capacity database failed'))
+            : Promise.resolve(stored(++reads));
+        if (is(relationshipTypesCommand('be-01-green'))) return Promise.resolve('["FS"]');
+        if (
+          is(holdKindsCommand('be-01-green')) ||
+          is(readinessKindsCommand('be-01-green')) ||
+          is(storedRelationshipTypesCommand('be-01-green')) ||
+          is(storedHoldsCommand('be-01-green')) ||
+          is(storedReadinessesCommand('be-01-green'))
+        )
+          return Promise.resolve('[]');
+        if (args.includes('src/migrate-status-cli.ts')) return Promise.resolve('none');
+        if (args.includes('src/migrate-cli.ts')) return Promise.resolve('migrated');
+        if (args[0] === 'stop') return Promise.resolve('');
+        throw new Error(`unexpected Docker command: ${args.join(' ')}`);
+      },
+      readPhase: () => Promise.resolve('committed'),
+      writePhase: (_path, phase) => {
+        phases.push(phase);
+        return Promise.resolve();
+      },
+      writeAtomic: () => Promise.reject(new Error('commit must not happen')),
+    };
+    let caught: unknown;
+    try {
+      await execute(
+        {
+          tier: 'be',
+          from: 'blue',
+          to: 'green',
+          steps: afterStop
+            ? [
+                'stored-vocabularies',
+                'migrate',
+                'stop-blue',
+                'stored-vocabularies-after-stop',
+                'commit',
+              ]
+            : ['stored-vocabularies', 'migrate'],
+        },
+        'registry/be-01@sha256:abc',
+        'deadbeef',
+        io,
+      );
+    } catch (failure) {
+      caught = failure;
+    }
+    return { ran, phases, reads, caught };
+  }
+
+  it('refuses isolated-only code over shared capacity before migration and stops green', async () => {
+    const attempt = await runCapacity('["isolated"]', () => '[{"mode":"shared","count":2}]');
+    expect(attempt.caught).toHaveProperty('message', expect.stringContaining('shared (2)'));
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('shared-people-rollback-cli.ts save|remove'),
+    );
+    expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+  });
+
+  it('allows isolated stored capacity without claiming shared support', async () => {
+    const attempt = await runCapacity('["isolated"]', () => '[{"mode":"isolated","count":2}]');
+    expect(attempt.caught).toBeUndefined();
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(true);
+  });
+
+  it('refuses capacity reader/store failures and malformed capabilities or counts', async () => {
+    for (const fault of ['reader', 'store'] as const) {
+      const attempt = await runCapacity('["isolated"]', () => '[]', false, fault);
+      expect(attempt.caught).toHaveProperty('message', expect.stringContaining('failed'));
+      expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    }
+    for (const [supported, stored] of [
+      ['["isolated",1]', '[]'],
+      ['["isolated"]', '[{"mode":"shared","count":0}]'],
+      ['["isolated"]', '[{"mode":"shared","count":1.5}]'],
+      ['["isolated"]', '[{"kind":"shared","count":1}]'],
+    ]) {
+      const attempt = await runCapacity(supported, () => stored);
+      expect(attempt.caught).toHaveProperty('message', expect.stringContaining('malformed'));
+      expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    }
+  });
+
+  it('refuses shared capacity introduced after the first check once blue stops', async () => {
+    const attempt = await runCapacity(
+      '["isolated"]',
+      (read) => (read === 1 ? '[]' : '[{"mode":"shared","count":1}]'),
+      true,
+    );
+    expect(attempt.caught).toHaveProperty('message', expect.stringContaining('shared (1)'));
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('after the outgoing colour stopped'),
+    );
+    expect(attempt.reads).toBe(2);
+    expect(attempt.phases).toEqual(['old-stopped']);
+    expect(attempt.ran.some((args) => args[0] === 'stop' && args[1] === 'be-01-green')).toBe(false);
   });
 });

@@ -17,8 +17,14 @@ import { type Schedule, type Scheduled, type ScheduledSlice, sliceKey } from './
  * at 1 would have served `lateBy === undefined` from every cached plan written
  * before this release, where the contract now promises `number | null`. The
  * rows are recomputed instead, which is what the fence is for.
+ *
+ * **3 since 2026-09-29** (`share-people-across-projects` slice 4), because a
+ * stored schedule may now hold the `elsewhere` floor, a slice's
+ * `elsewhereHolder` and the schedule's `waitingElsewhere`. A version-2 reader
+ * cast the first into a floor it has no words for, so the fence moves and those
+ * rows are recomputed.
  */
-export const CACHE_DTO_VERSION = 2;
+export const CACHE_DTO_VERSION = 3;
 
 /**
  * One `Map` entry, as JSON can carry it.
@@ -50,6 +56,8 @@ export interface StoredSchedule {
    */
   waitingForPerson: number;
   waitingForCapacity: number;
+  /** Present exactly when the schedule carries it: see {@link Schedule.waitingElsewhere}. */
+  waitingElsewhere?: number;
   eventsVisited: number;
 }
 
@@ -135,6 +143,10 @@ export function encodeSchedule(plan: Schedule): StoredSchedule {
     workItems: sortedEntries(plan.workItems),
     waitingForPerson: plan.waitingForPerson,
     waitingForCapacity: plan.waitingForCapacity,
+    // Proof: left out here made `round-trips a schedule placed around
+    // bookings elsewhere` (`schedule-cache-dto.test.ts`) reload it without
+    // its count; watched 2026-09-29.
+    ...(plan.waitingElsewhere === undefined ? {} : { waitingElsewhere: plan.waitingElsewhere }),
     eventsVisited: plan.eventsVisited,
   };
 }
@@ -214,6 +226,13 @@ export function decodeSchedule(raw: unknown): Schedule {
     workItems,
     waitingForPerson: asNumber(dto['waitingForPerson'], 'waitingForPerson'),
     waitingForCapacity: asNumber(dto['waitingForCapacity'], 'waitingForCapacity'),
+    // Absent is a plan nothing outranks; present, it must be a count.
+    // Proof: read without the check made `refuses a waitingElsewhere that is
+    // not a count` (`schedule-cache-dto.test.ts`) decode the text; watched
+    // 2026-09-29.
+    ...(dto['waitingElsewhere'] === undefined
+      ? {}
+      : { waitingElsewhere: asNumber(dto['waitingElsewhere'], 'waitingElsewhere') }),
     eventsVisited: asNumber(dto['eventsVisited'], 'eventsVisited'),
   };
 }

@@ -58,3 +58,348 @@ overlaps (`overlapping`).
 Rank storage and routes (slice 3), the `elsewhere` floor and hash (4), wire 3 (5), the chain,
 mode, guard and fan-out (6), fe-01 (2, 7) and the mode route (8) follow the memo's §2–§6 and
 §8 without change. `SCHEDULER_CONTRACT_VERSION` stays 14 until slice 4.
+
+## D7. Solver wire 3 (slice 5)
+
+**Ruling:** Quantise bookings outward: multiply project workday offsets by the quantum,
+round starts down and ends up, clip starts at zero, and omit bookings ending at or before
+zero. Union intervals that overlap after rounding for each person; retain adjacency as two
+half-open intervals. This is conservative for feasibility: the solver cannot claim a gap
+inside time the original booking holds. It may reserve up to one extra quantum at either
+end and report quantum infeasibility where fractional Fast placement could fit. The original
+holder-bearing workday map stays intact for Fast and optimized publication diagnostics.
+
+Wire 3 requires `elsewhere` even when empty. Solver 0.2.0 reads only wire 3; the retained
+0.1.4 wire 2 schema refuses it. `model.py` adds fixed intervals to each person's no-overlap
+constraint, spending no project team capacity. The serial horizon starts after the latest
+manual floor or booking end and includes all slice durations and positive FF excesses.
+
+Bun checks fixed interval shape and canonical booking equality even for non-publishing
+responses, then refuses overlap before materialisation. Materialisation receives the original
+workday bookings. Quantised Fast receives the same outward-rounded booking calendar in both
+its ordinary placement and serial FF fallback. Request preparation checks arithmetic and
+compatibility before baseline arithmetic; each refusal is a typed value. `incompatible-solver`
+is recorded as the existing `internal-error` disposition, without a cache vocabulary migration.
+Initial, queued and manual Retry admissions all persist refusal and release their slot.
+
+ADR 0025's preparation and binding boundary stays intact. The non-disruptive preparation and
+binding tests run in this slice. Live image publication, binding installation and the shared
+supervisor restart are deferred by the coordinator until merged integration. Slices 6–8 and
+shared-mode activation remain pending; `SCHEDULE_ALGORITHM_ID` stays `slice-leveling-v4`.
+
+## D8. Coherent chain capture (bounded slice 6)
+
+The application owns the influencer closure, displayed-engine selection and booking projection.
+A narrow chain snapshot port resolves current organization access, obtains authorized rank order,
+and supplies captures and a non-admitting scheduler. SQLite opens a dedicated read-only connection,
+holds one `drizzleReadTransaction` through application scheduling and closes on every outcome.
+The optimized reader is bound to that connection; recursive `treeWithin` and live optimizer reads
+are excluded because they can tear the snapshot or admit solver work.
+
+Only dated projects connect the closure: an undated target receives no bookings, and an undated
+project neither supplies bookings nor leads traversal to higher projects. Cyclic or calendar-range
+influencers supply no bookings and remain explicit unavailable load evidence; only a required
+`engine_unavailable` refuses the target with the influencer identity. Unexpected faults throw.
+Pending and failed influencers contribute their displayed Fast schedule; a selected ready variant
+contributes its optimized schedule. Bookings move through the absolute workday axis and then into
+each target's anchor, retaining fractions and half-open adjacency.
+
+Shared saved capture and current comparison are the narrow exception to saved-plans' scheduling
+outside the snapshot: the chain must select upstream schedules coherently before it detaches.
+The detached target schedule is historical display; target input alone cannot replay upstream
+bookings. Existing saved schedule bytes persist unchanged, with no booking ledger or upstream
+history. Durable replay/provenance is outside this slice. Isolated capture retains its existing
+outside-snapshot ordering. Solver admission, events, hashes for persistence, quota and serialization
+remain outside the read transaction. `SCHEDULE_ALGORITHM_ID` stays `slice-leveling-v4`.
+
+Mode storage, activation, rollback vocabulary, fan-out and UI are still pending in umbrella tasks
+6.1/6.2 and slices 7/8; this slice adds the dormant chain capability.
+
+## D9. Storage and downgrade safety before runtime activation
+
+This intermediate release stores `organization.shared_people` as a non-null integer constrained
+to 0/1, default 0. Strict adapter reads decode only those two encodings into `isolated`/`shared`;
+missing organizations and malformed trusted encodings throw. Encoding support is not runtime
+capability: the release advertises `SUPPORTED_CAPACITY_MODES = ['isolated']` exactly until the
+runtime, cache and UI work is complete. There is no setter, mode route or activation wiring.
+
+A versioned combined backup contains every organization's id and semantic `isolated`/`shared`
+mode, including isolated, and every column of every project-rank row, each array sorted by stable
+id. Save owns a dedicated physically read-only connection and captures both sets in one read
+transaction, closing on success or throw. It exclusively creates a private backup file; an existing
+file is never overwritten. Remove validates the complete file and requires exact equality
+with the current complete state under one immediate transaction before resetting all modes to
+zero and deleting all ranks. A stale mode, organization added/deleted, changed rank, duplicate
+identity, missing state or unreadable/malformed file refuses without partial changes.
+
+Restore validates all saved values against this release's supported modes before mutation, so
+any `shared` organization refuses even though the schema encodes it. It then requires every saved
+organization to exist, permits additional isolated organizations untouched, requires all current
+modes isolated and an empty current rank table; verifies rank ownership and authors; and restores the combined state in one immediate transaction. Partial
+organization updates use the operator instant for `updated_at`; rank rows retain every saved
+audit field. Late failures roll back audit fields as well as modes and ranks. Existing
+rank rollback history and CLI remain intact. `shared-people-rollback-cli.ts save|remove|restore`
+is the combined procedure for the new column's guarded downgrade.
+
+The new forward migration is additive. Its down script refuses independently while a shared
+organization or any project rank exists, preserving the column and applied-migration ledger.
+It names the combined CLI and recovery runbook. The swap registers `capacityModes` and queries
+actual stored mode encodings, refusing a missing organization table, malformed state and an incoming release unable to read
+stored shared mode both before migration and after the outgoing color stops. An absent old-schema
+column explicitly means all organizations are isolated; a present unreadable/malformed column
+never does. Only an absent capability CLI under readable source is an older isolated release;
+a directory, dangling symlink or missing source refuses. Task 6.1/6.2 stay unchecked: runtime/cache integration, fan-out and activation remain.
+
+## D10. Runtime reads and cache freshness before activation
+
+### Context and scope
+
+The runtime slice follows storage PR #265, merged at
+`8bccd93bc537cffac85b53ea056a79f786558eda`. The chain foundation is installed by no production
+composition yet. Live trees and optimizer input rebuilds still use project-local inputs; load and
+space cache hits know only local revision/sequence. The saved-plan feature's shared callback also
+needs to cross its module installer and composition boundary.
+
+This slice wires coherent scheduling reads, transactional consumers, optimizer admission inputs,
+shared saved/current capture and cache freshness. It does not complete 6.1/6.2. Durable fan-out,
+UI 7, mode route 8, trusted activation and live solver deployment/binding remain required later.
+The release continues advertising exactly `['isolated']` and refusing shared restores. There is
+no activation setter, route or environment override. Shared-mode production paths are exercised
+with explicitly seeded SQLite fixtures while supported activation remains closed.
+
+### One derivation, two transaction owners
+
+The application owns mode-aware scheduling over borrowed readers. Authorization, stored mode,
+rank, assignments, plan rows/settings and optimized cache selection belong to one observation.
+Legacy access selects isolated behavior. Scoped reads strictly decode the organization's mode
+inside that observation; missing or malformed trusted state throws. Isolated behavior, empty
+`elsewhere` canonical bytes and isolated saved-capture ordering stay unchanged.
+
+Ordinary shared reads and saved/current captures own a dedicated physically read-only snapshot.
+Arrange-by-schedule and command calendar preflight instead borrow the command's existing
+transaction, including its staged writes. Factor transaction-bound readers from lifecycle
+ownership: a borrowed reader never begins, commits or closes its caller's transaction. Neither
+form recursively calls live `treeWithin`, admits solver work or publishes events during chain
+derivation. The selected target schedule and influencer evidence detach before returning.
+
+The live tree projection consumes detached rows and the selected schedule. Its revision, event
+sequence, actuals, progress, measures and organization-local names come from the same observation.
+`PlanInputReads` remains a saved-input value shape; its captured project omits live revision and
+sequence, so it is not cast into a live tree. Expose the needed live metadata explicitly and reuse
+pure projection logic. Preserve the existing narrow isolated assigned-person read. Tree responses
+carry slice holders and `waitingElsewhere` when present without adding it to isolated responses.
+
+Shared export uses an explicit `readExport` purpose on the same observation owner. It detaches
+the full live project, tree evidence, scoped catalogs and calendar markers before close;
+`PlanDocumentService.exportCaptured` assembles the document from these values without store
+reads. The archival catalog needs the live person's kind, which the saved-input value shape
+does not declare, so export captures full scoped catalogs only for this purpose. Markdown uses
+the captured project header too. Export-only context never enters the public tree DTO; isolated
+export retains its existing reads. `exportedAt` remains serialization time.
+
+Human reads, saves and Retry retain their principal or admitted scope. Background optimizer work
+uses an explicit project-owned read which resolves current ownership and activation state in its
+snapshot; it never fabricates a user or treats a missing scope as legacy. Values stay in core
+value ports; SQLite connection capabilities stay in the adapter. The saved-plan callback must
+pass through `module/saved-plans/{check,module}.ts` and the composition root, not only a direct
+feature constructor.
+
+### Three identities with separate purposes
+
+The **schedule input hash** remains `canonicalScheduleInput` over local scheduling facts and
+nonempty, holder-bearing, target-relative `elsewhere`. Rank numbers, display names and mode are
+not additional scheduler inputs. Empty calendars keep the old bytes and address.
+
+The **basis hash** is the canonical identity of the incoming `elsewhere` alone, including person,
+interval and holder. Shared load and space caches add it to their existing access, revision,
+sequence and version dimensions. Derive current input/availability before accepting a cache hit;
+an unavailable influencer is not an empty calendar and cannot reuse a previous available entry.
+Reuse request-local chain results when load or spaces read several projects. For one aggregate
+shared response, derive its required projects from one coherent observation, not independent
+snapshots that can depict mutually inconsistent bookings.
+
+The later fan-out **bookings hash** describes outgoing displayed bookings on the absolute axis:
+person, project, work item, step and fractional interval, excluding labels, rank numbers and
+process counters. It is not the incoming basis or the whole scheduler input hash. This slice
+does not add unused bookings-hash persistence or a booking ledger. A target start-date edit can
+change its incoming relative calendar and its outgoing absolute bookings independently.
+
+### Admission and immutable cache addresses
+
+Initial live admission, edit debounce, queued rebuild after restart and manual Retry consume the
+same coherent input/settings contract. Chain derivation and shared saved/current reads are
+non-admitting; an ordinary live use case can request target optimization after releasing the
+read snapshot, without replacing the displayed capture with a second independently read chain.
+The first response may show captured `idle` while that subsequent admission starts work; it must
+not claim that newly admitted work was already pending in the captured observation.
+
+Manual Retry uses a human-scoped coherent capture after the existing project-write authority
+check; it never substitutes the project-owned background capture. The capture revalidates the
+caller's access in its observation. A successful capture supplies input and settings together,
+then closes before Retry compares the caller's hash and enters the existing admission write.
+An upstream-only change returns the established `stale-input-hash` and `currentInputHash`;
+the transactional Retry authority recheck remains in place.
+
+When no canonical input can be obtained, Retry returns HTTP 409 with
+`{ code: 'schedule-input-unavailable', reason: 'engine_unavailable' | 'cycle' | 'calendar_range', projectId: string }`.
+For engine unavailability, `projectId` names the failing readable influencer or target from
+the authorized capture; for a target cycle/calendar-range failure it names the target. It
+does not fabricate a hash, classify the variant as idle, or fall back to local-only input.
+This refusal performs no cache, generation, slot, queue or event write and launches nothing.
+Absent/foreign targets and access refusals retain existing authority semantics, without
+leaking a failing project identity. Unexpected failures still throw. Upstream cycle/range
+failures keep the existing chain policy: record unavailable influencer evidence, omit those
+bookings and continue deriving the target; they alone do not trigger this Retry refusal.
+Keep the response extension in the shared endpoint/refusal contracts and their generated
+clients; no new endpoint, optimizer state or frontend control is needed.
+
+Queue capture happens after a reservation today. If input is absent, typed unavailable, stale or
+throws before launch, release the unlaunched reservation on every path. Keep expected absence,
+modeled engine unavailability and unexpected exceptions distinct. Preserve existing preflight
+refusals, Retry authority/hash checks and process lifecycle fencing; never apply unlaunched-seat
+cleanup to a child whose terminal state is unknown.
+
+Publication continues validating the result against the admitted request and enforcing slot,
+generation, cancellation and enablement fences in its existing write transaction. An eligible
+old-input outcome can be stored only at its original immutable cache address. Every reader
+derives its current shared input and performs the existing exact hash/version/budget/generation
+lookup, so an old-address result cannot become a current result for a different basis. Do not
+replace the existing blue/green multi-input cache policy with a latest-input-only policy.
+
+A detached current-chain recheck before storage would still race; this slice does not present
+one as atomic publication validation. Durable fan-out owns the later atomic comparison of
+displayed bookings, cache publication and downstream event evidence. Preserve the existing
+cache-outcome/event atomicity now. Storage of an old-address result alone does not prove that
+current displayed bookings changed and must not later be used as that proof.
+
+### Risks, sequencing and open questions
+
+Snapshot lifetime includes Fast derivation over the required closure. Shared aggregate reads
+reuse that work within a request; transaction-bound command reads must not admit children while
+holding the writer. Retain lifecycle, scoped-cross-reference and materialized-row regressions.
+Warm-cache correctness must not depend on future `elsewhere_changed` delivery or a TTL.
+
+No new migration, domain term or ADR is required: these identities are implementation contracts
+for the existing Booking and Elsewhere terms and preserve ADR 0034. Keep scheduler contract 15,
+cache DTO 3 and `slice-leveling-v4` unless implementation discovers a separate incompatible
+contract change requiring review. There is no unresolved product decision in this bounded slice.
+Fan-out must subsequently cover topology removals, cold processes, replay and crash recovery;
+completing runtime reads does not narrow that obligation or authorize activation.
+
+## Durable fan-out amendment after 6.1f/6.2f
+
+Planning base: `73264fce66deff231c71b8a14f73da856e5fa811`. The ordered 6g–6l tasks below
+extend the existing change; they do not claim that runtime/cache completion closed 6.1/6.2.
+The combined design review resolved deletion-after-drain, unchanged-hash availability and
+multi-project cause ambiguity against production callers. Booking change cause is defined in
+`CONTEXT.md`. This preserves ADR 0034; no new hard-to-reverse storage decision is introduced.
+
+### 6g: values and recipient calculation only
+
+Add `libs/wbs/application/core/src/service/shared-people-fanout.ts` and
+`shared-people-fanout.test.ts` for canonical displayed-booking projection and recipient
+calculation. Consume already captured project
+facts, modeled scheduling outcomes, old/new ordered shared-person graphs and the explicit set
+of directly affected project ids. Produce immutable comparison values and sorted distinct
+`{projectId, causeProjectId}` pairs. Keep acquisition separate: 6g receives values and adds no
+transaction wrapper, event writer, route, cache persistence, generation allocation or adapter
+binding. Integrating its values with borrowed transaction reads begins in 6h.
+
+Reuse the production display selector: optimization-enabled plus optimized-engine plus a
+ready selected objective chooses that stored schedule; otherwise retain the current Fast
+policy. Do not use saved-plan S4 rules. Extract a shared pure helper only if necessary to avoid
+two independently evolving selectors, with existing chain tests retained. Canonicalize
+absolute person/project/work-item/step intervals independent of collection order. Do not
+include labels, rank position numbers, selected engine names or optimizer counters in the
+bookings hash. Compare modeled availability separately; a scheduling state with no bookings
+is not automatically available-empty. Required influencer refusal must stay typed, and upstream
+cycle/calendar-range skip-bookings semantics remain unchanged.
+
+For changed outgoing bookings/availability, traverse each cause's old and new downward graph
+separately, union surviving recipient ids and exclude the cause. For topology-only edits,
+filter reachable recipients by changed incoming basis/availability. Do not traverse a union
+of edge sets: it invents paths that existed in neither observation. Direct causes are changed
+local facts/resource usages, changed endpoints of shared-person connections and projects whose
+relative ordering changes; mere numeric rank respacing creates no cause. Changes propagated
+through the chain do not create extra direct causes. Directory operations discover affected
+projects through old/new resource usage in the transaction, even without project-row edits.
+Emit one pair per recipient/cause, lexicographically ordered by recipient then cause id. Keep
+deleted ids for causal identity while excluding deleted recipients. Subscription authority
+and organization boundaries remain unchanged; payloads contain no booking details.
+
+### 6h–6k: original transaction, then delivery
+
+The normative [6h architecture checkpoint](6h-architecture.md) resolves the command/UoW
+committed-record handoff, borrowed capture contract, mounted bindings and Sol implementation
+sequence. The reviewed 6h checkpoint is recorded in `verify.md`.
+The normative [6i architecture checkpoint](6i-architecture.md) fixes standalone versus borrowed
+rank/directory ownership, composed production bindings and the next implementation/proof matrix.
+
+`AnnouncementCollector.send` runs after the UoW and calls `GatewayBroadcaster.publish`, which
+opens a new event-recording transaction. That existing path cannot provide this amendment's
+atomicity. Add a narrow transactional fan-out capability: derive before, mutate, derive after,
+then record per-recipient events in the original transaction using `recordEventIn` or a
+transaction-bound core store port. Return committed records for `pushRecorded` after writer
+release; never call `publish` again for those records. Preserve existing unrelated announcement
+behavior and the optimizer-trigger decorator's existing duties; bypassing `publish` for a
+recorded event must not silently drop required post-commit scheduling callbacks or create an
+invalidation loop. The linked 6h checkpoint specifies that handoff before broader binding.
+
+`plan-commands/composition.ts`, `PlanCommandRunner` and `admitted-write.ts` own batch/undo/redo
+and admitted route UoWs. Observe once around the whole committed batch, not every intermediate
+command. `plan-import/composition.ts` similarly owns the import UoW. Standalone rank and
+directory writes have their own transactions; recording through their later broadcasts is too
+late. Use the actual transaction's old/new usages and rank, not preflight lists gathered before
+it. Refused commands/imports and failed derivation/event inserts roll back all writes and
+sequences. No push may escape a rollback.
+
+The normative [6j architecture checkpoint](6j-architecture.md) fixes import admission,
+per-sweep lifecycle ownership, addressed display causes and the required async optimizer
+serialization/caller boundary before final drain integration.
+
+`optimization-drain.ts::finishDrainIn` owns final deletion, reached by direct finish, slot
+release and reconciliation. Capture the old closure there before deleting the project. A
+pending-delete request may separately change displayed availability; compare each actual
+transaction, and emit nothing when a repeated drain/reconcile changes nothing. Contract
+retirement removes cache/generation rows and must compare any resulting selected display.
+Space membership removal is not project deletion.
+
+`optimized-outcome.ts::storeOptimizedOutcomeAndRecord` is the optimizer transaction boundary.
+The normative [6k architecture checkpoint](6k-architecture.md) fixes its borrowed source UoW,
+committed outcome/envelope handoff, generation/cache-eviction inventory and ordered proof matrix.
+Retain admitted-result validation and existing generation/token/cancellation/enablement
+fences. Compare the current selected display around storage: an H1 insertion under current H2
+is not itself a display change. Record existing outcome and downstream events atomically and
+return all committed records for coordinator delivery. Admission, Retry, retirement or cache
+replacement paths that alter display need the same comparison; listing only outcome writes
+would be incomplete. Nonselected objective changes remain silent when display is unchanged.
+
+Borrow existing UoW connections, never open a detached snapshot for either comparison. The
+SQLite UoW supports its established explicit async transaction lifetime, whereas Drizzle's
+outcome/drain transaction callbacks are synchronous: do not put asynchronous work in them.
+Rank and directory already need this distinction in 6i: the linked checkpoint chooses the
+explicit async source UoW around raw OPEN repository savepoints. Before the synchronous drain
+binding in 6j, separately resolve and test ownership while preserving all current fencing. No network/solver launch
+may occur in either approach. Full affected-organization derivation is an acceptable initial
+correctness boundary; it stores no booking ledger and must not silently broaden read authority.
+
+### 6l: durability and limits
+
+The existing event log/sequencer is durable replay history, not a persistent transport queue.
+A missed push is recovered on reconnect; `GatewayBroadcaster.pushRecorded` fills the buffer
+and attempts delivery without reinserting. Prove replay through fresh composition without
+memory state, and preserve retention's snapshot-required outcome and subscription checks.
+Deduplicate within a committed operation only; do not add global exactly-once claims or new
+retry keys. A repeated terminal outcome or no-op reconcile emits nothing new.
+
+Compare all modeled availability transitions at their durable write boundary even when input
+and bookings hashes match. Process-local engine failure has no identified durable transition
+owner. This amendment does not add a health monitor, persistent capability state or fan-out
+writes on reads, and therefore promises no instantaneous notification for that external event.
+Existing typed refusal remains mandatory. A stronger notification guarantee requires a
+separate design, not an invented event source in 6g.
+
+No persistent push worker, booking table, activation route, mode setter, permission change,
+frontend work, scheduler/cache version bump or blue/green cache-policy replacement. Keep
+`capacityModes` exactly `['isolated']` and shared restores refused. UI 7 and mode route 8 remain
+ordered prerequisites to activation. Exact-head gate, CI and publication are separate actions.

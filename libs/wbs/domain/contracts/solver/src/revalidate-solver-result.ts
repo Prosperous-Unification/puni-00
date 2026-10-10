@@ -13,6 +13,7 @@ import {
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import { buildSolverEdges } from './build-solver-edges';
+import { quantiseElsewhere } from './quantise-elsewhere';
 import { ffStartWeightUnits } from './solver-units';
 import {
   SOLVER_OBJECTIVE_TERMS,
@@ -439,6 +440,45 @@ export const revalidateSolverResult = (
 
   // A non-publishing response carries no schedule, so there is nothing to
   // re-validate and `published: false` says so out loud.
+  // Proof: removing interval validation admitted the malformed fixed-interval
+  // unknown response (0 pass / 1 fail in elsewhere-wire.test.ts).
+  // Proof: indexing the plain record inherited `constructor` as a booking
+  // list and failed the unbooked-person case with TypeError (0 pass / 1 fail).
+  const bookingsByPerson = new Map(Object.entries(request.elsewhere));
+  for (const [personId, bookings] of bookingsByPerson) {
+    // Proof: disabling the empty-person guard admitted an empty person
+    // key (0 pass / 1 fail in the tuple-arity production negative).
+    // Proof: the removed empty-list refusal made the wire boundary acceptance
+    // regression fail (0 pass / 1 fail); schema and Python allow empty calendars.
+    if (personId.length === 0) return refuse('malformed-request', 'empty person booking');
+    let previousEnd = 0;
+    for (const interval of bookings) {
+      const endpoints: readonly number[] = interval;
+      const [start, end] = endpoints;
+      if (
+        endpoints.length !== 2 ||
+        !isNonNegativeSafeInteger(start) ||
+        !isNonNegativeSafeInteger(end) ||
+        start >= end ||
+        start < previousEnd ||
+        end > request.horizonUnits
+      ) {
+        return refuse('malformed-request', `invalid booking for ${JSON.stringify(personId)}`);
+      }
+      previousEnd = end;
+    }
+  }
+  if (canonicalInput !== undefined) {
+    const bookings = quantiseElsewhere(canonicalInput.elsewhere);
+    if (!bookings.ok) return refuse('malformed-request', bookings.detail);
+    const sorted = (wire: SolverRequest['elsewhere']) =>
+      JSON.stringify(Object.entries(wire).sort(([left], [right]) => left.localeCompare(right)));
+    // Proof: omitting this comparison let evaluateSolverOutcome classify a
+    // dropped canonical booking as invalid-output instead of internal-error
+    // (0 pass / 1 fail in solver-exit-outcome.test.ts).
+    if (sorted(bookings.wire) !== sorted(request.elsewhere))
+      return refuse('malformed-request', 'wire bookings differ from canonical input');
+  }
   if (response.status !== 'feasible') return { ok: true, published: false };
 
   const offsets = response.offsets;
@@ -538,6 +578,20 @@ export const revalidateSolverResult = (
         'assignee-double-booked',
         `${JSON.stringify(personId)} is on ${String(overload.load)} slices at unit ${String(overload.at)}`,
       );
+    }
+  }
+
+  for (const placement of placements) {
+    if (placement.slice.personId === null || placement.finish <= placement.start) continue;
+    for (const [start, end] of bookingsByPerson.get(placement.slice.personId) ?? []) {
+      // Proof: dropping this check accepted a solver that ignored its fixed
+      // booking (0 pass / 1 fail in elsewhere-wire.test.ts).
+      if (placement.start < end && start < placement.finish) {
+        return refuse(
+          'assignee-double-booked',
+          `${JSON.stringify(placement.slice.personId)} overlaps a fixed booking at unit ${String(start)}`,
+        );
+      }
     }
   }
 

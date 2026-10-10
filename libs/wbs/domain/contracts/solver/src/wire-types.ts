@@ -1,5 +1,5 @@
 /**
- * The TypeScript binding of `solver-wire.v2.json`.
+ * The TypeScript binding of `solver-wire.v3.json`.
  *
  * The schema is the contract and the Python side reads the very same file, so
  * nothing here may be authored independently of it. Every vocabulary below is
@@ -9,7 +9,7 @@
  */
 
 /** `#/$defs/wireVersion` — a `const`, so the type is the literal. */
-export const SOLVER_WIRE_VERSION = 2;
+export const SOLVER_WIRE_VERSION = 3;
 export type SolverWireVersion = typeof SOLVER_WIRE_VERSION;
 
 /**
@@ -160,7 +160,7 @@ export interface SolverSlice {
 }
 
 /**
- * `#/$defs/request`. Every one of the thirteen members is required — the branch
+ * `#/$defs/request`. Every one of the fourteen members is required — the branch
  * lists them all in `required` — so there is no optional field to forget.
  */
 export const SOLVER_REQUEST_KEYS = [
@@ -177,6 +177,7 @@ export const SOLVER_REQUEST_KEYS = [
   'pools',
   'baselineOffsets',
   'fastHint',
+  'elsewhere',
 ] as const;
 export type SolverRequestKey = (typeof SOLVER_REQUEST_KEYS)[number];
 
@@ -195,4 +196,8 @@ export interface SolverRequest {
   readonly pools: Readonly<Record<string, number>>;
   readonly baselineOffsets: SolverOffsetMap;
   readonly fastHint: SolverOffsetMap;
+  readonly elsewhere: SolverElsewhere;
 }
+
+/** Fixed, half-open person bookings in integer solver units. */
+export type SolverElsewhere = Readonly<Record<string, readonly (readonly [number, number])[]>>;

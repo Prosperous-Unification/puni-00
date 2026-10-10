@@ -99,9 +99,9 @@ def a_request(
         )
     offsets = dict(baseline) if baseline is not None else {key: 0 for key in keys}
     return {
-        "wireVersion": 2,
-        "contractVersion": "14+0.1.4",
-        "solverVersion": "0.1.4",
+        "wireVersion": 3,
+        "contractVersion": "15+0.2.0",
+        "solverVersion": "0.2.0",
         "objective": objective,
         "budgetMs": 30000,
         "stageBudgetSplit": [0.6, 0.25, 0.15],
@@ -110,6 +110,7 @@ def a_request(
         "slices": [dict(s) for s in slices],
         "edges": [dict(e) for e in edges],
         "pools": dict(pools or {}),
+        "elsewhere": {},
         "baselineOffsets": dict(offsets),
         # The wire carries two copies of one value; the builder invariant is
         # that they are equal, so a test that made them differ would be testing

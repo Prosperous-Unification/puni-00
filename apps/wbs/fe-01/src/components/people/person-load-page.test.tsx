@@ -59,12 +59,14 @@ describe('the person load page', () => {
               projects: [
                 {
                   projectId: 'p',
+                  rank: 1,
                   name: 'Platform',
                   engine: 'fast',
                   bookings: [booking('w1', '2026-10-05', '2026-10-07')],
                 },
                 {
                   projectId: 'q',
+                  rank: 2,
                   name: 'Billing',
                   engine: 'optimized',
                   bookings: [booking('w2', '2026-10-05', '2026-10-06')],
@@ -108,12 +110,14 @@ describe('the person load page', () => {
               projects: [
                 {
                   projectId: 'p',
+                  rank: 1,
                   name: 'Platform',
                   engine: 'fast',
                   bookings: [booking('w1', '2026-10-05', '2026-10-07')],
                 },
                 {
                   projectId: 'q',
+                  rank: 2,
                   name: 'Billing',
                   engine: 'fast',
                   bookings: [booking('w2', '2026-10-07', '2026-10-08')],

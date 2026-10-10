@@ -87,6 +87,27 @@ describe('what a stored schedule keeps', () => {
     expect(throughJson(plan)).toEqual(plan);
   });
 
+  it('round-trips a schedule placed around bookings elsewhere', () => {
+    const plan = schedule(
+      [item('a')],
+      [],
+      [slice('a', 2, { personId: 'ana', poolIds: [] })],
+      new Map(),
+      new Map(),
+      'whole-item',
+      new Map(),
+      [],
+      undefined,
+      new Map([['ana', [{ start: 0, end: 3, projectId: 'platform', workItemId: 'x1' }]]]),
+    );
+    expect(plan.waitingElsewhere).toBe(1);
+    expect(plan.slices.get(sliceKey('a', DEV))?.elsewhereHolder).toEqual({
+      projectId: 'platform',
+      workItemId: 'x1',
+    });
+    expect(throughJson(plan)).toEqual(plan);
+  });
+
   it('is why the seam exists: the plan itself stringifies to empty maps', () => {
     const plan = realPlan();
 
@@ -180,6 +201,18 @@ describe('what a stored schedule refuses', () => {
     expect(() => decodeSchedule(version1)).toThrow(
       `stored schedule: unknown dtoVersion 1; this release reads ${String(CACHE_DTO_VERSION)}`,
     );
+  });
+
+  it('refuses the version-2 row written before the elsewhere floor existed', () => {
+    const payload = { ...stored(realPlan()), dtoVersion: 2 };
+    expect(() => decodeSchedule(payload)).toThrow(
+      `stored schedule: unknown dtoVersion 2; this release reads ${String(CACHE_DTO_VERSION)}`,
+    );
+  });
+
+  it('refuses a waitingElsewhere that is not a count', () => {
+    const payload = { ...stored(realPlan()), waitingElsewhere: 'two' };
+    expect(() => decodeSchedule(payload)).toThrow(/waitingElsewhere/);
   });
 
   it('refuses one key carried twice, rather than taking the last of them', () => {

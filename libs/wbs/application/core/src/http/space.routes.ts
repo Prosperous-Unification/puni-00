@@ -77,7 +77,11 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       const outcome = await spaces.list(principal.id, resolved.access);
       return outcome.ok
-        ? { ok: true, status: 200, body: { spaces: outcome.value } }
+        ? {
+            ok: true,
+            status: 200,
+            body: { spaces: outcome.value, writable: spaces.mayWrite(resolved.access) },
+          }
         : refused(outcome.refusal);
     }),
     bind(createSpace, async ({ body, principal }) => {
@@ -92,7 +96,16 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       const outcome = await spaces.read(principal.id, resolved.access, params.id);
-      return outcome.ok ? { ok: true, status: 200, body: outcome.value } : refused(outcome.refusal);
+      return outcome.ok
+        ? {
+            ok: true,
+            status: 200,
+            body: {
+              ...outcome.value,
+              writable: !outcome.value.space.virtual && spaces.mayWrite(resolved.access),
+            },
+          }
+        : refused(outcome.refusal);
     }),
     bind(readSpaceRollUps, async ({ params, query, principal }) => {
       const projectIds = projectIdsOf(query.projectIds);
@@ -100,6 +113,7 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       const outcome = await spaces.rollUps(principal.id, resolved.access, params.id, projectIds);
+      if ('kind' in outcome) return organizationRefusal(outcome.refusal);
       return outcome.ok
         ? { ok: true, status: 200, body: { rollUps: outcome.value } }
         : refused(outcome.refusal);
@@ -110,6 +124,7 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       const outcome = await spaces.inProgress(principal.id, resolved.access, params.id, limit);
+      if ('kind' in outcome) return organizationRefusal(outcome.refusal);
       return outcome.ok ? { ok: true, status: 200, body: outcome.value } : refused(outcome.refusal);
     }),
     bind(renameSpace, async ({ params, body, principal }) => {

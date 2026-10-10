@@ -20,6 +20,7 @@ describe('OptimizerTriggerBroadcaster', () => {
       allowancePercent: 0,
     };
     const schedulingEvents: ProjectEvent[] = [
+      { type: 'elsewhere_changed', projectId: 'p-1', causeProjectId: 'upstream' },
       { type: 'tree_replaced', workItems: [] },
       { type: 'step_added', step },
       { type: 'step_removed', stepId: 's-1' },

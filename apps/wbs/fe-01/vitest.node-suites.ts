@@ -18,6 +18,7 @@
  */
 export const NODE_SUITES: readonly string[] = [
   'playwright-config.test.ts',
+  'src/components/board/step-board.test.ts',
   'src/components/wbs/cell-card-store.test.ts',
   'src/components/wbs/column-hints.test.ts',
   'src/components/wbs/dep-graph.test.ts',
@@ -50,6 +51,7 @@ export const NODE_SUITES: readonly string[] = [
   // Not `src/lib/api.test.ts`: `websocketUrl` reads `location`, so one of its
   // cases needs a browser after all. It is the file the plan's own measurement
   // named as the exception, and the guard below asserts it stays one.
+  'src/components/spaces/single-flight.test.ts',
   'src/lib/local-write.test.ts',
   'src/lib/plan-refresh.test.ts',
   'src/lib/step-view.test.ts',

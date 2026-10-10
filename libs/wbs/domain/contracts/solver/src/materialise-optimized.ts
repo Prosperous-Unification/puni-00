@@ -1,6 +1,7 @@
 import {
   type DependencyEdge,
   type DependencyReach,
+  type Elsewhere,
   type PlannedRow,
   type PoolSizes,
   type Schedule,
@@ -98,6 +99,7 @@ export function materialiseOptimized(
   /** The typed dependencies the request carried; required for the baseline's reason. */
   typed: readonly TypedDependency[],
   offsets: SolverOffsetMap,
+  elsewhere: Elsewhere = new Map(),
 ): Schedule {
   const pinnedStarts = new Map<string, number>();
   for (const [key, offset] of Object.entries(offsets)) {
@@ -128,6 +130,9 @@ export function materialiseOptimized(
     // function did not throw`; watched 2026-09-27.
     typed,
     pinnedStarts,
+    // Proof: dropping original bookings lost the holder in the production
+    // publication case (0 pass / 1 fail in solver-exit-outcome.test.ts).
+    elsewhere,
   );
 
   for (const key of pinnedStarts.keys()) {

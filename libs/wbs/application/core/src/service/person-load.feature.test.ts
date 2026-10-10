@@ -46,6 +46,7 @@ function loadOver(trees: Partial<Record<string, () => TreeRead>>): {
   const options = {
     projects: { listWithin: () => Promise.resolve(projects) },
     workItems: {
+      sharedTreesWithin: () => Promise.resolve({ kind: 'isolated' as const }),
       latestSeq: () => Promise.resolve(1),
       treeWithin: (projectId: string) => {
         reads.push(projectId);
@@ -54,6 +55,7 @@ function loadOver(trees: Partial<Record<string, () => TreeRead>>): {
         return Promise.resolve(tree());
       },
     },
+    ranks: { orderIn: () => Promise.reject(new Error('legacy access reads no rank')) },
     directory: {
       listWithin: () => Promise.resolve([{ id: 'ana', name: 'Ana', kind: 'person', teamIds: [] }]),
     },
@@ -68,6 +70,7 @@ describe('PersonLoad', () => {
       solved: () => datedTree('ana', 3, 'makespan'),
     });
     const read = await load.readPerson('ana', WINDOW, 'u', LEGACY_ACCESS);
+    if (read !== null && 'kind' in read) throw new Error(read.refusal);
     expect(read?.projects.map(({ projectId, engine }) => [projectId, engine])).toEqual([
       ['fast', 'fast'],
       ['solved', 'optimized'],
@@ -80,10 +83,12 @@ describe('PersonLoad', () => {
         ({ kind: 'engine_unavailable', error: 'engine_unavailable', engine: 'optimized' }) as const,
     });
     const read = await load.readPerson('ana', WINDOW, 'u', LEGACY_ACCESS);
+    if (read !== null && 'kind' in read) throw new Error(read.refusal);
     expect(read?.unavailable).toEqual([
       { projectId: 'missing', name: 'missing', reason: 'engine_unavailable' },
     ]);
     const organization = await load.readOrganization(WINDOW, 'u', LEGACY_ACCESS);
+    if ('kind' in organization) throw new Error(organization.refusal);
     expect(organization.unavailable).toHaveLength(1);
   });
 
@@ -95,8 +100,12 @@ describe('PersonLoad', () => {
         slices: [],
       }) as unknown as TreeRead;
     const { load } = loadOver({ cycle });
-    expect((await load.readPerson('ana', WINDOW, 'u', LEGACY_ACCESS))?.unavailable).toEqual([]);
-    expect((await load.readOrganization(WINDOW, 'u', LEGACY_ACCESS)).unavailable).toEqual([
+    const read = await load.readPerson('ana', WINDOW, 'u', LEGACY_ACCESS);
+    if (read !== null && 'kind' in read) throw new Error(read.refusal);
+    expect(read?.unavailable).toEqual([]);
+    const organization = await load.readOrganization(WINDOW, 'u', LEGACY_ACCESS);
+    if ('kind' in organization) throw new Error(organization.refusal);
+    expect(organization.unavailable).toEqual([
       { projectId: 'cycle', name: 'cycle', reason: 'cycle' },
     ]);
   });

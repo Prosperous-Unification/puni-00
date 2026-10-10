@@ -21,7 +21,7 @@ import {
 /**
  * The drift guard for `wire-types.ts`.
  *
- * `solver-wire.v2.json` is the contract and Python reads the same file, so the
+ * `solver-wire.v3.json` is the contract and Python reads the same file, so the
  * TypeScript binding is not allowed to be an independent second opinion. Each
  * case below reads the schema **at run time** — not through an `import`, which
  * TypeScript would resolve at build time and which would put the file inside
@@ -34,7 +34,7 @@ import {
  * tolerating a duplicate.
  */
 
-const SCHEMA_PATH = new URL('../solver-wire.v2.json', import.meta.url);
+const SCHEMA_PATH = new URL('../solver-wire.v3.json', import.meta.url);
 
 type Branch = Record<string, unknown>;
 
@@ -48,7 +48,7 @@ const schema = JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')) as WireSchema;
 
 const def = (name: string): Branch => {
   const branch = schema.$defs[name];
-  if (branch === undefined) throw new Error(`solver-wire.v2.json has no $defs/${name}`);
+  if (branch === undefined) throw new Error(`solver-wire.v3.json has no $defs/${name}`);
   return branch;
 };
 
@@ -57,14 +57,14 @@ const properties = (name: string): Branch => def(name)['properties'] as Branch;
 const enumOf = (name: string, property: string): readonly string[] => {
   const prop = properties(name)[property] as { enum?: readonly string[] } | undefined;
   if (prop?.enum === undefined) {
-    throw new Error(`solver-wire.v2.json $defs/${name}.properties.${property} has no enum`);
+    throw new Error(`solver-wire.v3.json $defs/${name}.properties.${property} has no enum`);
   }
   return prop.enum;
 };
 
 const sorted = (values: readonly string[]): string[] => [...values].sort();
 
-describe('wire-types is pinned to solver-wire.v2.json', () => {
+describe('wire-types is pinned to solver-wire.v3.json', () => {
   it('SOLVER_WIRE_VERSION is the schema const', () => {
     expect(def('wireVersion')['const']).toBe(SOLVER_WIRE_VERSION);
   });
@@ -136,7 +136,7 @@ describe('wire-types is pinned to solver-wire.v2.json', () => {
   });
 });
 
-describe('the request side is pinned to solver-wire.v2.json', () => {
+describe('the request side is pinned to solver-wire.v3.json', () => {
   it('SOLVER_OBJECTIVES is the objective enum', () => {
     const wire = enumOf('request', 'objective');
     expect(wire.length).toBe(SOLVER_OBJECTIVES.length);

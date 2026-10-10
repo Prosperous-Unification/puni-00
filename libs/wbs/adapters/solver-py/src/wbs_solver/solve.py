@@ -54,12 +54,12 @@ from ortools.sat.python import cp_model
 
 from .model import MAKESPAN, MOVEMENT, PRIORITY, TERMS, build_model, stage_order
 
-WIRE_VERSION = 2
+WIRE_VERSION = 3
 
 # Response-level statuses. A RUN-OUTCOME vocabulary of exactly three values, and
 # a different question from the per-term status: this one says whether a
 # schedule is being returned at all. `optimal` is deliberately absent — see
-# solver-wire.v2.json's response `$comment`.
+# solver-wire.v3.json's response `$comment`.
 STATUS_FEASIBLE = "feasible"
 STATUS_UNKNOWN = "unknown"
 STATUS_INFEASIBLE = "infeasible"
@@ -82,7 +82,7 @@ ROW_STOP_PLAN_INFEASIBLE = "stop-plan-infeasible"  # INFEASIBLE, k = 1
 ROW_STOP_INVALID = "stop-invalid"  # INFEASIBLE, k > 1
 # TASK-310. Not a matrix row and deliberately not folded into the one above.
 # The three artifacts that name a disposition — spec.md's staged-lexicographic
-# requirement, design.md's `INFEASIBLE, k > 1` row and solver-wire.v2.json's
+# requirement, design.md's `INFEASIBLE, k > 1` row and solver-wire.v3.json's
 # response `$comment` — all argue from the *staging*: every constraint a later
 # stage adds is satisfied by the previous incumbent, so the run answered and
 # the answer cannot be carried. None of them says anything about a status the
@@ -153,7 +153,7 @@ class ModelInvalid(SolveFailed):
 class SolverConfig:
     """Per-process solver settings, which are deliberately not on the wire.
 
-    `solver-wire.v2.json` is closed (`additionalProperties: false`) and carries
+    `solver-wire.v3.json` is closed (`additionalProperties: false`) and carries
     no search-worker, seed or determinism field, and its own `$comment` records
     the precedent: the lifecycle wrapper's `childDeadlineAt` and `attemptToken`
     are *process* arguments rather than message fields. These are the same kind

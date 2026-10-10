@@ -965,6 +965,15 @@ describe('a binding floor this build does not know', () => {
     expect(() => layOutGantt(heldByTheUnknown())).toThrow(GanttDataError);
     expect(() => layOutGantt(heldByTheUnknown())).toThrow('phaseOfTheMoon');
   });
+
+  it('sends a bar held elsewhere to the error boundary until it has words', () => {
+    const heldElsewhere = planOf({
+      rows: [rowAt('strip', 0, 3)],
+      slices: [sliceAt('strip-dev', 'strip', 0, 3, { boundBy: 'elsewhere' })],
+    });
+    expect(() => layOutGantt(heldElsewhere)).toThrow(GanttDataError);
+    expect(() => layOutGantt(heldElsewhere)).toThrow('held elsewhere');
+  });
 });
 
 describe('dependency arrows', () => {

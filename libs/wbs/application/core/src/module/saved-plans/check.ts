@@ -25,6 +25,10 @@ export function installSavedPlans(requirements: SavedPlansRequirements): SavedPl
       scheduler: DiBag.createProvider(() => requirements.scheduler, {
         factoryReturnKind: 'sync-value',
       }),
+      // Proof: returning undefined failed mounted shared save displacement (expected 3, got 0).
+      captureSharedPlan: DiBag.createProvider(() => requirements.captureSharedPlan, {
+        factoryReturnKind: 'sync-value',
+      }),
       newId: DiBag.createProvider(() => requirements.newId, { factoryReturnKind: 'sync-value' }),
       now: DiBag.createProvider(() => requirements.now, { factoryReturnKind: 'sync-value' }),
       quota: DiBag.createProvider(() => requirements.quota, { factoryReturnKind: 'sync-value' }),

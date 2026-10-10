@@ -1,7 +1,7 @@
 import { DiBag } from 'di-bag';
 
 import { createPlanCommandRunner, type PlanCommandsSource } from './composition';
-import { PLAN_COMMANDS_LABEL } from './contract';
+import { PLAN_COMMANDS_LABEL, type PlanCommandsRequirements } from './contract';
 import type { PlanCommandRunner } from './plan-commands.feature';
 
 /**
@@ -21,7 +21,7 @@ import type { PlanCommandRunner } from './plan-commands.feature';
 export const planCommandsModule = DiBag.createBuilder()
   .withServices({
     planCommandOptions: DiBag.createProvider(
-      (source: PlanCommandsSource): PlanCommandsSource => source,
+      (source: PlanCommandsRequirements): PlanCommandsSource => source,
       { factoryReturnKind: 'sync-value' },
     ),
   })

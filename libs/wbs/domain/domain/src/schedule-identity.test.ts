@@ -625,7 +625,7 @@ describe('the slice engine against the one it replaced', () => {
           if (now[field] === was[field]) continue;
           throw new Error(
             `seed ${String(seed)}, ${key}.${field}: ` +
-              `${String(was[field])} became ${String(now[field])}`,
+              `${JSON.stringify(was[field])} became ${JSON.stringify(now[field])}`,
           );
         }
       }

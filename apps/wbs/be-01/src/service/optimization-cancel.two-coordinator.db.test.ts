@@ -231,7 +231,7 @@ describe('cross-coordinator cancellation', () => {
       repository: createOptimizationRepository(blue, new DrizzleEventLogStore(blue, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -260,11 +260,11 @@ describe('cross-coordinator cancellation', () => {
         if (attempt === undefined) throw new Error('spawned child was not recorded');
         return runSolverChildLifecycle({ ...options, sleep: attempt.heartbeat.sleep });
       },
-      pushRecorded: () => Promise.resolve(),
+      deliverCommitted: () => Promise.resolve(),
       onChildError: (error) => errors.push(error),
     });
 
-    expect(instance.read({ projectId: 'p-1', objective: 'pri', input })).toBeNull();
+    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input })).toBeNull();
     await until(
       () =>
         attempts.length === 2 &&

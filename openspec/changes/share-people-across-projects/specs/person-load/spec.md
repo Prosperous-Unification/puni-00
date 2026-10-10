@@ -52,8 +52,8 @@ at least two bookings are active, naming every booking active in it.
 
 `GET /api/people/:personId/load?from=YYYY-MM-DD&to=YYYY-MM-DD` SHALL answer `200` with the
 person's `id` and organization-local `name`. It SHALL list every readable project that has a
-booking of the person intersecting the window `[from, to]` (inclusive dates), ordered by
-project creation and then id. Each project SHALL carry its id, name, displayed engine and those
+booking of the person intersecting the window `[from, to]` (inclusive dates), in the project
+rank's order (spec `project-rank`). Each project SHALL carry its id, name, displayed engine and those
 bookings. Each booking SHALL carry its work item's id, number and name, step id, `startsOn`,
 `endsOn` and width. The answer SHALL also carry the overlaps that intersect the window. It
 SHALL list readable undated projects that assign the person. It SHALL list, with a reason,
@@ -128,6 +128,11 @@ announced after its commit. Under `shared`, the key SHALL also include the hash 
 that fed the project. A read that begins after an edit to the project row has committed SHALL
 reflect that edit. A read that begins after a plan edit has committed and been announced SHALL
 reflect that edit. A reading whose engine is unavailable SHALL never be memoized.
+Under shared mode, the current incoming calendar and availability SHALL be derived before a
+memo hit is accepted. An upstream edit or displayed optimized publication SHALL refresh the next
+load read even when the target's own revision and sequence do not change and no downstream event
+has arrived. One aggregate shared response SHALL derive its required projects from one coherent
+observation and SHALL NOT combine incompatible chains from separate snapshots.
 
 #### Scenario: an estimate changes
 
@@ -153,6 +158,39 @@ reflect that edit. A reading whose engine is unavailable SHALL never be memoized
 - **WHEN** P's PERT weights, dependency reach, estimate method or estimate rounding are patched
   so that her slice's length changes, and her load is read again
 - **THEN** the second read shows the booking the plan's own read shows
+
+#### Scenario: only an influencer changes after a warm load read
+
+- **GIVEN** A outranks B and both assign Ana, and B's load reading is memoized under shared mode
+- **WHEN** A's estimate or start date changes while B's revision and sequence remain unchanged
+- **THEN** the next load read shows B's newly displaced dates before downstream notification
+
+#### Scenario: an influencer publishes its displayed optimized result
+
+- **GIVEN** B's load reading was memoized using A's displayed Fast bookings
+- **WHEN** A publishes the ready optimized variant it displays and its bookings move
+- **THEN** B's next load read uses the new incoming bookings without a local edit to B
+
+### Requirement: Shared space caches follow the incoming bookings
+
+Shared space roll-ups and in-progress readings SHALL use the same current incoming-calendar
+identity and availability as live project reads, in addition to existing access, revision,
+sequence and version dimensions. A cache hit SHALL NOT depend on downstream event delivery or
+TTL expiry for upstream booking changes. Unavailable required influencers SHALL prevent reuse
+of previously available target dates. Names or rank numbers that leave the incoming calendar
+unchanged SHALL NOT change its basis identity or the scheduler-input identity.
+
+#### Scenario: a warm space cache after an upstream-only edit
+
+- **GIVEN** a space has cached B's dates under shared mode and A outranks B
+- **WHEN** A moves shared-person bookings without changing B's revision or sequence
+- **THEN** the next space read agrees with B's current project read without waiting for its TTL
+
+#### Scenario: a cached target acquires an unavailable influencer
+
+- **GIVEN** B has cached dates and A becomes a required engine-unavailable influencer
+- **WHEN** B is read through load or space
+- **THEN** the response reports the modeled unavailable state instead of the previous dates
 
 ### Requirement: The load page draws what be-01 answered
 

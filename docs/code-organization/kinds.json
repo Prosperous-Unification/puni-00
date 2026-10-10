@@ -1,6 +1,36 @@
 {
-  "reviewed": "2026-09-20",
+  "reviewed": "2026-10-07",
   "entries": [
+    {
+      "path": "apps/wbs/be-01/src/service/optimization-dequeue-reservation.ts",
+      "kind": "feature",
+      "capability": "Queued optimization admission",
+      "rationale": "buildServices installs createDequeueReservationOwner to consume the FIFO queue and record cross-organization reclaim fan-out in one source-owned write unit"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/optimization-initial-reservation.ts",
+      "kind": "feature",
+      "capability": "Initial optimization admission",
+      "rationale": "buildServices installs createInitialReservationOwner to reserve a solver slot and record cross-organization reclaim fan-out in one source-owned write unit"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/optimization-lifecycle.ts",
+      "kind": "feature",
+      "capability": "Optimization drain and release",
+      "rationale": "buildServices installs createOptimizationLifecycle to begin or finish drains and release exact solver slots with fan-out recorded in the owning write unit"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/optimization-reconciliation.ts",
+      "kind": "feature",
+      "capability": "Optimization drain reconciliation",
+      "rationale": "buildServices installs createOptimizationReconciliation to recheck each persisted drain target and record its actual fan-out in a separate source-owned sweep"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/optimization-retry-reservation.ts",
+      "kind": "feature",
+      "capability": "Optimization retry admission",
+      "rationale": "buildServices installs createRetryReservationOwner to authorize Retry and commit reservation or queue, recovery audit and reclaim fan-out in one source-owned write unit"
+    },
     {
       "path": "apps/wbs/be-01/src/service/optimizer-wiring.ts",
       "kind": "support",
@@ -36,6 +66,12 @@
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "directory.service.ts, prepare-import.ts and step.service.ts call its pure name normalization with no store or clock"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/committed-fanout.ts",
+      "kind": "feature",
+      "capability": "Shared people fan-out",
+      "rationale": "Committed write owners call recordCommittedFanout to compare captured scheduling observations and record each recipient/cause event in their borrowed event log before settlement"
     },
     {
       "path": "libs/wbs/application/core/src/service/command-normalizers.ts",
@@ -140,10 +176,28 @@
       "rationale": "The sealed Saved plans feature uses SavedPlanResource, while direct callers still construct SavedPlanService with capture and plans stores."
     },
     {
+      "path": "libs/wbs/application/core/src/service/shared-people-fanout.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "compareSharedPeopleFanout transforms explicit captured observations into booking, availability and recipient comparisons without reading a store or writing an event"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/shared-people.ts",
+      "kind": "resource",
+      "term": "Influencer closure",
+      "rationale": "SharedPeopleReader reads the authorized influencer closure through ChainSnapshotStore, selecting displayed schedules and projecting bookings within one coherent read snapshot."
+    },
+    {
       "path": "libs/wbs/application/core/src/service/smoke.service.ts",
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "smokeRoutes is its only production caller and uses echo as a pure text transformation with no store, clock or external port"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
+      "kind": "feature",
+      "capability": "Organization project rank write",
+      "rationale": "The standalone rank facade acquires one write unit, rechecks current rank authority, captures before and after scheduling observations, records fan-out events atomically, then delivers after release"
     }
   ]
 }

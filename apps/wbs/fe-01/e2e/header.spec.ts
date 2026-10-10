@@ -339,7 +339,7 @@ test.describe('the header bar, measured by a browser', () => {
     page,
   }) => {
     const links = page.getByRole('navigation', { name: 'Pages' }).getByRole('link');
-    await expect(links).toHaveCount(2);
+    await expect(links).toHaveCount(3);
 
     await page.setViewportSize({ width: 390, height: 844 });
     const phone = await links.evaluateAll((each) => ({
@@ -348,15 +348,17 @@ test.describe('the header bar, measured by a browser', () => {
     }));
     expect(
       phone.heights,
-      'Plan and Directory stay at their 32px dense-header height on a phone',
-    ).toEqual([44, 44]);
+      'Plan, Directory and Spaces stay at their 32px dense-header height on a phone',
+    ).toEqual([44, 44, 44]);
     expect(phone.pageOverflowX, 'the larger phone targets make the page scroll sideways').toBe(0);
 
     await page.setViewportSize({ width: 768, height: 844 });
     const dense = await links.evaluateAll((each) =>
       each.map((link) => Math.round(link.getBoundingClientRect().height)),
     );
-    expect(dense, 'the page links stop being dense at the 768px card breakpoint').toEqual([32, 32]);
+    expect(dense, 'the page links stop being dense at the 768px card breakpoint').toEqual([
+      32, 32, 32,
+    ]);
   });
 
   test('keeps the page from scrolling at all at 125% zoom', async ({ page }) => {

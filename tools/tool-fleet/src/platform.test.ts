@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
+import { parse } from 'yaml';
 
 import { validatePlatform } from './platform';
 
@@ -315,6 +316,32 @@ describe('validatePlatform', () => {
     );
   });
 
+  it('rejects platform-production storage that installs the hcloud controllers', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/clusters/platform/production/storage.yaml',
+      'path: ./infra/platform/storage/production-existing-hosts',
+      'path: ./infra/platform/storage/production',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(
+      /platform-production.*storage.*wrong platform path/,
+    );
+  });
+
+  it('rejects a production-existing-hosts storage overlay that diverges from local', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/storage/production-existing-hosts/kustomization.yaml',
+      '  - ../local',
+      '  - ../production',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(
+      /production-existing-hosts.*differ from the locked graph/,
+    );
+  });
+
   it('rejects a Flux bootstrap that gives controllers a loopback kubeconfig', async () => {
     const root = await mutablePlatform();
     await replaceManifestText(
@@ -581,5 +608,86 @@ describe('validatePlatform', () => {
       '',
     );
     expect(validatePlatform(root)).rejects.toThrow(/must match only namespaces labelled/);
+  });
+
+  it('rejects Traefik host ports other than 80 and 443', async () => {
+    for (const [before, after] of [
+      ['        port: 80\n', '        port: 8000\n'],
+      ['        port: 443\n', '        port: 8443\n'],
+    ] as const) {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, 'infra/platform/networking/traefik.yaml', before, after);
+      expect(validatePlatform(root)).rejects.toThrow(/traefik values are invalid.*port/);
+    }
+  });
+
+  it('rejects a Traefik HTTP entry point that serves instead of permanently redirecting', async () => {
+    for (const [before, after] of [
+      ['              permanent: true\n', '              permanent: false\n'],
+      ['              scheme: https\n', '              scheme: http\n'],
+      [
+        '        http:\n          redirections:\n            entryPoint:\n              to: websecure\n              scheme: https\n              permanent: true\n',
+        '',
+      ],
+    ] as const) {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, 'infra/platform/networking/traefik.yaml', before, after);
+      expect(validatePlatform(root)).rejects.toThrow(/traefik values are invalid/);
+    }
+  });
+
+  it('rejects a Traefik Service that would wait for a load balancer', async () => {
+    for (const [before, after] of [
+      ['        type: ClusterIP\n', '        type: LoadBalancer\n'],
+      // The chart accepts and ignores `service.type`, so the old spelling must not pass either.
+      [
+        '    service:\n      spec:\n        type: ClusterIP\n',
+        '    service:\n      type: ClusterIP\n',
+      ],
+    ] as const) {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, 'infra/platform/networking/traefik.yaml', before, after);
+      expect(validatePlatform(root)).rejects.toThrow(/traefik values are invalid.*service/);
+    }
+  });
+
+  it('rejects a tenant namespace without restricted Pod Security or default-deny', async () => {
+    const restricted = await mutablePlatform();
+    await replaceManifestText(
+      restricted,
+      'infra/platform/policy/namespaces.yaml',
+      '  name: website-dev\n  labels:\n    pod-security.kubernetes.io/enforce: restricted\n',
+      '  name: website-dev\n  labels:\n',
+    );
+    expect(validatePlatform(restricted)).rejects.toThrow(
+      /tenant namespace website-dev must enforce Pod Security restricted/,
+    );
+
+    const denied = await mutablePlatform();
+    await replaceManifestText(
+      denied,
+      'infra/platform/policy/network-policy.yaml',
+      '  name: default-deny\n  namespace: website-dev\nspec:\n  podSelector: {}\n  policyTypes: [Ingress, Egress]\n',
+      '  name: default-deny\n  namespace: website-dev\nspec:\n  podSelector: {}\n  policyTypes: [Ingress]\n',
+    );
+    expect(validatePlatform(denied)).rejects.toThrow(
+      /tenant namespace website-dev has no default-deny NetworkPolicy/,
+    );
+  });
+
+  it('probes both dev preview hostnames from the production blackbox', async () => {
+    const probe: unknown = parse(
+      await readFile(
+        join(repositoryRoot, 'infra/platform/alerts/production/public-probes.yaml'),
+        'utf8',
+      ),
+    );
+    const targets: unknown = Reflect.get(
+      Reflect.get(Reflect.get(Reflect.get(Object(probe), 'spec'), 'targets'), 'staticConfig'),
+      'static',
+    );
+    expect(targets).toEqual(
+      expect.arrayContaining(['https://dev.puni.dev/', 'https://dev.app.puni.dev/']),
+    );
   });
 });

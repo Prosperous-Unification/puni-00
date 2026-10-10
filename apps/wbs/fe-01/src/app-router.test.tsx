@@ -126,6 +126,45 @@ describe('the signed-in region, routed', () => {
     expect(projectShowing()).toBe(false);
   });
 
+  itDom('draws the spaces list at /spaces', async () => {
+    const sent = stubServer({
+      'GET /api/spaces': [() => answerJson(200, { spaces: [], writable: false })],
+    });
+    regionAt('/spaces');
+
+    expect(await screen.findByText('No spaces yet.')).toBeDefined();
+    expect(sent.map((call) => call.route)).toContain('GET /api/spaces');
+    expect(projectShowing()).toBe(false);
+  });
+
+  itDom('draws one space at /spaces/:spaceId', async () => {
+    const sent = stubServer({
+      'GET /api/spaces/s': [
+        () =>
+          answerJson(200, {
+            space: {
+              id: 's',
+              name: 'Q3',
+              virtual: false,
+              projectCount: 0,
+              revision: 1,
+              createdById: 'u1',
+              createdAt: 1,
+            },
+            writable: false,
+            rows: [],
+          }),
+      ],
+      'GET /api/spaces/s/roll-ups': [() => answerJson(200, { rollUps: {} })],
+    });
+    regionAt('/spaces/s');
+
+    expect(await screen.findByRole('heading', { name: 'Q3' })).toBeDefined();
+    expect(await screen.findByText('No projects in this space yet.')).toBeDefined();
+    expect(sent.map((call) => call.route)).toContain('GET /api/spaces/s');
+    expect(projectShowing()).toBe(false);
+  });
+
   itDom('draws a person’s load at /people/:personId/load, reading that person', async () => {
     const sent = stubServer({
       'GET /api/people/pe-a/load': [

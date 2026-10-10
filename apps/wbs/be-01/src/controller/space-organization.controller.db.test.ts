@@ -84,6 +84,93 @@ describe('after activation', () => {
     expect((await h.call('ada', 'GET', `/api/projects/${own}`)).status).toBe(200);
   });
 
+  it('removes only space membership, preserving the composed project graph and fan-out', async () => {
+    let pushes = 0;
+    await h.closeComposed();
+    h = OrganizationHarness.openComposed(false, undefined, undefined, undefined, undefined, () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    });
+    await h.register('ada');
+    h.organization('org-a');
+    h.member('org-a', 'ada', 'member');
+    h.bind('ada', 'org-a');
+    h.activate();
+    const projectId = await createProject('ada', 'Retained plan');
+    const spaceId = await createSpace('ada', 'Q3');
+    expect(
+      (await h.call('ada', 'POST', `/api/spaces/${spaceId}/projects`, { projectId })).status,
+    ).toBe(201);
+    expect(
+      (
+        await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+          commands: [
+            { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Root' },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+    const workItem = h.sqlite
+      .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id = ?')
+      .get(projectId);
+    const step = h.sqlite
+      .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ?')
+      .get(projectId);
+    if (workItem === null || step === null) throw new Error('populated project fixture is missing');
+    expect(
+      (
+        await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+          commands: [
+            {
+              kind: 'setEstimate',
+              workItemId: workItem.id,
+              stepId: step.id,
+              days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+            },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+    const owned = () => [
+      h.sqlite.query('SELECT * FROM project WHERE id = ?').all(projectId),
+      ...['step', 'work_item'].map((table) =>
+        h.sqlite.query(`SELECT * FROM ${table} WHERE project_id = ? ORDER BY rowid`).all(projectId),
+      ),
+      h.sqlite
+        .query(
+          'SELECT * FROM estimate WHERE work_item_id IN (SELECT id FROM work_item WHERE project_id = ?) ORDER BY work_item_id, step_id',
+        )
+        .all(projectId),
+    ];
+    const beforeOwned = owned();
+    expect(beforeOwned[3]).toHaveLength(1);
+    const beforeEvents = h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all();
+    const beforeSequences = h.sqlite
+      .query('SELECT * FROM event_sequencer ORDER BY subscription')
+      .all();
+    const beforePushes = pushes;
+
+    // Proof: replacing the store membership DELETE with project DELETE made this mounted call
+    // return 500 at the populated project's FK boundary instead of the required 204.
+    expect(
+      (await h.call('ada', 'DELETE', `/api/spaces/${spaceId}/projects/${projectId}`)).status,
+    ).toBe(204);
+    expect(owned()).toEqual(beforeOwned);
+    expect(h.sqlite.query('SELECT * FROM space_project WHERE space_id = ?').all(spaceId)).toEqual(
+      [],
+    );
+    expect((await h.call('ada', 'GET', `/api/spaces/${spaceId}`)).body).toMatchObject({
+      space: { revision: 2, projectCount: 0 },
+    });
+    expect(h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all()).toEqual(
+      beforeEvents,
+    );
+    expect(h.sqlite.query('SELECT * FROM event_sequencer ORDER BY subscription').all()).toEqual(
+      beforeSequences,
+    );
+    expect(pushes).toBe(beforePushes);
+  });
+
   it('refuses a viewer every space write and lets the viewer read', async () => {
     const space = await createSpace('ada', 'Q3');
     await h.call('ada', 'POST', `/api/spaces/${space}/projects`, { projectId: own });
@@ -99,9 +186,18 @@ describe('after activation', () => {
         answer: { status: 403, body: { error: 'forbidden' } },
       });
     }
+    // Proof, observed 2026-09-29: with the read route answering `writable`
+    // without `mayWrite`, the viewer's read failed here (Expected - 1,
+    // Received + 31: `writable: true`).
     expect(await h.call('vic', 'GET', `/api/spaces/${space}`)).toMatchObject({
       status: 200,
-      body: { rows: [{ project: { id: own } }] },
+      body: { rows: [{ project: { id: own } }], writable: false },
+    });
+    expect(await h.call('vic', 'GET', '/api/spaces')).toMatchObject({
+      body: { writable: false },
+    });
+    expect(await h.call('ada', 'GET', `/api/spaces/${space}`)).toMatchObject({
+      body: { writable: true },
     });
   });
 
@@ -118,7 +214,10 @@ describe('after activation', () => {
         answer: { status: 404, body: { error: 'not_found' } },
       });
     }
-    expect((await h.call('ada', 'GET', '/api/spaces')).body).toEqual({ spaces: [] });
+    expect((await h.call('ada', 'GET', '/api/spaces')).body).toEqual({
+      spaces: [],
+      writable: true,
+    });
     expect(await h.call('grace', 'GET', `/api/spaces/${foreignSpace}`)).toMatchObject({
       status: 200,
       body: { space: { name: 'Theirs', revision: 0 } },
@@ -153,6 +252,7 @@ describe('after activation', () => {
       body: {
         space: { id: 'all', virtual: true, projectCount: 1 },
         rows: [{ project: { id: own } }],
+        writable: false,
       },
     });
   });

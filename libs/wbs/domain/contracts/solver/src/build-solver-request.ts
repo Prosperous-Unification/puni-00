@@ -2,6 +2,7 @@ import {
   contractVersionOf,
   type DependencyEdge,
   type DependencyReach,
+  type Elsewhere,
   expandToLeaves,
   groupSlicesByLeaf,
   indexTree,
@@ -20,6 +21,7 @@ import {
 import { buildSolverEdges } from './build-solver-edges';
 import { buildSolverPools } from './build-solver-pools';
 import { buildSolverSlices } from './build-solver-slices';
+import { quantiseElsewhere } from './quantise-elsewhere';
 import { preflightSolverRequest, type SolverPreflightFailure } from './solver-preflight';
 import { isValidStageBudgetSplit, STAGE_BUDGET_SPLIT } from './stage-budget';
 import {
@@ -56,6 +58,11 @@ export interface SolverRequestPlan {
   readonly deadlines: ReadonlyMap<string, number>;
   /** The typed dependencies, resolved into edges beside the legacy ones. */
   readonly typed: readonly TypedDependency[];
+  /**
+   * Original holder-bearing bookings in project workdays, quantised outward
+   * onto wire 3 by {@link quantiseElsewhere}.
+   */
+  readonly elsewhere?: Elsewhere;
 }
 
 /**
@@ -65,7 +72,7 @@ export interface SolverRequestPlan {
  * reason rather than by drift: `contractVersion` is
  * `"<SCHEDULER_CONTRACT_VERSION>+<solverVersion>"`, and neither `solverVersion`
  * nor `budgetMs` is a fact about the plan — they are facts about the process
- * about to be started. Three of the schema's thirteen required members come
+ * about to be started. Three of the schema's fourteen required members come
  * from here and there is nowhere else in the tuple they could come from.
  *
  * **`baselineOffsets` is passed in rather than computed here**, which is the
@@ -151,9 +158,8 @@ export type BuiltSolverRequest =
  * whatever it is handed, and the sum-to-one invariant is one JSON Schema cannot
  * express.
  *
- * Throws whatever its seams throw. Returns a failure only for the three
- * pre-spawn arithmetic bounds, which are the two states a user's plan can
- * genuinely be in.
+ * Throws whatever its seams throw. Returns typed preflight failures for
+ * incompatible solver versions and the horizon/objective arithmetic bounds.
  */
 export function buildSolverRequest(
   plan: SolverRequestPlan,
@@ -163,6 +169,17 @@ export function buildSolverRequest(
   if (plan.slices.length === 0) {
     throw new Error('a canonical input with no slices spawns nothing and has no request');
   }
+  // Proof: removing compatibility preflight failed all three SQLite initial,
+  // queued and manual Retry negatives (0 pass / 3 fail).
+  if (spawn.solverVersion !== '0.2.0') {
+    return {
+      ok: false,
+      failure: 'incompatible-solver',
+      detail: `solver ${spawn.solverVersion} does not accept wire 3; expected 0.2.0`,
+    };
+  }
+  const bookings = quantiseElsewhere(plan.elsewhere);
+  if (!bookings.ok) return bookings;
 
   const index = indexTree(plan.rows);
   const { leafIds } = index;
@@ -211,7 +228,7 @@ export function buildSolverRequest(
 
   // Last, because it needs the projected slices, and it is what decides whether
   // a process starts at all. The missing-baseline direction throws inside it.
-  const preflight = preflightSolverRequest(slices, spawn.baselineOffsets, edges);
+  const preflight = preflightSolverRequest(slices, spawn.baselineOffsets, edges, bookings.wire);
   if (!preflight.ok) return preflight;
 
   return {
@@ -238,6 +255,9 @@ export function buildSolverRequest(
       // keeps them apart so a later hint (a warm start from the previous cached
       // result, say) does not silently move the objective's origin.
       fastHint: spawn.baselineOffsets,
+      // Proof: replacing this wire map with {} failed four mounted initial,
+      // edit, queued and Retry request assertions while canonical input stayed intact.
+      elsewhere: bookings.wire,
     },
   };
 }

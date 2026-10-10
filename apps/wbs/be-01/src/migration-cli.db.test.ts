@@ -75,6 +75,10 @@ describe('migration deploy entrypoints', () => {
         'space-rollback-cli.ts',
         ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/space-rollback'"],
       ],
+      [
+        'project-rank-rollback-cli.ts',
+        ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/project-rank-rollback'"],
+      ],
     ]);
     for (const [file, imports] of expectedImports) {
       const source = readFileSync(join(APP_ROOT, 'src', file), 'utf8');
@@ -236,6 +240,56 @@ describe('migration deploy entrypoints', () => {
     );
     expect(absentFile.exitCode).not.toBe(0);
     expect(absentFile.stderr).toContain('ENOENT');
+  }, 60_000);
+
+  it('saves, removes and restores project ranks through the rollback CLI', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-project-rank-cli-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const savedPath = join(root, 'ranks.json');
+    runMigrations(dbPath, MIGRATIONS);
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run(
+        "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
+      );
+      sqlite.run("INSERT INTO organization (id,name,created_at) VALUES ('o','O',1)");
+      sqlite.run(
+        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+      );
+      sqlite.run("INSERT INTO project_organization (resource_id,organization_id) VALUES ('p','o')");
+      sqlite.run(
+        "INSERT INTO project_rank (project_id,organization_id,position,created_at,updated_at,created_by) VALUES ('p','o',10,1,1,'u')",
+      );
+    } finally {
+      sqlite.close();
+    }
+    expect(await runCli('project-rank-rollback-cli.ts', dbPath, 'save', savedPath)).toEqual({
+      exitCode: 0,
+      stdout: 'project ranks saved: 1\n',
+      stderr: '',
+    });
+    expect(JSON.parse(readFileSync(savedPath, 'utf8'))).toMatchObject({
+      format: 'project-rank-save',
+      version: 1,
+      ranks: [{ projectId: 'p', organizationId: 'o', position: 10 }],
+    });
+    expect(await runCli('project-rank-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
+      exitCode: 0,
+      stdout: 'project ranks removed: 1\n',
+      stderr: '',
+    });
+    expect(await runCli('project-rank-rollback-cli.ts', dbPath, 'restore', savedPath)).toEqual({
+      exitCode: 0,
+      stdout: 'project ranks restored: 1\n',
+      stderr: '',
+    });
+    const invalid = await runCli('project-rank-rollback-cli.ts', dbPath, 'erase', savedPath);
+    expect(invalid.exitCode).not.toBe(0);
+    expect(invalid.stderr).toContain('usage:');
+    const missingArgument = await runCli('project-rank-rollback-cli.ts', dbPath, 'restore');
+    expect(missingArgument.exitCode).not.toBe(0);
+    expect(missingArgument.stderr).toContain('usage:');
   }, 60_000);
 
   it('saves, removes and restores readiness and holds through the rollback CLI', async () => {

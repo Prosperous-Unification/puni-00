@@ -54,6 +54,7 @@ import {
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
@@ -154,6 +155,7 @@ beforeEach(() => {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
+    projectRanks: refusingProjectRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     history: testHistoryService(),
@@ -888,7 +890,7 @@ it('publishes a tight solver answer for an SS/FF plan written through the comman
   const input = await workItemService.scheduleInput(at.projectId);
   if (input === null) throw new Error('the written project has no schedule input');
   expect(input.typed.map((dependency) => dependency.type).sort()).toEqual(['FS', 'FS', 'SS']);
-  const pair = buildSolverRequestPair(input, '0.1.4', 60_000);
+  const pair = buildSolverRequestPair(input, '0.2.0', 60_000);
   if (!pair.time.ok) throw new Error('the written plan was refused a solver request');
   const request = pair.time.request;
   const offsets = request.baselineOffsets;

@@ -28,6 +28,11 @@ export function installPlanImport(requirements: PlanImportRequirements): PlanImp
       batchServices: DiBag.createProvider(() => requirements.batchServices, {
         factoryReturnKind: 'sync-value',
       }),
+      // Proof: returning undefined here made the mounted tied import answer
+      // 500 rather than persist its real (B,A) displacement event.
+      committedFanout: DiBag.createProvider(() => requirements.committedFanout, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
     .buildContainer();
   // Proof (2026-09-23): returning a structurally assignable `exposed` object with `bag` left

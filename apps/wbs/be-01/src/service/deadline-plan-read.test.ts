@@ -354,7 +354,10 @@ describe('the plan read and stored deadlines', () => {
     const before = recordingReader();
     const probe = new WorkItemService({
       ...serviceOptions,
-      scheduler: optimizerWiring({ readLive: before.read, readCaptured: before.read }).scheduler,
+      scheduler: optimizerWiring({
+        readLive: (ask) => Promise.resolve(before.read(ask)),
+        readCaptured: before.read,
+      }).scheduler,
     });
     await probe.tree(projectId);
     expect(before.asks.map((ask) => [...ask.input.deadlines])).toEqual([[]]);
@@ -364,7 +367,10 @@ describe('the plan read and stored deadlines', () => {
     const after = recordingReader();
     await new WorkItemService({
       ...serviceOptions,
-      scheduler: optimizerWiring({ readLive: after.read, readCaptured: after.read }).scheduler,
+      scheduler: optimizerWiring({
+        readLive: (ask) => Promise.resolve(after.read(ask)),
+        readCaptured: after.read,
+      }).scheduler,
     }).tree(projectId);
     // Keyed by the work item's own id and holding the resolved **offset**, not
     // the calendar date: a date in the key would make the hash depend on the

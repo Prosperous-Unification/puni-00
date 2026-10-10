@@ -233,7 +233,8 @@ test('every backend service file with no kind suffix is classified exactly once'
 
   // Proof: deleting assumed-assignee.ts put that path on a `-` line; adding does-not-exist.ts put
   // it on a `+` line; and changing the former path to assumed-assignee.resource.ts showed both
-  // lines here (2026-09-20).
+  // lines here (2026-09-20). Omitting the five new optimization owner entries also failed here
+  // with their exact paths before the policy was repaired (2026-10-07).
   expect(classified).toEqual([...(await listServiceCandidates(WORKSPACE))]);
 });
 

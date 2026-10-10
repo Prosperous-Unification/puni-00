@@ -16,7 +16,7 @@ import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { solverSlot } from '../repository/schema';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-const CONTRACT = '7+0.1.0';
+const CONTRACT = '7+0.2.0';
 const BUDGET_MS = 60_000;
 const INPUT: ScheduleInput = {
   rows: [{ id: 'w-1', parentId: null, position: 10, frozenNumber: null, priority: null }],
@@ -152,7 +152,7 @@ describe('the two-coordinator spawn handshake', () => {
         repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
         hashInput: scheduleInputHash,
         contractVersion: CONTRACT,
-        solverVersion: '0.1.0',
+        solverVersion: '0.2.0',
         budgetMs: BUDGET_MS,
         ownerId: owner,
         now: () => now,
@@ -165,20 +165,24 @@ describe('the two-coordinator spawn handshake', () => {
           if (owner === 'blue') await paused.promise;
           return attempt.child;
         },
-        pushRecorded: () => Promise.resolve(),
+        deliverCommitted: () => Promise.resolve(),
         onChildError: (error) => errors.push(error),
       });
     const blueCoordinator = coordinator(blue, 'blue');
     const greenCoordinator = coordinator(green, 'green');
 
-    expect(blueCoordinator.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(
+      await blueCoordinator.read({ projectId: 'p-1', objective: 'pri', input: INPUT }),
+    ).toBeNull();
     await until(() => blueAttempts.length === 2);
     const firstRows = blue.select().from(solverSlot).all();
     expect(firstRows).toHaveLength(2);
     expect(firstRows.every(({ lifecycle }) => lifecycle === 'starting')).toBe(true);
     now = Math.max(...firstRows.map(({ admittedDeadlineAt }) => admittedDeadlineAt)) + 1;
 
-    expect(greenCoordinator.read({ projectId: 'p-1', objective: 'time', input: INPUT })).toBeNull();
+    expect(
+      await greenCoordinator.read({ projectId: 'p-1', objective: 'time', input: INPUT }),
+    ).toBeNull();
     await until(
       () => greenAttempts.length === 2 && greenAttempts.every(({ marker }) => existsSync(marker)),
     );

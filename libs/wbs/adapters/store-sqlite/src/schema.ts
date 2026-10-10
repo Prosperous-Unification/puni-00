@@ -2705,6 +2705,7 @@ export const organization = sqliteTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     legacy: integer('legacy', { mode: 'boolean' }).notNull().default(false),
+    sharedPeople: integer('shared_people').notNull().default(0),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
   },
@@ -2713,6 +2714,7 @@ export const organization = sqliteTable(
       .on(t.legacy)
       .where(sql`${t.legacy} = 1`),
     check('organization_legacy', sql`${t.legacy} IN (0, 1)`),
+    check('organization_shared_people', sql`${t.sharedPeople} IN (0, 1)`),
   ],
 );
 
@@ -3129,5 +3131,32 @@ export const spaceProject = sqliteTable(
     }).onDelete('cascade'),
     index('space_project_order').on(t.spaceId, t.position),
     index('space_project_project').on(t.projectId, t.organizationId),
+  ],
+);
+
+/**
+ * One ranked project's place in its organization's project rank. The
+ * composite reference carries `organization_id`, so a rank across
+ * organizations has no parent; see `20260929180000_add_project_rank`.
+ * Positions tie legally (ADR 0016); ties order by project id.
+ */
+export const projectRank = sqliteTable(
+  'project_rank',
+  {
+    projectId: text('project_id').primaryKey(),
+    organizationId: text('organization_id').notNull(),
+    position: integer('position').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.projectId, t.organizationId],
+      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
+    }).onDelete('cascade'),
+    index('project_rank_order').on(t.organizationId, t.position, t.projectId),
   ],
 );

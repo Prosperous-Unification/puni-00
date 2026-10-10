@@ -374,6 +374,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   );
 
   const stores: PlanTransactionalStores = {
+    get livePlans() {
+      assertOpen();
+      return scope.stores.livePlans;
+    },
     get projects() {
       assertOpen();
       return scope.stores.projects;

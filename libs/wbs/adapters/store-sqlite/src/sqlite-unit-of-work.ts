@@ -1,5 +1,6 @@
 import type { Decision, Scope, UnitOfWork } from '@wbs/core';
 import type { TransactionalStores } from '@wbs/core';
+import type { FanoutCaptureStore } from '@wbs/core/ports/fanout-capture-store';
 import { sql } from 'drizzle-orm';
 
 import type { Drizzle } from './db';
@@ -23,12 +24,15 @@ export function sqliteUnitOfWork(
   db: Drizzle,
   gate: Gate,
   admitted: TransactionalStores,
+  fanoutCapture?: FanoutCaptureStore,
+  onRun?: () => void,
 ): UnitOfWork<TransactionalStores> {
-  const scope: Scope<TransactionalStores> = { stores: admitted };
+  const scope: Scope<TransactionalStores> = { stores: admitted, fanoutCapture };
   return {
     run<T>(
       act: (scope: Scope<TransactionalStores>) => Promise<Decision<T, TransactionalStores>>,
     ): Promise<T> {
+      onRun?.();
       return gate.enter(async () => {
         db.run(sql.raw('BEGIN IMMEDIATE'));
         let decision: Decision<T, TransactionalStores>;

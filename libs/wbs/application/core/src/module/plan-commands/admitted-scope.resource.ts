@@ -124,5 +124,8 @@ export type CommandDecision<T> =
 
 /** A feature-owned decision over resources mapped privately by composition. */
 export interface CommandTransaction {
-  run<T>(act: (resources: CommandAdmission) => Promise<CommandDecision<T>>): Promise<T>;
+  run<T>(
+    act: (resources: CommandAdmission) => Promise<CommandDecision<T>>,
+    settled?: () => void,
+  ): Promise<T>;
 }
