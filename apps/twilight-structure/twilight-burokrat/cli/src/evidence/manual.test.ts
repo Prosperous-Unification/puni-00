@@ -10,6 +10,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 import { afterEach, expect, test } from 'bun:test';
 
@@ -1007,9 +1008,15 @@ test.each(['commit', 'tree', 'blob'])(
     rmSync(join(setup.root, '.git/objects', objectId.slice(0, 2), objectId.slice(2)));
     const call = inspect({ ...setup, revision });
     expect(call.exitCode).toBe(1);
-    expect(call.stderr.toString()).toMatch(
-      /cannot verify Manual source (history|objects)|specifications base is not a candidate ancestor|absent .*revision|cannot read selected|cannot read selected blob|cannot resolve/,
-    );
+    if (kind === 'commit') {
+      expect(stripVTControlCharacters(call.stderr.toString())).toMatch(
+        /^(?:specifications base is not a candidate ancestor|cannot verify specifications ancestry: .+)$/m,
+      );
+    } else {
+      expect(call.stderr.toString()).toMatch(
+        /cannot verify Manual source (history|objects)|specifications base is not a candidate ancestor|absent .*revision|cannot read selected|cannot read selected blob|cannot resolve/,
+      );
+    }
   },
 );
 

@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 import { afterEach, expect, test } from 'bun:test';
 
@@ -38,7 +39,9 @@ function run(root: string, report: string): ReturnType<typeof Bun.spawnSync> {
 
 function stderrOf(invocation: ReturnType<typeof Bun.spawnSync>): string {
   if (invocation.stderr === undefined) throw new Error('stderr pipe was unavailable');
-  return invocation.stderr.toString();
+  // Proof: FORCE_COLOR=1 prefixed the anchored unmapped-fixture diagnostic with
+  // VT codes; the named negative failed at two assertions until these were stripped.
+  return stripVTControlCharacters(invocation.stderr.toString());
 }
 
 test('runs only the mapped rule fixture and writes fresh JUnit', () => {
