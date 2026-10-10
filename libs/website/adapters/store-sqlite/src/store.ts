@@ -58,6 +58,12 @@ import {
   backfillRetentionSubjects,
   insertRetentionSubject,
 } from './request-retention';
+import type { RetentionJournalRemote } from './retention-journal/remote';
+import {
+  openRetentionJournal,
+  type RetentionJournalOptions,
+  type RetentionJournalSession,
+} from './retention-journal/session';
 export type {
   ConversationAdmission,
   ConversationAdmissionRequest,
@@ -105,6 +111,26 @@ export {
   listAmbiguousRetentionSubjects,
   resolveRetentionAnchor,
 } from './request-retention';
+export type { JournalPosition, JournalRefusal } from './retention-journal/chain';
+export { RetentionJournalError } from './retention-journal/chain';
+export { MemoryJournalRemote } from './retention-journal/memory-remote';
+export {
+  policyLockTimeoutMilliseconds,
+  RetentionPolicyBusyError,
+} from './retention-journal/policy-lock';
+export type { JournalEvent, JournalEventBody, JournalWriter } from './retention-journal/record';
+export type { RetentionJournalRemote } from './retention-journal/remote';
+export { JournalRemoteError } from './retention-journal/remote';
+export type { S3JournalConfig } from './retention-journal/s3-remote';
+export { readS3JournalConfig, S3JournalRemote } from './retention-journal/s3-remote';
+export type { RetentionJournalOptions, RetentionJournalStatus } from './retention-journal/session';
+export {
+  attachJournal,
+  initJournal,
+  openRetentionJournal,
+  RetentionJournalSession,
+  RetentionTransitionError,
+} from './retention-journal/session';
 
 interface DraftRow {
   id: string;
@@ -312,6 +338,17 @@ export class WebsiteStore {
     idempotencyKey: string,
   ): ConversationOperationRecord | null {
     return findConversationOperation(this.database, conversationId, idempotencyKey);
+  }
+
+  /**
+   * Binds this store's connection to the remote retention journal and replays it; see
+   * {@link openRetentionJournal}. Call before serving.
+   */
+  openRetentionJournal(
+    remote: RetentionJournalRemote,
+    options: RetentionJournalOptions,
+  ): Promise<RetentionJournalSession> {
+    return openRetentionJournal(this.database, remote, options);
   }
 
   findLatestConversationOperation(conversationId: string): ConversationOperationRecord | null {

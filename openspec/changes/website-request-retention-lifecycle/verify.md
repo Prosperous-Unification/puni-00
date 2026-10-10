@@ -203,3 +203,32 @@ The fault proofs below were run by the slice's helper agent and are carried by t
 
 - `bun test libs/website/adapters/store-sqlite/src`: `142 pass`, `0 fail`. `bun test apps/website/be-01/src`: `153 pass`, `0 fail`.
 - `nx run-many -t lint,typecheck -p website-store-sqlite,website-be-01`: success.
+
+### Slice 5: policy lock, append protocol, replay and startup (2026-10-11), task 2.1
+
+- `retention-journal/policy-lock.ts`: `withPolicyLock` runs `BEGIN IMMEDIATE` on `<database>.policy-lock`, polling without blocking the event loop, and throws `RetentionPolicyBusyError` after 30 s.
+- `retention-journal/session.ts`:
+  - `openRetentionJournal` and `RetentionJournalSession.synchronise` bind the database to the journal three ways (env/options, database, genesis and head) and refuse a stale head before settling an orphan. They verify the chain and replay each event in its own immediate transaction together with its mirror row.
+  - `append` refuses while the remote is ahead (`behind`). It writes the event and then the head; each write is read back and compared by bytes and version id. Only then does the primary transaction commit.
+  - `initJournal`, `attachJournal`, `status`.
+
+Task 2.1 is ticked. Its "local fsync followed by remote failure" case is `remote failure before head leaves the database unchanged`: this design writes no local candidate. "Host loss" is the older-snapshot replay, with the remote as the authority.
+
+| Guard                                   | Injected fault                           | Observed failure                                                               |
+| --------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------ |
+| Read-back comparison                    | condition reduced to `readBack === null` | `(fail) append detects an overwritten event`: the append resolved              |
+| Stale before orphan settlement          | stale check removed                      | `(fail) startup refuses a rolled-back head`: event 2 re-adopted, open resolved |
+| Orphan settlement                       | returns the tip unconditionally          | `(fail) an orphan event is settled before new appends`                         |
+| Policy lock                             | `work()` run without the lock            | `(fail) concurrent appends serialise under the policy lock`: one `rejected`    |
+| Remote-ahead refusal                    | `behind` check removed                   | `(fail) another process refuses cleanup until it replays`                      |
+| Transition check                        | always allowed                           | `(fail) an erase of a newly designated client is refused after replay`         |
+| Snapshot missing a named subject        | refusal skipped                          | `(fail) restore refuses a snapshot missing a designated subject`               |
+| Database journal-id binding             | comparison removed                       | `(fail) startup refuses a foreign journal`                                     |
+| Lock expiry                             | never expires                            | `(fail) policy lock expiry refuses, not hangs` (resolved after the 3 s holder) |
+| `journal-init` over an existing journal | refusal skipped                          | `(fail) journal-init refuses an existing genesis`                              |
+| `journal-attach` only at sequence 0     | applied condition dropped                | `(fail) journal-attach refuses applied_sequence > 0`                           |
+
+The lock test uses a 300 ms wait against a child holding the lock for 3 s and asserts the 30 000 ms production constant. It does not wait out 30 s.
+
+- `bun test libs/website/adapters/store-sqlite/src`: `161 pass`, `0 fail` (`session.test.ts`: 19). `bun test apps/website/be-01/src`: `153 pass`, `0 fail`.
+- `nx run-many -t lint,typecheck,build,test:package -p website-store-sqlite,website-be-01`: success.
