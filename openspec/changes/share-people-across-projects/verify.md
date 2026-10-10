@@ -4028,7 +4028,7 @@ The 6k.e fourteen-file command recorded above, rerun unchanged on the merged hea
 411/411 with 20,553 assertions, exit 0. This is local evidence only: no host gate or CI is
 claimed here, and 6l, 6.1/6.2, UI 7, mode route 8 and trusted activation stay open.
 
-## 6l durable replay checkpoint (batch 10, partial)
+## 6l durable replay checkpoint (batch 10)
 
 Branch `batch-10/010-4-16-capacity-6l`, stacked on the 6j/6k reconciliation. This slice
 adds test assertions only; no production byte changes. The mounted `services.db.test.ts`
@@ -4064,12 +4064,14 @@ External engine loss is bounded as design.md states: a process-local engine disa
 no durable transition owner, so this slice adds no event for it. Reads keep their typed
 `engine_unavailable` refusal (6.1f/6.2f), and no instantaneous notification is promised.
 
-**Open: `unauthorized subscription cannot replay cause`.** gw-01 subscribe is a shape check
-only, and be-01's internal resume route replays any subscription that the authenticated
-internal gateway names. `gatewayProjectAccess` exists, but no gateway caller uses it.
-Subscribe and replay authorization belong to `organization-ownership-and-access` tasks 6.1
-and 6.2, which are open. The orchestrator must decide this before 6l can close; see the lane
-record. 6l stays unchecked.
+**Declared dependency: replay authorization owed by organization-ownership-and-access 6.1/6.2.**
+`unauthorized subscription cannot replay cause` is not built in 6l (Fable decision, option (a),
+2026-10-11). Today gw-01 authenticates the socket but checks a subscription's format only.
+be-01's internal resume route replays every subscription the internal gateway names, and no
+gateway caller uses `gatewayProjectAccess`. `elsewhere_changed` carries only a recipient and
+cause project id from the same organization, so fan-out widens no disclosure class beyond
+ordinary project events. Subscribe/replay/event authority is owed by org-access 6.1/6.2. 6l
+is checked on that basis; 6.1/6.2 of this change stay open for UI 7, mode route 8 and activation.
 
 The regression groups were rerun on the 6l head, under
 `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`. The four 6j.f cross-layer commands recorded
@@ -4088,3 +4090,10 @@ No host gate or CI is claimed here.
 
 `NX_DAEMON=false bunx nx run-many -t lint:fast,typecheck -p wbs-be-01 --skip-nx-cache` printed
 Nx success for `lint:fast`, `typecheck` and `typecheck:module`. OpenSpec all passed 158/158.
+
+Final rerun on the closing bytes, under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`:
+
+- The four replay cases passed 4/4.
+- `NX_DAEMON=false bunx nx run-many -t test,lint:fast,typecheck -p wbs-be-01,wbs-core --skip-nx-cache`
+  printed Nx success. be-01 had 1923 pass, 1 skip, 0 fail of 1924; core passed 846/846.
+- OpenSpec all passed 158/158.
