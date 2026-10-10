@@ -835,6 +835,165 @@ test('production selector refuses a pointed-row render overlay that drops editor
   ]);
 });
 
+const ganttCanonicalPath = 'openspec/specs/wbs-domain/spec.md';
+const ganttCalendarPath = 'openspec/changes/gantt-calendar-axis/specs/wbs-domain/spec.md';
+const ganttHoverPath = 'openspec/changes/gantt-bar-hover/specs/wbs-domain/spec.md';
+const ganttOriginalTitle = 'A bar explains itself and finds its row';
+const ganttHoverTitle = "A bar's explanation uses the shared accessible surface";
+const ganttCalendarScenarios = [
+  'the reason is on the bar',
+  'click lands on the row',
+  'a manual date is marked',
+  'a coordinate is not a date',
+];
+const ganttHoverScenarios = [
+  'the reason is on the bar',
+  'the words arrive on focus too',
+  'click lands on the row',
+  'a manual date is marked',
+  'a coordinate is not a date',
+];
+
+function ganttSources(): Record<string, string> {
+  const sourceRoot = resolve(import.meta.dir, '../../../../../..');
+  return {
+    [ganttCanonicalPath]: readFileSync(join(sourceRoot, ganttCanonicalPath), 'utf8'),
+    [ganttCalendarPath]: readFileSync(join(sourceRoot, ganttCalendarPath), 'utf8'),
+    [ganttHoverPath]: readFileSync(join(sourceRoot, ganttHoverPath), 'utf8'),
+  };
+}
+
+test('production selector preserves calendar ownership and all hover obligations as a distinct added requirement', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, ganttSources());
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode, response.stderr).toBe(0);
+  const selection = response.verdict?.scenarios?.selection;
+  expect(selection?.inputs.map(({ path }) => path)).toEqual([
+    ganttHoverPath,
+    ganttCalendarPath,
+    source,
+    ganttCanonicalPath,
+  ]);
+  expect(
+    selection?.operations.filter(({ capability }) => capability === 'wbs-domain'),
+  ).toHaveLength(14);
+  expect(
+    selection?.operations
+      .filter(({ source: owner }) => owner === ganttCalendarPath)
+      .map(({ kind, title }) => `${kind}: ${title}`)
+      .sort(),
+  ).toEqual(
+    [
+      "ADDED: The calendar scale binds the chart to the project's first working day",
+      'ADDED: One resolved calendar geometry places every mark',
+      'ADDED: Without a project start date the chart stays on the workday axis',
+      'MODIFIED: The calendar day is the SVG unit',
+      'MODIFIED: Leaves draw bars for the work somebody costed, and the rest is behind the switch',
+      'MODIFIED: Calendar labels agree with the date columns',
+      `MODIFIED: ${ganttOriginalTitle}`,
+      'MODIFIED: The canvas holds every mark',
+      'RENAMED: The calendar day is the SVG unit',
+    ].sort(),
+  );
+  expect(
+    selection?.operations
+      .filter(({ source: owner }) => owner === ganttHoverPath)
+      .map(({ kind, title }) => `${kind}: ${title}`)
+      .sort(),
+  ).toEqual(
+    [
+      "ADDED: A bar's facts are its own slice's",
+      'ADDED: One hover surface serves the Name cell and the bar',
+      'ADDED: A bar is named and operable without a mouse',
+      'ADDED: The hover surface opens, moves and dismisses predictably',
+      `ADDED: ${ganttHoverTitle}`,
+    ].sort(),
+  );
+  expect(selection?.effective.find(({ title }) => title === ganttOriginalTitle)).toMatchObject({
+    source: ganttCalendarPath,
+    aliases: [ganttCanonicalPath],
+    scenarios: ganttCalendarScenarios.map((title) => ({ title })),
+  });
+  // Proof: removing the focused-bar scenario from the committed hover source made
+  // this exact effective-scenario assertion fail while the selector still accepted it.
+  expect(selection?.effective.find(({ title }) => title === ganttHoverTitle)).toMatchObject({
+    source: ganttHoverPath,
+    aliases: [],
+    scenarios: ganttHoverScenarios.map((title) => ({ title })),
+  });
+  // Proof: removing the workday-date clause changed this production operation digest
+  // to 08296096...20db1b13 and made this exact-source assertion fail.
+  expect(selection?.operations.find(({ title }) => title === ganttHoverTitle)?.digest).toBe(
+    'dd8666fee174ad716a958ee89f2ac8f6b02c71abf7c148a64557570e98eb08fc',
+  );
+  expect(
+    selection?.effective
+      .filter(({ source: owner }) => owner === ganttHoverPath || owner === ganttCalendarPath)
+      .map(
+        ({ title, source: owner, scenarios }) =>
+          `${owner === ganttHoverPath ? 'hover' : 'calendar'}: ${title}: ${String(scenarios.length)}`,
+      )
+      .sort(),
+  ).toEqual(
+    [
+      "calendar: The calendar scale binds the chart to the project's first working day: 6",
+      'calendar: One resolved calendar geometry places every mark: 3',
+      'calendar: Without a project start date the chart stays on the workday axis: 2',
+      'calendar: The calendar day is the SVG unit: 6',
+      'calendar: Leaves draw bars for the work somebody costed, and the rest is behind the switch: 8',
+      'calendar: Calendar labels agree with the date columns: 3',
+      `calendar: ${ganttOriginalTitle}: 4`,
+      'calendar: The canvas holds every mark: 2',
+      "hover: A bar's facts are its own slice's: 7",
+      'hover: One hover surface serves the Name cell and the bar: 4',
+      'hover: A bar is named and operable without a mouse: 3',
+      'hover: The hover surface opens, moves and dismisses predictably: 8',
+      `hover: ${ganttHoverTitle}: 5`,
+    ].sort(),
+  );
+});
+
+test('production selector refuses the prior competing Gantt bar explanation operation', () => {
+  const { repository, base } = fixture();
+  const sources = ganttSources();
+  // Proof: disabling the production competing-operation guard made this refusal
+  // assertion fail with a later dropped-canonical-scenario reason instead.
+  sources[ganttHoverPath] = sources[ganttHoverPath].replace(
+    `### Requirement: ${ganttHoverTitle}`,
+    `## MODIFIED Requirements\n\n### Requirement: ${ganttOriginalTitle}`,
+  );
+  const candidate = nextCommit(repository, sources);
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(response.verdict?.unevaluated).toEqual([
+    {
+      ruleId: 'SPEC-SCENARIOS',
+      reason: `competing overlay operation: wbs-domain: ${ganttOriginalTitle}`,
+    },
+  ]);
+});
+
+test('production selector refuses the calendar modification without its canonical bar predecessor', () => {
+  const { repository, base } = fixture();
+  const sources = ganttSources();
+  const canonical = sources[ganttCanonicalPath];
+  const start = canonical.indexOf(`### Requirement: ${ganttOriginalTitle}`);
+  const end = canonical.indexOf('### Requirement: Row labels hold the left edge', start);
+  // Proof: disabling the production predecessor guard made this exact refusal
+  // assertion fail with a TypeError reason for predecessor.scenarios instead.
+  sources[ganttCanonicalPath] = canonical.slice(0, start) + canonical.slice(end);
+  const candidate = nextCommit(repository, sources);
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(response.verdict?.unevaluated).toEqual([
+    {
+      ruleId: 'SPEC-SCENARIOS',
+      reason: `overlay requirement has no predecessor: wbs-domain: ${ganttOriginalTitle}`,
+    },
+  ]);
+});
+
 const renamePair =
   '## RENAMED Requirements\n- FROM: `### Requirement: First requirement`\n' +
   '- TO: `### Requirement: Renamed requirement`\n';
