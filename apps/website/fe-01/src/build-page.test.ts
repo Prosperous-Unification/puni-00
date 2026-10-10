@@ -8,7 +8,7 @@ import {
   isLimitCode,
   offersProposal,
   parseConversation,
-  resolveAnonymousHarness,
+  resolveHarness,
   selectComposerMode,
   selectStoppedAttempt,
   startOverUrl,
@@ -56,19 +56,15 @@ describe('Build harness states', () => {
       expected: { kind: 'disabled', conversation: disabled },
     },
   ])('$name', ({ entry, conversation, expected }) => {
-    expect(resolveAnonymousHarness('https://dev.puni.dev', entry, conversation)).toEqual(
-      expected as ReturnType<typeof resolveAnonymousHarness>,
+    expect(resolveHarness('https://dev.puni.dev', entry, conversation)).toEqual(
+      expected as ReturnType<typeof resolveHarness>,
     );
   });
 
   test('a malformed conversation is an error, not a disabled state', () => {
     const { provider: _provider, ...withoutProvider } = disabled;
     expect(() =>
-      resolveAnonymousHarness(
-        'https://dev.puni.dev',
-        { available: true, reason: null },
-        withoutProvider,
-      ),
+      resolveHarness('https://dev.puni.dev', { available: true, reason: null }, withoutProvider),
     ).toThrow(InvalidConversation);
   });
 });
@@ -133,7 +129,7 @@ const replied: Conversation = {
 describe('live harness', () => {
   test.each(['openrouter', 'demo'] as const)('%s is the live harness', (provider) => {
     expect(
-      resolveAnonymousHarness(
+      resolveHarness(
         'https://dev.puni.dev',
         { available: true, reason: null },
         { ...live, provider },
@@ -281,7 +277,7 @@ describe('paused provider', () => {
   test('a paused provider is its own harness state, not disabled', () => {
     // Proof: mapping `paused` to `disabled` in the parser made this resolve to `disabled`.
     expect(
-      resolveAnonymousHarness('https://dev.puni.dev', { available: true, reason: null }, paused),
+      resolveHarness('https://dev.puni.dev', { available: true, reason: null }, paused),
     ).toEqual({ kind: 'paused', conversation: paused as ReturnType<typeof parseConversation> });
   });
 });

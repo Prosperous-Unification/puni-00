@@ -4,17 +4,15 @@ import { env } from 'node:process';
 
 import { chromium } from 'playwright';
 
-// Two fixture stacks: demo sign-in (4218/3118) and Google sign-in unconfigured (4219/3119).
-const demo = {
-  app: 'http://localhost:4218',
-  api: 'http://localhost:3118',
-  site: 'http://localhost:4318',
-};
-const oidc = {
-  app: 'http://localhost:4219',
-  api: 'http://localhost:3119',
-  site: 'http://localhost:4319',
-};
+// Two fixture stacks: demo replies (DEMO_AUTH=1, 4218/3118) and AI chat off (DEMO_AUTH=0, 4219/3119).
+// PUNI_SCREENS_PORT_OFFSET shifts all six ports, so a second checkout can audit beside a first.
+const portOffsetText = env['PUNI_SCREENS_PORT_OFFSET'] ?? '0';
+if (!/^\d+$/.test(portOffsetText) || Number(portOffsetText) > 60000)
+  throw new Error(`PUNI_SCREENS_PORT_OFFSET must be an integer from 0 to 60000: ${portOffsetText}`);
+const portOffset = Number(portOffsetText);
+const loopback = (port) => `http://localhost:${String(port + portOffset)}`;
+const demo = { app: loopback(4218), api: loopback(3118), site: loopback(4318) };
+const aiOff = { app: loopback(4219), api: loopback(3119), site: loopback(4319) };
 // The site origins serve no files locally; site media is fetched from this origin instead.
 const mediaOrigin = env['PUNI_MEDIA_ORIGIN'] ?? 'https://dev.puni.dev';
 // Bundled Chromium cannot decode the site's H.264 video; installed Google Chrome can.
@@ -27,6 +25,14 @@ mkdirSync(outDir, { recursive: true });
 
 const viewports = [
   { width: 1440, height: 900 },
+  { width: 768, height: 1024 },
+  { width: 390, height: 844 },
+  { width: 320, height: 568 },
+];
+/** The four widths plus 1024, for the Build captures that assert the absence of sign-in. */
+const signInAuditViewports = [
+  { width: 1440, height: 900 },
+  { width: 1024, height: 768 },
   { width: 768, height: 1024 },
   { width: 390, height: 844 },
   { width: 320, height: 568 },
@@ -69,6 +75,45 @@ async function createDraftCookie(stack) {
   };
 }
 
+/**
+ * Lists every visible element on the page whose own text names a sign-in: there is no prospect
+ * sign-in (ADR 0039), so Build must render none of these at any width.
+ */
+async function findSignInText(page) {
+  return page.evaluate(() =>
+    [...globalThis.document.body.querySelectorAll('*')]
+      .filter((element) => {
+        const box = element.getBoundingClientRect();
+        if (box.width === 0 && box.height === 0) return false;
+        const own = [...element.childNodes]
+          .filter((node) => node.nodeType === 3)
+          .map((node) => node.textContent ?? '')
+          .join(' ');
+        return /Sign in|Sign out|Google|Continue with/i.test(own);
+      })
+      .map(
+        (element) =>
+          `${element.tagName.toLowerCase()} "${(element.textContent ?? '').trim().slice(0, 40)}"`,
+      ),
+  );
+}
+
+/** Reports {@link findSignInText} matches as problems. */
+async function checkNoSignIn(page) {
+  const found = await findSignInText(page);
+  return found.length === 0 ? [] : [`build renders a sign-in control: ${found.join('; ')}`];
+}
+
+/** The manual brief's links to this app's Build route. */
+async function findBuildLinks(page) {
+  return page.locator('main a').evaluateAll((links) =>
+    links
+      .map((link) => new globalThis.URL(link.href))
+      .filter((url) => url.origin === globalThis.location.origin && url.pathname === '/')
+      .map((url) => url.href),
+  );
+}
+
 const states = [
   {
     name: 'build-disabled',
@@ -78,6 +123,9 @@ const states = [
       if (/not configured/i.test(main)) problems.push('"not configured" wording shown');
       if ((await page.locator('main .build-disabled-row').count()) !== 1)
         problems.push('missing the disabled row');
+      // Proof: re-adding a `Sign in` anchor to DisabledHarness made this report "build renders a
+      // sign-in control" at all five widths.
+      problems.push(...(await checkNoSignIn(page)));
       if ((await page.getByRole('link', { name: /Shape your brief/ }).count()) !== 1)
         problems.push('missing Shape your brief action');
       if ((await page.locator('main textarea, main .harness-composer').count()) !== 0)
@@ -108,9 +156,10 @@ const states = [
         problems.push(`moon not loaded from the site origin: ${JSON.stringify(moon)}`);
       return problems;
     },
-    stack: oidc,
+    stack: aiOff,
     path: '/',
     cookie: true,
+    viewports: signInAuditViewports,
     ready: (page) => page.locator('.build-disabled-row').waitFor(),
   },
   {
@@ -127,7 +176,7 @@ const states = [
         problems.push('poster missing under reduced motion');
       return problems;
     },
-    stack: oidc,
+    stack: aiOff,
     path: '/',
     cookie: true,
     ready: (page) => page.locator('.build-disabled-row').waitFor(),
@@ -147,7 +196,7 @@ const states = [
         problems.push('media failure hid the conversation');
       return problems;
     },
-    stack: oidc,
+    stack: aiOff,
     path: '/',
     cookie: true,
     ready: async (page) => {
@@ -160,62 +209,71 @@ const states = [
   },
   {
     name: 'manual',
-    // Proof: forcing the manual AI card on (in app-flow.ts or main.tsx) made this check fail all
-    // four widths, again after the /session wait replaced networkidle (offersAiExploration → true).
+    // Proof: offering the card whenever the claim is live (offersBuild alone) made this report
+    // "manual brief links to Build while AI is off" at all four widths (veto V14).
     check: async (page) => {
-      // The looping band video keeps the network busy, so wait for the settled /session read.
-      await page.waitForFunction(() =>
-        globalThis.performance
-          .getEntriesByType('resource')
-          .some((entry) => new globalThis.URL(entry.name).pathname === '/session'),
-      );
-      await page.waitForTimeout(200);
-      const back = await page.locator('main a').evaluateAll((links) =>
-        links
-          .map((link) => new globalThis.URL(link.href))
-          .filter(
-            (url) =>
-              url.origin === globalThis.location.origin &&
-              (url.pathname === '/' || url.pathname.startsWith('/studio')),
-          )
-          .map((url) => url.href),
-      );
-      return back.length === 0 ? [] : [`manual brief links back to Build: ${back.join(', ')}`];
+      const problems = [];
+      const build = await findBuildLinks(page);
+      if (build.length !== 0)
+        problems.push(`manual brief links to Build while AI is off: ${build.join(', ')}`);
+      if (/sign in/i.test(await page.locator('main').innerText()))
+        problems.push('manual brief mentions sign-in');
+      return problems;
     },
-    stack: oidc,
+    stack: aiOff,
     path: '/manual',
     cookie: true,
     ready: (page) => page.locator('#brief').waitFor(),
   },
   {
-    name: 'manual-session-down',
-    stack: oidc,
-    path: '/manual',
-    cookie: true,
-    abortSession: true,
-    // The aborted /session request and its contextual report are the expected console output.
-    allowed: ['net::ERR_FAILED', 'Manual brief hid the AI card'],
-    ready: (page) => page.locator('#brief').waitFor(),
-    // Proof: hiding the card without console.error made this check report "unavailable not reported".
-    check: async (page, consoleTexts) => {
+    name: 'manual-ai',
+    // Proof: making offersBuild return false for a live claim made this report "manual brief
+    // does not link to Build" at all four widths.
+    check: async (page) => {
       const problems = [];
-      if ((await page.getByRole('link', { name: /Explore with AI/ }).count()) !== 0)
-        problems.push('AI card shown without a session status');
-      if (!consoleTexts.some((text) => text.includes('Manual brief hid the AI card')))
-        problems.push('unavailable not reported');
+      const build = await findBuildLinks(page);
+      if (build.length !== 1)
+        problems.push(`manual brief does not link to Build: ${JSON.stringify(build)}`);
+      if (/sign in/i.test(await page.locator('main').innerText()))
+        problems.push('manual brief mentions sign-in');
       return problems;
     },
+    stack: demo,
+    path: '/manual',
+    cookie: true,
+    ready: (page) => page.locator('#brief').waitFor(),
+  },
+  {
+    name: 'manual-malformed-draft',
+    // The real draft read with an unparsable expiresAt, as a broken API would answer.
+    malformedDraft: true,
+    // Proof: accepting any expiresAt in parseDraft made this report "unexpected alert: ... This
+    // page needs your attention." (the boundary, not the load-error state) at all four widths;
+    // removing AppErrorBoundary around ManualPage as well left no alert at all (the ready wait
+    // timed out and the strict run exited 1).
+    check: async (page) => {
+      const problems = [];
+      const alert = page.getByRole('alert');
+      if ((await alert.count()) !== 1) problems.push('no load-error state');
+      else if (!(await alert.innerText()).includes('We couldn’t load your request.'))
+        problems.push(`unexpected alert: ${(await alert.innerText()).replaceAll('\n', ' ')}`);
+      return problems;
+    },
+    stack: demo,
+    path: '/manual',
+    cookie: true,
+    ready: (page) => page.getByRole('alert').waitFor(),
   },
   {
     name: 'manual-nocookie',
-    stack: oidc,
+    stack: aiOff,
     path: '/manual',
     cookie: false,
     ready: (page) => page.getByRole('heading', { name: /start with your request/i }).waitFor(),
   },
   {
     name: 'loading',
-    stack: oidc,
+    stack: aiOff,
     path: '/',
     cookie: true,
     hold: true,
@@ -236,7 +294,7 @@ const states = [
         problems.push('no exit');
       return problems;
     },
-    stack: oidc,
+    stack: aiOff,
     path: '/',
     cookie: true,
     abort: true,
@@ -244,21 +302,21 @@ const states = [
   },
   {
     name: 'operator',
-    stack: oidc,
+    stack: aiOff,
     path: '/operator',
     cookie: false,
     ready: (page) => page.locator('#operator-password').waitFor(),
   },
   {
-    name: 'workspace',
-    // A request without a concept answers GET /concept with 404 by contract.
-    allowed: ['status of 404'],
+    name: 'build-live',
+    // Proof: re-adding a `[ Sign in ]` control to the live harness bar made this check report
+    // "build renders a sign-in control" at all five widths.
     stack: demo,
     path: '/',
     cookie: true,
-    demoSignIn: true,
+    viewports: signInAuditViewports,
     check: async (page) => {
-      const problems = [];
+      const problems = [...(await checkNoSignIn(page))];
       if (!(await page.locator('#build-message[readonly]').isVisible()))
         problems.push('the Home request is not pre-filled in the composer');
       if ((await page.getByRole('button', { name: /^Send/ }).count()) !== 1)
@@ -277,15 +335,17 @@ const states = [
 ];
 states.push({
   name: 'build-paused',
-  stack: oidc,
+  stack: aiOff,
   path: '/',
   cookie: true,
   // The read is the real API's, with the provider set to `paused`, as during an open pause.
   pausedProvider: true,
+  viewports: signInAuditViewports,
   check: async (page) => {
     const problems = [];
     if ((await page.locator('main .build-paused-row').count()) !== 1)
       problems.push('missing the paused row');
+    problems.push(...(await checkNoSignIn(page)));
     if (!/AI chat is paused right now/.test(await page.locator('main').innerText()))
       problems.push('missing the paused copy');
     if ((await page.getByRole('link', { name: /Shape your brief/ }).count()) !== 1)
@@ -302,7 +362,7 @@ if (operatorPassword)
   states.push(
     {
       name: 'operator-inbox',
-      stack: oidc,
+      stack: aiOff,
       path: '/operator',
       cookie: false,
       operatorSignIn: true,
@@ -310,7 +370,7 @@ if (operatorPassword)
     },
     {
       name: 'operator-guardrails',
-      stack: oidc,
+      stack: aiOff,
       path: '/operator',
       cookie: false,
       operatorSignIn: true,
@@ -404,13 +464,7 @@ async function auditFocus(page) {
 
 /** The live marketing site the app header must match; only read, never written. */
 const parityOrigin = env['PUNI_PARITY_ORIGIN'] ?? 'https://dev.puni.dev';
-const parityViewports = [
-  { width: 1440, height: 900 },
-  { width: 1024, height: 768 },
-  { width: 768, height: 1024 },
-  { width: 390, height: 844 },
-  { width: 320, height: 568 },
-];
+const parityViewports = signInAuditViewports;
 const parityTolerance = 2;
 /** The same header parts on the site and in the app; `menuItems` are read with the menu open. */
 const siteHeaderParts = {
@@ -551,7 +605,7 @@ async function routeSiteMedia(context, stack, abort) {
 const browser = await chromium.launch({ channel, headless: true, args: ['--no-sandbox'] });
 try {
   for (const state of selected) {
-    for (const viewport of viewports) {
+    for (const viewport of state.viewports ?? viewports) {
       const label = `${state.name}-${String(viewport.width)}`;
       const context = await browser.newContext({
         viewport,
@@ -567,7 +621,7 @@ try {
         if (message.type() !== 'error') return;
         const text = message.text();
         consoleTexts.push(text);
-        // A signed-out session and a missing manual draft answer 401 by contract.
+        // A missing manual draft answers 401 by contract.
         if (text.includes('status of 401')) return;
         if (state.allowed?.some((allowed) => text.includes(allowed))) return;
         if (state.abort && text.includes('net::ERR_FAILED')) return;
@@ -584,8 +638,14 @@ try {
       if (state.hold)
         await page.route(`${state.stack.api}/entry`, () => new Promise(() => undefined));
       if (state.abort) await page.route(`${state.stack.api}/entry`, (route) => route.abort());
-      if (state.abortSession)
-        await page.route(`${state.stack.api}/session`, (route) => route.abort());
+      if (state.malformedDraft)
+        await page.route(`${state.stack.api}/draft`, async (route) => {
+          const response = await route.fetch({
+            headers: { ...route.request().headers(), 'x-forwarded-for': nextVisitor() },
+          });
+          const view = await response.json();
+          await route.fulfill({ response, json: { ...view, expiresAt: 'tomorrow' } });
+        });
       if (state.pausedProvider)
         await page.route(`${state.stack.api}/conversation`, async (route) => {
           const response = await route.fetch({
@@ -595,12 +655,6 @@ try {
           await route.fulfill({ response, json: { ...view, provider: 'paused' } });
         });
       await page.goto(`${state.stack.app}${state.path}`, { waitUntil: 'domcontentloaded' });
-      if (state.demoSignIn) {
-        // The live anonymous harness keeps the optional sign-in behind a bar control.
-        await page.getByRole('button', { name: '[ Sign in ]' }).click();
-        await page.locator('#demo-email').fill(`screens-${String(Date.now())}@example.test`);
-        await page.getByRole('button', { name: /Enter local demo/ }).click();
-      }
       if (state.operatorSignIn) {
         await page.locator('#operator-password').fill(operatorPassword);
         await page.getByRole('button', { name: /Sign in/ }).click();
@@ -651,10 +705,10 @@ try {
 
   if (!only || only.includes('menu')) {
     const context = await browser.newContext({ viewport: viewports[2] });
-    await routeSiteMedia(context, oidc, false);
-    await context.addCookies([await createDraftCookie(oidc)]);
+    await routeSiteMedia(context, aiOff, false);
+    await context.addCookies([await createDraftCookie(aiOff)]);
     const page = await context.newPage();
-    await page.goto(oidc.app, { waitUntil: 'domcontentloaded' });
+    await page.goto(aiOff.app, { waitUntil: 'domcontentloaded' });
     // Wait for the loaded state: its h1 focus would otherwise reset the focus start point.
     await page.locator('.build-disabled-row').waitFor();
     // The looping background video keeps the network busy, so networkidle never settles here.
@@ -728,10 +782,10 @@ try {
       for (const route of parityRoutes) {
         const label = `header-parity${route === '/' ? '/build' : route}-${String(viewport.width)}`;
         const context = await browser.newContext({ viewport });
-        await routeSiteMedia(context, oidc, false);
-        await context.addCookies([await createDraftCookie(oidc)]);
+        await routeSiteMedia(context, aiOff, false);
+        await context.addCookies([await createDraftCookie(aiOff)]);
         const page = await context.newPage();
-        await page.goto(`${oidc.app}${route}`, { waitUntil: 'domcontentloaded' });
+        await page.goto(`${aiOff.app}${route}`, { waitUntil: 'domcontentloaded' });
         await page.locator('h1').first().waitFor();
         await page.evaluate(() => globalThis.document.fonts.ready);
         await page.waitForTimeout(800);
@@ -771,15 +825,15 @@ try {
 
   if (!only || only.includes('start-over')) {
     const context = await browser.newContext({ viewport: viewports[3] });
-    await routeSiteMedia(context, oidc, false);
+    await routeSiteMedia(context, aiOff, false);
     await context.route(
-      (url) => url.origin === oidc.site && !url.pathname.startsWith('/media/'),
+      (url) => url.origin === aiOff.site && !url.pathname.startsWith('/media/'),
       (route) =>
         route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Home</title>' }),
     );
-    await context.addCookies([await createDraftCookie(oidc)]);
+    await context.addCookies([await createDraftCookie(aiOff)]);
     const page = await context.newPage();
-    await page.goto(oidc.app, { waitUntil: 'domcontentloaded' });
+    await page.goto(aiOff.app, { waitUntil: 'domcontentloaded' });
     await page.locator('.build-disabled-row').waitFor();
     const problems = [];
     const activeText = () =>
@@ -801,12 +855,12 @@ try {
     await page.keyboard.press('Tab');
     if (!(await activeText()).includes('Discard')) problems.push('Tab did not reach Discard');
     await page.keyboard.press('Enter');
-    await page.waitForURL(`${oidc.site}/#request`);
-    const cookies = await context.cookies(oidc.app);
+    await page.waitForURL(`${aiOff.site}/#request`);
+    const cookies = await context.cookies(aiOff.app);
     if (cookies.some((cookie) => cookie.name.endsWith('puni_draft')))
       problems.push(`draft cookie kept: ${JSON.stringify(cookies.map((cookie) => cookie.name))}`);
-    await page.goto(oidc.app, { waitUntil: 'domcontentloaded' });
-    await page.waitForURL(`${oidc.site}/?entry=missing#request`);
+    await page.goto(aiOff.app, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL(`${aiOff.site}/?entry=missing#request`);
     globalThis.console.log(
       `start-over-320: ${problems.length === 0 ? 'OK' : problems.join(' / ')}`,
     );
@@ -819,10 +873,10 @@ try {
       viewport,
       recordVideo: { dir: `${outDir}/video-${String(viewport.width)}`, size: viewport },
     });
-    await routeSiteMedia(context, oidc, false);
-    await context.addCookies([await createDraftCookie(oidc)]);
+    await routeSiteMedia(context, aiOff, false);
+    await context.addCookies([await createDraftCookie(aiOff)]);
     const page = await context.newPage();
-    await page.goto(oidc.app, { waitUntil: 'domcontentloaded' });
+    await page.goto(aiOff.app, { waitUntil: 'domcontentloaded' });
     await page.locator('h1').first().waitFor();
     await page.waitForTimeout(1200);
     await page.getByRole('link', { name: /brief/i }).first().click();

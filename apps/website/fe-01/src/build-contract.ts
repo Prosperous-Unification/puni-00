@@ -1,103 +1,6 @@
 export type EntryStatus =
   { available: true; reason: null } | { available: false; reason: 'missing' | 'expired' };
 
-export interface ChatMessageInput {
-  role: string;
-  parts: readonly { type: string; text?: string }[];
-}
-
-export interface PendingOperation {
-  requestId: string;
-  message: string;
-  idempotencyKey: string;
-  initial: boolean;
-  turnCount: number;
-  createdAt: number;
-}
-
-export function parsePendingOperation(
-  raw: string | null,
-  requestId: string,
-  now: number,
-): PendingOperation | null {
-  if (raw === null) return null;
-  const parsed: unknown = JSON.parse(raw);
-  // Proof: deleting this shape rejection let an incomplete stored record pass; the malformed-state test failed.
-  if (
-    typeof parsed !== 'object' ||
-    parsed === null ||
-    Array.isArray(parsed) ||
-    !('requestId' in parsed) ||
-    typeof parsed.requestId !== 'string' ||
-    !('message' in parsed) ||
-    typeof parsed.message !== 'string' ||
-    parsed.message.length > 4000 ||
-    !('idempotencyKey' in parsed) ||
-    typeof parsed.idempotencyKey !== 'string' ||
-    parsed.idempotencyKey.length < 1 ||
-    parsed.idempotencyKey.length > 128 ||
-    !('initial' in parsed) ||
-    typeof parsed.initial !== 'boolean' ||
-    !('turnCount' in parsed) ||
-    !Number.isSafeInteger(parsed.turnCount) ||
-    Number(parsed.turnCount) < 0 ||
-    !('createdAt' in parsed) ||
-    !Number.isSafeInteger(parsed.createdAt)
-  ) {
-    throw new Error('Stored pending chat operation is malformed');
-  }
-  if (parsed.requestId !== requestId || now - Number(parsed.createdAt) > 24 * 60 * 60 * 1000)
-    return null;
-  // The boundary checks above make these numeric conversions exact safe integers.
-  return {
-    requestId: parsed.requestId,
-    message: parsed.message,
-    idempotencyKey: parsed.idempotencyKey,
-    initial: parsed.initial,
-    turnCount: Number(parsed.turnCount),
-    createdAt: Number(parsed.createdAt),
-  };
-}
-
-export function savedOperationCompleted(
-  pending: PendingOperation,
-  turns: readonly { role: 'user' | 'assistant'; content: string }[],
-): boolean {
-  if (turns.length < pending.turnCount + 2) return false;
-  const user = turns.at(-2);
-  const assistant = turns.at(-1);
-  return (
-    user?.role === 'user' && user.content === pending.message && assistant?.role === 'assistant'
-  );
-}
-
-/** A retry may regenerate only the pending user turn added after the saved server history. */
-export function shouldRegeneratePending(
-  messages: readonly ChatMessageInput[],
-  pending: PendingOperation,
-): boolean {
-  const latestUserIndex = messages.findLastIndex((message) => message.role === 'user');
-  // Proof: ignoring the saved-turn boundary regenerated an earlier identical question; the retry test failed.
-  if (latestUserIndex < pending.turnCount) return false;
-  return (
-    chatRequestBody(messages, pending.idempotencyKey, pending.initial).message ===
-    (pending.initial ? '' : pending.message)
-  );
-}
-
-/** Records the actual chat turn boundary, including a completed initial turn after mount. */
-export function countPriorTurns(
-  messages: readonly ChatMessageInput[],
-  initial: boolean,
-  savedTurnCount: number,
-): number {
-  if (initial) return savedTurnCount;
-  const latestUserIndex = messages.findLastIndex((message) => message.role === 'user');
-  if (latestUserIndex < 0) throw new Error('Chat requires the latest user message');
-  // Proof: returning the mount-time saved count (0) missed a completed first reply; the turn-count test failed.
-  return latestUserIndex;
-}
-
 export function parseEntry(response: unknown): EntryStatus {
   if (typeof response !== 'object' || response === null || Array.isArray(response)) {
     throw new Error('Invalid entry response');
@@ -125,28 +28,6 @@ export function buildReturnUrl(origin: string, reason: 'missing' | 'expired'): s
   return home.toString();
 }
 
-export function chatRequestBody(
-  messages: readonly ChatMessageInput[],
-  idempotencyKey: string,
-  initial = false,
-): { message: string; idempotencyKey: string; initial?: true } {
-  if (!idempotencyKey) throw new Error('Chat operation identity is missing');
-  if (initial) return { message: '', idempotencyKey, initial: true };
-  const latest = messages.findLast((candidate) => candidate.role === 'user');
-  if (latest === undefined || latest.parts.length === 0) {
-    throw new Error('Chat requires the latest user message');
-  }
-  if (latest.parts.some((part) => part.type !== 'text' || typeof part.text !== 'string')) {
-    throw new Error('Chat is text-only');
-  }
-  const message = latest.parts
-    .map((part) => part.text)
-    .join('\n')
-    .trim();
-  if (!message) throw new Error('Chat message is empty');
-  return { message, idempotencyKey };
-}
-
 export type ConversationStage = 'clarify' | 'brief' | 'contact' | 'exhausted' | 'handed_off';
 /** `paused`: paid inference is paused until an operator resumes it; the manual path stays open. */
 export type ConversationProvider = 'openrouter' | 'demo' | 'disabled' | 'paused';
@@ -169,7 +50,7 @@ export interface BrowserChallenge {
   expiresAt: number;
 }
 
-/** The `GET /conversation` body: the anonymous conversation bound to this browser's draft. */
+/** The `GET /conversation` body: the conversation bound to this browser's draft claim. */
 export interface Conversation {
   stage: ConversationStage;
   turns: { role: 'user' | 'assistant'; content: string }[];
@@ -184,6 +65,49 @@ export interface Conversation {
   latestOperation: (ConversationOperation & { message: string }) | null;
   exhaustedReason: ConversationExhaustedReason | null;
   challenge: BrowserChallenge | null;
+}
+
+/** The `GET /draft` body: the manual brief's draft and the conversation provider now. */
+export interface Draft {
+  description: string;
+  brief: string;
+  csrfToken: string;
+  expiresAt: string;
+  provider: ConversationProvider;
+}
+
+/** The `GET /draft` body did not match the API contract. */
+export class InvalidDraft extends Error {
+  constructor(field: string) {
+    super(`Invalid draft response: ${field}`);
+  }
+}
+
+/**
+ * Validates the `GET /draft` body at the API boundary.
+ * @throws InvalidDraft when a field is absent or outside the contract, including an `expiresAt`
+ * that is not a date.
+ */
+export function parseDraft(value: unknown): Draft {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new InvalidDraft('body');
+  const description =
+    'description' in value && typeof value.description === 'string' ? value.description : null;
+  if (description === null) throw new InvalidDraft('description');
+  const brief = 'brief' in value && typeof value.brief === 'string' ? value.brief : null;
+  if (brief === null) throw new InvalidDraft('brief');
+  const csrfToken =
+    'csrfToken' in value && typeof value.csrfToken === 'string' ? value.csrfToken : '';
+  if (!csrfToken) throw new InvalidDraft('csrfToken');
+  const expiresAt =
+    'expiresAt' in value && typeof value.expiresAt === 'string' ? value.expiresAt : '';
+  // Proof: accepting any string here failed build-contract.test.ts "a draft with a malformed
+  // expiresAt is invalid" and the manual-malformed-draft capture in browser/screens.mjs.
+  if (Number.isNaN(Date.parse(expiresAt))) throw new InvalidDraft('expiresAt');
+  const provider = 'provider' in value ? value.provider : undefined;
+  const known = providers.find((candidate) => candidate === provider);
+  if (known === undefined) throw new InvalidDraft('provider');
+  return { description, brief, csrfToken, expiresAt, provider: known };
 }
 
 /** The `GET /conversation` body did not match the API contract. */
@@ -359,8 +283,8 @@ export function parseConversation(value: unknown): Conversation {
   };
 }
 
-/** What Build renders for a visitor without an account session. */
-export type AnonymousHarness =
+/** What Build renders for this browser's draft claim. */
+export type Harness =
   | { kind: 'loading' }
   | { kind: 'redirect'; url: string }
   | { kind: 'disabled'; conversation: Conversation }
@@ -368,16 +292,16 @@ export type AnonymousHarness =
   | { kind: 'live'; conversation: Conversation };
 
 /**
- * Maps the entry status and the `GET /conversation` body to the anonymous harness state.
+ * Maps the entry status and the `GET /conversation` body to the harness state.
  * `entry` is null while it loads; an unavailable entry redirects to Home with its reason.
  * `openrouter` and `demo` are the live harness; `disabled` and `paused` have no composer.
  * @throws InvalidConversation when the body breaks the contract.
  */
-export function resolveAnonymousHarness(
+export function resolveHarness(
   siteOrigin: string,
   entry: EntryStatus | null,
   conversation: unknown,
-): AnonymousHarness {
+): Harness {
   if (entry === null) return { kind: 'loading' };
   if (!entry.available) return { kind: 'redirect', url: buildReturnUrl(siteOrigin, entry.reason) };
   const parsed = parseConversation(conversation);

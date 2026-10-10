@@ -2,14 +2,11 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   buildReturnUrl,
-  chatRequestBody,
-  countPriorTurns,
   InvalidConversation,
+  InvalidDraft,
   parseConversation,
+  parseDraft,
   parseEntry,
-  parsePendingOperation,
-  savedOperationCompleted,
-  shouldRegeneratePending,
 } from './build-contract';
 
 describe('Build entry', () => {
@@ -37,108 +34,34 @@ describe('Build entry', () => {
   });
 });
 
-describe('lost-response recovery', () => {
-  const pending = {
-    requestId: 'request-one',
-    message: 'Plan a booking flow',
-    idempotencyKey: 'operation-one',
-    initial: false,
-    turnCount: 2,
-    createdAt: 1000,
+describe('manual draft boundary', () => {
+  const draft = {
+    description: 'A booking tool',
+    brief: '',
+    csrfToken: 'a'.repeat(64),
+    expiresAt: '2026-10-12T12:00:00.000Z',
+    provider: 'disabled' as const,
   };
 
-  test('reuses only a validated operation for the current request', () => {
-    expect(parsePendingOperation(JSON.stringify(pending), 'request-one', 2000)).toEqual(pending);
-    expect(parsePendingOperation(JSON.stringify(pending), 'request-two', 2000)).toBeNull();
-    expect(() => parsePendingOperation('{bad', 'request-one', 2000)).toThrow();
-    expect(() => parsePendingOperation('{"requestId":"broken"}', 'request-one', 2000)).toThrow(
-      'malformed',
-    );
-    expect(
-      parsePendingOperation(JSON.stringify(pending), 'request-one', 1000 + 86400001),
-    ).toBeNull();
+  test('accepts the draft contract with its provider', () => {
+    expect(parseDraft(draft)).toEqual(draft);
+    expect(parseDraft({ ...draft, provider: 'paused' }).provider).toBe('paused');
   });
 
-  test('recognizes saved completion without matching an earlier identical question', () => {
-    expect(
-      savedOperationCompleted(pending, [
-        { role: 'user', content: 'Earlier question' },
-        { role: 'assistant', content: 'Earlier answer' },
-        { role: 'user', content: pending.message },
-        { role: 'assistant', content: 'Saved answer' },
-      ]),
-    ).toBe(true);
-    expect(
-      savedOperationCompleted(pending, [
-        { role: 'user', content: 'Earlier question' },
-        { role: 'assistant', content: 'Earlier answer' },
-      ]),
-    ).toBe(false);
+  test('a draft with a malformed expiresAt is invalid', () => {
+    // Proof: accepting any expiresAt string made this parse succeed and the manual brief throw
+    // inside render instead of showing its load-error state.
+    for (const expiresAt of ['tomorrow', '', 42, undefined])
+      expect(() => parseDraft({ ...draft, expiresAt })).toThrow(InvalidDraft);
   });
 
-  test('pre-network reload resends the pending text instead of regenerating an earlier turn', () => {
-    const previous = [
-      { role: 'user', parts: [{ type: 'text', text: pending.message }] },
-      { role: 'assistant', parts: [{ type: 'text', text: 'Earlier answer' }] },
-    ];
-    expect(shouldRegeneratePending(previous, pending)).toBe(false);
-    expect(
-      countPriorTurns(
-        [...previous, { role: 'user', parts: [{ type: 'text', text: pending.message }] }],
-        false,
-        0,
-      ),
-    ).toBe(2);
-    expect(
-      shouldRegeneratePending(
-        [...previous, { role: 'user', parts: [{ type: 'text', text: pending.message }] }],
-        pending,
-      ),
-    ).toBe(true);
-    expect(
-      shouldRegeneratePending(
-        [...previous, { role: 'user', parts: [{ type: 'text', text: 'Different question' }] }],
-        pending,
-      ),
-    ).toBe(false);
-  });
-});
-
-describe('chat request boundary', () => {
-  test('sends only the latest user text and stable operation identity', () => {
-    expect(
-      chatRequestBody(
-        [
-          { role: 'user', parts: [{ type: 'text', text: 'Previous request' }] },
-          { role: 'assistant', parts: [{ type: 'text', text: 'Previous reply' }] },
-          { role: 'user', parts: [{ type: 'text', text: 'A new question' }] },
-        ],
-        'operation-1',
-      ),
-    ).toEqual({ message: 'A new question', idempotencyKey: 'operation-1' });
-  });
-
-  test('initial turn sends no browser prompt and refuses non-text parts', () => {
-    expect(chatRequestBody([], 'server-initial', true)).toEqual({
-      message: '',
-      idempotencyKey: 'server-initial',
-      initial: true,
-    });
-    expect(() =>
-      chatRequestBody([{ role: 'user', parts: [{ type: 'file' }] }], 'operation-2'),
-    ).toThrow('text-only');
-  });
-
-  test('retry can reuse the last user message after a partial assistant reply', () => {
-    expect(
-      chatRequestBody(
-        [
-          { role: 'user', parts: [{ type: 'text', text: 'Keep this question' }] },
-          { role: 'assistant', parts: [{ type: 'text', text: 'Partial reply' }] },
-        ],
-        'same-operation',
-      ),
-    ).toEqual({ message: 'Keep this question', idempotencyKey: 'same-operation' });
+  test('a draft without a known provider or required text is invalid', () => {
+    const { provider: _provider, ...withoutProvider } = draft;
+    expect(() => parseDraft(withoutProvider)).toThrow(InvalidDraft);
+    expect(() => parseDraft({ ...draft, provider: 'enabled' })).toThrow(InvalidDraft);
+    expect(() => parseDraft({ ...draft, csrfToken: '' })).toThrow(InvalidDraft);
+    expect(() => parseDraft({ ...draft, description: null })).toThrow(InvalidDraft);
+    expect(() => parseDraft(null)).toThrow(InvalidDraft);
   });
 });
 
