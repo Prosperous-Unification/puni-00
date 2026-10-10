@@ -59,7 +59,7 @@ function refuseRetiredOidc(environment: Environment): void {
   // Proof: deleting this refusal let every OIDC_* name through and failed the retired-OIDC config test.
   if (retired.length > 0)
     throw new Error(
-      `prospect sign-in was retired on 2026-10-11 (ADR 0039); remove ${retired.join(', ')}`,
+      `prospect sign-in was retired on 2026-10-11 (ADR 0039); remove ${retired.join(', ')} (an empty value is still a setting)`,
     );
 }
 

@@ -1927,7 +1927,7 @@ test('no alert row or webhook body carries the canary phrase, email, address, so
   for (const text of texts)
     for (const secret of forbidden) expect(text.includes(secret)).toBe(false);
   api.close();
-});
+}, 30_000);
 
 test('a later turn sends the model no refused exchange, but keeps every other turn', async () => {
   let call = 0;

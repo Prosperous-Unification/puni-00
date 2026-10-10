@@ -48,7 +48,9 @@ route answers exactly like an unknown route. Each new or changed check has a wat
 ### Modified Capabilities
 
 None in `openspec/specs/`. Retired unarchived deltas: `website-abuse-guardrails` capability
-`prospect-sign-out` (its spec file is marked retired) and the sign-in lines of `assistant-ui-build`
+`prospect-sign-out` (its spec file is marked retired), the `website-abuse-guardrails`
+`request-windows` requirement "Per-path windows include the OIDC routes" only (marked retired in
+place; its other requirements stand) and the sign-in lines of `assistant-ui-build`
 `build-experience` ("Google sign-in", "After sign-in, Build SHALL show the saved Home request",
 "Unknown usage SHALL retain its reservation ... until reconciled"), which archiving this change
 supersedes. The `puni-website-funnel` lines were rewritten in place by the scope slice (S1).

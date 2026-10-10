@@ -4,6 +4,8 @@
 
 Local only; the h2puni gate is the orchestrator's.
 
+Deploy prerequisite: before the API restarts on this code, S5 (puni-pr-00 PR #42) removes the four `OIDC_*` keys from the `deploy/website/k8s/encrypt-secret.ts:19-33` allowlist and from every deployed runtime file and secret, empty lines included; otherwise startup refuses.
+
 - `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT NX_DAEMON=false bunx nx run-many -t lint,typecheck,test -p website-be-01 website-store-sqlite website-fe-01 website-contracts --skip-nx-cache`: "Successfully ran targets lint, typecheck, test for 4 projects". Direct `bun test` counts: be-01 121, store-sqlite 73, fe-01 74, contracts 15 pass, 0 fail.
 - `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 159 items, 159 passed.
 - `bun install --frozen-lockfile`: no changes. The `bun.lock` diff has 0 added lines (only the three removed packages and their transitive entries).
