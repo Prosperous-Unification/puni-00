@@ -513,3 +513,120 @@ The follow-up's scoped Prettier check and `git diff --check` exited 0. Runtime
 suites were not repeated for this documentation-only follow-up; their exact
 candidate evidence remains above. Task 3.2 remains unchecked for the coordinator's
 post-Spaces composition, canonical exact-SHA host gate and exact-head CI.
+
+## 2026-10-11 Board CI geometry investigation
+
+PR #286 run `38085567630` tested exact Board-only head
+`d3a20b6c43a0352bbadff0305edb512abbc52de9`, before Spaces composition. Complete
+failed-job logs were read through h2puni's authenticated `gh` with explicit
+`--repo Prosperous-Unification/puni-00` (`/tmp/board-ci-failed.log`). The three
+failures were:
+
+- Shard 2, job `114311292368`: `header.spec.ts:280`, table height 633px below the required 634px.
+- Shard 3, job `114311292319`: `mobile.spec.ts:937`, dependency sheet on card 29 overlapped its trigger by 5.390625px. Before open, the card scroller was top 231/bottom 836/clientHeight 605; sheet padding increased clientHeight to 725 and bottom to 956.390625, 112px past the viewport.
+- Shard 4, job `114311292289`: `scroll-stability.e2e.ts:191`, table-driven terminal alignment differed by `0.22681554722127828` rows, above the allowed 0.1.
+
+The Board-only reproduction used the existing built-preview browser harness:
+`CI=1 E2E_PORT_SHIFT=2400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/e2e/mobile.spec.ts apps/wbs/fe-01/e2e/scroll-stability.e2e.ts --project chromium --grep 'no card sheet covers|50-row plan reaches'`
+(`/tmp/board-ci-repro.log`). It reproduced the terminal mismatch exactly. A
+snapshot of `origin/main` at `a3b1526bd`, with the same installed dependencies and
+app environment files, ran the same cases on shift 2900: terminal pairing passed
+(`/tmp/board-baseline-repro.log`). Both snapshots timed out in the original
+mobile case waiting for the last blank card's tags field, before the dependency
+geometry assertion. That fixture failure is distinct from the CI overlap.
+
+Reading the page, toolbar, card-sheet guard and their callers showed that Board
+inserted an additional 36px selector row above the existing Plan column. A new
+phone browser regression watched the row geometry fail by exactly 36px
+(`/tmp/board-phone-room-red.log`). The selectors now occupy an optional
+page-owned `viewControls` slot beside Plan actions on phones, outside its sheet.
+On desktop the selected runtime portals them into a callback-ref host at the end
+of the header's project controls, where the flexible picker absorbs their width. Board renders its
+own visible selectors while Plan remains mounted and hidden/inert; only two
+selector buttons exist at a time. Ref callbacks transfer focus to the newly
+mounted selected selector after DOM mutations, never to a suspended field.
+The interaction scope/runtime ownership and synchronous suspension boundary
+remain page-owned. The mounted identity test now re-queries selectors across
+view switches while retaining its original table/runtime/feed identity checks.
+
+The focus transfer was independently faulted by suppressing `selector.focus()`.
+The phone browser test then failed after Enter because the visible Board
+selector was inactive rather than focused (`/tmp/board-toolbar-focus-fault.log`).
+The fault was restored; adjacent production `Proof:` comments record both
+watched negatives.
+
+A separate public-API fixture with 30 named rows bypassed the missing-tags probe
+and measured dependency-sheet overlap. After the selector fix it was
+`-13.390625`px on Board, and an identical fixture on unchanged main also measured
+exactly `-13.390625`px (`/tmp/board-phone-room-green.log`,
+`/tmp/board-baseline-sheet-probe.log`). This is concrete baseline evidence; no
+generic sheet-guard change or passing claim for that overlap is included. The
+retained Board regression checks row geometry and keyboard focus. The existing
+header and terminal-pairing cases passed after the toolbar change.
+
+Task 3.1 is reopened for independent review of this runtime follow-up. Task 3.2
+still requires the coordinator's exact-SHA canonical gate and exact-head CI.
+No push, merge or host gate was performed by this worker.
+
+Two additional existing constraints shaped the desktop placement. Initially
+putting selectors in the desktop toolbar passed the original height/scroll cases
+but failed `project-settings.spec.ts`'s 1280px control-width budget and
+`gantt.spec.ts`'s toolbar-wrap transition (`/tmp/board-toolbar-budget.log`). The
+header host preserves that Plan toolbar contract and leaves the header/picker
+mounted across runtime withdrawal; only the selected runtime's portal retires.
+Astra's architectural guidance favored this host over lifting the whole header
+into the selected-runtime component.
+
+An intermediate broad browser run recorded 18 passing cases and three opt-in
+skips, but its 2500-card case could not close its context because a concurrent
+same-worktree browser run cleared shared trace artifacts (ENOENT,
+`/tmp/board-toolbar-browser-final.log`). This was a worker artifact-isolation
+mistake. Subsequent browser runs use distinct `--output` paths. The isolated
+measurement rerun passed 1/1 (`/tmp/board-toolbar-measure-final.log`), but the
+final source was subsequently changed to the desktop header placement, so final
+source validation is recorded separately below. An initial composed-snapshot
+attempt also refused an overlapping port; the corrected snapshot runs use shift
+4400 and never reuse an existing server.
+
+### Final toolbar candidate validation
+
+All commands below ran against the final production and test edits over
+`d3a20b6c43a0352bbadff0305edb512abbc52de9`; all exited 0 except the explicitly
+identified cold-catalog probe. Each browser run used a separate artifact path.
+
+- `CI=1 E2E_PORT_SHIFT=2400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/e2e/step-board.spec.ts apps/wbs/fe-01/e2e/header.spec.ts apps/wbs/fe-01/e2e/scroll-stability.e2e.ts --project chromium --output /tmp/board-toolbar-final-artifacts`: **19 passed, 3 skipped** in 1.9 minutes (`/tmp/board-toolbar-browser-final2.log`). The skips are the existing opt-in 50/500/2000-row `WBS_SCROLL_PROBE` traces. This includes the original failing header/terminal cases, desktop header checks at 768/900/1024/1280px and 125% zoom, the new phone row assertion, keyboard focus on both layouts, all Board draft cases and the 2500-card measurement.
+- From `apps/wbs/fe-01`, `TZ=UTC bunx vitest run src/components/wbs/project-page.test.tsx src/components/board/step-board-view.test.tsx src/app-router.test.tsx --no-file-parallelism --maxWorkers=1 --reporter=dot`: **115/115 passed**, three files (`/tmp/board-toolbar-mounted-final2.log`). Existing React `act` warnings remain visible.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/nx-board-toolbar-final bunx nx run-many -t lint,typecheck,build -p wbs-fe-01 --skip-nx-cache --outputStyle=static`: lint, typecheck and build plus the module typecheck dependency passed (`/tmp/board-toolbar-targets-final.log`).
+- `bunx tsc -p apps/wbs/fe-01/tsconfig.e2e.json --noEmit`: passed (`/tmp/board-toolbar-e2e-typecheck-final.log`).
+- `bunx @fission-ai/openspec@1.12.0 validate read-only-step-board --strict --json`: **1/1 valid** (`/tmp/board-toolbar-openspec-final.json`).
+
+The final 500-leaf/five-step fixture measured **2500 cards**, setup 9124ms and
+Board-click/two-frame 1062.371705ms. Its JSON is
+`/tmp/board-toolbar-final-artifacts/step-board-measures-every--8a1d2--500-leaf-five-step-fixture-chromium/step-board-500x5.json`.
+This is one Chromium 153.0.8010.12 linux/x64 observation at 1400x900, not an SLA.
+
+A separate snapshot of composed ref
+`0fecf3d23aba71d8a2467d3aebb47f19bc5f28df` received the final Board working diff
+without changing the integration worktree. At shift 4400, the Board/header/
+scroll/project-settings/gantt browser selection
+`--grep 'keeps view controls|height the chrome|50-row plan reaches|ordered mixed|preserves a cancelled|wraps unbroken|toolbar keeps its 1280 budget|re-measures the room when the toolbar wraps|125% zoom'`
+passed **9/9** (`/tmp/board-toolbar-composed-final.log`). It used the same
+Playwright config, Chromium project and unique output
+`/tmp/board-toolbar-composed-final-artifacts`.
+
+The exact original mobile case was then run together with the existing first
+mobile case, which seeds the shared directory catalog:
+`CI=1 E2E_PORT_SHIFT=4400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/e2e/mobile.spec.ts --project chromium --grep 'is cards, and nothing on the page scrolls sideways|no card sheet covers' --output /tmp/board-toolbar-mobile-seeded-artifacts`.
+Final Board passed **2/2 in 15.2 seconds**
+(`/tmp/board-toolbar-mobile-seeded.log`), including every original card-sheet
+geometry assertion. Unchanged main ran the same selection at shift 4900 and
+passed **2/2 in 15.0 seconds** (`/tmp/board-baseline-mobile-seeded.log`). No
+mobile source or fixture was changed. Running only the second case against the
+final candidate still timed out at its missing last-card tags trigger, matching
+the isolated main probe (`/tmp/board-toolbar-mobile-final.log`, exit 1). Thus the
+warm-catalog CI case is verified; isolated cold-catalog execution and the named-row
+baseline overlap described above remain distinct unresolved baseline issues.
+
+The final scoped Prettier check and `git diff --check` passed. Independent review,
+the canonical host gate and exact-head CI remain pending with the coordinator;
+tasks 3.1 and 3.2 remain unchecked.

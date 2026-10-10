@@ -622,6 +622,7 @@ export function useToday(): Date {
 export function WbsTable({
   project,
   planActive = true,
+  viewControls,
   projectName,
   planImport,
   toastApi: toastApiOverride,
@@ -2332,6 +2333,9 @@ export function WbsTable({
       */}
       {renderer === 'cards' ? (
         <div data-toolbar-sheet className="mb-1.5 flex shrink-0 items-center gap-2">
+          {/* Proof: placing these selectors in a preceding row failed the phone toolbar
+          geometry regression by 36px and the 50-row terminal scroll pairing by 0.2268 rows. */}
+          {viewControls}
           {scheduleCue}
           <PlanToolbarSheet active={planActive}>
             <div aria-busy={busy} className="flex flex-wrap items-center gap-2">

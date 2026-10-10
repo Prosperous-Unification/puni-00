@@ -8,6 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
+import { createPortal } from 'react-dom';
 
 import { StepBoardView } from '@/components/board/step-board-view';
 import { AppHeader } from '@/components/chrome/app-header';
@@ -45,18 +46,31 @@ function ProjectViews({
   project,
   view,
   onSelect,
+  selectorHost,
+  isDesktop,
   children,
 }: {
   project: ProjectRuntime;
   view: 'plan' | 'board';
   onSelect: (project: ProjectRuntime, view: 'plan' | 'board') => void;
-  children: ReactNode;
+  selectorHost: HTMLSpanElement | null;
+  isDesktop: boolean;
+  children: (viewControls: ReactNode) => ReactNode;
 }): React.JSX.Element {
   // Proof: replacing this selected-runtime instance with a shared scope and
   // omitting its cleanup made `discards a suspended draft when its selected
   // runtime is withdrawn` restore p2's draft in the next runtime. Watched
   // 2026-10-06.
   const [interaction] = useState(() => new PlanInteractionScope());
+  const movesFocus = useRef(false);
+  /** Ref callbacks run after DOM mutations; null means the old selector detached. */
+  const focusSelector = (selector: HTMLButtonElement | null, selected: 'plan' | 'board'): void => {
+    if (selector === null || !movesFocus.current || view !== selected) return;
+    // Proof: suppressing focus failed `keeps view controls in the phone toolbar and keyboard
+    // focus on the selected view`: the visible Board selector was not focused after Enter.
+    selector.focus();
+    movesFocus.current = false;
+  };
   const delivered = useSyncExternalStore(project.plan.subscribe, project.plan.snapshot);
   useEffect(() => {
     // Proof: omitting this prune made `prunes a held field when its row is
@@ -72,47 +86,64 @@ function ProjectViews({
   );
   const selectView = (next: 'plan' | 'board'): void => {
     interaction.select(next);
+    movesFocus.current = next !== view;
     onSelect(project, next);
   };
+  const viewControls = (
+    <div role="group" aria-label="Project view" className="flex shrink-0 gap-1">
+      <Button
+        ref={(selector) => {
+          focusSelector(selector, 'plan');
+        }}
+        size="sm"
+        className={isDesktop ? undefined : 'min-h-11'}
+        type="button"
+        data-project-view-selector
+        aria-pressed={view === 'plan'}
+        onPointerDown={() => {
+          interaction.suspendFocused();
+        }}
+        onClick={() => {
+          selectView('plan');
+        }}
+      >
+        Plan
+      </Button>
+      <Button
+        ref={(selector) => {
+          focusSelector(selector, 'board');
+        }}
+        size="sm"
+        className={isDesktop ? undefined : 'min-h-11'}
+        type="button"
+        data-project-view-selector
+        aria-pressed={view === 'board'}
+        onPointerDown={() => {
+          interaction.suspendFocused();
+        }}
+        // Proof: injecting setStatus here failed `sends no Plan commands from
+        // Board pointer, keyboard, drag or view changes` on one recorded
+        // status write. Watched in the selected runtime on 2026-10-06.
+        onClick={() => {
+          selectView('board');
+        }}
+      >
+        Board
+      </Button>
+    </div>
+  );
   return (
     <>
-      <div role="group" aria-label="Project view">
-        <Button
-          type="button"
-          data-project-view-selector
-          aria-pressed={view === 'plan'}
-          onPointerDown={() => {
-            interaction.suspendFocused();
-          }}
-          onClick={() => {
-            selectView('plan');
-          }}
-        >
-          Plan
-        </Button>
-        <Button
-          type="button"
-          data-project-view-selector
-          aria-pressed={view === 'board'}
-          onPointerDown={() => {
-            interaction.suspendFocused();
-          }}
-          // Proof: injecting setStatus here failed `sends no Plan commands from
-          // Board pointer, keyboard, drag or view changes` on one recorded
-          // status write. Watched in the selected runtime on 2026-10-06.
-          onClick={() => {
-            selectView('board');
-          }}
-        >
-          Board
-        </Button>
-      </div>
+      {isDesktop && selectorHost !== null && createPortal(viewControls, selectorHost)}
+      {!isDesktop && view === 'board' && viewControls}
       <div
         className={view === 'board' ? 'hidden' : 'flex min-h-0 flex-1 flex-col'}
         hidden={view === 'board'}
         inert={view === 'board'}
       >
-        <PlanInteractionProvider scope={interaction}>{children}</PlanInteractionProvider>
+        <PlanInteractionProvider scope={interaction}>
+          {children(!isDesktop && view === 'plan' ? viewControls : null)}
+        </PlanInteractionProvider>
       </div>
       {view === 'board' && (
         <StepBoardView
@@ -973,6 +1004,7 @@ export function ProjectPage({
    * open.
    */
   const renderer = useRendererForViewport();
+  const [selectorHost, setSelectorHost] = useState<HTMLSpanElement | null>(null);
   /**
    * The project's history, mounted by whichever surface is drawing the plan.
    *
@@ -1310,6 +1342,7 @@ export function ProjectPage({
         why that is 21.4 measured pixels rather than a preference.
       */}
       {renderer === 'table' && savedPlanShelf}
+      {renderer === 'table' && <span ref={setSelectorHost} className="flex shrink-0" />}
     </div>
   );
 
@@ -1368,29 +1401,34 @@ export function ProjectPage({
         {projectState.status === 'live' && (
           <ProjectViews
             project={projectState.services}
+            selectorHost={selectorHost}
+            isDesktop={renderer === 'table'}
             view={view}
             onSelect={(project, next) => {
               setViewFor({ project, view: next });
             }}
           >
-            <Profiler id="wbs-table" onRender={recordWbsScrollCommit}>
-              <WbsTable
-                project={projectState.services}
-                planActive={view === 'plan'}
-                // The name the export's header and filename carry. Read from the
-                // list rather than held twice: a rename lands in `projects` and
-                // the next export says the new name.
-                projectName={selectedProject?.name}
-                planImport={planImport}
-                // Proof: omitting this page-owned API left the remounted table's
-                // toast list empty after a successful import. Observed 2026-09-14.
-                toastApi={toastApi}
-                // Rendered by the table only on a cards viewport, which is the
-                // same answer `renderer` above gives — one hook, one store, so the
-                // header's arm and this one are complementary and never both.
-                savedPlansShelf={savedPlanShelf}
-              />
-            </Profiler>
+            {(viewControls) => (
+              <Profiler id="wbs-table" onRender={recordWbsScrollCommit}>
+                <WbsTable
+                  project={projectState.services}
+                  viewControls={viewControls}
+                  planActive={view === 'plan'}
+                  // The name the export's header and filename carry. Read from the
+                  // list rather than held twice: a rename lands in `projects` and
+                  // the next export says the new name.
+                  projectName={selectedProject?.name}
+                  planImport={planImport}
+                  // Proof: omitting this page-owned API left the remounted table's
+                  // toast list empty after a successful import. Observed 2026-09-14.
+                  toastApi={toastApi}
+                  // Rendered by the table only on a cards viewport, which is the
+                  // same answer `renderer` above gives — one hook, one store, so the
+                  // header's arm and this one are complementary and never both.
+                  savedPlansShelf={savedPlanShelf}
+                />
+              </Profiler>
+            )}
           </ProjectViews>
         )}
       </main>
