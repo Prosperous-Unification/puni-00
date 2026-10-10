@@ -9,7 +9,9 @@ Headless Chromium 153, measured 2026-10-05 over 24 conditions of five repetition
 gave these nearest-rank p95 figures against a provisional 100 ms target:
 interaction (zoom/pan) p95 at most 66.6 ms through 500×5 (2,500 attempts) and at
 most 52.2 ms at 2000×1, but 137.5–201.7 ms at 2000×5 (10,000 attempts); fresh-mount
-p95 already reaches 109.5–116.1 ms at 2,000 attempts and 308.3–339.7 ms at 10,000
+p95 already reaches 109.5–116.1 ms at 2,000 rows (2000×1 cells, about 10,070 DOM
+elements) and 308.3–339.7 ms at 2000×5, while 500×5 (2,500 attempts on 500 rows) mounts
+at 80.5–87.4 ms
 ([raw measurements](../../../experiments/r6b-timeline/evidence/measurements.json),
 [screenshots](../../../experiments/r6b-timeline/evidence/batch-1440.png),
 [fault proofs](../../../experiments/r6b-timeline/evidence/proofs.json)). Neither control
@@ -17,8 +19,9 @@ was faster or more correct, so the recommendation for the real Gantt is: keep th
 elapsed sub-day axis as a separate epoch-millisecond scale beside the unchanged
 workday `DAY_SCALES`, offer the named discrete rungs with fit-to-selection (the slider
 adds no measured benefit), keep enlarged hit targets with an explicit ambiguity list,
-and window rows and marks before about 2,000 mounted attempts, since mount cost
-crosses the target first. This is a density bracket, not a production ceiling or a
+and window rows and marks before about 2,000 mounted rows (about 10,000 DOM
+elements), since mount cost tracks rows and DOM size and crosses the target first.
+This is a density bracket, not a production ceiling or a
 human preference verdict; adopting any of it still needs its own design interview.
 
 ## Intent and boundary
@@ -205,8 +208,8 @@ their fresh manual outputs supplement the normal repository gate. The
 pins the final renderer/fixtures/harness. Raw measurements include latency and
 long-task event observations; no full DevTools CPU profile was captured.
 
-Canonical exact-head h2puni gate, CI and independent final review are pending at
-report preparation and required before merge. No raw full Nx gate on h2puni.
+Merging this report required the exact-head h2puni gate, CI and an independent
+review; no raw full Nx gate ran on h2puni.
 No human participant/task-time/error/preference study, actual phone, other browser,
 exclusive-hardware benchmark, production schedule/calendar migration, solver,
 deployment or capacity-mode activation was tested or decided. WBS 020.07 records

@@ -59,7 +59,6 @@
       "exit": 0
     }
   ],
-  "pending": ["exact-head canonical h2puni gate", "CI", "independent review", "merge"],
   "unmeasured": [
     "human task times/errors/preference",
     "real phone/other browser",
