@@ -22,15 +22,40 @@ At a due non-client subject, fence all writes and any running stream before remo
 
 ### Recovery journal and ordering
 
-[ADR 0038](../../../docs/adr/0038-retention-journal-survives-website-database-restore.md) owns the separate recovery record decision. The journal contains ordered designation, correction, classification-hold and erasure events with typed subject identity, event time, actor/evidence reference where applicable, sequence and integrity chain; it contains no description, chat, email, cookie or key. Its authoritative copy and monotonic latest-head witness must survive loss of the database host and remain outside SQLite backups and release directories. A local private copy may speed replay but cannot be the authority. The remote append and witness update must form one durable, monotonic commit or expose incomplete state that blocks service; an old but internally valid copy is insufficient. Restore requires the latest complete remote journal and witness; absence or divergence blocks startup.
+[ADR 0038](../../../docs/adr/0038-retention-journal-survives-website-database-restore.md) owns the decision to keep a separate recovery record, and [ADR 0046](../../../docs/adr/0046-retention-journal-is-a-hash-chain-in-the-versioned-backup-bucket.md) owns its shape.
 
-For a state change, take a policy lock shared by all API processes and a SQLite write fence. Compare the database's applied sequence with the authoritative journal head before another designation, hold change or cleanup; mismatch requires replay or refusal. Validate subject and state, optionally fsync a local candidate, then confirm remote event durability and a monotonic head receipt **before** any destructive SQLite commit or success acknowledgment. A failed or unconfirmed remote write refuses the operation. Update SQLite and its applied sequence in one transaction. The remote event wins if the process dies before the database commit; the current process must replay it before further policy mutation. After restart or restore, replay all later events in order. Never silently truncate a partial tail or skip a sequence. An erasure for a subject absent from an older backup remains a tombstone; a designation or hold whose subject is absent makes that backup ineligible for service. A restored backup's later designation, hold and erasure state is corrected before routes open.
+**Record.** The journal lives under `retention-journal/<environment>/` in the existing versioned backup bucket. It has three kinds of object:
 
-During a mixed-version swap, migrations may be installed, but policy writes and cleanup stay disabled until all serving API processes use the journal-aware version. Once any journal event exists, the external activation/head witness prevents promotion or rollback to a binary without journal replay and content-write fences. This check belongs in the private release and restore paths because a pre-journal binary cannot police itself; an incompatible release is refused before serving.
+- `genesis.json`, written once;
+- one immutable `events/<12-digit sequence>.json` per event;
+- `head.json`, rewritten after every event.
+
+Events are canonical JSON: sorted keys, no whitespace, a trailing newline. Each carries the journal id, sequence, previous hash, UTC time, typed subject, writer release, and its own SHA-256. The event types are designation, correction, classification hold, hold release, anchor resolution and erasure. They carry an opaque evidence reference and actor where applicable, and never any content. The operator API records the actor `operator`; the CLI takes an explicit one.
+
+**SQLite.** Migration `010_retention_journal` adds:
+
+- on the journal position: the journal id, applied hash, last head version and highest head sequence seen, and a `detached | attached | forked` state;
+- an append-only mirror of applied events;
+- erasure state on each subject;
+- content fences: triggers that refuse any content insert, and any nonblank update, for a fenced or erased subject. Because they are triggers, they bind an older binary too.
+
+**Append.** Every policy change runs under a cross-process policy lock, a separate SQLite file beside the database. In order:
+
+1. Read the head and require it to equal the database's applied position. A remote that is ahead refuses with `behind` until replay; a head that is behind refuses as stale; a mismatch is a fork.
+2. Adopt an orphan event that continues the head.
+3. Write the event with `If-None-Match: *`, read it back, and compare the bytes and the version id.
+4. Do the same for the head.
+5. Only then apply the event, its mirror row and the new position in one primary transaction.
+
+A remote failure changes nothing in the database. A read-back difference marks the database `forked`, and then no policy change runs until an operator resolves it.
+
+**Replay.** Startup, restore and every mutating command verify the chain from the applied position to the head, then replay each later event in order. Missing, unreadable, malformed, truncated, gapped, stale, forked and foreign states are each refused. A designation, correction, hold or resolution naming a subject absent from a snapshot makes that snapshot ineligible; an erasure for an absent subject is a tombstone. A pre-journal snapshot is `detached` and serves policy changes only after an explicit attach. A crash after the head is written replays exactly once.
+
+**Release gate.** The public build writes `capabilities.json` (`retention-journal/1`). The private release pin and `fleet-check` refuse a release without it once the fleet configuration enables the journal. The database fences hold regardless.
 
 ### Backup lifecycle and activation
 
-The private recovery path records snapshot instant, migration ledger and journal sequence/head. Its known migration list must advance with the new public migration; both forward and rollback paths need a real schema/ledger fixture. An isolated restore drill must prove current and older snapshots, including standalone manual proposals and pre-hold states, recover with later designation, hold and erasure events before any schedule or pruning starts. The proposed operating default is one consistent backup per UTC day and a rolling 30-day age including pre-release snapshots. Age deletion waits for a newer proven-restorable copy. A failed snapshot, missing remote journal/witness or explicit incident hold produces an overdue operator exception; it never silently removes the last usable copy or claims the age target was met. New backups and journal copies remain outside the web root and release directories. Initial deployment runs deadline backfill and a count-only due report with deletion and pruning disabled; no existing live file is removed by deployment.
+The private recovery path records snapshot instant, migration ledger and journal sequence/head. Its known migration list must advance with the new public migration; both forward and rollback paths need a real schema/ledger fixture. An isolated restore drill must prove current and older snapshots, including standalone manual proposals and pre-hold states, recover with later designation, hold and erasure events before any schedule or pruning starts. Backups run hourly, so the minimum of one consistent backup per UTC day is exceeded. Aging keeps every snapshot under 48 hours and the last snapshot of each UTC day up to 30 days, and never the newest verified copy. On the versioned bucket a delete leaves a noncurrent version; the bucket's noncurrent-version expiration of 30 days removes it physically, so physical retention is at most 60 days. Age deletion waits for a newer proven-restorable copy. A failed snapshot, missing remote journal/witness or explicit incident hold produces an overdue operator exception; it never silently removes the last usable copy or claims the age target was met. New backups and journal copies remain outside the web root and release directories. Initial deployment runs deadline backfill and a count-only due report with deletion and pruning disabled; no existing live file is removed by deployment.
 
 ## Risks / Trade-offs
 

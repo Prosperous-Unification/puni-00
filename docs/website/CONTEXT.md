@@ -76,6 +76,34 @@ _Avoid_: Closed proposal
 A durable record that a retention subject's content was removed, including the identity needed to keep it removed after recovery.
 _Avoid_: Deleted backup
 
+**Retention journal**:
+The remote, append-only, hash-chained record of designations, corrections, holds, anchor resolutions and erasures that a restored database replays before serving.
+_Avoid_: Audit log, backup
+
+**Journal head**:
+The single remote object naming the latest journal event and its hash; the database records which head version it last wrote or verified.
+_Avoid_: Checkpoint, cursor
+
+**Policy lock**:
+The cross-process lock every retention policy change holds while it reads and writes the journal, kept in a file beside the database.
+_Avoid_: Mutex, write lock
+
+**Content fence**:
+The database refusal of any new or nonblank content for a retention subject once its erasure has begun.
+_Avoid_: Soft delete
+
+**Orphan event**:
+A journal event a crashed writer stored without moving the head; the next writer adopts it if it continues the chain and otherwise marks the journal forked.
+_Avoid_: Pending event
+
+**Detached database**:
+A website database not bound to any retention journal, such as a fresh file or a pre-journal snapshot; it serves policy changes only after an explicit attach.
+_Avoid_: Unlinked snapshot
+
+**Incident hold**:
+An operator-recorded stop on backup aging that keeps every snapshot until it is released.
+_Avoid_: Legal hold, classification hold
+
 **Request window**:
 A fixed one-minute count of requests per source, per path or across the site, after which further requests are refused for the rest of the minute.
 _Avoid_: Throttle, rate limiter

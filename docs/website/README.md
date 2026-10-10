@@ -34,7 +34,7 @@ Manual submission does not require a visitor account. The [Build AI chat harness
 - [Domain language](CONTEXT.md), [OpenRouter research](openrouter-research.md), and [frontend agent libraries](frontend-agent-libraries.md).
 - [Build app icons](app-icons.md): the NASA-derived moon favicons, their source and checksums.
 - [Anonymous draft retention operator procedure](draft-retention.md) records the explicit inspect/apply command and its backup limitation.
-- [Request retention deadlines](request-retention.md) records the count-only report, activation coverage and ambiguous-anchor resolution commands.
+- [Request retention deadlines](request-retention.md) records the count-only report, activation coverage, ambiguous-anchor resolution, the retention journal commands, activation order and incident procedure.
 - [Interactive local walkthrough](prototypes/funnel.html) and [instructions](prototypes/README.md). Open the HTML file directly; it uses no accounts, network, model or real submission.
 
 The proposed budget values and turn limits live in the design. They are pilot assumptions; this planning work does not activate paid inference or deploy a public funnel.
