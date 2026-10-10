@@ -18,7 +18,7 @@ Dany's request (verbatim): "now - i need to redesign the build section - (1) i w
 2. The layout is a typical AI chat harness: full-height conversation, streaming assistant messages, user messages, a composer pinned at the bottom in the site's liquid-glass style, a stop button, visible thinking/streaming/error states. The Home request is the first user message. Mobile-first and keyboard friendly.
 3. A real OpenRouter integration through the existing server-only adapter, routing safeguards and reservation accounting.
 4. The chat is a short sales/conversion conversation (clarify, brief, confidence, email, proposal). It never agrees to price, dates or contracts; it stays on software-request scope and resists prompt injection.
-5. **ASSUMPTION (orchestrator; Dany may override): no sign-in wall.** Anonymous chat bound to the browser draft claim under strict caps. Google sign-in stays optional.
+5. **Decided 2026-10-11 (ADR 0039 accepted): no sign-in at all.** Anonymous chat bound to the browser draft claim under strict caps.
 6. The privacy notice names OpenRouter and the model provider before chat is enabled.
 7. Dany supplies the OpenRouter key into the host runtime env; it is never stored in a repo or chat; the app shows a visibly disabled state without it.
 
@@ -28,7 +28,7 @@ The following still-open delta lines are superseded by this change. The `puni-we
 
 - `openspec/changes/assistant-ui-build/specs/build-experience/spec.md`, "Google sign-in": "require authentication before paid inference" → sign-in is optional; paid inference is admitted by the browser claim.
 - Same file, "Customer conversation": "After sign-in, Build SHALL show the saved Home request and wait for the customer to press Send" → the same explicit-Send rule applies to the anonymous visitor without the sign-in precondition.
-- `openspec/changes/puni-website-funnel/specs/request-handoff/spec.md`, "Independent prospect identity for AI": "When a prospect chooses AI, the PUNI API SHALL authenticate them through its own OIDC session" → OIDC remains for account continuity, not as the chat gate.
+- `openspec/changes/puni-website-funnel/specs/request-handoff/spec.md`, "Independent prospect identity for AI": "When a prospect chooses AI, the PUNI API SHALL authenticate them through its own OIDC session" → retired; the conversation is claim-bound (D1).
 - `openspec/changes/puni-website-funnel/specs/scoping-conversation/spec.md`, "Bounded prospect conversation": "at most 12 user turns per brief ... 1,024 completion tokens" → 8 visitor turns and 400 completion tokens for the anonymous conversation; the account path keeps its figures until removed.
 - `docs/website/README.md`: "Choosing AI requires sign-in before any model call."; `docs/website/openrouter-research.md`: "do not call the model before sign-in"; private `docs/website/build-experience.md`: "Sign-in precedes the first paid model turn."
 
@@ -191,7 +191,7 @@ Conversation content is request content. `conversation_turn.content` and `conver
 - `build-page.tsx` becomes the harness: `<main class="harness">` with the thread viewport (`ThreadPrimitive.Viewport`, `flex: 1; overflow-y: auto`), messages as plain rows (`YOU` / `PUNI` micro labels, no bubbles on the assistant side, a faint glass bubble on the user side), a status row (`Thinking…`, streaming cursor, error text with Retry), and the composer pinned with `position: sticky; bottom: env(safe-area-inset-bottom)`: one-line glass field that grows to three lines (`border: 1px solid #ffffff6b; background: #ffffff12; backdrop-filter: blur(18px) saturate(160%)`, never white), the round send arrow, Stop while streaming, `Enter` sends, `Shift+Enter` newline. Eyebrow above the first message: `[ AI can do everything. It doesn't want anything. ]`. Inline conversion card under the thread at `contact`: `[ YOUR BRIEF ]` editable text, email field, `Request a proposal ↗` using the existing `/proposals` client code, bracket toggle `[ Edit brief / Keep it ]`. Exhausted: composer replaced by one line (`This conversation reached its limit. Send your brief to a person.`) plus the same card. Disabled provider: thread shows the Home request and one assistant-styled system row `AI chat isn't switched on yet. A person still reads every brief.` with `Shape your brief →`.
 - Explicit Send: the composer is pre-filled read-only with the Home request and a single `Send ↗`; no stream request before that click; mount, reload and the optional sign-in return send nothing (the existing `explicit-send.mjs` rule, now on `/conversation/stream`).
 - Mobile: `100dvh` layout, composer above the virtual keyboard (`visualViewport` resize handler keeps the last message in view), 44 px targets, no horizontal overflow at 320 px, focus order header → thread → composer.
-- Visible states: `loading`, `ready`, `streaming`, `stopped`, `error` (retryable), `exhausted`, `disabled`, `handed_off`, `expired` (redirect to Home as today). Impossible unions reach `BuildErrorBoundary`.
+- Visible states: `loading`, `ready`, `streaming`, `stopped`, `error` (retryable), `exhausted`, `disabled`, `handed_off`, `expired` (redirect to Home as today). Impossible unions reach `AppErrorBoundary` (`BuildErrorBoundary` until 2026-10-11).
 - The manual brief, operator inbox and the concept preview panel are unchanged; the preview is not shown in the harness (non-goal).
 - Live harness as built in slice 3 (`conversation-harness.tsx`): the AI SDK `DefaultChatTransport` posts to `/conversation/stream` and the harness reads the UI message chunks itself, because the thread is the server's saved turns plus at most one live or stopped attempt rather than a client-owned message list. Stop posts the cancel first and then drops the stream (the disconnect settles the attempt too if the cancel is lost). The Home request leaves the composer once it is in the thread; Retry there resends it under the server key. Demo replies carry `Simulated`. The optional sign-in sits behind `[ Sign in ]` in the harness bar. The inline card prefills the stored brief (else the Home request) and focuses `Thank you.` with the receipt after submission; `Start over` disappears because the claim is consumed.
 
@@ -227,5 +227,4 @@ Each slice ends with: (1) `bunx nx run-many -t test lint typecheck build -p webs
 
 ## Open Questions
 
-- Dany confirms or overrides the no-sign-in assumption and the $10 site-day ceiling.
-- Whether the account workspace (`/chat*`, concept preview) is retired or restyled is a later change.
+- Decided 2026-10-11: retired in `retire-prospect-sign-in` (S3/S4).

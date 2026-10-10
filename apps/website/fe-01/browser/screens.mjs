@@ -6,9 +6,10 @@ import { chromium } from 'playwright';
 
 // Two fixture stacks: demo replies (DEMO_AUTH=1, 4218/3118) and AI chat off (DEMO_AUTH=0, 4219/3119).
 // PUNI_SCREENS_PORT_OFFSET shifts all six ports, so a second checkout can audit beside a first.
-const portOffset = Number(env['PUNI_SCREENS_PORT_OFFSET'] ?? '0');
-if (!Number.isSafeInteger(portOffset) || portOffset < 0)
-  throw new Error('PUNI_SCREENS_PORT_OFFSET must be a nonnegative integer');
+const portOffsetText = env['PUNI_SCREENS_PORT_OFFSET'] ?? '0';
+if (!/^\d+$/.test(portOffsetText) || Number(portOffsetText) > 60000)
+  throw new Error(`PUNI_SCREENS_PORT_OFFSET must be an integer from 0 to 60000: ${portOffsetText}`);
+const portOffset = Number(portOffsetText);
 const loopback = (port) => `http://localhost:${String(port + portOffset)}`;
 const demo = { app: loopback(4218), api: loopback(3118), site: loopback(4318) };
 const aiOff = { app: loopback(4219), api: loopback(3119), site: loopback(4319) };
@@ -29,7 +30,7 @@ const viewports = [
   { width: 320, height: 568 },
 ];
 /** The four widths plus 1024, for the Build captures that assert the absence of sign-in. */
-const fiveViewports = [
+const signInAuditViewports = [
   { width: 1440, height: 900 },
   { width: 1024, height: 768 },
   { width: 768, height: 1024 },
@@ -103,6 +104,16 @@ async function checkNoSignIn(page) {
   return found.length === 0 ? [] : [`build renders a sign-in control: ${found.join('; ')}`];
 }
 
+/** The manual brief's links to this app's Build route. */
+async function findBuildLinks(page) {
+  return page.locator('main a').evaluateAll((links) =>
+    links
+      .map((link) => new globalThis.URL(link.href))
+      .filter((url) => url.origin === globalThis.location.origin && url.pathname === '/')
+      .map((url) => url.href),
+  );
+}
+
 const states = [
   {
     name: 'build-disabled',
@@ -148,7 +159,7 @@ const states = [
     stack: aiOff,
     path: '/',
     cookie: true,
-    viewports: fiveViewports,
+    viewports: signInAuditViewports,
     ready: (page) => page.locator('.build-disabled-row').waitFor(),
   },
   {
@@ -198,18 +209,13 @@ const states = [
   },
   {
     name: 'manual',
-    // Proof: making offersBuild return false for a live claim made this check report "manual
-    // brief does not link to Build" at all four widths.
+    // Proof: offering the card whenever the claim is live (offersBuild alone) made this report
+    // "manual brief links to Build while AI is off" at all four widths (veto V14).
     check: async (page) => {
-      const build = await page.locator('main a').evaluateAll((links) =>
-        links
-          .map((link) => new globalThis.URL(link.href))
-          .filter((url) => url.origin === globalThis.location.origin && url.pathname === '/')
-          .map((url) => url.href),
-      );
       const problems = [];
-      if (build.length !== 1)
-        problems.push(`manual brief does not link to Build: ${JSON.stringify(build)}`);
+      const build = await findBuildLinks(page);
+      if (build.length !== 0)
+        problems.push(`manual brief links to Build while AI is off: ${build.join(', ')}`);
       if (/sign in/i.test(await page.locator('main').innerText()))
         problems.push('manual brief mentions sign-in');
       return problems;
@@ -218,6 +224,45 @@ const states = [
     path: '/manual',
     cookie: true,
     ready: (page) => page.locator('#brief').waitFor(),
+  },
+  {
+    name: 'manual-ai',
+    // Proof: making offersBuild return false for a live claim made this report "manual brief
+    // does not link to Build" at all four widths.
+    check: async (page) => {
+      const problems = [];
+      const build = await findBuildLinks(page);
+      if (build.length !== 1)
+        problems.push(`manual brief does not link to Build: ${JSON.stringify(build)}`);
+      if (/sign in/i.test(await page.locator('main').innerText()))
+        problems.push('manual brief mentions sign-in');
+      return problems;
+    },
+    stack: demo,
+    path: '/manual',
+    cookie: true,
+    ready: (page) => page.locator('#brief').waitFor(),
+  },
+  {
+    name: 'manual-malformed-draft',
+    // The real draft read with an unparsable expiresAt, as a broken API would answer.
+    malformedDraft: true,
+    // Proof: accepting any expiresAt in parseDraft made this report "unexpected alert: ... This
+    // page needs your attention." (the boundary, not the load-error state) at all four widths;
+    // removing AppErrorBoundary around ManualPage as well left no alert at all (the ready wait
+    // timed out and the strict run exited 1).
+    check: async (page) => {
+      const problems = [];
+      const alert = page.getByRole('alert');
+      if ((await alert.count()) !== 1) problems.push('no load-error state');
+      else if (!(await alert.innerText()).includes('We couldn’t load your request.'))
+        problems.push(`unexpected alert: ${(await alert.innerText()).replaceAll('\n', ' ')}`);
+      return problems;
+    },
+    stack: demo,
+    path: '/manual',
+    cookie: true,
+    ready: (page) => page.getByRole('alert').waitFor(),
   },
   {
     name: 'manual-nocookie',
@@ -269,7 +314,7 @@ const states = [
     stack: demo,
     path: '/',
     cookie: true,
-    viewports: fiveViewports,
+    viewports: signInAuditViewports,
     check: async (page) => {
       const problems = [...(await checkNoSignIn(page))];
       if (!(await page.locator('#build-message[readonly]').isVisible()))
@@ -295,7 +340,7 @@ states.push({
   cookie: true,
   // The read is the real API's, with the provider set to `paused`, as during an open pause.
   pausedProvider: true,
-  viewports: fiveViewports,
+  viewports: signInAuditViewports,
   check: async (page) => {
     const problems = [];
     if ((await page.locator('main .build-paused-row').count()) !== 1)
@@ -419,7 +464,7 @@ async function auditFocus(page) {
 
 /** The live marketing site the app header must match; only read, never written. */
 const parityOrigin = env['PUNI_PARITY_ORIGIN'] ?? 'https://dev.puni.dev';
-const parityViewports = fiveViewports;
+const parityViewports = signInAuditViewports;
 const parityTolerance = 2;
 /** The same header parts on the site and in the app; `menuItems` are read with the menu open. */
 const siteHeaderParts = {
@@ -593,6 +638,14 @@ try {
       if (state.hold)
         await page.route(`${state.stack.api}/entry`, () => new Promise(() => undefined));
       if (state.abort) await page.route(`${state.stack.api}/entry`, (route) => route.abort());
+      if (state.malformedDraft)
+        await page.route(`${state.stack.api}/draft`, async (route) => {
+          const response = await route.fetch({
+            headers: { ...route.request().headers(), 'x-forwarded-for': nextVisitor() },
+          });
+          const view = await response.json();
+          await route.fulfill({ response, json: { ...view, expiresAt: 'tomorrow' } });
+        });
       if (state.pausedProvider)
         await page.route(`${state.stack.api}/conversation`, async (route) => {
           const response = await route.fetch({

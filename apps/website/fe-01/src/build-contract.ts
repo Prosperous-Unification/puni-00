@@ -50,7 +50,7 @@ export interface BrowserChallenge {
   expiresAt: number;
 }
 
-/** The `GET /conversation` body: the anonymous conversation bound to this browser's draft. */
+/** The `GET /conversation` body: the conversation bound to this browser's draft claim. */
 export interface Conversation {
   stage: ConversationStage;
   turns: { role: 'user' | 'assistant'; content: string }[];
@@ -65,6 +65,49 @@ export interface Conversation {
   latestOperation: (ConversationOperation & { message: string }) | null;
   exhaustedReason: ConversationExhaustedReason | null;
   challenge: BrowserChallenge | null;
+}
+
+/** The `GET /draft` body: the manual brief's draft and the conversation provider now. */
+export interface Draft {
+  description: string;
+  brief: string;
+  csrfToken: string;
+  expiresAt: string;
+  provider: ConversationProvider;
+}
+
+/** The `GET /draft` body did not match the API contract. */
+export class InvalidDraft extends Error {
+  constructor(field: string) {
+    super(`Invalid draft response: ${field}`);
+  }
+}
+
+/**
+ * Validates the `GET /draft` body at the API boundary.
+ * @throws InvalidDraft when a field is absent or outside the contract, including an `expiresAt`
+ * that is not a date.
+ */
+export function parseDraft(value: unknown): Draft {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new InvalidDraft('body');
+  const description =
+    'description' in value && typeof value.description === 'string' ? value.description : null;
+  if (description === null) throw new InvalidDraft('description');
+  const brief = 'brief' in value && typeof value.brief === 'string' ? value.brief : null;
+  if (brief === null) throw new InvalidDraft('brief');
+  const csrfToken =
+    'csrfToken' in value && typeof value.csrfToken === 'string' ? value.csrfToken : '';
+  if (!csrfToken) throw new InvalidDraft('csrfToken');
+  const expiresAt =
+    'expiresAt' in value && typeof value.expiresAt === 'string' ? value.expiresAt : '';
+  // Proof: accepting any string here failed build-contract.test.ts "a draft with a malformed
+  // expiresAt is invalid" and the manual-malformed-draft capture in browser/screens.mjs.
+  if (Number.isNaN(Date.parse(expiresAt))) throw new InvalidDraft('expiresAt');
+  const provider = 'provider' in value ? value.provider : undefined;
+  const known = providers.find((candidate) => candidate === provider);
+  if (known === undefined) throw new InvalidDraft('provider');
+  return { description, brief, csrfToken, expiresAt, provider: known };
 }
 
 /** The `GET /conversation` body did not match the API contract. */
@@ -240,8 +283,8 @@ export function parseConversation(value: unknown): Conversation {
   };
 }
 
-/** What Build renders for a visitor without an account session. */
-export type AnonymousHarness =
+/** What Build renders for this browser's draft claim. */
+export type Harness =
   | { kind: 'loading' }
   | { kind: 'redirect'; url: string }
   | { kind: 'disabled'; conversation: Conversation }
@@ -249,16 +292,16 @@ export type AnonymousHarness =
   | { kind: 'live'; conversation: Conversation };
 
 /**
- * Maps the entry status and the `GET /conversation` body to the anonymous harness state.
+ * Maps the entry status and the `GET /conversation` body to the harness state.
  * `entry` is null while it loads; an unavailable entry redirects to Home with its reason.
  * `openrouter` and `demo` are the live harness; `disabled` and `paused` have no composer.
  * @throws InvalidConversation when the body breaks the contract.
  */
-export function resolveAnonymousHarness(
+export function resolveHarness(
   siteOrigin: string,
   entry: EntryStatus | null,
   conversation: unknown,
-): AnonymousHarness {
+): Harness {
   if (entry === null) return { kind: 'loading' };
   if (!entry.available) return { kind: 'redirect', url: buildReturnUrl(siteOrigin, entry.reason) };
   const parsed = parseConversation(conversation);

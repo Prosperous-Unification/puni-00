@@ -7,6 +7,8 @@ export interface DraftView {
   brief: string;
   csrfToken: string;
   expiresAt: string;
+  /** The conversation provider now; the manual brief links to Build only while it is enabled. */
+  provider: ConversationProvider;
 }
 
 /** Server-owned conversation stage; the UI offers affordances by stage, never by model text. */

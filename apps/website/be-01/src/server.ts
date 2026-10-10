@@ -626,6 +626,13 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     return config.demoAuth ? { kind: 'demo' } : { kind: 'disabled' };
   }
 
+  /** The provider as the browser sees it on `GET /conversation` and `GET /draft`. */
+  function readConversationProvider(): ConversationProvider {
+    const selected = selectConversationProvider().kind;
+    if (selected === 'paid') return 'openrouter';
+    return selected === 'demo' || selected === 'paused' ? selected : 'disabled';
+  }
+
   /** Maps a refused or replayed conversation admission to its typed response. */
   function conversationRefusal(
     admitted: Exclude<ConversationAdmission, { kind: 'started' }>,
@@ -765,6 +772,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         brief: draft.brief,
         csrfToken: draftCsrf(claim),
         expiresAt: new Date(draft.expiresAt).toISOString(),
+        provider: readConversationProvider(),
       };
       return attachCors(json(view, 200, { 'Cache-Control': 'no-store' }), origin);
     }
@@ -786,13 +794,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         ? store.findConversationOperation(conversation.id, initialKey)
         : null;
       const latest = conversation ? store.findLatestConversationOperation(conversation.id) : null;
-      const selected = selectConversationProvider().kind;
-      const provider: ConversationProvider =
-        selected === 'paid'
-          ? 'openrouter'
-          : selected === 'demo' || selected === 'paused'
-            ? selected
-            : 'disabled';
+      const provider = readConversationProvider();
       // The check gates only the attempt that creates the conversation row under paid pricing.
       const challenge =
         provider === 'openrouter' && conversation === null

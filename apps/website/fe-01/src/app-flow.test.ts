@@ -4,6 +4,7 @@ import { ApiFailure } from './api';
 import {
   describeFailure,
   describeOperatorFailure,
+  offersAi,
   offersBuild,
   unreachableMessage,
 } from './app-flow';
@@ -18,6 +19,24 @@ describe('manual brief route to Build', () => {
     expect(offersBuild({ expiresAt: '2026-10-12T11:59:00.000Z' }, now)).toBe(true);
     expect(offersBuild({ expiresAt: '2026-10-11T12:00:00.000Z' }, now)).toBe(false);
     expect(offersBuild({ expiresAt: '2026-10-10T12:00:00.000Z' }, now)).toBe(false);
+  });
+
+  test('the manual brief offers AI only while the claim is live and AI is enabled', () => {
+    const live = '2026-10-11T13:00:00.000Z';
+    const expired = '2026-10-11T11:00:00.000Z';
+    // Proof: returning offersBuild alone made the disabled and paused rows offer AI, the dead
+    // "AI chat isn't switched on yet" loop of veto V14.
+    for (const [provider, expiresAt, expected] of [
+      ['openrouter', live, true],
+      ['demo', live, true],
+      ['disabled', live, false],
+      ['paused', live, false],
+      ['openrouter', expired, false],
+      ['demo', expired, false],
+      ['disabled', expired, false],
+      ['paused', expired, false],
+    ] as const)
+      expect(offersAi({ provider, expiresAt }, now)).toBe(expected);
   });
 
   test('a malformed claim expiry is an error, not a hidden card', () => {
