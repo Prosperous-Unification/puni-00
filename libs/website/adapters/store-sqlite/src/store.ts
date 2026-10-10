@@ -52,6 +52,7 @@ import {
   utcDayOf,
 } from './guardrail-store';
 import { websiteMigrations } from './migration-catalogue';
+import { isContentFence } from './request-erasure';
 import {
   anchorRequestContent,
   backfillRetentionSubjects,
@@ -77,6 +78,18 @@ export type {
   ProposalCapRefusal,
 } from './guardrail-store';
 export { guardrailAllowance } from './guardrail-store';
+export type { ErasureOutcome, RetentionSubjectRef } from './request-erasure';
+export {
+  compactAfterErasure,
+  contentFenceMessage,
+  eraseAccountIdentityIfUnneeded,
+  eraseSubjectContent,
+  ErasureRefusedError,
+  fenceSubject,
+  isContentFence,
+  prepareErasureConnection,
+  releaseFence,
+} from './request-erasure';
 export type {
   AmbiguousRetentionSubject,
   AnchorResolution,
@@ -316,6 +329,37 @@ export class WebsiteStore {
     reservedMicroUsd: number | null,
     now: number,
     allowNew = true,
+  ): ChatAdmission {
+    try {
+      return this.admitChatOperationUnfenced(
+        accountId,
+        requestId,
+        idempotencyKey,
+        bodyHash,
+        message,
+        initial,
+        reservedMicroUsd,
+        now,
+        allowNew,
+      );
+    } catch (error) {
+      // A fenced subject (erasure in progress or done) refuses the write in SQLite; the request is gone.
+      // Proof: rethrowing here made `unknown provider usage keeps its reservation` throw the SQLite fence instead of `request_unavailable`.
+      if (isContentFence(error)) return { kind: 'request_unavailable' };
+      throw error;
+    }
+  }
+
+  private admitChatOperationUnfenced(
+    accountId: string,
+    requestId: string,
+    idempotencyKey: string,
+    bodyHash: string,
+    message: string,
+    initial: boolean,
+    reservedMicroUsd: number | null,
+    now: number,
+    allowNew: boolean,
   ): ChatAdmission {
     return this.database
       .transaction((): ChatAdmission => {

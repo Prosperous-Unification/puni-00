@@ -176,3 +176,30 @@ The fault proofs below were run by the slice's helper agent and are carried by t
 | prefix segments              | config test accepted `retention-journal/../website/`                   |
 
 - `bun test libs/website/adapters/store-sqlite/src/retention-journal/s3-remote.test.ts`: `10 pass`, `0 fail`.
+
+### Slice 4: the eraser, without the journal (2026-10-11)
+
+`request-erasure.ts` contains:
+
+- `fenceSubject`: moves a `non_client` subject from `none` to `fenced` and turns in-flight chat and conversation operations `unknown`, keeping their reservations.
+- `releaseFence`.
+- `eraseSubjectContent`: blanks the current and legacy rows of both subject kinds and their claim replay rows, refuses shared draft lineage, and treats an absent subject as a tombstone.
+- `eraseAccountIdentityIfUnneeded`: sets the email to `erased:<id>` and deletes the OIDC link and sessions.
+- `prepareErasureConnection` (`secure_delete`) and `compactAfterErasure` (`VACUUM`).
+
+`admitChatOperation` maps a content-fence ABORT to `request_unavailable`. Tests: `request-erasure.test.ts` (9).
+
+| Guard                           | Injected fault                               | Observed failure                                                                            |
+| ------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Blanking list (request)         | `chat_turn` update removed                   | `(fail) a due account request is blanked …`: `+ "chat_turn.content"`                        |
+| Blanking list (legacy)          | `account_request` update made a no-op        | same test: `+ "account_request.description"`, `+ "account_request.brief"`                   |
+| Claim replay blanking (manual)  | `submission_replay` update made a no-op      | `(fail) a standalone manual proposal …`: `+ "submission_replay.body_hash"`, `"…receipt"`    |
+| Held-request shared identity    | `others.some(...)` check removed             | `(fail) two due requests sharing an account …`: `identityErased` `true` instead of `false`  |
+| Fence only `non_client`         | classification condition removed             | `(fail) fencing refuses a client or held subject`: did not throw                            |
+| Shared draft (request / manual) | refusal replaced by `if (false)`             | `(fail) shared draft lineage is refused, not erased`: did not throw (each fault separately) |
+| Fence turns operations unknown  | chat `state = 'unknown'` update made a no-op | `(fail) unknown provider usage keeps its reservation`: `"state": "inflight"`                |
+| Fence ABORT mapped at admission | mapping removed                              | same test failed (the SQLite fence error escaped)                                           |
+| `secure_delete` plus `VACUUM`   | both removed                                 | `(fail) erased text is absent …`: `"file": true`. Either one alone cleared this fixture.    |
+
+- `bun test libs/website/adapters/store-sqlite/src`: `142 pass`, `0 fail`. `bun test apps/website/be-01/src`: `153 pass`, `0 fail`.
+- `nx run-many -t lint,typecheck -p website-store-sqlite,website-be-01`: success.
