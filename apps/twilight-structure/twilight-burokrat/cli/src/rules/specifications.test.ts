@@ -693,6 +693,148 @@ test('production selector still refuses a second active DI binding-origin operat
   ]);
 });
 
+const pointedCanonicalPath = 'openspec/specs/wbs-domain/spec.md';
+const pointedInkPath = 'openspec/changes/pointed-row-one-ink/specs/wbs-domain/spec.md';
+const pointedCostPath = 'openspec/changes/pointed-row-render-cost/specs/wbs-domain/spec.md';
+const pointedTitles = [
+  "One pointed row, and each face lights the other's answer",
+  "A bar's focus points its row, and the pointer outranks it",
+  'The row light outranks the alternating band',
+  'A row with no bars is still pointable',
+  'Pointing a row never remounts a cell',
+];
+const pointedScenarios = [
+  [
+    'hovering a bar lights its row label, its band and its table row',
+    'hovering a table row lights its Gantt label and band, and itself',
+    'an alternating row lights the same colour as an unbanded one',
+    'the empty part of a Gantt row points that row',
+    'a row nobody has estimated still points',
+    'the light moves rather than accumulating',
+    'leaving clears the light',
+    "a bar's other roles are not lit",
+    'pointing scrolls nothing',
+  ],
+  [
+    'focusing a bar lights its row',
+    'the pointer wins while both are live',
+    'losing the pointer falls back to the focus',
+  ],
+  ['an even row keeps the row light under the pointer', 'both stripes are painted one colour'],
+  ['an unestimated row lights across both faces', 'a row label points its own row'],
+  [
+    'an open editor survives the pointer crossing the chart',
+    'pointing a row re-renders no unrelated row',
+    'pointing a row re-renders no Gantt mark',
+    'the light still lands after the isolation',
+  ],
+];
+
+function pointedSources(): Record<string, string> {
+  const sourceRoot = resolve(import.meta.dir, '../../../../../..');
+  return {
+    [pointedCanonicalPath]: readFileSync(join(sourceRoot, pointedCanonicalPath), 'utf8'),
+    [pointedInkPath]: readFileSync(join(sourceRoot, pointedInkPath), 'utf8'),
+    [pointedCostPath]: readFileSync(join(sourceRoot, pointedCostPath), 'utf8'),
+  };
+}
+
+test('production selector composes exactly five pointed-row requirements and twenty scenarios from disjoint active owners', () => {
+  const { repository, base } = fixture();
+  const candidate = nextCommit(repository, pointedSources());
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode, response.stderr).toBe(0);
+  const selection = response.verdict?.scenarios?.selection;
+  expect(selection?.inputs.map(({ path }) => path)).toEqual([
+    pointedInkPath,
+    pointedCostPath,
+    source,
+    pointedCanonicalPath,
+  ]);
+  const pointed = selection?.effective.filter(({ title }) => pointedTitles.includes(title));
+  expect(
+    pointed?.map(({ title, source: owner, scenarios }) => ({
+      title,
+      owner,
+      scenarios: scenarios.map(({ title: scenario }) => scenario),
+    })),
+  ).toEqual(
+    pointedTitles.map((title, index) => ({
+      title,
+      owner: index === 0 ? pointedInkPath : index === 4 ? pointedCostPath : pointedCanonicalPath,
+      scenarios: pointedScenarios[index],
+    })),
+  );
+  expect(pointed?.reduce((count, requirement) => count + requirement.scenarios.length, 0)).toBe(20);
+  expect(selection?.operations.filter(({ capability }) => capability === 'wbs-domain')).toEqual([
+    expect.objectContaining({ kind: 'MODIFIED', title: pointedTitles[0], source: pointedInkPath }),
+    expect.objectContaining({ kind: 'MODIFIED', title: pointedTitles[4], source: pointedCostPath }),
+  ]);
+});
+
+test('production selector refuses pointed-row modification without its canonical predecessor', () => {
+  const { repository, base } = fixture();
+  const sources = pointedSources();
+  const canonical = sources[pointedCanonicalPath];
+  const first = canonical.indexOf(`### Requirement: ${pointedTitles[0]}`);
+  const second = canonical.indexOf(`### Requirement: ${pointedTitles[1]}`, first);
+  // Proof: disabling the production predecessor guard made this assertion fail:
+  // it received a TypeError reason for predecessor.scenarios, not the modeled refusal.
+  sources[pointedCanonicalPath] = canonical.slice(0, first) + canonical.slice(second);
+  const candidate = nextCommit(repository, sources);
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(response.verdict?.unevaluated).toEqual([
+    {
+      ruleId: 'SPEC-SCENARIOS',
+      reason: `overlay requirement has no predecessor: wbs-domain: ${pointedTitles[0]}`,
+    },
+  ]);
+});
+
+test('production selector refuses a competing first pointed-row modification', () => {
+  const { repository, base } = fixture();
+  const sources = pointedSources();
+  // Proof: disabling the production competing-operation guard made this assertion
+  // fail (exit 1; expected 1, received 0) with both malformed operations intact.
+  sources['openspec/changes/competing-pointed-row/specs/wbs-domain/spec.md'] =
+    sources[pointedInkPath];
+  const candidate = nextCommit(repository, sources);
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(response.verdict?.unevaluated).toEqual([
+    {
+      ruleId: 'SPEC-SCENARIOS',
+      reason: `competing overlay operation: wbs-domain: ${pointedTitles[0]}`,
+    },
+  ]);
+});
+
+test('production selector refuses a pointed-row render overlay that drops editor continuity', () => {
+  const { repository, base } = fixture();
+  const sources = pointedSources();
+  const cost = sources[pointedCostPath];
+  const editor = cost.indexOf(
+    '#### Scenario: an open editor survives the pointer crossing the chart',
+  );
+  const isolation = cost.indexOf(
+    '#### Scenario: pointing a row re-renders no unrelated row',
+    editor,
+  );
+  // Proof: disabling the production retained-scenario guard made this assertion
+  // fail (exit 1; expected 1, received 0) with the editor scenario still dropped.
+  sources[pointedCostPath] = cost.slice(0, editor) + cost.slice(isolation);
+  const candidate = nextCommit(repository, sources);
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(response.verdict?.unevaluated).toEqual([
+    {
+      ruleId: 'SPEC-SCENARIOS',
+      reason: `MODIFIED requirement drops canonical scenario: wbs-domain: ${pointedTitles[4]}`,
+    },
+  ]);
+});
+
 const renamePair =
   '## RENAMED Requirements\n- FROM: `### Requirement: First requirement`\n' +
   '- TO: `### Requirement: Renamed requirement`\n';

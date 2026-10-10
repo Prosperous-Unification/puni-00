@@ -761,6 +761,195 @@ A bar's hover text SHALL open on the same words.
 - **THEN** every row label is still visible and the page itself has not
   scrolled sideways
 
+### Requirement: One pointed row, and each face lights the other's answer
+
+The plan SHALL have at most one **pointed row** at a time. The pointer over any
+**bar**, **row label** or any point on a Gantt row's own line SHALL point that
+row's work item; the pointer over a plan renderer row SHALL point that row's
+work item. Pointing SHALL be immediate — no delay on either face — and the
+pointer leaving all pointable rows SHALL clear its contribution. A focused
+bar SHALL continue to point its row when the pointer contribution clears.
+
+A pointed row SHALL be lit in the Gantt panel, on its **row label** and as a band
+across its row, whichever face pointed it.
+
+A pointed row SHALL be lit in the plan renderer, whichever face pointed it. A row
+the pointer is resting on there SHALL carry the row light like any other, and
+that light SHALL NOT differ by whether the alternating band tints that row.
+
+Every light SHALL be painted in the **row light**, the same tint a hovered Depends
+on cell paints the rows it waits for. There SHALL be no second tint.
+
+A pointed row SHALL move nothing: no face scrolls, and no row is brought into
+view.
+
+Pointing a Gantt row SHALL NOT open the surface a bar opens. A bar's own hover
+SHALL be unchanged: it points its row as it always did, and still opens its
+surface after its wait.
+
+#### Scenario: hovering a bar lights its row label, its band and its table row
+
+- **WHEN** the pointer rests on a bar on a plan whose rows are all shown
+- **THEN** the row label for that bar's work item carries the row light, a band
+  is drawn across that work item's Gantt row, and that work item's row in the
+  plan renderer carries the row light
+
+#### Scenario: hovering a table row lights its Gantt label and band, and itself
+
+- **WHEN** the pointer rests on a row of the plan renderer
+- **THEN** that work item's row label and Gantt row band carry the row light, and
+  that row of the plan renderer carries it too
+
+#### Scenario: an alternating row lights the same colour as an unbanded one
+
+- **WHEN** the pointer rests on a row of the plan renderer that the alternating
+  band tints, and then on one the band does not
+- **THEN** both rows are painted the same colour while pointed
+
+#### Scenario: the empty part of a Gantt row points that row
+
+- **GIVEN** a Gantt row whose bar ends well short of the chart's right edge
+- **WHEN** the pointer rests on that row's line past the end of its bar
+- **THEN** that work item's row label, Gantt band and plan renderer row all carry
+  the row light, and no bar surface is opened
+
+#### Scenario: a row nobody has estimated still points
+
+- **GIVEN** a work item with no estimate whose Gantt row may draw an assumed
+  placeholder bar
+- **WHEN** the pointer rests on that row's line in the chart
+- **THEN** that work item is the pointed row on both faces
+
+#### Scenario: the light moves rather than accumulating
+
+- **WHEN** the pointer moves from one bar to a bar on a different row
+- **THEN** exactly one row is lit, and it is the second bar's
+
+#### Scenario: leaving clears the light
+
+- **GIVEN** no bar holds keyboard focus
+- **WHEN** the pointer leaves all pointable rows without arriving on another
+  Gantt or plan renderer row
+- **THEN** no row on either face is lit
+
+#### Scenario: a bar's other roles are not lit
+
+- **WHEN** a work item is estimated for two roles, so its row draws two bars, and
+  the pointer rests on the first of them
+- **THEN** the row is lit on both faces and the second bar is drawn exactly as it
+  is drawn with nothing pointed
+
+#### Scenario: pointing scrolls nothing
+
+- **WHEN** the pointer rests on a bar whose work item's plan renderer row is
+  scrolled out of view
+- **THEN** neither face has scrolled, and the row label and band are lit
+
+### Requirement: A bar's focus points its row, and the pointer outranks it
+
+A bar holding the keyboard focus SHALL point its work item's row, by the three
+lights above and with no delay. Where a bar holds the focus and the pointer rests
+on a different row at the same time, the **pointer's** row SHALL be the pointed
+one.
+
+#### Scenario: focusing a bar lights its row
+
+- **WHEN** a bar takes the keyboard focus with the pointer resting nowhere on
+  either face
+- **THEN** that bar's work item is the pointed row
+
+#### Scenario: the pointer wins while both are live
+
+- **WHEN** one bar holds the keyboard focus and the pointer rests on a different
+  work item's bar
+- **THEN** the pointer's work item is the pointed row and the focused bar's is
+  not
+
+#### Scenario: losing the pointer falls back to the focus
+
+- **WHEN** a bar holds the focus, the pointer rests on a different work item's
+  bar, and the pointer then leaves all pointable rows
+- **THEN** the focused bar's work item is the pointed row
+
+### Requirement: The row light outranks the alternating band
+
+A pointed row SHALL be painted in the row light whether it is an odd or an even
+row of the plan renderer. A row's alternating band SHALL NOT paint over the row
+light, including where the pointer rests on the very row a focused bar has
+pointed.
+
+#### Scenario: an even row keeps the row light under the pointer
+
+- **WHEN** a bar takes the keyboard focus and the pointer then rests on that same
+  work item's row in the plan renderer, and that row is one the alternating band
+  tints
+- **THEN** that row is painted in the row light, and not in the banded hover
+  colour
+
+#### Scenario: both stripes are painted one colour
+
+- **WHEN** the same is done to a row the alternating band does not tint
+- **THEN** that row is painted the same colour as the banded row above
+
+### Requirement: A row with no bars is still pointable
+
+A work item the Gantt panel draws no bar for SHALL still be a pointable row.
+An unestimated item may draw an assumed placeholder bar; an item with no role
+may draw no bar at all. In either case its row label and Gantt row band SHALL
+light from its plan renderer row, and its plan renderer row SHALL light from
+its row label.
+
+#### Scenario: an unestimated row lights across both faces
+
+- **WHEN** the pointer rests on the plan renderer row of a work item no role has
+  been estimated for
+- **THEN** that work item's row label and Gantt row band carry the row light
+
+#### Scenario: a row label points its own row
+
+- **WHEN** the pointer rests on the row label of a work item the panel draws no
+  bar for
+- **THEN** that work item is the pointed row
+
+### Requirement: Pointing a row never remounts a cell
+
+Pointing a row MAY re-render only the plan renderer rows whose light changes,
+and SHALL NOT remount any of its cells. A pointed row SHALL NOT take the focus
+from, or discard the half-typed value in, a cell being edited. Pointing SHALL
+NOT re-render the Gantt chart's marks — bars, gridlines, dependency links,
+carets, alternating bands or axis. Only the rows gaining or losing the row light, the Gantt
+light layer (the pointed band and label rail), and state-routing shells MAY
+re-render.
+
+#### Scenario: an open editor survives the pointer crossing the chart
+
+- **WHEN** a cell is being edited with a value typed into it but not committed,
+  and the pointer then crosses several bars on the Gantt panel
+- **THEN** the cell still holds the focus and still holds the typed value
+
+#### Scenario: pointing a row re-renders no unrelated row
+
+- **WHEN** the chart points a row of a plan whose rows are all shown, and then
+  points a different row
+- **THEN** between the two pointings, plan renderer cells render only for the
+  rows whose light changed — the row lit and the row unlit — and for no other
+  row
+
+#### Scenario: pointing a row re-renders no Gantt mark
+
+- **WHEN** a plan renderer row is pointed, and then a different row is pointed
+- **THEN** between the two pointings no bar, gridline, dependency link, caret,
+  zebra band or axis cell of the Gantt chart renders again — only the pointed
+  band and the label rail answer the change
+
+#### Scenario: the light still lands after the isolation
+
+- **WHEN** the pointer crosses from a plan renderer row onto the Gantt chart's
+  line for a different row
+- **THEN** the table's light moves off the left row, the chart's band and label
+  light the row under the pointer, and the table row of that same work item
+  carries the row light
+
 ### Requirement: A chart that cannot be drawn costs only the chart
 
 When drawing the panel throws, the plan SHALL stay on screen and editable, and
