@@ -160,3 +160,19 @@ The fault proofs below were run by the slice's helper agent and are carried by t
 | fork at the same sequence                   | the message lost "head and database disagree" (the closing check still refuses) |
 
 - `bun test libs/website/adapters/store-sqlite/src/retention-journal` (this slice): `25 pass`, `0 fail`.
+
+### Slice 3: S3 journal adapter against a local stand-in (2026-10-11)
+
+`retention-journal/s3-remote.ts` (`S3JournalRemote`, `readS3JournalConfig`) PUTs and GETs through presigned URLs with `fetch` so that `x-amz-version-id` can be read. It sends `If-None-Match: *` on request and lists with `client.list` continuation. `s3-stand-in.ts` is a `Bun.serve` path-style emulation on a loopback port. It refuses an object request without `X-Amz-Signature` and a listing without a SigV4 `Authorization` header. No real endpoint or credential was used.
+
+| Check                        | Observed failure with the check removed                                |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| PUT version id required      | `an unversioned bucket is refused`: no `JournalRemoteError`            |
+| non-2xx is an error          | `a 5xx is a JournalRemoteError naming the key`: received `unversioned` |
+| 412 mapping                  | received `unreadable`                                                  |
+| fetch failure wrapped        | raw `TypeError` "Unable to connect"                                    |
+| truncated list without token | `a truncated list without a token throws`: no error                    |
+| endpoint loopback rule       | config test accepted `http://storage.example.test`                     |
+| prefix segments              | config test accepted `retention-journal/../website/`                   |
+
+- `bun test libs/website/adapters/store-sqlite/src/retention-journal/s3-remote.test.ts`: `10 pass`, `0 fail`.
