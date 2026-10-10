@@ -1,3 +1,5 @@
+Retired 2026-10-11 by `retire-prospect-sign-in`; the route no longer exists.
+
 ## ADDED Requirements
 
 ### Requirement: Explicit prospect sign-out

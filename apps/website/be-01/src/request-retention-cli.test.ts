@@ -36,9 +36,20 @@ function withDatabase(run: (databasePath: string, directory: string) => void): v
       500,
       'source-test',
     );
-    const account = store.createProspect('owner@example.test', 10);
-    store.ensureBlankRequest(account.id, 20);
     store.close();
+    // A blank request left by the retired sign-in; the next startup backfills its subject.
+    const legacy = new Database(databasePath);
+    try {
+      legacy.run(
+        "INSERT INTO prospect_account (id, email, created_at) VALUES ('account-1', 'owner@example.test', 10)",
+      );
+      legacy.run(
+        "INSERT INTO software_request (id, account_id, description, brief, created_at) VALUES ('request-1', 'account-1', '', '', 20)",
+      );
+    } finally {
+      legacy.close();
+    }
+    new WebsiteStore(databasePath).close();
     const database = new Database(databasePath);
     try {
       // An older API process wrote content into the blank request with no recorded anchor.

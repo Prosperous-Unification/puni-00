@@ -79,9 +79,9 @@ type LoadState =
   | { kind: 'error'; message: string };
 
 /**
- * Manual brief length. The API accepts 8,000 characters, but concept generation reads only the
- * first 4,000, so the form stops there. Home's 2,000 limit applies to the shorter description
- * that this brief expands.
+ * Manual brief length. The API accepts 8,000 characters; the form stops at the 4,000 the retired
+ * concept preview read, so briefs keep their shape. Home's 2,000 limit applies to the shorter
+ * description that this brief expands.
  */
 const briefLimit = 4000;
 

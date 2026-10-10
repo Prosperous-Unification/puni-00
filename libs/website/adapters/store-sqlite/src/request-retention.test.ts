@@ -15,6 +15,7 @@ import {
   resolveRetentionAnchor,
   WebsiteStore,
 } from './store';
+import { seedLegacyRequest } from './testing/legacy-account-fixture';
 
 const leapDay = Date.UTC(2024, 1, 29, 15, 0, 0, 0);
 const leapDeadline = Date.UTC(2025, 1, 28, 15, 0, 0, 0);
@@ -182,25 +183,29 @@ test('a standalone manual proposal has its own subject anchored to the draft wit
   });
 });
 
-test('a draft-backed account request uses the draft anchor and its submission is not a second subject', () => {
+test('a draft-backed legacy account request uses the draft anchor and its submission is not a second subject', () => {
   fixture((databasePath) => {
     const store = new WebsiteStore(databasePath);
-    const account = store.createProspect('owner@example.test', 10);
     store.createDraft('draft-1', 'secret need', 'claim-1', 100, 100_000, 'source-test');
-    expect(store.attachDraft(account.id, 'claim-1', 5000)).toBe(true);
-    expect(
-      store.submitAccount(
-        account.id,
-        'key',
-        'hash',
-        'owner@example.test',
-        'brief',
-        'r-1',
-        6000,
-        'source-test',
-      ),
-    ).toEqual({ kind: 'created', receipt: 'r-1', siteCount: 1 });
     store.close();
+    // The retired sign-in attached the draft to a request and submitted it from the account.
+    seedLegacyRequest(databasePath, {
+      draftId: 'draft-1',
+      description: 'secret need',
+      brief: 'brief',
+      createdAt: 5000,
+    });
+    const legacy = new Database(databasePath);
+    try {
+      legacy.run('UPDATE intake_draft SET consumed_at = 5000');
+      legacy.run('UPDATE software_request SET submitted_at = 6000');
+      legacy.run(
+        "INSERT INTO proposal_submission (id, draft_id, email, brief, receipt, status, created_at, updated_at) VALUES ('s-1', 'draft-1', 'owner@example.test', 'brief', 'r-1', 'submitted', 6000, 6000)",
+      );
+    } finally {
+      legacy.close();
+    }
+    new WebsiteStore(databasePath).close();
     const rows = subjects(databasePath);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -211,77 +216,6 @@ test('a draft-backed account request uses the draft anchor and its submission is
     const report = inspectRequestRetention(databasePath, 7000);
     expect(report.proposalSubmission.uncovered).toBe(0);
     expect(report.activation).toBe('ready');
-  });
-});
-
-test('a blank account request anchors on its first nonempty write and later edits keep it', () => {
-  fixture((databasePath) => {
-    const store = new WebsiteStore(databasePath);
-    const account = store.createProspect('owner@example.test', 10);
-    store.ensureBlankRequest(account.id, 20);
-    const request = store.findAccountRequest(account.id);
-    if (!request) throw new Error('Missing account request');
-    expect(subject(databasePath, 'software_request', request.id)).toMatchObject({
-      resolution: 'pending_content',
-      anchor_at: null,
-    });
-    expect(store.updateAccountBrief(account.id, '   ', leapDay - 10)).toBe(true);
-    expect(subject(databasePath, 'software_request', request.id)?.resolution).toBe(
-      'pending_content',
-    );
-    expect(store.updateAccountBrief(account.id, 'first content', leapDay)).toBe(true);
-    // Clearing the brief leaves no prior content, so only the pending guard keeps the anchor.
-    expect(store.updateAccountBrief(account.id, '', leapDay + 500)).toBe(true);
-    expect(store.updateAccountBrief(account.id, 'edited later', leapDay + 1000)).toBe(true);
-    store.addTurn(account.id, request.id, 'user', 'later chat', leapDay + 2000);
-    store.saveConcept(request.id, '{"screens":[]}', leapDay + 3000);
-    const started = store.admitChatOperation(
-      account.id,
-      request.id,
-      'key-1',
-      'hash-1',
-      'later message',
-      false,
-      null,
-      leapDay + 4000,
-    );
-    expect(started.kind).toBe('started');
-    store.close();
-    expect(subject(databasePath, 'software_request', request.id)).toMatchObject({
-      resolution: 'anchored',
-      anchor_at: leapDay,
-      deadline_at: leapDeadline,
-      anchor_source: 'first_write',
-    });
-    expect(inspectRequestRetention(databasePath, leapDeadline).softwareRequest.due).toBe(1);
-    expect(inspectRequestRetention(databasePath, leapDeadline - 1).softwareRequest.due).toBe(0);
-  });
-});
-
-test('a first chat message anchors a blank request and a later turn shares the deadline', () => {
-  fixture((databasePath) => {
-    const store = new WebsiteStore(databasePath);
-    const account = store.createProspect('owner@example.test', 10);
-    store.ensureBlankRequest(account.id, 20);
-    const request = store.findAccountRequest(account.id);
-    if (!request) throw new Error('Missing account request');
-    const started = store.admitChatOperation(
-      account.id,
-      request.id,
-      'key-1',
-      'hash-1',
-      'hello',
-      true,
-      null,
-      leapDay,
-    );
-    if (started.kind !== 'started') throw new Error('Chat was not admitted');
-    expect(store.completeChatOperation(started.id, 'reply', null, leapDay + 60_000)).toBe(true);
-    store.close();
-    expect(subject(databasePath, 'software_request', request.id)).toMatchObject({
-      anchor_at: leapDay,
-      deadline_at: leapDeadline,
-    });
   });
 });
 
@@ -317,58 +251,6 @@ test('the schema refuses to move an anchored subject', () => {
     }
     expect(subjects(databasePath)[0]?.anchor_at).toBe(100);
   });
-});
-
-test('concurrent first writes from separate processes record exactly one anchor', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'puni-retention-race-'));
-  const databasePath = join(directory, 'website.sqlite');
-  try {
-    const store = new WebsiteStore(databasePath);
-    const account = store.createProspect('owner@example.test', 10);
-    store.ensureBlankRequest(account.id, 20);
-    const request = store.findAccountRequest(account.id);
-    if (!request) throw new Error('Missing account request');
-    store.close();
-    const writerPath = join(directory, 'writer.ts');
-    writeFileSync(
-      writerPath,
-      `import { WebsiteStore } from ${JSON.stringify(join(import.meta.dir, 'store.ts'))};
-const [databasePath, accountId, startAt, now] = Bun.argv.slice(2);
-function retry<T>(attempt: () => T): T {
-  for (let tries = 0; tries < 2000; tries += 1) {
-    try { return attempt(); } catch (error) {
-      if (!(error instanceof Error) || !/locked|busy/i.test(error.message)) throw error;
-      Bun.sleepSync(1);
-    }
-  }
-  throw new Error('writer stayed busy');
-}
-const store = retry(() => new WebsiteStore(databasePath));
-while (Date.now() < Number(startAt)) {}
-if (!retry(() => store.updateAccountBrief(accountId, 'brief ' + now, Number(now)))) throw new Error('write refused');
-store.close();
-`,
-    );
-    const startAt = Date.now() + 1500;
-    const writers = [1000, 2000, 3000, 4000].map((offset) =>
-      Bun.spawn(
-        ['bun', writerPath, databasePath, account.id, String(startAt), String(leapDay + offset)],
-        { stdout: 'pipe', stderr: 'pipe' },
-      ),
-    );
-    const exits = await Promise.all(writers.map((writer) => writer.exited));
-    const errors = await Promise.all(writers.map((writer) => new Response(writer.stderr).text()));
-    expect({ exits, errors }).toEqual({ exits: [0, 0, 0, 0], errors: ['', '', '', ''] });
-    const anchored = subject(databasePath, 'software_request', request.id);
-    expect(anchored?.resolution).toBe('anchored');
-    expect([leapDay + 1000, leapDay + 2000, leapDay + 3000, leapDay + 4000]).toContain(
-      anchored?.anchor_at ?? -1,
-    );
-    expect(anchored?.deadline_at).toBe(addUtcMonths(anchored?.anchor_at ?? -1, 12));
-    expect(subjects(databasePath)).toHaveLength(1);
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
 });
 
 test('migration 006 rolls back to the 005 schema', () => {
@@ -582,10 +464,9 @@ test('activation coverage refuses an omitted accountless submitted proposal or a
 
 test('activation coverage refuses a content-bearing request without an anchor', () => {
   fixture((databasePath) => {
-    const store = new WebsiteStore(databasePath);
-    const account = store.createProspect('owner@example.test', 10);
-    store.ensureBlankRequest(account.id, 20);
-    store.close();
+    new WebsiteStore(databasePath).close();
+    seedLegacyRequest(databasePath, { createdAt: 20 });
+    new WebsiteStore(databasePath).close();
     const database = new Database(databasePath);
     try {
       // An older API process writes content without recording the first-content anchor.
@@ -693,43 +574,26 @@ const olderApiWrites = {
     "INSERT INTO request_concept_preview (request_id, body, created_at) VALUES (?1, 'secret older preview', 100)",
 } as const;
 
-/** Creates a new-API blank request, then writes content the way a still-serving 005 API does. */
-function pendingRequestWithOlderContent(
-  databasePath: string,
-  write: string,
-  keepOpen: (store: WebsiteStore, accountId: string, requestId: string) => void = () => undefined,
-): string {
-  const store = new WebsiteStore(databasePath);
+/** Backfills a blank legacy request as pending, then writes content the way a 005 API did. */
+function pendingRequestWithOlderContent(databasePath: string, write: string): string {
+  new WebsiteStore(databasePath).close();
+  const { accountId, requestId } = seedLegacyRequest(databasePath, { createdAt: 20 });
+  new WebsiteStore(databasePath).close();
+  const older = new Database(databasePath);
   try {
-    const account = store.createProspect('owner@example.test', 10);
-    store.ensureBlankRequest(account.id, 20);
-    const request = store.findAccountRequest(account.id);
-    if (!request) throw new Error('Missing account request');
-    const older = new Database(databasePath);
-    try {
-      if (write.includes('?2')) older.query(write).run(request.id, account.id);
-      else older.query(write).run(request.id);
-    } finally {
-      older.close();
-    }
-    keepOpen(store, account.id, request.id);
-    return request.id;
+    if (write.includes('?2')) older.query(write).run(requestId, accountId);
+    else older.query(write).run(requestId);
   } finally {
-    store.close();
+    older.close();
   }
+  return requestId;
 }
 
 for (const [kind, write] of Object.entries(olderApiWrites)) {
-  test(`an older API ${kind} write on a pending subject becomes ambiguous, never a late anchor`, () => {
+  test(`an older API ${kind} write on a pending subject becomes ambiguous at startup, never a late anchor`, () => {
     fixture((databasePath) => {
-      // The new process keeps serving and writes next, with no startup in between.
-      const requestId = pendingRequestWithOlderContent(
-        databasePath,
-        write,
-        (store, accountId, id) => {
-          store.addTurn(accountId, id, 'user', 'new content', 5000);
-        },
-      );
+      const requestId = pendingRequestWithOlderContent(databasePath, write);
+      new WebsiteStore(databasePath).close();
       expect(subject(databasePath, 'software_request', requestId)).toMatchObject({
         resolution: 'ambiguous',
         ambiguity: 'unanchored_content',
@@ -751,40 +615,8 @@ for (const [kind, write] of Object.entries(olderApiWrites)) {
       );
       expect(assertRetentionCoverage(databasePath, 6000).activation).toBe('ready');
     });
-    fixture((databasePath) => {
-      const requestId = pendingRequestWithOlderContent(databasePath, write);
-      new WebsiteStore(databasePath).close();
-      expect(subject(databasePath, 'software_request', requestId)).toMatchObject({
-        resolution: 'ambiguous',
-        ambiguity: 'unanchored_content',
-      });
-    });
   });
 }
-
-test('a new write refuses to anchor a pending subject that already holds older content', () => {
-  fixture((databasePath) => {
-    const store = new WebsiteStore(databasePath);
-    const account = store.createProspect('owner@example.test', 10);
-    store.ensureBlankRequest(account.id, 20);
-    const request = store.findAccountRequest(account.id);
-    if (!request) throw new Error('Missing account request');
-    // The older API writes while this new process keeps serving, so no startup runs in between.
-    const older = new Database(databasePath);
-    try {
-      older.query(olderApiWrites.chatTurn).run(request.id, account.id);
-    } finally {
-      older.close();
-    }
-    expect(store.updateAccountBrief(account.id, 'new brief', 5000)).toBe(true);
-    store.close();
-    expect(subject(databasePath, 'software_request', request.id)).toMatchObject({
-      resolution: 'ambiguous',
-      ambiguity: 'unanchored_content',
-      anchor_at: null,
-    });
-  });
-});
 
 test('startup moves a pending subject holding older content to ambiguous', () => {
   fixture((databasePath) => {
@@ -803,28 +635,31 @@ test('startup moves a pending subject holding older content to ambiguous', () =>
   });
 });
 
-test('blank writes neither anchor a subject nor count as content', () => {
+test('blank legacy content neither anchors a subject nor counts as content', () => {
   fixture((databasePath) => {
-    const store = new WebsiteStore(databasePath);
-    const account = store.createProspect('owner@example.test', 10);
-    store.ensureBlankRequest(account.id, 20);
-    const request = store.findAccountRequest(account.id);
-    if (!request) throw new Error('Missing account request');
-    expect(store.updateAccountBrief(account.id, '\n\t \r', 30)).toBe(true);
-    store.addTurn(account.id, request.id, 'assistant', '', 40);
-    store.addTurn(account.id, request.id, 'user', ' \n', 50);
-    store.close();
-    expect(subject(databasePath, 'software_request', request.id)?.resolution).toBe(
+    new WebsiteStore(databasePath).close();
+    const { accountId, requestId } = seedLegacyRequest(databasePath, {
+      brief: '\n\t \r',
+      createdAt: 20,
+    });
+    const legacy = new Database(databasePath);
+    try {
+      const turn = legacy.query(
+        'INSERT INTO chat_turn (id, account_id, request_id, role, content, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      );
+      turn.run('turn-1', accountId, requestId, 'assistant', '', 40);
+      turn.run('turn-2', accountId, requestId, 'user', ' \n', 50);
+    } finally {
+      legacy.close();
+    }
+    new WebsiteStore(databasePath).close();
+    expect(subject(databasePath, 'software_request', requestId)?.resolution).toBe(
       'pending_content',
     );
     expect(assertRetentionCoverage(databasePath, 60).softwareRequest).toMatchObject({
       pendingContent: 1,
       unanchoredContent: 0,
     });
-    new WebsiteStore(databasePath).close();
-    expect(subject(databasePath, 'software_request', request.id)?.resolution).toBe(
-      'pending_content',
-    );
   });
 });
 

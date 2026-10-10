@@ -88,25 +88,6 @@ export interface SubmissionView {
   updatedAt: string;
 }
 
-export interface ChatTurn {
-  role: 'user' | 'assistant';
-  content: string;
-  createdAt: string;
-}
-
-export type ConceptTemplate = 'booking' | 'workflow' | 'dashboard';
-
-export interface ConceptView {
-  kind: 'concept';
-  template: ConceptTemplate;
-  title: string;
-  summary: string;
-  sections: { title: string; body: string }[];
-  simulated: true;
-  provider: 'demo' | 'openrouter';
-  subject: string;
-  revision: 0 | 1;
-}
 export * from './brief';
 export * from './browser-check';
 export * from './reply-stream';

@@ -57,7 +57,7 @@ export const replyDeadlineMilliseconds = 30_000;
 /**
  * Reads the provider's raw final usage. Normalized SDK usage reports zeros for an absent value,
  * so only integral, nonnegative raw token counts are trusted; anything else returns null and
- * the reservation stays unsettled. `completion_tokens` already includes any
+ * the operation is settled at its full reservation. `completion_tokens` already includes any
  * `completion_tokens_details.reasoning_tokens`, so settlement charges reasoning exactly once.
  */
 export function readFinalUsage(
@@ -164,35 +164,33 @@ export interface ConfirmedReplyOptions {
   operationId: string;
   /** Live provider calls by operation id, so a cancel route can abort one. */
   aborts: Map<string, AbortController>;
-  /** Abort and mark the operation unknown when the browser disconnects mid-stream. */
-  abortOnDisconnect: boolean;
   /** Commits the reply and settled usage; false leaves the operation to be marked unknown. */
   complete(reply: string, actualMicroUsd: number, truncated: boolean): boolean;
   /** Settles an operation whose final usage is unknown; see the store's ceiling settlement. */
   markUnknown(): void;
   /** Told of each provider failure (5xx, timeout, non-refusal stream error), not of a stop. */
-  onProviderFailure?(): void;
+  onProviderFailure(): void;
   /** The user-facing `errorText` when the reply ends without confirmed usage. */
   interruptedText: string;
-  /** Present when a refusal completes the operation; absent, a refusal is an interrupted reply. */
-  decline?: ProviderDecline;
+  /** Completes a provider refusal as a fixed reply instead of an interrupted one. */
+  decline: ProviderDecline;
   /** Receives the provider's generation id once, from the first raw chunk that carries one. */
-  recordGeneration?(generationId: string): void;
+  recordGeneration(generationId: string): void;
   isCompleted(): boolean;
 }
 
 /**
- * Streams one paid reply as an AI SDK UI message stream and emits the finish event only after
- * {@link ConfirmedReplyOptions.complete} has stored the reply with final provider usage. A
- * timeout, abort, provider or stream error, missing raw usage, an empty or oversized reply, or
- * a refused completion marks the operation unknown and ends the stream with an error chunk. With
- * {@link ConfirmedReplyOptions.decline}, a provider refusal ({@link ProviderRefusal}) instead
- * completes with the decline reply at the provider-reported usage, or 0 when it reported none,
- * and streams that reply with a `stop` finish; the refusal's own error chunk is never forwarded.
- * Partial text may already have streamed before the refusal, so the decline is sent as a
- * `data-reply-replace` part ({@link replyReplacePart}) after every open text part is ended: the
- * replacement supersedes the partial text and the folded stream equals the stored reply. Ordinary
- * replies still stream token by token.
+ * Streams one paid conversation reply as an AI SDK UI message stream and emits the finish event
+ * only after {@link ConfirmedReplyOptions.complete} has stored the reply with final provider usage.
+ * A timeout, abort, browser disconnect, provider or stream error, missing raw usage, an empty or
+ * oversized reply, or a refused completion marks the operation unknown and ends the stream with an
+ * error chunk. A provider refusal ({@link ProviderRefusal}) instead completes with the decline
+ * reply at the provider-reported usage, or 0 when it reported none, and streams that reply with
+ * a `stop` finish; the refusal's own error chunk is never forwarded. Partial text may already
+ * have streamed before the refusal, so the decline is sent as a `data-reply-replace` part
+ * ({@link replyReplacePart}) after every open text part is ended: the replacement supersedes the
+ * partial text and the folded stream equals the stored reply. Ordinary replies still stream token
+ * by token.
  */
 export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
   const abort = new AbortController();
@@ -204,7 +202,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     completion.resolve(true);
   };
   const deadline = setTimeout(() => {
-    options.onProviderFailure?.();
+    options.onProviderFailure();
     options.markUnknown();
     completion.resolve(true);
     abort.abort();
@@ -239,38 +237,36 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     messages: options.messages,
     maxRetries: 0,
     abortSignal: abort.signal,
-    includeRawChunks: options.recordGeneration !== undefined || decline !== undefined,
+    includeRawChunks: true,
     onChunk: ({ chunk }) => {
       if (chunk.type !== 'raw') return;
       const rawValue: unknown = chunk.rawValue;
-      if (decline) {
-        // Proof: dropping this detection turned the mounted 200-with-refusal-error test into an interrupted reply.
-        if (isRefusalChunk(rawValue)) refusal = 'provider_refusal';
-        const usage: unknown =
-          typeof rawValue === 'object' && rawValue !== null ? Reflect.get(rawValue, 'usage') : null;
-        if (usage !== undefined && usage !== null) rawUsage = usage;
-      }
+      // Proof: dropping this detection turned the mounted 200-with-refusal-error test into an interrupted reply.
+      if (isRefusalChunk(rawValue)) refusal = 'provider_refusal';
+      const usage: unknown =
+        typeof rawValue === 'object' && rawValue !== null ? Reflect.get(rawValue, 'usage') : null;
+      if (usage !== undefined && usage !== null) rawUsage = usage;
       if (generationRecorded) return;
       const generationId: unknown =
         typeof rawValue === 'object' && rawValue !== null ? Reflect.get(rawValue, 'id') : null;
       if (typeof generationId !== 'string' || !generationId) return;
       generationRecorded = true;
       // Proof: dropping this call left generation_id null in the mounted cancel test.
-      options.recordGeneration?.(generationId);
+      options.recordGeneration(generationId);
     },
     providerOptions: {
       openrouter: {
         provider: providerRouting(options.pin.provider, options.rates),
         max_completion_tokens: options.maxCompletionTokens,
-        // Proof: removing this spread failed the mounted reasoning-effort conversation and /chat/stream tests.
+        // Proof: removing this spread failed the mounted reasoning-effort conversation test.
         ...reasoningRequest(options.pin.reasoningEffort),
       },
     },
     onFinish: ({ text, finalStep, finishReason }) => {
       try {
         // Proof: dropping this mapping turned the mounted content_filter test into an interrupted reply.
-        if (decline && finishReason === 'content-filter') refusal = 'content_filter';
-        if (decline && refusal) {
+        if (finishReason === 'content-filter') refusal = 'content_filter';
+        if (refusal) {
           // Proof: dropping the raw fallback settled 0 in the usage-on-the-error-chunk refusal test.
           const reported = readFinalUsage(finalStep.usage.raw ?? rawUsage);
           // A refusal is settled at what the provider reported; it reports nothing for a pre-check block.
@@ -308,11 +304,11 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     onError: ({ error }) => {
       // Proof: without this classification the mounted refusal-after-partial-text test streamed an
       // `error` and no finish, because the raw refusal chunk reaches onChunk after this callback.
-      if (decline && isRefusalError(error)) refusal = 'provider_refusal';
+      if (isRefusalError(error)) refusal = 'provider_refusal';
       // A refusal error is followed by the finish, which settles it as a decline.
       // Proof: marking unknown here as before failed the mounted 200-with-refusal-error test.
-      if (decline && refusal) return;
-      if (!abort.signal.aborted) options.onProviderFailure?.();
+      if (refusal) return;
+      if (!abort.signal.aborted) options.onProviderFailure();
       options.markUnknown();
       release();
     },
@@ -337,7 +333,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
           }
           await completion.promise;
           if (connected) {
-            if (declined && decline && options.isCompleted()) {
+            if (declined && options.isCompleted()) {
               for (const id of openTextIds) controller.enqueue({ type: 'text-end', id });
               // Proof: streaming the decline as appended text deltas instead glued it to the partial
               // reply in the mounted partial-text refusal tests and in the browser regression.
@@ -367,7 +363,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     cancel() {
       connected = false;
       // Proof: dropping this abort left the provider call running in the mounted disconnect test.
-      if (options.abortOnDisconnect) abort.abort();
+      abort.abort();
     },
   });
   const response = createUIMessageStreamResponse({ stream: confirmed });

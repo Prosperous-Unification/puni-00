@@ -332,8 +332,37 @@ function operations(databasePath: string) {
 }
 
 /**
- * Fills the shared site day with an account reservation, leaving `remaining` micro-USD, after
- * today's automatic pause was opened and resumed, so the hard ceiling is what refuses.
+ * Seeds one settled `provider_call` row of today, as the retired account chat left them on a
+ * deployed database. The site-day sum still reads that table.
+ */
+function seedLegacyProviderCall(databasePath: string, microUsd: number): void {
+  const database = new Database(databasePath);
+  try {
+    database.run('PRAGMA foreign_keys = ON');
+    const accountId = crypto.randomUUID();
+    database
+      .query('INSERT INTO prospect_account (id, email, created_at) VALUES (?, ?, ?)')
+      .run(accountId, `${accountId}@example.test`, Date.now());
+    database
+      .query(
+        'INSERT INTO provider_call (id, account_id, utc_day, reserved_micro_usd, settled_micro_usd, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+      .run(
+        crypto.randomUUID(),
+        accountId,
+        new Date().toISOString().slice(0, 10),
+        microUsd,
+        microUsd,
+        Date.now(),
+      );
+  } finally {
+    database.close();
+  }
+}
+
+/**
+ * Fills the site day with a legacy account call, leaving `remaining` micro-USD, after today's
+ * automatic pause was opened and resumed, so the hard ceiling is what refuses.
  */
 function fillSiteDay(databasePath: string, remaining: number): void {
   const store = new WebsiteStore(databasePath);
@@ -342,20 +371,8 @@ function fillSiteDay(databasePath: string, remaining: number): void {
     !store.resumeInferencePause(Date.now())
   )
     throw new Error('Could not resume today’s pause');
-  const account = store.createProspect('owner@example.test', Date.now());
-  store.ensureBlankRequest(account.id, Date.now());
-  const request = store.findAccountRequest(account.id);
-  if (
-    !request ||
-    store.reserveProviderCall(account.id, request.id, 1, Date.now()).kind !== 'reserved'
-  )
-    throw new Error('Account reservation refused');
   store.close();
-  const database = new Database(databasePath);
-  database
-    .query('UPDATE provider_call SET reserved_micro_usd = ?, settled_micro_usd = ?')
-    .run(10_000_000 - remaining, 10_000_000 - remaining);
-  database.close();
+  seedLegacyProviderCall(databasePath, 10_000_000 - remaining);
 }
 
 test('GET /conversation reports the visitor turn limit beside the remaining count', async () => {
@@ -1025,13 +1042,14 @@ test('a stopped reply keeps the conversation open and counts its full reservatio
   api.close();
 });
 
-test('the site-day ceiling is shared with account reservations', async () => {
+test('the site-day ceiling still counts legacy provider_call rows', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
   const config = paidConfig(fake.providerFetch);
   const api = mountApi(config);
   fillSiteDay(config.databasePath, 1_000);
   const visitor = await beginVisitor(api);
   const refused = await sendInitial(api, visitor);
+  // Proof: dropping provider_call from the site-day sum admitted this call over the ceiling (status 200).
   expect(refused.status).toBe(429);
   expect(await refused.json()).toEqual({ code: 'site_limit', exhaustedReason: 'site_spend' });
   expect(fake.bodies).toHaveLength(0);
@@ -1132,6 +1150,36 @@ test('a disabled or unconfigured provider is reported and admits no operation', 
   expect(count(disabledConfig.databasePath, 'SELECT count(*) AS count FROM conversation')).toBe(0);
   expect(fake.bodies).toHaveLength(0);
 });
+
+const unvettedSettings: [string, Partial<WebsiteApiConfig>][] = [
+  ['an unverified privacy policy', { openRouterPrivacyVerified: false }],
+  ['no pinned endpoint', { openRouterProvider: undefined }],
+  ...(['openRouterInputUsdPerMillion', 'openRouterOutputUsdPerMillion'] as const).flatMap(
+    (rateName) =>
+      [undefined, 0, -1, Number.POSITIVE_INFINITY, Number.NaN].map(
+        (rate): [string, Partial<WebsiteApiConfig>] => [
+          `${rateName} ${String(rate)}`,
+          { [rateName]: rate },
+        ],
+      ),
+  ),
+];
+
+for (const [name, overrides] of unvettedSettings) {
+  test(`paid inference with ${name} is unconfigured and calls nothing`, async () => {
+    const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
+    const config = paidConfig(fake.providerFetch, overrides);
+    const api = mountApi(config);
+    const visitor = await beginVisitor(api);
+    const refused = await sendInitial(api, visitor);
+    // Proof: skipping the readProviderRates checks failed all ten bad-rate cases here (no 503 provider_unconfigured).
+    expect(refused.status).toBe(503);
+    expect(await refused.json()).toEqual({ code: 'provider_unconfigured' });
+    expect(fake.bodies).toHaveLength(0);
+    expect(count(config.databasePath, 'SELECT count(*) AS count FROM conversation')).toBe(0);
+    api.close();
+  });
+}
 
 test('an unavailable provider refuses a broken store admission without contacting the provider', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
@@ -1331,44 +1379,6 @@ test('pause controls refuse a missing session or CSRF and open nothing', async (
   api.close();
 });
 
-test('the account chat routes answer provider_paused during a pause', async () => {
-  const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
-  const config = paidConfig(fake.providerFetch, { demoAuth: true });
-  const api = mountApi(config);
-  const signIn = await api.fetch(
-    new Request('http://localhost:3101/session/demo', {
-      method: 'POST',
-      headers: { origin: appOrigin, 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'owner@example.test' }),
-    }),
-  );
-  expect(signIn.status).toBe(201);
-  const cookie = signIn.headers.get('set-cookie')?.split(';')[0] ?? '';
-  const { csrfToken } = (await signIn.json()) as { csrfToken: string };
-  openPause(config.databasePath);
-  for (const [path, body] of [
-    ['/chat/stream', { idempotencyKey: 'chat-key-1', message: 'Hello' }],
-    ['/chat', { message: 'Hello' }],
-  ] as const) {
-    const refused = await api.fetch(
-      new Request(`http://localhost:3101${path}`, {
-        method: 'POST',
-        headers: {
-          origin: appOrigin,
-          cookie,
-          'x-puni-csrf': csrfToken,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      }),
-    );
-    expect(refused.status).toBe(503);
-    expect(await refused.json()).toEqual({ code: 'provider_paused' });
-  }
-  expect(fake.bodies).toHaveLength(0);
-  api.close();
-});
-
 function sha256Hex(text: string): string {
   return new Bun.CryptoHasher('sha256').update(text).digest('hex');
 }
@@ -1546,20 +1556,9 @@ function fakeWebhook(status = 200) {
 
 /** Spends today's site day to `spentMicroUsd` without resuming any pause. */
 function spendSiteDay(databasePath: string, spentMicroUsd: number): void {
-  const store = new WebsiteStore(databasePath);
-  const account = store.createProspect('spender@example.test', Date.now());
-  store.ensureBlankRequest(account.id, Date.now());
-  const request = store.findAccountRequest(account.id);
-  const reservation = request
-    ? store.reserveProviderCall(account.id, request.id, 1, Date.now())
-    : null;
-  if (reservation?.kind !== 'reserved') throw new Error('Account reservation refused');
-  store.close();
-  const database = new Database(databasePath);
-  database
-    .query('UPDATE provider_call SET reserved_micro_usd = ?1, settled_micro_usd = ?1')
-    .run(spentMicroUsd);
-  database.close();
+  // Opening the store first applies the migrations the seed writes into.
+  new WebsiteStore(databasePath).close();
+  seedLegacyProviderCall(databasePath, spentMicroUsd);
 }
 
 test('a pause alert with no webhook is recorded and sends nothing', async () => {

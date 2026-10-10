@@ -75,11 +75,11 @@ interface SubmissionLineageRow {
 const purpose = 'Request retention';
 
 /**
- * The one definition of nonblank request content, shared by write-time anchoring, backfill and
- * the report: text that is not empty after trimming ASCII whitespace.
+ * The one definition of nonblank request content, shared by backfill and the report: text that
+ * is not empty after trimming ASCII whitespace.
  */
 function nonblank(expression: string): string {
-  // Proof: plain trim() counted the "\n\t \r" brief as content in the blank-writes test.
+  // Proof: plain trim() counted the "\n\t \r" brief as content in the blank-legacy-content test.
   return `(trim(${expression}, char(9, 10, 11, 12, 13, 32)) <> '')`;
 }
 
@@ -238,44 +238,6 @@ export function insertRetentionSubject(
       null,
       null,
     );
-}
-
-/**
- * Anchors a blank software request on its first nonblank content write. Call it inside the
- * write's transaction, **before** storing `text`. Only a `pending_content` subject changes, so
- * later edits and a concurrent writer that commits second keep the first anchor. If the request
- * already holds content, an older API process wrote it without an anchor; the subject becomes
- * `ambiguous` for operator resolution instead of receiving this later, guessed time. A request
- * with no subject row stays uncovered in the report until the next startup backfill.
- */
-export function anchorRequestContent(
-  database: Database,
-  requestId: string,
-  text: string,
-  now: number,
-): void {
-  const state = database
-    .query<{ prior: number; incoming: number }, [string, string]>(
-      `SELECT ${requestHasContent} AS prior, ${nonblank('?2')} AS incoming FROM software_request AS request WHERE request.id = ?1`,
-    )
-    .get(requestId, text);
-  if (!state) throw new Error('Retention anchor names a missing software request');
-  // Proof: skipping this prior-content check anchored every older-API content kind at the later new write.
-  if (state.prior === 1) {
-    database
-      .query(
-        "UPDATE retention_subject SET resolution = 'ambiguous', ambiguity = 'unanchored_content' WHERE subject_kind = 'software_request' AND subject_id = ? AND resolution = 'pending_content'",
-      )
-      .run(requestId);
-    return;
-  }
-  if (state.incoming !== 1) return;
-  database
-    .query(
-      // Proof: dropping the pending_content predicate failed the later-edits test (brief cleared, then rewritten) with "retention anchor is immutable".
-      "UPDATE retention_subject SET resolution = 'anchored', anchor_at = ?, deadline_at = ?, anchor_source = 'first_write' WHERE subject_kind = 'software_request' AND subject_id = ? AND resolution = 'pending_content'",
-    )
-    .run(now, addUtcMonths(now, retentionMonths), requestId);
 }
 
 function classifyRequest(row: RequestLineageRow): RetentionState {

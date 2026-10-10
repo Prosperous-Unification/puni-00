@@ -55,3 +55,14 @@ test('the alert webhook is unset, or an https URL; anything else throws', () => 
     'guardrail alerts: webhook set',
   );
 });
+
+test('a retired OIDC setting stops startup', () => {
+  for (const name of ['OIDC_ISSUER', 'OIDC_CLIENT_ID', 'OIDC_CLIENT_SECRET', 'OIDC_REDIRECT_URI']) {
+    for (const value of ['https://accounts.google.com', ''])
+      expect(() => readWebsiteApiConfig({ [name]: value })).toThrow(
+        `prospect sign-in was retired on 2026-10-11 (ADR 0039); remove ${name}`,
+      );
+  }
+  expect(() => readWebsiteApiConfig({ OIDC_AUDIENCE: 'x' })).toThrow('remove OIDC_AUDIENCE');
+  expect(readWebsiteApiConfig({ AUTH_MODE: 'oidc' }).publicOrigin).toBe('http://localhost:4321');
+});

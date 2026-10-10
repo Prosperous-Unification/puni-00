@@ -355,7 +355,8 @@ export function resumeInferencePause(database: Database, now: number): boolean {
 }
 
 /**
- * The pause rule inside a paid admission transaction, after the site's UTC-day spend is summed:
+ * The pause rule inside the conversation admission transaction (its only caller), after the site's
+ * UTC-day spend is summed:
  * an open pause refuses (`openedPauseId` null); a reservation that brings the spend to
  * {@link guardrailAllowance.pauseMicroUsd} or above opens a `site_spend` pause and refuses,
  * unless a `site_spend` pause was already opened this UTC day. So after an operator resumes, the
@@ -404,7 +405,7 @@ export interface GuardrailOverview {
   alerts: GuardrailAlert[];
 }
 
-/** Settled and reserved spend of one UTC day across conversations and account calls. */
+/** Settled and reserved spend of one UTC day across conversations and legacy account calls. */
 export function readSiteSpend(database: Database, utcDay: string): number {
   const spent = 'COALESCE(SUM(COALESCE(settled_micro_usd, reserved_micro_usd)), 0)';
   const row = database
