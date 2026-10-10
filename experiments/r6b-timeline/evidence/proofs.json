@@ -1,0 +1,70 @@
+{
+  "observed": [
+    {
+      "fault": "remove-list-guard",
+      "test": "invalid, duplicate",
+      "exit": 1
+    },
+    {
+      "fault": "remove-finite-instant-guard",
+      "test": "invalid, duplicate",
+      "exit": 1
+    },
+    {
+      "fault": "shift-anchor",
+      "test": "elapsed geometry",
+      "exit": 1
+    },
+    {
+      "fault": "merge-repeated-attempts",
+      "test": "repeated slices",
+      "exit": 1
+    },
+    {
+      "fault": "parse-local-as-UTC",
+      "test": "explicit timezone",
+      "exit": 1
+    },
+    {
+      "fault": "hide-enlarged-hit-target",
+      "test": "repeated slices",
+      "exit": 1
+    },
+    {
+      "fault": "default-missing-endpoint",
+      "test": "zero duration",
+      "exit": 1
+    },
+    {
+      "fault": "remove-duplicate-guard",
+      "test": "invalid, duplicate",
+      "exit": 1
+    },
+    {
+      "fault": "remove-reversed-guard",
+      "test": "invalid, duplicate",
+      "exit": 1
+    },
+    {
+      "fault": "remove-identity-guard",
+      "test": "invalid, duplicate",
+      "exit": 1
+    },
+    {
+      "fault": "remove-calendar-guard",
+      "test": "invalid, duplicate",
+      "exit": 1
+    },
+    {
+      "fault": "allow-unzoned-local",
+      "test": "explicit timezone",
+      "exit": 1
+    },
+    {
+      "fault": "disable-fit-sync",
+      "test": "fit-all discrete display is stale",
+      "exit": 1
+    }
+  ],
+  "restored": true
+}

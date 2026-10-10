@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+experiments/r6b-timeline/model.test.ts:
+56 |       slice: 'one',
+57 |       start: '2026-09-20T00:22:27+03:00',
+58 |       end: '2026-09-20T00:24:19+03:00',
+59 |     },
+60 |   ]);
+61 |   expect(attempts[0].start).toBe(Date.parse('2026-09-19T21:22:27Z'));
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: 1789852947000
+Received: 1789863747000
+
+      at <anonymous> (<experiment>/model.test.ts:61:29)
+(fail) explicit timezone offsets preserve instants; unzoned local times refuse [1.73ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [11.00ms]

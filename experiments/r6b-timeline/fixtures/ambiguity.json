@@ -1,0 +1,37 @@
+[
+  {
+    "id": "synthetic-overlap-a",
+    "packet": "SYNTHETIC ambiguity",
+    "slice": "repeated",
+    "start": "2026-09-19T23:59:00Z",
+    "end": "2026-09-20T00:02:00Z"
+  },
+  {
+    "id": "synthetic-overlap-b",
+    "packet": "SYNTHETIC ambiguity",
+    "slice": "repeated",
+    "start": "2026-09-19T23:59:00Z",
+    "end": "2026-09-20T00:01:00Z"
+  },
+  {
+    "id": "synthetic-touch",
+    "packet": "SYNTHETIC ambiguity",
+    "slice": "touching",
+    "start": "2026-09-20T00:02:00Z",
+    "end": "2026-09-20T00:03:00Z"
+  },
+  {
+    "id": "synthetic-zero",
+    "packet": "SYNTHETIC endpoints",
+    "slice": "zero duration",
+    "start": "2026-09-20T00:00:00Z",
+    "end": "2026-09-20T00:00:00Z"
+  },
+  {
+    "id": "synthetic-missing",
+    "packet": "SYNTHETIC endpoints",
+    "slice": "missing end",
+    "start": "2026-09-20T00:00:00Z",
+    "end": null
+  }
+]

@@ -7,6 +7,8 @@ export interface DraftView {
   brief: string;
   csrfToken: string;
   expiresAt: string;
+  /** The conversation provider now; the manual brief links to Build only while it is enabled. */
+  provider: ConversationProvider;
 }
 
 /** Server-owned conversation stage; the UI offers affordances by stage, never by model text. */
@@ -17,9 +19,6 @@ export type ConversationReplyStage = 'clarify' | 'brief' | 'contact';
 
 /** Stored lifecycle of an anonymous conversation; see {@link deriveStage}. */
 export type ConversationState = 'open' | 'exhausted' | 'handed_off';
-
-/** Visitor turns per anonymous conversation, the Home request included. */
-export const conversationTurnLimit = 8;
 
 /**
  * The stage of the reply to the next visitor turn: the first two are `clarify`, the third is
@@ -65,6 +64,8 @@ export interface ConversationView {
   stage: ConversationStage;
   turns: { role: 'user' | 'assistant'; content: string }[];
   visitorTurnsRemaining: number;
+  /** Visitor turns per conversation, the Home request included; `conversationAllowance.visitorTurns`. */
+  visitorTurnLimit: number;
   provider: ConversationProvider;
   brief: string;
   description: string;

@@ -2,9 +2,9 @@
 
 Inspected 2026-09-08. A sourced estimate with an adversarial audit, not a measurement:
 every per-unit figure rests on a per-stage token distribution and on human minutes that
-nobody has measured yet, and the note says so where it matters. The live calculator that
-drives these numbers is a private artifact:
-<https://claude.ai/code/artifact/b7452aaf-4c45-4f2d-8f2c-f4929db5452b>.
+nobody has measured yet, and the note says so where it matters. The [archived interactive calculator](factory-unit-economics.html) carries the
+original 2026-09-08 assumptions; open the HTML locally. Its prices and policy
+claims are historical, and publishing it does not revalidate them.
 
 ## The question
 

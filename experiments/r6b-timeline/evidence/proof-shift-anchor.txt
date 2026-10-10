@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+experiments/r6b-timeline/model.test.ts:
+40 |     let viewport = { start: shortest.start - 200000, span: 86400000, width };
+41 |     for (const span of [604800000, 86400000, 21600000, 3600000, 900000, 300000]) {
+42 |       const before = placeAttempt(shortest, viewport).x;
+43 |       viewport = zoomViewport(viewport, span, shortest.start);
+44 |       const after = placeAttempt(shortest, viewport);
+45 |       expect(Math.abs(after.x - before)).toBeLessThanOrEqual(1);
+                                              ^
+error: expect(received).toBeLessThanOrEqual(expected)
+
+Expected: <= 1
+Received: 19.199999999999996
+
+      at <anonymous> (<experiment>/model.test.ts:45:42)
+(fail) elapsed geometry and selected instant survive all scales within one CSS pixel [2.38ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [10.00ms]

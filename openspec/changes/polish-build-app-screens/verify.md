@@ -116,7 +116,7 @@ The "Start a Request" pill was removed from the header and from the mobile Menu 
 ## Decisions
 
 - **Brief limit:** the manual brief keeps 4,000 characters. `PATCH /brief` and `POST /proposals` accept 8,000, but concept generation reads `brief.slice(0, 4000)`. Home's 2,000 limit applies to the description that the brief expands.
-- **Sign-in routing:** `signInRoute` is shared by Build's sign-in card and the manual AI gate, so the two screens cannot disagree.
+- **Sign-in routing:** `signInRoute` was shared by Build's sign-in card and the manual AI gate, so the two screens could not disagree. Retired on 2026-10-11 with prospect sign-in (ADR 0039); the manual card now follows `offersAi`.
 - **Focus:** the manual brief's state heading is now its h1, and the dark-panel statement is a paragraph, so focus lands on the content that changed.
 
 ## Not verified
