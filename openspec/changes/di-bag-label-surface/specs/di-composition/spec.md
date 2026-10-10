@@ -1,6 +1,6 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
-### Requirement: A module's label names its private bindings in failures
+### Requirement: Module labels and binding origins are read from explicit metadata
 
 Every sealed module SHALL carry the exact `moduleLabel` implied by its module directory and SHALL expose it through the read-only module getter. The label-agreement check SHALL read that getter on the sealed module it scans. A private binding SHALL NOT be required solely for label agreement. A container-only consumer SHALL attribute bindings to module installations through `moduleInstallationId` and `moduleInstallations`, including unlabelled and empty installations, without parsing slash-delimited binding labels.
 

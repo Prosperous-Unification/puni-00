@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
@@ -81,8 +81,21 @@ interface CheckVerdict {
     selectorVersion?: number;
     selection?: {
       inputs: { path: string; digest: string }[];
-      effective: { title: string; source: string; digest: string; aliases: string[] }[];
-      operations: { kind: string; title: string; source: string; digest: string; from?: string }[];
+      effective: {
+        title: string;
+        source: string;
+        digest: string;
+        aliases: string[];
+        scenarios: { title: string; id?: string }[];
+      }[];
+      operations: {
+        kind: string;
+        capability: string;
+        title: string;
+        source: string;
+        digest: string;
+        from?: string;
+      }[];
       removals: { capability: string; title: string; ids: string[] }[];
     };
   };
@@ -599,6 +612,84 @@ test('production selector applies modified and added requirements without losing
   expect(response.verdict?.scenarios?.selection?.operations.map(({ kind }) => kind)).toEqual([
     'MODIFIED',
     'ADDED',
+  ]);
+});
+
+test('production selector retains the distinct DI label and binding-origin requirements', () => {
+  const { repository, base } = fixture();
+  const sourceRoot = resolve(import.meta.dir, '../../../../../..');
+  const originalPath = 'openspec/changes/adopt-di-composition/specs/di-composition/spec.md';
+  const surfacePath = 'openspec/changes/di-bag-label-surface/specs/di-composition/spec.md';
+  const candidate = nextCommit(repository, {
+    [originalPath]: readFileSync(join(sourceRoot, originalPath), 'utf8'),
+    [surfacePath]: readFileSync(join(sourceRoot, surfacePath), 'utf8'),
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.verdict?.unevaluated).toEqual([]);
+  expect(response.exitCode, response.stderr).toBe(0);
+  const operations = response.verdict?.scenarios?.selection?.operations;
+  expect(
+    operations?.find(
+      ({ source, title }) =>
+        source === originalPath &&
+        title === "A module's label names its private bindings in failures",
+    ),
+  ).toMatchObject({
+    kind: 'ADDED',
+    capability: 'di-composition',
+  });
+  expect(operations?.find(({ source }) => source === surfacePath)).toMatchObject({
+    kind: 'ADDED',
+    capability: 'di-composition',
+    title: 'Module labels and binding origins are read from explicit metadata',
+  });
+  const effective = response.verdict?.scenarios?.selection?.effective;
+  expect(
+    effective
+      ?.find(({ title }) => title === "A module's label names its private bindings in failures")
+      ?.scenarios.map(({ title }) => title),
+  ).toEqual([
+    'A missing requirement names the module that asked',
+    'A library module and an app module are identified',
+    'Everything that names a module agrees with its label',
+  ]);
+  expect(
+    effective
+      ?.find(
+        ({ title }) =>
+          title === 'Module labels and binding origins are read from explicit metadata',
+      )
+      ?.scenarios.map(({ title }) => title),
+  ).toEqual([
+    'A forged prefix does not supply a module label',
+    'A nested labelled module does not label its parent',
+    'No private binding is required for label agreement',
+    "A binding's installation is identified in a container",
+  ]);
+});
+
+test('production selector still refuses a second active DI binding-origin operation', () => {
+  const { repository, base } = fixture();
+  const sourceRoot = resolve(import.meta.dir, '../../../../../..');
+  const originalPath = 'openspec/changes/adopt-di-composition/specs/di-composition/spec.md';
+  const surfacePath = 'openspec/changes/di-bag-label-surface/specs/di-composition/spec.md';
+  const competingPath = 'openspec/changes/competing-di/specs/di-composition/spec.md';
+  const surface = readFileSync(join(sourceRoot, surfacePath), 'utf8');
+  const candidate = nextCommit(repository, {
+    [originalPath]: readFileSync(join(sourceRoot, originalPath), 'utf8'),
+    [surfacePath]: surface,
+    // Proof: removing this second active operation made this production CLI refusal
+    // test fail (expected exit 1, received 0); restoring it retains the conflict.
+    [competingPath]: surface,
+  });
+  const response = check(repository, candidate, { baseRevision: base });
+  expect(response.exitCode).toBe(1);
+  expect(response.verdict?.unevaluated).toEqual([
+    {
+      ruleId: 'SPEC-SCENARIOS',
+      reason:
+        'competing overlay operation: di-composition: Module labels and binding origins are read from explicit metadata',
+    },
   ]);
 });
 
