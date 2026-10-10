@@ -330,6 +330,27 @@ if (operatorPassword)
       },
       ready: (page) => page.locator('section.guardrails .guardrails-figures').waitFor(),
     },
+    {
+      name: 'operator-funnel',
+      stack: oidc,
+      path: '/operator',
+      cookie: false,
+      operatorSignIn: true,
+      check: async (page) => {
+        const problems = [];
+        const panel = page.locator('section.funnel');
+        const rows = await panel.locator('tbody tr').count();
+        if (rows !== 30) problems.push(`expected 30 UTC day rows, found ${String(rows)}`);
+        if (
+          !/proposal requests (came from the AI chat|in this window)/.test(await panel.innerText())
+        )
+          problems.push('missing the chat share line');
+        if (!/Ceiling-settled today/.test(await page.locator('section.guardrails').innerText()))
+          problems.push('missing the ceiling-settled line in Guardrails');
+        return problems;
+      },
+      ready: (page) => page.locator('section.funnel .funnel-table').waitFor(),
+    },
   );
 
 /**

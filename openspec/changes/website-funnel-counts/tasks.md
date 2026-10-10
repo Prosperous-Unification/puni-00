@@ -22,12 +22,12 @@ tests with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`.
 
 ## 3. Operator page
 
-- [ ] 3.1 `funnel-panel.tsx` below Guardrails and the ceiling-settled line in
+- [x] 3.1 `funnel-panel.tsx` below Guardrails and the ceiling-settled line in
       `guardrails-panel.tsx`. Tests: `funnel-panel.test.ts` "renders thirty UTC days and the chat
       share" and the malformed-body test; `guardrails-panel.test.ts` ceiling-settled line.
-- [ ] 3.2 `browser/screens.mjs` `operator-funnel` capture at four widths.
+- [x] 3.2 `browser/screens.mjs` `operator-funnel` capture at four widths.
 
 ## 4. Docs
 
-- [ ] 4.1 `docs/website/build-runtime.md` "Funnel" paragraph; **Funnel count** in
+- [x] 4.1 `docs/website/build-runtime.md` "Funnel" paragraph; **Funnel count** in
       `docs/website/CONTEXT.md`.

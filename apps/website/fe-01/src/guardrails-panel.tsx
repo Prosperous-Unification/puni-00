@@ -20,6 +20,7 @@ export interface GuardrailOverviewView {
   proposalsToday: number;
   accountLockedUntil: number | null;
   lockedSources: number;
+  ceilingSettledToday: { count: number; microUsd: number };
   alerts: GuardrailAlertView[];
 }
 
@@ -72,6 +73,7 @@ export function parseGuardrailOverview(value: unknown): GuardrailOverviewView {
       delivery,
     };
   });
+  const settled = readRecord(body['ceilingSettledToday'], 'ceilingSettledToday');
   return {
     pause,
     siteSpendMicroUsd: readCount(body['siteSpendMicroUsd'], 'siteSpendMicroUsd'),
@@ -83,12 +85,27 @@ export function parseGuardrailOverview(value: unknown): GuardrailOverviewView {
         ? null
         : readCount(body['accountLockedUntil'], 'accountLockedUntil'),
     lockedSources: readCount(body['lockedSources'], 'lockedSources'),
+    ceilingSettledToday: {
+      count: readCount(settled['count'], 'ceilingSettledToday.count'),
+      microUsd: readCount(settled['microUsd'], 'ceilingSettledToday.microUsd'),
+    },
     alerts,
   };
 }
 
-function formatUsd(microUsd: number): string {
-  return `$${(microUsd / 1_000_000).toFixed(2)}`;
+function formatUsd(microUsd: number, digits = 2): string {
+  return `$${(microUsd / 1_000_000).toFixed(digits)}`;
+}
+
+/**
+ * The ceiling-settled line: today's operations whose usage never arrived, settled at their full
+ * reservation, and the amount recorded for them, by which today's spend may over-count. Three
+ * decimals, because one stopped turn reserves fractions of a cent.
+ */
+export function describeCeilingSettled(settled: GuardrailOverviewView['ceilingSettledToday']) {
+  if (settled.count === 0) return 'None';
+  const noun = settled.count === 1 ? 'operation' : 'operations';
+  return `${String(settled.count)} ${noun} · ${formatUsd(settled.microUsd, 3)} recorded at the full reservation`;
 }
 
 /** The pause line: paused by whom and since when, or running. */
@@ -102,7 +119,8 @@ export function describePause(pause: GuardrailOverviewView['pause']): string {
 
 /**
  * The operator's Guardrails panel above the inbox: the pause state with a pause or resume control
- * behind an inline confirmation, today's spend against the ceiling, draft and proposal counts,
+ * behind an inline confirmation, today's spend against the ceiling and how much of it was
+ * settled at full reservations, draft and proposal counts,
  * login locks and the last alerts with their delivery outcome.
  */
 export function GuardrailsPanel({ csrf }: { csrf: string }) {
@@ -144,17 +162,20 @@ export function GuardrailsPanel({ csrf }: { csrf: string }) {
   }
 
   const action = overview?.pause ? 'Resume AI chat' : 'Pause AI chat';
+  const pending = '…';
   return (
     <section className="guardrails" aria-labelledby="guardrails-heading">
       <h2 id="guardrails-heading">Guardrails</h2>
-      {overview === null ? (
-        <p className="small">{failure || 'Loading guardrails…'}</p>
+      {overview === null && failure ? (
+        <p className="small">{failure}</p>
       ) : (
+        // While loading, the panel keeps its loaded layout with placeholders, so the panels and
+        // inbox below it do not shift when the overview arrives.
         <>
           <p className="guardrails-state" role="status">
-            {describePause(overview.pause)}
+            {overview ? describePause(overview.pause) : 'Loading guardrails…'}
           </p>
-          {isConfirming ? (
+          {isConfirming && overview ? (
             <div className="guardrails-confirm" role="group" aria-label={`${action}?`}>
               <p>
                 {overview.pause
@@ -184,6 +205,7 @@ export function GuardrailsPanel({ csrf }: { csrf: string }) {
               <button
                 type="button"
                 className="button secondary compact"
+                disabled={overview === null}
                 onClick={() => {
                   setConfirming(true);
                 }}
@@ -195,24 +217,32 @@ export function GuardrailsPanel({ csrf }: { csrf: string }) {
           <dl className="guardrails-figures">
             <dt>Today’s spend</dt>
             <dd>
-              {formatUsd(overview.siteSpendMicroUsd)} of {formatUsd(overview.siteCeilingMicroUsd)}
+              {overview
+                ? `${formatUsd(overview.siteSpendMicroUsd)} of ${formatUsd(overview.siteCeilingMicroUsd)}`
+                : pending}
             </dd>
+            <dt>Ceiling-settled today</dt>
+            <dd>{overview ? describeCeilingSettled(overview.ceilingSettledToday) : pending}</dd>
             <dt>Drafts today</dt>
-            <dd>{overview.draftsToday}</dd>
+            <dd>{overview ? overview.draftsToday : pending}</dd>
             <dt>Proposals today</dt>
-            <dd>{overview.proposalsToday}</dd>
+            <dd>{overview ? overview.proposalsToday : pending}</dd>
             <dt>Operator login</dt>
             <dd>
-              {overview.accountLockedUntil === null
-                ? 'Open'
-                : `Locked until ${new Date(overview.accountLockedUntil).toISOString().slice(11, 16)} UTC`}
-              {overview.lockedSources > 0
+              {overview === null
+                ? pending
+                : overview.accountLockedUntil === null
+                  ? 'Open'
+                  : `Locked until ${new Date(overview.accountLockedUntil).toISOString().slice(11, 16)} UTC`}
+              {overview && overview.lockedSources > 0
                 ? ` · ${String(overview.lockedSources)} sources locked`
                 : ''}
             </dd>
           </dl>
           <h3 className="small">Recent alerts</h3>
-          {overview.alerts.length === 0 ? (
+          {overview === null ? (
+            <p className="small">{pending}</p>
+          ) : overview.alerts.length === 0 ? (
             <p className="small">No alerts.</p>
           ) : (
             <ul className="guardrails-alerts">

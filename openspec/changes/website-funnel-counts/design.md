@@ -42,7 +42,10 @@ selected column is `count(*)`, a `SUM` of micro-USD or a day string.
 ## Operator page
 
 `funnel-panel.tsx` validates the body at the boundary (`parseFunnelCounts` throws
-`InvalidFunnelCounts`), then renders a summary line with the thirty-day totals and the from-chat
-share of proposal requests, and a table of thirty rows inside a horizontally scrollable, focusable
-region so the page itself never scrolls sideways at 320 px. Loading and a failed read are rendered
-states. The Guardrails panel gains a "Ceiling-settled today" line.
+`InvalidFunnelCounts`), then renders the from-chat share of the window's proposal requests and a
+table of thirty rows inside a fixed-height, focusable region
+that scrolls on its own, so the page never scrolls sideways at 320 px and never shifts when the
+counts arrive. Loading and a failed read are rendered states inside the same region. The
+Guardrails panel gains a "Ceiling-settled today" line, and its loading state now keeps the loaded
+layout with placeholders: with a taller panel below it, its growth from one loading line made the
+`operator-inbox`, `operator-guardrails` and `operator-funnel` captures fail on layout shift.

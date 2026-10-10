@@ -962,6 +962,59 @@ textarea {
   margin: var(--space-2) 0 0;
   padding-left: var(--space-4);
 }
+.funnel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+  margin-top: var(--space-5);
+  line-height: 1.6;
+}
+.funnel h2 {
+  font-size: var(--text-h3);
+  margin: 0 0 var(--space-3);
+}
+.funnel-share {
+  min-height: 3.2em;
+  margin: 0 0 var(--space-2);
+}
+/* A fixed height in every state: the counts arrive after the page renders and must not shift it. */
+.funnel-scroll {
+  height: 18rem;
+  overflow: auto;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-field);
+}
+.funnel-scroll > p {
+  margin: var(--space-3);
+}
+.funnel-scroll:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.funnel-table {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.funnel-table :is(th, td) {
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+}
+.funnel-table :is(th:first-child, tbody th) {
+  text-align: left;
+}
+.funnel-table tbody th {
+  font-weight: 500;
+}
+.funnel-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+}
 .inbox {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
