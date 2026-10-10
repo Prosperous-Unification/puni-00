@@ -485,7 +485,7 @@ function renderFailureChain(failure: unknown): string {
     if (depth > 16) throw new Error('Performance failure chain exceeds 16 levels');
     if (typeof cause === 'object' && cause !== null) {
       // Proof: injected self-cause failed artifact writing; removing this cycle
-      // check made its production negative accept the chain.
+      // check changed refusal to the depth bound and failed its named assertion.
       if (ancestors.has(cause)) throw new Error('Performance failure chain has a cycle');
       ancestors.add(cause);
     }
