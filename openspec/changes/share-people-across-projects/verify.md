@@ -3993,3 +3993,37 @@ tasks. Pinned OpenSpec passed strict 1/1 and all 149/149
 (`/tmp/shared-people-6ke-openspec-{strict,all}.json`). Changed-path Prettier
 passed and `git diff --check` exited 0. No host gate, CI, push, merge or
 trusted activation ran for this local test/evidence candidate.
+
+## 6j and 6k reconciliation on current main (batch 10)
+
+Branch `batch-10/010-4-16-capacity-6k` starts at the reviewed `feat/shared-people-fanout-6ke`
+stack (`13f446cb3` 6k.b, `d5edbfd31` 6k.c, `b4ba7e9c7` 6k.d, `02bc6f8ac` 6k.e), merges
+`origin/main` at `a3b1526bd` without conflicts (merge `825a2a833`), then merges the docs-only
+`docs/shared-people-6i-closure` (`a78793f68`) as `c04d726c5`. The only conflict was this
+file's two appended sections; both were kept, the 6i checkpoint first. No production byte
+changed in either merge.
+
+Already on main and therefore not re-reviewed here: PRs #262, #264–#267, #269 (6.0, wire,
+chain/storage/runtime 6.1a–f), #275 (6g–6i, `d1d7399ee`), #282 (6j.a–f, `ae7c1ff11`) and
+#284 (6k.a, `7166e91f3`). The 6i boxes follow the merged closure evidence above. The 6j parent
+is checked because its six reviewed sub-slices are merged in #282 and their installed suites
+pass on this head. The 6k.b–e boxes and the 6k parent are checked because their reviewed
+commits are in this branch and their suites pass on the merged head; their K1–K13 fault logs
+remain the 6k.b–e sections above and were not re-injected.
+
+Commands on the merged head, each under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`:
+
+```sh
+NX_DAEMON=false bunx nx run-many -t test,lint:fast,typecheck -p wbs-be-01,tool-devsync --skip-nx-cache
+NX_DAEMON=false bunx nx run-many -t test -p wbs-conformance wbs-core wbs-store-sqlite wbs-store-memory wbs-domain wbs-contracts --skip-nx-cache --output-style=static
+bunx @fission-ai/openspec@1.12.0 validate --all --json
+```
+
+The first printed Nx success for all seven tasks (`wbs-be-01` test, lint:fast, typecheck and
+its module typecheck; `tool-devsync` test, lint:fast, typecheck). The second passed store-memory
+146/146, domain 872 pass, 1 pre-existing skip and 0 fail of 873, contracts 447/447, conformance 35/35, core 846/846
+and store-sqlite 1287/1287, exit 0. OpenSpec passed 158/158.
+
+The 6k.e fourteen-file command recorded above, rerun unchanged on the merged head, passed
+411/411 with 20,553 assertions, exit 0. This is local evidence only: no host gate or CI is
+claimed here, and 6l, 6.1/6.2, UI 7, mode route 8 and trusted activation stay open.
