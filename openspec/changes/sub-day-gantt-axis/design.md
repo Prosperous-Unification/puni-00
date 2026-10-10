@@ -18,8 +18,14 @@ is the existing rung control with six positions; the title carries the exact wid
 
 `layOutGantt` takes the rung. A slice's drawn width is `effort workdays × pxPerWorkday`; at a
 sub-day rung a calendar day is drawn as its 480 working minutes (one day cell = one workday
-cell), weekends greyed as today, so nothing changes at stage 1 for a workday-unit plan but
-the width. A bar whose width is under 4 px is painted 4 px wide with `data-tick`; the hover
+cell), weekends greyed as today, so before the instant axis nothing changes for a workday-unit plan but
+the width. Sub-day cells are labelled by project-zone clock time from the
+anchor `STAGE_ONE_DAY_START_MINUTE` (09:00; `gantt-attempt-marks` D-constant, retired by
+`agent-calendar-instant-axis`): `09:00`, `13:00` at `4 h`; every hour `09:00`–`16:00` at `1 h`;
+every quarter at `15 min` with the hour printed once per hour; the day header keeps the date.
+The remembered rung in `remembered-layout.ts` stores the rung `id`; a stored day-rung pixel value
+from before this change reads as its rung by value, and an unknown stored value is a rendered
+reset to `Days`, not a guess. A bar whose width is under 4 px is painted 4 px wide with `data-tick`; the hover
 card carries the exact span. Every mark has a pointer surface of at least 18 CSS px, centred
 on the mark, drawn as an invisible hit rect above the row line (the row line keeps pointing
 the row). When two or more pointer surfaces contain the pointer, hover opens a **collision

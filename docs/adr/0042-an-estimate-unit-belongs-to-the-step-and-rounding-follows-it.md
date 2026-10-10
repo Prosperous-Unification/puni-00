@@ -30,15 +30,16 @@ ADR 0011 stays accepted with its scope narrowed to workday-unit steps.
 - **Everything in fractional days.** Rejected: an agent's 40 minutes becomes `0.0833…` of a
   day nobody defined, and R6's drift measurement shows the gain is avoiding that conversion
   layer, not fixing a snap failure.
-- **Reuse `SOLVER_QUANTUM = 48` as the grain.** Rejected: a solver-width coincidence; R6
-  showed a 12-minute step inflated 2.5× when ceil'd to it at storage. The quantum stays at
-  the CP-SAT boundary.
+- **Reuse the solver quantum (a 48th of a workday, 10 minutes at 480) as the grain.** Rejected:
+  a solver-width coincidence; R6 A.3 showed a 12-minute step inflated when ceil'd to the quantum
+  at storage. The quantum stays at the CP-SAT boundary, where the `horizon-overflow` preflight
+  guards the 32-bit axis.
 
 ## Consequences
 
 - Changing a step's unit while it holds estimates is refused with the count; nothing is ever
   converted. `MAX_ESTIMATE_MINUTES = MAX_ESTIMATE_DAYS × 480` keeps the 32-bit solver axis.
-- Until the instant axis (ADR 0042) a minute slice is placed as `minutes / 480` fractional
+- Until the instant axis (ADR 0043) a minute slice is placed as `minutes / 480` fractional
   workdays, exact, with 480 a domain constant.
 - One `showDuration` formats both units everywhere, so the table and the chart cannot
   disagree on the unit — the fault ADR 0011 exists to prevent, moved to the unit.

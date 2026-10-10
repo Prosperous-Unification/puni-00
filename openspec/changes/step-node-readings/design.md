@@ -1,7 +1,7 @@
 # design — `step-node-readings`
 
 Interview: `puni-plan/batch-10/interviews/020.10-answers.md` Q1, Q7 (the additive half), Q10.
-No ADR: the stored vocabulary does not move (ADR 0044 records why `failed`, `waiting` and
+No ADR: the stored vocabulary does not move (ADR 0045 records why `failed`, `waiting` and
 `skipped` are not statements).
 
 ## D1 — The reading in `@wbs/domain`
@@ -11,7 +11,7 @@ No ADR: the stored vocabulary does not move (ADR 0044 records why `failed`, `wai
 
 ```
 nodeReadingOf({
-  participation: 'included' | 'skipped' | null,   // null until stage 8 stores it
+  participation: 'included' | 'skipped' | null,   // null until 010.4.13.3 stores it
   statement: StepState | null,
   rowHold: Hold | null,
   runningAttempt: boolean,

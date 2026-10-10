@@ -1,8 +1,10 @@
 ## 0. Spec
 
-- [x] 0.1 Intent, delta specs, design, ADR 0041 and CONTEXT terms (Estimate, Charged
-      estimate, Estimate rounding rewritten; Estimate unit, Workday minutes). `openspec
-validate --all --json` green (020.11, 2026-10-11).
+- [x] 0.1 Intent, delta specs, design and ADR 0042; OpenSpec validation green (020.11,
+      2026-10-11). Glossary entries are task 0.2, not applied by the packet-writing lane.
+- [ ] 0.2 Apply glossary entries (Estimate, Charged estimate, Estimate rounding rewritten;
+      Estimate unit, Workday minutes) to `CONTEXT.md` verbatim from
+      `puni-plan/batch-10/interviews/glossary-delta.md`, in the first green commit of slice 1.
 
 ## 1. Vocabulary and charge in `@wbs/domain` (nothing stores a unit yet)
 
@@ -15,7 +17,7 @@ validate --all --json` green (020.11, 2026-10-11).
       Files: `libs/wbs/domain/domain/src/{stored-vocabularies,estimate}.ts` and tests.
 - [ ] 1.2 Green: `ESTIMATE_UNITS`, `isEstimateUnit`, `WORKDAY_MINUTES`, `MAX_ESTIMATE_MINUTES`,
       `minuteTrioProblem`, `combinedFigure`/`beforeRoundingFigure` (renamed), `chargedMinutes`,
-      `chargedWorkdaysOf`; JSDoc on each naming ADR 0041.
+      `chargedWorkdaysOf`; JSDoc on each naming ADR 0042.
 - [ ] 1.3 Negatives, each watched red then restored with an adjacent `Proof:`: `Math.ceil`
       replaced by `Math.round` in `chargedMinutes` → "charges a minute step to the whole
       minute…"; `rule.rounding` consulted in `chargedMinutes` → "never consults…";
@@ -28,9 +30,9 @@ validate --all --json` green (020.11, 2026-10-11).
       minutes while minute steps are stored, and stops green", "passes an image without the
       units CLI over workday steps", "refuses a minute unit written after the first check once
       blue stops"; `lib/docker.test.ts` estimate-unit commands (present, absent, missing `src`,
-      stored units before and after the column exists); `apps/wbs/be-01/src/migration-cli.db.test.ts`
-      "saves, removes and restores minute-unit steps through the rollback CLI" and its usage
-      guard.
+      stored units before and after the column exists); `apps/wbs/be-01/src/migration-cli.db.test.ts` the rollback
+      CLI's usage guard and its refusal on an unmigrated file (the round trip needs the column:
+      slice 3).
 - [ ] 2.2 Green: `ESTIMATE_UNITS_VOCABULARY` in `swap.ts`; `estimate-units-cli.ts` printing
       `ESTIMATE_UNITS`; `libs/wbs/adapters/store-sqlite/src/estimate-unit-rollback.ts`
       (`save`, `remove`, `restore`) and `apps/wbs/be-01/src/estimate-unit-rollback-cli.ts`;
@@ -45,8 +47,10 @@ validate --all --json` green (020.11, 2026-10-11).
 - [ ] 3.1 Red: `libs/wbs/adapters/store-sqlite/src/step-estimate-unit-migration.db.test.ts`
       (apply; an old-writer three-column insert reads `workdays`; a `CHECK` refusal of
       `hours`; rollback refused over a `minutes` step naming the CLI; rollback and re-apply
-      over workday steps); `step.db.test.ts` reads and writes the unit; every
-      migration-enumerating db test lists the new folder.
+      over workday steps); `step.db.test.ts` reads and writes the unit;
+      `migration-cli.db.test.ts` "saves, removes and restores minute-unit steps through the
+      rollback CLI" (two steps, four rows, verbatim); every migration-enumerating db test lists
+      the new folder.
 - [ ] 3.2 Green: stamp allocated now against `origin/main` and the integration queue, written
       into `design.md`; `apps/wbs/be-01/drizzle/<stamp>_add_step_estimate_unit/{migration,down}.sql`;
       `schema.ts` column; `StepRepository` reads and patches `estimateUnit`; migration lint
@@ -56,7 +60,7 @@ validate --all --json` green (020.11, 2026-10-11).
 
 ## 4. Route and command boundary
 
-- [ ] 4.1 Red: `apps/wbs/be-01/src/module/step/*.controller.db.test.ts` (create with
+- [ ] 4.1 Red: `apps/wbs/be-01/src/controller/step.controller.db.test.ts` (create with
       `minutes`; absent unit reads `workdays`; patch `hours` → `422 invalid_estimate_unit`;
       patch over three estimates → `409 estimates_present` `{ count: 3 }`; after clearing,
       the patch succeeds; the generated OpenAPI document carries the field);
@@ -104,7 +108,7 @@ validate --all --json` green (020.11, 2026-10-11).
 ## 7. fe-01
 
 - [ ] 7.1 Red: `duration-words.test.ts` (`40 min`, `2 h 15 min`, `1 d`, `1.5 d`; a workday
-      figure prints as `daysNumber` did); `steps-panel.test.tsx` (unit control; disabled over
+      figure prints as the table and the chart printed it); `steps-panel.test.tsx` (unit control; disabled over
       estimates with `2 estimates` in its tool hint; an empty step changes unit; the create
       form sends an explicit unit); `plan-cells.test.tsx` (a minute cell refuses `1.5` with a
       worded problem before sending; the final figure prints through `showDuration`);

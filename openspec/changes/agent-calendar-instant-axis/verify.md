@@ -21,7 +21,7 @@ Not yet run. Slices 2–6 are closed until this section holds the script's outpu
 | ------------------------------------- | ----- | --------------- | ---- |
 | Migration stamp                       | —     | —               | —    |
 | `SCHEDULER_CONTRACT_VERSION`          | —     | —               | —    |
-| `SCHEDULE_CACHE_DTO_VERSION`          | —     | —               | —    |
+| `CACHE_DTO_VERSION`                   | —     | —               | —    |
 | Solver wire version                   | —     | —               | —    |
 | `PLAN_DOCUMENT_VERSION`               | —     | —               | —    |
 | `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` | —     | —               | —    |

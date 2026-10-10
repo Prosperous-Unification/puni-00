@@ -42,7 +42,7 @@ step, every slice's day boundaries SHALL equal the dates the workday axis produc
 
 - **GIVEN** a `human` step charged `600 min` starting Friday 2026-10-16 15:00
 - **WHEN** the plan is scheduled
-- **THEN** it finishes Monday 2026-10-19 11:00
+- **THEN** it finishes Monday 2026-10-19 17:00 (two hours on Friday, eight on Monday)
 
 #### Scenario: the default window keeps every date
 

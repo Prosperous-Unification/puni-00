@@ -32,8 +32,8 @@ unit or minutes-per-day setting; a unit on the estimate row.
 
 The column is additive with a default that is a fact (`workdays` is the only unit that ever
 existed); blue and green share SQLite mid-swap. `MAX_ESTIMATE_MINUTES = MAX_ESTIMATE_DAYS ×
-480` keeps the solver's 32-bit axis; the 30-minute quantum applies only at the CP-SAT
-boundary. Versions and the migration stamp are allocated at packet time (`design.md`). Golden
+480` keeps the solver's 32-bit axis; the solver quantum (a 48th of a workday, 10 minutes)
+applies only at the CP-SAT boundary. Versions and the migration stamp are allocated at packet time (`design.md`). Golden
 corpora, request hashes and identity oracles stay byte-identical for workday-only plans.
 
 ## Capabilities
@@ -53,11 +53,12 @@ none
 
 ## Domain Terms
 
-Estimate, Charged estimate, Estimate rounding (rewritten); Estimate unit, Workday minutes.
+Estimate, Charged estimate, Estimate rounding (rewritten); Estimate unit, Workday minutes —
+applied to `CONTEXT.md` by task 0.2 from `puni-plan/batch-10/interviews/glossary-delta.md`.
 
 ## Decisions Recorded
 
-[ADR 0041](../../../docs/adr/0041-an-estimate-unit-belongs-to-the-step-and-rounding-follows-it.md);
+[ADR 0042](../../../docs/adr/0042-an-estimate-unit-belongs-to-the-step-and-rounding-follows-it.md);
 ADR 0011 stays accepted, narrowed to workday-unit steps.
 
 ## Impact

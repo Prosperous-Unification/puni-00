@@ -10,8 +10,9 @@ be a tick with a pointer surface of at least 18 px and SHALL join the collision 
 SHALL carry the attempt number, outcome, instants in the project zone, executor and
 reference. Attempt marks SHALL count toward the 2,500-mark offer rule. At the day rungs
 nothing SHALL change and a done leaf SHALL draw its done bar. An instant SHALL be placed by
-its project-zone day and minute of day; the part of a mark outside 09:00–17:00 SHALL be
-clamped to the day's edge with `data-clamped`, the card carrying the true instants. `now`
+its project-zone day and minute of day from the named anchor `STAGE_ONE_DAY_START_MINUTE`
+(540, the 09:00 the default working window starts at); the part of a mark outside 09:00–17:00
+SHALL be clamped to the day's edge with `data-clamped`, the card carrying the true instants. `now`
 SHALL be one clock read per render, passed in.
 
 #### Scenario: three attempts over one slice

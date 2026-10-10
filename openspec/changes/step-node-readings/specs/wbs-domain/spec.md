@@ -26,7 +26,7 @@ participation is stored. The same function SHALL serve be-01's wire and fe-01's 
 
 #### Scenario: a running attempt reads in progress
 
-- **GIVEN** a `QA` node with no statement and a running attempt
+- **GIVEN** a leaf whose `Dev` says `done` and whose `QA` has no statement and a running attempt
 - **WHEN** the plan is read
 - **THEN** `QA` reads `in_progress`, and `waiting` once the attempt ends `failed`
 
@@ -46,9 +46,7 @@ participation is stored. The same function SHALL serve be-01's wire and fe-01's 
 
 The leaf progress fold SHALL count a step node holding any attempt as a step the leaf holds
 work for, and SHALL read a running attempt on a node with no statement as `in_progress`. The
-fold's step set SHALL otherwise be unchanged by this change. No leaf on the dev store SHALL
-change its status at deploy, and `verify.md` SHALL record the count of leaves whose status
-moves (expected zero).
+fold's step set SHALL otherwise be unchanged by this change.
 
 #### Scenario: a running attempt starts the leaf
 

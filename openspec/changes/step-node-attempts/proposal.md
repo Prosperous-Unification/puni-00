@@ -28,7 +28,7 @@ time of day or a zone.
 
 Node readings and glyphs (`step-node-readings`); attempt marks (`gantt-attempt-marks`); the
 engines reading attempts (`forecast-remaining-work`); an actor kind on the write stamp;
-participation and node holds (stage 8); backfilling old facts; a second clock beside `at`.
+participation and node holds (010.4.13.3, `configure-project-step-workflows`); backfilling old facts; a second clock beside `at`.
 
 ## Constraints
 
@@ -54,11 +54,11 @@ none
 ## Domain Terms
 
 Progress, Hours fact, Fact start, Fact end (rewritten); Attempt, Attempt outcome, Project
-timezone.
+timezone — applied to `CONTEXT.md` by task 0.2 from the glossary delta.
 
 ## Decisions Recorded
 
-[ADR 0044](../../../docs/adr/0044-an-attempt-is-the-unit-of-execution-history.md).
+[ADR 0045](../../../docs/adr/0045-an-attempt-is-the-unit-of-execution-history.md).
 
 ## Impact
 

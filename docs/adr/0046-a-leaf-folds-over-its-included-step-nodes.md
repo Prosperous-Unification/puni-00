@@ -6,8 +6,8 @@ status: proposed
 
 Assumed by Fable 5.1 on 2026-10-11 under Dany's 2026-10-10 `/goal`; veto sheet
 `puni-plan/batch-10/interviews/VETO-SHEET.md` (line `10-Q7`). Change:
-`openspec/changes/fold-over-included-nodes`, blocked on participation (memo stage 8, WBS
-010.4.13.3).
+`openspec/changes/fold-over-included-nodes`, blocked on participation (WBS 010.4.13.3,
+`configure-project-step-workflows`).
 
 Today a leaf folds over "the steps it holds work for", so a blank, silent QA node does not
 keep a leaf from reading done — which is how human steps hid as whole work items. Once

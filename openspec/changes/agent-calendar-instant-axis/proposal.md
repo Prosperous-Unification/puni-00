@@ -8,7 +8,7 @@ human's resumes at 09:00.
 ## What Changes
 
 - Every project step gains an **executor kind**, `human | agent | either`, `either` unless
-  set (unless memo stage 8 has created the column first; then this change reads it).
+  set (unless 010.4.13.3 (`configure-project-step-workflows`) has created the column first; then this change reads it).
 - A project gains a **working window** — start and end hour in the **project timezone**,
   09:00–17:00 unless set — with weekends outside it.
 - The schedule's internal axis becomes instants (epoch ms). Human-kind and either-kind slices
@@ -16,8 +16,8 @@ human's resumes at 09:00.
   every day; a human successor of agent work rolls forward to the next working instant. Both
   engines read the same axis; CP-SAT's quantum is restated in minutes.
 - Provider quota is not a calendar: agent concurrency stays the existing capacity pools.
-- At sub-day rungs the Gantt greys non-working hours as it greys weekends, and the stage-1
-  clamp of attempt marks is retired.
+- At sub-day rungs the Gantt greys non-working hours as it greys weekends, and the
+  before-instant-axis clamp of attempt marks is retired.
 - Last slice, **forecast-remaining-work**: a done node takes zero remaining duration placed at
   its attempts' span; a running node pins to its first attempt's start; both engines agree.
 
@@ -52,11 +52,12 @@ none
 
 ## Domain Terms
 
-Agent (rewritten); Executor kind, Working window, Agent calendar.
+Agent (rewritten); Executor kind, Working window, Agent calendar — applied to `CONTEXT.md` by
+task 0.3 from the glossary delta.
 
 ## Decisions Recorded
 
-[ADR 0042](../../../docs/adr/0042-agent-steps-run-on-a-continuous-calendar-and-quota-is-not-a-calendar.md).
+[ADR 0043](../../../docs/adr/0043-agent-steps-run-on-a-continuous-calendar-and-quota-is-not-a-calendar.md).
 
 ## Impact
 

@@ -42,8 +42,8 @@ The charged estimate of a workday-unit step SHALL be exactly ADR 0011's: combine
 project's method, uplifted by the step's allowance, rounded by the project's estimate
 rounding, per step before any sum. The charged estimate of a minute-unit step SHALL be the
 combined figure uplifted by the step's allowance and rounded up to the whole minute, and the
-project's estimate rounding SHALL NOT be consulted. Quantisation to the 30-minute solver
-quantum SHALL happen only where it does today, at the CP-SAT boundary; Fast SHALL stay exact.
+project's estimate rounding SHALL NOT be consulted. Quantisation to the solver quantum (a 48th of a
+workday, 10 minutes at 480) SHALL happen only where it does today, at the CP-SAT boundary; Fast SHALL stay exact.
 
 #### Scenario: a minute step is ceiled to the minute after its allowance
 
@@ -87,7 +87,7 @@ wire SHALL NOT change for this placement. The Gantt bar card of a minute slice S
 A single `showDuration` SHALL print every charged figure the table, the cards, the chart and
 the spreadsheet export show, choosing by the step's estimate unit: workday figures SHALL print
 exactly as today; minute figures SHALL print `N min` under 60, `H h` or `H h M min` under
-480, and `D d` with one decimal from 480. The wire SHALL carry a minute-unit node's charged
+480, and `D d` with one decimal and a trailing `.0` dropped from 480. The wire SHALL carry a minute-unit node's charged
 minutes as an integer beside the workday figure, so no face reconstructs minutes from a
 fraction. The two faces SHALL be unable to disagree on the unit because they call the same
 function.

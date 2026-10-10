@@ -2,9 +2,8 @@
 
 With `estimate-units` a slice can last forty minutes, and the Gantt ladder stops at one day:
 at its widest rung a 40-minute bar is 2 px. The 020.07 experiment
-(`origin/experiment/r6b-timeline`) measured a dense sub-day timeline — 500 rows × 5 nodes
-interact at p95 ≤ 67 ms, 2000 × 5 at 166–202 ms — and found no winner between a ladder and a
-slider, so the ladder's testability argument stands.
+(`origin/experiment/r6b-timeline`; figures in `design.md`) measured a dense sub-day timeline and
+found no winner between a ladder and a slider, so the ladder's testability argument stands.
 
 ## What Changes
 
@@ -46,7 +45,7 @@ none
 
 ## Domain Terms
 
-Sub-day rung.
+Sub-day rung — applied to `CONTEXT.md` by task 0.2 from the glossary delta.
 
 ## Decisions Recorded
 
@@ -55,5 +54,5 @@ none: a reversible presentation decision (`020.09-answers.md` Q4).
 ## Impact
 
 fe-01 only: `gantt-panel.tsx` (ladder, control), `gantt-geometry.ts` (widths, ticks, hit
-surfaces), `gantt-detail.ts` (card, collision list), `plan-chart-input.ts` (mark count), the
-Gantt e2e shards.
+surfaces), `gantt-detail.ts` (card, collision list), `plan-chart-input.ts` (mark count),
+`remembered-layout.ts` (the remembered rung's new ids), the Gantt e2e shards.

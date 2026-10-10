@@ -3,7 +3,7 @@
 A leaf folds its status over "the steps it holds work for", so a blank, silent QA node does
 not keep a leaf from reading `done` — which is how human steps hid as whole work items (WBS
 020.10 Q7). The fix needs **participation** (a node `included` unless explicitly `skipped`),
-which memo stage 8 (`configure-project-step-workflows`, WBS 010.4.13.3) stores.
+which WBS 010.4.13.3 (`configure-project-step-workflows`) stores.
 
 **BLOCKED** on 010.4.13.3, owned by another session (Codex, `integrate/board-after-spaces`).
 Nothing in this change is started until participation is on `main`.
@@ -23,13 +23,15 @@ last_included_node`.
 
 ## Non-Goals
 
-Storing participation (stage 8); a skipped node's schedule effect (stage 8's zero-time bridge);
+Storing participation (010.4.13.3); a skipped node's schedule effect (010.4.13.3's zero-time bridge);
 an all-skipped leaf reading `done`; changing the parent fold.
 
 ## Constraints
 
 Depends on `configure-project-step-workflows` storing participation and on
-`step-node-readings`. Readings on existing plans move; the moved list is a deliverable, not a
+`step-node-readings`. The MODIFIED requirement's heading lives in the unarchived
+`add-work-item-statuses`; archive that change first or this one's archive cannot find it.
+Readings on existing plans move; the moved list is a deliverable, not a
 surprise. No migration of its own. Teams who leave optional steps blank today must skip them
 explicitly after this lands; the dev-store report is what tells them which.
 
@@ -49,10 +51,10 @@ Status (rewritten), Participation.
 
 ## Decisions Recorded
 
-[ADR 0045](../../../docs/adr/0045-a-leaf-folds-over-its-included-step-nodes.md).
+[ADR 0046](../../../docs/adr/0046-a-leaf-folds-over-its-included-step-nodes.md).
 
 ## Impact
 
 `@wbs/core` (`roll-up.ts`, `work-item.resource.ts`), `@wbs/domain` (`node-reading.ts`), the
-participation command owned by stage 8 (one refusal added), fe-01 (the skipped glyph is already
+participation command owned by 010.4.13.3 (one refusal added), fe-01 (the skipped glyph is already
 in place), `CONTEXT.md`.

@@ -1,8 +1,8 @@
 # design — `agent-calendar-instant-axis`
 
 Rationale lives in
-[ADR 0042](../../../docs/adr/0042-agent-steps-run-on-a-continuous-calendar-and-quota-is-not-a-calendar.md).
-Interview: `puni-plan/batch-10/interviews/020.09-answers.md` Q0, Q3 stage 2, Q3c;
+[ADR 0043](../../../docs/adr/0043-agent-steps-run-on-a-continuous-calendar-and-quota-is-not-a-calendar.md).
+Interview: `puni-plan/batch-10/interviews/020.09-answers.md` Q0, Q3 (after the instant axis), Q3c;
 `020.10-answers.md` Q9. XL; the engine slices are **gated** on the proof script (D0).
 
 ## D0 — The gate
@@ -21,17 +21,19 @@ the red tests of slice 2 may be written before it.
 
 Same procedure as `estimate-units/design.md`. Expected to move: `SCHEDULER_CONTRACT_VERSION`
 (the axis changes every plan's canonical input hash; the corpus lint will demand it),
-`SCHEDULE_CACHE_DTO_VERSION`, the solver wire version (quantum restated in minutes),
+`CACHE_DTO_VERSION`, the solver wire version (quantum restated in minutes),
 `PLAN_DOCUMENT_VERSION`, `CANONICAL_PLAN_INPUT_SCHEMA_VERSION`, one migration stamp. Pins on
 `a3b1526b`: contract 15, document 6, schema 4, newest stamp `20261005110000_add_shared_people`.
 
 ## D1 — Columns
 
 - `step.executor_kind TEXT NOT NULL DEFAULT 'either' CHECK (executor_kind IN
-('human','agent','either'))`, `EXECUTOR_KINDS` in `stored-vocabularies.ts`. If
-  `configure-project-step-workflows` (stage 8) has created this column first, this change
-  reads it and creates nothing; the two packets agree on the name, the default and the
-  vocabulary by this paragraph.
+('human','agent','either'))`, `EXECUTOR_KINDS` in `stored-vocabularies.ts`. **Allocation-time
+  decision (slice 1.2):** check `origin/main`; if 010.4.13.3 (`configure-project-step-workflows`)
+  has shipped `step.executor_kind` with exactly this name, default and `CHECK`, this migration
+  omits the `ALTER` and its CHECK test and `down.sql` does not drop the column; otherwise it adds
+  the column. Which branch was taken is recorded here and in `verify.md`. The two packets agree on
+  the definition by this paragraph.
 - `project.working_window_start_minute INTEGER NOT NULL DEFAULT 540`,
   `project.working_window_end_minute INTEGER NOT NULL DEFAULT 1020`, `CHECK (0 <= start <
 end <= 1440)`. Minutes from midnight in the project timezone (`step-node-attempts`). The
@@ -39,8 +41,8 @@ end <= 1440)`. Minutes from midnight in the project timezone (`step-node-attempt
 
 An older image ignores both; the swap's stored-vocabulary step gains `executor-kinds-cli.ts`
 so a rollback over `agent` steps aborts (an older image would schedule them on the workday
-axis, moving dates). `down.sql` refuses over a non-`either` kind or a non-default window,
-naming a rollback CLI, then drops the three columns.
+axis, moving dates). `down.sql` refuses over a non-`either` kind (only when this migration added the column) or a
+non-default window, naming a rollback CLI, then drops exactly the columns this migration added.
 
 ## D2 — The instant axis
 
@@ -67,7 +69,7 @@ window slice never occupies a forbidden interval.
 ## D4 — Gantt
 
 At sub-day rungs a calendar day is 24 h; hours outside the working window are greyed as
-weekends are; the stage-1 clamp of `gantt-attempt-marks` is removed (an instant now has a
+weekends are; the before-instant-axis clamp of `gantt-attempt-marks` is removed (an instant now has a
 place). Agent slices draw through the grey.
 
 ## D5 — `forecast-remaining-work` (last slice)

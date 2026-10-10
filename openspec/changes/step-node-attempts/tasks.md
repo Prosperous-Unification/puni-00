@@ -1,8 +1,10 @@
 ## 0. Spec
 
-- [x] 0.1 Intent, delta specs, design, ADR 0044 and CONTEXT terms (Progress, Hours fact, Fact
-      start, Fact end rewritten; Attempt, Attempt outcome, Project timezone). OpenSpec
-      validation green (020.11, 2026-10-11). Depends on nothing in flight.
+- [x] 0.1 Intent, delta specs, design and ADR 0045; OpenSpec validation green (020.11,
+      2026-10-11). Glossary entries are task 0.2. Depends on nothing in flight.
+- [ ] 0.2 Apply glossary entries (Progress, Hours fact, Fact start, Fact end rewritten; Attempt,
+      Attempt outcome, Project timezone) to `CONTEXT.md` verbatim from
+      `puni-plan/batch-10/interviews/glossary-delta.md`, in the first green commit of slice 1.
 
 ## 1. Vocabulary, spans and the zoned day in `@wbs/domain`
 
@@ -25,8 +27,8 @@
       stored, and stops green", "passes an image without the outcomes CLI over no attempts",
       "refuses an outcome written after the first check once blue stops"; `lib/docker.test.ts`
       outcome commands (present, absent, missing `src`, stored outcomes before and after the
-      table exists); `migration-cli.db.test.ts` "saves, removes and restores attempts through
-      the rollback CLI" and its usage guard.
+      table exists); `migration-cli.db.test.ts` the rollback CLI's usage guard and its refusal on
+      an unmigrated file (the round trip needs the table: slice 3).
 - [ ] 2.2 Green: `ATTEMPT_OUTCOMES_VOCABULARY` in `swap.ts`; `attempt-outcomes-cli.ts`;
       `store-sqlite/step-node-attempt-rollback.ts`; `step-node-attempt-rollback-cli.ts`;
       runbook anchor `#step-node-attempt-rollback`.
@@ -42,11 +44,14 @@
       refused over a row naming the CLI; rollback and re-apply over none);
       `step-node-attempt.db.test.ts` (insert at `max + 1` under concurrent starts: one wins,
       one reads `attempt_running`; read ascending; cascade on work item delete; hand-down moves
-      rows); every migration-enumerating db test lists the new folder.
+      rows); `migration-cli.db.test.ts` "saves, removes and restores attempts through the rollback
+      CLI" (three rows on two nodes, numbers verbatim); every migration-enumerating db test lists
+      the new folder.
 - [ ] 3.2 Green: stamp allocated now, written into `design.md`;
       `drizzle/<stamp>_add_step_node_attempts/{migration,down}.sql`; `schema.ts`;
       `StepNodeAttemptRepository`; `project.timezone` in `ProjectRepository`; migration lint.
-- [ ] 3.3 Negatives: the `down.sql` guard removed → "rollback refused over a row"; the
+- [ ] 3.3 Negatives: the unique partial index dropped → the concurrent-start case stores two running
+      rows under a bypassed refusal; the `down.sql` guard removed → "rollback refused over a row"; the
       running-state CHECK dropped → "refuses an outcome without an end"; the `max + 1` read
       moved outside the transaction → the concurrent-start case inserts two running rows.
 
@@ -59,9 +64,11 @@
       `setStatus done` leaves a running attempt running, batch roll-back at the index, history
       sentences; `plan-command-shapes.test.ts` kind count plus three;
       `document-from-shapes.test.ts` three derived tools; `project.controller.db.test.ts`
-      `timezone` patch (`Europe/Kyiv` stored; `Kyiv` → `422 invalid_timezone`; read carries it).
+      `timezone` patch (`Europe/Kyiv` stored; `Kyiv` → `422 invalid_timezone`; read carries it);
+      `timezones.controller.db.test.ts` `GET /api/timezones` returns the server's list including
+      `UTC` and the derived MCP tool exists.
 - [ ] 4.2 Green: `definitions.ts` three kinds; `command-normalizers.ts`; `compensating.ts`
-      inverses; `refusal.ts` codes; `project-shapes.ts` `timezone?`; history words.
+      inverses; `refusal.ts` codes; `project-shapes.ts` `timezone?`; `GET /api/timezones`; history words.
 - [ ] 4.3 Negatives: each refusal removed → its case answers `200`; the `endAttempt` inverse
       written as a delete → the one-undo case loses the row; the future check compared to the
       client's `at` instead of the stamp → "attempt_in_future".
@@ -79,7 +86,7 @@
       `diff-plans.test.ts` (`timezone` under `settings`); spreadsheet attempt counts.
 - [ ] 5.2 Green: versions allocated now, written into `design.md`; `attempts`, `spans`, `span`
       on `work-item-response.ts`; the fill rules in `setStatus`; export and import converters;
-      `PLAN_INPUT_UPGRADES` entry; `CanonicalSettings.timezone`.
+      `PLAN_INPUT_UPGRADES` entry; `CanonicalProject.timezone`.
 - [ ] 5.3 Negatives: the attempt witness skipped → "done fills the fact end from the last
       attempt's end day" reads the act's day; the zone dropped from the fill → the Kyiv case;
       each import check disabled → its case answers `200`.
@@ -89,7 +96,7 @@
 - [ ] 6.1 Red: `folded-step-card.test.tsx` (attempts newest first with number, outcome, zoned
       instants, executor, reference; `Start attempt` sends the batch; `End attempt` offers three
       outcomes and a reference; a refusal is worded); `project-settings-modal.test.tsx` (timezone
-      select over the runtime list, `UTC` default, saved through PATCH); `e2e/hover-cards.spec.ts`
+      select over the list `GET /api/timezones` returned, `UTC` default, saved through PATCH); `e2e/hover-cards.spec.ts`
       the attempts list in a browser.
 - [ ] 6.2 Green: the card section and actions; the settings control; `wbs-api.ts` types.
 - [ ] 6.3 Negatives: the card formatting instants in the browser zone → the zoned-instants

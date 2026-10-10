@@ -1,7 +1,7 @@
 ## 0. Spec — BLOCKED on 010.4.13.3 (participation, Codex-owned)
 
-- [x] 0.1 Intent, delta spec and ADR 0045. OpenSpec validation green (020.11, 2026-10-11).
-      No `design.md`: the shape is ADR 0045 plus `step-node-readings/design.md` D1–D2.
+- [x] 0.1 Intent, delta spec and ADR 0046. OpenSpec validation green (020.11, 2026-10-11).
+      No `design.md`: the shape is ADR 0046 plus `step-node-readings/design.md` D1–D2.
 - [ ] 0.2 Unblock check: `configure-project-step-workflows` is on `main` with participation
       stored and `step-node-readings` has landed. Until both, no task below is opened.
 - [ ] 0.3 Apply the deferred glossary entries from
@@ -25,7 +25,7 @@
 
 - [ ] 2.1 Red: the participation command's mounted test "refuses to skip the last included
       node with 409 last_included_node and writes nothing".
-- [ ] 2.2 Green: the refusal in the stage-8 command's normalizer, counted in the transaction.
+- [ ] 2.2 Green: the refusal in the 010.4.13.3 command's normalizer, counted in the transaction.
 - [ ] 2.3 Negative: the count check removed → the case answers `200` and the leaf has no
       included node.
 

@@ -1,7 +1,7 @@
 # design — `step-node-attempts`
 
 Rationale lives in
-[ADR 0044](../../../docs/adr/0044-an-attempt-is-the-unit-of-execution-history.md).
+[ADR 0045](../../../docs/adr/0045-an-attempt-is-the-unit-of-execution-history.md).
 Interview: `puni-plan/batch-10/interviews/020.10-answers.md` Q1–Q6, Q8, Q9. This file is the
 shape.
 
@@ -33,12 +33,13 @@ step_node_attempt (
   CHECK (ended_at IS NULL OR ended_at >= started_at)
 )
 INDEX step_node_attempt_by_step (step_id)
-INDEX step_node_attempt_running (work_item_id, step_id) WHERE ended_at IS NULL
+UNIQUE INDEX step_node_attempt_running (work_item_id, step_id) WHERE ended_at IS NULL
 ```
 
 `project.timezone TEXT NOT NULL DEFAULT 'UTC'`. The two checks make "running" one state
 (`ended_at` and `outcome` both null) and an end before its start unrepresentable; the
-partial index is what "at most one running per node" is counted through. Nothing prunes this
+unique partial index makes a second running attempt per node unrepresentable too, so the `409
+attempt_running` refusal is the modeled face of a constraint the database also holds. Nothing prunes this
 table. `ATTEMPT_OUTCOMES` joins `stored-vocabularies.ts` and the migration's `CHECK`
 enumerates it.
 
@@ -68,8 +69,10 @@ leaves it running (the readings packet shows the contradiction; `endAttempt` cor
 
 `project.timezone` is an IANA zone validated at the PATCH boundary against
 `Intl.supportedValuesOf('timeZone')` plus the literal `UTC` (the list is canonical zones and
-V8's includes `UTC`; the test asserts both `UTC` and `Europe/Kyiv` pass and `Kyiv` is refused
-`422 invalid_timezone`). Settings shows it in the project section. `isoDateOfInstantIn(zone,
+Bun's JavaScriptCore list includes `UTC`; the test asserts both `UTC` and `Europe/Kyiv` pass and `Kyiv` is refused
+`422 invalid_timezone`). Settings shows it in the project section, chosen from the **server's** list: `GET
+/api/timezones` returns the zones this be-01 validates against, so the select can never offer a
+zone the server refuses (a browser's `Intl` list may differ). `isoDateOfInstantIn(zone,
 epochMs)` in `workday.ts` is the one zoned day function (`Intl.DateTimeFormat` with
 `timeZone`, `en-CA` parts); `isoDateOfInstant` becomes `isoDateOfInstantIn('UTC', …)` and a
 test pins the two equal for every stamp in the corpus.
@@ -100,8 +103,8 @@ canonical settings; attempts are not captured (as facts are not); the upgrade wr
 `step-node-attempt-rollback-cli.ts save|remove|restore` (same shape as the status-facts
 CLI), then drops the table and `project.timezone` (a zone is a planner's setting, lost as
 readiness is; the refusal comment says so). `attempt-outcomes-cli.ts` prints
-`ATTEMPT_OUTCOMES`; `ATTEMPT_OUTCOMES_VOCABULARY` joins `STORED_VOCABULARIES` with the stored
-command `SELECT outcome, count(*) FROM step_node_attempt WHERE outcome IS NOT NULL GROUP BY
+`ATTEMPT_OUTCOMES`; `ATTEMPT_OUTCOMES_VOCABULARY` joins `STORED_VOCABULARIES`
+(`StoredVocabulary.key` widens with `'outcome'`) with the stored command `SELECT outcome, count(*) FROM step_node_attempt WHERE outcome IS NOT NULL GROUP BY
 outcome`. An image without the CLI reads as supporting no outcomes, so a swap to it aborts
 over any ended attempt and passes over none. The timezone has no vocabulary: an older image
 never reads the column.
@@ -111,6 +114,6 @@ never reads the column.
 The step cell card lists the node's attempts newest first (`#3 failed · 14:02–14:41 · Kat ·
 PR #12`), instants in the project zone, with `Start attempt` and, while one runs, `End
 attempt` offering the three outcomes and a reference box; both go through the batch. The
-project settings' project section shows the timezone as a searchable select over the same
-list the server validates against. The glyph and the reading word belong to
+project settings' project section shows the timezone as a searchable select over the list `GET /api/timezones`
+returns. The glyph and the reading word belong to
 `step-node-readings`.

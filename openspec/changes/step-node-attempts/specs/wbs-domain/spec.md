@@ -8,7 +8,7 @@ number, carrying a start instant, an end instant that is null while it runs, an 
 executor person, one optional reference and an optional note, with audit columns. Attempt
 numbers SHALL start at 1 and be assigned as the node's highest plus one inside the write
 transaction; a removed number SHALL never be reused. At most one attempt per node SHALL be
-running. Attempts SHALL never be pruned and SHALL move with the node's other facts when a leaf
+running, held by a unique partial index as well as by the command's refusal. Attempts SHALL never be pruned and SHALL move with the node's other facts when a leaf
 gains its first child. Attempts SHALL write no progress statement and SHALL be read by no
 engine.
 
@@ -68,8 +68,8 @@ verbatim. A `setStatus done` SHALL leave a running attempt running.
 ### Requirement: Instants are read as days in the project timezone
 
 A project SHALL carry `timezone`, an IANA zone name, `UTC` unless set, validated at the
-boundary against the runtime's supported zones (`422 invalid_timezone`) and shown in
-Settings. Every day derived from an instant — an attempt's day on a card, a fact fill — SHALL
+boundary against the server runtime's supported zones (`422 invalid_timezone`), which `GET
+/api/timezones` SHALL return so that Settings offers only zones the server accepts. Every day derived from an instant — an attempt's day on a card, a fact fill — SHALL
 be computed in the project timezone and never in the viewer's browser zone. Under `UTC` every
 derived day SHALL equal today's `isoDateOfInstant`.
 

@@ -44,6 +44,6 @@ defaults to `UTC` and is never the viewer's; the engines read neither attempts n
 - `down.sql` refuses while attempt rows exist, naming the save/remove/restore CLI, as the
   statuses change does for holds; the swap's stored-vocabulary step checks the outcome set.
 - Nobody "fixes" the frozen forecast in passing: a done node at zero remaining duration is
-  `forecast-remaining-work`, the last slice of ADR 0042's change, because both engines must
+  `forecast-remaining-work`, the last slice of ADR 0043's change, because both engines must
   agree on an instant axis and the live-plan identity oracles exist to prove reporting-only
   changes move no dates.

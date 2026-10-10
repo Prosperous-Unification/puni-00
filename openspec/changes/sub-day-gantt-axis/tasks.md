@@ -1,8 +1,10 @@
 ## 0. Spec
 
-- [x] 0.1 Intent, delta spec, design and the CONTEXT term Sub-day rung; OpenSpec validation
-      green (020.11, 2026-10-11). Depends on `estimate-units` slice 5 for a sub-day slice to
+- [x] 0.1 Intent, delta spec and design; OpenSpec validation green (020.11, 2026-10-11). The
+      glossary entry is task 0.2. Depends on `estimate-units` slice 5 for a sub-day slice to
       exist; the ladder itself does not.
+- [ ] 0.2 Apply the glossary entry Sub-day rung to `CONTEXT.md` verbatim from
+      `puni-plan/batch-10/interviews/glossary-delta.md`, in the first green commit of slice 1.
 
 ## 1. Ladder and geometry
 
@@ -10,9 +12,11 @@
       15 min", "a day cell at a sub-day rung spans 480 working minutes", "weekends stay greyed
       at a sub-day rung", "every day-rung width is unchanged" (the existing cases rerun under
       `AXIS_RUNGS`); `gantt-panel.test.tsx` "the control offers six rungs with exact widths in
-      their titles". Files: `apps/wbs/fe-01/src/components/wbs/{gantt-geometry,gantt-panel}.tsx`.
+      their titles", "sub-day cells are labelled by clock time from 09:00";
+      `remembered-layout.test.ts` "a remembered day-rung pixel value reads as its rung and an
+      unknown value resets to Days". Files: `apps/wbs/fe-01/src/components/wbs/{gantt-geometry,gantt-panel,remembered-layout}.ts(x)`.
 - [ ] 1.2 Green: `AXIS_RUNGS` replacing `DAY_SCALES` (day values and labels kept), the
-      six-position control, `layOutGantt(plan, rung)`.
+      six-position control, the cell labels, `layOutGantt(plan, rung)`, the remembered rung by id.
 - [ ] 1.3 Negatives: `cellsPerWorkday` for `1h` set to 24 → the 224 px case; the greyed
       weekend dropped at sub-day rungs → the weekend case.
 

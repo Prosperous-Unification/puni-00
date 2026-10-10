@@ -383,10 +383,9 @@ _Avoid_: type, category, is-agent, human flag
 
 **Agent**:
 A person whose kind is `agent`: software that does a work item's work. Assigned,
-scheduled and counted against capacity exactly as a human is; the person kind is a label
-reports read, not a rule the engine follows. Which calendar a step's work runs on is the
-step's **executor kind**, not the assignee's person kind. Not to be confused with **free
-agent**, which is about team membership and predates this term.
+scheduled and counted against capacity exactly as a human is; the kind is a label reports
+read, not a rule the engine follows. Not to be confused with **free agent**, which is
+about team membership and predates this term.
 _Avoid_: bot, AI, machine user, automation
 
 **Directory usage**:
@@ -428,10 +427,9 @@ day it was created. Shown to tell same-named projects apart, never searched.
 _Avoid_: subtitle, caption, details
 
 **Estimate**:
-Three durations in the step's **estimate unit** — optimistic, realistic, pessimistic — held
-for one step node. Workday-unit trios may be fractions; minute-unit trios are whole minutes.
-A work item with children has no estimates of its own.
-_Avoid_: points, effort, sizing, days (as the only unit)
+Three durations in days — optimistic, realistic, pessimistic — held for one work item and
+one step. A work item with children has no estimates of its own.
+_Avoid_: points, effort, sizing
 
 **Project-step allowance**:
 The percentage on a project step, default zero, applied to each leaf's combined base estimate
@@ -440,10 +438,9 @@ parent does not apply it again.
 _Avoid_: contingency estimate, per-work-item allowance
 
 **Charged estimate**:
-The effort for an estimated step node after its project-step allowance is applied to the
-combined base and the figure is rounded in the step's unit: by the project's estimate
-rounding for workdays, to the whole minute for minutes. Unknown remains unknown and
-contributes zero scheduling duration; a stated zero stays estimated.
+The effort for an estimated leaf step after its project-step allowance is applied to the combined
+base and the project rounds the result. Unknown remains unknown and contributes zero scheduling
+duration; a stated zero stays estimated.
 _Avoid_: base estimate, raw estimate
 
 **Trio shorthand**:
@@ -465,47 +462,11 @@ otherwise; read only under the `pert` estimate method.
 _Avoid_: PERT formula, coefficients, lambda
 
 **Estimate rounding**:
-A project's answer to how one workday-unit step's combined figure, after its project-step
-allowance, becomes the days it is charged: `floor`, `round`, `ceil`, or `exact` for the
-fraction itself. `ceil` unless the project says otherwise, applied per step before any sum.
-Minute-unit steps do not consult it; they are charged to the minute.
+A project's answer to how one step's combined figure, after its project-step allowance, becomes
+the days it is charged:
+`floor`, `round`, `ceil`, or `exact` for the fraction itself. `ceil` unless the project says
+otherwise, and applied per step before any sum is taken.
 _Avoid_: precision, rounding mode, day granularity
-
-**Estimate unit**:
-Whether a step's estimates are in `workdays` or `minutes`; one per step, `workdays` unless
-the step says otherwise, and the unit every trio on that step is read in. Changing it while
-the step holds estimates is refused.
-_Avoid_: grain, precision, time unit, kind
-
-**Executor kind**:
-Which of `human`, `agent` or `either` a project step's work is assumed to be done by; a
-definition fact, `either` unless the step says otherwise. Decides which calendar the step's
-slices run on once the agent calendar exists. Sits beside **Person kind**, which stays a
-label.
-_Avoid_: step kind, role, owner class, assignee kind
-
-**Workday minutes**:
-The 480 minutes a workday holds for placing a minute-unit slice on the workday axis — a
-domain constant until the **working window** replaces it.
-_Avoid_: hours per day, shift length, minutes per workday (as a setting)
-
-**Working window**:
-A project's start hour and end hour, read in the **project timezone**, during which
-human-kind and either-kind slices run on the instant axis; weekends are outside it.
-09:00–17:00 unless the project says otherwise.
-_Avoid_: business hours, shift, office hours
-
-**Agent calendar**:
-The continuous time agent-kind slices run on once the instant axis exists: every hour of
-every day. Not bounded by provider quota, which is a rate over a moving window and not a
-calendar.
-_Avoid_: 24/7, elapsed calendar, quota calendar
-
-**Project timezone**:
-The IANA zone a project's instants are read as days in — attempts, fact fills and the
-working window. One per project, `UTC` unless the project says otherwise, never the
-viewer's.
-_Avoid_: viewer's zone, browser zone, local time
 
 **Estimate gap**:
 One leaf work item and one step it holds no estimate for. A work item with children never
@@ -523,79 +484,30 @@ Days live outside this term — they are the **estimate** and the **recorded day
 _Avoid_: metric value, figure, datapoint, reading
 
 **Metric**:
-Which measure a figure is, from a closed set: `token_estimate`, `token_actual`,
-`hours_actual`, `points_estimate`. A measure is absent per metric. Where a metric is
-stored is the adapter's business; the measure commands take any of them.
-_Avoid_: unit (which is the estimate's), kind (which is the person's or the step's), measure type
-
-**Points estimate**:
-A reporting-only non-negative integer a planner types on one step node for its relative
-size; summed on roll-up, never converted to time and read by no engine.
-_Avoid_: story points (as a schedule unit), velocity, size
-
-**Size template**:
-A project's named recipe — `S`, `M`, `L`, `XL` by default — giving, per step, a trio in the
-step's unit and an optional token estimate. Applying one writes those numbers to a step node
-as ordinary estimate and measure commands; the template name is not stored on the node.
-_Avoid_: size estimate, T-shirt size (as a unit), size class (as stored data)
-
-**Measure coverage**:
-How many of a parent's leaves recorded a given metric, shown beside that metric's partial
-total — `tokens 3 of 5 leaves`.
-_Avoid_: completeness, fill rate
+Which unit a measure is in, from a closed set: `token_estimate`, `token_actual`,
+`hours_actual`. A measure is absent per metric — an hours figure says nothing about
+whether a token figure exists.
+_Avoid_: unit, kind (which is the person's), measure type
 
 **Token estimate**:
-The total tokens a step node's work is expected to process — input including cached, plus
-output including reasoning. One number, not a trio: no scheduler folds it.
-_Avoid_: token budget, projected spend, cost estimate, tokens used
+The tokens a step's work on one work item is expected to take. One number, not a trio: no
+scheduler folds it, so there is nothing for a range to reduce to.
+_Avoid_: token budget, projected spend, cost estimate
 
 **Token fact**:
-The total tokens a step node's work actually processed — input including cached, plus
-output including reasoning. Says nothing about whether the work is finished.
-_Avoid_: actual tokens, token spend, usage, tokens used (a tool's uncached-plus-output count)
+The tokens a step's work on one work item actually took. Says nothing about whether that
+work is finished — completion is the step's **progress**, recorded separately.
+_Avoid_: actual tokens, token spend, usage
 
 **Hours fact**:
-The hours a person's work on one step node actually took. Recorded, never derived: no
-conversion from tokens or from days exists. An agent's time is not typed here; it is the
-span of its **attempts**.
-_Avoid_: actual hours, time spent, effort, agent hours
+The hours a step's work on one work item actually took. Recorded, never derived: no
+conversion from tokens or from days exists, because neither is one.
+_Avoid_: actual hours, time spent, effort
 
 **Progress**:
-What one step node has said about its own work — `in_progress` or `done` — with the
-moment it was said. Unknown is the absence of a statement, never a stored value. An
-**attempt** is not a statement.
-_Avoid_: step status, completion, state, node reading (which is derived)
-
-**Attempt**:
-One run at a step node's work: a start instant, an end instant once it ended, an
-**attempt outcome**, the directory person or agent that ran it and one reference to its
-evidence. A review round is an attempt of the review node; a retried agent run is an
-attempt of its node. Attempts are history and are never pruned; one is running per node at
-most. Not to be confused with **Attempt token**, the solver slot's fence.
-_Avoid_: run, try, execution, round (as a stored thing), retry
-
-**Attempt outcome**:
-How an attempt ended — `succeeded`, `failed` or `cancelled`; absent while it runs. Says
-nothing about the node's progress, which is said separately.
-_Avoid_: result, status (which is the node's), verdict
-
-**Attempt mark**:
-The drawing of one attempt on the Gantt panel at a sub-day rung, over its node's planned
-slice: solid when succeeded, hatched when failed, dotted when cancelled, open to now while
-running. Narrower than 4 px it is a tick.
-_Avoid_: actual bar (which is the work item's done bar), run bar
-
-**Node reading**:
-What a step node reads as, derived on every read and never stored: skipped, done, on hold,
-blocked, in progress, blocked by proxy, waiting or unknown — from its participation,
-statement, its row's hold and proxy, its attempts and its predecessor nodes.
-_Avoid_: step status, node state, node status
-
-**Waiting**:
-A node reading: a node with no statement and no running attempt whose every predecessor
-node in the step graph reads done, and which has at least one. Work handed to it and not
-yet taken up; a leaf's first node is never waiting.
-_Avoid_: awaiting input, pending, ready (which is the row's readiness), gate
+What one step has said about its own work on one work item — `in_progress` or `done` — with
+the moment it was said. Unknown is the absence of a statement, never a stored value.
+_Avoid_: step status, completion, state
 
 **Status**:
 What a work item reads as — unknown, draft, ready, in progress, blocked by proxy, on hold,
@@ -626,16 +538,14 @@ by proxy. Derived from the full dependency graph, never said by anyone and never
 _Avoid_: transitively blocked, waiting, indirectly blocked
 
 **Fact start**:
-The day work on a work item actually began, date-only in the project timezone, typed by the
-planner or filled from the first attempt's start day when a leaf with attempts is started or
-finished holding none. Read by no engine; absent means nobody has said.
+The day work on a work item actually began, date-only, typed by the planner. A record of the
+world beside the schedule's forecast, read by no engine; absent means nobody has said.
 _Avoid_: actual start, real start, started at, start date
 
 **Fact end**:
-The day work on a work item actually finished, date-only in the project timezone. Filled
-when a work item is marked done holding none: from the last attempt's end day when one
-exists, else the day of the act. Where a done work item's bar stops, whatever the estimate
-says.
+The day work on a work item actually finished, date-only. Filled with the day of the act when a
+work item is marked done holding none; otherwise typed. Where a done work item's bar stops,
+whatever the estimate says.
 _Avoid_: actual end, finished at, completion date, done at
 
 **Status strip**:
@@ -816,12 +726,6 @@ span that starts there stands, and where a span that finishes there stops. The t
 by exactly the weekend between two workdays, which is what puts a gap between work that
 ended on the Friday and work that begins on the Monday.
 _Avoid_: converter, mapping, projection
-
-**Sub-day rung**:
-One of the three discrete widths below a day the Gantt ladder offers — 4 hours, 1 hour, 15
-minutes per cell — offered only while the panel would draw at most 2,500 marks; a rung not
-offered is a rendered state.
-_Avoid_: zoom level, slider position, minute view
 
 **Calendar marker**:
 A named annotation on an absolute calendar date, scoped to one project. Not a work item

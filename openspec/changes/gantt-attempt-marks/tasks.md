@@ -1,8 +1,10 @@
 ## 0. Spec
 
-- [x] 0.1 Intent, delta spec and the CONTEXT term Attempt mark. OpenSpec validation green
-      (020.11, 2026-10-11). Depends on `sub-day-gantt-axis` slices 1–3 and `step-node-attempts`
+- [x] 0.1 Intent and delta spec; OpenSpec validation green (020.11, 2026-10-11). The glossary
+      entry is task 0.2. Depends on `sub-day-gantt-axis` slices 1–3 and `step-node-attempts`
       slice 5. No `design.md`: the shape is the spec plus `sub-day-gantt-axis/design.md`.
+- [ ] 0.2 Apply the glossary entry Attempt mark to `CONTEXT.md` verbatim from
+      `puni-plan/batch-10/interviews/glossary-delta.md`, in the first green commit of slice 1.
 
 ## 1. Geometry
 
@@ -12,7 +14,9 @@
       data-clamped", "no mark at a day rung", "every day-rung case unchanged";
       `plan-chart-input.test.ts` "attempts count toward markCount". Files:
       `apps/wbs/fe-01/src/components/wbs/{gantt-geometry,plan-chart-input}.ts`.
-- [ ] 1.2 Green: `attemptMarksOf(node, rung, zone, now)` in `layOutGantt`; `markCount` with
+- [ ] 1.2 Green: `STAGE_ONE_DAY_START_MINUTE = 540` in `gantt-geometry.ts` with JSDoc naming it
+      the anchor instants are placed from before the instant axis, "retired by
+      `agent-calendar-instant-axis`"; `attemptMarksOf(node, rung, zone, now)` in `layOutGantt`; `markCount` with
       attempts; `now` as a prop of the panel.
 - [ ] 1.3 Negatives: `Date.now()` used inside geometry → "a running mark ends at the given now"
       (a frozen `now` differs); the clamp removed → the overnight case draws into the next

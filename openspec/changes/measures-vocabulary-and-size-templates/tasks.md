@@ -1,9 +1,11 @@
 ## 0. Spec
 
-- [x] 0.1 Intent, delta specs, design, ADR 0043 and CONTEXT terms (Metric, Token estimate,
-      Token fact, Hours fact rewritten; Points estimate, Size template, Measure coverage).
-      `openspec validate --all --json` green (020.11, 2026-10-11). Depends on
-      `estimate-units` slices 1–4 (the unit on the step and on a template row).
+- [x] 0.1 Intent, delta specs, design and ADR 0044; OpenSpec validation green (020.11,
+      2026-10-11). Glossary entries are task 0.2. Depends on `estimate-units` slices 1–4 (the
+      unit on the step and on a template row).
+- [ ] 0.2 Apply glossary entries (Metric, Token estimate, Token fact, Hours fact rewritten;
+      Points estimate, Size template, Measure coverage) to `CONTEXT.md` verbatim from
+      `puni-plan/batch-10/interviews/glossary-delta.md`, in the first green commit of slice 1.
 
 ## 1. Vocabulary and coverage fold in `@wbs/domain` and `@wbs/core`
 
@@ -47,7 +49,7 @@
 
 ## 4. Template routes and seeding
 
-- [ ] 4.1 Red: `apps/wbs/be-01/src/module/size-template/*.controller.db.test.ts` (list, create,
+- [ ] 4.1 Red: `apps/wbs/be-01/src/controller/size-template.controller.db.test.ts` (list, create,
       patch, delete; `409 name_taken`; a row for an unknown step `404 unknown_step`; viewer
       refused; the four MCP tools derive); `project.controller.db.test.ts` "a new project holds
       S, M, L, XL with no rows"; an existing project holds none.

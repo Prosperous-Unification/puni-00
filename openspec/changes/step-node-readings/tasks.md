@@ -1,7 +1,9 @@
 ## 0. Spec
 
-- [x] 0.1 Intent, delta spec, design and CONTEXT terms (Node reading, Waiting). OpenSpec
-      validation green (020.11, 2026-10-11). Depends on `step-node-attempts` slices 1–5.
+- [x] 0.1 Intent, delta spec and design; OpenSpec validation green (020.11, 2026-10-11).
+      Glossary entries are task 0.2. Depends on `step-node-attempts` slices 1–5.
+- [ ] 0.2 Apply glossary entries (Node reading, Waiting) to `CONTEXT.md` verbatim from
+      `puni-plan/batch-10/interviews/glossary-delta.md`, in the first green commit of slice 1.
 
 ## 1. The reading in `@wbs/domain`
 

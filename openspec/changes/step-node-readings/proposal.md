@@ -23,7 +23,7 @@ those is derivable; nothing shows it yet.
 
 ## Non-Goals
 
-Participation and node holds (stage 8, 010.4.13.3); the fold over every project step
+Participation and node holds (010.4.13.3, `configure-project-step-workflows`); the fold over every project step
 (`fold-over-included-nodes`); attempt marks (`gantt-attempt-marks`); engines reading
 progress or attempts; an actor kind on statements; the board's step-node columns (010.3.08).
 
@@ -31,9 +31,8 @@ progress or attempts; an actor kind on statements; the board's step-node columns
 
 `step_progress`'s `CHECK` and the stored statements stay `in_progress | done`; no migration.
 The reading `skipped` is in the type and produced only once participation exists; a test
-proves it is never produced without that input. `∅` replaces the interview's `⊖` for skipped
-because `⊖` is already blocked-by-proxy's glyph on main (`status-cell.tsx`); the no-collision
-test is the rule. Depends on `step-node-attempts`.
+proves it is never produced without that input. The skipped glyph is `∅` (`design.md` D4 says
+why). Depends on `step-node-attempts`.
 
 ## Capabilities
 
@@ -47,11 +46,11 @@ none
 
 ## Domain Terms
 
-Node reading, Waiting.
+Node reading, Waiting — applied to `CONTEXT.md` by task 0.2 from the glossary delta.
 
 ## Decisions Recorded
 
-none: vocabulary and presentation (`020.10-answers.md` Q1, Q10); ADR 0044 records that
+none: vocabulary and presentation (`020.10-answers.md` Q1, Q10); ADR 0045 records that
 `failed` and `waiting` are not stored states.
 
 ## Impact

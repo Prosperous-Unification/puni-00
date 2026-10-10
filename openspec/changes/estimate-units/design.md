@@ -1,7 +1,7 @@
 # design — `estimate-units`
 
 Rationale for the unit on the step, the per-unit rounding and the placement constant lives in
-[ADR 0041](../../../docs/adr/0041-an-estimate-unit-belongs-to-the-step-and-rounding-follows-it.md).
+[ADR 0042](../../../docs/adr/0042-an-estimate-unit-belongs-to-the-step-and-rounding-follows-it.md).
 This file is the shape. Interview: `puni-plan/batch-10/interviews/020.09-answers.md` Q1–Q3a.
 
 ## Allocated numbers — allocated at packet time
@@ -24,7 +24,9 @@ check in `verify.md`.
 `ESTIMATE_UNITS = ['workdays', 'minutes']` and `isEstimateUnit` join `stored-vocabularies.ts`
 (the migration's `CHECK` enumerates the same list). `estimate.ts` gains `WORKDAY_MINUTES = 480`
 (a constant, not a setting) and `MAX_ESTIMATE_MINUTES = MAX_ESTIMATE_DAYS * WORKDAY_MINUTES`
-(`21_474_836_160`; the solver axis is `minutes / 480 / 30` quantum units, under `2^31`).
+(`21_474_836_160`; a 48th of a workday is 10 minutes, so the solver axis in quantum units is
+`minutes / 10`, the same `MAX_ESTIMATE_DAYS × 48` bound; the `horizon-overflow` preflight
+stays the guard for plans whose legal slices overflow in aggregate).
 `ThreePointEstimate` keeps its shape; `minuteTrioProblem(trio)` is the boundary guard that
 names a non-integer point or a point above the maximum. The three `real` columns hold the
 integers exactly; nothing is stored in a new column.
@@ -61,23 +63,19 @@ puts both back after a later forward run. Same shape as `work-item-status-facts-
 ## D5 — Swap vocabulary
 
 `estimate-units-cli.ts` prints `ESTIMATE_UNITS`; `ESTIMATE_UNITS_VOCABULARY` joins
-`STORED_VOCABULARIES` in `swap.ts` with the stored command `SELECT estimate_unit AS unit,
+`STORED_VOCABULARIES` in `swap.ts` (`StoredVocabulary.key` widens with `'unit'`) with the stored
+command `SELECT estimate_unit AS unit,
 count(*) FROM step GROUP BY estimate_unit`. An image without the CLI reads as supporting
 `workdays` alone: that is the arithmetic every earlier image has, a fact and not a default,
 and it is what lets a rollback deploy over a store holding only workday steps pass.
 
 ## D6 — Command and route boundary
 
-`setEstimate`'s normalizer reads the step's unit inside the write transaction (the step row is
-already read for the allowance). On `minutes`, `minuteTrioProblem` refuses `422
-minutes_not_integer` or `422 minutes_above_max` at the command index; the registry's kind
-count does not move. `POST /api/projects/:id/steps` takes `estimateUnit?` (absent is
-`workdays`, said in the shape's JSDoc; the form always sends one). `PATCH
-…/steps/:stepId` takes `estimateUnit?`; a value outside the vocabulary is `422
-invalid_estimate_unit`; a change while the step holds estimate rows is `409
-estimates_present` carrying `{ count }`, counted through the `estimate_by_step` index in the
-same transaction as the write. The MCP tools derive from the descriptors; their descriptions
-say what the unit means.
+The refusals and shapes are in `specs/plan-command-registry/spec.md`. Shape only: `setEstimate`'s
+normalizer reads the step's unit from the step row the transaction already holds for the
+allowance; the `409 estimates_present` count comes from the `estimate_by_step` index in the same
+transaction as the write; `estimateUnit?` lives in `step-shapes.ts` for create and patch and
+`estimateUnit` on reads; the MCP tools derive from the descriptors.
 
 ## D7 — Documents
 
@@ -92,7 +90,8 @@ columns carry the figure through `showDuration` and a unit header.
 
 One function, `showDuration(charged)` in fe-01 `components/wbs/duration-words.ts`, read by
 the step cell's final figure, the folded step card, the Gantt bar card and the spreadsheet
-export. Workday figures print exactly as today (`daysNumber`), so no workday-unit pixel or
-text assertion moves. Minute figures: under 60 `N min`; under 480 `H h` or `H h M min`;
-from 480 `D d` with one decimal (`480` → `1 d`, `720` → `1.5 d`). The Gantt bar card of a
+export. Workday figures print exactly as today's faces print them (`trioFinal` with `showDay`
+on the table and cards, `daysNumber` on the chart), so no workday-unit pixel or text assertion
+moves. Minute figures: under 60 `N min`; under 480 `H h` or `H h M min`; from 480 `D d` with
+one decimal and a trailing `.0` dropped (`480` → `1 d`, `720` → `1.5 d`, `1200` → `2.5 d`). The Gantt bar card of a
 minute slice adds the line "placed on the working calendar".

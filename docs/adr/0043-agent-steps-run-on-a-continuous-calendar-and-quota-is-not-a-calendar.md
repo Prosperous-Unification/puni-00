@@ -35,7 +35,7 @@ the existing capacity pools (a team of agent-kind people with N slots), never as
 - A CP-SAT proof script beside `cpsat-proof/prove_dependencies.py` must show a
   mixed-calendar plan solving before this change's engine slices are specified (Dany,
   2026-09-26: model it in OR-Tools and make it pretty).
-- The default window is 480 minutes, so plans placed under ADR 0041's constant are
+- The default window is 480 minutes, so plans placed under ADR 0042's constant are
   byte-identical under the default; the live-plan identity oracles prove it.
 - Successors of agent work can start at night; the human successor rolls forward to the next
   working instant, which R6 found already required.

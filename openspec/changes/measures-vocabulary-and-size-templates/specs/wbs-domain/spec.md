@@ -6,7 +6,7 @@ The metric set SHALL be `token_estimate`, `token_actual`, `hours_actual` and
 `points_estimate`. A points estimate SHALL be one non-negative integer per step node, written
 and cleared through the measure commands, summed on roll-up like every other metric, absent
 where nobody recorded it, and read by no engine. It SHALL be stored in its own additive
-`step_points` table; the `measure` table and its `CHECK` SHALL be untouched. A non-integer
+`step_points` table; the `step_measure` table and its `CHECK` SHALL be untouched. A non-integer
 or negative value SHALL be refused `422 points_not_integer`.
 
 #### Scenario: points roll up by sum

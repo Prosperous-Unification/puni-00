@@ -1,7 +1,7 @@
 # design — `measures-vocabulary-and-size-templates`
 
 Rationale for keeping every measure reporting-only lives in
-[ADR 0043](../../../docs/adr/0043-measures-do-not-drive-the-schedule-yet.md). Interview:
+[ADR 0044](../../../docs/adr/0044-measures-do-not-drive-the-schedule-yet.md). Interview:
 `puni-plan/batch-10/interviews/020.09-answers.md` Q5–Q8. This file is the shape.
 
 ## Allocated numbers — allocated at packet time
@@ -16,7 +16,7 @@ change: no schedule input moves), newest stamp `20261005110000_add_shared_people
 ## D1 — Vocabulary
 
 `MEASURE_METRICS` gains `points_estimate` and `MeasureMetric` widens with it;
-`isMeasureMetric` admits four. `measure.metric`'s `CHECK` keeps three: the adapter, not the
+`isMeasureMetric` admits four. `step_measure.metric`'s `CHECK` keeps three: the adapter, not the
 vocabulary, knows which table holds a metric. `token_estimate` and `token_actual` get the
 definition as JSDoc: total tokens processed, input including cached plus output including
 reasoning; `hours_actual` says an agent's time is its attempts' span.

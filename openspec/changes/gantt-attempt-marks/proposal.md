@@ -13,9 +13,9 @@ where the timing is legible: on the chart.
 - Marks follow the sub-day rules: under 4 px a tick, a pointer surface of at least 18 px, a
   collision list, exact instants in the card. They count toward the 2,500-mark offer rule.
 - At the day rungs nothing changes: a done leaf draws its done bar.
-- Instants map to the stage-1 axis by their project-zone day and minute of day; the part of
-  a mark outside 09:00–17:00 is clamped to the day's edge with `data-clamped`, and the card
-  carries the true instants.
+- Before the instant axis, instants map to the axis by their project-zone day and minute of day
+  from the anchor `STAGE_ONE_DAY_START_MINUTE` (09:00); the part of a mark outside 09:00–17:00 is
+  clamped to the day's edge with `data-clamped`, and the card carries the true instants.
 
 ## Non-Goals
 
@@ -41,7 +41,7 @@ none
 
 ## Domain Terms
 
-Attempt mark.
+Attempt mark — applied to `CONTEXT.md` by task 0.2 from the glossary delta.
 
 ## Decisions Recorded
 
