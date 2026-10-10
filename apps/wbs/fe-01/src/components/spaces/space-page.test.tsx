@@ -92,6 +92,9 @@ describe('a space', () => {
   it('lists its projects, then fills each row as its roll-up arrives', async () => {
     const sent = stubServer({
       'GET /api/spaces/s': [() => answer(200, read(['p1', 'p2'], false))],
+      'GET /api/spaces/s/in-progress': [
+        () => answer(200, { items: [], truncated: false, unavailable: [] }),
+      ],
       'GET /api/spaces/s/roll-ups': [
         () => answer(200, { rollUps: { p1: rolledUp(11), p2: { kind: 'unavailable' } } }),
       ],
@@ -111,12 +114,22 @@ describe('a space', () => {
       '/?project=p1',
     );
     expect(sent.filter(({ route }) => route.endsWith('/roll-ups'))).toHaveLength(1);
+    const timeline = screen.getByRole('list', { name: 'Project timeline' });
+    expect(
+      within(timeline).getByRole('img', { name: 'p1: 2026-10-01 to 2026-10-20' }),
+    ).toBeDefined();
+    expect(within(timeline).getByText('p2: schedule unavailable')).toBeDefined();
+    expect(timeline.querySelectorAll('[data-space-gantt-bar]')).toHaveLength(1);
+    expect(await screen.findByText('Nothing is in progress in this space.')).toBeDefined();
   });
 
   it('asks for roll-ups in chunks of 20', async () => {
     const ids = Array.from({ length: ROLL_UP_CHUNK + 5 }, (_, at) => `p${String(at)}`);
     const sent = stubServer({
       'GET /api/spaces/s': [() => answer(200, read(ids, false))],
+      'GET /api/spaces/s/in-progress': [
+        () => answer(200, { items: [], truncated: false, unavailable: [] }),
+      ],
       'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
     });
     routed(<SpacePage spaceId="s" nav={null} account={null} />);
@@ -130,6 +143,9 @@ describe('a space', () => {
     // said, the viewer's table held the `Remove p1 from this space` button.
     stubServer({
       'GET /api/spaces/s': [() => answer(200, read(['p1', 'p2'], false))],
+      'GET /api/spaces/s/in-progress': [
+        () => answer(200, { items: [], truncated: false, unavailable: [] }),
+      ],
       'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
     });
     routed(<SpacePage spaceId="s" nav={null} account={null} />);
@@ -142,6 +158,9 @@ describe('a space', () => {
   it('moves, removes and adds for a member, re-reading after each', async () => {
     const sent = stubServer({
       'GET /api/spaces/s': [() => answer(200, read(['p1', 'p2', 'p3'], true))],
+      'GET /api/spaces/s/in-progress': [
+        () => answer(200, { items: [], truncated: false, unavailable: [] }),
+      ],
       'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
       'GET /api/projects': [
         () => answer(200, { projects: [project('p1'), project('p4', 'Fourth')] }),
@@ -172,6 +191,9 @@ describe('a space', () => {
   it('renders the empty state and the organization_required state', async () => {
     stubServer({
       'GET /api/spaces/s': [() => answer(200, read([], false))],
+      'GET /api/spaces/s/in-progress': [
+        () => answer(200, { items: [], truncated: false, unavailable: [] }),
+      ],
       'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
     });
     routed(<SpacePage spaceId="s" nav={null} account={null} />);
@@ -189,6 +211,9 @@ describe('a space', () => {
     try {
       const sent = stubServer({
         'GET /api/spaces/s': [() => answer(200, read(['p1'], false))],
+        'GET /api/spaces/s/in-progress': [
+          () => answer(200, { items: [], truncated: false, unavailable: [] }),
+        ],
         'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
       });
       routed(<SpacePage spaceId="s" nav={null} account={null} />);
@@ -205,13 +230,12 @@ describe('a space', () => {
   });
 
   it('keeps the old figures until the new chunk answers', async () => {
-    let answerSecond: (response: Response) => void = () => undefined;
     stubServer({
       'GET /api/spaces/s': [() => answer(200, read(['p1'], false))],
-      'GET /api/spaces/s/roll-ups': [
-        () => answer(200, { rollUps: { p1: rolledUp(11) } }),
-        () => answer(200, { rollUps: { p1: rolledUp(12) } }),
+      'GET /api/spaces/s/in-progress': [
+        () => answer(200, { items: [], truncated: false, unavailable: [] }),
       ],
+      'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: { p1: rolledUp(11) } })],
     });
     routed(<SpacePage spaceId="s" nav={null} account={null} />);
     const row = async () =>
@@ -221,28 +245,75 @@ describe('a space', () => {
     await waitFor(async () => {
       expect((await row()).textContent).toContain('In progress');
     });
-    // A focus re-reads; until its chunk answers, the row keeps its figures.
+    // A focus re-reads; the roll-up chunk is held unanswered, whatever order
+    // the page's other reads take, and until it answers the row keeps its figures.
     const fetched = vi.mocked(fetch);
-    const slow = new Promise<Response>((resolve) => {
-      answerSecond = resolve;
+    const stubbed = fetched.getMockImplementation();
+    if (stubbed === undefined) throw new Error('stubServer left fetch unstubbed');
+    const held: { answer: ((response: Response) => void) | null } = { answer: null };
+    fetched.mockImplementation((...args: Parameters<typeof fetch>) => {
+      const [url] = args;
+      const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+      if (held.answer === null && href.includes('/roll-ups')) {
+        return new Promise<Response>((resolve) => {
+          held.answer = resolve;
+        });
+      }
+      return stubbed(...args);
     });
-    fetched.mockImplementationOnce(() => Promise.resolve(answer(200, read(['p1'], false))));
-    fetched.mockImplementationOnce(() => slow);
     window.dispatchEvent(new Event('focus'));
     await waitFor(() => {
-      expect(fetched.mock.calls.length).toBeGreaterThanOrEqual(4);
+      expect(held.answer).not.toBeNull();
     });
     expect((await row()).textContent).toContain('In progress');
     expect((await row()).textContent).not.toContain('Loading…');
-    answerSecond(answer(200, { rollUps: { p1: rolledUp(12) } }));
+    held.answer?.(answer(200, { rollUps: { p1: rolledUp(12) } }));
     await waitFor(async () => {
       expect((await row()).textContent).toContain('12');
     });
   });
 
+  it('refreshes in progress now after a remove', async () => {
+    const paint = {
+      projectId: 'p2',
+      projectName: 'p2',
+      position: 20,
+      workItemId: 'w1',
+      number: '1',
+      name: 'Paint',
+      dates: null,
+      lateBy: null,
+      assignees: [],
+      step: null,
+    };
+    stubServer({
+      'GET /api/spaces/s': [
+        () => answer(200, read(['p1', 'p2'], true)),
+        () => answer(200, read(['p1'], true)),
+      ],
+      'GET /api/spaces/s/in-progress': [
+        () => answer(200, { items: [paint], truncated: false, unavailable: [] }),
+        () => answer(200, { items: [], truncated: false, unavailable: [] }),
+      ],
+      'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
+      'GET /api/projects': [() => answer(200, { projects: [] })],
+      'DELETE /api/spaces/s/projects/p2': [() => answerEmpty(204)],
+    });
+    routed(<SpacePage spaceId="s" nav={null} account={null} />);
+    expect((await screen.findByRole('list', { name: 'Work in progress' })).textContent).toBe(
+      'p2 1 Paint',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Remove p2 from this space' }));
+    expect(await screen.findByText('Nothing is in progress in this space.')).toBeDefined();
+    expect(screen.queryByRole('list', { name: 'Work in progress' })).toBeNull();
+  });
+
   it('says when the projects to add could not be read', async () => {
     stubServer({
       'GET /api/spaces/s': [() => answer(200, read(['p1'], true))],
+      'GET /api/spaces/s/in-progress': [
+        () => answer(200, { items: [], truncated: false, unavailable: [] }),
+      ],
       'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
       'GET /api/projects': [() => answer(500, { error: 'boom' })],
     });
@@ -259,6 +330,9 @@ describe('a space', () => {
         () => answer(200, read(['p1', 'p2', 'p3'], true)),
         () => answer(200, read(['p1', 'p3', 'p2'], true)),
         () => answer(200, read(['p1', 'p3'], true)),
+      ],
+      'GET /api/spaces/s/in-progress': [
+        () => answer(200, { items: [], truncated: false, unavailable: [] }),
       ],
       'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
       'GET /api/projects': [() => answer(200, { projects: [] })],

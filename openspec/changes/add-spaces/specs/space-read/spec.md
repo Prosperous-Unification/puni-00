@@ -120,7 +120,8 @@ performance test uses.
 
 fe-01 SHALL offer `/spaces` (All projects first, then the organization's spaces) and
 `/spaces/:spaceId` (`all` allowed) with a projects table, in progress now and a read-only
-Gantt of one bar per project over its `dates`, an undated project drawing a labelled blank.
+Gantt of one bar per project over its `dates`; a project without a bar SHALL draw a blank
+labelled with why: no dates, loading, schedule unavailable, or figures that could not be loaded.
 Each row SHALL render `loading`, then its roll-up or `unavailable`. Loading, empty, query
 failure and `organization_required` SHALL be rendered states. Only a read answering `writable`
 SHALL draw the create, rename, delete, reorder, remove and add controls. A project SHALL be
