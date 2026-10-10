@@ -1,3 +1,4 @@
+import type { CommittedFanoutDelivery } from '../../service/committed-fanout';
 import type { PlanCommandsSource } from './composition';
 import type { PlanCommandRunner } from './plan-commands.feature';
 
@@ -28,7 +29,9 @@ import type { PlanCommandRunner } from './plan-commands.feature';
  * import it. The backend module map's "Plan commands' private collector" did
  * not see Plan import's use; a copy would be a second class definition (task 1.2).
  */
-export type PlanCommandsRequirements = PlanCommandsSource;
+export type PlanCommandsRequirements = PlanCommandsSource & {
+  readonly committedFanout: CommittedFanoutDelivery;
+};
 
 /** What installing {@link planCommandsModule} adds to a host graph. */
 export interface PlanCommandsExports {

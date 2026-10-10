@@ -139,6 +139,13 @@ export function refusalTypeCases() {
   expectTypeOf<Refusal>({ code: 'stale-input-hash', currentInputHash: 'new' });
   expectTypeOf<Refusal>({ code: 'not-retryable', state: 'plan-infeasible' });
   expectTypeOf<Refusal>({ code: 'already-running' });
+  expectTypeOf<Refusal>({
+    code: 'schedule-input-unavailable',
+    reason: 'engine_unavailable',
+    projectId: 'readable-influencer',
+  });
+  // @ts-expect-error Modeled Retry refusal requires a readable failing project.
+  expectTypeOf<Refusal>({ code: 'schedule-input-unavailable', reason: 'cycle' });
   // @ts-expect-error Retry states are the coordinator's finite public states.
   expectTypeOf<Refusal>({ code: 'not-retryable', state: 'future' });
 }

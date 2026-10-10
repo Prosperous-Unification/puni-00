@@ -2,7 +2,13 @@ import { schedule, sliceKey } from '@wbs/domain';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import type { PlanInputReads } from '../ports/saved-plan-capture-store';
-import type { Scheduler } from '../ports/scheduler';
+import type {
+  CapturedScheduleAsk,
+  LiveScheduleAsk,
+  ScheduleAsk,
+  Scheduler,
+  ScheduleRead,
+} from '../ports/scheduler';
 import { readSharedPeople, selectInfluencers } from './shared-people';
 
 function plan(
@@ -87,30 +93,40 @@ function plan(
   };
 }
 
-const scheduler: Scheduler = {
-  supports: (engine) => engine === 'fast',
-  read: (ask) => {
-    if (ask.enabled && ask.engine === 'optimized')
-      return { kind: 'engine_unavailable', error: 'engine_unavailable', engine: 'optimized' };
-    const input = ask.input;
-    return {
-      kind: 'scheduled',
-      optimization: null,
-      fast: schedule(
-        input.rows,
-        input.edges,
-        input.slices,
-        input.notBefore,
-        input.poolSizes,
-        input.reach,
-        input.deadlines,
-        input.typed,
-        undefined,
-        input.elsewhere,
-      ),
-    };
-  },
-};
+function capturedScheduler(
+  capture: (ask: CapturedScheduleAsk) => ScheduleRead,
+  supports: Scheduler['supports'] = (engine) => engine === 'fast',
+): Scheduler {
+  function read(ask: CapturedScheduleAsk): ScheduleRead;
+  function read(ask: LiveScheduleAsk): Promise<ScheduleRead>;
+  function read(ask: ScheduleAsk): ScheduleRead | Promise<ScheduleRead> {
+    const captured = capture({ ...ask, mode: 'capture' });
+    return ask.mode === 'live' ? Promise.resolve(captured) : captured;
+  }
+  return { supports, read };
+}
+
+const scheduler = capturedScheduler((ask) => {
+  if (ask.enabled && ask.engine === 'optimized')
+    return { kind: 'engine_unavailable', error: 'engine_unavailable', engine: 'optimized' };
+  const input = ask.input;
+  return {
+    kind: 'scheduled',
+    optimization: null,
+    fast: schedule(
+      input.rows,
+      input.edges,
+      input.slices,
+      input.notBefore,
+      input.poolSizes,
+      input.reach,
+      input.deadlines,
+      input.typed,
+      undefined,
+      input.elsewhere,
+    ),
+  };
+});
 
 describe('readSharedPeople', () => {
   it('keeps the transitive Ana booking before B gives Ben to C', () => {
@@ -251,17 +267,18 @@ describe('readSharedPeople', () => {
         ],
       };
       let assignedSlices = -1;
-      const chain = readSharedPeople([ranged, plan('B', ['ana'])], 'B', {
-        ...scheduler,
-        read: (ask) => {
+      const chain = readSharedPeople(
+        [ranged, plan('B', ['ana'])],
+        'B',
+        capturedScheduler((ask) => {
           const scheduled = scheduler.read(ask);
           if (ask.projectId === 'A' && scheduled.kind === 'scheduled')
             assignedSlices = [...scheduled.fast.slices.values()].filter(
               (slice) => slice.personId !== null,
             ).length;
           return scheduled;
-        },
-      });
+        }),
+      );
       if (chain.kind !== 'scheduled' || chain.scheduled.kind !== 'scheduled')
         throw new Error('expected target');
       expect(assignedSlices).toBe(held ? 0 : 1);
@@ -303,10 +320,14 @@ describe('readSharedPeople', () => {
       },
     };
     expect(() =>
-      readSharedPeople([first, plan('B', ['ana'])], 'B', {
-        supports: () => true,
-        read: (ask) => scheduler.read({ ...ask, engine: 'fast', enabled: false }),
-      }),
+      readSharedPeople(
+        [first, plan('B', ['ana'])],
+        'B',
+        capturedScheduler(
+          (ask) => scheduler.read({ ...ask, engine: 'fast', enabled: false }),
+          () => true,
+        ),
+      ),
     ).toThrow('optimized chain returned no optimization state');
   });
 
@@ -347,24 +368,28 @@ describe('readSharedPeople', () => {
       },
     };
     expect(() =>
-      readSharedPeople([first, plan('B', ['ana'])], 'B', {
-        supports: () => true,
-        read: (ask) => {
-          const fast = scheduler.read({ ...ask, engine: 'fast', enabled: false });
-          if (fast.kind !== 'scheduled') throw new Error('expected Fast fixture');
-          return {
-            ...fast,
-            optimization: {
-              inputHash: 'captured',
-              generation: null,
-              contractVersion: '15+0.2.0',
-              budgetMs: 1000,
-              variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'idle' } },
-              schedules: { pri: null, time: null },
-            },
-          };
-        },
-      }),
+      readSharedPeople(
+        [first, plan('B', ['ana'])],
+        'B',
+        capturedScheduler(
+          (ask) => {
+            const fast = scheduler.read({ ...ask, engine: 'fast', enabled: false });
+            if (fast.kind !== 'scheduled') throw new Error('expected Fast fixture');
+            return {
+              ...fast,
+              optimization: {
+                inputHash: 'captured',
+                generation: null,
+                contractVersion: '15+0.2.0',
+                budgetMs: 1000,
+                variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'idle' } },
+                schedules: { pri: null, time: null },
+              },
+            };
+          },
+          () => true,
+        ),
+      ),
     ).toThrow('ready chain schedule is absent');
   });
 

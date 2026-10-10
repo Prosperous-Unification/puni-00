@@ -30,6 +30,9 @@ export function installProject(requirements: ProjectRequirements): ProjectExport
       dependencyGraph: DiBag.createProvider(() => requirements.dependencyGraph, {
         factoryReturnKind: 'sync-value',
       }),
+      beforeUpdate: DiBag.createProvider(() => requirements.beforeUpdate, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
     .buildContainer();
   // Proof (2026-09-24): returning a structurally assignable `exposed` object with `bag` left the

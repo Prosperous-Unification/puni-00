@@ -198,16 +198,25 @@ export function allocateEnabledGeneration(
   now: number,
 ): number | null {
   return db.transaction(
-    (tx) => {
-      const enabled = tx
-        .select({ enabled: project.optimizationEnabled })
-        .from(project)
-        .where(eq(project.id, projectId))
-        .get()?.enabled;
-      return enabled === true
-        ? allocateGenerationIn(tx, projectId, contractVersion, inputHash, now)
-        : null;
-    },
+    (tx) => allocateEnabledGenerationIn(tx, projectId, contractVersion, inputHash, now),
     { behavior: 'immediate' },
   );
+}
+
+/** Reuses the caller's synchronous writer-owned transaction for one coherent admission observation. */
+export function allocateEnabledGenerationIn(
+  tx: Transaction,
+  projectId: string,
+  contractVersion: string,
+  inputHash: string,
+  now: number,
+): number | null {
+  const enabled = tx
+    .select({ enabled: project.optimizationEnabled })
+    .from(project)
+    .where(eq(project.id, projectId))
+    .get()?.enabled;
+  return enabled === true
+    ? allocateGenerationIn(tx, projectId, contractVersion, inputHash, now)
+    : null;
 }

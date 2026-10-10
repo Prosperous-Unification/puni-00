@@ -123,6 +123,130 @@ function deferredChild(
 }
 
 describe('runSolverChildLifecycle', () => {
+  it('waits for the durable heartbeat decision before killing a cancelled child', async () => {
+    const { db } = database();
+    const slot = reserve(db);
+    db.update(solverSlot).set({ cancelRequestedAt: 15 }).run();
+    const repository = createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN);
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    const process = deferredChild();
+    const running = runSolverChildLifecycle({
+      slots: {
+        ...repository,
+        refreshSlot: async (request) => {
+          entered.resolve(undefined);
+          await release.promise;
+          return await repository.refreshSlot(request);
+        },
+      },
+      slot,
+      child: process.child,
+      now: () => 20,
+      sleep: () => Promise.resolve(),
+      onExit: () => {
+        throw new Error('cancelled child cannot publish');
+      },
+    });
+    try {
+      await entered.promise;
+      process.exit(143);
+      await Promise.resolve();
+      expect(process.killed()).toBe(0);
+      expect(db.select().from(solverSlot).all()).toHaveLength(1);
+    } finally {
+      release.resolve(undefined);
+    }
+    expect(await running).toEqual({ kind: 'cancelled', reason: 'requested', code: 143 });
+    expect(process.killed()).toBe(1);
+  });
+
+  it('waits for exact-token release before reporting normal child completion', async () => {
+    const { db } = database();
+    const slot = reserve(db);
+    const repository = createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN);
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    const process = deferredChild();
+    process.exit(0);
+    let settled = false;
+    const running = runSolverChildLifecycle({
+      slots: {
+        ...repository,
+        releaseSlot: async (request) => {
+          entered.resolve(undefined);
+          await release.promise;
+          return await repository.releaseSlot(request);
+        },
+      },
+      slot,
+      child: process.child,
+      now: () => 20,
+      sleep: () => new Promise(() => undefined),
+      onExit: () => undefined,
+    }).then((outcome) => {
+      settled = true;
+      return outcome;
+    });
+    try {
+      await entered.promise;
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      expect(db.select().from(solverSlot).all()).toHaveLength(1);
+    } finally {
+      release.resolve(undefined);
+    }
+    expect(await running).toEqual({ kind: 'exited', code: 0 });
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+  });
+
+  it('waits for exact-token release before reporting durable cancellation', async () => {
+    const { db } = database();
+    const slot = reserve(db);
+    db.update(solverSlot).set({ cancelRequestedAt: 15 }).run();
+    const repository = createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN);
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    const process = deferredChild();
+    let settled = false;
+    const running = runSolverChildLifecycle({
+      slots: {
+        ...repository,
+        releaseSlot: async (request) => {
+          entered.resolve(undefined);
+          await release.promise;
+          return await repository.releaseSlot(request);
+        },
+      },
+      slot,
+      child: {
+        ...process.child,
+        kill: () => {
+          process.child.kill();
+          process.exit(143);
+        },
+      },
+      now: () => 20,
+      sleep: () => Promise.resolve(),
+      onExit: () => {
+        throw new Error('cancelled child cannot publish');
+      },
+    }).then((outcome) => {
+      settled = true;
+      return outcome;
+    });
+    try {
+      await entered.promise;
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      expect(db.select().from(solverSlot).all()).toHaveLength(1);
+    } finally {
+      release.resolve(undefined);
+    }
+    expect(await running).toEqual({ kind: 'cancelled', reason: 'requested', code: 143 });
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+  });
+
   it('drains both streams, handles the exit while the slot is held, then releases it', async () => {
     const { db } = database();
     const slot = reserve(db);

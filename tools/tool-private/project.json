@@ -1,0 +1,55 @@
+{
+  "name": "tool-private",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/tool-private/src",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
+  "targets": {
+    "checkout": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-private/src/checkout.ts"
+      }
+    },
+    "private:check": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-private/src/nested.ts check puni-fleet"
+      }
+    },
+    "private:rehearse": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-private/src/nested.ts rehearse puni-fleet"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --preload ../test/scratch/preload.ts --timeout=30000",
+        "cwd": "tools/tool-private"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-private/src"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-private/src --cache --cache-location .nx/eslintcache-tool-private"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force tools/tool-private/tsconfig.json"
+      }
+    }
+  }
+}

@@ -11,7 +11,7 @@ import {
 import type { ChainSnapshot, ChainSnapshotStore } from '../ports/chain-snapshot-store';
 import type { OrganizationPrincipal } from '../ports/organization-access';
 import type { PlanInputReads } from '../ports/saved-plan-capture-values';
-import type { EngineUnavailable, Scheduler, ScheduleRead } from '../ports/scheduler';
+import type { CapturedScheduler, EngineUnavailable, ScheduleRead } from '../ports/scheduler';
 import type { InfluencerRead, SharedPeopleRead } from '../ports/shared-people-values';
 import { scheduleInputOfCaptured } from './saved-plan-schedule';
 
@@ -53,7 +53,7 @@ export async function readChain(
 export function readSharedPeople(
   plans: readonly PlanInputReads[],
   projectId: string,
-  scheduler: Scheduler,
+  scheduler: CapturedScheduler,
 ): SharedPeopleRead {
   const selected = selectInfluencers(plans, projectId);
   const bookings = new Map<
@@ -99,7 +99,9 @@ export function readSharedPeople(
           name: reads.project.name,
           reads: target,
         };
-      const selected = displaySchedule(reads, scheduled);
+      // Proof: forcing Fast at this influencer boundary made the mounted
+      // selected-ready rank witness book B/C at 1/3 instead of 2/4.
+      const selected = displaySchedule(reads.project, scheduled);
       const placed = projectBookings(reads, selected.planned);
       if (reads.project.id === projectId)
         return { kind: 'scheduled', reads, input, scheduled, influencers };
@@ -120,6 +122,8 @@ export function readSharedPeople(
       if (!(failure instanceof ScheduleCycleError) && !(failure instanceof CalendarRangeError))
         throw failure;
       const reason = failure instanceof ScheduleCycleError ? 'cycle' : 'calendar_range';
+      // Proof: returning unavailable for an upstream failure made both
+      // mounted cycle/range Retry skip-bookings cases answer 500 instead of 200.
       if (reads.project.id === projectId)
         return { kind: 'unavailable', reason, reads, influencers };
       influencers.push({
@@ -133,23 +137,27 @@ export function readSharedPeople(
   throw new Error('required chain did not schedule its target');
 }
 
-function displaySchedule(
-  reads: PlanInputReads,
+/** Chooses the schedule a project actually displays from one captured engine observation. */
+export function displaySchedule(
+  settings: Pick<
+    PlanInputReads['project'],
+    'optimizationEnabled' | 'scheduleEngine' | 'scheduleObjective'
+  >,
   scheduled: Exclude<ScheduleRead, EngineUnavailable>,
 ): { readonly planned: Schedule; readonly engine: 'fast' | 'optimized' } {
   const optimization = scheduled.optimization;
-  const objective = reads.project.scheduleObjective;
+  const objective = settings.scheduleObjective;
   // Proof: a capability returning optimization:null made the no-state negative return Fast.
   if (
-    reads.project.optimizationEnabled &&
-    reads.project.scheduleEngine === 'optimized' &&
+    settings.optimizationEnabled &&
+    settings.scheduleEngine === 'optimized' &&
     optimization === null
   ) {
     throw new Error('optimized chain returned no optimization state');
   }
   if (
-    reads.project.optimizationEnabled &&
-    reads.project.scheduleEngine === 'optimized' &&
+    settings.optimizationEnabled &&
+    settings.scheduleEngine === 'optimized' &&
     optimization !== null &&
     optimization.variants[objective].state === 'ready'
   ) {

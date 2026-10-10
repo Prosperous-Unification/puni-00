@@ -92,7 +92,8 @@ const WAIVERS = new Map<string, Waiver>([
 ]);
 
 /**
- * Directories whose `<folder>/migration.sql` files reach the WBS migrator. The lab root holds
+ * Directories whose `migration.sql` files reach a managed migrator. The website SQLite adapter
+ * also owns paired forward and down scripts. The lab root holds
  * migrations that `deploy/k8s/wbs/lab/backend-upgrade.Dockerfile` copies into the drizzle root of a
  * lab-only backend image, so they run through the same migrator and obey the same rules.
  */
@@ -100,6 +101,7 @@ const MIGRATION_ROOTS: readonly (readonly string[])[] = [
   ['apps', 'wbs', 'be-01', 'drizzle'],
   ['apps', 'wbs', 'mcp-01', 'drizzle'],
   ['deploy', 'k8s', 'wbs', 'lab', 'migrations'],
+  ['libs', 'website', 'adapters', 'store-sqlite', 'src'],
 ];
 
 function isInside(root: string, path: string): boolean {

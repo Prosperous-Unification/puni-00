@@ -464,6 +464,8 @@ function selectedSchedule(
   if (ready === null) {
     throw new Error('optimized plan reader reported ready without a schedule');
   }
+  // Proof: forcing Fast here made the mounted borrowed arrange/freeze command
+  // order lower-work before lower-other despite the ready selected schedule.
   return { schedule: ready, displayed: project.scheduleObjective, awaitingSolve: false };
 }
 
@@ -986,6 +988,8 @@ export interface WorkItemServiceOptions {
   admission: EditAdmission;
   /** The installed scheduling capabilities for live plan reads. */
   scheduler: Scheduler;
+  /** A borrowed command scope reads the captured cache on its own source connection. */
+  schedulerMode?: 'capture';
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock: Clock;
 }
@@ -1561,6 +1565,79 @@ export class WorkItemService {
     return this.scheduleInput(projectId);
   }
 
+  /** Human-scoped Retry input; the shared chain and settings leave one closed authorized read. */
+  async optimizationInputWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<
+    | { readonly kind: 'scheduled'; readonly input: ScheduleInput; readonly enabled: boolean }
+    | { readonly kind: 'not_found' }
+    | AccessRefused
+    | {
+        readonly kind: 'unavailable';
+        readonly reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
+        readonly projectId: string;
+      }
+  > {
+    const captured = await this.opts.livePlans?.read(projectId, access);
+    if (captured?.kind === 'access_refused') return captured;
+    if (captured?.kind === 'not_found') return { kind: 'not_found' };
+    if (captured?.kind === 'shared') {
+      if (captured.chain.kind === 'engine_unavailable')
+        return {
+          kind: 'unavailable',
+          reason: 'engine_unavailable',
+          // Proof: replacing this with the target ID failed the mounted required-influencer Retry identity case.
+          projectId: captured.chain.projectId,
+        };
+      if (captured.chain.kind === 'unavailable')
+        return { kind: 'unavailable', reason: captured.chain.reason, projectId };
+      // Proof: substituting local-only input failed the mounted upstream-only
+      // Retry hash and wire-request holder assertions.
+      return {
+        kind: 'scheduled',
+        input: captured.chain.input,
+        enabled: captured.project.optimizationEnabled,
+      };
+    }
+    const input = await this.scheduleInputWithin(projectId, access);
+    if (input === null) return { kind: 'not_found' };
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) throw new Error('optimizer project disappeared during input capture');
+    return { kind: 'scheduled', input, enabled: project.optimizationEnabled };
+  }
+
+  /** Project-owned optimizer capture; shared input and settings leave one closed read snapshot. */
+  async optimizationInput(projectId: string): Promise<
+    | { readonly kind: 'scheduled'; readonly input: ScheduleInput; readonly enabled: boolean }
+    | { readonly kind: 'not_found' }
+    | {
+        readonly kind: 'unavailable';
+        readonly reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
+      }
+  > {
+    const captured = await this.opts.livePlans?.readProject(projectId);
+    if (captured?.kind === 'not_found') return { kind: 'not_found' };
+    if (captured?.kind === 'shared') {
+      if (captured.chain.kind === 'engine_unavailable')
+        return { kind: 'unavailable', reason: 'engine_unavailable' };
+      if (captured.chain.kind === 'unavailable')
+        return { kind: 'unavailable', reason: captured.chain.reason };
+      return {
+        kind: 'scheduled',
+        input: captured.chain.input,
+        // Proof: rereading enablement after the snapshot made mounted concurrent
+        // settings/input capture launch two children from the old booking.
+        enabled: captured.project.optimizationEnabled,
+      };
+    }
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { kind: 'not_found' };
+    const input = await this.scheduleInput(projectId);
+    if (input === null) throw new Error('optimizer project disappeared during input capture');
+    return { kind: 'scheduled', input, enabled: project.optimizationEnabled };
+  }
+
   /**
    * Where the project's event stream has reached, as {@link tree} reads it
    * before its rows: every announced change that can move a date or a name
@@ -1596,7 +1673,29 @@ export class WorkItemService {
   ): Promise<Awaited<ReturnType<WorkItemService['tree']>> | AccessRefused> {
     if (this.opts.livePlans !== undefined) {
       const captured = await this.opts.livePlans.read(projectId, access);
-      if (captured.kind !== 'isolated') return projectSharedTree(captured);
+      if (captured.kind !== 'isolated') {
+        const tree = projectSharedTree(captured);
+        if (
+          captured.kind === 'shared' &&
+          captured.chain.kind === 'scheduled' &&
+          captured.project.optimizationEnabled &&
+          this.opts.scheduler.supports('optimized')
+        ) {
+          // The owned snapshot has closed before this live read may reserve a
+          // solver seat. Keep `tree`'s captured display even if it starts work.
+          // Proof: skipping this admission left the mounted shared tree with
+          // zero holder-bearing requests and zero durable slots.
+          await this.opts.scheduler.read({
+            projectId,
+            input: captured.chain.input,
+            engine: captured.project.scheduleEngine,
+            objective: captured.project.scheduleObjective,
+            enabled: captured.project.optimizationEnabled,
+            mode: 'live',
+          });
+        }
+        return tree;
+      }
     }
     if (!(await this.admits(projectId, access))) return null;
     // Proof: bypassing the public isolated fixture read failed mounted disappearance (200 vs 404) and malformed-core export (200 vs 500).
@@ -2050,13 +2149,13 @@ export class WorkItemService {
     );
     let scheduling: TreeSchedule;
     try {
-      scheduling = this.opts.scheduler.read({
+      scheduling = await this.opts.scheduler.read({
         projectId,
         input: canonical.input,
         engine: project.scheduleEngine,
         objective: project.scheduleObjective,
         enabled: project.optimizationEnabled,
-        mode: 'live',
+        mode: this.opts.schedulerMode ?? 'live',
       });
     } catch (failure) {
       if (failure instanceof ScheduleCycleError)
@@ -3515,13 +3614,13 @@ export class WorkItemService {
       const read =
         shared?.kind === 'scheduled'
           ? shared.scheduled
-          : this.opts.scheduler.read({
+          : await this.opts.scheduler.read({
               projectId: project.id,
               input: canonical.input,
               engine: project.scheduleEngine,
               objective: project.scheduleObjective,
               enabled: project.optimizationEnabled,
-              mode: 'live',
+              mode: this.opts.schedulerMode ?? 'live',
             });
       if (read.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
       selected = selectedSchedule(project, read.fast, read.optimization);

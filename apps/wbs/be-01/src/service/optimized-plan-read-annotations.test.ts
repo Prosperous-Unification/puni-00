@@ -239,7 +239,10 @@ async function askedInput(): Promise<ScheduleInput> {
   };
   const probe = new WorkItemService({
     ...serviceOptions,
-    scheduler: optimizerWiring({ readLive: read, readCaptured: read }).scheduler,
+    scheduler: optimizerWiring({
+      readLive: (ask) => Promise.resolve(read(ask)),
+      readCaptured: read,
+    }).scheduler,
   });
   await probe.tree(projectId);
   // A length check rather than an `=== undefined` guard on the indexed read:
@@ -304,7 +307,8 @@ async function servedBy(moved: Readonly<Record<string, number>>) {
   });
   const service = new WorkItemService({
     ...serviceOptions,
-    scheduler: optimizerWiring({ readLive: read, readCaptured: read }).scheduler,
+    scheduler: optimizerWiring({ readLive: () => Promise.resolve(read()), readCaptured: read })
+      .scheduler,
   });
   const tree = await service.tree(projectId);
   if (tree === null) throw new Error('project vanished');

@@ -31,6 +31,7 @@ export const savedPlansModule = DiBag.createBuilder()
         capture,
         plans,
         scheduler,
+        captureSharedPlan,
         newId,
         now,
         quota,
@@ -39,6 +40,7 @@ export const savedPlansModule = DiBag.createBuilder()
         capture: SavedPlanCaptureStore;
         plans: SavedPlanStore;
         scheduler: Scheduler;
+        captureSharedPlan: SavedPlanServiceOptions['captureSharedPlan'];
         newId: () => string;
         now: () => number;
         quota: SavedPlanQuota | undefined;
@@ -46,6 +48,8 @@ export const savedPlansModule = DiBag.createBuilder()
         digest,
         resource: new SavedPlanResource({ capture, plans, digest }),
         scheduler,
+        // Proof: omitting this option failed mounted shared save displacement (expected 3, got 0).
+        ...(captureSharedPlan === undefined ? {} : { captureSharedPlan }),
         newId,
         now,
         // Proof (2026-09-23): deleting this spread left `passes a supplied quota through to the

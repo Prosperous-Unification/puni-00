@@ -1,4 +1,5 @@
 import type {
+  CapturedScheduleAsk,
   ChainAccess,
   ChainSnapshot,
   ChainSnapshotStore,
@@ -11,6 +12,7 @@ import type {
   Project,
   ResourceAccess,
   Scheduler,
+  ScheduleRead,
   SharedPeopleRead,
 } from '@wbs/core';
 import { readChain } from '@wbs/core';
@@ -295,7 +297,8 @@ export function createLivePlanStore(
         throw failure;
       }
     } finally {
-      // Proof: omitting close failed all three owned lifecycle cases (0 closes instead of 1).
+      // Proof: omitting close failed all three owned lifecycle cases and the
+      // mounted admission check saw one open snapshot at both launch handoffs.
       connection.close();
     }
   }
@@ -363,7 +366,15 @@ async function readLiveAggregateIn(
   const readable = await projects.listForInOrganization(actorId, access.scope.organizationId);
   const snapshot = await readChainSnapshotIn(db, access, readable, '', options);
   const captures = new Map<string, PlanInputReads>();
-  const scheduling = new Map<string, ReturnType<Scheduler['read']>>();
+  const scheduling = new Map<string, ScheduleRead>();
+  function readSchedule(request: CapturedScheduleAsk): ScheduleRead {
+    const key = `${request.projectId}:${scheduleInputHash(request.input)}:${request.engine}:${request.objective}:${String(request.enabled)}`;
+    const held = scheduling.get(key);
+    if (held !== undefined) return held;
+    const scheduled = snapshot.scheduler.read(request);
+    scheduling.set(key, scheduled);
+    return scheduled;
+  }
   const shared: ChainSnapshot = {
     ...snapshot,
     capturePlan: async (projectId) => {
@@ -375,14 +386,7 @@ async function readLiveAggregateIn(
     },
     scheduler: {
       supports: (engine) => snapshot.scheduler.supports(engine),
-      read: (request) => {
-        const key = `${request.projectId}:${scheduleInputHash(request.input)}:${request.engine}:${request.objective}:${String(request.enabled)}`;
-        const held = scheduling.get(key);
-        if (held !== undefined) return held;
-        const scheduled = snapshot.scheduler.read(request);
-        scheduling.set(key, scheduled);
-        return scheduled;
-      },
+      read: readSchedule,
     },
   };
   const entries: Extract<LivePlanAggregate, { kind: 'shared' }>['entries'][number][] = [];

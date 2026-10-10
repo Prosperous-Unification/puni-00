@@ -1,4 +1,10 @@
-import type { OptimizationVariantState, OptimizedScheduleRead, ScheduleAsk } from '@wbs/core';
+import type {
+  CapturedScheduleAsk,
+  LiveScheduleAsk,
+  OptimizationVariantState,
+  OptimizedScheduleRead,
+  ScheduleAsk,
+} from '@wbs/core';
 import { type Schedule, ScheduleCycleError } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
@@ -62,6 +68,8 @@ const FAST = scheduleAt(1);
 const PRI = scheduleAt(2);
 const TIME = scheduleAt(3);
 
+function ask(overrides: Partial<CapturedScheduleAsk> & { mode: 'capture' }): CapturedScheduleAsk;
+function ask(overrides?: Partial<LiveScheduleAsk>): LiveScheduleAsk;
 function ask(overrides: Partial<ScheduleAsk> = {}): ScheduleAsk {
   return {
     projectId: 'project',
@@ -92,7 +100,7 @@ function optimizedRead(
 }
 
 describe('createScheduler', () => {
-  it('reports installed capabilities and refuses a selected missing adapter before Fast runs', () => {
+  it('reports installed capabilities and refuses a selected missing adapter before Fast runs', async () => {
     let fastCalls = 0;
     const scheduler = createScheduler(() => {
       fastCalls += 1;
@@ -101,13 +109,13 @@ describe('createScheduler', () => {
 
     expect(scheduler.supports('fast')).toBe(true);
     expect(scheduler.supports('optimized')).toBe(false);
-    expect(scheduler.read(ask({ engine: 'optimized' }))).toEqual({
+    expect(await scheduler.read(ask({ engine: 'optimized' }))).toEqual({
       kind: 'engine_unavailable',
       error: 'engine_unavailable',
       engine: 'optimized',
     });
     expect(fastCalls).toBe(0);
-    expect(scheduler.read(ask({ engine: 'optimized', enabled: false }))).toEqual({
+    expect(await scheduler.read(ask({ engine: 'optimized', enabled: false }))).toEqual({
       kind: 'scheduled',
       fast: FAST,
       optimization: null,
@@ -115,7 +123,7 @@ describe('createScheduler', () => {
     expect(fastCalls).toBe(1);
   });
 
-  it('forwards all seven Fast arguments and selects the live or captured optimized reader', () => {
+  it('forwards all seven Fast arguments and selects the live or captured optimized reader', async () => {
     const fastCalls: unknown[][] = [];
     const liveAsks: unknown[] = [];
     const capturedAsks: unknown[] = [];
@@ -128,7 +136,7 @@ describe('createScheduler', () => {
       {
         readLive: (optimizationAsk) => {
           liveAsks.push(optimizationAsk);
-          return optimization;
+          return Promise.resolve(optimization);
         },
         readCaptured: (optimizationAsk) => {
           capturedAsks.push(optimizationAsk);
@@ -138,17 +146,21 @@ describe('createScheduler', () => {
     );
 
     expect(scheduler.supports('optimized')).toBe(true);
-    expect(scheduler.read(ask({ engine: 'fast', objective: 'pri' }))).toEqual({
+    expect(await scheduler.read(ask({ engine: 'fast', objective: 'pri' }))).toEqual({
       kind: 'scheduled',
       fast: FAST,
       optimization,
     });
     expect(
       scheduler.read(ask({ engine: 'optimized', objective: 'time', mode: 'capture' })),
+    ).toEqual({
+      kind: 'scheduled',
+      fast: FAST,
+      optimization,
+    });
+    expect(
+      await scheduler.read(ask({ engine: 'optimized', objective: 'time', enabled: false })),
     ).toEqual({ kind: 'scheduled', fast: FAST, optimization });
-    expect(scheduler.read(ask({ engine: 'optimized', objective: 'time', enabled: false }))).toEqual(
-      { kind: 'scheduled', fast: FAST, optimization },
-    );
     expect(fastCalls).toEqual([
       [
         INPUT.rows,
@@ -202,7 +214,7 @@ describe('createScheduler', () => {
       seen.push(args[8]);
       return FAST;
     });
-    scheduler.read(ask({ input: { ...INPUT, elsewhere } }));
+    void scheduler.read(ask({ input: { ...INPUT, elsewhere } }));
     expect(seen).toEqual([elsewhere]);
   });
 
@@ -216,28 +228,32 @@ describe('createScheduler', () => {
     { state: 'idle' },
   ];
 
-  it.each(states)('retains the installed selected variant state %#', (state) => {
+  it.each(states)('retains the installed selected variant state %#', async (state) => {
     const optimization = optimizedRead(state);
     const scheduler = createScheduler(() => FAST, {
-      readLive: () => optimization,
+      readLive: () => Promise.resolve(optimization),
       readCaptured: () => optimization,
     });
-    expect(scheduler.read(ask({ engine: 'optimized' }))).toEqual({
+    expect(await scheduler.read(ask({ engine: 'optimized' }))).toEqual({
       kind: 'scheduled',
       fast: FAST,
       optimization,
     });
   });
 
-  it('throws when a ready optimized variant carries no schedule', () => {
+  it('throws when a ready optimized variant carries no schedule', async () => {
     const malformed = { ...optimizedRead(), schedules: { pri: null, time: TIME } };
     const scheduler = createScheduler(() => FAST, {
-      readLive: () => malformed,
+      readLive: () => Promise.resolve(malformed),
       readCaptured: () => malformed,
     });
-    expect(() => scheduler.read(ask({ engine: 'optimized' }))).toThrow(
-      'optimized scheduler reported ready without a pri schedule',
+    const failure = await scheduler.read(ask({ engine: 'optimized' })).then(
+      () => null,
+      (error: unknown) => error,
     );
+    expect(failure).toMatchObject({
+      message: 'optimized scheduler reported ready without a pri schedule',
+    });
   });
 
   it('preserves unexpected adapter failures and domain cycles', () => {

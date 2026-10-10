@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
+import type { CapturedScheduleAsk, LiveScheduleAsk, ScheduleAsk, ScheduleRead } from '@wbs/core';
 import { readChain, scheduleInputOfCaptured, SharedPeopleReader } from '@wbs/core';
 import { SavedPlanResource } from '@wbs/core/module/saved-plans/saved-plan.resource';
 import { SavedPlanService } from '@wbs/core/module/saved-plans/saved-plans.feature';
@@ -12,6 +13,7 @@ import { createScheduler } from '@wbs/runtime-portable';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
+import { capturedOptimizationReaderOf } from './captured-optimization-reader';
 import {
   ChainSnapshotRepository,
   createChainSnapshotStore,
@@ -20,14 +22,24 @@ import {
 } from './chain-snapshot';
 import { drizzleReadTransaction, openConnection, openDatabase, openReadOnlyConnection } from './db';
 import { DirectoryRepository } from './directory';
+import { DrizzleEventLogStore } from './event-log';
 import { OPEN } from './gate';
+import { reserveSolverSlot } from './optimization-admission';
 import { allocateGeneration } from './optimization-generation';
+import { readGeneration } from './optimization-generation';
+import { storeOptimizedOutcomeAndRecord } from './optimized-outcome';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
 import { SavedPlanRepository } from './saved-plan';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { scheduleInputHash } from './schedule-input-hash';
-import { optimizedScheduleCache } from './schema';
+import {
+  eventLog,
+  optimizationGeneration,
+  optimizedScheduleCache,
+  solverQueue,
+  solverSlot,
+} from './schema';
 import { nodeDigest } from './testing/node-digest';
 import { openSpaceDatabase } from './testing/space-database';
 
@@ -35,6 +47,10 @@ let dir: string;
 let path: string;
 let closed: number;
 const principal = { id: 'ada' };
+const admitted = {
+  kind: 'scoped',
+  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+} as const;
 const fast = createScheduler(
   (rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
     schedule(rows, edges, slices, floors, pools, reach, deadlines, typed, undefined, elsewhere),
@@ -554,6 +570,138 @@ describe('the chain snapshot', () => {
     expect(await start()).toBe(3);
   });
 
+  it('stores an eligible old shared result only at H1 and never serves it for captured H2', async () => {
+    write(
+      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'a3'",
+    );
+    const chain = new SharedPeopleReader(snapshots());
+    const capture = async () => {
+      const observed = await chain.read('a3', principal);
+      if (
+        !observed.ok ||
+        observed.value.kind !== 'scheduled' ||
+        observed.value.scheduled.kind !== 'scheduled'
+      )
+        throw new Error('expected captured shared target');
+      return { input: observed.value.input, scheduled: observed.value.scheduled };
+    };
+    const first = await capture();
+    const h1 = scheduleInputHash(first.input);
+    const connection = openConnection(path);
+    try {
+      const db = connection.db;
+      const generation = allocateGeneration(db, 'a3', '15+0.2.0', h1, 1);
+      const admission = reserveSolverSlot(db, {
+        projectId: 'a3',
+        contractVersion: '15+0.2.0',
+        generation,
+        objective: 'pri',
+        budgetMs: 1000,
+        ownerId: 'coordinator-a',
+        attemptToken: 'h1-attempt',
+        now: 2,
+      });
+      if (admission.kind !== 'reserved') throw new Error(`unexpected admission ${admission.kind}`);
+
+      write("UPDATE estimate SET realistic = 4 WHERE work_item_id = 'a1'");
+      const second = await capture();
+      const h2 = scheduleInputHash(second.input);
+      expect(h2).not.toBe(h1);
+      expect(second.scheduled.fast.slices.get(sliceKey('a3', 'a3-s0'))?.earliestStart).not.toBe(
+        first.scheduled.fast.slices.get(sliceKey('a3', 'a3-s0'))?.earliestStart,
+      );
+      expect(readGeneration(db, 'a3', '15+0.2.0')).toMatchObject({ generation, inputHash: h1 });
+      const state = () => ({
+        generations: db.select().from(optimizationGeneration).all(),
+        cache: db.select().from(optimizedScheduleCache).all(),
+        slots: db.select().from(solverSlot).all(),
+        queue: db.select().from(solverQueue).all(),
+        events: db.select().from(eventLog).all(),
+      });
+      const beforeLookup = state();
+      const current = await capture();
+      expect(scheduleInputHash(current.input)).toBe(h2);
+      expect(current.scheduled.optimization?.variants.pri).toEqual({ state: 'pending' });
+      expect(current.scheduled.optimization?.schedules.pri).toBeNull();
+      expect(state()).toEqual(beforeLookup);
+
+      const outcome = {
+        claim: {
+          projectId: 'a3',
+          contractVersion: '15+0.2.0',
+          generation,
+          objective: 'pri' as const,
+          budgetMs: 1000,
+          ownerId: 'coordinator-a',
+          attemptToken: admission.attemptToken,
+        },
+        inputHash: h1,
+        admittedCancelEpoch: admission.admittedCancelEpoch,
+        outcome: {
+          kind: 'ok' as const,
+          result: {
+            publication: 'solver' as const,
+            objectiveValues: {
+              makespan: { value: 5, stageValue: 5, bound: 5, status: 'optimal' as const },
+              priority: { value: 0, stageValue: 0, bound: 0, status: 'optimal' as const },
+              movement: { value: 0, stageValue: 0, bound: 0, status: 'optimal' as const },
+            },
+            schedule: first.scheduled.fast,
+          },
+        },
+        now: 3,
+      };
+      const events = new DrizzleEventLogStore(db, OPEN);
+      const published = storeOptimizedOutcomeAndRecord(db, events, outcome);
+      if (published.result !== 'stored' || published.recorded === undefined)
+        throw new Error(`unexpected publication ${published.result}`);
+      expect(published.result).toBe('stored');
+      expect(published.event).toEqual({
+        type: 'schedule_optimized',
+        projectId: 'a3',
+        generation,
+        inputHash: h1,
+        objective: 'pri',
+        contractVersion: '15+0.2.0',
+        budgetMs: 1000,
+      });
+      expect(storeOptimizedOutcomeAndRecord(db, events, outcome).result).toBe('already-recorded');
+      const afterPublication = state();
+      expect(afterPublication.cache.map((row) => row.inputHash)).toEqual([h1]);
+      expect(afterPublication.events).toHaveLength(1);
+      expect(await events.rangeSince('project:a3', -1)).toEqual([published.recorded]);
+      expect(readGeneration(db, 'a3', '15+0.2.0')).toMatchObject({ generation, inputHash: h1 });
+      const lookup = capturedOptimizationReaderOf(db, {
+        contractVersion: '15+0.2.0',
+        budgetMs: 1000,
+        now: () => 100,
+      });
+      const oldKey = lookup({
+        projectId: 'a3',
+        objective: 'pri',
+        input: first.input,
+        enabled: true,
+      });
+      expect(oldKey.inputHash).toBe(h1);
+      expect(oldKey.variants.pri).toEqual({ state: 'ready', proof: 'proven' });
+      expect(oldKey.schedules.pri).toEqual(first.scheduled.fast);
+      const old = new SharedPeopleReader(snapshots());
+      const h2Observed = await old.read('a3', principal);
+      if (
+        !h2Observed.ok ||
+        h2Observed.value.kind !== 'scheduled' ||
+        h2Observed.value.scheduled.kind !== 'scheduled'
+      )
+        throw new Error('expected H2 target');
+      expect(scheduleInputHash(h2Observed.value.input)).toBe(h2);
+      expect(h2Observed.value.scheduled.optimization?.variants.pri).toEqual({ state: 'pending' });
+      expect(h2Observed.value.scheduled.optimization?.schedules.pri).toBeNull();
+      expect(state()).toEqual(afterPublication);
+    } finally {
+      connection.close();
+    }
+  });
+
   it('refuses removed membership and foreign targets without naming them', async () => {
     const reader = new SharedPeopleReader(snapshots());
     expect(await reader.read('b1', principal)).toEqual({ ok: true, value: { kind: 'not_found' } });
@@ -567,7 +715,12 @@ describe('the chain snapshot', () => {
       "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'a3'",
     );
     const saved = savedService(new SharedPeopleReader(snapshots()));
-    const written = await saved.save({ projectId: 'a3', createdBy: 'Ada', createdById: 'ada' });
+    const written = await saved.save({
+      projectId: 'a3',
+      createdBy: 'Ada',
+      createdById: 'ada',
+      access: admitted,
+    });
     expect(written.outcome).toBe('saved');
     if (written.outcome !== 'saved') throw new Error('expected saved target');
     expect(written.record.schedule).toEqual({ present: false, absentReason: 'pending' });
@@ -588,6 +741,7 @@ describe('the chain snapshot', () => {
       projectId: 'a3',
       createdBy: 'Ada',
       createdById: 'ada',
+      access: admitted,
     });
     if (written.outcome !== 'saved') throw new Error('expected saved target');
     expect(written.record.schedule).toEqual({ present: false, absentReason: 'infeasible' });
@@ -621,12 +775,17 @@ describe('the chain snapshot', () => {
   it('stores detached shared dates that survive upstream edits and deletion', async () => {
     const chain = new SharedPeopleReader(snapshots());
     const saved = savedService(chain);
-    const written = await saved.save({ projectId: 'a3', createdBy: 'Ada', createdById: 'ada' });
+    const written = await saved.save({
+      projectId: 'a3',
+      createdBy: 'Ada',
+      createdById: 'ada',
+      access: admitted,
+    });
     expect(written.outcome).toBe('saved');
     if (written.outcome !== 'saved' || !written.record.schedule.present)
       throw new Error('expected saved dates');
     expect(written.record.schedule.body.bytes).toContain('"earliestStart":3');
-    const current = await saved.projectCurrentPlan('a3');
+    const current = await saved.projectCurrentPlan('a3', admitted);
     if (!current?.schedule.present) throw new Error('expected current dates');
     expect(JSON.stringify(current.schedule.body)).toContain('"earliestStart":3');
     const bytes = written.record.schedule.body.bytes;
@@ -699,15 +858,18 @@ describe('detached live snapshot guards', () => {
   });
   it('reuses captured scheduling across aggregate target closures', async () => {
     let schedules = 0;
+    function read(ask: CapturedScheduleAsk): ScheduleRead;
+    function read(ask: LiveScheduleAsk): Promise<ScheduleRead>;
+    function read(ask: ScheduleAsk): ScheduleRead | Promise<ScheduleRead> {
+      schedules++;
+      return ask.mode === 'capture' ? fast.read(ask) : fast.read(ask);
+    }
     const store = createLivePlanStore({
       kind: 'owned',
       openConnection: () => openReadOnlyConnection(path),
       schedulerOf: () => ({
         supports: (engine) => fast.supports(engine),
-        read: (ask) => {
-          schedules++;
-          return fast.read(ask);
-        },
+        read,
       }),
     });
     const observed = await store.readAggregate('ada', access);

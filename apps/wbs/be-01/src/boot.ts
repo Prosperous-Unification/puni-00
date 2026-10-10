@@ -11,7 +11,6 @@ import {
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
-  ProjectRankRepository,
   SpaceRepository,
   SqliteOrganizationAccess,
 } from '@wbs/store-sqlite';
@@ -225,7 +224,10 @@ export async function bootBe01(
               invitations: new InvitationRepository(db, services.gate),
               joinRequests: new JoinRequestRepository(db, services.gate),
               spaces: new SpaceRepository(db, services.gate),
-              projectRanks: new ProjectRankRepository(db, services.gate),
+              // Proof: replacing this bound service with the raw rank repository
+              // left the cold boot rank move without its second durable a2 event
+              // in boot.db.test.ts (R5 boot-rank-binding).
+              projectRanks: services.projectRanks,
               emailDelivery: refusingEmailDelivery,
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,
@@ -247,6 +249,9 @@ export async function bootBe01(
                 // batch itself.
                 batch: services.batch,
                 announcements: services.announcements,
+                // Proof: omitting boot's delivery forwarding made the booted
+                // cold shared command return 500 and record no downstream row.
+                committedFanout: services.committedFanout,
               },
               // Read per call, not captured here: dev's deploy is a `git reset`
               // under live watchers, so this process outlives the commit it

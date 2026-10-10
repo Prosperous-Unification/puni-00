@@ -161,7 +161,10 @@ function recordingReader(
   return {
     asks,
     read,
-    scheduler: optimizerWiring({ readLive: read, readCaptured: read }).scheduler,
+    scheduler: optimizerWiring({
+      readLive: (ask) => Promise.resolve(read(ask)),
+      readCaptured: read,
+    }).scheduler,
   };
 }
 
