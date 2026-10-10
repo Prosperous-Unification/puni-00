@@ -32,7 +32,9 @@ test('pointing a visible bar leaves its linked offscreen table row in place', as
   await page.mouse.wheel(0, 6 * 28);
   await page.evaluate(
     () =>
-      new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
   );
 
   async function measurePremise() {
@@ -144,7 +146,9 @@ test('pointing a visible bar leaves its linked offscreen table row in place', as
     await page.mouse.up();
     await page.evaluate(
       () =>
-        new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
     );
     const resizedLayout = await measurePremise();
     console.log('POINTED_ROW_DRAG_GEOMETRY', JSON.stringify(resizedLayout));
@@ -179,7 +183,9 @@ test('pointing a visible bar leaves its linked offscreen table row in place', as
   await page.mouse.move(0, 0);
   await page.evaluate(
     () =>
-      new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
   );
   const before = await page.evaluate(() => {
     const table = document.querySelector('[data-table-frame]');
@@ -212,7 +218,9 @@ test('pointing a visible bar leaves its linked offscreen table row in place', as
   try {
     await page.mouse.move(chosen.point.x, chosen.point.y);
     for (let frame = 0; frame < 3; frame += 1) {
-      await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(resolve)));
+      await page.evaluate(
+        () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+      );
       expect(page.url(), 'bar hover changed the page URL').toBe(url);
       expect(navigations, 'bar hover made a navigation request').toEqual([]);
       const after = await page.evaluate((number) => {
