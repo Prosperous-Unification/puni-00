@@ -40,7 +40,7 @@ None.
 
 ## Domain Terms
 
-Board card, board column, board lane — root CONTEXT.md.
+Board card, board column, board lane, suspended unsent draft — root CONTEXT.md.
 
 ## Decisions Recorded
 
@@ -48,5 +48,6 @@ Board card, board column, board lane — root CONTEXT.md.
 
 ## Impact
 
-WBS frontend project page, a board projection and renderer, and mounted/browser
-tests. No migration, backend change or new runtime dependency.
+WBS frontend project page, a board projection and renderer, an opt-in Plan editing
+boundary for draft-preserving view switches, and mounted/browser tests.
+No migration, backend change or new runtime dependency.

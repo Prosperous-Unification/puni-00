@@ -209,13 +209,12 @@ export function flushCell(node: CellElement): Promise<CommitOutcome> {
  *    texts in that window are two edits and both go out; {@link submissions}
  *    is what stops the slower answer writing over the faster one.
  *
- * **What a new face inherits, and what it does not.** The held refusal, and
- * only that. `shown`, `typed`, `sent` and `latest` are re-derived from the
- * server value the new face was given, which is what the component's refs did
- * when they died with it — carrying them across a remount would change rule 5
- * and rule 2 in ways nothing here tests, and `openspec/changes/
- * live-editing-extraction/verify.md` records the choice rather than making it
- * silently.
+ * **What a new face inherits.** An ordinary remount constructs a new field
+ * from the server value and restores only a held refusal. During a Board
+ * handoff, the selected runtime's PlanInteractionScope instead retains this
+ * field for a suspended cell identity. A new face for that surviving identity
+ * reuses it, preserving the unsent text and its original baseline until
+ * refocus. Authoritative deletion or runtime withdrawal discards that hold.
  */
 export class LiveField {
   /** The box this field is rendered as, or null before the face has attached one. */
@@ -240,6 +239,8 @@ export class LiveField {
    * touching the second.
    */
   private refused = false;
+  /** Unsent text held by the selected runtime while Plan hands focus to Board. */
+  private suspendedText: string | null = null;
   private sent: Submission | null = null;
   /**
    * How many commits this field has sent, so a commit can tell whether it is
@@ -331,6 +332,35 @@ export class LiveField {
       this.refused = true;
       this.typedHere = false;
     }
+    // Proof: omitting this restoration made `restores a suspended draft after
+    // a new step rebuilds the field face` show Build instead of the unsent
+    // Draft through step change. Watched 2026-10-06.
+    if (this.suspendedText !== null) node.value = this.suspendedText;
+  }
+
+  /** Holds a changed, unsent value across a view handoff without claiming a refusal. */
+  suspendUnsent(): boolean {
+    if (this.suspendedText !== null) return true;
+    const node = this.node;
+    if (node === null || node.value === this.shown) return false;
+    // Proof: omitting this issued-command guard made `does not relabel an
+    // already issued edit as an unsent Board draft` return true for an edit
+    // already awaiting its server answer. Watched 2026-10-06.
+    if (this.sent?.typed === node.value && this.sent.baseline === this.shown) return false;
+    this.suspendedText = node.value;
+    return true;
+  }
+
+  /** Refocusing resumes the ordinary leave and submit rules with the original baseline. */
+  resumeUnsent(): void {
+    if (this.suspendedText === null) return;
+    this.suspendedText = null;
+    this.typedHere = true;
+  }
+
+  /** Whether a view handoff currently holds this field's unsent text. */
+  isSuspended(): boolean {
+    return this.suspendedText !== null;
   }
 
   /** One keystroke in this field's box. */
@@ -360,6 +390,10 @@ export class LiveField {
   private sync(): void {
     const node = this.node;
     if (node === null || this.latest === this.shown) return;
+    // Proof: removing this suspended hold made `keeps a suspended unsent text
+    // and original baseline through peer sync and a new face` replace Draft
+    // with Peer on the attached node. Watched 2026-10-06.
+    if (this.suspendedText !== null) return;
     // Rule 4, before rule 2 and without asking where the focus is: a refused
     // draft is unsaved text that exists nowhere else, and the refusal landed
     // after the blur that sent it. It is held until the person resolves it
@@ -395,6 +429,10 @@ export class LiveField {
    * has not advanced, sees its own submission recorded, and sends nothing.
    */
   leave(): Promise<CommitOutcome> {
+    // Proof: removing this guard made `suspends a dirty Name before pointer
+    // focus reaches Board, without submitting` send Draft build on the
+    // switch-caused blur. Watched 2026-10-06.
+    if (this.suspendedText !== null) return unsent();
     const node = this.node;
     if (node === null) return unsent();
     // Cleared before either branch: it means "typed since `shown` and the node

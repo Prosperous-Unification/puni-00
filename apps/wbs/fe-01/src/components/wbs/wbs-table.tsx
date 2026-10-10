@@ -46,6 +46,7 @@ import { PLAN_TABLE_FEATURES, type PlanTableFeatures } from './plan-columns/colu
 import { createPlanColumns } from './plan-columns/columns';
 import { planFileName } from './plan-export';
 import { usePlanExportActions, usePlanOnScreenExport } from './plan-export-actions';
+import { usePlanInteractionScope } from './plan-interaction-scope';
 import type { PlanLiveValues } from './plan-live';
 import { showDay } from './plan-number-format';
 import { failureText } from './plan-refusal';
@@ -620,11 +621,14 @@ export function useToday(): Date {
  */
 export function WbsTable({
   project,
+  planActive = true,
   projectName,
   planImport,
   toastApi: toastApiOverride,
   savedPlansShelf,
 }: WbsTableProps) {
+  const interaction = usePlanInteractionScope();
+  const isPlanActive = useCallback(() => interaction?.isPlanActive() ?? true, [interaction]);
   const projectId = project.projectId;
   const today = useToday();
   /**
@@ -779,6 +783,16 @@ export function WbsTable({
   } | null>(null);
   /** The row the Move under… picker is open over, by id, for `completionFor`'s reason. */
   const [moveUnderFor, setMoveUnderFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (planActive) return;
+    setCheatSheetOpen(false);
+    setMoveUnderFor(null);
+    setCompletionFor(null);
+    setRefsEditing(null);
+    setOpenMenuRowId(null);
+    setFreezeMenuOpen(false);
+    setCueMenuOpen(false);
+  }, [planActive, setCheatSheetOpen]);
   const { dragging, setDragging, dropHint, setDropHint } = usePlanDragState();
   /**
    * The Depends on picker: which row's cell it is open under, what has been
@@ -976,6 +990,7 @@ export function WbsTable({
     setArmedDelete,
     dismissToast,
     dReleased,
+    isPlanActive,
   });
   usePlanStructureEffects({
     setDragging,
@@ -2318,7 +2333,7 @@ export function WbsTable({
       {renderer === 'cards' ? (
         <div data-toolbar-sheet className="mb-1.5 flex shrink-0 items-center gap-2">
           {scheduleCue}
-          <PlanToolbarSheet>
+          <PlanToolbarSheet active={planActive}>
             <div aria-busy={busy} className="flex flex-wrap items-center gap-2">
               {toolbarControls}
               {(ganttHeightPx !== null || ganttDayPx !== DAY_PX || !ganttLabelsShown) && (
@@ -3107,7 +3122,7 @@ export function WbsTable({
         it back when it unmounts, so all three ways of closing put the reader
         back where they were without any of them saying so.
       */}
-      {cheatSheetOpen && (
+      {planActive && cheatSheetOpen && (
         <KeyboardCheatSheet
           // The sheet says what *this* renderer answers, and nothing else. The
           // cards wire no chords at all, and a sheet promising ⌘+Enter on a
@@ -3128,7 +3143,7 @@ export function WbsTable({
         than an invariant: the surface simply is not there, which is what a
         deleted row's editor should be.
       */}
-      {moveUnderRow !== null && (
+      {planActive && moveUnderRow !== null && (
         <MoveUnderPicker
           row={moveUnderRow}
           candidates={moveUnderCandidates(flat, moveUnderRow)}
@@ -3141,7 +3156,7 @@ export function WbsTable({
           }}
         />
       )}
-      {completion !== null && (
+      {planActive && completion !== null && (
         <CompletionPrompt
           status={completion.status}
           number={completion.row.number}
@@ -3170,7 +3185,7 @@ export function WbsTable({
           }}
         />
       )}
-      {refsEditingRow !== null && (
+      {planActive && refsEditingRow !== null && (
         <ExternalRefsModal
           open
           onOpenChange={(open) => {
