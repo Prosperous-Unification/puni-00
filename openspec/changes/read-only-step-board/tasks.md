@@ -15,7 +15,7 @@
 
 ## 3. Review and acceptance
 
-- [x] 3.1 Run focused node and mounted suites through the existing Vitest configs, the new browser test, affected FE lint/typecheck/build, and existing project-page/router regressions. Run scoped Prettier and OpenSpec validation. Review source paths/callers and all R5 faults with Astra. Record actual commands/results and fault/assertion pairs in verify.md only after implementation.
+- [ ] 3.1 Run focused node and mounted suites through the existing Vitest configs, the new browser test, affected FE lint/typecheck/build, and existing project-page/router regressions. Run scoped Prettier and OpenSpec validation. Review source paths/callers and all R5 faults with Astra. Record actual commands/results and fault/assertion pairs in verify.md only after implementation.
 - [ ] 3.2 Commit the reviewed implementation and run `bin/h2puni-gate.sh <exact-sha>` under the canonical lock; record the printed SHA and exit status, then require exact-head CI. Push/merge through the coordinator's current authorization workflow. Keep unchecked tasks and product scope exclusions explicit; this is not a richer step-status or Backlog cutover completion.
 
 Run focused pure tests from `apps/wbs/fe-01` with

@@ -154,6 +154,54 @@ test('renders the ordered mixed board and readable columns at desktop and 390px'
   expect(seeded.rowIds['first']).not.toBe(seeded.rowIds['second']);
 });
 
+test('keeps view controls in the phone toolbar and keyboard focus on the selected view', async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const seeded = await seedPlan(
+    page,
+    {
+      name: 'Board phone room',
+      rows: Array.from({ length: 1 }, (_, index) => ({
+        ref: `r${String(index)}`,
+        name: `Task ${String(index)}`,
+      })),
+    },
+    identity('phone-room', testInfo.workerIndex),
+  );
+  await openSeededPlan(page, seeded);
+  const selector = page.getByRole('group', { name: 'Project view' });
+  const actions = page.getByRole('button', { name: 'Plan actions', exact: true });
+  const selectorBox = await selector.boundingBox();
+  const actionsBox = await actions.boundingBox();
+  if (selectorBox === null || actionsBox === null)
+    throw new Error('Plan controls have no geometry');
+  expect(
+    Math.abs(selectorBox.y - actionsBox.y),
+    'view controls share the existing phone toolbar row',
+  ).toBeLessThanOrEqual(1);
+  await page.getByRole('button', { name: 'Board', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Board', exact: true })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('button', { name: 'Plan', exact: true })).toBeFocused();
+  for (const width of [768, 900, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    const header = page.getByRole('banner');
+    await expect(header.getByRole('group', { name: 'Project view' })).toBeVisible();
+    expect(
+      await header.evaluate((node) => node.scrollWidth - node.clientWidth),
+    ).toBeLessThanOrEqual(0);
+    await header.getByRole('button', { name: 'Board', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await expect(header.getByRole('button', { name: 'Board', exact: true })).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Space');
+    await expect(header.getByRole('button', { name: 'Plan', exact: true })).toBeFocused();
+  }
+});
+
 test('wraps unbroken card labels inside every column at desktop and 390px', async ({
   page,
 }, testInfo) => {

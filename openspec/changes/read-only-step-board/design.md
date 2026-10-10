@@ -132,3 +132,19 @@ Plan surface without changing saved project state.
 
 None for this slice. Richer step states, writable drag policy and Backlog cutover
 stay in their own design work and do not block this read-only contract.
+
+## Plan viewport preservation
+
+The page-owned Plan/Board selectors occupy the existing Plan toolbar row on a
+phone, directly accessible beside Plan actions and outside its modal. On desktop
+the selected runtime portals them into a callback-ref host in the header's project
+controls; the picker's flexible width absorbs them without changing the Plan
+toolbar's width budget or wrap transitions. Board draws its own visible selectors
+while the mounted Plan is hidden/inert. A view change transfers focus to the
+selected visible selector after DOM mutations, never to a held field. The
+selected runtime still owns the one interaction scope and Plan surface.
+
+An additional selector row reduced the table's viewport and changed terminal
+scroll alignment. On phones it also reduced the scroll room available to card
+sheets. Reusing the existing row preserves those layout boundaries; generic
+sheet sizing remains separate from the Board integration.

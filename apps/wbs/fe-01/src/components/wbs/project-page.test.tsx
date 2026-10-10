@@ -984,11 +984,15 @@ describe('the selected runtime Plan and Board views', () => {
       expect(plan.getAttribute('aria-pressed')).toBe('true');
       expect(board.getAttribute('aria-pressed')).toBe('false');
       for (let turn = 0; turn < 3; turn += 1) {
-        fireEvent.click(board);
-        expect(board.getAttribute('aria-pressed')).toBe('true');
+        fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+        expect(screen.getByRole('button', { name: 'Board' }).getAttribute('aria-pressed')).toBe(
+          'true',
+        );
         expect(table?.closest('[hidden]')).not.toBeNull();
-        fireEvent.click(plan);
-        expect(plan.getAttribute('aria-pressed')).toBe('true');
+        fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+        expect(screen.getByRole('button', { name: 'Plan' }).getAttribute('aria-pressed')).toBe(
+          'true',
+        );
         expect(document.querySelector('table[data-grid]')).toBe(table);
       }
       const last = owner.snapshot();
