@@ -986,20 +986,23 @@ describe('Performance level target production boundary', () => {
     }
   }, 60_000);
 
-  it('bounds and validates WBS descriptor producer transport before service launch', async () => {
-    for (const [fault, phrase] of [
-      ['descriptor-output-large', 'output exceeds 64 KiB'],
-      ['descriptor-error-large', 'stderr exceeds 64 KiB'],
-      ['descriptor-output-utf8', 'output is invalid UTF-8'],
-      ['descriptor-output-shape', 'output must contain three services'],
-      ['descriptor-entry-shape', 'descriptor 0 is malformed'],
-      ['descriptor-required-shape', 'descriptor 0 is malformed'],
-      ['descriptor-env-type', 'descriptor 0 has invalid environment'],
-      ['descriptor-proto-env', 'descriptors differ from the approved shifted WBS stack'],
-      ['descriptor-missing', 'producer failed'],
-      ['descriptor-nonzero', 'producer failed: 23: producer diagnostic'],
-      ['descriptor-hang', 'service descriptor producer timed out'],
-    ] as const) {
+  // One case per fault: the sequential loop took 61 s on a loaded host, past its single
+  // 60 s budget, while each fault alone stays near 3-13 s.
+  it.each([
+    ['descriptor-output-large', 'output exceeds 64 KiB'],
+    ['descriptor-error-large', 'stderr exceeds 64 KiB'],
+    ['descriptor-output-utf8', 'output is invalid UTF-8'],
+    ['descriptor-output-shape', 'output must contain three services'],
+    ['descriptor-entry-shape', 'descriptor 0 is malformed'],
+    ['descriptor-required-shape', 'descriptor 0 is malformed'],
+    ['descriptor-env-type', 'descriptor 0 has invalid environment'],
+    ['descriptor-proto-env', 'descriptors differ from the approved shifted WBS stack'],
+    ['descriptor-missing', 'producer failed'],
+    ['descriptor-nonzero', 'producer failed: 23: producer diagnostic'],
+    ['descriptor-hang', 'service descriptor producer timed out'],
+  ] as const)(
+    'bounds and validates WBS descriptor producer transport before service launch: %s',
+    async (fault, phrase) => {
       const fixture = await committedPerformanceFixture(180, fault);
       await expectFailureMessage(
         runPerformanceLevel(fixture.root, fixture.policyPath, undefined, fault),
@@ -1019,8 +1022,9 @@ describe('Performance level target production boundary', () => {
         const entries = await readdir(join(fixture.root, 'tmp/junit/performance', bundles[0]));
         expect(entries.some((entry) => entry.endsWith('.tmp'))).toBe(false);
       }
-    }
-  }, 60_000);
+    },
+    60_000,
+  );
 
   it('bounds a producer descendant that keeps stdout and stderr open after direct exit', async () => {
     const fixture = await committedPerformanceFixture(180, 'descriptor-inherited-pipe');
