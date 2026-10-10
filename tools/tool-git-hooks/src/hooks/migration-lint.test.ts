@@ -14,6 +14,10 @@ it('routes staged SQL from lefthook through the moved migration root', async () 
     'pre-commit.commands.migration-lint.glob',
     'apps/wbs/{be-01,mcp-01}/drizzle/**/*.sql',
   );
+  expect(config).toHaveProperty(
+    'pre-commit.commands.website-migration-lint.glob',
+    'libs/website/adapters/store-sqlite/src/**',
+  );
 });
 
 it('hashes the external lefthook route into the Nx test cache key', async () => {
@@ -232,6 +236,41 @@ describe('the role -> step rename waiver', () => {
     expect(await lintMigration(file, root)).toBeNull();
     writeFileSync(file, 'DROP TABLE work_item;');
     expect((await lintMigration(file, root))?.reason).toMatch(/DROP TABLE/);
+  });
+
+  it('lints website migrations only under the SQLite adapter source root', async () => {
+    const root = scratchSync('website-migration-lint-');
+    roots.push(root);
+    const allowed = join(
+      root,
+      'libs',
+      'website',
+      'adapters',
+      'store-sqlite',
+      'src',
+      'migrations',
+      '002',
+    );
+    const outside = join(root, 'libs', 'website', 'adapters', 'portability-fixture');
+    mkdirSync(allowed, { recursive: true });
+    mkdirSync(outside, { recursive: true });
+    const forward = join(allowed, 'migration.sql');
+    writeFileSync(join(allowed, 'down.sql'), 'DROP TABLE example;');
+    writeFileSync(forward, 'CREATE TABLE example (id TEXT);');
+    expect(await lintMigration(forward, root)).toBeNull();
+    writeFileSync(forward, 'DROP TABLE example;');
+    expect((await lintMigration(forward, root))?.reason).toMatch(/DROP TABLE/);
+    const unrelated = join(outside, 'migration.sql');
+    writeFileSync(unrelated, 'CREATE TABLE example (id TEXT);');
+    // Proof: widening the website migration root to libs/website/adapters accepted
+    // the injected portability-fixture migration instead of refusing its path.
+    let rejection: unknown;
+    try {
+      await lintMigration(unrelated, root);
+    } catch (error) {
+      rejection = error;
+    }
+    expect(String(rejection)).toMatch(/does not own migration/);
   });
 
   it('refuses a relative workspace root', () => {

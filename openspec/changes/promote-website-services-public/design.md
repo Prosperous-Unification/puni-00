@@ -1,0 +1,9 @@
+# Design
+
+Keep `apps/website/site` as the only authored private website project. Import the four reviewed service projects at identical relative paths and make their public manifests the source of truth. Use `@website/contracts` and `@website/store-sqlite` aliases for local library edges, and declare those aliases and project dependencies in portability metadata. The API is a Bun server, the app is a Vite/React client, contracts are isomorphic, and SQLite is Bun only.
+
+The private demo pins a public commit and synchronizes the four service directories plus the two aliases. Its private site and deployment settings stay repository-specific. The current transfer tool refuses private-classified API source, so this initial promotion uses a reviewed tracked-file import; after canonical ownership changes, ordinary public-to-private transfer can use the tool. No public release is part of this change.
+
+The operator secret remains configured for the local demo through `OPERATOR_PASSWORD`, but the API creates one asynchronous Argon2id hash per API instance on first login and verifies candidates with Bun's password API ([hashing contract](https://bun.com/docs/runtime/hashing)). SHA-256 remains for uniformly random browser tokens, CSRF derivations, and request body fingerprints. Concept subjects use a single anchored allowlist match for a plain-text prefix and fall back when a colon immediately follows it, which rejects leading URL schemes. The fixed React preview continues to render the resulting text normally.
+
+The initial SQLite migration pair moves without changing its bytes or applied name from the adapter source root to `src/migrations/001_initial`. `WebsiteStore` resolves that directory, and both standalone adapter and API builds copy the complete migrations tree. This keeps existing database checksums valid while letting the trusted content inventory classify the SQL as migrations under its existing rule.
