@@ -1,7 +1,7 @@
 # Enroll h4claw and h3mon
 
 The ordered operator commands that make h4claw the platform k3s server and join h3mon as its
-observability agent (Twilight Dash WBS 070.1, 070.2, 070.4, 070.5). On 2026-09-27 step 2 ran, step 3
+observability agent (Twilight Dash WBS 070.01, 070.02, 070.03, 070.05). On 2026-09-27 step 2 ran, step 3
 ran without the provider snapshots (so no whole-host restore point exists), and step 4 bootstrapped
 h4claw but stopped before copying the join tokens; step 5 onward has not run. Each step needs
 Dany's authorization of this exact procedure; the real-host record, the QEMU rehearsal and its
@@ -21,7 +21,7 @@ From the read-only probe of 2026-09-27:
   Docker-run Victoria, Grafana and MLflow stay outside k3s and keep running.
 - **h2puni** (private 10.1.0.3) stays outside k3s. It is live production, the build box, the
   registry and the host-wide gate; a join would share its memory and firewall with k3s before
-  the lock-aware cordon that WBS 070.3 requires exists. It is the Ansible controller below.
+  the lock-aware cordon required before conditional h2puni use in WBS 070.04 exists. It is the Ansible controller below.
 - **h1claw** is in no cluster: it holds the operator credentials and the backup puller and must
   not build or run workloads.
 - The workers cluster has no host yet; it stays `bootstrap: required` with no nodes.
