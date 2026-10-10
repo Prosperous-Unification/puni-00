@@ -1,3 +1,4 @@
+import type { CommittedProjectEvent } from '@wbs/core/service/committed-fanout';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
@@ -54,7 +55,7 @@ function requirements(): OptimizationRequirements {
     onChildError: (error) => {
       throw error;
     },
-    pushRecorded: () => Promise.resolve(),
+    deliverCommitted: () => Promise.resolve(),
   };
 }
 
@@ -78,10 +79,11 @@ const hostRequirements = () => {
     }),
     inputOf: DiBag.createProvider(() => supplied.inputOf, { factoryReturnKind: 'sync-value' }),
     enabledOf: DiBag.createProvider(() => supplied.enabledOf, { factoryReturnKind: 'sync-value' }),
+    captureOf: DiBag.createProvider(() => supplied.captureOf, { factoryReturnKind: 'sync-value' }),
     hashInput: DiBag.createProvider(() => supplied.hashInput, { factoryReturnKind: 'sync-value' }),
     spawn: DiBag.createProvider(() => supplied.spawn, { factoryReturnKind: 'sync-value' }),
     runChild: DiBag.createProvider(() => supplied.runChild, { factoryReturnKind: 'sync-value' }),
-    pushRecorded: DiBag.createProvider(() => supplied.pushRecorded, {
+    deliverCommitted: DiBag.createProvider(() => supplied.deliverCommitted, {
       factoryReturnKind: 'sync-value',
     }),
     editDebounceMs: DiBag.createProvider(() => supplied.editDebounceMs, {
@@ -117,25 +119,77 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Optimization module', () => {
+  it('forwards committed envelopes through the installed Retry dependency', async () => {
+    const supplied = requirements();
+    const event = {
+      type: 'elsewhere_changed' as const,
+      projectId: PROJECT,
+      causeProjectId: 'upstream',
+    };
+    const envelope = {
+      projectId: PROJECT,
+      event,
+      recorded: {
+        subscription: `project:${PROJECT}`,
+        seq: 0,
+        message: event,
+        createdAt: 10,
+      },
+    };
+    const delivered: CommittedProjectEvent[] = [];
+    const optimizer = installOptimization({
+      ...supplied,
+      repository: {
+        ...supplied.repository,
+        admitRetry: () =>
+          Promise.resolve({
+            decision: { kind: 'not-retryable', state: 'idle' },
+            envelopes: [envelope],
+          }),
+      },
+      deliverCommitted: (events) => {
+        delivered.push(...events);
+        return Promise.resolve();
+      },
+    }).optimizer;
+    expect(
+      await optimizer.retry({
+        projectId: PROJECT,
+        objective: 'pri',
+        inputHash: 'port-hash',
+        input: INPUT,
+      }),
+    ).toEqual({ kind: 'not-retryable', state: 'idle' });
+    await optimizer.drain();
+    expect(delivered).toEqual([envelope]);
+  });
+
   it('routes enabled reads and Retry decisions through the supplied repository', async () => {
     const calls: string[] = [];
     const repository: OptimizationRequirements['repository'] = {
       allocateGeneration: () => {
-        calls.push('allocate');
-        return 3;
+        throw new Error('unexpected separate allocation');
       },
-      readPairAndAdmit: () => {
-        calls.push('pair');
+      observeForAdmission: () => {
+        calls.push('observe');
         const idle = { kind: 'non-ready', state: { state: 'idle' }, schedule: null } as const;
-        return { pri: idle, time: idle };
+        return Promise.resolve({
+          kind: 'observed',
+          generation: 3,
+          pair: { pri: idle, time: idle },
+          requests: [],
+        });
       },
       isVariantLive: () => {
         calls.push('live');
-        return false;
+        return Promise.resolve(false);
       },
       admitRetry: () => {
         calls.push('retry');
-        return Promise.resolve({ kind: 'not-retryable', state: 'idle' });
+        return Promise.resolve({
+          decision: { kind: 'not-retryable', state: 'idle' },
+          envelopes: [],
+        });
       },
       reserveSlot: () => {
         throw new Error('unexpected reservation');
@@ -163,7 +217,7 @@ describe('the Optimization module', () => {
       },
     };
     const { optimizer } = installOptimization({ ...requirements(), repository });
-    const read = optimizer.readPlan({
+    const read = await optimizer.readPlan({
       projectId: PROJECT,
       objective: 'pri',
       input: INPUT,
@@ -179,14 +233,14 @@ describe('the Optimization module', () => {
     expect(read.variants.pri).toEqual({ state: 'idle' });
     expect(retry).toEqual({ kind: 'not-retryable', state: 'idle' });
     // Proof: replacing the installed repository with an empty stand-in made
-    // this test throw on allocateGeneration before the enabled read returned.
-    expect(calls).toEqual(['allocate', 'pair', 'live', 'live', 'retry']);
+    // this test throw on observeForAdmission before the enabled read returned.
+    expect(calls).toEqual(['observe', 'live', 'live', 'retry']);
   });
 
-  it('reads an idle plan under the identity installOptimization wires', () => {
+  it('reads an idle plan under the identity installOptimization wires', async () => {
     const { optimizer } = installOptimization(requirements());
 
-    const read = optimizer.readPlan({
+    const read = await optimizer.readPlan({
       projectId: PROJECT,
       objective: 'pri',
       input: INPUT,

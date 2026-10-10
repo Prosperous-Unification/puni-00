@@ -38,11 +38,12 @@ export const optimizationModule = DiBag.createBuilder()
         attemptToken,
         inputOf,
         enabledOf,
+        captureOf,
         hashInput,
         spawn,
         runChild,
         onChildError,
-        pushRecorded,
+        deliverCommitted,
         editDebounceMs,
         sleep,
         setInterval,
@@ -57,12 +58,13 @@ export const optimizationModule = DiBag.createBuilder()
         attemptToken: CoordinatorOption<'attemptToken'>;
         inputOf: CoordinatorOption<'inputOf'>;
         enabledOf: CoordinatorOption<'enabledOf'>;
+        captureOf: CoordinatorOption<'captureOf'>;
         hashInput: CoordinatorOption<'hashInput'>;
         spawn: CoordinatorOption<'spawn'>;
         runChild: CoordinatorOption<'runChild'>;
         onChildError: CoordinatorOption<'onChildError'>;
 
-        pushRecorded: CoordinatorOption<'pushRecorded'>;
+        deliverCommitted: CoordinatorOption<'deliverCommitted'>;
         editDebounceMs: CoordinatorOption<'editDebounceMs'>;
         sleep: CoordinatorOption<'sleep'>;
         setInterval: CoordinatorOption<'setInterval'>;
@@ -81,6 +83,7 @@ export const optimizationModule = DiBag.createBuilder()
         attemptToken,
         inputOf,
         enabledOf,
+        captureOf,
         // Proof (2026-09-24): handing the coordinator `hashInput: () => 'module-hash'` instead of
         // the supplied port left `reads an idle plan under the identity installOptimization wires`
         // and `hashes a Retry through the cache-key port installOptimization wires` failing
@@ -92,7 +95,9 @@ export const optimizationModule = DiBag.createBuilder()
         // the supplied sink left `reports a failed edit read to the error sink installOptimization
         // wires` failing (5 pass, 1 fail): it received `[]`.
         onChildError,
-        pushRecorded,
+        // Proof: omitting this forwarding made installed Retry call an absent
+        // delivery function and lose its test-injected committed envelope.
+        deliverCommitted,
         editDebounceMs,
         sleep,
         setInterval,

@@ -1,4 +1,5 @@
 import type { Source, TransactionalStores } from '@wbs/core';
+import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { Logger } from 'drizzle-orm';
 
 import { buildStores } from './build-stores';
@@ -9,6 +10,15 @@ import {
   openConnection as openDatabaseConnection,
   openReadOnlyConnection,
 } from './db';
+import {
+  authorizeImportIn,
+  authorizeProjectFanoutIn,
+  authorizeRankMoveIn,
+  authorizeStepFanoutIn,
+  readFanoutObservationIn,
+  resolveDirectoryWriteIn,
+  resolveLifecycleOwnerIn,
+} from './fanout-capture';
 import { OPEN, WriteCoordinator } from './gate';
 import { probeSchema } from './health-probe';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
@@ -30,8 +40,16 @@ export interface SqliteSource extends Source<TransactionalStores> {
 export interface OpenSqliteSourceOptions {
   readonly dbPath: string;
   readonly openConnection?: (dbPath: string) => Connection;
+  /** Read-only connection factory for owned live observations. */
+  readonly openReadOnlyConnection?: (dbPath: string) => Connection;
   /** Optional Drizzle query observer for diagnostics such as statement-count tests. */
   readonly logger?: Logger;
+  /** Test diagnostic at the borrowed capture boundary; a throw aborts its owning write. */
+  readonly onFanoutCapture?: (organizationId: string) => unknown;
+  /** Test diagnostic of the completed borrowed observation; never substitutes it. */
+  readonly onCapturedFanout?: (captured: CapturedFanout) => void;
+  /** Test diagnostic of a borrowed UoW entry; never substitutes its transaction. */
+  readonly onBorrowedUnitOfWork?: () => void;
 }
 
 /** Opens SQLite persistence without changing its schema. */
@@ -76,7 +94,8 @@ function openSqliteSourceWithSeams(
       const publicPlans = createLivePlanStore({
         ...scheduling,
         kind: 'owned',
-        openConnection: () => openReadOnlyConnection(options.dbPath),
+        openConnection: () =>
+          (options.openReadOnlyConnection ?? openReadOnlyConnection)(options.dbPath),
       });
       const commandPlans = createLivePlanStore({ ...scheduling, kind: 'borrowed', db: process.db });
       return {
@@ -86,6 +105,37 @@ function openSqliteSourceWithSeams(
           process.db,
           coordinator,
           buildStores(process.db, OPEN, lateWrite, commandPlans),
+          // Proof: omitting this borrowed capture made a cold mounted shared
+          // command fail 500 before the expected recipient row.
+          {
+            // Proof: detaching this read onto a separate read-only connection
+            // hid the staged command; cold mounted fan-out recorded no row.
+            capture: async (organizationId: string) => {
+              await options.onFanoutCapture?.(organizationId);
+              // Proof: substituting the earlier preflight capture after a queued
+              // assignment insert lost the Billing→Platform recipient row.
+              const captured = await readFanoutObservationIn(
+                process.db,
+                organizationId,
+                scheduling,
+              );
+              options.onCapturedFanout?.(captured);
+              return captured;
+            },
+            authorizeProjectUpdate: authorizeProjectFanoutIn(process.db),
+            authorizeStepRemoval: authorizeStepFanoutIn(process.db),
+            authorizeRankMove: authorizeRankMoveIn(process.db),
+            // Proof: removing this borrowed binding made a valid mounted
+            // scoped import answer 500 before capture rather than 201.
+            authorizeImport: authorizeImportIn(process.db),
+            // Proof: omitting this borrowed resolver stopped the mounted
+            // selected-retirement path before its B←A durable event.
+            resolveLifecycleOwner: (projectId) =>
+              Promise.resolve(resolveLifecycleOwnerIn(process.db, projectId)),
+            resolveDirectoryWrite: (address) =>
+              resolveDirectoryWriteIn(process.db, admitted.directory, address),
+          },
+          options.onBorrowedUnitOfWork,
         ),
       };
     },

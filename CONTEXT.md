@@ -106,7 +106,8 @@ _Avoid_: active work, current tasks
 
 **Project**:
 One work breakdown structure and everything scoped to it — its work items, its steps and
-its restriction. Nothing is shared between projects.
+its restriction. Work items and steps belong to one project; organization directory entities,
+including people, can serve several projects and are not owned by any one of them.
 _Avoid_: workspace, board, plan
 
 **Work item**:
@@ -1312,6 +1313,16 @@ _Avoid_: foreign load
 An organization's capacity mode, `isolated` (each project schedules its people alone, the
 default) or `shared` (a project works around its people's bookings elsewhere).
 _Avoid_: global capacity, cross-project mode
+
+**Booking change cause**:
+A project whose own scheduling facts, shared-person connections or place in the project
+order are directly affected by an act, including through an organization directory resource.
+_Avoid_: triggering user, transitive recipient
+
+**Unavailable schedule input**:
+A target's canonical scheduling facts cannot currently be obtained because its required
+influencer has no available engine or the target has a cycle or calendar-range failure.
+_Avoid_: stale input, idle optimization, missing project
 
 ### Architecture
 

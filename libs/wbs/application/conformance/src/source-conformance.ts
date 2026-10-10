@@ -31,6 +31,7 @@ import { workItemRegistrations } from './stores/work-items';
 export interface ExistingStoreOpeners {
   readonly livePlans?: OpenCase<'livePlans'>;
   readonly projects: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['projects']>>;
+  readonly projectRanks?: OpenCase<'projectRanks'>;
   readonly users: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['users']>>;
   readonly capacity: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['capacity']>>;
   readonly priorityBands: (
@@ -96,6 +97,40 @@ export function existingStoreRegistrations(
           ),
         ]),
     ...projectRegistrations(openers.projects),
+    ...(openers.projectRanks === undefined
+      ? [{ family: 'projectRanks' as const, caseId: 'projectRanks.orderIn:scoped-move' as const }]
+      : [
+          storeCase(
+            'projectRanks',
+            'projectRanks.orderIn:scoped-move',
+            openers.projectRanks,
+            async ({ port, seed }) => {
+              if (port === undefined) throw new Error('declared project rank capability is absent');
+              expect(await port.orderIn('rank-conformance-org')).toEqual([
+                { projectId: seed.projectIds[0], rank: 1, ranked: false },
+                { projectId: seed.projectIds[1], rank: 2, ranked: false },
+              ]);
+              expect(
+                await port.moveAfter(
+                  'rank-conformance-org',
+                  seed.projectIds[1],
+                  null,
+                  seed.stamps[0],
+                ),
+              ).toEqual({
+                ok: true,
+                order: [
+                  { projectId: seed.projectIds[1], rank: 1, ranked: true },
+                  { projectId: seed.projectIds[0], rank: 2, ranked: true },
+                ],
+              });
+              expect(await port.orderIn('rank-conformance-org')).toEqual([
+                { projectId: seed.projectIds[1], rank: 1, ranked: true },
+                { projectId: seed.projectIds[0], rank: 2, ranked: true },
+              ]);
+            },
+          ),
+        ]),
     ...userRegistrations(openers.users),
     ...capacityRegistrations(openers.capacity),
     ...priorityBandRegistrations(openers.priorityBands),

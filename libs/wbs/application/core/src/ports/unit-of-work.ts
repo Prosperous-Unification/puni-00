@@ -1,3 +1,4 @@
+import type { FanoutCaptureStore } from './fanout-capture-store';
 import type { PlanTransactionalStores } from './stores';
 
 /**
@@ -10,6 +11,8 @@ import type { PlanTransactionalStores } from './stores';
  */
 export interface Scope<S extends PlanTransactionalStores = PlanTransactionalStores> {
   stores: S;
+  /** Borrowed capture is a transaction capability, not a free-standing store. */
+  fanoutCapture?: FanoutCaptureStore;
 }
 
 /**

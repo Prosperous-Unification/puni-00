@@ -296,10 +296,26 @@ export function projectRoutes(
             ? { ok: false, status: 404, body: { error: 'not_found' } }
             : { ok: false, status: 403, body: { error: 'forbidden' } };
         }
-        // Proof: building the input unscoped made that case answer 409 instead
-        // of 500, retrying over the crossing row.
-        const input = await workItems.scheduleInputWithin(params.id, resolved.access);
-        if (input === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        // Proof: building input without this human scope made the crossing-row
+        // Retry case answer 409 instead of 500 and could reveal a foreign chain.
+        const captured = await workItems.optimizationInputWithin(params.id, resolved.access);
+        if (captured.kind === 'access_refused') return organizationRefusal(captured.refusal);
+        if (captured.kind === 'not_found')
+          return { ok: false, status: 404, body: { error: 'not_found' } };
+        // Proof: bypassing this refusal attempted Retry with no canonical input
+        // in the mounted engine/cycle/calendar-range cases. Injecting a live
+        // optimizer read before it kept the 409 but wrote generation and slots;
+        // the mounted full-state equality failed.
+        if (captured.kind === 'unavailable')
+          return {
+            ok: false,
+            status: 409,
+            body: {
+              code: 'schedule-input-unavailable',
+              reason: captured.reason,
+              projectId: captured.projectId,
+            },
+          };
         if (optimizer === undefined) {
           return {
             ok: false,
@@ -310,7 +326,7 @@ export function projectRoutes(
         const outcome = await optimizer.retry({
           projectId: params.id,
           ...body,
-          input,
+          input: captured.input,
           ...(resolved.access.kind === 'scoped'
             ? {
                 scoped: {

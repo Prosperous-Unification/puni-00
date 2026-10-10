@@ -4,6 +4,7 @@ export type PortName = keyof TransactionalStores | keyof HistoryStores;
 
 export const PORT_NAMES = [
   'projects',
+  'projectRanks',
   'users',
   'directory',
   'capacity',
@@ -29,6 +30,7 @@ export const PORT_NAMES = [
 export const CASE_MANIFEST = {
   livePlans: ['livePlans.read:legacy-and-absence'],
   projects: ['projects.create:steps', 'projects.update:scope', 'projects.recordOpen:reader-order'],
+  projectRanks: ['projectRanks.orderIn:scoped-move'],
   users: [
     'users.create:unique-name',
     'users.find:identity',

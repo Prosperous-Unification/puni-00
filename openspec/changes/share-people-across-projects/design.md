@@ -233,6 +233,26 @@ read snapshot, without replacing the displayed capture with a second independent
 The first response may show captured `idle` while that subsequent admission starts work; it must
 not claim that newly admitted work was already pending in the captured observation.
 
+Manual Retry uses a human-scoped coherent capture after the existing project-write authority
+check; it never substitutes the project-owned background capture. The capture revalidates the
+caller's access in its observation. A successful capture supplies input and settings together,
+then closes before Retry compares the caller's hash and enters the existing admission write.
+An upstream-only change returns the established `stale-input-hash` and `currentInputHash`;
+the transactional Retry authority recheck remains in place.
+
+When no canonical input can be obtained, Retry returns HTTP 409 with
+`{ code: 'schedule-input-unavailable', reason: 'engine_unavailable' | 'cycle' | 'calendar_range', projectId: string }`.
+For engine unavailability, `projectId` names the failing readable influencer or target from
+the authorized capture; for a target cycle/calendar-range failure it names the target. It
+does not fabricate a hash, classify the variant as idle, or fall back to local-only input.
+This refusal performs no cache, generation, slot, queue or event write and launches nothing.
+Absent/foreign targets and access refusals retain existing authority semantics, without
+leaking a failing project identity. Unexpected failures still throw. Upstream cycle/range
+failures keep the existing chain policy: record unavailable influencer evidence, omit those
+bookings and continue deriving the target; they alone do not trigger this Retry refusal.
+Keep the response extension in the shared endpoint/refusal contracts and their generated
+clients; no new endpoint, optimizer state or frontend control is needed.
+
 Queue capture happens after a reservation today. If input is absent, typed unavailable, stale or
 throws before launch, release the unlaunched reservation on every path. Keep expected absence,
 modeled engine unavailability and unexpected exceptions distinct. Preserve existing preflight
@@ -265,3 +285,121 @@ cache DTO 3 and `slice-leveling-v4` unless implementation discovers a separate i
 contract change requiring review. There is no unresolved product decision in this bounded slice.
 Fan-out must subsequently cover topology removals, cold processes, replay and crash recovery;
 completing runtime reads does not narrow that obligation or authorize activation.
+
+## Durable fan-out amendment after 6.1f/6.2f
+
+Planning base: `73264fce66deff231c71b8a14f73da856e5fa811`. The ordered 6g–6l tasks below
+extend the existing change; they do not claim that runtime/cache completion closed 6.1/6.2.
+The combined design review resolved deletion-after-drain, unchanged-hash availability and
+multi-project cause ambiguity against production callers. Booking change cause is defined in
+`CONTEXT.md`. This preserves ADR 0034; no new hard-to-reverse storage decision is introduced.
+
+### 6g: values and recipient calculation only
+
+Add `libs/wbs/application/core/src/service/shared-people-fanout.ts` and
+`shared-people-fanout.test.ts` for canonical displayed-booking projection and recipient
+calculation. Consume already captured project
+facts, modeled scheduling outcomes, old/new ordered shared-person graphs and the explicit set
+of directly affected project ids. Produce immutable comparison values and sorted distinct
+`{projectId, causeProjectId}` pairs. Keep acquisition separate: 6g receives values and adds no
+transaction wrapper, event writer, route, cache persistence, generation allocation or adapter
+binding. Integrating its values with borrowed transaction reads begins in 6h.
+
+Reuse the production display selector: optimization-enabled plus optimized-engine plus a
+ready selected objective chooses that stored schedule; otherwise retain the current Fast
+policy. Do not use saved-plan S4 rules. Extract a shared pure helper only if necessary to avoid
+two independently evolving selectors, with existing chain tests retained. Canonicalize
+absolute person/project/work-item/step intervals independent of collection order. Do not
+include labels, rank position numbers, selected engine names or optimizer counters in the
+bookings hash. Compare modeled availability separately; a scheduling state with no bookings
+is not automatically available-empty. Required influencer refusal must stay typed, and upstream
+cycle/calendar-range skip-bookings semantics remain unchanged.
+
+For changed outgoing bookings/availability, traverse each cause's old and new downward graph
+separately, union surviving recipient ids and exclude the cause. For topology-only edits,
+filter reachable recipients by changed incoming basis/availability. Do not traverse a union
+of edge sets: it invents paths that existed in neither observation. Direct causes are changed
+local facts/resource usages, changed endpoints of shared-person connections and projects whose
+relative ordering changes; mere numeric rank respacing creates no cause. Changes propagated
+through the chain do not create extra direct causes. Directory operations discover affected
+projects through old/new resource usage in the transaction, even without project-row edits.
+Emit one pair per recipient/cause, lexicographically ordered by recipient then cause id. Keep
+deleted ids for causal identity while excluding deleted recipients. Subscription authority
+and organization boundaries remain unchanged; payloads contain no booking details.
+
+### 6h–6k: original transaction, then delivery
+
+The normative [6h architecture checkpoint](6h-architecture.md) resolves the command/UoW
+committed-record handoff, borrowed capture contract, mounted bindings and Sol implementation
+sequence. The reviewed 6h checkpoint is recorded in `verify.md`.
+The normative [6i architecture checkpoint](6i-architecture.md) fixes standalone versus borrowed
+rank/directory ownership, composed production bindings and the next implementation/proof matrix.
+
+`AnnouncementCollector.send` runs after the UoW and calls `GatewayBroadcaster.publish`, which
+opens a new event-recording transaction. That existing path cannot provide this amendment's
+atomicity. Add a narrow transactional fan-out capability: derive before, mutate, derive after,
+then record per-recipient events in the original transaction using `recordEventIn` or a
+transaction-bound core store port. Return committed records for `pushRecorded` after writer
+release; never call `publish` again for those records. Preserve existing unrelated announcement
+behavior and the optimizer-trigger decorator's existing duties; bypassing `publish` for a
+recorded event must not silently drop required post-commit scheduling callbacks or create an
+invalidation loop. The linked 6h checkpoint specifies that handoff before broader binding.
+
+`plan-commands/composition.ts`, `PlanCommandRunner` and `admitted-write.ts` own batch/undo/redo
+and admitted route UoWs. Observe once around the whole committed batch, not every intermediate
+command. `plan-import/composition.ts` similarly owns the import UoW. Standalone rank and
+directory writes have their own transactions; recording through their later broadcasts is too
+late. Use the actual transaction's old/new usages and rank, not preflight lists gathered before
+it. Refused commands/imports and failed derivation/event inserts roll back all writes and
+sequences. No push may escape a rollback.
+
+The normative [6j architecture checkpoint](6j-architecture.md) fixes import admission,
+per-sweep lifecycle ownership, addressed display causes and the required async optimizer
+serialization/caller boundary before final drain integration.
+
+`optimization-drain.ts::finishDrainIn` owns final deletion, reached by direct finish, slot
+release and reconciliation. Capture the old closure there before deleting the project. A
+pending-delete request may separately change displayed availability; compare each actual
+transaction, and emit nothing when a repeated drain/reconcile changes nothing. Contract
+retirement removes cache/generation rows and must compare any resulting selected display.
+Space membership removal is not project deletion.
+
+`optimized-outcome.ts::storeOptimizedOutcomeAndRecord` is the optimizer transaction boundary.
+The normative [6k architecture checkpoint](6k-architecture.md) fixes its borrowed source UoW,
+committed outcome/envelope handoff, generation/cache-eviction inventory and ordered proof matrix.
+Retain admitted-result validation and existing generation/token/cancellation/enablement
+fences. Compare the current selected display around storage: an H1 insertion under current H2
+is not itself a display change. Record existing outcome and downstream events atomically and
+return all committed records for coordinator delivery. Admission, Retry, retirement or cache
+replacement paths that alter display need the same comparison; listing only outcome writes
+would be incomplete. Nonselected objective changes remain silent when display is unchanged.
+
+Borrow existing UoW connections, never open a detached snapshot for either comparison. The
+SQLite UoW supports its established explicit async transaction lifetime, whereas Drizzle's
+outcome/drain transaction callbacks are synchronous: do not put asynchronous work in them.
+Rank and directory already need this distinction in 6i: the linked checkpoint chooses the
+explicit async source UoW around raw OPEN repository savepoints. Before the synchronous drain
+binding in 6j, separately resolve and test ownership while preserving all current fencing. No network/solver launch
+may occur in either approach. Full affected-organization derivation is an acceptable initial
+correctness boundary; it stores no booking ledger and must not silently broaden read authority.
+
+### 6l: durability and limits
+
+The existing event log/sequencer is durable replay history, not a persistent transport queue.
+A missed push is recovered on reconnect; `GatewayBroadcaster.pushRecorded` fills the buffer
+and attempts delivery without reinserting. Prove replay through fresh composition without
+memory state, and preserve retention's snapshot-required outcome and subscription checks.
+Deduplicate within a committed operation only; do not add global exactly-once claims or new
+retry keys. A repeated terminal outcome or no-op reconcile emits nothing new.
+
+Compare all modeled availability transitions at their durable write boundary even when input
+and bookings hashes match. Process-local engine failure has no identified durable transition
+owner. This amendment does not add a health monitor, persistent capability state or fan-out
+writes on reads, and therefore promises no instantaneous notification for that external event.
+Existing typed refusal remains mandatory. A stronger notification guarantee requires a
+separate design, not an invented event source in 6g.
+
+No persistent push worker, booking table, activation route, mode setter, permission change,
+frontend work, scheduler/cache version bump or blue/green cache-policy replacement. Keep
+`capacityModes` exactly `['isolated']` and shared restores refused. UI 7 and mode route 8 remain
+ordered prerequisites to activation. Exact-head gate, CI and publication are separate actions.

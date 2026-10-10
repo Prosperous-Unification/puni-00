@@ -41,9 +41,13 @@ Implementation seams:
 
 - Create `apps/wbs/fe-01/src/components/board/step-board.ts` as a pure projection
   over one `PlanRead`. Return column arrays and source seq/projectRevision. Find
-  parents from the complete tree before enumerating leaves; retain input order
-  and `orderSteps` order within each work item. Use `formatStepNodeId`, never a
-  label-derived key. Keep safety invariants adjacent to their watched proofs.
+  parents from the complete tree before enumerating leaves. Within each column,
+  preserve the order obtained by visiting leaves in delivered `workItems` order,
+  then visiting that tree's `steps` in array order within each leaf.
+  `PlanRead.steps` already carries the backend's `(position, id)` ordering;
+  preserve it directly without sorting again or adding position to `StepView`.
+  Use `formatStepNodeId`, never a label-derived key. Keep safety invariants
+  adjacent to their watched proofs.
 - Create `components/board/step-board-view.tsx` for the renderer.
   It reads `ProjectRuntime.plan` through `useSyncExternalStore`, without obtaining
   a client or commands. A small read-only prop surface can be a Pick of project

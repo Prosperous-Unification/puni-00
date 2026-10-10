@@ -46,6 +46,7 @@ function loadOver(trees: Partial<Record<string, () => TreeRead>>): {
   const options = {
     projects: { listWithin: () => Promise.resolve(projects) },
     workItems: {
+      sharedTreesWithin: () => Promise.resolve({ kind: 'isolated' as const }),
       latestSeq: () => Promise.resolve(1),
       treeWithin: (projectId: string) => {
         reads.push(projectId);

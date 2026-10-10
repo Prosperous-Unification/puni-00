@@ -60,6 +60,7 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     scheduler: DiBag.createProvider(() => fastScheduler, { factoryReturnKind: 'sync-value' }),
+    captureSharedPlan: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     newId: DiBag.createProvider(() => () => 'id', { factoryReturnKind: 'sync-value' }),
     now: DiBag.createProvider(() => () => STAMP_AT / 1_000, { factoryReturnKind: 'sync-value' }),
   };
@@ -96,6 +97,46 @@ describe('the Saved plans module', () => {
     if (saved.outcome !== 'saved') throw new Error(`save answered ${saved.outcome}`);
 
     expect(await savedPlans.read(saved.record.id)).toHaveProperty('outcome', 'read');
+  });
+
+  it('refuses installed shared save and current before capture without admitted access', async () => {
+    const { projectId, requirements } = await seeded();
+    let sharedReads = 0;
+    let localReads = 0;
+    const savedPlans = installSavedPlans({
+      ...requirements,
+      capture: {
+        readPlanInput: async (id) => {
+          localReads += 1;
+          return requirements.capture.readPlanInput(id);
+        },
+      },
+      captureSharedPlan: () => {
+        sharedReads += 1;
+        return Promise.resolve({ kind: 'isolated' as const });
+      },
+    }).savedPlans;
+    const savedFailure = await savedPlans
+      .save({ projectId, createdBy: owner.username, createdById: owner.id })
+      .then(
+        () => null,
+        (failure: unknown) => failure,
+      );
+    const currentFailure = await savedPlans.projectCurrentPlan(projectId).then(
+      () => null,
+      (failure: unknown) => failure,
+    );
+    expect(sharedReads).toBe(0);
+    expect(localReads).toBe(0);
+    expect(await requirements.plans.listOf(projectId)).toEqual([]);
+    expect(savedFailure).toBeInstanceOf(Error);
+    expect(currentFailure).toBeInstanceOf(Error);
+    expect((savedFailure as Error).message).toBe(
+      'installed shared saved-plan capture requires admitted human access',
+    );
+    expect((currentFailure as Error).message).toBe(
+      'installed shared saved-plan capture requires admitted human access',
+    );
   });
 
   it('passes a supplied quota through to the installed feature', async () => {

@@ -1,15 +1,21 @@
 import type { WriteStamp } from '@wbs/core';
-import { and, eq, isNotNull, isNull, lte } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnUpdate } from './audit';
 import {
+  dependency,
+  estimate,
   optimizationGeneration,
   optimizedScheduleCache,
   project,
+  projectAccess,
   type SolverObjectiveName,
   solverQueue,
   solverSlot,
+  step,
+  typedDependency,
+  workItem,
 } from './schema';
 
 /** The handle a caller's own transaction hands to the helpers below. */
@@ -216,11 +222,13 @@ export type OptimizationDrainFinish = 'finished' | 'waiting' | 'open' | 'absent'
  * proceed. So the loser of a race either blocks or comes back and observes the
  * row already gone, and never deletes on a view of the world that has moved.
  *
- * **What the delete takes.** Deleting the project row is the whole story — the
- * generation, slot, queue and cache rows all reference it `ON DELETE CASCADE`.
- * Retiring one contract version is not, because nothing references the
- * generation row: its queue rows went at `begin`, and its cache rows are taken
- * here, explicitly.
+ * **What the delete takes.** The project arm explicitly removes its owned
+ * estimates, access, work items and steps before its root; the work-item
+ * delete cascades valid local legacy and typed dependencies. The
+ * migrated schema deliberately restricts deletion of a populated root. Root
+ * cascades then remove optimizer, placement and history rows, preserving shared
+ * directory entries and unrelated projects. Retiring one contract version
+ * removes only that version's cache and generation rows.
  *
  * **Assumption A-1, and what would falsify it.** Retiring a contract version
  * deletes that version's cache rows. They can never be read again — the cache
@@ -278,9 +286,80 @@ function finishDrainIn(
   if (contractVersion === undefined) {
     const target = tx.select().from(project).where(eq(project.id, projectId)).get();
     if (target === undefined) return 'absent';
+    // Proof: bypassing this marker fence deleted an ordinary unmarked project
+    // instead of returning `open` in the raw finalizer test.
     if (target.optimizationDeletePendingAt === null) return 'open';
+    // Proof: bypassing this counted-slot fence deleted a populated project
+    // while its child still occupied capacity instead of returning `waiting`.
     if (outstanding() > 0) return 'waiting';
 
+    // Proof: independently bypassing either ownership refusal made the raw
+    // finalizer return `finished` and erase a bystander-owned dependency edge.
+    const foreignLegacy = tx
+      .select({ id: dependency.id })
+      .from(dependency)
+      .where(
+        sql`EXISTS (
+        SELECT 1 FROM work_item predecessor
+        JOIN work_item successor ON successor.id = ${dependency.successorId}
+        WHERE predecessor.id = ${dependency.predecessorId}
+          AND (
+            ${dependency.projectId} = ${projectId}
+            OR predecessor.project_id = ${projectId}
+            OR successor.project_id = ${projectId}
+          )
+          AND (
+            ${dependency.projectId} <> predecessor.project_id
+            OR ${dependency.projectId} <> successor.project_id
+          )
+      )`,
+      )
+      .get();
+    if (foreignLegacy !== undefined)
+      throw new Error(`project ${projectId} has cross-project dependency ${foreignLegacy.id}`);
+
+    const foreignTyped = tx
+      .select({ id: typedDependency.id })
+      .from(typedDependency)
+      .where(
+        sql`EXISTS (
+        SELECT 1 FROM work_item predecessor
+        JOIN work_item successor ON successor.id = ${typedDependency.successorWorkItemId}
+        LEFT JOIN step predecessor_step ON predecessor_step.id = ${typedDependency.predecessorStepId}
+        LEFT JOIN step successor_step ON successor_step.id = ${typedDependency.successorStepId}
+        WHERE predecessor.id = ${typedDependency.predecessorWorkItemId}
+          AND (
+            ${typedDependency.projectId} = ${projectId}
+            OR predecessor.project_id = ${projectId}
+            OR successor.project_id = ${projectId}
+            OR predecessor_step.project_id = ${projectId}
+            OR successor_step.project_id = ${projectId}
+          )
+          AND (
+            ${typedDependency.projectId} <> predecessor.project_id
+            OR ${typedDependency.projectId} <> successor.project_id
+            OR (predecessor_step.id IS NOT NULL AND ${typedDependency.projectId} <> predecessor_step.project_id)
+            OR (successor_step.id IS NOT NULL AND ${typedDependency.projectId} <> successor_step.project_id)
+          )
+      )`,
+      )
+      .get();
+    if (foreignTyped !== undefined)
+      throw new Error(`project ${projectId} has cross-project typed dependency ${foreignTyped.id}`);
+
+    const ownedWorkItems = tx
+      .select({ id: workItem.id })
+      .from(workItem)
+      .where(eq(workItem.projectId, projectId));
+    // Proof: moving the estimate delete into the raw wrapper before this
+    // transaction left it committed after a later step-cleanup trigger aborted.
+    // Proof: omitting any one of these four deletes made installed populated
+    // finish fail; broadening each predicate independently erased a bystander
+    // estimate, access row, work item or step in the mounted retention tests.
+    tx.delete(estimate).where(inArray(estimate.workItemId, ownedWorkItems)).run();
+    tx.delete(projectAccess).where(eq(projectAccess.projectId, projectId)).run();
+    tx.delete(workItem).where(eq(workItem.projectId, projectId)).run();
+    tx.delete(step).where(eq(step.projectId, projectId)).run();
     tx.delete(project).where(eq(project.id, projectId)).run();
     return 'finished';
   }
@@ -479,6 +558,53 @@ export interface SolverSlotReclaimScope {
   readonly contractVersion?: string;
 }
 
+/** Read one reconciliation phase's targets; each caller later rechecks under its own writer. */
+export function reconciliationTargets(
+  db: SQLiteBunDatabase,
+  phase: 'generations' | 'projects',
+): readonly SolverSlotReclaimScope[] {
+  if (phase === 'generations')
+    return db
+      .select({
+        projectId: optimizationGeneration.projectId,
+        contractVersion: optimizationGeneration.contractVersion,
+      })
+      .from(optimizationGeneration)
+      .where(eq(optimizationGeneration.admissionState, 'draining'))
+      .all();
+  return db
+    .select({ projectId: project.id })
+    .from(project)
+    .where(isNotNull(project.optimizationDeletePendingAt))
+    .all();
+}
+
+/** Re-read the named marker after its sweep has acquired the source writer. */
+export function reconciliationTargetIsCurrent(
+  db: SQLiteBunDatabase,
+  target: SolverSlotReclaimScope,
+): boolean {
+  if (target.contractVersion !== undefined)
+    return (
+      db
+        .select({ state: optimizationGeneration.admissionState })
+        .from(optimizationGeneration)
+        .where(
+          and(
+            eq(optimizationGeneration.projectId, target.projectId),
+            eq(optimizationGeneration.contractVersion, target.contractVersion),
+          ),
+        )
+        .get()?.state === 'draining'
+    );
+  const current = db
+    .select({ pendingAt: project.optimizationDeletePendingAt })
+    .from(project)
+    .where(eq(project.id, target.projectId))
+    .get();
+  return current !== undefined && current.pendingAt !== null;
+}
+
 /**
  * Remove expired seats and finish every affected drain in the same transaction.
  *
@@ -492,8 +618,13 @@ export function reclaimExpiredSolverSlotsIn(
   tx: Transaction,
   now: number,
   scope?: SolverSlotReclaimScope,
+  onFinished?: (target: SolverSlotReclaimScope) => void,
 ): OptimizationDrainReconciliation {
   const expiring = and(
+    // Proof: admitting all deadlines during installed initial reclaim deleted
+    // the future E project and slot in the two-organization mounted fixture.
+    // Proof: omitting the persisted-deadline predicate in installed startup
+    // reconciliation deleted future-counted C while expired A was eligible.
     lte(solverSlot.admittedDeadlineAt, now),
     ...(scope === undefined
       ? []
@@ -531,7 +662,12 @@ export function reclaimExpiredSolverSlotsIn(
   let waiting = 0;
   for (const target of targets) {
     const outcome = finishDrainIn(tx, target.projectId, target.contractVersion);
-    if (outcome === 'finished') finished += 1;
+    if (outcome === 'finished') {
+      finished += 1;
+      // Proof: omitting the finished-target callback lost B's selected
+      // contract retirement event while A and its graph remained present.
+      onFinished?.(target);
+    }
     if (outcome === 'waiting') waiting += 1;
   }
   return { reclaimed: expired.length, finished, waiting };

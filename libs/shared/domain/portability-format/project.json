@@ -1,0 +1,36 @@
+{
+  "name": "shared-portability-format",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/domain/portability-format",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:format", "runtime:isomorphic", "ring:domain", "product:shared"],
+  "metadata": {
+    "portability": {
+      "visibility": "public",
+      "dependencies": [],
+      "aliases": ["@shared/portability-format"]
+    }
+  },
+  "targets": {
+    "test": {
+      "command": "bun test libs/shared/domain/portability-format --timeout=30000"
+    },
+    "lint": {
+      "command": "bunx eslint --config tools/workspace/eslint.portable.mjs libs/shared/domain/portability-format && bunx prettier --config tools/workspace/prettier.portable.json --check libs/shared/domain/portability-format",
+      "inputs": [
+        "default",
+        "{workspaceRoot}/tools/workspace/eslint.portable.mjs",
+        "{workspaceRoot}/tools/workspace/prettier.portable.json"
+      ]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/shared/domain/portability-format/tsconfig.json"
+      }
+    },
+    "build": {
+      "command": "bun build libs/shared/domain/portability-format/index.ts --target=bun --outdir=dist/libs/shared/domain/portability-format"
+    }
+  }
+}

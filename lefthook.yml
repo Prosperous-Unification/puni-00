@@ -15,11 +15,18 @@ pre-commit:
         - GEMINI.md
     plaintext-secrets:
       run: bun run tools/tool-git-hooks/src/hooks/plaintext-secrets.ts {staged_files}
+    # Proof: private-nesting.test.ts runs this hook over scratch repositories; a forced add under
+    # private/, a gitlink, .gitmodules, a .gitignore without /private/ and an empty list exit 1.
+    private-nesting:
+      run: bun run tools/tool-git-hooks/src/hooks/private-nesting.ts {staged_files}
     migration-lint:
       run: bun run tools/tool-git-hooks/src/hooks/migration-lint.ts {staged_files}
       # Proof: restoring the legacy glob made the parsed production hook oracle receive
       # apps/be-01/drizzle/**/*.sql instead of the moved root (0 passed / 2 failed).
       glob: 'apps/wbs/{be-01,mcp-01}/drizzle/**/*.sql'
+    website-migration-lint:
+      run: bun run tools/tool-git-hooks/src/hooks/migration-lint.ts {staged_files}
+      glob: 'libs/website/adapters/store-sqlite/src/**'
 
     doc-caps:
       run: bun run tools/tool-git-hooks/src/hooks/doc-caps.ts

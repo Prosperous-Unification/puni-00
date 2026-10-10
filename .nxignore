@@ -15,3 +15,7 @@ GEMINI.md
 # `.worktrees/`: without it a lane's worktree is untracked, and
 # `bin/h2puni-gate.sh` refuses a tree that is dirty after its checkout (exit 65).
 .worktrees
+
+# Nested private checkouts are their own Nx workspaces; their project.json files must never join
+# this graph (`tools/tool-private`).
+private

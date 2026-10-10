@@ -127,7 +127,7 @@ type ProjectReading =
 
 export interface PersonLoadOptions {
   projects: Pick<ProjectService, 'listWithin'>;
-  workItems: Pick<WorkItemService, 'latestSeq' | 'treeWithin'>;
+  workItems: Pick<WorkItemService, 'latestSeq' | 'treeWithin' | 'sharedTreesWithin'>;
   directory: Pick<DirectoryService, 'listWithin'>;
   ranks: Pick<ProjectRankStore, 'orderIn'>;
   /** How many project readings the process keeps; the least recently read goes first. */
@@ -139,15 +139,15 @@ export interface PersonLoadOptions {
  * 010.4.16, `openspec/changes/share-people-across-projects`, design D2–D5).
  *
  * Reads only: it schedules each project exactly as the project's own read
- * does and changes nothing. Projects come from {@link ProjectService.listWithin}
- * and nowhere else, so a project the caller cannot open is never read, and
- * cannot surface in a booking, an overlap or a count.
+ * does and changes nothing. Isolated projects come from
+ * {@link ProjectService.listWithin}; shared projects come from one authorized
+ * aggregate observation. Neither path can name a project the caller cannot open.
  */
 export class PersonLoad {
   /** Per-process readings keyed by access and project; see {@link reading}. */
   private readonly memo = new Map<
     string,
-    { revision: number; seq: number; reading: ProjectReading }
+    { revision: number; seq: number; basis: string | null; reading: ProjectReading }
   >();
   private readonly memoSize: number;
 
@@ -238,9 +238,9 @@ export class PersonLoad {
   }
 
   /**
-   * Every project the caller can open, in the organization's project rank —
-   * under legacy access, which has no organization, in creation order then id —
-   * each with its reading and its 1-based rank.
+   * Every project the caller can open, with a 1-based rank. Shared projects
+   * are detached from one authorized aggregate observation. Isolated projects
+   * use the organization's project rank, or under legacy access, creation order.
    *
    * The rank is renumbered over the caller's listed projects, not copied from
    * the organization's order. Today the two agree, because every current
@@ -262,6 +262,60 @@ export class PersonLoad {
     actorId: string,
     access: ResourceAccess,
   ): Promise<{ project: NamedProject; rank: number; reading: ProjectReading }[] | AccessRefused> {
+    const observed = await this.opts.workItems.sharedTreesWithin(actorId, access);
+    if (observed.kind === 'access_refused') return observed;
+    if (observed.kind === 'shared') {
+      const readings: { project: NamedProject; rank: number; reading: ProjectReading }[] = [];
+      for (const entry of observed.entries) {
+        const key = `${access.kind === 'scoped' ? `org:${access.scope.organizationId}` : 'legacy'}\u0000${entry.projectId}`;
+        const held = this.memo.get(key);
+        // Availability and authority come from this same observation before any held value can win.
+        // Proof: accepting a held entry first made the mounted unavailable-influencer test show old dates.
+        const tree = entry.tree;
+        if ('kind' in tree) {
+          readings.push({
+            project: { projectId: entry.projectId, name: entry.name },
+            rank: entry.rank,
+            reading: { kind: 'engine_unavailable' },
+          });
+          continue;
+        }
+        // Proof: omitting the basis comparison made the upstream-only mounted load read retain old target dates.
+        // Proof: omitting the null-basis lookup guard failed mounted `does not reuse isolated load or roll-up entries`: Billing stayed available after shared calendar_range.
+        const reading =
+          entry.basis !== null &&
+          held?.seq === entry.seq &&
+          held.revision === entry.revision &&
+          held.basis === entry.basis
+            ? held.reading
+            : readingOf(entry.projectId, tree);
+        // Proof: omitting the null-basis storage guard failed the same mounted test: the following isolated load omitted Billing.
+        if (
+          entry.basis !== null &&
+          reading !== held?.reading &&
+          reading.kind !== 'engine_unavailable'
+        ) {
+          this.memo.delete(key);
+          this.memo.set(key, {
+            revision: entry.revision,
+            seq: entry.seq,
+            basis: entry.basis,
+            reading,
+          });
+        }
+        readings.push({
+          project: { projectId: entry.projectId, name: entry.name },
+          rank: entry.rank,
+          reading,
+        });
+      }
+      while (this.memo.size > this.memoSize) {
+        const oldest = this.memo.keys().next();
+        if (oldest.done) break;
+        this.memo.delete(oldest.value);
+      }
+      return readings;
+    }
     const listed = await this.opts.projects.listWithin(actorId, access);
     const byCreation = [...listed].sort(
       (a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
@@ -296,8 +350,9 @@ export class PersonLoad {
   }
 
   /**
-   * The project's reading, from the memo when neither the project row's
-   * `revision` nor its event sequence has moved since it was computed.
+   * An isolated project's reading, from the memo when neither the project row's
+   * `revision` nor its event sequence has moved since it was computed. Shared
+   * reads also compare the captured incoming-calendar basis in {@link readProjects}.
    *
    * Both, because they cover different writes. `revision` commits with every
    * edit to the project row — start date, PERT weights, reach, estimate method
@@ -327,7 +382,9 @@ export class PersonLoad {
     // after a warm read`, `… cleared …` and `follows an estimate rule changed
     // after a warm read` in `person-load.controller.db.test.ts` serve the
     // pre-PATCH booking; watched 2026-09-29.
-    if (held?.seq === seq && held.revision === revision) {
+    // Proof: without the isolated basis discriminator, switching mode after a warm
+    // shared read kept Billing at 2026-10-08 instead of its isolated 2026-10-05.
+    if (held?.seq === seq && held.revision === revision && held.basis === null) {
       // A hit skips `treeWithin`'s crossing-row check, which ran when this
       // reading was computed. Not an access decision: the project list above
       // re-ran the caller's access on this request, and a crossing row is
@@ -345,7 +402,7 @@ export class PersonLoad {
     if ('kind' in tree) return { kind: 'engine_unavailable' };
     const reading = readingOf(projectId, tree);
     this.memo.delete(key);
-    this.memo.set(key, { revision, seq: tree.seq, reading });
+    this.memo.set(key, { revision, seq: tree.seq, basis: null, reading });
     while (this.memo.size > this.memoSize) {
       const oldest = this.memo.keys().next();
       if (oldest.done === true) break;

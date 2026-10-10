@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 
-import { canonicalScheduleInput, type ScheduleInput } from './canonical-schedule-input';
+import {
+  canonicalElsewhere,
+  canonicalScheduleInput,
+  type ScheduleInput,
+} from './canonical-schedule-input';
 import type { PlannedRow } from './derive-numbers';
 import { serializeSchedule } from './fast-golden-corpus';
 import { schedule, type Slice } from './schedule';
@@ -800,6 +804,36 @@ describe('bookings elsewhere in the canonical input', () => {
       plan(new Map([['ben', [held(0, 2)]]])),
     ].map(canonicalScheduleInput);
     expect(new Set(hashes).size).toBe(5);
+  });
+
+  it('uses only canonical incoming bookings for the cache basis', () => {
+    const forward = new Map([
+      ['ana', [held(0, 2)]],
+      ['ben', [held(3, 4)]],
+    ]);
+    const backward = new Map([
+      ['ben', [held(3, 4)]],
+      ['ana', [held(0, 2)]],
+    ]);
+    expect(canonicalElsewhere(forward)).toBe(canonicalElsewhere(backward));
+    expect(canonicalElsewhere()).toBe('[]');
+    expect(canonicalElsewhere(new Map())).toBe('[]');
+    expect(canonicalElsewhere(forward)).not.toBe(
+      canonicalElsewhere(
+        new Map([
+          ['ana', [held(0, 3)]],
+          ['ben', [held(3, 4)]],
+        ]),
+      ),
+    );
+    expect(canonicalElsewhere(forward)).not.toBe(
+      canonicalElsewhere(
+        new Map([
+          ['ana', [held(0, 2, 'other')]],
+          ['ben', [held(3, 4)]],
+        ]),
+      ),
+    );
   });
 
   it('moves a placement when a booking of the plan’s own person moves', () => {
