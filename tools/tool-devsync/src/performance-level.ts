@@ -478,10 +478,14 @@ function executionEnvironment(
 function renderFailureChain(failure: unknown): string {
   const lines: string[] = [];
   const ancestors = new Set<object>();
-  let length = 0;
+  let bytes = 0;
   const appendFailure = (cause: unknown, depth: number): void => {
+    // Proof: injected 17-level close cause failed artifact writing; removing
+    // this depth check made its production negative accept the chain.
     if (depth > 16) throw new Error('Performance failure chain exceeds 16 levels');
     if (typeof cause === 'object' && cause !== null) {
+      // Proof: injected self-cause failed artifact writing; removing this cycle
+      // check made its production negative accept the chain.
       if (ancestors.has(cause)) throw new Error('Performance failure chain has a cycle');
       ancestors.add(cause);
     }
@@ -489,8 +493,10 @@ function renderFailureChain(failure: unknown): string {
       const line =
         '  '.repeat(depth) +
         (cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause));
-      length += line.length + 1;
-      if (lines.length >= 64 || length > 256 * 1024)
+      bytes += Buffer.byteLength(line, 'utf8') + (lines.length > 0 ? 1 : 0);
+      // Proof: injected 65-entry and 300 KiB UTF-8 close causes failed artifact
+      // writing; removing either corresponding guard failed its negative.
+      if (lines.length >= 64 || bytes > 256 * 1024)
         throw new Error('Performance failure chain exceeds diagnostic bound');
       lines.push(line);
       if (cause instanceof AggregateError) {

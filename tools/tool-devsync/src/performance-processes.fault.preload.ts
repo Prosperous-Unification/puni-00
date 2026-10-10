@@ -136,7 +136,8 @@ if (fault === 'partial-evidence' || fault === 'inventory-after-run') {
 if (
   fault === 'descriptor-stderr-open' ||
   fault === 'descriptor-output-close' ||
-  fault === 'descriptor-output-close-rename'
+  fault === 'descriptor-output-close-rename' ||
+  fault?.startsWith('descriptor-failure-') === true
 ) {
   await mock.module('node:fs/promises', () => ({
     ...fsPromises,
@@ -164,12 +165,28 @@ if (
         };
       }
       if (
-        (fault === 'descriptor-output-close' || fault === 'descriptor-output-close-rename') &&
+        (fault === 'descriptor-output-close' ||
+          fault === 'descriptor-output-close-rename' ||
+          fault.startsWith('descriptor-failure-')) &&
         path.includes('ordinary-services.json.')
       ) {
         const nativeClose = artifact.close.bind(artifact);
         artifact.close = async () => {
           await nativeClose();
+          if (fault === 'descriptor-failure-depth') {
+            let nested: Error = new Error('deep failure');
+            for (let depth = 0; depth < 17; depth++)
+              nested = new Error('nested failure', { cause: nested });
+            throw nested;
+          }
+          if (fault === 'descriptor-failure-cycle') {
+            const cycle = new Error('cyclic failure');
+            Object.defineProperty(cycle, 'cause', { value: cycle });
+            throw cycle;
+          }
+          if (fault === 'descriptor-failure-entries')
+            throw new AggregateError(Array.from({ length: 65 }, () => new Error('entry')));
+          if (fault === 'descriptor-failure-utf8-bytes') throw new Error('字'.repeat(100_000));
           throw new Error('injected descriptor stdout close failure');
         };
       }

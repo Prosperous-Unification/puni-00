@@ -96,6 +96,10 @@ async function runPerformanceLevel(
     | 'descriptor-stderr-open'
     | 'descriptor-output-close'
     | 'descriptor-output-close-rename'
+    | 'descriptor-failure-depth'
+    | 'descriptor-failure-cycle'
+    | 'descriptor-failure-entries'
+    | 'descriptor-failure-utf8-bytes'
     | 'descriptor-hang',
 ): Promise<void> {
   const supervisorRoot = await mkdtemp(join(tmpdir(), 'performance-supervisor-'));
@@ -202,6 +206,10 @@ async function committedPerformanceFixture(
     | 'descriptor-stderr-open'
     | 'descriptor-output-close'
     | 'descriptor-output-close-rename'
+    | 'descriptor-failure-depth'
+    | 'descriptor-failure-cycle'
+    | 'descriptor-failure-entries'
+    | 'descriptor-failure-utf8-bytes'
     | 'descriptor-hang' = 'none',
   title = 'records readiness',
 ): Promise<{
@@ -328,6 +336,10 @@ async function committedPerformanceFixture(
     'descriptor-output-large': "process.stdout.write('x'.repeat(65537));",
     'descriptor-output-close': "process.stdout.write('x'.repeat(65537));",
     'descriptor-output-close-rename': "process.stdout.write('x'.repeat(65537));",
+    'descriptor-failure-depth': "process.stdout.write('x'.repeat(65537));",
+    'descriptor-failure-cycle': "process.stdout.write('x'.repeat(65537));",
+    'descriptor-failure-entries': "process.stdout.write('x'.repeat(65537));",
+    'descriptor-failure-utf8-bytes': "process.stdout.write('x'.repeat(65537));",
     'descriptor-error-large': "process.stderr.write('x'.repeat(65537));",
     'descriptor-output-utf8': 'process.stdout.write(Buffer.from([0xff]));',
     'descriptor-output-shape': "process.stdout.write('{}');",
@@ -1034,6 +1046,27 @@ describe('Performance level target production boundary', () => {
     await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
     const descendantPid = Number(await readFile(fixture.orphanMarkers[1], 'utf8'));
     await expectFailure(readFile(`/proc/${String(descendantPid)}/stat`), 'ENOENT');
+  }, 30_000);
+
+  it('refuses unbounded failure chains from the production artifact writer', async () => {
+    for (const [fault, phrase] of [
+      ['descriptor-failure-depth', 'exceeds 16 levels'],
+      ['descriptor-failure-cycle', 'has a cycle'],
+      ['descriptor-failure-entries', 'exceeds diagnostic bound'],
+      ['descriptor-failure-utf8-bytes', 'exceeds diagnostic bound'],
+    ] as const) {
+      const fixture = await committedPerformanceFixture(180, fault);
+      await expectFailure(
+        runPerformanceLevel(fixture.root, fixture.policyPath, undefined, fault),
+        phrase,
+      );
+      await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
+      const bundles = await readdir(join(fixture.root, 'tmp/junit/performance'));
+      await expectFailure(
+        readFile(join(fixture.root, 'tmp/junit/performance', bundles[0], 'failure.json')),
+        'ENOENT',
+      );
+    }
   }, 30_000);
 
   it('closes staged handles and retains capture plus close errors', async () => {
