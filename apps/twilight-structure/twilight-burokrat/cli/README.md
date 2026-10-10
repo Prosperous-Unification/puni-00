@@ -42,6 +42,17 @@ yet take.
 The package installs two commands for the same program: `twilight-burokrat`, which documentation
 uses, and the short form `twib`.
 
+## Diagnostic test reports
+
+`inspect-test-reports <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable>`
+reads one existing Browser publication under an external policy pin. It joins every observed case
+to a regular test-file blob in the selected commit and emits stable case and observation digests,
+the actual passed/failed/skipped outcomes, and the selected source mode and content digest.
+It does not run tests or resolve scenario citations. The observation has absent authentication,
+`certifies:false`, and no coverage or admission credit. A zero exit means that inspection
+completed, even when a case failed or was skipped. The command retains the Browser inspector's
+policy, publication, discovery and report refusals.
+
 ## Trust boundary
 
 Candidate changes can propose future validator or policy bytes, but they cannot select the

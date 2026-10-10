@@ -115,6 +115,51 @@ A version-1 Browser bundle SHALL carry its `candidate` as one canonical lowercas
 - **WHEN** the Browser inspector reconciles the bundle
 - **THEN** it keeps that case skipped and noncertifying, while malformed property placement, blank names, attributes, or character data refuse
 
+### Requirement: Diagnostic test observations bind committed case sources
+
+The `inspect-test-reports` command SHALL inspect one ordinary, packaged or portable Browser publication through the existing Browser inspector, under an external Browser policy, for an explicitly selected full committed revision. It SHALL emit a versioned diagnostic observation binding the revision, candidate digest, policy digest, mode and invocation identity. Each observed case SHALL retain its exact config, project, workspace-relative file, full ordered title path and passed, failed or skipped outcome. Its case identity SHALL bind config, project, file and title path independently of outcome. Duplicate case identities SHALL refuse, including duplicates with different outcomes. Each case file SHALL resolve to a regular blob in that same committed candidate; the observation SHALL bind the selected file mode and SHA-256 content digest. Missing, nonregular, malformed or escaping file identities SHALL refuse. Working files SHALL NOT supply missing committed bytes.
+
+The observation digest SHALL bind the complete versioned normalized observation, including outcomes and source bindings, in deterministic case-identity order. It SHALL describe the inspected observation, not authenticate a runner receipt. Every successful inspection SHALL emit `authentication:{kind:'absent'}` and `certifies:false`, including all-passing observations. Inspection SHALL preserve the existing Browser publication, policy, discovery, JUnit and race refusals. A successful command exit SHALL mean the diagnostic inspection completed; it SHALL NOT mean tests passed, scenarios were covered, or admission was granted. This slice SHALL neither resolve scenario citations nor bypass a refused B3 selection to grant coverage.
+
+#### Scenario: [TEST-AXES-042] A diagnostic observation binds its committed test file
+
+- **GIVEN** a valid Browser publication and its exact committed candidate and external policy
+- **WHEN** the diagnostic command inspects the publication
+- **THEN** every observed case SHALL bind its complete case identity, outcome and selected regular test-file bytes
+- **AND** the observation SHALL retain its invocation and authority identities with authentication absent and certification false
+
+#### Scenario: [TEST-AXES-043] A reported case has no regular committed source
+
+- **GIVEN** internally matching Browser reports and manifest naming a missing, nonregular or escaping case file
+- **WHEN** the diagnostic command joins the case to its committed candidate
+- **THEN** it SHALL refuse with a named source-boundary diagnostic even if a working file exists at that path
+
+#### Scenario: [TEST-AXES-044] Two outcomes claim one observed case identity
+
+- **GIVEN** two observations with equal config, project, file and full title path
+- **WHEN** the diagnostic command inspects them
+- **THEN** it SHALL refuse the duplicate identity whether their outcomes agree or differ
+
+#### Scenario: [TEST-AXES-045] An observation preserves outcomes without coverage credit
+
+- **GIVEN** a valid publication containing passing, failing or skipped observations
+- **WHEN** the diagnostic command completes
+- **THEN** it SHALL retain each actual outcome without turning a failed or skipped case into a pass
+- **AND** it SHALL produce no scenario coverage or admission credit, including when every observed case passed
+
+#### Scenario: [TEST-AXES-046] The diagnostic observation digest binds outcomes and source
+
+- **GIVEN** the same validated observations presented in a different case order
+- **WHEN** their diagnostic digests are computed
+- **THEN** the digests SHALL agree
+- **AND** changing an outcome, selected source binding or provenance identity SHALL change the digest while changing only an outcome SHALL preserve the case identity
+
+#### Scenario: [TEST-AXES-047] A diagnostic inspection preserves Browser refusals
+
+- **GIVEN** a Browser publication with invalid policy, candidate, report parity or publication-token stability
+- **WHEN** the diagnostic command invokes the Browser inspector
+- **THEN** it SHALL refuse rather than normalize unvalidated report claims
+
 ### Requirement: Tests live inside their modules
 
 A test SHALL live inside the module it tests, resolved from the module index.

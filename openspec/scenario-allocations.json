@@ -534,6 +534,42 @@
       "id": "TEST-AXES-041",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Sequential Performance invocations own fresh reports and ports"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-042",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A diagnostic observation binds its committed test file"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-043",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A reported case has no regular committed source"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-044",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Two outcomes claim one observed case identity"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-045",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "An observation preserves outcomes without coverage credit"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-046",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "The diagnostic observation digest binds outcomes and source"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-047",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A diagnostic inspection preserves Browser refusals"
     }
   ]
 }

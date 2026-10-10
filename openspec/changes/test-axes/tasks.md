@@ -27,6 +27,7 @@
 ## 4. The ledgers (needs 2.1, 2.2 and 3.1)
 
 - [ ] 4.1 Compute both coverage ledgers in Twilight Burokrat and enforce T2; implements T1, T2, both coverage requirements, the capability chain and Manual-case integration — test: the Burokrat's ledger tests; negative: remove a citation from an API-level test, and separately give a scenario a disposition that is neither manual nor a reasoned inapplicability; B4 depends on the B3 selector, completed Task 2.1/2.2 and the Manual inspector in 3.1.
+- [x] 4.1a Add the noncertifying `inspect-test-reports` production command for existing Browser modes, binding exact committed case sources, case identities, outcomes and observation provenance; tests: production CLI scenarios TEST-AXES-042 through TEST-AXES-047 using selected Git blobs and real Browser bundle fixtures. Negatives: missing/nonregular/escaping source despite internally matching reports, duplicate case identities with equal or differing outcomes, mismatched candidate and inherited Browser publication/policy/parity refusals. Watch each new guard removed or dependency broken make its named assertion fail, then restore it. Prove order-independent observation identity, outcome-independent case identity and outcome/source/provenance-sensitive observation digest. All outcomes remain observations, authentication absent and certifies false; no B3 scenario join, test-level inference, coverage credit or admission. This diagnostic prerequisite can proceed while 2.1/2.2 are open; 4.1 remains blocked on their completion.
 
 ## References
 
