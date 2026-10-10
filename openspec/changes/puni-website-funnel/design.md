@@ -4,7 +4,7 @@ WBS item `060` selects static Astro/Novaform; `060.2` approved PUNI-only brandin
 
 ## Goals / Non-Goals
 
-**Goals:** Ship an anonymous manual proposal funnel without prospect sign-in first, then account-bound chat, then optional concept preview. Keep description and brief durable through reloads in their permitted mode. Make limits legible to the prospect and operator.
+**Goals:** Ship an anonymous manual proposal funnel without prospect sign-in first, then claim-bound chat, then optional concept preview. Keep description and brief durable through reloads in their permitted mode. Make limits legible to the prospect and operator.
 
 **Non-Goals:** The walkthrough HTML is not a backend. AI output has no authority over pricing, dates, contracts, delivery or executable code.
 
@@ -12,7 +12,7 @@ WBS item `060` selects static Astro/Novaform; `060.2` approved PUNI-only brandin
 
 ### Source ownership and release slices
 
-Private `puni-pr-00/apps/website/site` owns static Astro landing/blog and licensed Novaform source, mapped from the archive's `src/pages/index.astro`, `src/pages/blog/{index,[slug]}.astro` and `src/pages/services/{index,[slug]}.astro`. `apps/website/fe-01` and `apps/website/be-01` in the public monorepo may start the app/API, with `libs/website/` dependencies, and move at unchanged relative paths under ADR 0032. M1 submits a manual brief anonymously with inference disabled. M2 adds prospect sign-in and chat; M3 adds optional preview. The local walkthrough is an in-memory decision demo only.
+Private `puni-pr-00/apps/website/site` owns static Astro landing/blog and licensed Novaform source, mapped from the archive's `src/pages/index.astro`, `src/pages/blog/{index,[slug]}.astro` and `src/pages/services/{index,[slug]}.astro`. `apps/website/fe-01` and `apps/website/be-01` in the public monorepo may start the app/API, with `libs/website/` dependencies, and move at unchanged relative paths under ADR 0032. M1 submits a manual brief anonymously with inference disabled. M2 adds claim-bound chat; M3 adds optional preview. The local walkthrough is an in-memory decision demo only.
 
 ### Portable repository contract
 
@@ -30,7 +30,7 @@ The API stores account, intake draft, software request, conversation turns, a se
 
 ### Inference admission and provider policy
 
-OpenRouter is server-only with a dedicated provisioned key, pinned vetted model/provider, ZDR and `data_collection: deny` only after endpoint compatibility is verified. No browser-selected model, tools, URL fetching or automatic ambiguous retry. Pilot tunables: see the conversation allowance in `build-ai-chat-harness/design.md`. Preview gets one generation and one revision with a separate output allowance. Before each paid call, atomically reserve a conservative input/output worst-case amount using vetted rates against $0.50/brief (including preview), $1/account/UTC day and $10/site/UTC day; a dedicated OpenRouter key has a $100/month ceiling. These figures are proposed pilot limits, not spend authorization. Show remaining allowance. A missing key, limit or price disables inference visibly. Cancellation, timeout, missing final usage or non-refusal stream failure settles the operation at its full reservation and keeps the conversation open (see `build-ai-chat-harness`). Provider 402/403/429/5xx map to explicit UI states. Usage in the last SSE event, not early text, settles a stream.
+OpenRouter is server-only with a dedicated provisioned key, pinned vetted model/provider, ZDR and `data_collection: deny` only after endpoint compatibility is verified. No browser-selected model, tools, URL fetching or automatic ambiguous retry. Pilot tunables: see the conversation allowance in `build-ai-chat-harness/design.md`. Preview gets one generation and one revision with a separate output allowance. Before each paid call, atomically reserve a conservative input/output worst-case amount using vetted rates against the ceilings of the conversation allowance in `build-ai-chat-harness/design.md`; a dedicated OpenRouter key has a $100/month ceiling. These figures are proposed pilot limits, not spend authorization. Show remaining allowance. A missing key, limit or price disables inference visibly. Cancellation, timeout, missing final usage or non-refusal stream failure settles the operation at its full reservation and keeps the conversation open (see `build-ai-chat-harness`). Provider 402/403/429/5xx map to explicit UI states. Usage in the last SSE event, not early text, settles a stream.
 
 ### Scope and output boundaries
 
