@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+experiments/r6b-timeline/model.test.ts:
+61 |   expect(attempts[0].start).toBe(Date.parse('2026-09-19T21:22:27Z'));
+62 |   expect(() =>
+63 |     parseAttempts([
+64 |       { id: 'local', packet: 'synthetic', slice: 'one', start: '2026-09-20T00:22:27', end: null },
+65 |     ]),
+66 |   ).toThrow('offset');
+         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "offset"
+
+Received function did not throw
+Received value: [
+  {
+    id: "local",
+    packet: "synthetic",
+    slice: "one",
+    start: 1789863747000,
+    end: null,
+  }
+]
+
+      at <anonymous> (<experiment>/model.test.ts:66:5)
+(fail) explicit timezone offsets preserve instants; unzoned local times refuse [10.89ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [19.00ms]

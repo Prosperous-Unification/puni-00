@@ -1,0 +1,14 @@
+{
+  "source": "puni-plan/exec/ledger.jsonl",
+  "sourceSha256": "9c03d393ade0bb8c46a6288fbd1d8e405a1708d361d6491374b1fe783a1e55dd",
+  "rangeUTC": ["2026-09-19T21:22:00Z", "2026-09-20T08:07:00Z"],
+  "first": "2026-09-19T21:22:27Z",
+  "last": "2026-09-20T08:04:59Z",
+  "sanitizedSha256": "793e4c8198812da5dfb052926251d97fc0d95cd0511ca88df31eb3f8d58b3bb7",
+  "count": 31,
+  "sumSeconds": 19724,
+  "minSeconds": 112,
+  "medianSeconds": 587,
+  "maxSeconds": 1491,
+  "meaning": "returned is executor return, not implementation success or review approval"
+}
