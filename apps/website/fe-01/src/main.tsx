@@ -16,6 +16,7 @@ import {
   useHeadingFocus,
   usePageTitle,
 } from './chrome';
+import { FunnelPanel } from './funnel-panel';
 import { GuardrailsPanel } from './guardrails-panel';
 
 interface Submission {
@@ -552,6 +553,7 @@ function OperatorPage() {
         ) : (
           <>
             <GuardrailsPanel csrf={csrf} />
+            <FunnelPanel />
             <div className="actions">
               <button className="button secondary compact" onClick={() => void loadInbox()}>
                 Refresh inbox
