@@ -16,6 +16,8 @@ import {
   WebsiteStore,
 } from './store';
 
+/** 006 and the 010 journal migration that extends its tables; tests that omit 006 omit both. */
+const retentionMigrations: readonly string[] = ['006_retention_subject', '010_retention_journal'];
 const leapDay = Date.UTC(2024, 1, 29, 15, 0, 0, 0);
 const leapDeadline = Date.UTC(2025, 1, 28, 15, 0, 0, 0);
 
@@ -381,12 +383,15 @@ test('migration 006 rolls back to the 005 schema', () => {
         expected,
         websiteMigrations()
           .map(({ name }) => name)
-          .filter((name) => name !== '006_retention_subject'),
+          .filter((name) => !retentionMigrations.includes(name)),
       );
-      const migration = websiteMigrations().find(({ name }) => name === '006_retention_subject');
-      if (!migration) throw new Error('Missing migration 006');
-      database.run(readFileSync(join(migration.directory, 'down.sql'), 'utf8'));
-      database.run("DELETE FROM schema_migration WHERE name = '006_retention_subject'");
+      // 010 extends 006's tables, so it rolls back first.
+      for (const name of [...retentionMigrations].reverse()) {
+        const migration = websiteMigrations().find((candidate) => candidate.name === name);
+        if (!migration) throw new Error(`Missing migration ${name}`);
+        database.run(readFileSync(join(migration.directory, 'down.sql'), 'utf8'));
+        database.query('DELETE FROM schema_migration WHERE name = ?').run(name);
+      }
       const schema =
         "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name";
       expect(database.query(schema).all()).toEqual(expected.query(schema).all());
@@ -501,7 +506,7 @@ test('an account submission sharing an unsubmitted request draft is overlapping 
         database,
         websiteMigrations()
           .map(({ name }) => name)
-          .filter((name) => name !== '006_retention_subject'),
+          .filter((name) => !retentionMigrations.includes(name)),
       );
       database.run(
         "INSERT INTO intake_draft (id, description, claim_hash, created_at, expires_at, consumed_at) VALUES ('d', 'secret', 'c', 100, 200, 150)",

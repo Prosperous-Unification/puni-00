@@ -112,3 +112,22 @@ Every `database.transaction(...)` in `store.ts`, `conversation-store.ts` and `gu
 - `bun test apps/website/be-01/src --timeout=30000`: `153 pass`, `0 fail`.
 - `NX_DAEMON=false bunx nx run-many -t lint,typecheck -p website-store-sqlite,website-be-01`: `Successfully ran targets lint, typecheck for 2 projects`. The projects have no `lint:fast` target.
 - `bunx prettier --check` on the changed files: `All matched files use Prettier code style!`
+
+### Slice 1: migration `010_retention_journal` and content fences (2026-10-11)
+
+The migration adds the journal-position columns, classification-evidence and erasure columns on `retention_subject`, the append-only `retention_journal_applied` mirror, an erasure-is-final trigger, and twenty content fences: an insert trigger and a nonblank-update trigger on each of `software_request`, `intake_draft`, `proposal_submission`, `chat_turn`, `chat_operation`, `request_concept_preview`, `conversation_turn`, `conversation_operation`, `account_request` and `concept_preview`. Tests are in `retention-journal-schema.test.ts` (16). Three older rollback tests now roll back 010 before 006 or 009, because 010 extends 006's tables.
+
+Each fault below was applied to `migration.sql` by a scratch runner. The runner then ran the named test with `bun test … -t` and restored the file. Every run exited 1.
+
+| Guard                                         | Injected fault        | Observed failure                                                                      |
+| --------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------- |
+| Each of the 20 fence triggers (one at a time) | trigger removed       | `(fail) a fenced subject refuses an older binary's content write: <that table>`       |
+| `chat_turn` update fence condition            | `WHEN 0`              | refusal case for `chat_turn` failed; `a fenced subject accepts blanking` stayed green |
+| Mirror `no_update` / `no_delete`              | trigger removed       | `(fail) the applied-event mirror is append-only`                                      |
+| Erasure is final                              | trigger removed       | `(fail) erasure is final in the schema`                                               |
+| Migration lint pairing                        | `down.sql` moved away | `010_retention_journal has no down.sql`, exit 1                                       |
+
+- `bun test libs/website/adapters/store-sqlite/src`: `98 pass`, `0 fail`.
+- `bun test apps/website/be-01/src --timeout=30000`: `153 pass`, `0 fail`.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $(git ls-files '*.sql') <010 files>` (the CI step plus the new files): exit 0.
+- `nx run-many -t lint,typecheck -p website-store-sqlite,website-be-01`: success.

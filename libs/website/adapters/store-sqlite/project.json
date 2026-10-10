@@ -13,6 +13,11 @@
   },
   "targets": {
     "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/tools/tool-git-hooks/src/hooks/migration-lint.ts"
+      ],
       "executor": "nx:run-commands",
       "options": {
         "command": "bun test libs/website/adapters/store-sqlite/src --timeout=30000"
