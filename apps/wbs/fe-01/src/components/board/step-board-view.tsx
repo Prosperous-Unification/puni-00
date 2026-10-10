@@ -89,7 +89,10 @@ export function StepBoardView({
               </h2>
               <ul>
                 {board.columns[key].map((card) => (
-                  <li key={card.id}>
+                  // Proof: removing anywhere wrapping made the Chromium `wraps unbroken card
+                  // labels inside every column at desktop and 390px` regression report a 2970px
+                  // scroll width in a 405px card.
+                  <li key={card.id} className="[overflow-wrap:anywhere]">
                     <span>{card.workItemNumber}</span> <span>{card.title}</span>{' '}
                     <span>{card.stepName}</span> <span>{statusWords(card.workItemStatus)}</span>
                   </li>

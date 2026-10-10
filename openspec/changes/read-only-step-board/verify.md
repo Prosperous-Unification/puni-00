@@ -447,3 +447,52 @@ Task 3.1 stays unchecked until Astra reviews the exact final evidence SHA.
 Task 3.2 exact-SHA canonical h2puni gate, exact-head CI and coordinator integration
 remain open. WBS acceptance was not changed. No push, gate, PR, merge, richer
 step status or Backlog cutover is claimed.
+
+## 2026-10-10 wrapping regression and integration preparation
+
+Started from clean `feat/board-page-view` at
+`48e1f76a341010b0c50a97f8adb0e85f76b2f399` in the existing isolated
+`.worktrees/board-page-view`; the preparation branch is
+`fix/read-only-step-board-wrapping`. The existing selected-runtime implementation,
+its OpenSpec scope and historical fault evidence were inspected. No newer WBS
+frontend changes were present on the then-current `origin/main` (`a3b1526bd`).
+Unrelated user files and other worktrees were preserved.
+
+A public-API-seeded Chromium regression exposed a violation of the existing
+no-clipping requirement: an unbroken 390-character work-item title overflowed a
+405px card to a 2970px scroll width. The fixture also adds a 96-character unbroken
+step name. The failed assertion was the production card's
+`scrollWidth <= clientWidth + 1`, recorded in `/tmp/board-wrapping-red.log`.
+The first sandboxed browser attempt could not bind a local listener (`EPERM`);
+the watched failure came from the subsequent approved run with local listeners
+and Chromium available. It was a layout assertion failure, not a fixture failure.
+
+The sole production change applies `overflow-wrap:anywhere` to each card, letting
+all its text labels wrap inside the existing columns. An adjacent `Proof:` names
+the watched negative. The regression checks column viewport bounds and card
+scroll widths at 1400px and 390px. It uses the existing authenticated disposable
+project fixture and public step-create boundary; no new behavior or spec scope
+was introduced.
+
+Fresh checks on these runtime bytes (Vitest from `apps/wbs/fe-01`, others from the
+worktree root):
+
+- `TZ=UTC bunx vitest run --config vitest.node.config.ts src/components/board/step-board.test.ts src/test-tiers.test.ts`: exit 0, 14/14 tests (`/tmp/board-prep-node.log`).
+- `TZ=UTC bunx vitest run src/components/board/step-board-view.test.tsx src/components/wbs/project-page.test.tsx src/app-router.test.tsx --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 --reporter=dot`: exit 0, 115/115 tests (`/tmp/board-prep-mounted.log`; this run began before the CSS fix).
+- `TZ=UTC bunx vitest run src/components/board/step-board-view.test.tsx --no-file-parallelism --maxWorkers=1 --reporter=dot`: exit 0, 8/8 tests after the CSS fix (`/tmp/board-wrapping-mounted-final.log`).
+- `CI=1 E2E_PORT_SHIFT=2400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/e2e/step-board.spec.ts --project chromium`: exit 0, 7/7 cases, 57.7 seconds (`/tmp/board-wrapping-green.log`). Existing Vite configuration and socket shutdown warnings remain in the terminal output.
+- `bunx tsc -p apps/wbs/fe-01/tsconfig.e2e.json --noEmit`: exit 0 (`/tmp/board-wrapping-e2e-typecheck.log`).
+- `bunx @fission-ai/openspec@1.12.0 validate read-only-step-board --strict --json`: exit 0, 1/1 valid (`/tmp/board-wrapping-openspec.json`).
+
+Task 3.1 remains unchecked pending independent Astra review of the committed
+candidate. Task 3.2 remains unchecked pending the coordinator's post-Spaces
+composition, canonical exact-SHA h2puni gate and exact-head CI. This local evidence
+makes no claim about those future composed bytes, push, PR, merge, richer step
+status or Backlog cutover.
+
+The affected FE command
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/nx-board-wrap bunx nx run-many -t lint,typecheck,build -p wbs-fe-01 --skip-nx-cache --outputStyle=static`
+completed with exit 0 for all three targets and their module typecheck dependency
+(`/tmp/board-wrapping-targets.log`). Scoped Prettier on the three changed paths
+and `git diff --check` also exited 0. Full canonical checks remain with the
+coordinator as stated above.

@@ -154,6 +154,41 @@ test('renders the ordered mixed board and readable columns at desktop and 390px'
   expect(seeded.rowIds['first']).not.toBe(seeded.rowIds['second']);
 });
 
+test('wraps unbroken card labels inside every column at desktop and 390px', async ({
+  page,
+}, testInfo) => {
+  const title = 'UnbrokenTitle'.repeat(30);
+  const stepName = 'UnbrokenStep'.repeat(8);
+  const seeded = await seedPlan(
+    page,
+    { name: 'Step board wrapping', rows: [{ ref: 'first', name: title }] },
+    identity('wrapping', testInfo.workerIndex),
+  );
+  fixtureSuccess(
+    'postApiProjectsByIdSteps',
+    await fixtureClient(page).postApiProjectsByIdSteps({
+      params: { id: seeded.projectId },
+      body: { name: stepName },
+    }),
+  );
+  await openSeededPlan(page, seeded);
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  const card = boardOf(page).locator('li');
+  await expect(card.first()).toContainText(title);
+  await expect(card.filter({ hasText: stepName })).toHaveCount(1);
+  for (const width of [1400, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const geometry = await columnGeometry(page);
+    for (const column of geometry) {
+      expect(column.right).toBeLessThanOrEqual(column.viewport + 1);
+      for (const bounds of column.cards) {
+        expect(bounds.right).toBeLessThanOrEqual(column.right + 1);
+        expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth + 1);
+      }
+    }
+  }
+});
+
 test('preserves a cancelled-pointer draft through peer delivery and commits it once on ordinary leave', async ({
   browser,
   page,
