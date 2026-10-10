@@ -1,3 +1,5 @@
+import { readS3JournalConfig, type S3JournalConfig } from '@website/store-sqlite';
+
 import { defaultConversationReplyTokens } from './conversation/request';
 import { isReasoningEffort, type ReasoningEffort } from './conversation/stream';
 import { readWebhookUrl } from './guardrail-alerts';
@@ -82,4 +84,64 @@ export function readWebsiteApiConfig(environment: Environment): WebsiteApiConfig
     oidcRedirectUri: environment['OIDC_REDIRECT_URI'],
     guardrailWebhookUrl: readWebhookUrl(environment['GUARDRAIL_WEBHOOK_URL']),
   };
+}
+
+/** Where retention policy decisions are journaled; `disabled` keeps every policy route at 503. */
+export type RetentionJournalSetting =
+  | { mode: 'disabled' }
+  | {
+      mode: 's3';
+      journalId: string;
+      s3: S3JournalConfig;
+      /** The release and private revision recorded as each event's writer. */
+      release: string;
+      privateRevision: string;
+    };
+
+const journalIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const writerPattern = /^[A-Za-z0-9][A-Za-z0-9._:/+-]{0,127}$/;
+
+function requiredMatch(environment: Environment, name: string, pattern: RegExp): string {
+  const value = environment[name];
+  if (value === undefined || !pattern.test(value))
+    throw new Error(`${name} is missing or malformed`);
+  return value;
+}
+
+/**
+ * Reads `RETENTION_JOURNAL`, which has no default (veto V12): `disabled`, or `s3` with
+ * `RETENTION_JOURNAL_ID` (UUID v4), the bucket settings of {@link readS3JournalConfig} and the
+ * writer identity `RETENTION_WRITER_RELEASE` and `RETENTION_WRITER_REVISION`.
+ *
+ * @throws naming the first missing or malformed variable; secret values never appear.
+ */
+export function readRetentionJournalSetting(environment: Environment): RetentionJournalSetting {
+  const mode = environment['RETENTION_JOURNAL'];
+  // Proof: defaulting an absent value to `disabled` made `a missing RETENTION_JOURNAL refuses startup` pass the empty environment.
+  if (mode === 'disabled') return { mode };
+  if (mode !== 's3') throw new Error('RETENTION_JOURNAL must be disabled or s3');
+  return {
+    mode,
+    journalId: requiredMatch(environment, 'RETENTION_JOURNAL_ID', journalIdPattern),
+    s3: readS3JournalConfig(environment),
+    release: requiredMatch(environment, 'RETENTION_WRITER_RELEASE', writerPattern),
+    privateRevision: requiredMatch(environment, 'RETENTION_WRITER_REVISION', writerPattern),
+  };
+}
+
+/**
+ * Reads `RETENTION_ERASURE` (`report` or `erase`, no default). Erasure needs the remote
+ * journal, so `erase` with `RETENTION_JOURNAL=disabled` throws.
+ */
+export function readRetentionErasure(
+  environment: Environment,
+  journal: RetentionJournalSetting,
+): 'report' | 'erase' {
+  const erasure = environment['RETENTION_ERASURE'];
+  if (erasure !== 'report' && erasure !== 'erase')
+    throw new Error('RETENTION_ERASURE must be report or erase');
+  // Proof: dropping this refusal let `erase without s3 is refused` read erase with the journal disabled.
+  if (erasure === 'erase' && journal.mode !== 's3')
+    throw new Error('RETENTION_ERASURE=erase requires RETENTION_JOURNAL=s3');
+  return erasure;
 }

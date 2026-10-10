@@ -232,3 +232,30 @@ The lock test uses a 300 ms wait against a child holding the lock for 3 s and as
 
 - `bun test libs/website/adapters/store-sqlite/src`: `161 pass`, `0 fail` (`session.test.ts`: 19). `bun test apps/website/be-01/src`: `153 pass`, `0 fail`.
 - `nx run-many -t lint,typecheck,build,test:package -p website-store-sqlite,website-be-01`: success.
+
+### Slice 6: API configuration, startup replay and operator routes (2026-10-11), task 2.3
+
+- `runtime-config.ts`:
+  - `readRetentionJournalSetting` reads `RETENTION_JOURNAL`, which is required and has no default. `s3` also needs `RETENTION_JOURNAL_ID`, the `S3_*` and bucket and prefix variables, `RETENTION_WRITER_RELEASE` and `RETENTION_WRITER_REVISION`.
+  - `readRetentionErasure` takes `report` or `erase`, and `erase` requires `s3`.
+- `main.ts` awaits `api.openRetentionJournal()` before `Bun.serve`.
+- `server.ts` adds two routes:
+  - `POST /operator/retention/events` requires an operator session and CSRF. It answers 400 for a malformed event, 404 for an unknown subject, 409 for an invalid transition, 503 `retention_journal_disabled`, 503 `retention_journal_unavailable`, and 503 `retention_journal_replayed` after it synchronises a remote that was ahead.
+  - `GET /operator/retention/status`.
+- `.env.example` sets `RETENTION_JOURNAL=disabled`.
+- Tests: `retention-routes.test.ts` (8) and two in `runtime-config.test.ts`.
+
+| Guard                            | Injected fault                       | Observed failure                                                                                     |
+| -------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Required `RETENTION_JOURNAL`     | absent value defaulted to `disabled` | `(fail) a missing RETENTION_JOURNAL refuses startup`: did not throw                                  |
+| `erase` requires `s3`            | refusal removed                      | `(fail) erase without s3 is refused`: received `"erase"`                                             |
+| Operator session and CSRF        | both checks removed                  | `(fail) designation requires an operator session and CSRF`: `Expected: 401`, `Received: 201`         |
+| Journal disabled                 | refusal removed                      | `(fail) journal disabled answers 503 …`: `retention_journal_unavailable` instead of `…_disabled`     |
+| Remote failure mapping           | error rethrown                       | `(fail) a remote failure answers 503 and changes nothing`                                            |
+| Evidence validation at the route | pattern check removed                | `(fail) an invalid transition is 409`: the record layer's refusal escaped instead of a 400           |
+| Stream fence (slice 4 fence)     | chat `unknown` update made a no-op   | `(fail) a fenced stream completion becomes unknown and keeps its reservation`: `"state": "inflight"` |
+
+The pre-hold snapshot replay that task 2.3 names is `an old snapshot replays designation, hold and erasure` (slice 5).
+
+- `bun test apps/website/be-01/src --timeout=30000`: `163 pass`, `0 fail`.
+- `nx run-many -t lint,typecheck,build,test:package -p website-store-sqlite,website-be-01`: success.

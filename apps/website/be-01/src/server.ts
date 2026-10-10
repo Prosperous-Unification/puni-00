@@ -16,7 +16,15 @@ import {
   type ConversationPricing,
   type DraftCapRefusal,
   guardrailAllowance,
+  inspectRequestRetention,
+  type JournalEventBody,
   type ProposalCapRefusal,
+  RetentionJournalError,
+  type RetentionJournalOptions,
+  type RetentionJournalRemote,
+  type RetentionJournalSession,
+  RetentionPolicyBusyError,
+  RetentionTransitionError,
   WebsiteStore,
 } from '@website/store-sqlite';
 import { createLocalJWKSet, errors, jwtVerify } from 'jose';
@@ -92,6 +100,51 @@ export interface WebsiteApiConfig {
   clock?: () => number;
   /** Opens the store; tests wrap it to observe calls. Defaults to `new WebsiteStore(path)`. */
   openStore?: (databasePath: string) => WebsiteStore;
+  /**
+   * The remote retention journal. `main.ts` always decides it from the required
+   * `RETENTION_JOURNAL` (absent means `disabled`); policy routes answer 503 without it.
+   */
+  retentionJournal?: { remote: RetentionJournalRemote; options: RetentionJournalOptions };
+}
+
+const retentionEventTypes = [
+  'designate_client',
+  'correct_classification',
+  'place_hold',
+  'release_hold',
+] as const;
+const retentionSubjectIdPattern = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
+const evidenceReferencePattern = /^[A-Za-z0-9][A-Za-z0-9._:/#-]{2,199}$/;
+
+/** Validates the operator's policy event; the actor is always `operator` (veto V10). */
+function readRetentionEvent(body: Record<string, unknown> | null): {
+  subject: { kind: 'software_request' | 'proposal_submission'; id: string };
+  event: JournalEventBody;
+} | null {
+  const type = body?.['type'];
+  const kind = body?.['kind'];
+  const subjectId = body?.['subjectId'];
+  const evidenceReference = body?.['evidenceReference'];
+  if (
+    !retentionEventTypes.some((candidate) => candidate === type) ||
+    (kind !== 'software_request' && kind !== 'proposal_submission') ||
+    typeof subjectId !== 'string' ||
+    !retentionSubjectIdPattern.test(subjectId) ||
+    typeof evidenceReference !== 'string' ||
+    !evidenceReferencePattern.test(evidenceReference)
+  )
+    return null;
+  // Proof: dropping the evidence pattern made `an invalid transition is 409` throw the record layer's refusal instead of answering 400.
+  const evidence = { evidenceReference, actor: 'operator' };
+  const event: JournalEventBody =
+    type === 'designate_client'
+      ? { type, ...evidence }
+      : type === 'correct_classification'
+        ? { type, to: 'non_client', ...evidence }
+        : type === 'place_hold'
+          ? { type: 'place_hold', ...evidence }
+          : { type: 'release_hold', ...evidence };
+  return { subject: { kind, id: subjectId }, event };
 }
 
 interface AdmissionWindow {
@@ -211,6 +264,13 @@ function readCookie(request: Request, name: string): string | null {
  */
 export function createWebsiteApi(config: WebsiteApiConfig): {
   fetch(request: Request, clientAddress?: string): Promise<Response>;
+  /**
+   * Binds the database to the configured retention journal and replays it; `main.ts` awaits
+   * it before serving. A no-op when the journal is disabled.
+   *
+   * @throws RetentionJournalError for every refusal in design §6, so the process never serves.
+   */
+  openRetentionJournal(): Promise<void>;
   /** Waits for every alert webhook attempt in flight. */
   settleAlerts(): Promise<void>;
   close(): void;
@@ -261,6 +321,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     config.databasePath,
   );
   const clock = config.clock ?? Date.now;
+  let retentionSession: RetentionJournalSession | null = null;
   /** Set by close(); a stream deadline that fires later must not touch the closed store. */
   let isClosed = false;
   const webhookUrl = readWebhookUrl(config.guardrailWebhookUrl);
@@ -2247,6 +2308,64 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         origin,
       );
     }
+    if (path === '/operator/retention/status' && request.method === 'GET') {
+      if (!operatorSession(request, now))
+        return attachCors(failure('operator_unauthorized', 401), origin);
+      const report = inspectRequestRetention(config.databasePath, now);
+      let journal: unknown = { state: 'disabled' };
+      if (config.retentionJournal) {
+        if (!retentionSession)
+          return attachCors(failure('retention_journal_unavailable', 503), origin);
+        try {
+          journal = await retentionSession.status();
+        } catch (error) {
+          if (!(
+            error instanceof RetentionJournalError || error instanceof RetentionPolicyBusyError
+          ))
+            throw error;
+          return attachCors(failure('retention_journal_unavailable', 503), origin);
+        }
+      }
+      return attachCors(json({ report, journal }, 200, { 'Cache-Control': 'no-store' }), origin);
+    }
+    if (path === '/operator/retention/events' && request.method === 'POST') {
+      const session = operatorSession(request, now);
+      // Proof: skipping the operator and CSRF checks made `designation requires an operator session and CSRF` record a designation.
+      if (!session) return attachCors(failure('operator_unauthorized', 401), origin);
+      const csrf = request.headers.get('x-puni-csrf');
+      if (!csrf || !equal(digest(csrf), session.csrfHash))
+        return attachCors(failure('csrf_forbidden', 403), origin);
+      // Proof: dropping this refusal made `journal disabled answers 503 without touching the database` answer retention_journal_unavailable.
+      if (!config.retentionJournal)
+        return attachCors(failure('retention_journal_disabled', 503), origin);
+      if (!retentionSession)
+        return attachCors(failure('retention_journal_unavailable', 503), origin);
+      const decision = readRetentionEvent(await readBody(request));
+      if (!decision) return attachCors(failure('invalid_retention_event', 400), origin);
+      try {
+        const appended = await retentionSession.append(decision.subject, decision.event);
+        return attachCors(
+          json({ sequence: appended.sequence }, 201, { 'Cache-Control': 'no-store' }),
+          origin,
+        );
+      } catch (error) {
+        if (error instanceof RetentionTransitionError)
+          return attachCors(
+            error.reason === 'missing_subject'
+              ? failure('retention_subject_not_found', 404)
+              : failure('retention_transition_invalid', 409),
+            origin,
+          );
+        if (error instanceof RetentionJournalError && error.reason === 'behind') {
+          await retentionSession.synchronise();
+          return attachCors(failure('retention_journal_replayed', 503), origin);
+        }
+        // Proof: rethrowing here made `a remote failure answers 503 and changes nothing` fail with the raw refusal.
+        if (error instanceof RetentionJournalError || error instanceof RetentionPolicyBusyError)
+          return attachCors(failure('retention_journal_unavailable', 503), origin);
+        throw error;
+      }
+    }
     const statusMatch = /^\/operator\/submissions\/([a-f0-9-]+)$/.exec(path);
     if (statusMatch && request.method === 'PATCH') {
       const session = operatorSession(request, now);
@@ -2266,6 +2385,13 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
 
   return {
     fetch: handleRequest,
+    openRetentionJournal: async () => {
+      if (!config.retentionJournal) return;
+      retentionSession = await store.openRetentionJournal(
+        config.retentionJournal.remote,
+        config.retentionJournal.options,
+      );
+    },
     settleAlerts: async () => {
       await Promise.all(alertDeliveries);
     },
