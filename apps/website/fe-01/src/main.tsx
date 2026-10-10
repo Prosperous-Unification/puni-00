@@ -4,8 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { ApiFailure, requestJson } from './api';
-import { describeFailure, describeOperatorFailure, offersBuild } from './app-flow';
-import { BuildErrorBoundary, BuildPage } from './build-page';
+import { describeFailure, describeOperatorFailure, offersAi } from './app-flow';
+import { type Draft, parseDraft } from './build-contract';
+import { AppErrorBoundary, BuildPage } from './build-page';
 import {
   HeroMedia,
   OperatorFooter,
@@ -17,12 +18,6 @@ import {
 } from './chrome';
 import { GuardrailsPanel } from './guardrails-panel';
 
-interface Draft {
-  description: string;
-  brief: string;
-  csrfToken: string;
-  expiresAt: string;
-}
 interface Submission {
   id: string;
   description: string;
@@ -105,8 +100,10 @@ function ManualPage() {
   });
 
   useEffect(() => {
-    requestJson<Draft>('/draft')
-      .then((draft) => {
+    requestJson<unknown>('/draft')
+      .then((value) => {
+        // A malformed draft throws InvalidDraft into the catch below: the load-error state.
+        const draft = parseDraft(value);
         if (pendingProposal) {
           const nextKey = crypto.randomUUID();
           sessionStorage.setItem('puni_proposal_key', nextKey);
@@ -358,7 +355,7 @@ function ManualPage() {
                     Previous reference: <strong>{previousReceipt}</strong>
                   </p>
                 )}
-                {offersBuild(load.draft, Date.now()) && (
+                {offersAi(load.draft, Date.now()) && (
                   <div className="route-choice">
                     <div>
                       <p className="route-choice-title">Prefer to think it through first?</p>
@@ -610,10 +607,12 @@ createRoot(root).render(
   window.location.pathname.startsWith('/operator') ? (
     <OperatorPage />
   ) : window.location.pathname.startsWith('/manual') ? (
-    <ManualPage />
+    <AppErrorBoundary>
+      <ManualPage />
+    </AppErrorBoundary>
   ) : (
-    <BuildErrorBoundary>
+    <AppErrorBoundary>
       <BuildPage />
-    </BuildErrorBoundary>
+    </AppErrorBoundary>
   ),
 );

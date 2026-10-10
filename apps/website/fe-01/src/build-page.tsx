@@ -6,14 +6,14 @@ import {
   buildReturnUrl,
   type Conversation,
   parseEntry,
-  resolveAnonymousHarness,
+  resolveHarness,
   startOverUrl,
 } from './build-contract';
 import { HeroMedia, SiteHeader, siteOrigin, useHeadingFocus, usePageTitle } from './chrome';
 import { LiveHarness, PausedHarness } from './conversation-harness';
 
-/** Renders an impossible Build state explicitly instead of a blank page. */
-export class BuildErrorBoundary extends React.Component<
+/** Renders an impossible app state explicitly instead of a blank page. */
+export class AppErrorBoundary extends React.Component<
   React.PropsWithChildren,
   { message: string | null }
 > {
@@ -28,8 +28,8 @@ export class BuildErrorBoundary extends React.Component<
     return (
       <main className="build-layout boundary" role="alert" id="main">
         <div className="build-state">
-          <p className="eyebrow">Build</p>
-          <h1>Build needs your attention.</h1>
+          <p className="eyebrow">PUNI</p>
+          <h1>This page needs your attention.</h1>
           <p className="lead">{this.state.message}</p>
           <button
             type="button"
@@ -38,7 +38,7 @@ export class BuildErrorBoundary extends React.Component<
               window.location.reload();
             }}
           >
-            Reload Build
+            Reload
           </button>
         </div>
       </main>
@@ -49,7 +49,7 @@ export class BuildErrorBoundary extends React.Component<
 type BuildLoad =
   | { kind: 'loading' }
   | {
-      kind: 'anonymous';
+      kind: 'ready';
       harness: 'disabled' | 'paused' | 'live';
       conversation: Conversation;
     }
@@ -61,7 +61,7 @@ function HarnessEyebrow() {
 
 /**
  * Discards the browser's saved request after an inline confirmation, then lands on the site's
- * empty Home prompt. Only an anonymous draft can be discarded; the API refuses a consumed one.
+ * empty Home prompt. Only an unsubmitted draft can be discarded; the API refuses a consumed one.
  */
 function StartOver({ csrfToken }: { csrfToken: string }) {
   const [isConfirming, setConfirming] = useState(false);
@@ -139,7 +139,7 @@ function StartOver({ csrfToken }: { csrfToken: string }) {
 }
 
 /**
- * The anonymous harness while the provider is disabled: the Home request as the first message,
+ * The harness while the provider is disabled: the Home request as the first message,
  * one labelled system row and the manual path. There is no composer, so nothing can be sent.
  */
 function DisabledHarness({ conversation }: { conversation: Conversation }) {
@@ -209,7 +209,7 @@ export function BuildPage() {
         window.location.replace(buildReturnUrl(siteOrigin, entry.reason));
         return;
       }
-      const harness = resolveAnonymousHarness(
+      const harness = resolveHarness(
         siteOrigin,
         entry,
         await requestJson<unknown>('/conversation', { signal: controller.signal }),
@@ -217,7 +217,7 @@ export function BuildPage() {
       if (harness.kind !== 'disabled' && harness.kind !== 'paused' && harness.kind !== 'live')
         throw new Error(`Unexpected harness state ${harness.kind}`);
       setLoad({
-        kind: 'anonymous',
+        kind: 'ready',
         harness: harness.kind,
         conversation: harness.conversation,
       });
@@ -246,9 +246,9 @@ export function BuildPage() {
       <SiteHeader buildCurrent="page" tone="night" rail="overlay" />
       <main className="harness" id="main">
         <h1 ref={heading} tabIndex={-1} className="visually-hidden">
-          {load.kind === 'anonymous' ? 'Shape the work together.' : 'Build'}
+          {load.kind === 'ready' ? 'Shape the work together.' : 'Build'}
         </h1>
-        {load.kind === 'anonymous' && !isHandedOff && (
+        {load.kind === 'ready' && !isHandedOff && (
           <div className="harness-bar">
             <StartOver csrfToken={load.conversation.csrfToken} />
           </div>
@@ -273,10 +273,10 @@ export function BuildPage() {
             </div>
           </div>
         )}
-        {load.kind === 'anonymous' && load.harness === 'disabled' && (
+        {load.kind === 'ready' && load.harness === 'disabled' && (
           <DisabledHarness conversation={load.conversation} />
         )}
-        {load.kind === 'anonymous' && load.harness === 'paused' && (
+        {load.kind === 'ready' && load.harness === 'paused' && (
           <PausedHarness
             conversation={load.conversation}
             onHandedOff={() => {
@@ -284,7 +284,7 @@ export function BuildPage() {
             }}
           />
         )}
-        {load.kind === 'anonymous' && load.harness === 'live' && (
+        {load.kind === 'ready' && load.harness === 'live' && (
           <LiveHarness
             initial={load.conversation}
             onReload={() => void loadBuild()}

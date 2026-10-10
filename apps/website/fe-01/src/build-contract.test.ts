@@ -3,7 +3,9 @@ import { describe, expect, test } from 'bun:test';
 import {
   buildReturnUrl,
   InvalidConversation,
+  InvalidDraft,
   parseConversation,
+  parseDraft,
   parseEntry,
 } from './build-contract';
 
@@ -29,6 +31,37 @@ describe('Build entry', () => {
     expect(() => parseEntry({ available: false, reason: null })).toThrow('entry response');
     expect(() => parseEntry({ available: true, reason: 'missing' })).toThrow('entry response');
     expect(() => parseEntry({ available: false, reason: 'foreign' })).toThrow('entry response');
+  });
+});
+
+describe('manual draft boundary', () => {
+  const draft = {
+    description: 'A booking tool',
+    brief: '',
+    csrfToken: 'a'.repeat(64),
+    expiresAt: '2026-10-12T12:00:00.000Z',
+    provider: 'disabled' as const,
+  };
+
+  test('accepts the draft contract with its provider', () => {
+    expect(parseDraft(draft)).toEqual(draft);
+    expect(parseDraft({ ...draft, provider: 'paused' }).provider).toBe('paused');
+  });
+
+  test('a draft with a malformed expiresAt is invalid', () => {
+    // Proof: accepting any expiresAt string made this parse succeed and the manual brief throw
+    // inside render instead of showing its load-error state.
+    for (const expiresAt of ['tomorrow', '', 42, undefined])
+      expect(() => parseDraft({ ...draft, expiresAt })).toThrow(InvalidDraft);
+  });
+
+  test('a draft without a known provider or required text is invalid', () => {
+    const { provider: _provider, ...withoutProvider } = draft;
+    expect(() => parseDraft(withoutProvider)).toThrow(InvalidDraft);
+    expect(() => parseDraft({ ...draft, provider: 'enabled' })).toThrow(InvalidDraft);
+    expect(() => parseDraft({ ...draft, csrfToken: '' })).toThrow(InvalidDraft);
+    expect(() => parseDraft({ ...draft, description: null })).toThrow(InvalidDraft);
+    expect(() => parseDraft(null)).toThrow(InvalidDraft);
   });
 });
 

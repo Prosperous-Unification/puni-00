@@ -15,6 +15,18 @@ export function offersBuild(draft: { expiresAt: string }, now: number): boolean 
   return expiresAt > now;
 }
 
+/**
+ * Whether the manual brief offers AI exploration: the claim is live ({@link offersBuild}) and the
+ * conversation provider answers (`openrouter` or `demo`). A disabled or paused provider would only
+ * send the visitor to a Build that sends them back (veto V14).
+ */
+export function offersAi(
+  draft: { expiresAt: string; provider: 'openrouter' | 'demo' | 'disabled' | 'paused' },
+  now: number,
+): boolean {
+  return offersBuild(draft, now) && (draft.provider === 'openrouter' || draft.provider === 'demo');
+}
+
 /** Fetch rejects with a TypeError for network failures; browsers word its message differently. */
 function isNetworkFailure(error: unknown): boolean {
   return (
