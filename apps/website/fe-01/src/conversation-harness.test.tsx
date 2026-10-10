@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { Conversation } from './build-contract';
-import { LiveHarness, PausedHarness, SignOut } from './conversation-harness';
+import { LiveHarness, PausedHarness } from './conversation-harness';
 
 const reply = [
   'Here is the brief as I understand it:',
@@ -451,51 +451,4 @@ test('a refused check from the API shows the manual path', async () => {
   expect(api.posts).toHaveLength(1);
   expect(harness.container.querySelector('.harness-interrupted')).toBeNull();
   harness.unmount();
-});
-
-test('a session shows Sign out, which ends it with the session CSRF token', async () => {
-  const deletes: { method: string; csrf: string | null }[] = [];
-  globalThis.fetch = Object.assign(
-    (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
-      const url = input instanceof Request ? input.url : String(input);
-      if (!url.endsWith('/session')) throw new Error(`Unexpected request ${url}`);
-      deletes.push({
-        method: init?.method ?? 'GET',
-        csrf: new Headers(init?.headers).get('x-puni-csrf'),
-      });
-      return Promise.resolve(new Response(null, { status: 204 }));
-    },
-    { preconnect: realFetch.preconnect },
-  );
-  const container = dom.window.document.createElement('div');
-  dom.window.document.body.replaceChildren(container);
-  const root = createRoot(container);
-  let signedOut = 0;
-  await act(async () => {
-    root.render(
-      <SignOut
-        csrfToken="session-csrf"
-        onSignedOut={() => {
-          signedOut += 1;
-        }}
-      />,
-    );
-    await Promise.resolve();
-  });
-  const button = [...container.querySelectorAll('button')].find(
-    (candidate) => candidate.textContent === '[ Sign out ]',
-  );
-  if (!button) throw new Error('Sign out is missing');
-  await act(async () => {
-    button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
-    await Promise.resolve();
-  });
-  await settleUntil(
-    () => signedOut === 1,
-    () => JSON.stringify(deletes),
-  );
-  expect(deletes).toEqual([{ method: 'DELETE', csrf: 'session-csrf' }]);
-  act(() => {
-    root.unmount();
-  });
 });

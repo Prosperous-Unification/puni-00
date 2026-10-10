@@ -2,7 +2,7 @@ import { type BrowserCheckSolution, displayReply, readReplyReplacement } from '@
 import { DefaultChatTransport, type UIMessage } from 'ai';
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
-import { ApiFailure, apiOrigin, requestJson, sendCommand, streamFetch } from './api';
+import { ApiFailure, apiOrigin, requestJson, streamFetch } from './api';
 import { describeFailure, unreachableMessage } from './app-flow';
 import { type BrowserCheckSolver, solveInBrowser } from './browser-check';
 import {
@@ -715,54 +715,5 @@ export function PausedHarness({
         </div>
       </section>
     </div>
-  );
-}
-
-/**
- * `[ Sign out ]` in the harness bar while a prospect session exists: `DELETE /session` with the
- * session CSRF token, then `onSignedOut` reloads Build as an anonymous visitor. The draft claim
- * and the account's requests are untouched.
- */
-export function SignOut({
-  csrfToken,
-  onSignedOut,
-}: {
-  csrfToken: string;
-  onSignedOut: () => void;
-}) {
-  const [isPending, setPending] = useState(false);
-  const [failure, setFailure] = useState('');
-
-  async function signOut(): Promise<void> {
-    setPending(true);
-    setFailure('');
-    try {
-      await sendCommand('/session', { method: 'DELETE', headers: { 'X-Puni-CSRF': csrfToken } });
-      onSignedOut();
-    } catch (error) {
-      // An already-ended session is signed out; anything else is shown.
-      if (error instanceof ApiFailure && error.status === 401) onSignedOut();
-      else setFailure(describeFailure(error));
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        className="harness-text-button"
-        disabled={isPending}
-        onClick={() => void signOut()}
-      >
-        [ Sign out ]
-      </button>
-      {failure && (
-        <span className="start-over-failure" role="alert">
-          {failure}
-        </span>
-      )}
-    </>
   );
 }
