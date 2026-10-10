@@ -2,13 +2,18 @@ import React, { useEffect, useState } from 'react';
 
 import { requestJson } from './api';
 import { describeOperatorFailure } from './app-flow';
+import { createOperatorBodyReader } from './operator-view';
 
 const exhaustedReasons = ['turns', 'conversation_spend', 'source_spend', 'site_spend'] as const;
 
 /** Why a conversation was exhausted, as `GET /operator/funnel` keys its counts. */
 export type ExhaustedReason = (typeof exhaustedReasons)[number];
 
-/** One UTC day of `GET /operator/funnel`: counts only. */
+/**
+ * One UTC day of `GET /operator/funnel`: counts only. A `fromChat` proposal request is one whose
+ * draft owns a handed-off conversation (the visitor started the AI chat), not one whose brief the
+ * chat wrote.
+ */
 export interface FunnelDayView {
   utcDay: string;
   drafts: number;
@@ -26,17 +31,7 @@ export class InvalidFunnelCounts extends Error {
   }
 }
 
-function readCount(value: unknown, field: string): number {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
-    throw new InvalidFunnelCounts(field);
-  return value;
-}
-
-function readRecord(value: unknown, field: string): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value))
-    throw new InvalidFunnelCounts(field);
-  return Object.fromEntries(Object.entries(value));
-}
+const { readCount, readRecord } = createOperatorBodyReader(InvalidFunnelCounts);
 
 function parseFunnelDay(value: unknown): FunnelDayView {
   const day = readRecord(value, 'days');

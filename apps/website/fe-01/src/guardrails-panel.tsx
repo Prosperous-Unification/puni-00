@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 import { ApiFailure, requestJson } from './api';
 import { describeOperatorFailure } from './app-flow';
+import { createOperatorBodyReader } from './operator-view';
 
 /** One alert row as `GET /operator/guardrails` lists it. */
 export interface GuardrailAlertView {
@@ -31,17 +32,7 @@ export class InvalidGuardrailOverview extends Error {
   }
 }
 
-function readCount(value: unknown, field: string): number {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
-    throw new InvalidGuardrailOverview(field);
-  return value;
-}
-
-function readRecord(value: unknown, field: string): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value))
-    throw new InvalidGuardrailOverview(field);
-  return Object.fromEntries(Object.entries(value));
-}
+const { readCount, readRecord } = createOperatorBodyReader(InvalidGuardrailOverview);
 
 /**
  * Validates the `GET /operator/guardrails` body at the API boundary.

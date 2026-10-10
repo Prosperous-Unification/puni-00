@@ -1019,6 +1019,16 @@ textarea {
   top: 0;
   background: var(--paper);
 }
+/* The UTC day stays in view while the table scrolls sideways at narrow widths. */
+.funnel-table tbody th,
+.funnel-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--paper);
+}
+.funnel-table thead th:first-child {
+  z-index: 1;
+}
 .inbox {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));

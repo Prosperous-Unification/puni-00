@@ -11,7 +11,8 @@ import { type CeilingSettled, readCeilingSettled, utcDayOf } from './guardrail-s
  * - `briefsCaptured`: completed `brief`-stage operations that day whose capture was not `empty`;
  * - `exhausted`: conversations created that day that are now exhausted, by reason;
  * - `proposals`: `proposal_submission` rows created that day, `fromChat` when the draft's
- *   conversation is `handed_off`, otherwise `manual`;
+ *   conversation is `handed_off` (the visitor started the AI chat; it does not mean the chat
+ *   wrote the brief), otherwise `manual`;
  * - `ceilingSettled`: that day's {@link readCeilingSettled}.
  *
  * Rows erased by draft retention are no longer counted, so a day past the retention cutoff is a

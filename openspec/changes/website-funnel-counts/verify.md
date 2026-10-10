@@ -43,3 +43,17 @@ viewport.
 - `bin/with-heavy-lock.sh` around the browser run: it refused on this workstation
   (`/home/puni1/.cache does not exist`); the run used exclusive local ports instead.
 - The private snapshot, a preview release and a live operator read: the release lane after S4.
+
+## Review follow-ups (Fable verdict MERGE, 2026-10-11)
+
+- The UTC-day column is sticky (`.funnel-table tbody th`, `thead th:first-child`; `z-index: 1` on
+  the corner). `operator-funnel` now scrolls the region to its right end and requires the day
+  cell at the region's left edge. Negative: without `position: sticky` it reported "the UTC day
+  column scrolls out of view" at 768, 390 and 320 (1440 does not overflow). Strict operator
+  captures afterwards: 16 OK, every CLS 0.000. One earlier run timed out at 320 waiting for the
+  sign-in form before any page content rendered; the immediate rerun passed all 16.
+- `readCount` and `readRecord` moved to `operator-view.ts` (`createOperatorBodyReader`), used by
+  both panel parsers with their own contract errors. `FunnelDay` JSDoc states that from-chat
+  means the draft owns a handed-off conversation, not that the chat wrote the brief.
+- `nx run-many -t lint typecheck test build -p website-fe-01 website-store-sqlite --skip-nx-cache`:
+  exit 0, fe-01 84 and store 83 tests.

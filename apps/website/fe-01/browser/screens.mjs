@@ -348,6 +348,19 @@ if (operatorPassword)
           problems.push('missing the chat share line');
         if (!/Ceiling-settled today/.test(await page.locator('section.guardrails').innerText()))
           problems.push('missing the ceiling-settled line in Guardrails');
+        // The UTC day stays at the region's left edge while the table scrolls sideways.
+        // Proof: dropping `position: sticky` from the day cells made this report at 768, 390 and 320.
+        const region = panel.locator('.funnel-scroll');
+        await region.evaluate((element) => {
+          element.scrollLeft = element.scrollWidth;
+        });
+        const regionBox = await region.boundingBox();
+        const dayBox = await panel.locator('tbody th').first().boundingBox();
+        if (!regionBox || !dayBox || Math.abs(dayBox.x - regionBox.x) > 2)
+          problems.push('the UTC day column scrolls out of view');
+        await region.screenshot({
+          path: `${outDir}/app-operator-funnel-scrolled-${String(page.viewportSize()?.width)}.png`,
+        });
         return problems;
       },
       ready: (page) => page.locator('section.funnel .funnel-table').waitFor(),
