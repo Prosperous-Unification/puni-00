@@ -1,0 +1,2197 @@
+<title>Twilight Factory Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+/>
+<style>
+  :root {
+    color-scheme: light;
+    --ground: #f6f6f3;
+    --surface: #ffffff;
+    --surface-2: #eeeeea;
+    --ink: #16181d;
+    --ink-2: #4b5060;
+    --muted: #7b8090;
+    --hair: #dcdfe3;
+    --axis: #c3c6cc;
+    --accent: #2a78d6;
+    --accent-ink: #1c5cab;
+    --accent-wash: #e3eefb;
+    --s1: #2a78d6;
+    --s2: #eb6834;
+    --s3: #1baf7a;
+    --s4: #eda100;
+    --deemph: #c3c6cc;
+    --bad: #d03b3b;
+    --good: #006300;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      color-scheme: dark;
+      --ground: #111214;
+      --surface: #1a1a19;
+      --surface-2: #232322;
+      --ink: #f4f4f1;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --hair: #2c2c2a;
+      --axis: #383835;
+      --accent: #3987e5;
+      --accent-ink: #86b6ef;
+      --accent-wash: #16294a;
+      --s1: #3987e5;
+      --s2: #d95926;
+      --s3: #199e70;
+      --s4: #c98500;
+      --deemph: #4a4a47;
+      --bad: #e66767;
+      --good: #0ca30c;
+    }
+  }
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --ground: #111214;
+    --surface: #1a1a19;
+    --surface-2: #232322;
+    --ink: #f4f4f1;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --hair: #2c2c2a;
+    --axis: #383835;
+    --accent: #3987e5;
+    --accent-ink: #86b6ef;
+    --accent-wash: #16294a;
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s4: #c98500;
+    --deemph: #4a4a47;
+    --bad: #e66767;
+    --good: #0ca30c;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  main {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 40px 24px 96px;
+  }
+  .prose {
+    max-width: 68ch;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--serif);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  h1 {
+    font-size: 40px;
+    line-height: 1.1;
+    font-variation-settings: 'opsz' 72;
+  }
+  h2 {
+    font-size: 26px;
+    line-height: 1.2;
+    font-variation-settings: 'opsz' 36;
+    margin-top: 64px;
+  }
+  h3 {
+    font-size: 18px;
+    font-family: var(--sans);
+    font-weight: 600;
+    margin-top: 28px;
+  }
+  p {
+    margin: 12px 0;
+    color: var(--ink);
+  }
+  p.lede {
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--ink-2);
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  a {
+    color: var(--accent-ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  code,
+  .num {
+    font-family: var(--mono);
+    font-size: 0.93em;
+  }
+  .num,
+  td.n,
+  th.n {
+    font-variant-numeric: tabular-nums;
+  }
+  hr {
+    border: 0;
+    border-top: 1px solid var(--hair);
+    margin: 40px 0;
+  }
+  ul {
+    padding-left: 20px;
+  }
+  li {
+    margin: 6px 0;
+  }
+  strong {
+    font-weight: 600;
+  }
+
+  header {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 36px;
+  }
+  .answer {
+    border-left: 3px solid var(--accent);
+    padding: 4px 0 4px 18px;
+    max-width: 72ch;
+  }
+  .answer p {
+    margin: 8px 0;
+  }
+
+  .verdicts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .verdict {
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    padding: 18px 18px 16px;
+    display: grid;
+    gap: 8px;
+    align-content: start;
+  }
+  .verdict .eyebrow {
+    display: flex;
+    justify-content: space-between;
+  }
+  .verdict .premise {
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.35;
+    font-variation-settings: 'opsz' 18;
+  }
+  .verdict .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border: 1px solid var(--hair);
+    color: var(--ink-2);
+    align-self: start;
+    justify-self: start;
+  }
+  .verdict .tag.holds {
+    border-color: var(--good);
+    color: var(--good);
+  }
+  .verdict .tag.narrow {
+    border-color: var(--s4);
+    color: var(--ink-2);
+  }
+  .verdict .body {
+    font-size: 14px;
+    color: var(--ink-2);
+  }
+  .verdict .signal {
+    font-size: 13px;
+    color: var(--muted);
+    border-top: 1px solid var(--hair);
+    padding-top: 8px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    padding: 22px 24px 24px;
+    margin-top: 18px;
+  }
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 16px 28px;
+  }
+  .ctl {
+    display: grid;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .ctl label {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .ctl output {
+    font-family: var(--mono);
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .ctl input[type='range'] {
+    width: 100%;
+    accent-color: var(--accent);
+    margin: 2px 0 0;
+  }
+  .ctl select {
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--surface-2);
+    border: 1px solid var(--hair);
+    padding: 6px 8px;
+    width: 100%;
+  }
+  .ctl .hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+  }
+  legend {
+    padding: 0;
+    margin: 20px 0 10px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  legend:first-child {
+    margin-top: 0;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 0;
+    border: 1px solid var(--hair);
+    background: var(--surface);
+    margin-top: 24px;
+  }
+  .kpi {
+    padding: 16px 18px;
+    border-right: 1px solid var(--hair);
+    display: grid;
+    gap: 4px;
+    align-content: start;
+  }
+  .kpi:last-child {
+    border-right: 0;
+  }
+  .kpi .l {
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .kpi .v {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 500;
+    line-height: 1.1;
+  }
+  .kpi .d {
+    font-size: 12.5px;
+    color: var(--ink-2);
+  }
+  .kpi.warn .v {
+    color: var(--bad);
+  }
+
+  .chart {
+    margin-top: 26px;
+  }
+  .chart .cap {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .chart .cap h3 {
+    margin: 0;
+  }
+  .chart .sub {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .chart svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    margin-top: 10px;
+    overflow: visible;
+  }
+  .chart text {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    fill: var(--ink-2);
+  }
+  .chart text.v {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    fill: var(--ink);
+  }
+  .chart text.m {
+    fill: var(--muted);
+    font-size: 11.5px;
+  }
+  .chart line.grid {
+    stroke: var(--hair);
+    stroke-width: 1;
+  }
+  .chart line.base {
+    stroke: var(--axis);
+    stroke-width: 1;
+  }
+  .chart rect.bar {
+    rx: 0;
+  }
+  .chart .hit {
+    fill: transparent;
+    cursor: default;
+  }
+  .legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    margin-top: 8px;
+  }
+  .legend span::before {
+    content: '';
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 6px;
+    vertical-align: -1px;
+    background: var(--sw);
+  }
+  .tip {
+    position: fixed;
+    pointer-events: none;
+    z-index: 10;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--hair);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    padding: 8px 10px;
+    font-size: 12.5px;
+    max-width: 320px;
+    display: none;
+  }
+  .tip b {
+    font-family: var(--mono);
+    font-weight: 500;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13.5px;
+    margin-top: 12px;
+  }
+  th,
+  td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--hair);
+    vertical-align: top;
+  }
+  th {
+    font-weight: 500;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+  }
+  th.n,
+  td.n {
+    text-align: right;
+    font-family: var(--mono);
+  }
+  td.n {
+    color: var(--ink);
+  }
+  tr.total td {
+    font-weight: 600;
+    border-top: 1px solid var(--axis);
+  }
+  .tw {
+    overflow-x: auto;
+  }
+  .small {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .plan ol {
+    padding-left: 22px;
+  }
+  .plan li {
+    margin: 12px 0;
+  }
+  .plan li strong {
+    display: block;
+  }
+  details {
+    border-top: 1px solid var(--hair);
+    padding: 12px 0;
+  }
+  details summary {
+    cursor: pointer;
+    font-weight: 500;
+  }
+  details ul {
+    margin-top: 8px;
+  }
+
+  @media (max-width: 760px) {
+    h1 {
+      font-size: 32px;
+    }
+    .verdicts {
+      grid-template-columns: 1fr;
+    }
+    .kpi {
+      border-right: 0;
+      border-bottom: 1px solid var(--hair);
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .chart rect.bar {
+      transition:
+        width 0.25s ease,
+        x 0.25s ease;
+    }
+  }
+</style>
+
+<main>
+  <header>
+    <div class="eyebrow">Unit economics · Twilight Structure · 2026-09-08</div>
+    <p class="small">
+      Historical research snapshot, prepared for publication 2026-10-06. Prices, policies and model
+      claims are the original dated assumptions, not current advice. Figures are estimates, not
+      measured client outcomes.
+    </p>
+    <h1>What one accepted feature costs, and what the harness is actually for</h1>
+    <p class="lede prose">
+      A solo factory selling staging-proven, accepted software outcomes to SMB clients. Every number
+      below is live: move the sliders to test the three premises against each other.
+    </p>
+    <div class="answer">
+      <p>
+        <strong>Model tokens are 1–3% of the price of an accepted outcome.</strong> A medium feature
+        costs about <span class="num" id="a-mix">$20</span> in tokens on Anthropic list prices
+        through the full Twilight stage structure, against a market price of $1,500–8,000. Doubling
+        the token price, or halving it with open weights, moves gross margin by about one percentage
+        point.
+      </p>
+      <p>
+        <strong
+          >The subsidy premise 1 expects to end is already gone for the factory's usage
+          mode.</strong
+        >
+        Third-party harnesses were metered at API rates on 2026-04-04, and the carve-out for
+        <code>claude -p</code>, the Agent SDK and ACP is drafted, paused since 2026-06-15. Plan on
+        API list. At 20 units a month the subsidy would be worth about $10 per feature anyway.
+      </p>
+      <p>
+        <strong>What binds is human minutes.</strong> One operator has roughly 140 productive hours
+        a month. The harness raises model cost per unit 1.5–2× over driving Claude Code by hand,
+        because it adds discovery, critique, a judge and an acceptance pass. It earns its 300–700
+        build hours by cutting operator minutes per accepted outcome from about three hours to under
+        one, raising the acceptance rate, and producing evidence a client will pay for. Its verifier
+        is also what makes a cheaper implement model safe, which matters for the tail: epics,
+        fan-out, nightly sweeps.
+      </p>
+    </div>
+  </header>
+
+  <section>
+    <div class="eyebrow">Three premises, tested against the evidence</div>
+    <div class="verdicts">
+      <div class="verdict">
+        <div class="eyebrow"><span>Premise 1</span></div>
+        <div class="premise">Subscriptions will soon be priced close to API usage.</div>
+        <span class="tag narrow">Holds, narrower</span>
+        <div class="body">
+          True at the margin and for programmatic use: every overflow token, every Enterprise token
+          and every third-party harness token is already billed at API list, and OpenAI's Codex
+          credits map to API list at exactly $0.04. Headline plan prices have not moved in 17
+          months; API prices fell toward them. Interactive use stays subsidised at 7–30× for heavy
+          users, and a week after Fable 5.1 launched Max still gets it at half its weekly limit. For
+          a factory that drives sessions over ACP the question is already settled by policy: plan
+          credentials may not be used on behalf of clients.
+        </div>
+        <div class="signal">
+          Decisive signals: 2026-09-13, when the +50% weekly limits are due to revert; the pause
+          banner on the Agent SDK plan article gaining an effective date; whether the next flagship
+          launches credits-only on Max.
+        </div>
+      </div>
+      <div class="verdict">
+        <div class="eyebrow"><span>Premise 2</span></div>
+        <div class="premise">
+          Until then, a custom harness that can use cheaper models is buildable.
+        </div>
+        <span class="tag narrow">Wrong as stated; build it anyway</span>
+        <div class="body">
+          There is no window: Twilight is API-metered by design (a rate card, provider-billed cost
+          reconciled per attempt, per-repo credentials), so the subsidy it would race is one it
+          cannot use. The build is 343–684 hours with allowances, four to nine months solo. And
+          "cheaper models" is a config line, not a harness property: under the same scaffold every
+          cheaper implement model costs as much as or more than the Sonnet 5 already shipped. What
+          survives is worth more than the claim: operator minutes per accepted outcome cut roughly
+          six-fold, an independent acceptance oracle, and the first honest measurement of cost per
+          accepted feature.
+        </div>
+        <div class="signal">
+          Decisive signal: the first ten accepted-outcome ledgers, split model / tool / human
+          minutes. If model tokens are under 10%, the cheaper-model half is closed on arithmetic.
+        </div>
+      </div>
+      <div class="verdict">
+        <div class="eyebrow"><span>Premise 3</span></div>
+        <div class="premise">Open-weight models will be OK for coding and much cheaper.</div>
+        <span class="tag narrow">Holds, for named models</span>
+        <div class="body">
+          "OK" holds: GLM-5.3 and DeepSeek V4 Pro sit within a point of Opus 5 on an independent
+          SWE-bench harness. "Much cheaper" does not. At a 90% cache hit rate the bill is cache
+          reads, and GLM-5.3's ($0.26) is above Sonnet 5's ($0.20) and Fable 5.1's ($0.25); GLM's 2×
+          edge per accepted outcome comes from pass@1 quality and inverts above a 93% hit rate.
+          DeepSeek needs ~5 attempts, MiniMax burns 5.5× tokens, Kimi K3 is priced above Sonnet. The
+          cheapest model per accepted feature in every estimate is closed: GPT-5.6 Sol at 0.24× the
+          tokens.
+        </div>
+        <div class="signal">
+          Decisive signal: measured on Twilight's own fixture, GLM-5.3's cache hit rate, token
+          multiplier and attempts-to-accept. Adopt only if h < 93%, tokens < 2.2× and attempts ≤
+          1.2. No same-scaffold row exists yet for any 2026 open flagship.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The calculator</h2>
+    <p class="prose">
+      Processed-token accounting: cost = uncached input × price × 1.25 (cache write) + cached reads
+      × cache price + output × output price, then the Twilight stage overhead and the model's
+      attempts multiplier on the implement share. Defaults are the base case; ranges are in the
+      assumptions at the end.
+    </p>
+
+    <div class="panel">
+      <fieldset>
+        <legend>Serving and tokens</legend>
+        <div class="controls">
+          <div class="ctl">
+            <label for="serving">Serving scenario</label>
+            <select id="serving"></select>
+            <div class="hint" id="serving-hint"></div>
+          </div>
+          <div class="ctl">
+            <label for="cache">Cache hit rate <output id="cache-o"></output></label
+            ><input type="range" id="cache" min="0.5" max="0.97" step="0.01" value="0.90" />
+            <div class="hint">Claude Code sessions measure 91–95%.</div>
+          </div>
+          <div class="ctl">
+            <label for="process">Twilight stage overhead <output id="process-o"></output></label
+            ><input type="range" id="process" min="1" max="3" step="0.1" value="1.7" />
+            <div class="hint">
+              × a single Claude Code session: discovery, spec critique, plan, knowledge, critic +
+              judge, second rework round.
+            </div>
+          </div>
+          <div class="ctl">
+            <label for="implshare"
+              >Implement share of tokens <output id="implshare-o"></output></label
+            ><input type="range" id="implshare" min="0.3" max="0.9" step="0.05" value="0.6" />
+            <div class="hint">The share the attempts multiplier applies to.</div>
+          </div>
+          <div class="ctl">
+            <label for="tail">Share of units at p90 size <output id="tail-o"></output></label
+            ><input type="range" id="tail" min="0" max="0.5" step="0.05" value="0.2" />
+            <div class="hint">p90 is 3–5× p50 tokens; run-to-run variance reaches 30×.</div>
+          </div>
+          <div class="ctl">
+            <label for="subceil"
+              >Max 20x seat: API-equivalent it absorbs per month
+              <output id="subceil-o"></output></label
+            ><input type="range" id="subceil" min="200" max="6000" step="50" value="1450" />
+            <div class="hint">
+              Anchors: $200 (Anthropic's enterprise developer average), $1,450 (heavy-user median),
+              $5,800 (heavy Opus). Only used by the subscription scenario.
+            </div>
+          </div>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Human time and price</legend>
+        <div class="controls">
+          <div class="ctl">
+            <label for="hrate">Value of an operator hour <output id="hrate-o"></output></label
+            ><input type="range" id="hrate" min="40" max="300" step="10" value="100" />
+            <div class="hint">
+              Opportunity cost. EE senior $40–85, US senior $75–150, AI-native implied $100–300.
+            </div>
+          </div>
+          <div class="ctl">
+            <label for="hmed">Human minutes per medium feature <output id="hmed-o"></output></label
+            ><input type="range" id="hmed" min="30" max="360" step="10" value="120" />
+            <div class="hint">
+              Request shaping, plan approval, pauses, acceptance, release, client thread. Small =
+              0.4×, large = 3.5×. Unmeasured; the audit's band is 45–240.
+            </div>
+          </div>
+          <div class="ctl">
+            <label for="pmed">Price of a medium feature <output id="pmed-o"></output></label
+            ><input type="range" id="pmed" min="500" max="8000" step="100" value="2000" />
+            <div class="hint">
+              Small = 0.35×, large = 4.5×. Fraction sells $99/point ($800–1,500 for a feature);
+              HouseofMVPs $3,999 per feature.
+            </div>
+          </div>
+          <div class="ctl">
+            <label for="infra">Fixed infra per month <output id="infra-o"></output></label
+            ><input type="range" id="infra" min="50" max="1500" step="25" value="100" />
+            <div class="hint">
+              K3s server + 2 agent nodes on Netcup (~€70), Browserbase Developer $20, storage.
+              $60–250 by node size.
+            </div>
+          </div>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Volume</legend>
+        <div class="controls">
+          <div class="ctl">
+            <label for="clients">Clients <output id="clients-o"></output></label
+            ><input type="range" id="clients" min="1" max="12" step="1" value="5" />
+          </div>
+          <div class="ctl">
+            <label for="usmall">Small fixes per client-month <output id="usmall-o"></output></label
+            ><input type="range" id="usmall" min="0" max="12" step="1" value="2" />
+          </div>
+          <div class="ctl">
+            <label for="umed">Medium features per client-month <output id="umed-o"></output></label
+            ><input type="range" id="umed" min="0" max="8" step="0.5" value="1" />
+          </div>
+          <div class="ctl">
+            <label for="ularge"
+              >Large / epics per client-month <output id="ularge-o"></output></label
+            ><input type="range" id="ularge" min="0" max="2" step="0.05" value="0.1" />
+          </div>
+          <div class="ctl">
+            <label for="comms">Client hours per client-month <output id="comms-o"></output></label
+            ><input type="range" id="comms" min="0" max="12" step="1" value="3" />
+            <div class="hint">
+              Calls, scoping, invoicing. Plus 15 h/month fixed for sales and ops.
+            </div>
+          </div>
+          <div class="ctl">
+            <label for="capacity"
+              >Productive hours available <output id="capacity-o"></output></label
+            ><input type="range" id="capacity" min="60" max="200" step="10" value="140" />
+          </div>
+        </div>
+      </fieldset>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="chart" id="stack-chart">
+      <div class="cap">
+        <h3>Cost stack per accepted outcome</h3>
+        <span class="sub">Base case per class, at the selected serving scenario</span>
+      </div>
+      <svg
+        viewBox="0 0 1000 200"
+        role="img"
+        aria-label="Stacked bars of model, human and infrastructure cost per accepted outcome for small, medium and large units"
+      ></svg>
+      <div class="legend">
+        <span style="--sw: var(--s1)">Model tokens</span
+        ><span style="--sw: var(--s2)">Human minutes</span
+        ><span style="--sw: var(--s3)">Infra, cloud browser, nightly sweeps</span>
+      </div>
+    </div>
+
+    <div class="chart" id="serving-chart">
+      <div class="cap">
+        <h3>Model cost of one accepted medium feature, by serving scenario</h3>
+        <span class="sub"
+          >Same cache, overhead and tail settings; open-weight bars include their token and attempts
+          multipliers</span
+        >
+      </div>
+      <svg
+        viewBox="0 0 1000 420"
+        role="img"
+        aria-label="Horizontal bars comparing model cost per accepted medium feature across serving scenarios"
+      ></svg>
+    </div>
+
+    <div class="tw">
+      <table id="pnl"></table>
+    </div>
+
+    <div class="chart" id="tornado">
+      <div class="cap">
+        <h3>What moves monthly margin after operator time</h3>
+        <span class="sub">One lever at a time from the current settings</span>
+      </div>
+      <svg
+        viewBox="0 0 1000 300"
+        role="img"
+        aria-label="Tornado chart of margin sensitivity to each lever"
+      ></svg>
+    </div>
+  </section>
+
+  <section>
+    <h2>The harness as an investment</h2>
+    <p class="prose">
+      Without the harness the counterfactual is the operator driving Claude Code interactively, one
+      thing at a time, with no independent acceptance: more human minutes per outcome, fewer
+      clients, and a price that is harder to defend because nothing but the operator's word proves
+      the deliverable. With it, the operator approves a plan once, gets paused only when a run
+      leaves its envelope, and sells acceptance evidence.
+    </p>
+    <div class="panel">
+      <div class="controls">
+        <div class="ctl">
+          <label for="bhours">Build hours (M1–M4) <output id="bhours-o"></output></label
+          ><input type="range" id="bhours" min="150" max="1000" step="10" value="420" />
+          <div class="hint">
+            Personal delivery loop 280–560 h by the plan; all 16 tasks 343–684 h. The plan's M1
+            estimate grew 1.5× in one review, so add drift.
+          </div>
+        </div>
+        <div class="ctl">
+          <label for="bpace">Hours per month on the harness <output id="bpace-o"></output></label
+          ><input type="range" id="bpace" min="40" max="160" step="10" value="100" />
+        </div>
+        <div class="ctl">
+          <label for="nohmult"
+            >Human minutes without harness, × <output id="nohmult-o"></output></label
+          ><input type="range" id="nohmult" min="1.5" max="6" step="0.1" value="2.0" />
+          <div class="hint">Interactive driving, manual review, manual UAT.</div>
+        </div>
+        <div class="ctl">
+          <label for="nohprice"
+            >Price without acceptance evidence, × <output id="nohprice-o"></output></label
+          ><input type="range" id="nohprice" min="0.5" max="1" step="0.05" value="0.8" />
+        </div>
+      </div>
+      <div class="kpis" id="payback-kpis" style="margin-top: 20px"></div>
+      <p class="small" id="payback-note"></p>
+    </div>
+  </section>
+
+  <section class="prose plan">
+    <h2>The plan that falls out of the numbers</h2>
+    <ol>
+      <li>
+        <strong>Price the model line at API list from day one.</strong> Treat any
+        subscription-included usage as a windfall for the operator's own interactive work, never a
+        plan input. Twilight already presupposes metered billing, needs a provider-billed cost per
+        attempt to reconcile its ledger, and requires per-repo credentials that a personal seat
+        cannot supply.
+      </li>
+      <li>
+        <strong
+          >Settle what a "token" is in the budget caps, then re-derive them from the first
+          ledgers.</strong
+        >
+        Balanced's 1.5M-token limb is about 30× tighter than what its own $40 buys and 40× tighter
+        than its six agent-hours; the money and time limbs agree with each other and the token limb
+        is the outlier. At the consensus 17M processed tokens per medium feature it is breached at
+        the median under both readings: nearly every feature pauses under processed semantics,
+        30–55% under uncached-plus-output, against about 15% for the $40 cap. Derive tokens as money
+        divided by the pinned blended rate, or drop the limb.
+      </li>
+      <li>
+        <strong>Measure human minutes per touchpoint from the first run.</strong> They are 80–96% of
+        the cost of an accepted outcome and the one line the plan measures least precisely. Every
+        pause the caps cause is roughly $50 of the expensive resource.
+      </li>
+      <li>
+        <strong
+          >Build the acceptance oracle and the ledger before anything that saves tokens.</strong
+        >
+        The oracle turns a cheaper model's pass@5 into an accepted outcome and is what lets you sell
+        acceptance. The ledger produces the per-stage token distribution nobody has measured, and
+        the plan's own token estimates are two orders of magnitude below consumption, so nothing
+        downstream of them can be trusted yet.
+      </li>
+      <li>
+        <strong
+          >Sweep effort before switching model; the next adapter is Codex, not an open-weight
+          one.</strong
+        >
+        Artificial Analysis measures Fable 5.1 at high effort costing half of max for two points,
+        and GPT-6 Astra likewise; effort is the cheap lever and keeps one cache namespace. Then
+        route by class: a flagship on plan, critic and judge, where one attempt has to be right.
+        GPT-5.6 Sol on implement saves about 1.45× more per feature than GLM-5.3 for the same
+        adapter cost and is already the plan's second probe. Batch the asynchronous review stages at
+        50% off; that alone is worth more than the whole open-weight substitution. Keep the
+        Sonnet→Opus escalation ladder: it beats Opus-first while Sonnet fails under 57% of attempts.
+      </li>
+      <li>
+        <strong
+          >If an open-weight implement class is added, verify it with tools, not a flagship judge,
+          and give it its own escalation target.</strong
+        >
+        A model that needs four attempts under an Opus judge is the worst of both. GLM-5.3 is the
+        candidate; adopt it only when Twilight's own fixture measures a cache hit rate under 93%, a
+        token multiplier under 2.2 and attempts to accept at or below 1.2. Never route MiniMax M3 to
+        agentic coding, and use DeepSeek V4 Pro off-peak only for bulk, tool-verified,
+        latency-tolerant work.
+      </li>
+      <li>
+        <strong>Do not self-host.</strong> An 8×H200 node rents for about $32 an hour and decodes a
+        DeepSeek-class model at roughly 2,200 tokens a second per GPU, which is $0.50 per million
+        output tokens at full utilisation and break-even against hosted GLM or DeepSeek prices at
+        5–6 billion output tokens a month. A solo factory processes 0.2–1 billion tokens a month,
+        90% of them cache reads, so the node would sit below 3% utilisation and cost tens of dollars
+        per million. Rent per token, prefer hosts that price cache reads.
+      </li>
+      <li>
+        <strong
+          >Build interactively on the subscription; do not run the build through the harness until
+          revenue starts.</strong
+        >
+        Dogfooding converts subsidised tokens into metered ones at a 7–17× cash multiple. The
+        subsidy is legitimate for one operator's own work and worth $1.5–24k over the build; one
+        month of earlier revenue is worth more than the whole of it.
+      </li>
+      <li>
+        <strong>Sell turnaround and acceptance, not hours.</strong> Price per unit is the lever
+        worth ±50% of margin; every model lever together is worth about one point. The productized
+        shops price by queue speed (€2k / €4k / €8k for 4 / 2 / 1 business days). Staging-proven
+        acceptance justifies the upper half of each band. A retainer of $3–8k per client-month with
+        a named unit allowance is the simplest contract; an unbounded allowance is the one shape
+        where model cost could stop being noise.
+      </li>
+      <li>
+        <strong>Protect the human bottleneck, and relieve the cheap one.</strong> Ceilings bind in
+        this order: demand, then the token cap's pauses, then operator minutes at 8–19 clients, then
+        the two-node pool at about three concurrent clients (€20–50 a month per extra node), and
+        only in bursts the serialized staging path. Every design decision that removes a pause, an
+        approval or a manual acceptance step raises revenue more than any model swap.
+      </li>
+      <li>
+        <strong>Watch four dated signals.</strong> 2026-09-13, when the +50% Claude Code weekly
+        limits are due to revert or be extended a sixth time. The pause banner on Anthropic's Agent
+        SDK plan article gaining an effective date, which meters ACP at API list. 2026-11-21, when
+        GPT-5.6 Sol's promo price reverts or is made permanent. And the day-one plan status of the
+        next flagship on Max.
+      </li>
+    </ol>
+  </section>
+
+  <section class="prose">
+    <h2>Assumptions and sources</h2>
+    <details open>
+      <summary>Token profile per accepted unit</summary>
+      <ul>
+        <li>
+          Processed input incl. cache reads / output: small fix p50 1.5M / 25k, p90 5M / 80k; medium
+          feature p50 10M / 150k, p90 40M / 500k; large p50 80M / 1.2M, p90 400M / 5M. Derived from
+          Anthropic's $1.39 per SWE-bench issue on Opus 5, Bun's port (12M processed input and 106k
+          output per commit, $25.4), the July 2026 merged-feature study ($2.81–33.38 per feature)
+          and Anthropic's $13 per developer-day.
+        </li>
+        <li>
+          These are single-harness figures. The Twilight stage overhead slider scales them for
+          discovery, spec critique, planning, knowledge, a judge and a second rework round.
+        </li>
+        <li>
+          Cache hit 90% base. Cache write premium 1.25× on uncached input (5-minute TTL;
+          subscription TTL is 1 hour, credits drop to 5 minutes).
+        </li>
+      </ul>
+    </details>
+    <details>
+      <summary>How five independent estimates of the same number compare</summary>
+      <p class="small">
+        Model cost of one accepted medium feature at Anthropic list, balanced routing, 90% cache
+        hit. Each estimate was built separately from the same fact sheets, then audited for
+        arithmetic.
+      </p>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th>Estimator</th>
+              <th class="n">p50</th>
+              <th class="n">With tail or loading</th>
+              <th>Method</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Bottom-up stage stack (19 attempts, 17.2M processed tokens)</td>
+              <td class="n">$17.17</td>
+              <td class="n">$57 at p90</td>
+              <td>Per-activity token archetypes calibrated to the per-PR anchors</td>
+            </tr>
+            <tr>
+              <td>Top-down business plan</td>
+              <td class="n">$11.56</td>
+              <td class="n">$44 at p90</td>
+              <td>10M anchor × 1.25 ceremony multiplier</td>
+            </tr>
+            <tr>
+              <td>Investment analyst</td>
+              <td class="n">$21.97</td>
+              <td class="n">$44 with 33% unaccepted-run loading and sweeps</td>
+              <td>
+                25M processed; implementation taken as 40% of the pipeline. Excluded by the audit:
+                double-counts ceremony on an end-to-end anchor and charges sweeps at the $8 cap
+              </td>
+            </tr>
+            <tr>
+              <td>Premise refuters</td>
+              <td class="n">$7.72–19.87</td>
+              <td class="n">$10.80 loaded</td>
+              <td>Stage shares on 10M; the higher figure applies 1.75 attempts on implement</td>
+            </tr>
+            <tr>
+              <td>This page at its defaults</td>
+              <td class="n" id="cmp-p50">—</td>
+              <td class="n" id="cmp-blend">—</td>
+              <td>
+                10M × 1.7 stage overhead (the audit's consensus multiplier); 20% of units at p90
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small">
+        Every estimate lands between $8 and $45, and every one is under 2% of a $2,000 feature. The
+        audit recomputed all of them: fifteen figures did not reproduce, none changed a conclusion,
+        and the whole spread is one unmeasured quantity, the ceremony multiplier on the shared 10M
+        anchor (1.25× / 1.7× / 2.5×). Consensus: $16 per medium feature, $3 small, $75 epic. Without
+        the harness, one measured study puts a merged feature at $2.81–33.38 and the Claude-family
+        median at $12–23; the harness is 1.5–2× that.
+      </p>
+    </details>
+    <details>
+      <summary>Prices per million tokens (input / cache read / output), fetched 2026-09-08</summary>
+      <ul>
+        <li>
+          Anthropic: Fable 5.1 $10 / $0.25 / $50 · Opus 5 $5 / $0.50 / $25 · Sonnet 5 $2 / $0.20 /
+          $10 (introductory price made permanent) · Haiku 4.5 $1 / $0.10 / $5. Batch 50% off.
+        </li>
+        <li>
+          OpenAI: GPT-6 Astra $10 / $1 / $50 · GPT-5.6 Sol $4 / $0.40 / $20 through 2026-11-21.
+        </li>
+        <li>
+          Open weight, owner API: GLM-5.3 $1.40 / $0.26 / $4.40 · Kimi K3 $3 / $0.30 / $15 · Kimi
+          K2.6 $0.95 / $0.16 / $4.00 · DeepSeek V4 Pro $1.32 / $0.044 / $3.96 peak, half off-peak
+          (peak doubled 2026-08-16; the pre-rise level is contested between sources) · MiniMax M3
+          $0.30 / $0.06 / $1.20 · GLM-5.3-Flash $0.15 / $0.03 / $0.50.
+        </li>
+        <li>
+          Token-volume multipliers vs Opus 5 from SWE-rebench's fixed scaffold: Fable 0.6, Sonnet
+          1.1, GLM 1.3, DeepSeek 0.9, MiniMax 3.2, GPT-5.6 Sol (medium) 0.14, used as 0.5 here
+          because medium effort is not the factory's setting. Attempts multipliers (with a
+          verifier): GLM ~1.05, Sonnet-only 1.3, Kimi K2.6 1.5 (assumed), DeepSeek 3 (range 2–5),
+          MiniMax 3 (2–5).
+        </li>
+      </ul>
+    </details>
+    <details>
+      <summary>Subscription subsidy</summary>
+      <ul>
+        <li>
+          Subscription dollar against API dollar is a ratio that depends on the user. Max 20x is
+          $200 a month; what it absorbs at API list: a typical enterprise developer $150–250
+          (Anthropic's own docs, 0.75–1.25×), the heavy-user median $1,450 (viberank calculator,
+          n=1,099, 7×), top decile $7,358 (37×), the August 2026 cohort median $6,085 (30×).
+          Published caps: 240–480 Sonnet hours plus 24–40 Opus hours a week, five-hour windows on
+          top; overflow at API list with the cache lifetime cut from one hour to five minutes. The
+          seat-ceiling slider defaults to the median.
+        </li>
+        <li>
+          OpenAI meters Codex inside plans in credits worth exactly API list at $0.04 each (Sol 100
+          / 10 / 500 credits per million tokens is $4 / $0.40 / $20). Included per five-hour window
+          on GPT-5.6 Sol: Plus 10–100 messages ($12–20), Pro 5x 50–500 ($60–100), Pro 20x 200–2,000
+          ($240–400); weekly caps unpublished. One window a workday with no weekly cap would bound
+          Pro 20x at $5,300–8,800 a month, 26–44×; realistic heavy use is 1.5–4×. Resellers land at
+          1–2× (Cursor Pro $20 for $20, Copilot Max $200 for $100).
+        </li>
+        <li>
+          Policy: subscription OAuth is for "ordinary, individual usage of Claude Code and the Agent
+          SDK"; third-party harnesses off subscriptions since 2026-04-04; the Agent SDK /
+          <code>claude -p</code> / ACP carve-out to API-list credits was announced 2026-05-13 and
+          paused 2026-06-15. <code>--bare</code> will become the default for <code>claude -p</code>.
+        </li>
+      </ul>
+    </details>
+    <details>
+      <summary>What the plans actually deliver, measured from user logs</summary>
+      <p class="small">
+        Searched 2026-09-08. No public dataset pairs a plan tier with a token count: viberank
+        (~1,200 developers) records no plan field, so every plan-labelled figure is one user's own
+        ccusage or /usage log, priced at list, ~95% cache reads. Sources are Hacker News and
+        claude-code GitHub issues; Reddit and X were unreachable.
+      </p>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th>Anthropic plan</th>
+              <th>Measured</th>
+              <th class="n">Per month at API list</th>
+              <th class="n">Ratio</th>
+              <th>Cap hit</th>
+              <th>n, date</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Pro $20</td>
+              <td>First 5-hour cap after ~30 min; one user found $49 of overage</td>
+              <td class="n">—</td>
+              <td class="n">—</td>
+              <td>yes</td>
+              <td>2, 2026-03</td>
+            </tr>
+            <tr>
+              <td>Max 5x $100</td>
+              <td>~$750 a week, 5-hour cap 4–5× a day, weekly cap in 3 days</td>
+              <td class="n">$3,000</td>
+              <td class="n">30×</td>
+              <td>yes</td>
+              <td>1, 2026-03</td>
+            </tr>
+            <tr>
+              <td>Max 5x $100</td>
+              <td>$3,200 in a month at about a third of the weekly limit</td>
+              <td class="n">$3,200</td>
+              <td class="n">32×</td>
+              <td>no</td>
+              <td>1, 2026-05</td>
+            </tr>
+            <tr>
+              <td>Max 5x $100</td>
+              <td>1.83B tokens: 1.7B cache reads, 5M input, 1.5M output</td>
+              <td class="n">$1,500</td>
+              <td class="n">15×</td>
+              <td>no</td>
+              <td>1, 2026-01</td>
+            </tr>
+            <tr>
+              <td>Max 20x $200</td>
+              <td>
+                Rate-limit headers via a local proxy: 7-day budget ≈ $1,300–1,900, 5-hour ≈ $120–280
+              </td>
+              <td class="n">$5,600–8,200</td>
+              <td class="n">28–41×</td>
+              <td>cap band</td>
+              <td>1 account, 11 sessions, 2026-03</td>
+            </tr>
+            <tr>
+              <td>Max 20x $200</td>
+              <td>
+                Weekly quota filled at 335M weighted tokens one week, ~125M the next, same account
+              </td>
+              <td class="n">—</td>
+              <td class="n">—</td>
+              <td>yes</td>
+              <td>1, 2026-08</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li>
+          Per model: Opus only as a message count (≈4–5 messages per 1% of the weekly Opus bar on
+          Max 5x, ≈2 on Max 20x, so the effective 20x-to-5x weekly ratio back-solves to 1.7–2.3×);
+          Sonnet once, as a ~$150-a-week sub-budget on Max 20x; Fable as "up to 50% of your weekly
+          usage limit" plus one prompt that emptied a five-hour window in eight minutes for about
+          $100 of tokens.
+        </li>
+        <li>
+          The meter is price-weighted: one back-solved formula is cache-write ×1.25, cache-read
+          ×0.1, output ×5, raw input not counted. Tokens per quota point swung 17–45× within a day
+          and 2.7× week to week on one unchanged account, so "tokens the plan delivers" is not a
+          stable quantity.
+        </li>
+        <li>
+          OpenAI, from 32 reports via the Hacker News and GitHub APIs and the OpenAI forum (24
+          confirmed on re-fetch, 3 refuted and dropped): no primary source states a weekly cap. A
+          Plus or Team five-hour window is worth $12–20 at list (official 10–100 Sol messages at
+          5–30 credits; one Team seat measured 23.5M tokens, 96.8% cached, = 98% of a window =
+          $14.40), a Pro 20x window $240–400. The Team measurement moved the weekly bar 15 points in
+          one window, so about six or seven windows fit a week: ≈ $410 a month of Sol on a $20–25
+          seat, 17–21×. Pro 5x's weekly allowance emptied in 8 hours on ~8M Sol Ultra tokens ($25–48
+          at list, 1.1–2.1× the plan's weekly price) during a spike users called a nerf. Pro 20x
+          anecdotes run from a user's $1,200 a month (6×) to $2,200 a week (48×), and heavy users
+          exhaust it in half a day to five days. viberank's August 2026 month holds 149 Codex
+          developers at $1.94M API-equivalent with no plan field.
+        </li>
+      </ul>
+    </details>
+    <details>
+      <summary>Revenue and human time</summary>
+      <ul>
+        <li>
+          Per-unit bands: small $300–2,500, medium $1,500–8,000, large $4,000–20,000. Retainers
+          $2–8k per SMB client-month, $8–15k half-time-equivalent. Sources: Fraction $99/story
+          point, HouseofMVPs $3,999 / $7,499 / $14,999 tiers, AsyncForge €2k / €4k / €8k by
+          turnaround, Arc and Lemon.io rate surveys.
+        </li>
+        <li>
+          Human minutes per unit are an assumption, not a measurement; Twilight records them
+          explicitly and M1 will produce the first real figure. The human touchpoints per run are:
+          request, one plan approval, pauses when a run leaves its envelope, recovery decisions,
+          optional finding disposition, and a separate production release command.
+        </li>
+      </ul>
+    </details>
+    <details>
+      <summary>Infrastructure prices, fetched 2026-09-08</summary>
+      <ul>
+        <li>
+          Netcup VPS: 8 vCPU / 16 GB €19.25 a month, 16 vCPU / 64 GB €47.95, VAT included. Hetzner's
+          prices render client-side and were not readable. A K3s server, two agent nodes and the
+          monitoring and control hosts come to about €70 a month on this class; with Browserbase and
+          storage the shared base is about $100, $60–250 by node size.
+        </li>
+        <li>
+          Browserbase: Developer $20 for 100 browser hours with $0.12 an hour over; Startup $99 for
+          500 hours. Steel.dev $0.08–0.10 an hour. One acceptance pass is minutes and costs cents;
+          the models that assumed $2 a session were about 50× high.
+        </li>
+        <li>
+          Backblaze B2 $6.95 per TB-month; GitHub Actions $0.006 a minute on 2-core Linux after
+          2,000–3,000 free minutes; Grafana Cloud's free tier covers a solo installation.
+        </li>
+      </ul>
+    </details>
+    <details>
+      <summary>Self-hosting, and why it is out</summary>
+      <ul>
+        <li>
+          On-demand GPU rental 2026-09-08: H100 $2.69–3.99 per GPU-hour on Lambda, RunPod, Nebius,
+          Hyperstack, Verda; H200 $3.59–4.59; B200 $5.98–7.15; CoreWeave 40–70% above those; spot
+          40–60% below. Fireworks dedicated H100 $7–8, Together $3.99.
+        </li>
+        <li>
+          Throughput: DeepSeek-class MoE at 2,200 output tokens per second per H200 in vLLM's
+          production wide-EP serving (Dec 2025); 2,785 per H100 in SGLang's large-scale EP run (May
+          2025); 10,100 per GB200 with NVFP4 (Feb 2026).
+        </li>
+        <li>
+          Derived: 8×H200 at $4 = $32/h → 17,600 tok/s → 63M tokens/h → $0.51 per million at 100%
+          utilisation, $1.70 at 30%, $17 at 3%. Break-even against $3.96–4.40 hosted output needs
+          ≥13% utilisation, about 5–6B output tokens a month, before any ops time. Prefix-cache hits
+          are near-free compute, so the binding constraint at 100k+ contexts is KV-cache memory, not
+          FLOPs.
+        </li>
+        <li>
+          Small models on 1–2 GPUs are not a route for accepted outcomes yet: Qwen3.6-35B-A3B
+          resolves 24.7% of fresh issues (pass@5 43.2%).
+        </li>
+      </ul>
+    </details>
+    <details>
+      <summary>Twilight's own figures</summary>
+      <ul>
+        <li>
+          Shipped strict caps: thorough 3M tokens / $100 / 12 h agent time; balanced 1.5M / $40 / 6
+          h; economy 500k / $12 / 2 h. Discovery 300k / $10. Nightly dev-sweep 200k / $8 per
+          branch-dev per night. Whether "tokens" includes cache reads is left to the adapter.
+        </li>
+        <li>
+          Balanced routing: implement Sonnet 5 (escalate once to Opus 5), plan Opus 5, critic +
+          judge Opus 5, knowledge Haiku 4.5. About 12–25 model attempts per medium feature of three
+          deliverables.
+        </li>
+        <li>
+          Build plan: Tasks 1–16, 343–684 human hours with the sub-allowances, 3.7–9.9M tokens by
+          line-item sum; the personal delivery loop alone is 280–560 hours. As consumption figures
+          the token estimates are roughly 130–160× low against the anchors, using the plan's own
+          agent hours and the 9M processed tokens an hour a Claude Code session shows. Restated, the
+          build's model spend is $0.6–11k, which does not change the investment case, but the same
+          unit sits inside the run budgets, where it binds.
+        </li>
+        <li>
+          Audit: three independent models were recomputed line by line; fifteen figures did not
+          reproduce and none changed a conclusion. The consensus carried here is the bottom-up
+          activity stack.
+        </li>
+        <li>
+          Verification: 143 of 171 checked claims across the four remaining fact sheets confirmed,
+          24 corrected at the edges, 1 sub-value refuted and unused here; the open-weight sheet 52
+          of 62, the convergence sheet 40 of 44, the repo sheet 68 of 68.
+        </li>
+      </ul>
+    </details>
+  </section>
+</main>
+<div class="tip" id="tip"></div>
+
+<script>
+  (function () {
+    'use strict';
+    // ---------- constants (base case; see Assumptions) ----------
+    const CLASSES = [
+      {
+        key: 'small',
+        label: 'Small fix',
+        T: 1.5e6,
+        O: 25e3,
+        T90: 5e6,
+        O90: 80e3,
+        hMult: 0.4,
+        pMult: 0.35,
+        nights: 1,
+      },
+      {
+        key: 'medium',
+        label: 'Medium feature',
+        T: 10e6,
+        O: 150e3,
+        T90: 40e6,
+        O90: 500e3,
+        hMult: 1,
+        pMult: 1,
+        nights: 2,
+      },
+      {
+        key: 'large',
+        label: 'Large / epic',
+        T: 80e6,
+        O: 1.2e6,
+        T90: 400e6,
+        O90: 5e6,
+        hMult: 3.5,
+        pMult: 4.5,
+        nights: 6,
+      },
+    ];
+    // pin / pc / pout in $/MTok; tok = token-volume multiplier vs Opus 5; att = attempts multiplier on the implement share
+    const SERVING = [
+      {
+        key: 'mix',
+        label: 'Twilight balanced, Anthropic list',
+        pin: 3.0,
+        pc: 0.3,
+        pout: 15,
+        tok: 1.05,
+        att: 1.0,
+        hint: 'The shipped profile: Sonnet 5 implements and escalates once to Opus 5; Opus 5 plans, critiques and judges; Haiku reconciles knowledge. Blend 55/35/10.',
+      },
+      {
+        key: 'sub',
+        label: 'Same, on one Max 20x seat (today)',
+        pin: 3.0,
+        pc: 0.3,
+        pout: 15,
+        tok: 1.05,
+        att: 1.0,
+        sub: true,
+        hint: 'A $200 seat absorbs API-equivalent value up to a ceiling; overflow bills at API list. Policy and the per-repo credential rule exclude it for client work; shown for comparison.',
+      },
+      {
+        key: 'opus',
+        label: 'Opus 5 everywhere',
+        pin: 5,
+        pc: 0.5,
+        pout: 25,
+        tok: 1.0,
+        att: 1.0,
+        hint: 'Anthropic measured $1.39 per SWE-bench issue at default effort; pass@1 63.4 on fresh issues.',
+      },
+      {
+        key: 'fable',
+        label: 'Fable 5.1 everywhere',
+        pin: 10,
+        pc: 0.25,
+        pout: 50,
+        tok: 0.6,
+        att: 0.9,
+        hint: 'Fewest tokens per task (0.6× Opus) and the cheapest cache read of any flagship, $0.25. Anthropic says 25–45% cheaper than Fable 5 for agentic work at the same list price.',
+      },
+      {
+        key: 'sonnet',
+        label: 'Sonnet 5 everywhere',
+        pin: 2,
+        pc: 0.2,
+        pout: 10,
+        tok: 1.1,
+        att: 1.5,
+        hint: 'Pass@1 56.8 vs Opus 63.4 on fresh issues, so more rework rounds. Its scheduled September price rise was cancelled.',
+      },
+      {
+        key: 'mixsol',
+        label: 'Twilight balanced, GPT-5.6 Sol implements',
+        pin: 4.2,
+        pc: 0.42,
+        pout: 21,
+        tok: 0.7,
+        att: 1.05,
+        hint: "Opus 5 keeps plan, critic and judge. Sol is the most token-frugal model measured (0.24× Fable at medium effort); 0.5× Opus assumed here. Codex is already the plan's second ACP probe.",
+      },
+      {
+        key: 'sol',
+        label: 'GPT-5.6 Sol everywhere',
+        pin: 4,
+        pc: 0.4,
+        pout: 20,
+        tok: 0.5,
+        att: 1.1,
+        hint: 'One SWE-rebench row at medium effort; promo price to 2026-11-21. Independent SWE-bench 96.2, Terminal-Bench 85.8.',
+      },
+      {
+        key: 'mixglm',
+        label: 'Twilight balanced, GLM-5.3 implements',
+        pin: 2.16,
+        pc: 0.28,
+        pout: 9.4,
+        tok: 1.2,
+        att: 1.05,
+        hint: "Opus 5 keeps plan, critic and judge. GLM's cache read ($0.26) is above Sonnet 5's ($0.20); the saving comes from pass@1 quality, not price.",
+      },
+      {
+        key: 'glm',
+        label: 'GLM-5.3 everywhere',
+        pin: 1.4,
+        pc: 0.26,
+        pout: 4.4,
+        tok: 1.3,
+        att: 1.05,
+        hint: "GLM-5.2 matched Opus 5 pass@1 on fresh issues at 2.2× Fable's tokens and holds the highest pass@5 measured (81.1). Dearer than Sonnet 5 above a 93% cache hit rate.",
+      },
+      {
+        key: 'econ',
+        label: 'Anthropic economy ladder (Haiku → Sonnet)',
+        pin: 1.4,
+        pc: 0.14,
+        pout: 7,
+        tok: 1.3,
+        att: 2.0,
+        hint: "The shipped economy profile. Haiku's token and attempts multipliers are unmeasured; at three attempts it costs more than Sonnet 5.",
+      },
+      {
+        key: 'kimi',
+        label: 'Kimi K2.6 everywhere',
+        pin: 0.95,
+        pc: 0.16,
+        pout: 4.0,
+        tok: 1.3,
+        att: 2.0,
+        hint: 'No same-scaffold row; multipliers assumed. Owner price rose 1.6× since April.',
+      },
+      {
+        key: 'k3',
+        label: 'Kimi K3 everywhere',
+        pin: 3,
+        pc: 0.3,
+        pout: 15,
+        tok: 1.3,
+        att: 1.2,
+        hint: 'Owner price is 1.5× Sonnet 5. Needs a harness that replays its reasoning history.',
+      },
+      {
+        key: 'dsoff',
+        label: 'DeepSeek V4 Pro, off-peak',
+        pin: 0.66,
+        pc: 0.022,
+        pout: 1.98,
+        tok: 0.9,
+        att: 4.0,
+        hint: "pass@5 (64.0) ≈ Fable's pass@1: needs a verifier and 3–5 attempts, more than balanced's rework bound allows. Off-peak is 17 of 24 weekday hours and all weekend.",
+      },
+      {
+        key: 'dspk',
+        label: 'DeepSeek V4 Pro, peak',
+        pin: 1.32,
+        pc: 0.044,
+        pout: 3.96,
+        tok: 0.9,
+        att: 4.0,
+        hint: 'Same model at peak price; peak hours (01–04 and 06–10 UTC) doubled on 2026-08-16, the earlier level is contested.',
+      },
+      {
+        key: 'mmx',
+        label: 'MiniMax M3 everywhere',
+        pin: 0.3,
+        pc: 0.06,
+        pout: 1.2,
+        tok: 3.2,
+        att: 3.5,
+        hint: "5.5× Fable's tokens per problem and pass@1 47.2: cheap per token, not per outcome.",
+      },
+    ];
+    const SUB = { seat: 200 }; // $/month; the absorbable API-equivalent ceiling is the subceil slider
+    const SWEEP_PER_NIGHT = 0.15; // computed spend of a 200k-token Sonnet sweep at 90% cache; the schema's cap is $8
+    const BROWSER_PER_UNIT = { small: 0.05, medium: 0.15, large: 0.6 }; // Browserbase $0.10-0.12 per browser-hour; a pass is minutes
+    const FIXED_SALES_HOURS = 15;
+
+    // ---------- inputs ----------
+    const $ = (id) => document.getElementById(id);
+    const inputs = [
+      'cache',
+      'process',
+      'implshare',
+      'tail',
+      'subceil',
+      'hrate',
+      'hmed',
+      'pmed',
+      'infra',
+      'clients',
+      'usmall',
+      'umed',
+      'ularge',
+      'comms',
+      'capacity',
+      'bhours',
+      'bpace',
+      'nohmult',
+      'nohprice',
+    ];
+    const fmt = {
+      usd0: (v) => (v < 0 ? '−' : '') + '$' + Math.round(Math.abs(v)).toLocaleString('en-US'),
+      usd1: (v) =>
+        (v < 0 ? '−' : '') +
+        '$' +
+        Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      usd2: (v) =>
+        (v < 0 ? '−' : '') +
+        '$' +
+        Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      pct0: (v) => Math.round(v * 100) + '%',
+      x1: (v) => v.toFixed(1) + '×',
+      x2: (v) => v.toFixed(2) + '×',
+      int: (v) => String(Math.round(v)),
+      h: (v) => Math.round(v) + ' h',
+      min: (v) => Math.round(v) + ' min',
+      mo: (v) => (isFinite(v) ? v.toFixed(1) + ' mo' : 'never'),
+    };
+    const outFmt = {
+      cache: fmt.pct0,
+      process: fmt.x1,
+      implshare: fmt.pct0,
+      tail: fmt.pct0,
+      subceil: fmt.usd0,
+      hrate: (v) => fmt.usd0(v) + '/h',
+      hmed: fmt.min,
+      pmed: fmt.usd0,
+      infra: (v) => fmt.usd0(v) + '/mo',
+      clients: fmt.int,
+      usmall: fmt.int,
+      umed: (v) => v.toFixed(1),
+      ularge: (v) => v.toFixed(2),
+      comms: fmt.h,
+      capacity: fmt.h,
+      bhours: fmt.h,
+      bpace: (v) => fmt.h(v) + '/mo',
+      nohmult: fmt.x1,
+      nohprice: fmt.x2,
+    };
+
+    const sel = $('serving');
+    SERVING.forEach((s, i) => {
+      const o = document.createElement('option');
+      o.value = s.key;
+      o.textContent = s.label;
+      sel.appendChild(o);
+    });
+    sel.value = 'mix';
+
+    function readInputs() {
+      const v = {};
+      inputs.forEach((id) => {
+        v[id] = parseFloat($(id).value);
+        $(id + '-o').textContent = outFmt[id](v[id]);
+      });
+      v.serving = SERVING.find((s) => s.key === sel.value);
+      $('serving-hint').textContent = v.serving.hint;
+      return v;
+    }
+
+    // ---------- model ----------
+    // model token cost of one unit at p50 or p90 for a serving spec
+    function tokenCost(cls, s, v, p90) {
+      const T = (p90 ? cls.T90 : cls.T) * v.process * s.tok;
+      const O = (p90 ? cls.O90 : cls.O) * v.process * s.tok;
+      const h = v.cache;
+      const base = ((1 - h) * T * s.pin * 1.25 + h * T * s.pc + O * s.pout) / 1e6;
+      const attempts = v.implshare * s.att + (1 - v.implshare);
+      return base * attempts;
+    }
+    function unitModelCost(cls, s, v) {
+      const p50 = tokenCost(cls, s, v, false),
+        p90 = tokenCost(cls, s, v, true);
+      return (1 - v.tail) * p50 + v.tail * p90;
+    }
+    function unitSweep(cls) {
+      return cls.nights * SWEEP_PER_NIGHT;
+    }
+    function unitHumanMin(cls, v) {
+      return v.hmed * cls.hMult;
+    }
+    function unitPrice(cls, v) {
+      return v.pmed * cls.pMult;
+    }
+    function unitsPerClient(v) {
+      return { small: v.usmall, medium: v.umed, large: v.ularge };
+    }
+
+    function monthly(v, s, opts) {
+      opts = opts || {};
+      const u = unitsPerClient(v);
+      const rows = CLASSES.map((c) => {
+        const n = u[c.key] * v.clients;
+        const model = unitModelCost(c, s, v);
+        const sweep = unitSweep(c);
+        const browser = BROWSER_PER_UNIT[c.key];
+        const human = (unitHumanMin(c, v) / 60) * (opts.humanMult || 1);
+        const price = unitPrice(c, v) * (opts.priceMult || 1);
+        return { c, n, model, sweep, browser, humanH: human, price };
+      });
+      const units = rows.reduce((a, r) => a + r.n, 0);
+      let modelTotal = rows.reduce((a, r) => a + r.n * r.model, 0) * (opts.modelMult || 1);
+      const sweepTotal = rows.reduce((a, r) => a + r.n * r.sweep, 0) * (opts.modelMult || 1);
+      let seatCost = 0;
+      if (s.sub) {
+        const demand = modelTotal + sweepTotal;
+        seatCost = SUB.seat;
+        const covered = Math.min(demand, v.subceil);
+        const overflow = demand - covered;
+        modelTotal = overflow > 0 ? overflow * (modelTotal / demand) : 0;
+      }
+      const sweepEff = s.sub ? (modelTotal > 0 ? sweepTotal : 0) : sweepTotal;
+      const browserTotal = rows.reduce((a, r) => a + r.n * r.browser, 0);
+      const infraTotal = v.infra + browserTotal + seatCost;
+      const humanUnitH = rows.reduce((a, r) => a + r.n * r.humanH, 0);
+      const humanH = humanUnitH + v.clients * v.comms + FIXED_SALES_HOURS;
+      const revenue = rows.reduce((a, r) => a + r.n * r.price, 0);
+      const cash = revenue - modelTotal - sweepEff - infraTotal;
+      const afterTime = cash - humanH * v.hrate;
+      return {
+        rows,
+        units,
+        modelTotal,
+        sweepTotal: sweepEff,
+        browserTotal,
+        seatCost,
+        infraTotal,
+        humanUnitH,
+        humanH,
+        revenue,
+        cash,
+        afterTime,
+        perHour: humanH > 0 ? cash / humanH : 0,
+      };
+    }
+
+    // ---------- render ----------
+    function kpi(l, val, d, warn) {
+      return (
+        '<div class="kpi' +
+        (warn ? ' warn' : '') +
+        '"><div class="l">' +
+        l +
+        '</div><div class="v">' +
+        val +
+        '</div><div class="d">' +
+        d +
+        '</div></div>'
+      );
+    }
+
+    function renderKpis(v, m) {
+      const med = CLASSES[1];
+      const medModel = unitModelCost(med, v.serving, v);
+      const medHuman = (unitHumanMin(med, v) / 60) * v.hrate;
+      const medInfra =
+        unitSweep(med) +
+        BROWSER_PER_UNIT.medium +
+        (m.units > 0 ? (v.infra + m.seatCost) / m.units : 0);
+      const medPrice = unitPrice(med, v);
+      const modelShare = medModel / medPrice;
+      const over = m.humanH > v.capacity;
+      $('a-mix').textContent = fmt.usd0(unitModelCost(med, SERVING[0], v));
+      $('cmp-p50').textContent = fmt.usd2(tokenCost(med, SERVING[0], v, false));
+      $('cmp-blend').textContent = fmt.usd2(unitModelCost(med, SERVING[0], v)) + ' blended';
+      $('kpis').innerHTML =
+        kpi(
+          'Model tokens, one medium feature',
+          fmt.usd1(medModel),
+          fmt.pct0(modelShare) +
+            ' of its price; p90 unit ' +
+            fmt.usd0(tokenCost(med, v.serving, v, true)),
+        ) +
+        kpi(
+          'Human time, one medium feature',
+          fmt.usd0(medHuman),
+          fmt.min(unitHumanMin(med, v)) + ' at ' + fmt.usd0(v.hrate) + '/h',
+        ) +
+        kpi(
+          'All-in cost, one medium feature',
+          fmt.usd0(medModel + medHuman + medInfra),
+          'tokens + time + infra share; price ' + fmt.usd0(medPrice),
+        ) +
+        kpi(
+          'Monthly revenue',
+          fmt.usd0(m.revenue),
+          fmt.int(m.units) + ' accepted units across ' + v.clients + ' clients',
+        ) +
+        kpi(
+          'Margin after operator time',
+          fmt.usd0(m.afterTime),
+          'cash margin ' + fmt.usd0(m.cash) + ' · ' + fmt.usd0(m.perHour) + ' per operator hour',
+        ) +
+        kpi(
+          'Operator hours needed',
+          fmt.h(m.humanH),
+          (over ? 'over the ' : 'of the ') +
+            fmt.h(v.capacity) +
+            ' available' +
+            (over ? ' — human ceiling binds' : ''),
+          over,
+        );
+    }
+
+    function renderPnl(v, m, s) {
+      const rows = m.rows
+        .map(
+          (r) =>
+            '<tr><td>' +
+            r.c.label +
+            '</td><td class="n">' +
+            r.n.toFixed(r.n % 1 ? 2 : 0) +
+            '</td><td class="n">' +
+            fmt.usd1(r.model) +
+            '</td><td class="n">' +
+            fmt.usd1(r.sweep + r.browser) +
+            '</td><td class="n">' +
+            fmt.min(r.humanH * 60) +
+            '</td><td class="n">' +
+            fmt.usd0(r.price) +
+            '</td><td class="n">' +
+            fmt.usd0(r.n * r.price) +
+            '</td></tr>',
+        )
+        .join('');
+      const seat = s.sub
+        ? '<tr><td>Subscription seat</td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">−' +
+          fmt.usd0(m.seatCost) +
+          '</td></tr>'
+        : '';
+      const overflowNote = s.sub
+        ? m.modelTotal > 0
+          ? ' (overflow above the $' + v.subceil.toLocaleString() + ' ceiling, billed at API list)'
+          : ' (inside the seat ceiling of $' + v.subceil.toLocaleString() + ' API-equivalent)'
+        : '';
+      $('pnl').innerHTML =
+        '<thead><tr><th>Per month, current settings</th><th class="n">Units</th><th class="n">Model $/unit</th><th class="n">Sweep + browser $/unit</th><th class="n">Human / unit</th><th class="n">Price / unit</th><th class="n">Revenue</th></tr></thead><tbody>' +
+        rows +
+        '<tr><td colspan="6">Model tokens' +
+        overflowNote +
+        '</td><td class="n">−' +
+        fmt.usd0(m.modelTotal) +
+        '</td></tr>' +
+        '<tr><td colspan="6">Nightly sweeps, cloud browser, fixed infra</td><td class="n">−' +
+        fmt.usd0(m.sweepTotal + m.browserTotal + v.infra) +
+        '</td></tr>' +
+        seat +
+        '<tr class="total"><td colspan="6">Cash gross margin</td><td class="n">' +
+        fmt.usd0(m.cash) +
+        '</td></tr>' +
+        '<tr><td colspan="6">Operator time: ' +
+        fmt.h(m.humanUnitH) +
+        ' on units + ' +
+        fmt.h(v.clients * v.comms) +
+        ' client threads + ' +
+        FIXED_SALES_HOURS +
+        ' h sales/ops, at ' +
+        fmt.usd0(v.hrate) +
+        '/h</td><td class="n">−' +
+        fmt.usd0(m.humanH * v.hrate) +
+        '</td></tr>' +
+        '<tr class="total"><td colspan="6">Margin after operator time</td><td class="n">' +
+        fmt.usd0(m.afterTime) +
+        '</td></tr></tbody>';
+    }
+
+    const tip = $('tip');
+    function showTip(e, html) {
+      tip.innerHTML = html;
+      tip.style.display = 'block';
+      moveTip(e);
+    }
+    function moveTip(e) {
+      const x = Math.min(e.clientX + 14, window.innerWidth - 340),
+        y = e.clientY + 14;
+      tip.style.left = x + 'px';
+      tip.style.top = y + 'px';
+    }
+    function hideTip() {
+      tip.style.display = 'none';
+    }
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+    const svgNS = 'http://www.w3.org/2000/svg';
+    function el(name, attrs, text) {
+      const n = document.createElementNS(svgNS, name);
+      for (const k in attrs) n.setAttribute(k, attrs[k]);
+      if (text != null) n.textContent = text;
+      return n;
+    }
+    function niceMax(v) {
+      if (v <= 0) return 1;
+      const p = Math.pow(10, Math.floor(Math.log10(v)));
+      const m = v / p;
+      const n = m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10;
+      return n * p;
+    }
+
+    function renderStack(v, m) {
+      const svg = document.querySelector('#stack-chart svg');
+      svg.innerHTML = '';
+      const W = 1000,
+        left = 150,
+        right = 70,
+        top = 14,
+        rowH = 56,
+        barH = 22;
+      const H = top + CLASSES.length * rowH + 30;
+      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      const data = CLASSES.map((c) => {
+        const model = unitModelCost(c, v.serving, v) + (v.serving.sub ? 0 : 0);
+        const human = (unitHumanMin(c, v) / 60) * v.hrate;
+        const infra =
+          unitSweep(c) +
+          BROWSER_PER_UNIT[c.key] +
+          (m.units > 0 ? (v.infra + m.seatCost) / m.units : 0);
+        return {
+          c,
+          segs: [
+            ['Model tokens', model, 'var(--s1)'],
+            ['Human minutes', human, 'var(--s2)'],
+            ['Infra, browser, sweeps', infra, 'var(--s3)'],
+          ],
+          total: model + human + infra,
+          price: unitPrice(c, v),
+        };
+      });
+      const max = niceMax(
+        Math.max.apply(
+          null,
+          data.map((d) => d.total),
+        ) * 1.05,
+      );
+      const x = (val) => left + (val / max) * (W - left - right);
+      for (let i = 0; i <= 4; i++) {
+        const val = (max * i) / 4;
+        svg.appendChild(
+          el('line', {
+            x1: x(val),
+            x2: x(val),
+            y1: top,
+            y2: top + CLASSES.length * rowH,
+            class: i === 0 ? 'base' : 'grid',
+          }),
+        );
+        svg.appendChild(
+          el(
+            'text',
+            { x: x(val), y: top + CLASSES.length * rowH + 18, 'text-anchor': 'middle', class: 'm' },
+            fmt.usd0(val),
+          ),
+        );
+      }
+      data.forEach((d, i) => {
+        const y = top + i * rowH + (rowH - barH) / 2;
+        svg.appendChild(
+          el('text', { x: left - 12, y: y + barH / 2 + 4, 'text-anchor': 'end' }, d.c.label),
+        );
+        let cx = 0;
+        d.segs.forEach((sg, k) => {
+          const w = Math.max(0, x(cx + sg[1]) - x(cx) - (k < d.segs.length - 1 ? 2 : 0));
+          const r = el('rect', { x: x(cx), y, width: w, height: barH, fill: sg[2], class: 'bar' });
+          r.addEventListener('pointermove', (e) =>
+            showTip(
+              e,
+              '<b>' +
+                fmt.usd2(sg[1]) +
+                '</b> ' +
+                esc(sg[0]) +
+                '<br>' +
+                esc(d.c.label) +
+                ' · ' +
+                fmt.pct0(sg[1] / d.total) +
+                ' of cost',
+            ),
+          );
+          r.addEventListener('pointerleave', hideTip);
+          svg.appendChild(r);
+          if (w > 44)
+            svg.appendChild(
+              el(
+                'text',
+                {
+                  x: x(cx) + w / 2,
+                  y: y + barH / 2 + 4,
+                  'text-anchor': 'middle',
+                  class: 'v',
+                  fill: '#fff',
+                  style: 'fill:#fff;font-size:11.5px',
+                },
+                fmt.usd0(sg[1]),
+              ),
+            );
+          cx += sg[1];
+        });
+        svg.appendChild(
+          el('text', { x: x(d.total) + 8, y: y + barH / 2 + 4, class: 'v' }, fmt.usd0(d.total)),
+        );
+        svg.appendChild(
+          el(
+            'text',
+            { x: left - 12, y: y + barH + 14, 'text-anchor': 'end', class: 'm' },
+            'price ' + fmt.usd0(d.price) + ' · cost ' + fmt.pct0(d.total / d.price),
+          ),
+        );
+      });
+    }
+
+    function renderServing(v) {
+      const svg = document.querySelector('#serving-chart svg');
+      svg.innerHTML = '';
+      const med = CLASSES[1];
+      const items = SERVING.filter((s) => !s.sub).map((s) => ({
+        s,
+        cost: unitModelCost(med, s, v),
+        p90: tokenCost(med, s, v, true),
+      }));
+      const W = 1000,
+        left = 340,
+        right = 60,
+        top = 10,
+        rowH = 30,
+        barH = 16;
+      const H = top + items.length * rowH + 30;
+      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      const max = niceMax(
+        Math.max.apply(
+          null,
+          items.map((d) => d.cost),
+        ) * 1.1,
+      );
+      const x = (val) => left + (val / max) * (W - left - right);
+      for (let i = 0; i <= 4; i++) {
+        const val = (max * i) / 4;
+        svg.appendChild(
+          el('line', {
+            x1: x(val),
+            x2: x(val),
+            y1: top,
+            y2: top + items.length * rowH,
+            class: i === 0 ? 'base' : 'grid',
+          }),
+        );
+        svg.appendChild(
+          el(
+            'text',
+            { x: x(val), y: top + items.length * rowH + 18, 'text-anchor': 'middle', class: 'm' },
+            fmt.usd0(val),
+          ),
+        );
+      }
+      items.forEach((d, i) => {
+        const y = top + i * rowH + (rowH - barH) / 2;
+        const isSel = d.s.key === v.serving.key || (v.serving.sub && d.s.key === 'mix');
+        const lbl = d.s.label.replace(' everywhere', '');
+        svg.appendChild(
+          el(
+            'text',
+            {
+              x: left - 12,
+              y: y + barH / 2 + 4,
+              'text-anchor': 'end',
+              style: isSel ? 'fill:var(--ink);font-weight:600' : '',
+            },
+            lbl,
+          ),
+        );
+        const r = el('rect', {
+          x: x(0),
+          y,
+          width: Math.max(0, x(d.cost) - x(0)),
+          height: barH,
+          fill: isSel ? 'var(--s1)' : 'var(--deemph)',
+          class: 'bar',
+        });
+        r.addEventListener('pointermove', (e) =>
+          showTip(
+            e,
+            '<b>' +
+              fmt.usd2(d.cost) +
+              '</b> per accepted medium feature<br>p90 unit ' +
+              fmt.usd0(d.p90) +
+              ' · tokens ' +
+              fmt.x2(d.s.tok) +
+              ' · attempts ' +
+              fmt.x2(d.s.att) +
+              '<br>' +
+              esc(d.s.hint),
+          ),
+        );
+        r.addEventListener('pointerleave', hideTip);
+        svg.appendChild(r);
+        svg.appendChild(
+          el('text', { x: x(d.cost) + 8, y: y + barH / 2 + 4, class: 'v' }, fmt.usd1(d.cost)),
+        );
+      });
+    }
+
+    function renderTornado(v, s, base) {
+      const svg = document.querySelector('#tornado svg');
+      svg.innerHTML = '';
+      const levers = [
+        [
+          'Price per unit ±30%',
+          monthly(v, s, { priceMult: 0.7 }).afterTime,
+          monthly(v, s, { priceMult: 1.3 }).afterTime,
+        ],
+        [
+          'Human minutes per unit ±50%',
+          monthly(v, s, { humanMult: 1.5 }).afterTime,
+          monthly(v, s, { humanMult: 0.5 }).afterTime,
+        ],
+        ['One more rework round (tokens ×1.5)', monthly(v, s, { modelMult: 1.5 }).afterTime, base],
+        ['Token price ×2 (premise 1 realised)', monthly(v, s, { modelMult: 2 }).afterTime, base],
+        ['Token price ÷2 (open weights work)', base, monthly(v, s, { modelMult: 0.5 }).afterTime],
+        [
+          'Cache hit 80% instead of 95%',
+          monthly(Object.assign({}, v, { cache: 0.8 }), s).afterTime,
+          monthly(Object.assign({}, v, { cache: 0.95 }), s).afterTime,
+        ],
+      ].map((l) => ({ label: l[0], lo: l[1] - base, hi: l[2] - base }));
+      const W = 1000,
+        left = 300,
+        right = 40,
+        top = 10,
+        rowH = 40,
+        barH = 16;
+      const H = top + levers.length * rowH + 30;
+      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      const ext = niceMax(
+        Math.max.apply(
+          null,
+          levers.map((l) => Math.max(Math.abs(l.lo), Math.abs(l.hi))),
+        ) * 1.05,
+      );
+      const mid = left + (W - left - right) / 2,
+        half = (W - left - right) / 2;
+      const x = (d) => mid + (d / ext) * half;
+      [-1, -0.5, 0, 0.5, 1].forEach((f) => {
+        svg.appendChild(
+          el('line', {
+            x1: x(f * ext),
+            x2: x(f * ext),
+            y1: top,
+            y2: top + levers.length * rowH,
+            class: f === 0 ? 'base' : 'grid',
+          }),
+        );
+        svg.appendChild(
+          el(
+            'text',
+            {
+              x: x(f * ext),
+              y: top + levers.length * rowH + 18,
+              'text-anchor': 'middle',
+              class: 'm',
+            },
+            (f > 0 ? '+' : '') + fmt.usd0(f * ext),
+          ),
+        );
+      });
+      levers.forEach((l, i) => {
+        const y = top + i * rowH + (rowH - barH) / 2;
+        svg.appendChild(
+          el('text', { x: left - 12, y: y + barH / 2 + 4, 'text-anchor': 'end' }, l.label),
+        );
+        [
+          [l.lo, 'var(--bad)'],
+          [l.hi, 'var(--s1)'],
+        ].forEach((seg) => {
+          const d = seg[0];
+          if (Math.abs(d) < 1e-6) return;
+          const x0 = Math.min(x(0), x(d)),
+            w = Math.abs(x(d) - x(0));
+          const r = el('rect', {
+            x: x0 + (d > 0 ? 1 : 0),
+            y,
+            width: Math.max(0, w - 1),
+            height: barH,
+            fill: seg[1],
+            class: 'bar',
+          });
+          r.addEventListener('pointermove', (e) =>
+            showTip(
+              e,
+              '<b>' +
+                (d > 0 ? '+' : '−') +
+                fmt.usd0(Math.abs(d)) +
+                '</b> per month<br>' +
+                esc(l.label),
+            ),
+          );
+          r.addEventListener('pointerleave', hideTip);
+          svg.appendChild(r);
+          svg.appendChild(
+            el(
+              'text',
+              {
+                x: d > 0 ? x(d) + 6 : x(d) - 6,
+                y: y + barH / 2 + 4,
+                'text-anchor': d > 0 ? 'start' : 'end',
+                class: 'v',
+              },
+              (d > 0 ? '+' : '−') + fmt.usd0(Math.abs(d)),
+            ),
+          );
+        });
+      });
+    }
+
+    function renderPayback(v, s, withH) {
+      // Counterfactual: no harness. Human minutes ×nohmult, price ×nohprice, capacity binds: scale clients down until hours fit.
+      const perClientH =
+        CLASSES.reduce(
+          (a, c) => a + ((unitsPerClient(v)[c.key] * unitHumanMin(c, v)) / 60) * v.nohmult,
+          0,
+        ) + v.comms;
+      const maxClients = Math.max(0, Math.floor((v.capacity - FIXED_SALES_HOURS) / perClientH));
+      const clientsNo = Math.min(v.clients, maxClients);
+      const vNo = Object.assign({}, v, { clients: clientsNo });
+      const noH = monthly(vNo, SERVING[0], {
+        humanMult: v.nohmult,
+        priceMult: v.nohprice,
+        modelMult: 0.8,
+      });
+      const withCapped =
+        withH.humanH > v.capacity
+          ? monthly(
+              Object.assign({}, v, {
+                clients: Math.max(1, Math.floor((v.clients * v.capacity) / withH.humanH)),
+              }),
+              s,
+            )
+          : withH;
+      const delta = withCapped.afterTime - noH.afterTime;
+      const buildCost = v.bhours * v.hrate + 2500 + Math.ceil(v.bhours / v.bpace) * v.infra;
+      const buildMonths = v.bhours / v.bpace;
+      const payMonths = delta > 0 ? buildCost / delta : Infinity;
+      $('payback-kpis').innerHTML =
+        kpi(
+          'Build cost',
+          fmt.usd0(buildCost),
+          fmt.h(v.bhours) + ' at ' + fmt.usd0(v.hrate) + '/h + ~$2,500 tokens + infra during build',
+        ) +
+        kpi('Build calendar', fmt.mo(buildMonths), 'at ' + fmt.h(v.bpace) + ' per month') +
+        kpi(
+          'Margin without harness',
+          fmt.usd0(noH.afterTime),
+          clientsNo + ' clients fit in ' + fmt.h(v.capacity) + '; ' + fmt.h(noH.humanH) + ' used',
+        ) +
+        kpi(
+          'Margin with harness',
+          fmt.usd0(withCapped.afterTime),
+          (withCapped === withH
+            ? v.clients
+            : Math.max(1, Math.floor((v.clients * v.capacity) / withH.humanH))) +
+            ' clients; ' +
+            fmt.h(withCapped.humanH) +
+            ' used',
+        ) +
+        kpi(
+          'Payback after launch',
+          fmt.mo(payMonths),
+          'Δ ' + fmt.usd0(delta) + ' per month',
+          !isFinite(payMonths),
+        ) +
+        kpi('Break-even from today', fmt.mo(buildMonths + payMonths), 'build + payback');
+      const subValueDuringBuild =
+        Math.min(v.subceil, withH.modelTotal + withH.sweepTotal) - SUB.seat;
+      $('payback-note').textContent =
+        'The subscription subsidy, if it survives the build, is worth at most ' +
+        fmt.usd0(Math.max(0, subValueDuringBuild)) +
+        ' per month at these volumes (seat ceiling minus seat price), or ' +
+        fmt.usd0(Math.max(0, subValueDuringBuild) * buildMonths) +
+        ' over the build. The harness case does not depend on it.';
+    }
+
+    function render() {
+      const v = readInputs();
+      const s = v.serving;
+      const m = monthly(v, s);
+      renderKpis(v, m);
+      renderStack(v, m);
+      renderServing(v);
+      renderPnl(v, m, s);
+      renderTornado(v, s, m.afterTime);
+      renderPayback(v, s, m);
+    }
+    inputs.forEach((id) => $(id).addEventListener('input', render));
+    sel.addEventListener('change', render);
+    render();
+  })();
+</script>
