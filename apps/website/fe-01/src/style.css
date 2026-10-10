@@ -899,9 +899,13 @@ textarea {
 .operator-page {
   background: var(--paper-2);
 }
+/* The footer starts below the first viewport: the signed-in panels replace the short login form
+   after the Argon2id check, often more than 500 ms after the click, and would otherwise push a
+   visible footer out of view as a layout shift (operator-inbox-390 measured CLS 0.073). */
 .operator-layout {
   width: 100%;
   max-width: 1200px;
+  min-height: 100vh;
   padding: var(--space-8) var(--gutter);
   flex: 1;
 }

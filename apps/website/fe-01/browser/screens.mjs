@@ -339,6 +339,7 @@ if (operatorPassword)
       check: async (page) => {
         const problems = [];
         const panel = page.locator('section.funnel');
+        // Proof: rendering `days.slice(1)` made this report 29 rows at all four widths.
         const rows = await panel.locator('tbody tr').count();
         if (rows !== 30) problems.push(`expected 30 UTC day rows, found ${String(rows)}`);
         if (
