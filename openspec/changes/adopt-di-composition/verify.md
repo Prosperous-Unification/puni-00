@@ -2637,3 +2637,31 @@ not held forever` fail (`0` pass, `1` fail, `12` filtered), receiving sequence `
 configured`. The index CLI suite passed `57` tests, `0` failures, `454` expectations.
   `git diff --check` and changed-file Prettier passed. The canonical h2puni gate is deferred to
   the final pushed SHA as requested.
+
+### Domain moves, tasks 6.1 (five of fourteen) and 6.2 (WBS 040.18) — 2026-10-11
+
+- Base `origin/main` `a3b1526bd`, worktree `/home/df/wd/puni/b10-domain-services`. The 2026-10-08
+  implementation in `/tmp/puni-sol-040-18-domain-services` (`11692ce40`, `dd9426f5b`) no longer
+  exists, so both tasks were redone from the task text.
+- Red first: the moved `saved-plan-quota.test.ts` and `saved-plan-default-name.test.ts` under
+  `libs/wbs/domain/domain/src/` failed with `Cannot find module './saved-plan-quota'` (0 pass,
+  2 fail) before their sources moved; the moved `solver-request-pair.test.ts` and
+  `solver-exit-outcome.test.ts` under `libs/wbs/domain/contracts/solver/src/` failed the same way
+  (0 pass, 2 fail), then passed 10/10.
+- The smoke response-boundary negative now spies on `@wbs/domain`'s `echoSmokeText`; it still
+  observes the 500 a non-string echo earns, so the spy reaches the production route (the
+  integration file passed 10/10).
+- `bunx nx run-many -t typecheck lint:fast -p wbs-contracts wbs-be-01 wbs-domain wbs-core
+tool-devsync`: success. Tests: `wbs-domain` 887/887, `wbs-core` 831/831, `wbs-contracts`
+  457/457, `tool-devsync` 392/392 (its index-check case first failed only because
+  `smoke-echo.ts` was untracked, then passed once staged). `wbs-be-01` 1870 pass, 1 fail: the
+  untouched `organization-selection.controller.db.test.ts` case "a committed revocation refuses the
+  old browser pair…" hit its 10 s timeout under the parallel run and passed 8/8 when its file was
+  rerun alone.
+- `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes staged . HEAD`:
+  exit 0. `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 158/158 passed.
+- Not moved: nine 6.1 files whose imports reach application-ring record types or core `http/`
+  parsers (see task 6.1). The `ring:domain` constraint in `eslint.config.js` allows the domain
+  library to depend only on `ring:domain` projects, so moving them needs those types to move
+  first or the files to declare their own inputs. Recorded as an open decision for the
+  orchestrator; the h2puni gate was not run from this lane.
