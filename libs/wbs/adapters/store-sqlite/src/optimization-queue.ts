@@ -117,6 +117,7 @@ export function enqueueSolverRequest(db: Drizzle, request: SolverQueueRequest): 
 export function dequeueSolverRequest(
   db: Drizzle,
   request: SolverQueueDequeueRequest,
+  onFinished?: (target: { readonly projectId: string; readonly contractVersion?: string }) => void,
 ): SolverQueueDequeue {
   return db.transaction((tx) => {
     for (;;) {
@@ -151,9 +152,13 @@ export function dequeueSolverRequest(
         // A Retry queue entry may have been stamped one tick after its retained
         // marker even when a deterministic clock stood still. Never move that
         // ordering backwards when the durable entry becomes a slot.
+        // Proof: replacing this with request.now left a drained A alive when
+        // the second FIFO entry's later enqueuedAt had already expired it.
         now: Math.max(request.now, entry.enqueuedAt),
       };
-      const admission = reserveSolverSlotIn(tx, slot);
+      // Proof: omitting the finished-target callback lost B's A-cause event
+      // when selected A retired without a scheduling-input hash change.
+      const admission = reserveSolverSlotIn(tx, slot, onFinished);
       if (
         admission.kind === 'project-full' ||
         admission.kind === 'global-full' ||

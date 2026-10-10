@@ -9,7 +9,7 @@ const root = join(import.meta.dir, '../../..');
 /** h3mon's MemTotal from the 2026-09-27 probe (`7.6Gi`), rounded down to whole MiB. */
 const h3monCapacityMib = 7730;
 
-/** Usage allowance for DaemonSet containers that request no memory (hcloud CSI node). */
+/** Usage allowance for DaemonSet containers that request no memory (none since hcloud CSI left the graph). */
 const unrequestedDaemonSetMib = 128;
 
 async function readDocuments(path: string): Promise<unknown[]> {
@@ -104,7 +104,6 @@ describe('h3mon observability memory budget', () => {
       'infra/platform/networking/traefik.yaml',
       'infra/platform/observability/otel/collector.yaml',
       'infra/platform/observability/prometheus/kube-prometheus-stack.yaml',
-      'infra/platform/storage/production/hcloud-csi.yaml',
     ]);
     // Traefik is budgeted on h4claw: it runs only on ingress nodes.
     expect(

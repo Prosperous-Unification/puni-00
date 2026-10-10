@@ -59,7 +59,7 @@ export type ImportOutcome =
   | ImportForbidden
   | Extract<ImportPreparation, { ok: false }>;
 
-type AdmittedImportOutcome = ImportAdmission | ImportSourceRefusal;
+type AdmittedImportOutcome = ImportAdmission | ImportSourceRefusal | ImportForbidden;
 
 function existingIds(rows: readonly { id: string; name: string }[]): Map<string, string> {
   return new Map(rows.map(({ id, name }) => [name, id]));
@@ -141,9 +141,10 @@ async function resolveNamed(
  * and every other repository write goes through that scope's
  * {@link ImportedPlanResource}. Existing entries are authoritative and are never patched;
  * only entries created by this import receive file-owned metadata.
- * Successful admission collects directory, project-settings and full-tree
- * refreshes, then publishes them only after the unit of work has committed and
- * released its turn. Import creation does not append undo or plan-history rows.
+ * Successful admission records actual shared-person consequences in the same
+ * unit of work, delivers those rows after release, then publishes collected
+ * directory, project-settings and full-tree refreshes. Import creation does
+ * not append undo or plan-history rows.
  */
 export class ImportService {
   constructor(private readonly opts: ImportServiceOptions) {}
@@ -177,6 +178,9 @@ export class ImportService {
     if (!preparation.ok) return preparation;
     const collector = new AnnouncementCollector(this.opts.announcements);
     const admitted = await this.opts.transaction.run<AdmittedImportOutcome>(
+      actorId,
+      access,
+      { ok: false, code: 'forbidden', path: '', detail: null },
       collector,
       async ({ writes, services: graph }) => {
         const directory = graph.directory;

@@ -70,12 +70,16 @@ export async function runSolverChildLifecycle(
       try {
         await options.onExit(turn.exit);
       } finally {
-        options.slots.releaseSlot(options.slot);
+        // Proof: dropping this await let normal completion settle while its
+        // exact-token slot still existed in the held-release SQLite test.
+        await options.slots.releaseSlot(options.slot);
       }
       return { kind: 'exited', code: turn.exit.code };
     }
 
-    const heartbeat = options.slots.refreshSlot({
+    // Proof: dropping this await killed a cancelled child before its held
+    // durable heartbeat decision had returned in the SQLite lifecycle test.
+    const heartbeat = await options.slots.refreshSlot({
       ...options.slot,
       now: options.now(),
     });
@@ -83,7 +87,9 @@ export async function runSolverChildLifecycle(
 
     await options.child.kill();
     const exit = await completed;
-    options.slots.releaseSlot(options.slot);
+    // Proof: removing this await settled durable cancellation while the held
+    // exact-token release and slot still existed in the SQLite lifecycle test.
+    await options.slots.releaseSlot(options.slot);
     return {
       kind: 'cancelled',
       reason: heartbeat.kind === 'lost' ? 'lost' : heartbeat.reason,

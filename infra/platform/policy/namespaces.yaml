@@ -14,6 +14,16 @@ metadata:
     pod-security.kubernetes.io/enforce: restricted
     pod-security.kubernetes.io/enforce-version: latest
 ---
+# The dev.puni.dev preview (`<product>-<env>`). The platform owns the namespace and its
+# admission; the application manifests in the fleet repo own only workloads.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: website-dev
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
 apiVersion: v1
 kind: Namespace
 metadata:

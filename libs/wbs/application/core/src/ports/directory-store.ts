@@ -222,6 +222,13 @@ export type OrganizationRenamed =
 
 export interface DirectoryStore {
   /**
+   * On an addressed miss, distinguish a missing/foreign entry from a present
+   * trusted root whose ownership mapping is absent or conflicting. Optional
+   * for older in-memory readers; persistent public writers provide it.
+   * @throws for missing or conflicting trusted ownership of a present root.
+   */
+  inspectMissingOwnership?(catalog: NamedCatalog, resourceId: string): Promise<void>;
+  /**
    * One catalog as one organization sees it: only the entries it owns, under
    * their organization-local display names, ordered by that name. A person's
    * teams and a team's services are the organization's own.

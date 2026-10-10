@@ -84,6 +84,9 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     scheduler: DiBag.createProvider(() => fastScheduler, { factoryReturnKind: 'sync-value' }),
+    schedulerMode: DiBag.createProvider(() => 'capture' as const, {
+      factoryReturnKind: 'sync-value',
+    }),
   };
 };
 

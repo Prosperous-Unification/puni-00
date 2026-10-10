@@ -13,3 +13,5 @@ spec:
       static:
         - https://wbs.bulletpoints.club/
         - https://wbs-staging.bulletpoints.club/
+        - https://dev.puni.dev/
+        - https://dev.app.puni.dev/

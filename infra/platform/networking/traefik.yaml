@@ -31,3 +31,19 @@ spec:
         maxSurge: 0
     nodeSelector:
       puni.dev/capability-ingress: 'true'
+    # Host ports 80 and 443 on ingress nodes; HTTP only ever redirects. The chart's own defaults
+    # are 8000 and 8443 (tools/tool-fleet/src/platform-releases.ts TraefikValues).
+    ports:
+      web:
+        port: 80
+        http:
+          redirections:
+            entryPoint:
+              to: websecure
+              scheme: https
+              permanent: true
+      websecure:
+        port: 443
+    service:
+      spec:
+        type: ClusterIP

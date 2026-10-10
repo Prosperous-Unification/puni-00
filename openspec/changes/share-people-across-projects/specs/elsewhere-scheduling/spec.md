@@ -165,6 +165,50 @@ SHALL remain unchanged.
 - **THEN** no child starts, the unlaunched slot is released, and the modeled refusal remains
   distinct from missing input; an unexpected capture exception likewise releases before throwing
 
+### Requirement: Retry reports unavailable schedule input without admission
+
+Manual Retry SHALL capture current input and settings under the requesting human's admitted
+scope in one observation, revalidating access there, and SHALL close that observation before
+admission. Successful capture SHALL retain the existing stale-input-hash decision and the
+transactional Retry authority recheck. Background project-owned authority SHALL NOT replace
+human authority for Retry.
+
+When a required engine is unavailable or the target has a cycle/calendar-range failure, Retry
+SHALL return HTTP 409 with `code: 'schedule-input-unavailable'`, a `reason` of
+`engine_unavailable`, `cycle` or `calendar_range`, and the failing readable `projectId`.
+It SHALL NOT invent a current hash, report an idle variant, use local-only input, or write
+cache, generation, slot, queue or event state. It SHALL NOT launch a child. Missing/foreign
+projects and denied access SHALL retain their existing refusal semantics; unexpected failures
+SHALL throw. The existing upstream cycle/calendar-range skip-bookings policy SHALL remain.
+
+#### Scenario: a required influencer has no available engine during Retry
+
+- **GIVEN** authorized B Retry and readable influencer A whose required engine is unavailable
+- **WHEN** the coherent input capture cannot derive B's input
+- **THEN** Retry returns 409 `schedule-input-unavailable`, `reason: 'engine_unavailable'`,
+  `projectId: A`, with no fabricated hash, admission, durable state change or child launch
+
+#### Scenario: the target cannot be scheduled during Retry
+
+- **GIVEN** authorized B Retry whose captured target fails with cycle or calendar_range
+- **WHEN** Retry captures B's current input
+- **THEN** it returns 409 `schedule-input-unavailable` with that reason and `projectId: B`,
+  without changing optimizer state or launching a child
+
+#### Scenario: an upstream cycle does not become a target refusal
+
+- **GIVEN** readable A outranks B and A has a cycle or calendar_range failure
+- **WHEN** the chain can derive B after omitting A's unavailable bookings
+- **THEN** Retry uses B's resulting shared input and existing hash/admission decisions,
+  rather than treating A's cycle/range evidence as engine unavailability
+
+#### Scenario: Retry loses human access before capture
+
+- **GIVEN** the route admitted a human Retry but membership is revoked before snapshot capture
+- **WHEN** the capture revalidates that human's access
+- **THEN** Retry returns the existing access refusal, exposes no failing-project identity and
+  writes no optimizer state; a later revocation before admission is still checked transactionally
+
 ### Requirement: Cached outcomes retain immutable input addresses
 
 Publication SHALL continue validating against the admitted request and enforcing existing slot,
@@ -196,3 +240,10 @@ deletion; the target's saved input alone SHALL NOT be represented as replayable 
 - **WHEN** B is saved through the installed route, then A changes and B's current side is read
 - **THEN** the saved bytes retain the original displaced schedule, current reflects the new
   chain, and neither capture allocates a generation, slot or queue entry
+
+#### Scenario: a removed booking remains a representable comparison
+
+- **GIVEN** B was saved while A's booking held B's assigned slice
+- **WHEN** A's assignment is removed and B's saved plan is compared with current in either direction
+- **THEN** the comparison answers with the displaced dates and holder difference; a missing
+  side is JSON `null`, while actual zero, false and empty-string values remain those values

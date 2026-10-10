@@ -10,6 +10,7 @@ import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain'
 import { type } from '@wbs/validation';
 
 import type { Clock } from '../../ports/clock';
+import type { BeforeProjectUpdate } from '../../ports/fanout-capture-store';
 import {
   findProjectWithin,
   LEGACY_ACCESS as LEGACY,
@@ -121,6 +122,8 @@ export interface ProjectServiceOptions {
    * would store a plan whose every later read throws.
    */
   dependencyGraph: Pick<DependencyGraphGuard, 'findCycle'>;
+  /** Trusted admitted-route observation seam; direct service callers need no fan-out capture. */
+  beforeUpdate?: BeforeProjectUpdate;
 }
 
 /**
@@ -435,6 +438,10 @@ export class ProjectService {
     if (patch.depReach !== undefined && patch.depReach !== project.depReach) {
       const cycle = await this.opts.dependencyGraph.findCycle(id, { reach: patch.depReach });
       if (cycle !== null) return { ok: false, reason: 'dependency_cycle' };
+    }
+    if (this.opts.beforeUpdate !== undefined) {
+      const observed = await this.opts.beforeUpdate(id, actorId, access);
+      if (!observed.ok) return observed;
     }
     const stamp = this.clock.stampFor(actorId);
     // Scoped writes are classified again inside the store's transaction, so a

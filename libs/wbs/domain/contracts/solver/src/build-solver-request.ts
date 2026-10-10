@@ -255,6 +255,8 @@ export function buildSolverRequest(
       // keeps them apart so a later hint (a warm start from the previous cached
       // result, say) does not silently move the objective's origin.
       fastHint: spawn.baselineOffsets,
+      // Proof: replacing this wire map with {} failed four mounted initial,
+      // edit, queued and Retry request assertions while canonical input stayed intact.
       elsewhere: bookings.wire,
     },
   };

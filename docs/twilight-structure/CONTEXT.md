@@ -284,6 +284,11 @@ An externally visible action a worker requests, recorded with a stable identity
 before dispatch so its outcome can be reconciled.
 _Avoid_: Side effect, call, tool use
 
+**Fleet operation plan**:
+A reviewed description of a proposed fleet membership change, binding its desired
+and observed state, target identities, preconditions and expected effects.
+_Avoid_: work plan, admission, permission to apply
+
 **Recovery disposition**:
 An audited, revision-checked operator decision that may release one named resource
 from out-of-band evidence while leaving its uncertain effect outcome unchanged.

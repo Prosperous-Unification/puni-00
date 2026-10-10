@@ -276,20 +276,7 @@ export function canonicalScheduleInput(input: ScheduleInput): string {
   // Proof: this call removed made `refuses a person listed with no booking,
   // as the engine does` and the unordered-bookings case hash what the engine
   // refuses; watched 2026-09-29.
-  const held = input.elsewhere ?? new Map<string, never[]>();
-  checkElsewhere(held);
-  const elsewhere = [...held]
-    .sort(([left], [right]) => byBytes(left, right))
-    .map(([personId, bookings]) => ({
-      personId,
-      // Already in order: `checkElsewhere` refuses a list that is not.
-      bookings: bookings.map((booking) => ({
-        start: booking.start,
-        end: booking.end,
-        projectId: booking.projectId,
-        workItemId: booking.workItemId,
-      })),
-    }));
+  const elsewhere = canonicalElsewhereRows(input.elsewhere);
 
   return JSON.stringify({
     rows,
@@ -302,4 +289,26 @@ export function canonicalScheduleInput(input: ScheduleInput): string {
     ...(typed.length === 0 ? {} : { typed }),
     ...(elsewhere.length === 0 ? {} : { elsewhere }),
   });
+}
+
+/** Canonical incoming-calendar bytes, independent of labels, rank and mode. */
+export function canonicalElsewhere(held?: Elsewhere): string {
+  return JSON.stringify(canonicalElsewhereRows(held));
+}
+
+function canonicalElsewhereRows(held: Elsewhere | undefined) {
+  const bookingsByPerson = held ?? new Map<string, never[]>();
+  checkElsewhere(bookingsByPerson);
+  return [...bookingsByPerson]
+    .sort(([left], [right]) => byBytes(left, right))
+    .map(([personId, bookings]) => ({
+      personId,
+      // Already in order: `checkElsewhere` refuses a list that is not.
+      bookings: bookings.map((booking) => ({
+        start: booking.start,
+        end: booking.end,
+        projectId: booking.projectId,
+        workItemId: booking.workItemId,
+      })),
+    }));
 }

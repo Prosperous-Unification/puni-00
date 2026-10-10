@@ -211,6 +211,75 @@ function plain(value: unknown): unknown {
   return value;
 }
 
+const TraefikDaemonSet = type({
+  kind: "'DaemonSet'",
+  spec: {
+    template: {
+      spec: {
+        hostNetwork: 'boolean',
+        containers: type({
+          name: 'string',
+          'args?': 'string[]',
+          'ports?': type({ containerPort: 'number', 'name?': 'string' }).array(),
+        }).array(),
+      },
+    },
+  },
+});
+const TraefikService = type({ kind: "'Service'", spec: { 'type?': 'string' } });
+
+/** Arguments the chart must render for the 80/443 host-network edge with a permanent redirect. */
+const traefikEdgeArguments = [
+  '--entryPoints.web.address=:80/tcp',
+  '--entryPoints.websecure.address=:443/tcp',
+  '--entryPoints.web.http.redirections.entryPoint.to=:443',
+  '--entryPoints.web.http.redirections.entryPoint.scheme=https',
+  '--entryPoints.web.http.redirections.entryPoint.permanent=true',
+] as const;
+
+/**
+ * Judges the platform Traefik as the chart renders it, not as its values read: a values key the
+ * chart's schema accepts and ignores (`service.type` in chart 41) passes the values schema in
+ * `platform-releases.ts` yet leaves the chart default in force. The DaemonSet must listen on host
+ * ports 80 and 443 and redirect HTTP permanently, and the Service must be `ClusterIP`.
+ */
+export function judgeTraefikEdge(rendered: string): string[] {
+  const documents = parseAllDocuments(rendered).map((document) => document.toJSON() as unknown);
+  const daemonSets = documents.flatMap((document) => {
+    const decoded = TraefikDaemonSet(document);
+    return decoded instanceof type.errors ? [] : [decoded];
+  });
+  const services = documents.flatMap((document) => {
+    const decoded = TraefikService(document);
+    return decoded instanceof type.errors ? [] : [decoded];
+  });
+  if (daemonSets.length !== 1 || services.length !== 1) {
+    return [
+      `traefik rendered ${String(daemonSets.length)} DaemonSets and ${String(services.length)} Services, not one of each`,
+    ];
+  }
+  const problems: string[] = [];
+  const pod = daemonSets[0].spec.template.spec;
+  const container = pod.containers.find(({ name }) => name === 'traefik');
+  if (!pod.hostNetwork) problems.push('traefik DaemonSet does not use the host network');
+  const args = container?.args ?? [];
+  // Proof: with this loop disabled, check.test.ts `refuses a Traefik render on the chart default
+  // ports` failed (22 pass / 1 fail) on 2026-10-06.
+  for (const expected of traefikEdgeArguments) {
+    if (!args.includes(expected)) problems.push(`traefik container lacks ${expected}`);
+  }
+  const ports = (container?.ports ?? []).map(({ containerPort }) => containerPort);
+  for (const port of [80, 443]) {
+    if (!ports.includes(port))
+      problems.push(`traefik container does not expose port ${String(port)}`);
+  }
+  if (services[0].spec.type !== 'ClusterIP') {
+    // Proof: with this comparison disabled, the same test failed (22 pass / 1 fail) on 2026-10-06.
+    problems.push(`traefik Service is ${services[0].spec.type ?? 'unset'}, not ClusterIP`);
+  }
+  return problems;
+}
+
 /** The report `check-ansible.py` prints. */
 export interface AnsibleReport {
   readonly syntax: readonly { playbook: string; exitCode: number; stderr: string }[];
@@ -222,6 +291,50 @@ export interface AnsibleReport {
     listed: unknown;
     selectors: readonly string[];
   }[];
+  /** `roles/base/templates/k3s-sysctl.conf.j2` rendered for each host of a static inventory. */
+  readonly kernelSettings: readonly {
+    inventory: string;
+    host: string | null;
+    capabilities: unknown;
+    rendered: string | null;
+    error: string | null;
+  }[];
+}
+
+const unprivilegedPortFloor = 'net.ipv4.ip_unprivileged_port_start = 0';
+
+/**
+ * Exactly the hosts whose `puni_node_capabilities` include `ingress` lower the unprivileged port
+ * floor to 0, so the non-root host-network Traefik can bind 80 and 443 there and nowhere else.
+ * A render error, a host without a capability list or an empty report is a problem.
+ */
+export function judgeKernelSettings(report: AnsibleReport): string[] {
+  if (report.kernelSettings.length === 0) return ['no static inventory host rendered k3s-sysctl'];
+  const problems: string[] = [];
+  for (const entry of report.kernelSettings) {
+    const where = `${entry.inventory} ${entry.host ?? '(inventory)'}`;
+    if (entry.error !== null || entry.rendered === null) {
+      problems.push(`${where} does not render k3s-sysctl.conf.j2: ${entry.error ?? 'no output'}`);
+      continue;
+    }
+    if (!Array.isArray(entry.capabilities)) {
+      problems.push(`${where} has no puni_node_capabilities list`);
+      continue;
+    }
+    const ingress = entry.capabilities.map(plain).includes('ingress');
+    const lowered = entry.rendered.split('\n').includes(unprivilegedPortFloor);
+    // Proof: with this comparison replaced by `false`, check.test.ts `requires the port floor on
+    // ingress hosts only` failed (22 pass / 1 fail) on 2026-10-06; check-faults.ts deletes the
+    // template line and runs the real check.
+    if (ingress !== lowered) {
+      problems.push(
+        ingress
+          ? `${where} is an ingress host but k3s-sysctl lacks ${unprivilegedPortFloor}`
+          : `${where} is not an ingress host but k3s-sysctl lowers the unprivileged port floor`,
+      );
+    }
+  }
+  return problems;
 }
 
 /** Every playbook must pass `--syntax-check`, and at least one must exist. */
@@ -418,12 +531,13 @@ export async function runFleetChecks(
   if (report !== null) {
     const syntax = judgeAnsibleSyntax(report);
     for (const message of syntax) failures.push({ family: 'ansible-syntax', message });
-    for (const message of judgeInventories(report)) {
+    for (const message of [...judgeInventories(report), ...judgeKernelSettings(report)]) {
       failures.push({ family: 'ansible-inventory', message });
     }
     log(
       `ansible: ${String(report.syntax.length)} playbooks syntax-checked, ` +
-        `${String(report.inventories.length)} inventories listed against the fixture API`,
+        `${String(report.inventories.length)} inventories listed against the fixture API, ` +
+        `k3s-sysctl rendered for ${String(report.kernelSettings.length)} static hosts`,
     );
   }
 
@@ -521,6 +635,8 @@ export async function runFleetChecks(
           problems.push(`${release.path} does not render: ${rendered.stderr.trim()}`);
         } else if (!/^kind: /m.test(rendered.stdout)) {
           problems.push(`${release.path} rendered no Kubernetes objects`);
+        } else if (release.name === 'traefik') {
+          problems.push(...judgeTraefikEdge(rendered.stdout));
         }
       } finally {
         await rm(scratch, { recursive: true, force: true });
