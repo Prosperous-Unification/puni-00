@@ -192,3 +192,31 @@ dependencies and executes the full gate. Exact-head CI is a separate receipt.
 No checkout, fetch, transfer, host gate, CI trigger, push or merge was attempted.
 Task 2.2 remains open; coordinator confirmation of canonical SHA availability and
 host connectivity is the next prerequisite.
+
+## Task 2.2 batch-10 rebase-by-merge acceptance (2026-10-11)
+
+Branch `batch-10/080-19-dash-local-plan-facade` starts at `411cf179f` and merges
+`origin/main` at `a3b1526bd` (merge `a8ded9bf1`); `bun install --frozen-lockfile`
+installed 1371 packages. All commands ran under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`.
+
+| Command                                                                                                                                           | Result                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NX_DAEMON=false bunx nx run-many -t test lint typecheck build -p twilight-dash --skip-nx-cache --output-style=static`                            | Exit 0; `tool-test-scratch:build` and all four Dash targets ran; 38/38 tests, 239 assertions; Bun bundled 292 modules.                                                                                  |
+| `NX_DAEMON=false bunx nx show project twilight-dash --json`                                                                                       | Root `apps/twilight-structure/twilight-dash/cli`; targets build, lint, test, typecheck; test command `bun test src --timeout=30000`.                                                                    |
+| `bun test --preload ../test/scratch/preload.ts --timeout=30000 src/cli.test.ts src/plan.test.ts src/lab-provider.test.ts` from `tools/tool-fleet` | 24/24, 184 assertions.                                                                                                                                                                                  |
+| `NX_DAEMON=false bun test` on devsync `workspace-projects`, `namespace-layout`, `workspace-targets`, `eslint-boundaries`                          | 81/81, 211 assertions.                                                                                                                                                                                  |
+| `NX_DAEMON=false bunx nx run-many -t test lint typecheck -p tool-devsync --skip-nx-cache --output-style=static`                                   | First run 390/393: two `sync.test.ts` `RESTART_PATHS coverage` cases lacked the Dash `project.json`/`tsconfig.json` (third failure was this lane's own untracked logs). After the fix, exit 0, 393/393. |
+| `bun run apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working <worktree> HEAD`                                          | Exit 0, empty stderr. Dash declares no `module-index`; its files are listed only as unindexed candidates.                                                                                               |
+| `bunx @fission-ai/openspec@1.12.0 validate dash-local-plan-facade --strict --json` and `validate --all --json`                                    | 1/1 and 158/158.                                                                                                                                                                                        |
+
+Main's movement exposed one gap. The new app was missing from
+`tools/tool-devsync/src/sync.ts::RESTART_PATHS`, and `sync.test.ts` walks every app on
+disk. The RED came from the real oracle: `Expected to contain:
+"apps/twilight-structure/twilight-dash/cli/project.json"` and the same for `tsconfig.json`.
+Adding the two entries with adjacent `Proof:` comments turned it GREEN. Suite placement is
+`apps/twilight-structure/twilight-dash/eslint.product.mjs`, and `eslint-boundaries.test.ts`
+and `namespace-layout.test.ts` accept it.
+
+Not run here: `bin/h2puni-gate.sh <sha>` and exact-head CI. Those belong to the orchestrator
+after review. Task 2.2 stays open until both receipts exist. No host operation, authority
+bootstrap or relocation happened.

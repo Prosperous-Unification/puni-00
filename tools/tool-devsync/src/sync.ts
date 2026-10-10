@@ -496,6 +496,10 @@ export const RESTART_PATHS: readonly string[] = [
   // at startup` on `Expected to contain:
   // "apps/twilight-structure/twilight-burokrat/cli/project.json"` (2026-09-25).
   'apps/twilight-structure/twilight-burokrat/cli/project.json',
+  // Proof: omitting it failed `names every app project.json, which the supervisor reads once at
+  // startup` on `Expected to contain: "apps/twilight-structure/twilight-dash/cli/project.json"`
+  // (2026-10-11).
+  'apps/twilight-structure/twilight-dash/cli/project.json',
   'apps/wbs/fe-01/vite.config.ts',
   // TypeScript config is read once, at process start. A moved path alias
   // resolves against the old mapping in three already-running processes while
@@ -512,6 +516,10 @@ export const RESTART_PATHS: readonly string[] = [
   // start` on `Expected to contain:
   // "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json"` (2026-09-25).
   'apps/twilight-structure/twilight-burokrat/cli/tsconfig.json',
+  // Proof: omitting this entry failed `names every app tsconfig, which is read once at process
+  // start` on `Expected to contain: "apps/twilight-structure/twilight-dash/cli/tsconfig.json"`
+  // (2026-10-11).
+  'apps/twilight-structure/twilight-dash/cli/tsconfig.json',
   // A library's project.json can change what its serve-time build resolves to,
   // and the Nx supervisor read the project graph at startup like the rest.
   // Listed per library rather than as `libs`, which would restart on every
