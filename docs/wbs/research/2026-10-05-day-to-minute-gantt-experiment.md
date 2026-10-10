@@ -1,10 +1,25 @@
 # Day-to-minute Gantt-axis experiment (020.07 / R6b)
 
-Both zoom interactions preserve elapsed geometry and keyboard access from seven days
-to five minutes. In this headless Chromium experiment, all tested conditions up to
-2,500 attempts stay below the provisional 100 ms p95 interaction target. Both
-interactions exceed it at 10,000 attempts. This supplies a measured density bracket,
-not a production ceiling or a human preference verdict.
+**Conclusion.** A standalone prototype drew batch 1's 31 real dispatch-to-return
+attempts on an elapsed axis that zooms from 7 days to 5 minutes, and compared a
+six-rung discrete ladder with a logarithmic slider using one renderer. Both kept
+elapsed geometry within 1 CSS px, kept keyboard access to sub-pixel attempts and
+passed every [browser check](../../../experiments/r6b-timeline/evidence/browser-checks.json).
+Headless Chromium 153, measured 2026-10-05 over 24 conditions of five repetitions each,
+gave these nearest-rank p95 figures against a provisional 100 ms target:
+interaction (zoom/pan) p95 at most 66.6 ms through 500×5 (2,500 attempts) and at
+most 52.2 ms at 2000×1, but 137.5–201.7 ms at 2000×5 (10,000 attempts); fresh-mount
+p95 already reaches 109.5–116.1 ms at 2,000 attempts and 308.3–339.7 ms at 10,000
+([raw measurements](../../../experiments/r6b-timeline/evidence/measurements.json),
+[screenshots](../../../experiments/r6b-timeline/evidence/batch-1440.png),
+[fault proofs](../../../experiments/r6b-timeline/evidence/proofs.json)). Neither control
+was faster or more correct, so the recommendation for the real Gantt is: keep the
+elapsed sub-day axis as a separate epoch-millisecond scale beside the unchanged
+workday `DAY_SCALES`, offer the named discrete rungs with fit-to-selection (the slider
+adds no measured benefit), keep enlarged hit targets with an explicit ambiguity list,
+and window rows and marks before about 2,000 mounted attempts, since mount cost
+crosses the target first. This is a density bracket, not a production ceiling or a
+human preference verdict; adopting any of it still needs its own design interview.
 
 ## Intent and boundary
 
@@ -177,10 +192,12 @@ were experiment-local missing TSconfig/browser globals and harness nullability/t
 they were fixed without disabling repository rules. Nx graph was populated before
 final lint so the graph was available. The experiment is not an Nx project and
 imports no product modules; this is not a claim of product boundary coverage.
-JavaScript renderer
-is checked by ESLint/build/browser behavior; TypeScript covers the harness, not a
-claim of strict checked-JS conversion. Final exact command outcomes are recorded
-in evidence/checks.json before commit.
+The JavaScript renderer `app.js` is checked by ESLint/build/browser behavior only;
+TypeScript covers the harness and, since 2026-10-11, `model.js` through `checkJs` with
+JSDoc parameter types (deleting one `@param` type makes the experiment `tsc` exit 1 with
+TS7006). Converting the measured renderer to checked JS would change the measured
+source and is not claimed. Final exact command outcomes are recorded in
+evidence/checks.json before commit.
 
 The standalone experiment commands are not invoked by an existing Nx target;
 their fresh manual outputs supplement the normal repository gate. The

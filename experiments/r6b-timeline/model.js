@@ -4,7 +4,11 @@
 /** Experimental elapsed spans, never workday conversion. */
 export const SPANS = [604800000, 86400000, 21600000, 3600000, 900000, 300000];
 
-/** Strict timestamp boundary: an explicit zone is required and normalized calendar dates must agree. */
+/**
+ * Strict timestamp boundary: an explicit zone is required and normalized calendar dates must agree.
+ * @param {unknown} value External timestamp.
+ * @returns {number} Epoch milliseconds.
+ */
 export function parseInstant(value) {
   // Proof: parse-local-as-UTC fault makes the explicit-offset test fail; invalid-date guard removal fails refusal test.
   if (
@@ -95,7 +99,11 @@ export function candidatesAt(attempts, viewport, x) {
   });
 }
 
-/** Zone changes only labels. Instants and elapsed duration stay on the epoch millisecond axis. */
+/**
+ * Zone changes only labels. Instants and elapsed duration stay on the epoch millisecond axis.
+ * @param {number} milliseconds Epoch instant.
+ * @param {string} zone IANA time zone for the label.
+ */
 export function formatInstant(milliseconds, zone) {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: zone,
@@ -110,7 +118,12 @@ export function formatInstant(milliseconds, zone) {
   }).format(milliseconds);
 }
 
-/** Synthetic densities deliberately repeat rows; they are not source-ledger concurrency evidence. */
+/**
+ * Synthetic densities deliberately repeat rows; they are not source-ledger concurrency evidence.
+ * @param {number} rows Synthetic packet rows.
+ * @param {number} attemptsPerRow Attempts painted on each row.
+ * @returns {Attempt[]} Synthetic attempts.
+ */
 export function makeLoad(rows, attemptsPerRow) {
   const start = Date.parse('2026-09-19T23:40:00Z');
   return Array.from({ length: rows }, (_, row) =>

@@ -58,6 +58,8 @@ const assertions = async (viewport: { width: number; height: number }) => {
   const fixture = await page.evaluate(() => window.timeline.attempts);
   assert.equal(fixture.length, 31);
   assert.equal(await page.locator('.hit').count(), 31);
+  // Static index.html declares #span as a select and #zoom as a range input; a missing control
+  // throws a TypeError inside the page and rejects this evaluate.
   const fittedControls = await page.evaluate(() => ({
     span: window.timeline.viewport.span,
     displayedSpan: Number((document.getElementById('span') as HTMLSelectElement).value),
