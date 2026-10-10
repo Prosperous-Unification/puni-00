@@ -1,0 +1,8 @@
+{
+  "browser": "153.0.8010.12",
+  "checks": [
+    "1440x900: identity, geometry, anchor, all-scale keyboard, zones, ruler, pan, ambiguity, zero/open/day precision",
+    "390x844: identity, geometry, anchor, all-scale keyboard, zones, ruler, pan, ambiguity, zero/open/day precision"
+  ],
+  "passed": true
+}

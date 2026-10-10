@@ -1,0 +1,2290 @@
+{
+  "recordedUTC": "2026-10-05T20:37:25.982Z",
+  "browser": "153.0.8010.12",
+  "browserMode": "headless Chromium; not human task time",
+  "hardware": {
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12800HX",
+    "logicalCPUs": 24,
+    "memoryBytes": 33227804672
+  },
+  "protocol": "one warmup, five reload mount + zoom/pan-to-two-animation-frames repetitions per case; p95 nearest rank, n=5",
+  "provisionalP95TargetMs": 100,
+  "measurements": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "variant": "discrete",
+      "rows": 50,
+      "attemptsPerRow": 1,
+      "repetitions": [
+        {
+          "mount": 9.100000023841858,
+          "zoom": 33.09999996423721,
+          "pan": 33.60000002384186,
+          "dom": 324,
+          "paintedAttempts": 50,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 7.900000035762787,
+          "zoom": 33.5,
+          "pan": 33.39999997615814,
+          "dom": 324,
+          "paintedAttempts": 50,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 6.600000023841858,
+          "zoom": 30.30000001192093,
+          "pan": 33.59999996423721,
+          "dom": 324,
+          "paintedAttempts": 50,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 9.600000023841858,
+          "zoom": 33.90000003576279,
+          "pan": 33.09999996423721,
+          "dom": 324,
+          "paintedAttempts": 50,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 12.100000023841858,
+          "zoom": 33.39999997615814,
+          "pan": 33.90000003576279,
+          "dom": 324,
+          "paintedAttempts": 50,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 9.100000023841858,
+          "p95": 12.100000023841858
+        },
+        "zoom": {
+          "median": 33.39999997615814,
+          "p95": 33.90000003576279
+        },
+        "pan": {
+          "median": 33.59999996423721,
+          "p95": 33.90000003576279
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "variant": "discrete",
+      "rows": 50,
+      "attemptsPerRow": 5,
+      "repetitions": [
+        {
+          "mount": 12.899999976158142,
+          "zoom": 33.19999998807907,
+          "pan": 33.39999997615814,
+          "dom": 721,
+          "paintedAttempts": 250,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": []
+        },
+        {
+          "mount": 13.100000023841858,
+          "zoom": 33.5,
+          "pan": 33.19999998807907,
+          "dom": 721,
+          "paintedAttempts": 250,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": []
+        },
+        {
+          "mount": 13,
+          "zoom": 33.5,
+          "pan": 33.39999997615814,
+          "dom": 721,
+          "paintedAttempts": 250,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": []
+        },
+        {
+          "mount": 14.100000023841858,
+          "zoom": 33.5,
+          "pan": 33.80000001192093,
+          "dom": 721,
+          "paintedAttempts": 250,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": []
+        },
+        {
+          "mount": 12.699999988079071,
+          "zoom": 33.39999997615814,
+          "pan": 33.30000001192093,
+          "dom": 721,
+          "paintedAttempts": 250,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": []
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 13,
+          "p95": 14.100000023841858
+        },
+        "zoom": {
+          "median": 33.5,
+          "p95": 33.5
+        },
+        "pan": {
+          "median": 33.39999997615814,
+          "p95": 33.80000001192093
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "variant": "discrete",
+      "rows": 500,
+      "attemptsPerRow": 1,
+      "repetitions": [
+        {
+          "mount": 30.599999964237213,
+          "zoom": 33.299999952316284,
+          "pan": 33.5,
+          "dom": 2574,
+          "paintedAttempts": 500,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 29.5,
+          "zoom": 32.799999952316284,
+          "pan": 33.30000001192093,
+          "dom": 2574,
+          "paintedAttempts": 500,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 35.69999998807907,
+          "zoom": 33.299999952316284,
+          "pan": 33.40000003576279,
+          "dom": 2574,
+          "paintedAttempts": 500,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 27.900000035762787,
+          "zoom": 32.69999998807907,
+          "pan": 33.39999997615814,
+          "dom": 2574,
+          "paintedAttempts": 500,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 27,
+          "zoom": 32.90000003576279,
+          "pan": 33.5,
+          "dom": 2574,
+          "paintedAttempts": 500,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 29.5,
+          "p95": 35.69999998807907
+        },
+        "zoom": {
+          "median": 32.90000003576279,
+          "p95": 33.299999952316284
+        },
+        "pan": {
+          "median": 33.40000003576279,
+          "p95": 33.5
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "variant": "discrete",
+      "rows": 500,
+      "attemptsPerRow": 5,
+      "repetitions": [
+        {
+          "mount": 81.89999997615814,
+          "zoom": 49.89999997615814,
+          "pan": 50.19999998807907,
+          "dom": 6571,
+          "paintedAttempts": 2500,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 14.600000023841858,
+              "duration": 79
+            }
+          ]
+        },
+        {
+          "mount": 74.19999998807907,
+          "zoom": 49.19999998807907,
+          "pan": 50,
+          "dom": 6571,
+          "paintedAttempts": 2500,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 14.699999988079071,
+              "duration": 72
+            }
+          ]
+        },
+        {
+          "mount": 80.60000002384186,
+          "zoom": 49,
+          "pan": 50.10000002384186,
+          "dom": 6571,
+          "paintedAttempts": 2500,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 14.5,
+              "duration": 78
+            }
+          ]
+        },
+        {
+          "mount": 72.60000002384186,
+          "zoom": 49.89999997615814,
+          "pan": 33.40000003576279,
+          "dom": 6571,
+          "paintedAttempts": 2500,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 14,
+              "duration": 70
+            }
+          ]
+        },
+        {
+          "mount": 75.69999998807907,
+          "zoom": 49.90000003576279,
+          "pan": 50.09999996423721,
+          "dom": 6571,
+          "paintedAttempts": 2500,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 17.80000001192093,
+              "duration": 72
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 75.69999998807907,
+          "p95": 81.89999997615814
+        },
+        "zoom": {
+          "median": 49.89999997615814,
+          "p95": 49.90000003576279
+        },
+        "pan": {
+          "median": 50.09999996423721,
+          "p95": 50.19999998807907
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "variant": "discrete",
+      "rows": 2000,
+      "attemptsPerRow": 1,
+      "repetitions": [
+        {
+          "mount": 108.10000002384186,
+          "zoom": 50.200000047683716,
+          "pan": 49.799999952316284,
+          "dom": 10074,
+          "paintedAttempts": 2000,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": [
+            {
+              "start": 21.19999998807907,
+              "duration": 105
+            }
+          ]
+        },
+        {
+          "mount": 99.10000002384186,
+          "zoom": 49.30000001192093,
+          "pan": 50.09999996423721,
+          "dom": 10074,
+          "paintedAttempts": 2000,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": [
+            {
+              "start": 19,
+              "duration": 95
+            }
+          ]
+        },
+        {
+          "mount": 103.39999997615814,
+          "zoom": 50,
+          "pan": 50.10000002384186,
+          "dom": 10074,
+          "paintedAttempts": 2000,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": [
+            {
+              "start": 17.5,
+              "duration": 101
+            }
+          ]
+        },
+        {
+          "mount": 96.60000002384186,
+          "zoom": 46,
+          "pan": 50.10000002384186,
+          "dom": 10074,
+          "paintedAttempts": 2000,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": [
+            {
+              "start": 18.19999998807907,
+              "duration": 93
+            }
+          ]
+        },
+        {
+          "mount": 96.30000001192093,
+          "zoom": 49.60000002384186,
+          "pan": 50.59999996423721,
+          "dom": 10074,
+          "paintedAttempts": 2000,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": [
+            {
+              "start": 22.19999998807907,
+              "duration": 93
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 99.10000002384186,
+          "p95": 108.10000002384186
+        },
+        "zoom": {
+          "median": 49.60000002384186,
+          "p95": 50.200000047683716
+        },
+        "pan": {
+          "median": 50.10000002384186,
+          "p95": 50.59999996423721
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "variant": "discrete",
+      "rows": 2000,
+      "attemptsPerRow": 5,
+      "repetitions": [
+        {
+          "mount": 311.30000001192093,
+          "zoom": 149.60000002384186,
+          "pan": 134,
+          "dom": 26071,
+          "paintedAttempts": 10000,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 117.5,
+              "duration": 309
+            },
+            {
+              "start": 506.4000000357628,
+              "duration": 143
+            },
+            {
+              "start": 656.2000000476837,
+              "duration": 128
+            }
+          ]
+        },
+        {
+          "mount": 306.2999999523163,
+          "zoom": 153.69999998807907,
+          "pan": 129.39999997615814,
+          "dom": 26071,
+          "paintedAttempts": 10000,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 115.19999998807907,
+              "duration": 304
+            },
+            {
+              "start": 499,
+              "duration": 138
+            },
+            {
+              "start": 652.8000000119209,
+              "duration": 119
+            }
+          ]
+        },
+        {
+          "mount": 329.0999999642372,
+          "zoom": 149.80000001192093,
+          "pan": 133.39999997615814,
+          "dom": 26071,
+          "paintedAttempts": 10000,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 42.09999996423721,
+              "duration": 315
+            },
+            {
+              "start": 436.0999999642372,
+              "duration": 136
+            },
+            {
+              "start": 586,
+              "duration": 123
+            }
+          ]
+        },
+        {
+          "mount": 310.4000000357628,
+          "zoom": 147.5999999642372,
+          "pan": 134.20000004768372,
+          "dom": 26071,
+          "paintedAttempts": 10000,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 156.5999999642372,
+              "duration": 288
+            },
+            {
+              "start": 503.69999998807907,
+              "duration": 131
+            },
+            {
+              "start": 651.1999999880791,
+              "duration": 127
+            }
+          ]
+        },
+        {
+          "mount": 284.19999998807907,
+          "zoom": 152.5,
+          "pan": 131.89999997615814,
+          "dom": 26071,
+          "paintedAttempts": 10000,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 26.5,
+              "duration": 282
+            },
+            {
+              "start": 401.80000001192093,
+              "duration": 138
+            },
+            {
+              "start": 554.4000000357628,
+              "duration": 126
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 310.4000000357628,
+          "p95": 329.0999999642372
+        },
+        "zoom": {
+          "median": 149.80000001192093,
+          "p95": 153.69999998807907
+        },
+        "pan": {
+          "median": 133.39999997615814,
+          "p95": 134.20000004768372
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "variant": "continuous",
+      "rows": 50,
+      "attemptsPerRow": 1,
+      "repetitions": [
+        {
+          "mount": 8.399999976158142,
+          "zoom": 33.40000003576279,
+          "pan": 33.299999952316284,
+          "dom": 324,
+          "paintedAttempts": 50,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 10,
+          "zoom": 33.60000002384186,
+          "pan": 33.299999952316284,
+          "dom": 324,
+          "paintedAttempts": 50,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 11.600000023841858,
+          "zoom": 33.5,
+          "pan": 33.40000003576279,
+          "dom": 324,
+          "paintedAttempts": 50,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 11,
+          "zoom": 33.60000002384186,
+          "pan": 33.30000001192093,
+          "dom": 324,
+          "paintedAttempts": 50,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 12.800000011920929,
+          "zoom": 33.30000001192093,
+          "pan": 33.39999997615814,
+          "dom": 324,
+          "paintedAttempts": 50,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 11,
+          "p95": 12.800000011920929
+        },
+        "zoom": {
+          "median": 33.5,
+          "p95": 33.60000002384186
+        },
+        "pan": {
+          "median": 33.30000001192093,
+          "p95": 33.40000003576279
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "variant": "continuous",
+      "rows": 50,
+      "attemptsPerRow": 5,
+      "repetitions": [
+        {
+          "mount": 13.900000035762787,
+          "zoom": 32.30000001192093,
+          "pan": 34.19999998807907,
+          "dom": 721,
+          "paintedAttempts": 250,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": []
+        },
+        {
+          "mount": 16.69999998807907,
+          "zoom": 33.39999997615814,
+          "pan": 33.30000001192093,
+          "dom": 721,
+          "paintedAttempts": 250,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": []
+        },
+        {
+          "mount": 14,
+          "zoom": 33.39999997615814,
+          "pan": 33.40000003576279,
+          "dom": 721,
+          "paintedAttempts": 250,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": []
+        },
+        {
+          "mount": 14,
+          "zoom": 33.40000003576279,
+          "pan": 33.5,
+          "dom": 721,
+          "paintedAttempts": 250,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": []
+        },
+        {
+          "mount": 14.099999964237213,
+          "zoom": 33.39999997615814,
+          "pan": 33.40000003576279,
+          "dom": 721,
+          "paintedAttempts": 250,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": []
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 14,
+          "p95": 16.69999998807907
+        },
+        "zoom": {
+          "median": 33.39999997615814,
+          "p95": 33.40000003576279
+        },
+        "pan": {
+          "median": 33.40000003576279,
+          "p95": 34.19999998807907
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "variant": "continuous",
+      "rows": 500,
+      "attemptsPerRow": 1,
+      "repetitions": [
+        {
+          "mount": 30,
+          "zoom": 33.40000003576279,
+          "pan": 33.39999997615814,
+          "dom": 2574,
+          "paintedAttempts": 500,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 41.69999998807907,
+          "zoom": 30.600000023841858,
+          "pan": 33.39999997615814,
+          "dom": 2574,
+          "paintedAttempts": 500,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 41.89999997615814,
+          "zoom": 33.09999996423721,
+          "pan": 33.5,
+          "dom": 2574,
+          "paintedAttempts": 500,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 35.60000002384186,
+          "zoom": 33.60000002384186,
+          "pan": 33.89999997615814,
+          "dom": 2574,
+          "paintedAttempts": 500,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        },
+        {
+          "mount": 45.90000003576279,
+          "zoom": 33.30000001192093,
+          "pan": 33.59999996423721,
+          "dom": 2574,
+          "paintedAttempts": 500,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": []
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 41.69999998807907,
+          "p95": 45.90000003576279
+        },
+        "zoom": {
+          "median": 33.30000001192093,
+          "p95": 33.60000002384186
+        },
+        "pan": {
+          "median": 33.5,
+          "p95": 33.89999997615814
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "variant": "continuous",
+      "rows": 500,
+      "attemptsPerRow": 5,
+      "repetitions": [
+        {
+          "mount": 81.5,
+          "zoom": 48.19999998807907,
+          "pan": 49.30000001192093,
+          "dom": 6571,
+          "paintedAttempts": 2500,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 14.199999988079071,
+              "duration": 79
+            }
+          ]
+        },
+        {
+          "mount": 75.89999997615814,
+          "zoom": 50.19999998807907,
+          "pan": 33.19999998807907,
+          "dom": 6571,
+          "paintedAttempts": 2500,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 13.5,
+              "duration": 73
+            }
+          ]
+        },
+        {
+          "mount": 81.10000002384186,
+          "zoom": 49.89999997615814,
+          "pan": 38.30000001192093,
+          "dom": 6571,
+          "paintedAttempts": 2500,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 14.200000047683716,
+              "duration": 79
+            }
+          ]
+        },
+        {
+          "mount": 73.70000004768372,
+          "zoom": 47.799999952316284,
+          "pan": 50,
+          "dom": 6571,
+          "paintedAttempts": 2500,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 14,
+              "duration": 71
+            }
+          ]
+        },
+        {
+          "mount": 73.90000003576279,
+          "zoom": 49.39999997615814,
+          "pan": 50,
+          "dom": 6571,
+          "paintedAttempts": 2500,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 14.099999964237213,
+              "duration": 71
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 75.89999997615814,
+          "p95": 81.5
+        },
+        "zoom": {
+          "median": 49.39999997615814,
+          "p95": 50.19999998807907
+        },
+        "pan": {
+          "median": 49.30000001192093,
+          "p95": 50
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "variant": "continuous",
+      "rows": 2000,
+      "attemptsPerRow": 1,
+      "repetitions": [
+        {
+          "mount": 109.39999997615814,
+          "zoom": 49.90000003576279,
+          "pan": 50,
+          "dom": 10074,
+          "paintedAttempts": 2000,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": [
+            {
+              "start": 17.19999998807907,
+              "duration": 107
+            }
+          ]
+        },
+        {
+          "mount": 97.19999998807907,
+          "zoom": 49.60000002384186,
+          "pan": 49.89999997615814,
+          "dom": 10074,
+          "paintedAttempts": 2000,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": [
+            {
+              "start": 17.19999998807907,
+              "duration": 94
+            }
+          ]
+        },
+        {
+          "mount": 104.10000002384186,
+          "zoom": 50,
+          "pan": 33.30000001192093,
+          "dom": 10074,
+          "paintedAttempts": 2000,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": [
+            {
+              "start": 18.100000023841858,
+              "duration": 102
+            }
+          ]
+        },
+        {
+          "mount": 94.80000001192093,
+          "zoom": 46.19999998807907,
+          "pan": 50.09999996423721,
+          "dom": 10074,
+          "paintedAttempts": 2000,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": [
+            {
+              "start": 16.700000047683716,
+              "duration": 93
+            }
+          ]
+        },
+        {
+          "mount": 89.39999997615814,
+          "zoom": 49.5,
+          "pan": 50.90000003576279,
+          "dom": 10074,
+          "paintedAttempts": 2000,
+          "visibleRows": 16,
+          "visibleAttempts": 15,
+          "longTasks": [
+            {
+              "start": 17.30000001192093,
+              "duration": 87
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 97.19999998807907,
+          "p95": 109.39999997615814
+        },
+        "zoom": {
+          "median": 49.60000002384186,
+          "p95": 50
+        },
+        "pan": {
+          "median": 50,
+          "p95": 50.90000003576279
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "variant": "continuous",
+      "rows": 2000,
+      "attemptsPerRow": 5,
+      "repetitions": [
+        {
+          "mount": 314.10000002384186,
+          "zoom": 187.29999995231628,
+          "pan": 145.80000001192093,
+          "dom": 26071,
+          "paintedAttempts": 10000,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 120.80000001192093,
+              "duration": 311
+            },
+            {
+              "start": 514,
+              "duration": 172
+            },
+            {
+              "start": 701.3999999761581,
+              "duration": 129
+            }
+          ]
+        },
+        {
+          "mount": 293.60000002384186,
+          "zoom": 150,
+          "pan": 133.30000001192093,
+          "dom": 26071,
+          "paintedAttempts": 10000,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 111.69999998807907,
+              "duration": 290
+            },
+            {
+              "start": 485.80000001192093,
+              "duration": 133
+            },
+            {
+              "start": 635.6999999880791,
+              "duration": 127
+            }
+          ]
+        },
+        {
+          "mount": 321.2000000476837,
+          "zoom": 153.89999997615814,
+          "pan": 134.10000002384186,
+          "dom": 26071,
+          "paintedAttempts": 10000,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 123.39999997615814,
+              "duration": 319
+            },
+            {
+              "start": 533.8999999761581,
+              "duration": 143
+            },
+            {
+              "start": 687.7999999523163,
+              "duration": 118
+            }
+          ]
+        },
+        {
+          "mount": 299.60000002384186,
+          "zoom": 150.19999998807907,
+          "pan": 133,
+          "dom": 26071,
+          "paintedAttempts": 10000,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 41.69999998807907,
+              "duration": 281
+            },
+            {
+              "start": 398.30000001192093,
+              "duration": 136
+            },
+            {
+              "start": 548.4000000357628,
+              "duration": 126
+            }
+          ]
+        },
+        {
+          "mount": 291.5,
+          "zoom": 186.10000002384186,
+          "pan": 130.5,
+          "dom": 26071,
+          "paintedAttempts": 10000,
+          "visibleRows": 16,
+          "visibleAttempts": 75,
+          "longTasks": [
+            {
+              "start": 23.799999952316284,
+              "duration": 289
+            },
+            {
+              "start": 435.5999999642372,
+              "duration": 166
+            },
+            {
+              "start": 621.5999999642372,
+              "duration": 117
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 299.60000002384186,
+          "p95": 321.2000000476837
+        },
+        "zoom": {
+          "median": 153.89999997615814,
+          "p95": 187.29999995231628
+        },
+        "pan": {
+          "median": 133.30000001192093,
+          "p95": 145.80000001192093
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "variant": "discrete",
+      "rows": 50,
+      "attemptsPerRow": 1,
+      "repetitions": [
+        {
+          "mount": 7.100000023841858,
+          "zoom": 33.90000003576279,
+          "pan": 33,
+          "dom": 318,
+          "paintedAttempts": 50,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 16.5,
+          "zoom": 33.5,
+          "pan": 33.19999998807907,
+          "dom": 318,
+          "paintedAttempts": 50,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 12.699999988079071,
+          "zoom": 33.5,
+          "pan": 33.30000001192093,
+          "dom": 318,
+          "paintedAttempts": 50,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 7.599999964237213,
+          "zoom": 33.5,
+          "pan": 33.30000001192093,
+          "dom": 318,
+          "paintedAttempts": 50,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 13.800000011920929,
+          "zoom": 33.10000002384186,
+          "pan": 33.30000001192093,
+          "dom": 318,
+          "paintedAttempts": 50,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 12.699999988079071,
+          "p95": 16.5
+        },
+        "zoom": {
+          "median": 33.5,
+          "p95": 33.90000003576279
+        },
+        "pan": {
+          "median": 33.30000001192093,
+          "p95": 33.30000001192093
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "variant": "discrete",
+      "rows": 50,
+      "attemptsPerRow": 5,
+      "repetitions": [
+        {
+          "mount": 10.800000011920929,
+          "zoom": 32.69999998807907,
+          "pan": 33.40000003576279,
+          "dom": 718,
+          "paintedAttempts": 250,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": []
+        },
+        {
+          "mount": 17.30000001192093,
+          "zoom": 33.39999997615814,
+          "pan": 33.40000003576279,
+          "dom": 718,
+          "paintedAttempts": 250,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": []
+        },
+        {
+          "mount": 11.5,
+          "zoom": 33.39999997615814,
+          "pan": 33.5,
+          "dom": 718,
+          "paintedAttempts": 250,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": []
+        },
+        {
+          "mount": 14.300000011920929,
+          "zoom": 33.09999996423721,
+          "pan": 33.30000001192093,
+          "dom": 718,
+          "paintedAttempts": 250,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": []
+        },
+        {
+          "mount": 17,
+          "zoom": 33.5,
+          "pan": 33.40000003576279,
+          "dom": 718,
+          "paintedAttempts": 250,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": []
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 14.300000011920929,
+          "p95": 17.30000001192093
+        },
+        "zoom": {
+          "median": 33.39999997615814,
+          "p95": 33.5
+        },
+        "pan": {
+          "median": 33.40000003576279,
+          "p95": 33.5
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "variant": "discrete",
+      "rows": 500,
+      "attemptsPerRow": 1,
+      "repetitions": [
+        {
+          "mount": 28.30000001192093,
+          "zoom": 33.19999998807907,
+          "pan": 33.39999997615814,
+          "dom": 2568,
+          "paintedAttempts": 500,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 37.5,
+          "zoom": 34.19999998807907,
+          "pan": 32.59999996423721,
+          "dom": 2568,
+          "paintedAttempts": 500,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 30.80000001192093,
+          "zoom": 33.60000002384186,
+          "pan": 33.10000002384186,
+          "dom": 2568,
+          "paintedAttempts": 500,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 24.5,
+          "zoom": 32.90000003576279,
+          "pan": 33.39999997615814,
+          "dom": 2568,
+          "paintedAttempts": 500,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 26,
+          "zoom": 33.5,
+          "pan": 33.40000003576279,
+          "dom": 2568,
+          "paintedAttempts": 500,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 28.30000001192093,
+          "p95": 37.5
+        },
+        "zoom": {
+          "median": 33.5,
+          "p95": 34.19999998807907
+        },
+        "pan": {
+          "median": 33.39999997615814,
+          "p95": 33.40000003576279
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "variant": "discrete",
+      "rows": 500,
+      "attemptsPerRow": 5,
+      "repetitions": [
+        {
+          "mount": 85.90000003576279,
+          "zoom": 44.90000003576279,
+          "pan": 50,
+          "dom": 6568,
+          "paintedAttempts": 2500,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 16.19999998807907,
+              "duration": 83
+            }
+          ]
+        },
+        {
+          "mount": 130,
+          "zoom": 50.19999998807907,
+          "pan": 33.19999998807907,
+          "dom": 6568,
+          "paintedAttempts": 2500,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 21.69999998807907,
+              "duration": 125
+            }
+          ]
+        },
+        {
+          "mount": 84.10000002384186,
+          "zoom": 53.700000047683716,
+          "pan": 50.5,
+          "dom": 6568,
+          "paintedAttempts": 2500,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 15,
+              "duration": 81
+            }
+          ]
+        },
+        {
+          "mount": 81,
+          "zoom": 49.90000003576279,
+          "pan": 50,
+          "dom": 6568,
+          "paintedAttempts": 2500,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 13.800000011920929,
+              "duration": 78
+            }
+          ]
+        },
+        {
+          "mount": 79.20000004768372,
+          "zoom": 66.69999998807907,
+          "pan": 49.80000001192093,
+          "dom": 6568,
+          "paintedAttempts": 2500,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 15.799999952316284,
+              "duration": 76
+            },
+            {
+              "start": 144.69999998807907,
+              "duration": 52
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 84.10000002384186,
+          "p95": 130
+        },
+        "zoom": {
+          "median": 50.19999998807907,
+          "p95": 66.69999998807907
+        },
+        "pan": {
+          "median": 50,
+          "p95": 50.5
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "variant": "discrete",
+      "rows": 2000,
+      "attemptsPerRow": 1,
+      "repetitions": [
+        {
+          "mount": 106.69999998807907,
+          "zoom": 66.30000001192093,
+          "pan": 66.80000001192093,
+          "dom": 10068,
+          "paintedAttempts": 2000,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": [
+            {
+              "start": 60.10000002384186,
+              "duration": 100
+            },
+            {
+              "start": 215.89999997615814,
+              "duration": 61
+            },
+            {
+              "start": 282.19999998807907,
+              "duration": 56
+            }
+          ]
+        },
+        {
+          "mount": 105.5,
+          "zoom": 67.59999996423721,
+          "pan": 45.90000003576279,
+          "dom": 10068,
+          "paintedAttempts": 2000,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": [
+            {
+              "start": 27.799999952316284,
+              "duration": 102
+            },
+            {
+              "start": 179.39999997615814,
+              "duration": 62
+            }
+          ]
+        },
+        {
+          "mount": 125.80000001192093,
+          "zoom": 48.19999998807907,
+          "pan": 50,
+          "dom": 10068,
+          "paintedAttempts": 2000,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": [
+            {
+              "start": 24.100000023841858,
+              "duration": 122
+            }
+          ]
+        },
+        {
+          "mount": 94.5,
+          "zoom": 49.89999997615814,
+          "pan": 50,
+          "dom": 10068,
+          "paintedAttempts": 2000,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": [
+            {
+              "start": 17,
+              "duration": 92
+            }
+          ]
+        },
+        {
+          "mount": 93.10000002384186,
+          "zoom": 50,
+          "pan": 50.10000002384186,
+          "dom": 10068,
+          "paintedAttempts": 2000,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": [
+            {
+              "start": 15.300000011920929,
+              "duration": 91
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 105.5,
+          "p95": 125.80000001192093
+        },
+        "zoom": {
+          "median": 50,
+          "p95": 67.59999996423721
+        },
+        "pan": {
+          "median": 50,
+          "p95": 66.80000001192093
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "variant": "discrete",
+      "rows": 2000,
+      "attemptsPerRow": 5,
+      "repetitions": [
+        {
+          "mount": 319.60000002384186,
+          "zoom": 166.19999998807907,
+          "pan": 167.69999998807907,
+          "dom": 26068,
+          "paintedAttempts": 10000,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 24.69999998807907,
+              "duration": 317
+            },
+            {
+              "start": 427.89999997615814,
+              "duration": 150
+            },
+            {
+              "start": 594.1999999880791,
+              "duration": 162
+            }
+          ]
+        },
+        {
+          "mount": 311.19999998807907,
+          "zoom": 149.9000000357628,
+          "pan": 150,
+          "dom": 26068,
+          "paintedAttempts": 10000,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 40.799999952316284,
+              "duration": 292
+            },
+            {
+              "start": 400.5999999642372,
+              "duration": 135
+            },
+            {
+              "start": 550.3999999761581,
+              "duration": 142
+            }
+          ]
+        },
+        {
+          "mount": 306.4000000357628,
+          "zoom": 216.39999997615814,
+          "pan": 134.60000002384186,
+          "dom": 26068,
+          "paintedAttempts": 10000,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 117.69999998807907,
+              "duration": 304
+            },
+            {
+              "start": 484.5,
+              "duration": 200
+            },
+            {
+              "start": 701,
+              "duration": 129
+            }
+          ]
+        },
+        {
+          "mount": 306,
+          "zoom": 150.10000002384186,
+          "pan": 150,
+          "dom": 26068,
+          "paintedAttempts": 10000,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 46.5,
+              "duration": 288
+            },
+            {
+              "start": 400.39999997615814,
+              "duration": 138
+            },
+            {
+              "start": 550.3999999761581,
+              "duration": 134
+            }
+          ]
+        },
+        {
+          "mount": 289.10000002384186,
+          "zoom": 201.10000002384186,
+          "pan": 138.30000001192093,
+          "dom": 26068,
+          "paintedAttempts": 10000,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 109.5,
+              "duration": 286
+            },
+            {
+              "start": 468,
+              "duration": 185
+            },
+            {
+              "start": 668.9000000357628,
+              "duration": 128
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 306.4000000357628,
+          "p95": 319.60000002384186
+        },
+        "zoom": {
+          "median": 166.19999998807907,
+          "p95": 216.39999997615814
+        },
+        "pan": {
+          "median": 150,
+          "p95": 167.69999998807907
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "variant": "continuous",
+      "rows": 50,
+      "attemptsPerRow": 1,
+      "repetitions": [
+        {
+          "mount": 6.400000035762787,
+          "zoom": 33.39999997615814,
+          "pan": 33.299999952316284,
+          "dom": 318,
+          "paintedAttempts": 50,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 8.300000011920929,
+          "zoom": 33.30000001192093,
+          "pan": 33.5,
+          "dom": 318,
+          "paintedAttempts": 50,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 6.5,
+          "zoom": 33.5,
+          "pan": 33.40000003576279,
+          "dom": 318,
+          "paintedAttempts": 50,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 9.099999964237213,
+          "zoom": 33.39999997615814,
+          "pan": 33.19999998807907,
+          "dom": 318,
+          "paintedAttempts": 50,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 6.600000023841858,
+          "zoom": 33.40000003576279,
+          "pan": 33.299999952316284,
+          "dom": 318,
+          "paintedAttempts": 50,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 6.600000023841858,
+          "p95": 9.099999964237213
+        },
+        "zoom": {
+          "median": 33.39999997615814,
+          "p95": 33.5
+        },
+        "pan": {
+          "median": 33.299999952316284,
+          "p95": 33.5
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "variant": "continuous",
+      "rows": 50,
+      "attemptsPerRow": 5,
+      "repetitions": [
+        {
+          "mount": 12.200000047683716,
+          "zoom": 33.299999952316284,
+          "pan": 33.30000001192093,
+          "dom": 718,
+          "paintedAttempts": 250,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": []
+        },
+        {
+          "mount": 18.80000001192093,
+          "zoom": 33.30000001192093,
+          "pan": 33.30000001192093,
+          "dom": 718,
+          "paintedAttempts": 250,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": []
+        },
+        {
+          "mount": 13.399999976158142,
+          "zoom": 33.200000047683716,
+          "pan": 33.299999952316284,
+          "dom": 718,
+          "paintedAttempts": 250,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": []
+        },
+        {
+          "mount": 15,
+          "zoom": 33.30000001192093,
+          "pan": 33.39999997615814,
+          "dom": 718,
+          "paintedAttempts": 250,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": []
+        },
+        {
+          "mount": 12.5,
+          "zoom": 33.39999997615814,
+          "pan": 34.69999998807907,
+          "dom": 718,
+          "paintedAttempts": 250,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": []
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 13.399999976158142,
+          "p95": 18.80000001192093
+        },
+        "zoom": {
+          "median": 33.30000001192093,
+          "p95": 33.39999997615814
+        },
+        "pan": {
+          "median": 33.30000001192093,
+          "p95": 34.69999998807907
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "variant": "continuous",
+      "rows": 500,
+      "attemptsPerRow": 1,
+      "repetitions": [
+        {
+          "mount": 30.19999998807907,
+          "zoom": 27.899999976158142,
+          "pan": 33.30000001192093,
+          "dom": 2568,
+          "paintedAttempts": 500,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 29.200000047683716,
+          "zoom": 30,
+          "pan": 33.39999997615814,
+          "dom": 2568,
+          "paintedAttempts": 500,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 29.400000035762787,
+          "zoom": 33.5,
+          "pan": 33.19999998807907,
+          "dom": 2568,
+          "paintedAttempts": 500,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 25.899999976158142,
+          "zoom": 33.30000001192093,
+          "pan": 33.69999998807907,
+          "dom": 2568,
+          "paintedAttempts": 500,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        },
+        {
+          "mount": 27.900000035762787,
+          "zoom": 24.899999976158142,
+          "pan": 33.60000002384186,
+          "dom": 2568,
+          "paintedAttempts": 500,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": []
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 29.200000047683716,
+          "p95": 30.19999998807907
+        },
+        "zoom": {
+          "median": 30,
+          "p95": 33.5
+        },
+        "pan": {
+          "median": 33.39999997615814,
+          "p95": 33.69999998807907
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "variant": "continuous",
+      "rows": 500,
+      "attemptsPerRow": 5,
+      "repetitions": [
+        {
+          "mount": 86.69999998807907,
+          "zoom": 50,
+          "pan": 36.59999996423721,
+          "dom": 6568,
+          "paintedAttempts": 2500,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 15.199999988079071,
+              "duration": 83
+            }
+          ]
+        },
+        {
+          "mount": 74.69999998807907,
+          "zoom": 49.69999998807907,
+          "pan": 50,
+          "dom": 6568,
+          "paintedAttempts": 2500,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 13.800000011920929,
+              "duration": 72
+            }
+          ]
+        },
+        {
+          "mount": 80.39999997615814,
+          "zoom": 50.09999996423721,
+          "pan": 33.30000001192093,
+          "dom": 6568,
+          "paintedAttempts": 2500,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 14,
+              "duration": 76
+            }
+          ]
+        },
+        {
+          "mount": 75.19999998807907,
+          "zoom": 50.60000002384186,
+          "pan": 33.30000001192093,
+          "dom": 6568,
+          "paintedAttempts": 2500,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 14.099999964237213,
+              "duration": 72
+            }
+          ]
+        },
+        {
+          "mount": 78.80000001192093,
+          "zoom": 49.69999998807907,
+          "pan": 34.39999997615814,
+          "dom": 6568,
+          "paintedAttempts": 2500,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 16.700000047683716,
+              "duration": 74
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 78.80000001192093,
+          "p95": 86.69999998807907
+        },
+        "zoom": {
+          "median": 50,
+          "p95": 50.60000002384186
+        },
+        "pan": {
+          "median": 34.39999997615814,
+          "p95": 50
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "variant": "continuous",
+      "rows": 2000,
+      "attemptsPerRow": 1,
+      "repetitions": [
+        {
+          "mount": 120.5,
+          "zoom": 50,
+          "pan": 33.30000001192093,
+          "dom": 10068,
+          "paintedAttempts": 2000,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": [
+            {
+              "start": 17,
+              "duration": 118
+            }
+          ]
+        },
+        {
+          "mount": 98.79999995231628,
+          "zoom": 50,
+          "pan": 50,
+          "dom": 10068,
+          "paintedAttempts": 2000,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": [
+            {
+              "start": 17.19999998807907,
+              "duration": 96
+            }
+          ]
+        },
+        {
+          "mount": 103.19999998807907,
+          "zoom": 50,
+          "pan": 50,
+          "dom": 10068,
+          "paintedAttempts": 2000,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": [
+            {
+              "start": 18.899999976158142,
+              "duration": 100
+            }
+          ]
+        },
+        {
+          "mount": 101,
+          "zoom": 50,
+          "pan": 50,
+          "dom": 10068,
+          "paintedAttempts": 2000,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": [
+            {
+              "start": 15.5,
+              "duration": 99
+            }
+          ]
+        },
+        {
+          "mount": 91.89999997615814,
+          "zoom": 50,
+          "pan": 50,
+          "dom": 10068,
+          "paintedAttempts": 2000,
+          "visibleRows": 11,
+          "visibleAttempts": 11,
+          "longTasks": [
+            {
+              "start": 19.30000001192093,
+              "duration": 89
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 101,
+          "p95": 120.5
+        },
+        "zoom": {
+          "median": 50,
+          "p95": 50
+        },
+        "pan": {
+          "median": 50,
+          "p95": 50
+        }
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "variant": "continuous",
+      "rows": 2000,
+      "attemptsPerRow": 5,
+      "repetitions": [
+        {
+          "mount": 319,
+          "zoom": 187.89999997615814,
+          "pan": 131.69999998807907,
+          "dom": 26068,
+          "paintedAttempts": 10000,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 123.69999998807907,
+              "duration": 315
+            },
+            {
+              "start": 516.8999999761581,
+              "duration": 167
+            },
+            {
+              "start": 704.8999999761581,
+              "duration": 123
+            }
+          ]
+        },
+        {
+          "mount": 296.69999998807907,
+          "zoom": 149.5,
+          "pan": 150.10000002384186,
+          "dom": 26068,
+          "paintedAttempts": 10000,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 108.19999998807907,
+              "duration": 295
+            },
+            {
+              "start": 483.69999998807907,
+              "duration": 137
+            },
+            {
+              "start": 633.1999999880791,
+              "duration": 136
+            }
+          ]
+        },
+        {
+          "mount": 333.2999999523163,
+          "zoom": 160.10000002384186,
+          "pan": 149.30000001192093,
+          "dom": 26068,
+          "paintedAttempts": 10000,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 129.5,
+              "duration": 330
+            },
+            {
+              "start": 539,
+              "duration": 144
+            },
+            {
+              "start": 699.0999999642372,
+              "duration": 129
+            }
+          ]
+        },
+        {
+          "mount": 290.0999999642372,
+          "zoom": 133.30000001192093,
+          "pan": 151.19999998807907,
+          "dom": 26068,
+          "paintedAttempts": 10000,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 29.30000001192093,
+              "duration": 283
+            },
+            {
+              "start": 382.60000002384186,
+              "duration": 132
+            },
+            {
+              "start": 516,
+              "duration": 140
+            }
+          ]
+        },
+        {
+          "mount": 305.30000001192093,
+          "zoom": 150.0999999642372,
+          "pan": 133.19999998807907,
+          "dom": 26068,
+          "paintedAttempts": 10000,
+          "visibleRows": 11,
+          "visibleAttempts": 55,
+          "longTasks": [
+            {
+              "start": 48.19999998807907,
+              "duration": 286
+            },
+            {
+              "start": 401.5,
+              "duration": 135
+            },
+            {
+              "start": 551.5,
+              "duration": 120
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "coldMount": {
+          "median": 305.30000001192093,
+          "p95": 333.2999999523163
+        },
+        "zoom": {
+          "median": 150.0999999642372,
+          "p95": 187.89999997615814
+        },
+        "pan": {
+          "median": 149.30000001192093,
+          "p95": 151.19999998807907
+        }
+      }
+    }
+  ]
+}

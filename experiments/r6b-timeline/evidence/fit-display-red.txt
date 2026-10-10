@@ -1,0 +1,24 @@
+37 |   const fittedControls = await page.evaluate(() => ({
+38 |     span: window.timeline.viewport.span,
+39 |     displayedSpan: Number((document.getElementById('span') as HTMLSelectElement).value),
+40 |     slider: Number((document.getElementById('zoom') as HTMLInputElement).value),
+41 |   }));
+42 |   assert.equal(fittedControls.displayedSpan, fittedControls.span, 'fit-all discrete display is stale');
+              ^
+AssertionError: fit-all discrete display is stale
++ actual - expected
+
++ 604800000
+- 42407200
+
+ generatedMessage: false,
+     actual: 604800000,
+   expected: 42407200,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at <checkout>/experiments/r6b-timeline/browser.ts:42:10
+      at processTicksAndRejections (native:7:39)
+
+Bun v1.4.2 (Linux x64)

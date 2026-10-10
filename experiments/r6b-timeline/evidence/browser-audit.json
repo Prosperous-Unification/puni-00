@@ -1,0 +1,46 @@
+{
+  "observations": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "maxPaintDriftCssPx": 0,
+      "maxPaintWidthErrorCssPx": 0.01083333333332348,
+      "timezonePaintChangeCssPx": 0,
+      "midnightPanUTC": ["2026-09-19T23:58:48.000Z", "2026-09-20T00:00:03.000Z"],
+      "intendedTouchAttemptSelected": true,
+      "appRequestMethods": ["GET"]
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "maxPaintDriftCssPx": 0,
+      "maxPaintWidthErrorCssPx": 0.015324074074074101,
+      "timezonePaintChangeCssPx": 0,
+      "midnightPanUTC": ["2026-09-19T23:58:48.000Z", "2026-09-20T00:00:03.000Z"],
+      "intendedTouchAttemptSelected": true,
+      "appRequestMethods": ["GET"]
+    }
+  ],
+  "refusals": [
+    {
+      "name": "duplicate",
+      "error": "duplicate attempt",
+      "paintedAttempts": 0
+    },
+    {
+      "name": "reversed",
+      "error": "reversed endpoints",
+      "paintedAttempts": 0
+    },
+    {
+      "name": "invalid",
+      "error": "invalid timestamp",
+      "paintedAttempts": 0
+    }
+  ],
+  "passed": true
+}

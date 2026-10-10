@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+experiments/r6b-timeline/model.test.ts:
+127 |     slice: 'one',
+128 |     start: '2026-09-20T00:00:00Z',
+129 |     end: '2026-09-20T00:01:00Z',
+130 |   };
+131 |   expect(() => parseAttempts([valid, valid])).toThrow('duplicate');
+132 |   expect(() => parseAttempts([{ ...valid, end: '2026-09-19T23:59:59Z' }])).toThrow('reversed');
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "reversed"
+
+Received function did not throw
+Received value: [
+  {
+    id: "one",
+    packet: "synthetic",
+    slice: "one",
+    start: 1789862400000,
+    end: 1789862399000,
+  }
+]
+
+      at <anonymous> (<experiment>/model.test.ts:132:76)
+(fail) invalid, duplicate and reversed records refuse [0.84ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [6.00ms]
