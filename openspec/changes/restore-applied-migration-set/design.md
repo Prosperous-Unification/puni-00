@@ -30,7 +30,7 @@ Do not alter the already-correct LAB_MIGRATION ordering check from 070.01.
 
 ## Decisions
 
-The persistence and compatibility choice is in [proposed ADR 0036](../../../docs/adr/0036-deployment-rollback-restores-a-captured-migration-set.md).
+The persistence and compatibility choice is in [proposed ADR 0041](../../../docs/adr/0041-deployment-rollback-restores-a-captured-migration-set.md).
 
 ### Capture and SQLite boundary
 
@@ -102,7 +102,7 @@ the capability response adds neither another deployment identity nor a journal f
 This amendment changes only backend capability advertisement and Kubernetes candidate admission.
 It does not alter Compose, captured bytes or their format/version, journal schema 2, manual
 `--to` behavior, image admission policy, fencing, Lease/Flux order, or legacy-journal recovery.
-Compatibility alternatives are recorded in ADR 0036. The handshake is not a claim that a
+Compatibility alternatives are recorded in ADR 0041. The handshake is not a claim that a
 candidate passes live rehearsal, trusted activation, or the canonical gate.
 
 Extend `MigrationCapture` and the durable journal with the complete pending identities;

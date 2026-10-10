@@ -1,11 +1,14 @@
-// Reverses migrations this deploy applied, run from the swap executor's abort
-// path while the incoming container is still up:
+// Reverses migrations this deploy applied, run from the Compose swap's and the
+// Kubernetes schema Job's abort path:
 //
-//   docker exec be-01-<color> bun run src/migrate-down-cli.ts --to=<name|none>
+//   bun run src/migrate-down-cli.ts --capture-file=<path> --target=<t> --attempt=<a>
+//     --candidate=<c> [--capture-sha256=<hex>]
+//   bun run src/migrate-down-cli.ts --to=<name|none>
 //
-// `--to` is the newest migration that was applied BEFORE the deploy, captured
-// by migrate-status-cli.ts in the same swap. `none` means the database had no
-// migrations applied at all, so everything this deploy added comes back off.
+// The capture is the complete applied set `migrate-status-cli.ts --capture` wrote
+// before the forward migration. Exact-set mode removes every migration absent from
+// it, including one older than the captured newest, and refuses changed bytes or an
+// unexpected ledger. `--to` is the legacy manual timestamp rollback; `none` reverses all.
 //
 // Blue and green share one SQLite file. A forward migration is required to be
 // additive, so the old colour keeps working while green migrates; the reverse

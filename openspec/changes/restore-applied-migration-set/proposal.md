@@ -48,7 +48,7 @@ business term is introduced into CONTEXT.md.
 
 ## Decisions Recorded
 
-[Proposed ADR 0036](../../../docs/adr/0036-deployment-rollback-restores-a-captured-migration-set.md).
+[Proposed ADR 0041](../../../docs/adr/0041-deployment-rollback-restores-a-captured-migration-set.md).
 
 ## Impact
 
