@@ -8,18 +8,18 @@ The public path from a visitor's software need to a human-reviewed proposal requ
 A person exploring Prosperous Unification's services before identifying themselves.
 
 **Prospect**:
-A person shaping a software request who has identified a contact email or signed in, but has not become a client.
+A person shaping a software request who has identified a contact email, but has not become a client.
 
 **Request description**:
 The visitor's original words describing the software they need, preserved as entered when they continue into the app.
 _Avoid_: Lead prompt, chat seed
 
 **Intake draft**:
-A short-lived, browser-claim-scoped request description that can become a manual proposal request or later attach to a PUNI account.
+A short-lived, browser-claim-scoped request description that can become a manual proposal request or the start of a scoping conversation.
 _Avoid_: Anonymous account
 
 **Software request**:
-A record of a prospective software project, its brief and proposal status. Before sign-in a browser-bound claim controls draft access; after sign-in a PUNI account owns it.
+A record of a prospective software project, its brief and proposal status. A browser-bound claim controls its access; there is no prospect account (ADR 0039).
 _Avoid_: WBS work item, project
 
 **Scoping conversation**:
@@ -54,14 +54,18 @@ _Avoid_: Prototype delivery
 The prospect's explicit submission of a request brief and contact details for human follow-up.
 _Avoid_: Contract, order
 
+**Funnel count**:
+A per-UTC-day number derived from stored funnel rows: drafts, conversations started, briefs captured, exhausted conversations by reason, proposal requests split into manual and from-chat, and ceiling-settled operations. It is shown on the operator overview and is never a browser event.
+_Avoid_: Analytics event, conversion beacon
+
 **Operator inbox**:
 The private view in which an authorized PUNI operator reviews proposal requests and their contact status.
 
 **Expired anonymous draft**:
-An intake draft whose browser access period ended before it was attached to an account or submitted for a proposal.
+An intake draft whose browser access period ended before it was submitted for a proposal or started a conversation.
 
 **Retention subject**:
-An account-owned software request or a standalone manual proposal submission, identified separately for deadline, classification and erasure decisions.
+A software request or a standalone manual proposal submission, identified separately for deadline, classification and erasure decisions.
 _Avoid_: Software request as a name for every proposal
 
 **Retention deadline**:

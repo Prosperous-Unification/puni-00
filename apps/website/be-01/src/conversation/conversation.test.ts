@@ -212,6 +212,7 @@ interface View {
   stage: string;
   turns: { role: string; content: string }[];
   visitorTurnsRemaining: number;
+  visitorTurnLimit: number;
   provider: string;
   brief: string;
   csrfToken: string;
@@ -356,6 +357,23 @@ function fillSiteDay(databasePath: string, remaining: number): void {
     .run(10_000_000 - remaining, 10_000_000 - remaining);
   database.close();
 }
+
+test('GET /conversation reports the visitor turn limit beside the remaining count', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Who will book the repairs?' }));
+  const api = mountApi(paidConfig(fake.providerFetch));
+  const visitor = await beginVisitor(api);
+  expect(await readConversation(api, visitor.cookie)).toMatchObject({
+    visitorTurnLimit: 8,
+    visitorTurnsRemaining: 8,
+  });
+  const first = await sendInitial(api, visitor);
+  expect(first.status).toBe(200);
+  await first.text();
+  expect(await readConversation(api, visitor.cookie)).toMatchObject({
+    visitorTurnLimit: 8,
+    visitorTurnsRemaining: 7,
+  });
+});
 
 test('the owner streams the initial reply, reads it back and replays it without a second call', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Who will book the repairs?' }));
@@ -1196,6 +1214,31 @@ function openPause(databasePath: string): void {
     throw new Error('A pause was already open');
   store.close();
 }
+
+async function readDraftProvider(api: Api, cookie: string): Promise<unknown> {
+  const response = await api.fetch(
+    new Request('http://localhost:3101/draft', { headers: { origin: appOrigin, cookie } }),
+  );
+  expect(response.status).toBe(200);
+  return ((await response.json()) as { provider: unknown }).provider;
+}
+
+test('GET /draft reports the conversation provider the manual brief gates Build on', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Who will book the repairs?' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  // Proof: omitting `provider` from the draft view made this read undefined.
+  expect(await readDraftProvider(api, visitor.cookie)).toBe('openrouter');
+  openPause(config.databasePath);
+  expect(await readDraftProvider(api, visitor.cookie)).toBe('paused');
+  const disabled = mountApi(paidConfig(fake.providerFetch, { openRouterEnabled: false }));
+  expect(await readDraftProvider(disabled, (await beginVisitor(disabled)).cookie)).toBe('disabled');
+  const demo = mountApi(
+    paidConfig(fake.providerFetch, { openRouterEnabled: false, demoAuth: true }),
+  );
+  expect(await readDraftProvider(demo, (await beginVisitor(demo)).cookie)).toBe('demo');
+});
 
 test('a pause opened by another connection is seen on the next read and stream', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Who will book the repairs?' }));

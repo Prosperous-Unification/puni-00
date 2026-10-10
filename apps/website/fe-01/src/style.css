@@ -1418,26 +1418,6 @@ body:has(.night-shell) {
   flex-wrap: wrap;
   gap: var(--space-3);
 }
-.harness-signin {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding-top: var(--space-5);
-  border-top: 1px solid rgb(255 255 255 / 0.14);
-}
-.harness-signin h2 {
-  margin: 0;
-}
-.harness-signin p {
-  margin: 0;
-  font-size: var(--text-small);
-  color: var(--on-night-muted);
-}
-.harness-signin label {
-  display: block;
-  margin-bottom: var(--space-2);
-  font-size: var(--text-small);
-}
 /* Live harness: typing indicator, streaming caret, stopped replies and the closed line. */
 .harness-simulated {
   display: flex;
@@ -1888,11 +1868,6 @@ body:has(.night-shell) {
   border-color: #fff;
   background: #f4f2f7;
   color: var(--ink);
-}
-.harness-signin-panel .harness-signin {
-  padding-block: var(--space-3) var(--space-4);
-  border-top: 0;
-  border-bottom: 1px solid rgb(255 255 255 / 0.14);
 }
 .glass-field textarea[readonly] {
   max-height: calc(4 * 24px + 30px);
