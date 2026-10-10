@@ -2,7 +2,11 @@ import { expect, test } from 'bun:test';
 
 import { reasoningEfforts } from './conversation/stream';
 import { describeAlertWebhook } from './guardrail-alerts';
-import { readWebsiteApiConfig } from './runtime-config';
+import {
+  readRetentionErasure,
+  readRetentionJournalSetting,
+  readWebsiteApiConfig,
+} from './runtime-config';
 
 test('the reasoning effort is unset or one of the four allowed efforts', () => {
   expect(readWebsiteApiConfig({}).openRouterReasoningEffort).toBeUndefined();
@@ -54,4 +58,54 @@ test('the alert webhook is unset, or an https URL; anything else throws', () => 
   expect(describeAlertWebhook('https://ntfy.sh/secret-topic')).toBe(
     'guardrail alerts: webhook set',
   );
+});
+
+const journalEnvironment = {
+  RETENTION_JOURNAL: 's3',
+  RETENTION_JOURNAL_ID: '7d4f2a8e-5b1c-4e3d-9a6f-0c2b8e1d4a7f',
+  RETENTION_WRITER_RELEASE: 'website-2026-10-11',
+  RETENTION_WRITER_REVISION: 'abc1234',
+  S3_ENDPOINT: 'https://objects.example.test',
+  S3_REGION: 'hel1',
+  S3_ACCESS_KEY_ID: 'dummy-access-key',
+  S3_SECRET_ACCESS_KEY: 'dummy-secret-key',
+  RETENTION_JOURNAL_BUCKET: 'journal-bucket',
+  RETENTION_JOURNAL_PREFIX: 'retention-journal/website-test/',
+};
+
+test('a missing RETENTION_JOURNAL refuses startup', () => {
+  for (const value of [undefined, '', 'S3', 'none'])
+    expect(() => readRetentionJournalSetting({ RETENTION_JOURNAL: value })).toThrow(
+      'RETENTION_JOURNAL must be disabled or s3',
+    );
+  expect(readRetentionJournalSetting({ RETENTION_JOURNAL: 'disabled' })).toEqual({
+    mode: 'disabled',
+  });
+  expect(readRetentionJournalSetting(journalEnvironment)).toMatchObject({
+    mode: 's3',
+    journalId: journalEnvironment.RETENTION_JOURNAL_ID,
+    release: 'website-2026-10-11',
+    s3: { bucket: 'journal-bucket', prefix: 'retention-journal/website-test/' },
+  });
+  for (const name of ['RETENTION_JOURNAL_ID', 'RETENTION_WRITER_RELEASE', 'S3_SECRET_ACCESS_KEY'])
+    expect(() => readRetentionJournalSetting({ ...journalEnvironment, [name]: undefined })).toThrow(
+      name,
+    );
+  expect(() =>
+    readRetentionJournalSetting({ ...journalEnvironment, RETENTION_JOURNAL_ID: 'not-a-uuid' }),
+  ).toThrow('RETENTION_JOURNAL_ID');
+});
+
+test('erase without s3 is refused', () => {
+  const disabled = readRetentionJournalSetting({ RETENTION_JOURNAL: 'disabled' });
+  const s3 = readRetentionJournalSetting(journalEnvironment);
+  expect(readRetentionErasure({ RETENTION_ERASURE: 'report' }, disabled)).toBe('report');
+  expect(readRetentionErasure({ RETENTION_ERASURE: 'erase' }, s3)).toBe('erase');
+  expect(() => readRetentionErasure({ RETENTION_ERASURE: 'erase' }, disabled)).toThrow(
+    'RETENTION_ERASURE=erase requires RETENTION_JOURNAL=s3',
+  );
+  for (const value of [undefined, '', 'ERASE'])
+    expect(() => readRetentionErasure({ RETENTION_ERASURE: value }, s3)).toThrow(
+      'RETENTION_ERASURE must be report or erase',
+    );
 });
