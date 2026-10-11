@@ -11,7 +11,7 @@ import {
 } from './plan-viewport';
 import { recordScrollProbe, scrollProbeStart } from './scroll-performance';
 
-/** The logical row allowance before each 640 px publication bucket. */
+/** The logical row allowance before each 320 px publication bucket. */
 export const ROW_OVERSCAN_BEFORE_PX = 128;
 
 /** The horizontal allowance published in the measured-rendering budget. */
@@ -21,13 +21,16 @@ export const COLUMN_OVERSCAN_PX = 256;
 export const ESTIMATED_ROW_HEIGHT_PX = 26.1875;
 
 /** How far compositor motion may travel before React publishes another row window. */
-export const ROW_PUBLICATION_STEP_PX = 640;
+export const ROW_PUBLICATION_STEP_PX = 320;
 
-/** The logical row allowance after a bucket; retains the visible frame to its end. */
+/**
+ * The trailing row allowance stays fixed while publication buckets shrink.
+ * A 320 px bucket leaves 448 px of mounted rows past its far edge for a delayed commit.
+ */
 // Proof: reducing this to 128 px made the real Browser `a row window covers
 // the visible table through bucket edges and frame resize` test fail at
 // scrollTop 639 with `gaps: ['bottom']`; restoring 768 px passed.
-export const ROW_OVERSCAN_AFTER_PX = ROW_PUBLICATION_STEP_PX + ROW_OVERSCAN_BEFORE_PX;
+export const ROW_OVERSCAN_AFTER_PX = 768;
 
 /**
  * Pins a compositor offset to the start of its retained publication bucket.
