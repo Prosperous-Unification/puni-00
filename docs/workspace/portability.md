@@ -8,10 +8,10 @@ cd PRIVATE_CHECKOUT
 bun install
 bun install --frozen-lockfile
 bun tools/workspace/portability.ts check PUBLIC_CHECKOUT PRIVATE_CHECKOUT
-bun tools/workspace/portability.ts copy PUBLIC_CHECKOUT PRIVATE_CHECKOUT libs/website/adapters/portability-fixture
+bun tools/workspace/portability.ts copy PUBLIC_CHECKOUT PRIVATE_CHECKOUT apps/website/fe-01
 ```
 
-`sync` projects the source's Bun version, Nx/TypeScript/Bun-types/Prettier/ESLint package specifications, four Nx cache policies, build dependency semantics and core compiler settings into the destination. It also copies the portable tool, its tests/project settings, `tools/workspace/eslint.portable.mjs` and `tools/workspace/prettier.portable.json`. `.puni-baseline.json` records a SHA-256 fingerprint including those files. `check` refuses divergence or a missing/mismatched receipt. All required source components must be readable before synchronization writes anything. Other compiler options, aliases, product policy and application dependencies remain workspace-owned; this prototype baseline does not yet distribute the entire public governance tool suite.
+`sync` projects the source's Bun version, Nx/TypeScript/Bun-types/Prettier/ESLint package specifications, four Nx cache policies, build dependency semantics and core compiler settings into the destination. It also copies the portable tool, its tests/project settings, `tools/workspace/eslint.portable.mjs` and `tools/workspace/prettier.portable.json`. `.puni-baseline.json` records a SHA-256 fingerprint including those files. `check` refuses divergence, a missing/mismatched receipt, and a remote Nx cache in either `nx.json`: `nxCloudId`, `nxCloudAccessToken`, `nxCloudUrl`, `nxCloudEncryptionKey`, or a `tasksRunnerOptions` runner with an `accessToken`. Both repositories cache locally only, so task outputs never leave the repository that produced them. All required source components must be readable before synchronization writes anything. Other compiler options, aliases, product policy and application dependencies remain workspace-owned. The governance baseline is this portable inventory; lefthook hooks, the wiki and CI stay repository-owned (batch 10 decision A18).
 
 Every workspace declares `version: 1` and `visibility: public|private` in `workspace.portability.json`. Each transferable project declares the following in its `project.json`, alongside its name, product tag and four Nx targets:
 
@@ -20,14 +20,15 @@ Every workspace declares `version: 1` and `visibility: public|private` in `works
   "metadata": {
     "portability": {
       "visibility": "public",
-      "dependencies": ["libs/shared/domain/portability-format"],
-      "aliases": []
+      "dependencies": ["libs/website/domain/contracts"],
+      "aliases": [],
+      "packages": { "react": "^19.2.8" }
     }
   }
 }
 ```
 
-Dependencies are explicit relative project paths. Transfer visits the complete declared closure at unchanged paths. `aliases` declares exact TypeScript path aliases owned by that project; the command reads their mappings from the source `tsconfig.base.json`, requires each to point inside its owner, refuses destination collisions and writes them to the destination. Omitted `aliases` means none. It checks the baseline, every project's classification, target presence, product tag, source readability, destination collisions and filesystem entries before creating destination project directories. Use an exclusively owned checkout: concurrent writers and crash-atomic multi-directory commits are not supported. The declared closure and aliases are trusted project metadata; maintain them when imports change. Projects needing extra package dependencies require those compatible dependencies in the destination before running their checks. The current command does not infer or install packages.
+Dependencies are explicit relative project paths. Transfer visits the complete declared closure at unchanged paths. `aliases` declares exact TypeScript path aliases owned by that project; the command reads their mappings from the source `tsconfig.base.json`, requires each to point inside its owner, refuses destination collisions and writes them to the destination. Omitted `aliases` means none. It checks the baseline, every project's classification, target presence, product tag, source readability, destination collisions and filesystem entries before creating destination project directories. Use an exclusively owned checkout: concurrent writers and crash-atomic multi-directory commits are not supported. Every import of a source `tsconfig.base.json` alias inside a project must resolve into that project or one of its declared `dependencies`; otherwise transfer stops with `Invalid dependency closure` before writing. Relative imports and package imports are not inferred. `packages` maps each npm package the project needs to its exact specification string; omitted means none. The destination's `dependencies` or `devDependencies` must hold the identical string (`^19.2.8` and `19.2.8` differ), otherwise transfer stops before writing with `Missing package <name>@<spec> in <destination>/package.json: add it, run bun install, then commit bun.lock`. The command never installs packages.
 
 Public promotion refuses any private project in the closure, and independently refuses `apps/website/site` including its licensed Novaform reference. Unknown classifications fail closed. Symlinks, configured environment files, key/database files and common generated directories are refused. The exact `.env.example` sample filename is eligible after its contents are reviewed; `.env` and every other `.env.*` file are refused. This is a transfer boundary, not a general secret scanner; source classification still requires review.
 
@@ -42,3 +43,21 @@ Public promotion refuses any private project in the closure, and independently r
 - The fixture lint targets run the copied ESLint and Prettier configurations; semantic compilation is the separate typecheck target. The public repo's normal hook still runs its stronger root product policy. The portable ESLint config checks JavaScript and TypeScript recommended rules across copied code; it does not reproduce every public product boundary. Each lint target includes both shared configs in its Nx cache inputs. This does not prove arbitrary existing projects or application-only dependencies portable without declaring and configuring their prerequisites.
 
 For a new eligible project, run the same four target names after copying and before committing. Do not mark the complete production repository-foundation roadmap done from this two-library fixture.
+
+## Evidence, 2026-10-11 (batch 10, WBS 060.12-060.14)
+
+- Declared packages: two tests first failed because copy ignored `packages`; with the comparison in place a missing package and a `^19.2.0`/`19.2.0` mismatch both stop before writes. Deleting the comparison failed both tests again.
+- Remote cache: the test first failed because `check` accepted `nxCloudId`; the guard refuses it in the destination, `nxCloudAccessToken` in the source and a runner `accessToken`, through both `check` and `copy`. Removing both guard calls failed the test.
+- Fixture app: `apps/website/fe-01` with `libs/website/domain/contracts` copies into a clean temporary private workspace at unchanged paths, carrying the `@website/contracts` alias. Removing the contracts path from the app's declared dependencies stops transfer with `Invalid dependency closure`; deleting the import ownership check made that test copy the app alone.
+- A clean private workspace built from `puni-pr-00` root configuration without project trees accepted `sync` and `check`, refused the copy with the package repair line for the private exact pins (`@types/react@^19.2.18`), then copied after the repair. `NX_DAEMON=false bunx nx run-many -t test,lint,typecheck,build -p website-fe-01,website-contracts --skip-nx-cache` passed all eight tasks there.
+
+### Release boundary
+
+| Boundary                                     | Enforcement                                                                                                                                                 |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Private checkouts cannot enter public Git    | ADR 0036; `tools/tool-git-hooks/src/hooks/private-nesting.ts` in `lefthook.yml` and the `Private nesting` step of `.github/workflows/ci.yml`                |
+| Public CI needs no private source credential | Public workflows reference only `NPM_TOKEN`, `REGISTRY_READ_AUTH`, `KUBECONFIG_B64` and `DEPLOY_REPO_SSH_KEY`; private CI clones public source tokenlessly  |
+| Private release uses the pinned revision     | `puni-pr-00` `deploy/website/dev/build-release.sh` refuses a HEAD other than the reviewed SHA, a dirty checkout and a public pin other than `baseline.json` |
+| Release receipts                             | `puni-pr-00` `deploy/website/k8s/release-pin.ts` records SHA-256 receipts, image digests, `private-revision.txt` and `public-tree-ids.txt`                  |
+| Novaform never enters public source          | `copyProject` refuses `apps/website/site` and private-classified closures for public destinations before copying bytes                                      |
+| No shared remote task cache                  | `verifyBaseline` refuses Nx Cloud settings and runner access tokens in both workspaces                                                                      |
