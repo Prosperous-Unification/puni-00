@@ -127,14 +127,22 @@ function prepareComposeFixture(
         return Promise.resolve('');
       }
       if (args.includes('src/migrate-capture-digest-cli.ts')) {
-        const containerPath = args.at(5);
+        if (args.at(5) !== '--root=/tmp')
+          throw new Error(`unexpected digest root: ${args.join(' ')}`);
+        const containerPath = args.at(6);
         const contents =
           containerPath === undefined ? undefined : containerFiles.get(containerPath);
         if (contents === undefined) throw new Error('copied capture missing');
         const localPath = join(root, 'copied-capture.json');
         writeFileSync(localPath, contents);
         const child = Bun.spawnSync(
-          [process.execPath, 'run', join(BACKEND, 'migrate-capture-digest-cli.ts'), localPath],
+          [
+            process.execPath,
+            'run',
+            join(BACKEND, 'migrate-capture-digest-cli.ts'),
+            `--root=${root}`,
+            localPath,
+          ],
           { cwd: root, stdout: 'pipe', stderr: 'pipe' },
         );
         if (child.exitCode !== 0) throw new Error(child.stderr.toString());
@@ -211,17 +219,39 @@ describe('Compose migration command adapter', () => {
     }
   });
 
-  it('digest CLI refuses paths outside /tmp and ambiguous arguments', () => {
+  it('digest CLI refuses paths outside the named root and ambiguous arguments', () => {
     const { root } = prepareComposeFixture();
-    const outside = join(root, 'not-a-capture.json');
+    const inside = join(root, 'capture.json');
+    writeFileSync(inside, 'capture bytes');
+    const sibling = mkdtempSync(join(tmpdir(), 'wbs-digest-sibling-'));
+    const outside = join(sibling, 'not-a-capture.json');
     writeFileSync(outside, 'not a capture');
-    for (const arguments_ of [['/data/wbs.db'], [outside, outside]]) {
-      const child = Bun.spawnSync(
+    const digest = (arguments_: string[]) =>
+      Bun.spawnSync(
         [process.execPath, 'run', join(BACKEND, 'migrate-capture-digest-cli.ts'), ...arguments_],
         { cwd: root, stdout: 'pipe', stderr: 'pipe' },
       );
-      expect(child.exitCode).not.toBe(0);
-      expect(child.stderr.toString()).toContain('exactly one /tmp capture path');
+    try {
+      const accepted = digest([`--root=${root}`, inside]);
+      expect(accepted.exitCode).toBe(0);
+      expect(accepted.stdout.toString().trim()).toBe(
+        createHash('sha256').update('capture bytes').digest('hex'),
+      );
+      for (const [arguments_, refusal] of [
+        [[`--root=${root}`, '/data/wbs.db'], 'is not inside the named root'],
+        [[`--root=${root}`, outside], 'is not inside the named root'],
+        [[`--root=${root}`, join(root, '..', 'escape.json')], 'is not inside the named root'],
+        [[`--root=${root}`, root], 'is not inside the named root'],
+        [['--root=relative', inside], 'is not inside the named root'],
+        [[inside], 'expected --root=<absolute dir>'],
+        [[`--root=${root}`, inside, inside], 'expected --root=<absolute dir>'],
+      ] as const) {
+        const child = digest([...arguments_]);
+        expect(child.exitCode).not.toBe(0);
+        expect(child.stderr.toString()).toContain(refusal);
+      }
+    } finally {
+      rmSync(sibling, { recursive: true, force: true });
     }
   });
 

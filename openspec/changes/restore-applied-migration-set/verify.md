@@ -782,3 +782,26 @@ reruns the lab on the new SHA.
   scenario now names the lab older candidate instead of the lifecycle stamp #311 changes.
 - Checks: backend CLI + SQLite 66/66, swap 101/101, tool-deploy 134/134. lint:fast and typecheck
   pass for wbs-be-01, tool-remote-scripts and tool-deploy. OpenSpec 159/159.
+
+### Host gate follow-up: capture digest root (`TMPDIR=/var/tmp`)
+
+The h2puni gate on the integrated candidate failed three Compose adapter tests in
+`swap-migration.db.test.ts` because the host temp root is `/var/tmp` and
+`migrate-capture-digest-cli.ts` accepted only a hard-coded `/tmp/` prefix. Locally,
+`TMPDIR=/var/tmp` reproduced the failures (6 pass, 3 fail):
+
+- `aborts to the captured set when an older candidate follows a newer baseline`
+- `does not accept a zero-exit down command…`
+- `refuses changed copied bytes…`
+
+The digest CLI now takes `--root=<absolute dir>` and refuses any path not strictly inside that
+root. Swap names `/tmp`, the in-container copy directory, and the adapter tests name their own
+temp root. The negative test `digest CLI refuses paths outside the named root and ambiguous arguments`
+covers the database path, a sibling temp directory, `..` escape, the root itself, a relative
+root, a missing root and extra arguments.
+
+- Removing the containment refusal made it read `/data/wbs.db` (ENOENT).
+- Removing the argument guard made it fail with a TypeError instead of the refusal.
+
+`tool-remote-scripts:test` passed 374/374 and backend CLI + SQLite passed 66/66 under both
+`TMPDIR=/var/tmp` and `/tmp`. lint:fast and typecheck pass for wbs-be-01 and tool-remote-scripts.
