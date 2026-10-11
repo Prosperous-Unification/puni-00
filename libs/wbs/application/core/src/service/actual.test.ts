@@ -1,3 +1,4 @@
+import type { Days } from '@wbs/domain';
 import { inMemoryCommandJournal } from '@wbs/store-memory/command-journal-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
@@ -11,7 +12,6 @@ import type {
 } from '../index';
 import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { inMemoryServices } from '../testing/harness';
-import type { Days } from './roll-up';
 
 const OWNER = 'owner-account';
 const OTHER = 'somebody-else';

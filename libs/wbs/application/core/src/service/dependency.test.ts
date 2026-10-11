@@ -1,10 +1,9 @@
-import { schedule } from '@wbs/domain';
+import { canDepend, type DependencyRefusal, schedule } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { StoredDependency } from '../ports/dependency-store';
 import type { WorkItem } from '../ports/work-item-store';
 import { workItemRow } from '../testing/work-item-fixture';
-import { canDepend, type DependencyRefusal } from './dependency';
 
 let position = 0;
 const item = (id: string, parentId: string | null = null): WorkItem =>

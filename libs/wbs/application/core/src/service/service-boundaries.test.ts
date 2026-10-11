@@ -6,17 +6,13 @@ import { ESLint } from 'eslint';
 
 const root = fileURLToPath(new URL('../../../../../..', import.meta.url));
 const services = [
-  'assumed-assignee',
   'auth.service',
   'command-normalizers',
   'compensating',
-  'dependency',
   'directory-usage',
   'numbered-work-item',
   'optimizer-trigger-broadcaster',
   'plan-command',
-  'roll-up',
-  'saved-plan-input',
   'saved-plan-schedule',
   'saved-plan.service',
 ];

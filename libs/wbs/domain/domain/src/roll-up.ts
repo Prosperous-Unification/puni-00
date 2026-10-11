@@ -1,21 +1,15 @@
-import type { MeasureMetric } from '@wbs/domain';
-import {
-  agree,
-  allowanceOf,
-  chargedDays,
-  type EstimateRule,
-  type ProgressStatus,
-  statusOf,
-  type StepAllowances,
-  UNKNOWN,
-} from '@wbs/domain';
+import { allowanceOf, chargedDays, type EstimateRule, type StepAllowances } from './estimate';
+import type { ParentedRow } from './is-within';
+import { agree, type ProgressStatus, statusOf, UNKNOWN } from './progress';
+import type { StoredActual, StoredEstimate, StoredMeasure, StoredProgress } from './step-values';
+import type { MeasureMetric } from './stored-vocabularies';
 
-import type { StoredActual } from '../ports/actual-store';
-import type { StoredEstimate } from '../ports/estimate-store';
-import type { StoredMeasure } from '../ports/measure-store';
-import type { StoredProgress } from '../ports/progress-store';
-import type { WorkItem } from '../ports/work-item-store';
-import type { Days } from './numbered-work-item';
+/** Three durations in days, summed or held directly. */
+export interface Days {
+  optimistic: number;
+  realistic: number;
+  pessimistic: number;
+}
 
 const add = (a: Days, b: Days): Days => ({
   optimistic: a.optimistic + b.optimistic,
@@ -41,11 +35,11 @@ const add = (a: Days, b: Days): Days => ({
  * like.
  */
 function foldByStep<T>(
-  rows: readonly WorkItem[],
+  rows: readonly ParentedRow[],
   held: ReadonlyMap<string, ReadonlyMap<string, T>>,
   combine: (a: T, b: T) => T,
 ): Map<string, Map<string, T>> {
-  const childrenOf = new Map<string | null, WorkItem[]>();
+  const childrenOf = new Map<string | null, ParentedRow[]>();
   for (const row of rows) {
     const group = childrenOf.get(row.parentId) ?? [];
     group.push(row);
@@ -90,7 +84,7 @@ function foldByStep<T>(
  * date with the estimates it came from.
  */
 export function rollUp(
-  rows: readonly WorkItem[],
+  rows: readonly ParentedRow[],
   estimates: readonly StoredEstimate[],
 ): Map<string, Map<string, Days>> {
   const ownOf = new Map<string, Map<string, Days>>();
@@ -128,7 +122,7 @@ export function rollUp(
  * zero would say somebody costed it at nothing.
  */
 export function rollUpFinals(
-  rows: readonly WorkItem[],
+  rows: readonly ParentedRow[],
   estimates: readonly StoredEstimate[],
   rule: EstimateRule,
   /**
@@ -163,7 +157,7 @@ export function rollUpFinals(
  * point, and it only works while each is what it says it is.
  */
 export function rollUpActuals(
-  rows: readonly WorkItem[],
+  rows: readonly ParentedRow[],
   actuals: readonly StoredActual[],
 ): Map<string, Map<string, number>> {
   const ownOf = new Map<string, Map<string, number>>();
@@ -199,7 +193,7 @@ export function rollUpActuals(
  * fact as nobody having said.
  */
 export function rollUpMeasures(
-  rows: readonly WorkItem[],
+  rows: readonly ParentedRow[],
   measures: readonly StoredMeasure[],
   metric: MeasureMetric,
 ): Map<string, Map<string, number>> {
@@ -269,7 +263,7 @@ export function workedStepsOf(
  * watched 2026-08-18.
  */
 export function rollUpProgress(
-  rows: readonly WorkItem[],
+  rows: readonly ParentedRow[],
   stated: readonly StoredProgress[],
   worked: ReadonlyMap<string, ReadonlySet<string>>,
 ): Map<string, Map<string, ProgressStatus>> {
@@ -321,10 +315,10 @@ export function rollUpProgress(
  * with `done` — a finished branch over an untouched row; watched 2026-08-18.
  */
 export function rollUpWorkItemStatuses(
-  rows: readonly WorkItem[],
+  rows: readonly ParentedRow[],
   byStep: ReadonlyMap<string, ReadonlyMap<string, ProgressStatus>>,
 ): Map<string, ProgressStatus> {
-  const childrenOf = new Map<string | null, WorkItem[]>();
+  const childrenOf = new Map<string | null, ParentedRow[]>();
   for (const row of rows) {
     const group = childrenOf.get(row.parentId) ?? [];
     group.push(row);
@@ -345,4 +339,3 @@ export function rollUpWorkItemStatuses(
   for (const row of rows) statusFor(row.id);
   return answers;
 }
-export type { Days } from './numbered-work-item';

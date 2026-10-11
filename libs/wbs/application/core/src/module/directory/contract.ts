@@ -9,11 +9,10 @@ import type { DirectoryService, DirectoryServiceOptions } from './directory.reso
  * installation never outlives the scope it was built over.
  *
  * **No K6 debt; K4 support and K2 debt disclosed.** Directory is a resource:
- * it imports the domain library, repository ports and no other resource. It
- * still imports one support file from `service/`, `directory-usage.ts`, which
- * the backend module map moves to the domain library (task 6.1); until then
- * that is a resource reading application-ring support rather than the domain.
- * `cleanName` already moved to `@wbs/domain`. Delivery's and features' side is not closed
+ * it imports the domain library, repository ports and no other resource.
+ * `cleanName` moved to `@wbs/domain` under task 6.1; its `directory-usage.ts`
+ * support stays in the core's `service/`, reclassified by the same task as
+ * application support over the `DirectoryUsageRows` port record. Delivery's and features' side is not closed
  * either: `http/directory.routes.ts`, `http/project.routes.ts`, Plan import's
  * `plan-import.feature.ts` and `service/plan-commands.ts` still name
  * `DirectoryService` directly, the direct resource dependency (K2) the map

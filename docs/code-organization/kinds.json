@@ -38,12 +38,6 @@
       "rationale": "buildServices binds an optional OptimizedScheduleAdapter into the core Scheduler through optimizerWiring, while service fixtures reuse its Fast-only scheduler"
     },
     {
-      "path": "libs/wbs/application/core/src/service/assumed-assignee.ts",
-      "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "directory-usage.ts, step.service.ts and work-item.service.ts call its pure assignment transformations for the glossary's assumed assignee, with no store or clock"
-    },
-    {
       "path": "libs/wbs/application/core/src/service/auth.service.ts",
       "kind": "support",
       "disposition": "compatibility adapter for direct store-based AuthService construction; delete when callers install the authentication module",
@@ -58,32 +52,26 @@
     {
       "path": "libs/wbs/application/core/src/service/command-normalizers.ts",
       "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "work-item.routes.ts normalizes command values and prepare-import.ts shares its limits; the transformations use no store or clock"
+      "disposition": "application support; stays in the core (task 6.1 reclassified it 2026-10-11)",
+      "rationale": "work-item.routes.ts normalizes request command values through the core's capacity and priority-ladder body parsers, and prepare-import.ts shares its limits; it is request-boundary code over the command definitions, not domain code"
     },
     {
       "path": "libs/wbs/application/core/src/service/compensating.ts",
       "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "work-item.service.ts calls its pure journal decoding, touched-row and command-subject transformations over stored values with no store or clock access"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/dependency.ts",
-      "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "prepare-import.ts and work-item.service.ts call canDepend as a pure check over work-item and dependency values with no store or clock"
+      "disposition": "application support; stays in the core (task 6.1 reclassified it 2026-10-11)",
+      "rationale": "work-item.resource.ts decodes journal entries into the inverse store writes undo applies (WorkItemPatch, Reparented, FrozenNumber and the stored-value keys); its vocabulary is the stores', so it is not domain code"
     },
     {
       "path": "libs/wbs/application/core/src/service/dependency-graph.ts",
       "kind": "support",
-      "disposition": "shared by the work item, project and step resources; move beside dependency.ts",
+      "disposition": "shared by the work item, project and step resources; stays in the core's service/ because it reads stores (dependency.ts moved to @wbs/domain without it)",
       "rationale": "work-item.resource.ts, project.resource.ts and step.resource.ts ask DependencyGraphGuard whether the combined step-node dependency graph their write would leave holds a cycle; it reads the project's stores and holds no clock"
     },
     {
       "path": "libs/wbs/application/core/src/service/directory-usage.ts",
       "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "directory.service.ts calls its pure removal-effect projections over DirectoryUsageRows and labelled work items for the glossary's directory usage, with no store or clock"
+      "disposition": "application support; stays in the core (task 6.1 reclassified it 2026-10-11)",
+      "rationale": "directory.resource.ts projects removal effects over the DirectoryUsageRows store read and its labelled work items; those records stay port types under decision A12, so the projection stays with them"
     },
     {
       "path": "libs/wbs/application/core/src/service/domain-proof.service.ts",
@@ -94,8 +82,8 @@
     {
       "path": "libs/wbs/application/core/src/service/numbered-work-item.ts",
       "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "broadcast.ts and work-item.service.ts share its derived reader value types, which contain no store, clock or runtime access"
+      "disposition": "application support; stays in the core (task 6.1 reclassified it 2026-10-11)",
+      "rationale": "its NumberedWorkItem reader value extends the LabelledWorkItem port record, which stays a port type under decision A12; Days moved to @wbs/domain with roll-up.ts"
     },
     {
       "path": "libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.ts",
@@ -106,26 +94,14 @@
     {
       "path": "libs/wbs/application/core/src/service/plan-command.ts",
       "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "plan-commands.ts consumes its command type and batch-limit value, which carry no store, clock or runtime access"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/roll-up.ts",
-      "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "WorkItemService calls its estimate, actual, measure and progress folds as pure transformations over work-item and step values with no store or clock access"
+      "disposition": "application support; stays beside command-normalizers.ts (task 6.1 reclassified it 2026-10-11)",
+      "rationale": "plan-commands.ts consumes the normalized command type and the batch limit command-normalizers.ts produces, so it follows that file"
     },
     {
       "path": "libs/wbs/application/core/src/service/work-item-statuses.ts",
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "WorkItemService folds each row's status from its progress reading, hold, readiness and the dependency graph with the @wbs/domain folds, with no store or clock access"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/saved-plan-input.ts",
-      "kind": "support",
-      "disposition": "pure domain code; move to the domain library",
-      "rationale": "SavedPlanService calls planInputRowsOf to transform detached PlanInputReads into canonical saved-plan values without asking a store, clock or runtime port"
     },
     {
       "path": "libs/wbs/application/core/src/service/saved-plan-schedule.ts",

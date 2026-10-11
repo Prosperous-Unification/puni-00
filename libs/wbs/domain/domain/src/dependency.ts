@@ -1,7 +1,7 @@
-import { hasCycle, indexTree, isWithin, parentIndexOf } from '@wbs/domain';
-
-import type { StoredDependency } from '../ports/dependency-store';
-import type { WorkItem } from '../ports/work-item-store';
+import type { PlannedRow } from './derive-numbers';
+import { isWithin, parentIndexOf } from './is-within';
+import type { DependencyEdge } from './schedule';
+import { hasCycle, indexTree } from './schedule';
 
 export type DependencyRefusal = 'not_found' | 'ancestor' | 'cycle';
 
@@ -14,8 +14,8 @@ export type DependencyRefusal = 'not_found' | 'ancestor' | 'cycle';
  * it is handed — see `design.md` D6.
  */
 export function canDepend(
-  rows: readonly WorkItem[],
-  existing: readonly StoredDependency[],
+  rows: readonly PlannedRow[],
+  existing: readonly DependencyEdge[],
   predecessorId: string,
   successorId: string,
 ): DependencyRefusal | null {
@@ -48,7 +48,7 @@ export function canDepend(
   //
   // Proof: this line deleted and every cycle test failed, including the two the
   // old hand-rolled search let through.
-  const proposed = { id: 'proposed', projectId: '', predecessorId, successorId };
+  const proposed: DependencyEdge = { predecessorId, successorId };
   if (hasCycle(indexTree(rows), [...existing, proposed])) return 'cycle';
 
   return null;
@@ -66,8 +66,8 @@ export function canDepend(
  * trusted from whatever the client last drew.
  */
 export function canReparent(
-  rows: readonly WorkItem[],
-  existing: readonly StoredDependency[],
+  rows: readonly PlannedRow[],
+  existing: readonly DependencyEdge[],
   id: string,
   parentId: string | null,
 ): Exclude<DependencyRefusal, 'not_found'> | null {
