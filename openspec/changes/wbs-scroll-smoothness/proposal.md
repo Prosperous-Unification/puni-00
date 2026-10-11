@@ -5,6 +5,12 @@ jittery; I think this is a legitimate UI issue." Static reading of the plan
 renderer at `origin/main` 1eeacb0b names four candidate causes that grow with
 row count:
 
+2026-10-11 follow-up: Dany reports that during scrolling, virtualized rows
+appear blank before the next row window arrives. This trial gives the current
+window more mounted rows beyond each publication boundary while keeping the
+trailing overscan fixed. Dany will evaluate the large-plan FE behavior after
+merge; the visual cause remains unconfirmed until that check.
+
 1. `usePlanViewport.recordHeight` runs `indexOf`, a `slice().reduce()` over every
    earlier row, and a full `Map` copy plus `setHeights` per newly measured row.
 2. Every scroll frame runs `placeRows` over all rows twice.

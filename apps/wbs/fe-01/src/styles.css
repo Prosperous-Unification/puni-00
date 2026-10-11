@@ -1047,6 +1047,12 @@
     overflow-wrap: break-word;
   }
 
+  /* The notes marker sits at the Name cell's right edge; both text faces wrap before it. */
+  [data-grid] td[data-column='name'] [data-has-notes] textarea[data-name-input],
+  [data-grid] td[data-column='name'] [data-has-notes] [data-cell-rendered] {
+    padding-right: 24px;
+  }
+
   /*
    * The one thing on the drawn box a pointer may hit.
    *
@@ -1682,13 +1688,10 @@
 
 /*
  * A **done** row (`data-row-done`, written by `wbs-table.tsx`'s `PlanRow` off
- * the row's status): its name reads struck through and muted, and its number
- * with it. Ink only — this touches no `--cell-bg`, so every stripe, the pointed
- * row's light and a dependency light paint under it exactly as they did, and
- * the `:not()` chain above it has nothing new to exclude. What a done row looks
- * like is a fact about the row at rest, not about where the pointer is.
+ * the row's status) strikes only its number. The Name cell's source textarea
+ * must keep its normal transparent-at-rest rule so it does not draw on top of
+ * the rendered markdown name. This changes ink only, not the row backgrounds.
  */
-[data-grid] tbody tr[data-row-done='true'] td[data-column='name'] [data-cell],
 [data-grid] tbody tr[data-row-done='true'] [data-number] {
   text-decoration: line-through;
   color: var(--muted-foreground);
