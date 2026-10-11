@@ -20,3 +20,6 @@ inventory. It must not be added opportunistically to these checkboxes. Its
 mandatory proofs include interrupted publication before/after Git ref movement,
 missing versus unreadable adoption state, overlapping worktree claims, old-writer
 fencing, lost-response reconciliation and rollback preserving accepted identities.
+
+The second bounded delta, which relocates the runtime authority to Dash, is
+`openspec/changes/dash-authority-relocation/`.
