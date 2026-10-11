@@ -128,11 +128,12 @@ interface TestMail {
  * be-01 over real SQLite with the production {@link SqliteOrganizationAccess},
  * for the organization boundary suites (tasks 3.x).
  *
- * Task 2.4 has not bound sessions to organizations yet, so {@link bind} stands
- * in for that binding: it names a user's active organization. Everything
- * behind it — the marker read, the membership lookup, the scoped queries and
- * the role policy — is production code. Production passes
- * `NO_BOUND_ORGANIZATION`; `boot.db.test.ts` holds the wired process to that.
+ * Unless `sessionBinding` selects the production cookie binding, {@link bind}
+ * stands in for it: it names a user's active organization. Everything behind
+ * it — the marker read, the membership lookup, the scoped queries and the role
+ * policy — is production code. Production binds `NO_BOUND_ORGANIZATION` when
+ * `BROWSER_SESSION_AUTHORITY=disabled` (`boot.db.test.ts`) and the cookie
+ * binding when enabled (`boot-browser-session.db.test.ts`).
  */
 export class OrganizationHarness {
   private readonly tokens = new Map<string, string>();

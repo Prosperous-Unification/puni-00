@@ -91,6 +91,8 @@ be-01 and gw-01 additionally use (be-01 also requires `AUTH_METHODS`, `none` her
 ```dotenv
 AUTH_MODE=oidc
 AUTH_REDIRECT_URI=https://localhost:3443/api/auth/okta/callback
+# be-01 only; required, no default (see the runbook's environment files).
+BROWSER_SESSION_AUTHORITY=disabled
 AUTH_METHODS=none
 ```
 
@@ -136,6 +138,7 @@ metadata's issuer-equality check enabled.
 ```dotenv
 NODE_ENV=development
 AUTH_MODE=oidc
+BROWSER_SESSION_AUTHORITY=disabled
 AUTH_ISSUER_DISCOVERY_URL=https://dev-fzwagvg246jhid6a.us.auth0.com/
 AUTH_CLIENT_ID=<WBS Tool (dev) client ID>
 AUTH_CLIENT_SECRET=<WBS Tool (dev) client secret>
@@ -315,6 +318,7 @@ was:
 ```dotenv
 NODE_ENV=development
 AUTH_MODE=oidc
+BROWSER_SESSION_AUTHORITY=disabled
 AUTH_ISSUER_DISCOVERY_URL=https://<okta-org>/oauth2/<authorization-server-id>
 AUTH_CLIENT_ID=<WBS OIDC client id>
 AUTH_CLIENT_SECRET=<WBS OIDC client secret>

@@ -239,6 +239,7 @@ describe('the browser gate’s port shift', () => {
       const [backend] = serversOf(await loadConfig('500'));
       const env = {
         AUTH_MODE: 'local',
+        BROWSER_SESSION_AUTHORITY: 'disabled',
         NODE_ENV: 'development',
         LOG_LEVEL: 'error',
         INTERNAL_AUTH_SECRET: 's'.repeat(32),

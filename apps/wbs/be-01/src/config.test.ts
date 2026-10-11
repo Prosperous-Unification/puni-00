@@ -11,6 +11,7 @@ const VALID = {
   JWT_SIGNING_KEY_CURRENT: 'b'.repeat(32),
   AUTH_MODE: 'local',
   APP_ORIGIN: 'http://localhost:4200',
+  BROWSER_SESSION_AUTHORITY: 'disabled',
 };
 
 describe('BeConfig', () => {
@@ -65,6 +66,26 @@ describe('BeConfig', () => {
       expect(BeConfig(incomplete)).toHaveProperty('summary');
     });
   }
+
+  // The durable browser session authority is an explicit operator choice: a
+  // default either way would decide revocation semantics by omission.
+  // Proof: making the key optional made the missing-key case load (0/1).
+  it('requires an explicit browser session authority choice', () => {
+    const missing = Object.fromEntries(
+      Object.entries(VALID).filter(([key]) => key !== 'BROWSER_SESSION_AUTHORITY'),
+    );
+    expect(() => loadConfig(missing)).toThrow(/BROWSER_SESSION_AUTHORITY/);
+    expect(() => loadConfig({ ...VALID, BROWSER_SESSION_AUTHORITY: 'on' })).toThrow(
+      /BROWSER_SESSION_AUTHORITY/,
+    );
+    expect(() => loadConfig({ ...VALID, BROWSER_SESSION_AUTHORITY: '' })).toThrow(
+      /BROWSER_SESSION_AUTHORITY/,
+    );
+    expect(loadConfig(VALID).BROWSER_SESSION_AUTHORITY).toBe('disabled');
+    expect(
+      loadConfig({ ...VALID, BROWSER_SESSION_AUTHORITY: 'enabled' }).BROWSER_SESSION_AUTHORITY,
+    ).toBe('enabled');
+  });
 
   it('rejects a short INTERNAL_AUTH_SECRET', () => {
     expect(BeConfig({ ...VALID, INTERNAL_AUTH_SECRET: 'too-short' })).toHaveProperty('summary');

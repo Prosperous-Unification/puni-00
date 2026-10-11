@@ -79,11 +79,30 @@ An authenticated WBS request SHALL carry exactly one server-validated active org
 - **THEN** rollback refuses and preserves both the table and migration ledger
 - **AND** an empty-table rollback remains permitted
 
-#### Scenario: Revocation groundwork remains inactive in production
+#### Scenario: The browser session composition is an explicit operator setting
 
-- **GIVEN** the production composition still supplies `NO_BOUND_ORGANIZATION` and refusing selection
+- **GIVEN** be-01 configuration without `BROWSER_SESSION_AUTHORITY`, or with a value other than `enabled` or `disabled`
+- **WHEN** be-01 starts, or the host swap preflights its environment file
+- **THEN** startup refuses and the preflight refuses before any container starts; no default composition is chosen
+
+#### Scenario: The disabled composition keeps revocation groundwork inactive
+
+- **GIVEN** `BROWSER_SESSION_AUTHORITY=disabled`, which supplies `NO_BOUND_ORGANIZATION` and refusing selection
 - **WHEN** a valid credential and organization cookie are presented
-- **THEN** the new revocation capability does not enable selection or scoped access
+- **THEN** the revocation capability does not enable selection or scoped access, and logout, refresh and replacement keep their legacy routes
+
+#### Scenario: The enabled composition binds the organization cookie through shared revocation
+
+- **GIVEN** `BROWSER_SESSION_AUTHORITY=enabled` and an activated deployment
+- **WHEN** a member selects an organization and later logs out
+- **THEN** the OIDC routes and the browser session authority share one durable lifecycle, token store and provider revocation, and organization access resolves the verified organization cookie through the same revocation table logout writes
+- **AND** after logout commits, the complete old access-token and organization-cookie pair is refused with `403 no_active_organization` and reselection with that credential is `401 unauthenticated`
+
+#### Scenario: Before activation the enabled composition answers exactly as the disabled one
+
+- **GIVEN** the organization activation marker is `pre_activation`
+- **WHEN** resource reads, membership listing, organization selection or gateway browser access are requested, with or without a forged or malformed organization cookie
+- **THEN** the enabled composition gives the same status and body as the disabled one: legacy access for reads and `403 onboarding_inactive` for listing and selection
 
 ### Requirement: Browser credential lifecycle commits revoke stale organization authority
 
@@ -193,7 +212,7 @@ In the explicitly enabled browser-session composition, native-only password regi
 - **GIVEN** lifecycle state survives a process restart but provider refresh material does not
 - **WHEN** a refresh is requested after restart
 - **THEN** the server refuses it and requires reauthentication without reopening or weakening committed revocations
-- **AND** production remains `NO_BOUND_ORGANIZATION` until its separate activation gate passes
+- **AND** organization binding stays inert until its separate activation gate passes, whichever browser session composition is configured
 
 #### Scenario: Native bearer context binds one current organization
 

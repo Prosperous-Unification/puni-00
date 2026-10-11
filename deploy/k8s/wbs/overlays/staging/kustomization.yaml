@@ -13,6 +13,7 @@ configMapGenerator:
     namespace: wbs-solver
     literals:
       - AUTH_MODE=oidc
+      - BROWSER_SESSION_AUTHORITY=disabled
       # Sign-in buttons stay off until organization activation (social-sign-in).
       - AUTH_METHODS=none
       - AUTH_REDIRECT_URI=https://wbs-staging.bulletpoints.club/api/auth/okta/callback

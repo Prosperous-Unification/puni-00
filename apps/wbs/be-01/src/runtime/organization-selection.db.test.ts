@@ -21,18 +21,16 @@ test('a selection in flight before revocation cannot restore authority after its
   const path = join(folder, 'test.db');
   runMigrations(path, MIGRATIONS);
   const connection = openConnection(path);
-  let releaseChoices:
-    | ((memberships: readonly { organizationId: string; name: string; role: 'member' }[]) => void)
-    | undefined;
-  let choicesStarted: (() => void) | undefined;
-  const started = new Promise<void>((resolve) => {
-    choicesStarted = resolve;
+  // The selection's own revocation lookup answers "not revoked" and is then
+  // held, so revocation commits between that check and the cookie's issue.
+  let releaseCheck: (() => void) | undefined;
+  let checkAnswered: (() => void) | undefined;
+  const answered = new Promise<void>((resolve) => {
+    checkAnswered = resolve;
   });
-  const choices = new Promise<readonly { organizationId: string; name: string; role: 'member' }[]>(
-    (resolve) => {
-      releaseChoices = resolve;
-    },
-  );
+  const held = new Promise<void>((resolve) => {
+    releaseCheck = resolve;
+  });
   try {
     const evidence: VerifiedOrganizationCredential = {
       kind: 'native',
@@ -50,20 +48,28 @@ test('a selection in flight before revocation cannot restore authority after its
       connection.db,
       new WriteCoordinator(),
     );
+    let lookups = 0;
     const selection = organizationSelection(
       {
-        list: () => {
-          choicesStarted?.();
-          return choices;
-        },
+        list: () => Promise.resolve([{ organizationId: 'org-a', name: 'org-a', role: 'member' }]),
       },
       organizationCookieBinding('test-session-key'),
-      revocations,
+      {
+        isRevoked: async (credential) => {
+          const revoked = await revocations.isRevoked(credential);
+          lookups += 1;
+          if (lookups === 1) {
+            checkAnswered?.();
+            await held;
+          }
+          return revoked;
+        },
+      },
     );
     const issued = selection.endpoints.select(principal, 'org-a');
-    await started;
+    await answered;
     await revocations.revoke(evidence, Date.now());
-    releaseChoices?.([{ organizationId: 'org-a', name: 'org-a', role: 'member' }]);
+    releaseCheck?.();
     const outcome = await issued;
     expect(outcome.kind).toBe('selected');
     if (outcome.kind !== 'selected') throw new Error('selection did not issue a cookie');
@@ -76,7 +82,7 @@ test('a selection in flight before revocation cannot restore authority after its
       }),
     ).toBeNull();
   } finally {
-    releaseChoices?.([]);
+    releaseCheck?.();
     connection.close();
     rmSync(folder, { recursive: true, force: true });
   }
