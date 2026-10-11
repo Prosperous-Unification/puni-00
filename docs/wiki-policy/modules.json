@@ -19,8 +19,16 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "directory-prefix", "prefix": "apps/wbs/be-01/src/testing", "exclusions": [] },
-          { "kind": "directory-prefix", "prefix": "libs/wbs/application/core", "exclusions": [] },
+          {
+            "kind": "directory-prefix",
+            "prefix": "apps/wbs/be-01/src/testing",
+            "exclusions": []
+          },
+          {
+            "kind": "directory-prefix",
+            "prefix": "libs/wbs/application/core",
+            "exclusions": []
+          },
           {
             "kind": "directory-prefix",
             "prefix": "libs/wbs/adapters/store-sqlite/src",
@@ -44,12 +52,30 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/src/controller/auth-oidc-endpoints.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/src/controller/auth-password-endpoints.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/service/auth.service.ts" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/app.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/controller/auth-oidc-endpoints.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/controller/auth-password-endpoints.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/auth.service.ts"
+          }
         ]
       }
     },
@@ -68,8 +94,14 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" }
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          }
         ]
       }
     },
@@ -88,14 +120,26 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/app.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
           {
             "kind": "path",
             "path": "libs/wbs/application/core/src/http/calendar-marker.routes.ts"
           },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/project.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" }
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/project.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          }
         ]
       }
     },
@@ -114,9 +158,18 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/app.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
           {
             "kind": "path",
             "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"
@@ -139,11 +192,26 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/directory.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/project.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/app.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/directory.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/project.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
           {
             "kind": "path",
             "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"
@@ -152,7 +220,10 @@
             "kind": "path",
             "path": "libs/wbs/application/core/src/module/plan-import/plan-import.feature.ts"
           },
-          { "kind": "path", "path": "libs/wbs/application/core/src/service/person-load.feature.ts" }
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/person-load.feature.ts"
+          }
         ]
       }
     },
@@ -171,10 +242,22 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/work-item.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/app.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/work-item.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          }
         ]
       }
     },
@@ -193,9 +276,18 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/history.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" }
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/history.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          }
         ]
       }
     },
@@ -214,9 +306,18 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/app.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
           {
             "kind": "path",
             "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"
@@ -239,14 +340,38 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/history.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/internal.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/project.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/saved-plan.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/solution.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/app.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/history.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/internal.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/project.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/saved-plan.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/solution.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
           {
             "kind": "path",
             "path": "libs/wbs/application/core/src/module/plan-commands/admitted-write.ts"
@@ -255,7 +380,10 @@
             "kind": "path",
             "path": "libs/wbs/application/core/src/module/saved-plans/save-plan.ts"
           },
-          { "kind": "path", "path": "libs/wbs/application/core/src/service/person-load.feature.ts" }
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/person-load.feature.ts"
+          }
         ]
       }
     },
@@ -274,9 +402,18 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/internal.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" }
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/internal.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          }
         ]
       }
     },
@@ -295,14 +432,26 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/saved-plan.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/saved-plan.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
           {
             "kind": "path",
             "path": "libs/wbs/application/core/src/service/saved-plan-schedule.ts"
           },
-          { "kind": "path", "path": "libs/wbs/application/core/src/service/saved-plan.service.ts" }
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/saved-plan.service.ts"
+          }
         ]
       }
     },
@@ -321,10 +470,22 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/step.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/app.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/step.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
           {
             "kind": "path",
             "path": "libs/wbs/application/core/src/module/plan-commands/admitted-write.ts"
@@ -356,7 +517,10 @@
             "prefix": "libs/wbs/application/core/src/http",
             "exclusions": []
           },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
           {
             "kind": "directory-prefix",
             "prefix": "libs/wbs/application/core/src/service",
@@ -385,11 +549,26 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/project.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/work-item.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/app.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/project.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/work-item.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
           {
             "kind": "path",
             "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"
@@ -402,8 +581,14 @@
             "kind": "path",
             "path": "libs/wbs/application/core/src/module/saved-plans/saved-plan-schedule.ts"
           },
-          { "kind": "path", "path": "libs/wbs/application/core/src/service/dependency-graph.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/service/person-load.feature.ts" }
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/dependency-graph.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/person-load.feature.ts"
+          }
         ]
       }
     },
@@ -422,9 +607,18 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "docs/refactoring/r1-r9-spec-inventory.md" },
-          { "kind": "path", "path": "docs/refactoring/tasks.md" },
-          { "kind": "path", "path": "openspec/specs/bounded-replay-sweep/spec.md" }
+          {
+            "kind": "path",
+            "path": "docs/refactoring/r1-r9-spec-inventory.md"
+          },
+          {
+            "kind": "path",
+            "path": "docs/refactoring/tasks.md"
+          },
+          {
+            "kind": "path",
+            "path": "openspec/specs/bounded-replay-sweep/spec.md"
+          }
         ]
       }
     },
@@ -443,15 +637,30 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/src/dev/local-solver-spawner.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/src/module/solver-supervisor/contract.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/src/module/solver-supervisor/module.ts" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/app.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/dev/local-solver-spawner.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/module/solver-supervisor/contract.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/module/solver-supervisor/module.ts"
+          },
           {
             "kind": "path",
             "path": "apps/wbs/be-01/src/module/solver-supervisor/solver-supervisor-spawner.ts"
           },
-          { "kind": "path", "path": "apps/wbs/be-01/src/services.ts" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/services.ts"
+          }
         ]
       }
     },
@@ -470,9 +679,18 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/be-01/src/dev/local-solver-spawner.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/src/dev/main.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/src/main.ts" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/dev/local-solver-spawner.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/dev/main.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/main.ts"
+          }
         ]
       }
     },
@@ -491,9 +709,18 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/be-01/scripts/solver-supervisor-image-client.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/scripts/solver-supervisor-orphan-client.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/src/main.ts" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/scripts/solver-supervisor-image-client.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/scripts/solver-supervisor-orphan-client.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/main.ts"
+          }
         ]
       }
     },
@@ -501,14 +728,21 @@
       "moduleId": "module.docs.wbs-table-extraction",
       "name": "Historical WbsTable extraction pilot boundary",
       "memberships": [
-        { "kind": "directory-prefix", "prefix": "docs/refactoring/w4-4", "exclusions": [] }
+        {
+          "kind": "directory-prefix",
+          "prefix": "docs/refactoring/w4-4",
+          "exclusions": []
+        }
       ],
       "predecessorModuleIds": [],
       "indexPath": "docs/refactoring/w4-4/README.md",
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "docs/refactoring/tasks.md" },
+          {
+            "kind": "path",
+            "path": "docs/refactoring/tasks.md"
+          },
           {
             "kind": "path",
             "path": "openspec/changes/archive/2026-09-08-wbs-table-modules/tasks.md"
@@ -535,7 +769,11 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "directory-prefix", "prefix": "apps", "exclusions": [] },
+          {
+            "kind": "directory-prefix",
+            "prefix": "apps",
+            "exclusions": []
+          },
           {
             "kind": "directory-prefix",
             "prefix": "libs/wbs/application/core/src",
@@ -548,18 +786,37 @@
       "moduleId": "module.infra.release-assembly",
       "name": "Release assembly infrastructure pilot boundary",
       "memberships": [
-        { "kind": "directory-prefix", "prefix": "tools/tool-dagger/src/lib", "exclusions": [] }
+        {
+          "kind": "directory-prefix",
+          "prefix": "tools/tool-dagger/src/lib",
+          "exclusions": []
+        }
       ],
       "predecessorModuleIds": [],
       "indexPath": "tools/tool-dagger/src/lib/README.md",
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "tools/tool-dagger/src/be-01.ts" },
-          { "kind": "path", "path": "tools/tool-dagger/src/dagger.test.ts" },
-          { "kind": "path", "path": "tools/tool-dagger/src/fe-01.ts" },
-          { "kind": "path", "path": "tools/tool-dagger/src/gw-01.ts" },
-          { "kind": "path", "path": "tools/tool-dagger/src/main.ts" }
+          {
+            "kind": "path",
+            "path": "tools/tool-dagger/src/be-01.ts"
+          },
+          {
+            "kind": "path",
+            "path": "tools/tool-dagger/src/dagger.test.ts"
+          },
+          {
+            "kind": "path",
+            "path": "tools/tool-dagger/src/fe-01.ts"
+          },
+          {
+            "kind": "path",
+            "path": "tools/tool-dagger/src/gw-01.ts"
+          },
+          {
+            "kind": "path",
+            "path": "tools/tool-dagger/src/main.ts"
+          }
         ]
       }
     },
@@ -578,9 +835,18 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/composition.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/contract.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/project/composition.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/project/contract.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+          }
         ]
       }
     },
@@ -599,12 +865,18 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/directory-management/contract.ts" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/directory-management/contract.ts"
+          },
           {
             "kind": "path",
             "path": "apps/wbs/fe-01/src/modules/directory-management/directory-management.feature.ts"
           },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/directory-management/module.ts" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/directory-management/module.ts"
+          }
         ]
       }
     },
@@ -623,12 +895,18 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/directory/directory-page.tsx" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/directory/directory-page.tsx"
+          },
           {
             "kind": "path",
             "path": "apps/wbs/fe-01/src/components/people/people-load-summary.tsx"
           },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/session-runtime.ts" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/runtime/session-runtime.ts"
+          }
         ]
       }
     },
@@ -647,17 +925,50 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/plan-live.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-estimate-drafts.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-fields.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-read.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-structure.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-reference-sets.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/composition.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/contract.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/plan-live.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/use-estimate-drafts.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/use-plan-fields.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/use-plan-structure.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/use-reference-sets.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/project/composition.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/project/contract.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+          }
         ]
       }
     },
@@ -676,11 +987,26 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-read.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/composition.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/contract.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/project/composition.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/project/contract.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+          }
         ]
       }
     },
@@ -699,10 +1025,22 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-read.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/contract.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/project/contract.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+          }
         ]
       }
     },
@@ -721,16 +1059,34 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/gantt-detail.ts" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/gantt-detail.ts"
+          },
           {
             "kind": "path",
             "path": "apps/wbs/fe-01/src/components/wbs/project-settings-modal.tsx"
           },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/remembered-layout.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/lib/remembered.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/lib/theme.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/application-runtime.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/application-services-context.tsx" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/remembered-layout.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/lib/remembered.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/lib/theme.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/runtime/application-runtime.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/runtime/application-services-context.tsx"
+          }
         ]
       }
     },
@@ -749,11 +1105,30 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-import.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-read.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/session-runtime.ts" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/board/step-board-view.tsx"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/use-plan-import.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/runtime/session-runtime.ts"
+          }
         ]
       }
     },
@@ -772,13 +1147,34 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/saved-plan-list.tsx" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/saved-plans-panel.tsx" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/lib/saved-plan-save.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/composition.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/contract.ts" },
-          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" }
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/saved-plan-list.tsx"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/saved-plans-panel.tsx"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/lib/saved-plan-save.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/project/composition.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/project/contract.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+          }
         ]
       }
     },
@@ -797,14 +1193,26 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/import.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/import.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
           {
             "kind": "path",
             "path": "libs/wbs/application/core/src/testing/import-service-source-contract.ts"
           },
-          { "kind": "path", "path": "libs/wbs/application/core/src/testing/writes-fixture.ts" }
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/testing/writes-fixture.ts"
+          }
         ]
       }
     },
@@ -823,9 +1231,18 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/import.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/http/project.routes.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/import.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/project.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
           {
             "kind": "path",
             "path": "libs/wbs/application/core/src/testing/import-service-source-contract.ts"
