@@ -71,10 +71,10 @@ Migration timestamps SHALL NOT determine membership in the reversal set.
 
 #### Scenario: Older migration arrives after a newer baseline
 
-- **GIVEN** `20261005110000_add_shared_people` is applied and the candidate introduces
-  `20261001020000_add_browser_auth_lifecycle`
+- **GIVEN** `20261005110000_add_shared_people` is applied and the candidate introduces an
+  older newly introduced migration (e.g. the lab `20261001015000_lab_older_candidate`)
 - **WHEN** forward migration succeeds and the deployment aborts
-- **THEN** the lifecycle migration and its schema are reversed, the captured ledger and
+- **THEN** the older migration and its schema are reversed, the captured ledger and
   baseline schema are restored, and baseline sentinel rows remain unchanged
 
 #### Scenario: Lifecycle was already applied before capture

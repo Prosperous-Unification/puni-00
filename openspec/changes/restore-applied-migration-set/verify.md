@@ -765,3 +765,20 @@ The first CI run on `b977f4f10` failed in three places. The `k3s-rehearsal` job 
 The live lab run above used the `fault-migrations` path. The rename only changes the Dockerfile
 `COPY` source, and lab-migration/execute-adapter passed 43/43 after it. CI `k3s-rehearsal`
 reruns the lab on the new SHA.
+
+### Review follow-up (Fable verdict MERGE at `8df0aca1d`)
+
+- Exact-set down now refuses `--capture-file` without `--capture-sha256`. Every automated
+  caller and the printed manual command already pass it.
+  - RED: `refuses exact-set down without the original capture digest` exited 0.
+  - With the refusal removed (empty pin), the test fails on a SHA-256 mismatch instead of the
+    missing-pin refusal.
+  - The CLI test helper pins the capture bytes for the other tests, as production callers do.
+- A committed `be` swap now unlinks its attempt capture. Every failure path keeps it.
+  - RED: `removes the attempt capture only once the be swap commits` observed no removal.
+  - A failed `committed` write keeps the capture; a later successful commit removes only its own file.
+- ADR 0041 is accepted. The runbook names the pre-migrate refusal
+  `applied migration <name> is absent or changed in candidate` and its remedy. The delta
+  scenario now names the lab older candidate instead of the lifecycle stamp #311 changes.
+- Checks: backend CLI + SQLite 66/66, swap 101/101, tool-deploy 134/134. lint:fast and typecheck
+  pass for wbs-be-01, tool-remote-scripts and tool-deploy. OpenSpec 159/159.

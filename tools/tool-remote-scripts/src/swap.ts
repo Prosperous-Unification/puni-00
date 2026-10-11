@@ -564,6 +564,8 @@ export interface SwapExecutionIo {
   readCapture?: (path: string) => Promise<string>;
   /** Test seam for durable capture failure; production exclusively publishes and syncs. */
   writeCapture?: (path: string, contents: string) => Promise<void>;
+  /** Test seam for committed-capture cleanup; production unlinks the host file. */
+  removeCapture?: (path: string) => Promise<void>;
 }
 
 const PRODUCTION_SWAP_IO: SwapExecutionIo = { sh, readPhase, writePhase, writeAtomic };
@@ -1240,6 +1242,13 @@ export async function execute(
             `${ROOT}/state/${tier}.json`,
             renderStateJson({ tier, activeColor: to, lastDeployedSha: sha }),
           );
+          // Only a committed swap discards its capture; every failure path above keeps it for
+          // the printed manual recovery command. A failed unlink throws after the commit.
+          // Proof: removing this unlink made `removes the attempt capture only once the be
+          // swap commits` observe no removal, so captures accumulated under stateDir.
+          if (migrationCapture !== null) {
+            await (io.removeCapture ?? ((file) => unlink(file)))(migrationCapture.path);
+          }
           break;
       }
     } catch (e: unknown) {

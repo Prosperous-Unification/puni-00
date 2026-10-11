@@ -30,7 +30,33 @@ async function runCli(file: string, dbPath: string, ...args: string[]) {
   return runCliFrom(APP_ROOT, file, dbPath, ...args);
 }
 
+/**
+ * Runs a backend CLI. Exact-set down calls get the `--capture-sha256` every production caller
+ * passes, pinned to the capture's bytes at call time (or a placeholder when the file cannot be
+ * read, so absence and unreadability still reach their own refusals); use `spawnCliFrom` to
+ * observe the CLI without a pin.
+ */
 async function runCliFrom(root: string, file: string, dbPath: string, ...args: string[]) {
+  const capture = args.find((argument) => argument.startsWith('--capture-file='));
+  if (
+    file !== 'migrate-down-cli.ts' ||
+    capture === undefined ||
+    args.some((argument) => argument.startsWith('--capture-sha256='))
+  ) {
+    return spawnCliFrom(root, file, dbPath, ...args);
+  }
+  let pin = '0'.repeat(64);
+  try {
+    pin = createHash('sha256')
+      .update(readFileSync(capture.slice('--capture-file='.length)))
+      .digest('hex');
+  } catch {
+    // Absent or unreadable capture: the CLI's own read refusal is under test.
+  }
+  return spawnCliFrom(root, file, dbPath, ...args, `--capture-sha256=${pin}`);
+}
+
+async function spawnCliFrom(root: string, file: string, dbPath: string, ...args: string[]) {
   const child = Bun.spawn([process.execPath, 'run', join(APP_ROOT, 'src', file), ...args], {
     cwd: root,
     env: { ...process.env, DB_PATH: dbPath },
@@ -159,6 +185,21 @@ async function restoreFixture(fixture: Awaited<ReturnType<typeof prepareIntegrit
 }
 
 describe('migration deploy entrypoints', () => {
+  it('refuses exact-set down without the original capture digest', async () => {
+    const fixture = await prepareIntegrityFixture();
+    const before = migrationLedgerAt(fixture.dbPath);
+    const refused = await spawnCliFrom(
+      fixture.root,
+      'migrate-down-cli.ts',
+      fixture.dbPath,
+      `--capture-file=${fixture.capturePath}`,
+      ...fixture.identity,
+    );
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stderr).toContain('--capture-file requires --capture-sha256');
+    expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+  });
+
   it('advertises exact-set capabilities without a database or DB_PATH', async () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-migration-capability-'));
     roots.push(root);

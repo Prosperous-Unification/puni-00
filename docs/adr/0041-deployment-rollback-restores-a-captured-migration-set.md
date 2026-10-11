@@ -1,6 +1,6 @@
 # Deployment rollback restores a captured migration set
 
-**Status:** proposed, 2026-10-06. Change: `restore-applied-migration-set`; WBS 070 follow-up.
+**Status:** accepted, 2026-10-11 (proposed 2026-10-06). Change: `restore-applied-migration-set`; WBS 070 follow-up.
 
 Deployment rollback will use an immutable, attempt-bound record of the applied migrations
 and candidate scripts instead of inferring the original set from its newest timestamp.

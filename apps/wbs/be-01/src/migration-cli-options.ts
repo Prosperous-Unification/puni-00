@@ -58,7 +58,7 @@ export type DownMode =
       readonly kind: 'capture';
       readonly path: string;
       readonly identity: MigrationSetIdentity;
-      readonly expectedSha256: string | null;
+      readonly expectedSha256: string;
     };
 
 /** Parse status mode before opening a database. */
@@ -93,15 +93,15 @@ export function downModeOf(arguments_: readonly string[]): DownMode {
   if (path !== undefined) {
     // Proof: removing digest shape validation made the real CLI accept an ambiguous
     // recovery hash instead of refusing before any SQLite reversal.
-    if (expectedSha256 !== undefined && !/^[0-9a-f]{64}$/.test(expectedSha256)) {
+    // Proof: removing this refusal (empty pin) made `refuses exact-set down without the original
+    // capture digest` read the capture and fail on a SHA-256 mismatch, not the missing pin.
+    if (expectedSha256 === undefined) {
+      throw new Error('--capture-file requires --capture-sha256 from the original capture');
+    }
+    if (!/^[0-9a-f]{64}$/.test(expectedSha256)) {
       throw new Error('--capture-sha256 requires a lowercase SHA-256 digest');
     }
-    return {
-      kind: 'capture',
-      path,
-      identity: identityOf(values),
-      expectedSha256: expectedSha256 ?? null,
-    };
+    return { kind: 'capture', path, identity: identityOf(values), expectedSha256 };
   }
   if (target !== undefined) {
     // Proof: removing the legacy-only flag check made the same production CLI test

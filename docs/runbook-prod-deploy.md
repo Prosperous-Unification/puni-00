@@ -146,11 +146,14 @@ the captured set. A zero-exit down command with a different ledger is a rollback
 capture remains on the host after green stops. If rollback fails, use the **exact pinned-image
 `docker run` command printed by swap**: it binds that retained capture read-only, binds
 `/home/puni1/wbs/data` read-write, and sets the DB_PATH observed from green before migration.
-The exact-set CLI requires `--capture-file`, `--target`, `--attempt` and `--candidate`; the
-printed automatic/manual command also passes `--capture-sha256` from the original durable
-capture. The backend refuses changed bytes before parsing the file or opening SQLite for
+The exact-set CLI requires `--capture-file`, `--capture-sha256` (from the original durable
+capture), `--target`, `--attempt` and `--candidate`; the printed automatic/manual command
+passes all five. The backend refuses changed bytes before parsing the file or opening SQLite for
 reversal. Keep those fields and the image digest unchanged; inspect the capture and current
 ledger before retrying. An absent or unreadable capture is not an empty applied set.
+Before migrating, capture refuses with `applied migration <name> is absent or changed in candidate`
+when the incoming image lacks an applied migration or carries different bytes for it. Ship every
+applied migration unchanged in the candidate; never reformat a historical `migration.sql`.
 The `--to=<baseline>` commands below are legacy operator procedures for
 separate data-removal workflows, not the automatic swap abort path.
 

@@ -1364,6 +1364,53 @@ describe('execute, captured migration set', () => {
     ).toContain('migration capture readback differs');
     expect(ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
   });
+
+  it('removes the attempt capture only once the be swap commits', async () => {
+    const written: string[] = [];
+    const removed: string[] = [];
+    let captured = '';
+    let failCommit = false;
+    const io: SwapExecutionIo = {
+      sh: (args) => {
+        if (args[2] === 'printenv' && args[3] === 'DB_PATH')
+          return Promise.resolve('/data/wbs.db\n');
+        if (args.includes('src/migrate-status-cli.ts'))
+          return Promise.resolve(captureForStatusCommand(args));
+        if (args.includes('src/migrate-cli.ts')) return Promise.resolve('migrated');
+        throw new Error(`unexpected Docker command: ${args.join(' ')}`);
+      },
+      readPhase: () => Promise.resolve('committed'),
+      writePhase: (_path, phase) =>
+        failCommit && phase === 'committed'
+          ? Promise.reject(new Error('phase disk full'))
+          : Promise.resolve(),
+      writeAtomic: () => Promise.resolve(),
+      writeCapture: (path, contents) => {
+        written.push(path);
+        captured = contents;
+        return Promise.resolve();
+      },
+      readCapture: () => Promise.resolve(captured),
+      removeCapture: (path) => {
+        removed.push(path);
+        return Promise.resolve();
+      },
+    };
+    const run = () =>
+      execute(
+        { tier: 'be', from: 'blue', to: 'green', steps: ['migrate', 'commit'] },
+        'registry/be-01@sha256:abc',
+        'deadbeef',
+        io,
+      );
+    failCommit = true;
+    expect(await failureMessage(run())).toContain('phase disk full');
+    expect(removed).toEqual([]);
+    failCommit = false;
+    expect(await failureMessage(run())).toBe('');
+    expect(written).toHaveLength(2);
+    expect(removed).toEqual([written[1]]);
+  });
 });
 
 describe('execute, after routing has moved', () => {

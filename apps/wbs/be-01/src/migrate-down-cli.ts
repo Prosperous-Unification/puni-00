@@ -2,7 +2,7 @@
 // Kubernetes schema Job's abort path:
 //
 //   bun run src/migrate-down-cli.ts --capture-file=<path> --target=<t> --attempt=<a>
-//     --candidate=<c> [--capture-sha256=<hex>]
+//     --candidate=<c> --capture-sha256=<hex>
 //   bun run src/migrate-down-cli.ts --to=<name|none>
 //
 // The capture is the complete applied set `migrate-status-cli.ts --capture` wrote
@@ -35,10 +35,7 @@ if (mode.kind === 'capture') {
   const bytes = readFileSync(mode.path);
   // Proof: removing this comparison made the Compose manual-recovery test exit 0
   // and delete both the baseline shared-people and candidate lifecycle tables.
-  if (
-    mode.expectedSha256 !== null &&
-    createHash('sha256').update(bytes).digest('hex') !== mode.expectedSha256
-  ) {
+  if (createHash('sha256').update(bytes).digest('hex') !== mode.expectedSha256) {
     throw new Error('migration capture SHA-256 differs from the recorded deploy attempt');
   }
   const capture: unknown = JSON.parse(bytes.toString('utf8'));
