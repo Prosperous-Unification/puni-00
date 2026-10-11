@@ -167,6 +167,9 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
    * dropping the claim-status recheck made `refuses a pending or suspended
    * claim` store a connection; dropping the organization predicate on the
    * claim made `answers a foreign claim as absent` store one on B's claim.
+   * Proof, watched 2026-10-12 through the mounted route: dropping the
+   * claim-status recheck made `refuses a pending or suspended domain and
+   * stores nothing` in `sso-connection.controller.db.test.ts` answer 201.
    */
   create(
     organizationId: string,

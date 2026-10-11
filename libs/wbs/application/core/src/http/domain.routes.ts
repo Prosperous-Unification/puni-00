@@ -64,6 +64,8 @@ export function domainRoutes(
             return { ok: false, status: 404, body: { error: 'not_found' } };
           case 'stale':
             return { ok: false, status: 409, body: { error: 'stale' } };
+          case 'sso_connection_exists':
+            return { ok: false, status: 409, body: { error: 'sso_connection_exists' } };
           case 'released':
             return { ok: true, status: 204, body: EMPTY };
         }

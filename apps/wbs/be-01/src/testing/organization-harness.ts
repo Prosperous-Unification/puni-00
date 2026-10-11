@@ -25,6 +25,7 @@ import { createLogger } from '@wbs/observability';
 import {
   DomainClaimRepository,
   EmailVerificationRepository,
+  EnterpriseConnectionRepository,
   ExternalIdentityRepository,
   InvitationRepository,
   JoinRequestRepository,
@@ -387,6 +388,7 @@ export class OrganizationHarness {
           }),
       memberships: new OrganizationRepository(db, OPEN),
       domains,
+      enterpriseConnections: new EnterpriseConnectionRepository(db, gate),
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),
@@ -542,6 +544,7 @@ export class OrganizationHarness {
       },
       memberships: new OrganizationRepository(source.db, services.gate),
       domains: new DomainClaimRepository(source.db, services.gate),
+      enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
       onboarding: new OnboardingRepository(source.db, services.gate),
       emailVerification: new EmailVerificationRepository(source.db, services.gate),
       invitations: new InvitationRepository(source.db, services.gate),

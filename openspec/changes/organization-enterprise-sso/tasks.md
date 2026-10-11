@@ -23,7 +23,7 @@
 
 ## 2. Connection administration and routing
 
-- [ ] 2.1 Add the connection routes (create, update, delete, list), restricted to super-admins and refused before activation, with refusal codes `domain_not_verified`, `sso_connection_exists`, `provisioning_active` and `sso_connection_unproven`. Domain release is refused while a connection exists.
+- [x] 2.1 Add the connection routes (create, update, delete, list), restricted to super-admins and refused before activation, with refusal codes `domain_not_verified`, `sso_connection_exists`, `provisioning_active` and `sso_connection_unproven`. Domain release is refused while a connection exists.
 
   Red: the mounted scenarios of `organization-sso` "records one enterprise connection", including the suspended claim and the foreign claim answering 404.
 

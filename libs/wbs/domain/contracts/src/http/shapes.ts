@@ -98,6 +98,12 @@ import {
   removeSpaceProject,
   renameSpace,
 } from './space-shapes';
+import {
+  createSsoConnection,
+  listSsoConnections,
+  removeSsoConnection,
+  updateSsoConnection,
+} from './sso-connection-shapes';
 import { addStep, removeStep, renameStep } from './step-shapes';
 import {
   applyDirectoryCommands,
@@ -139,6 +145,10 @@ export const httpShapes = [
   createDomainChallenge,
   verifyDomainClaim,
   rotateDomainProof,
+  listSsoConnections,
+  createSsoConnection,
+  updateSsoConnection,
+  removeSsoConnection,
   listInvitations,
   createInvitation,
   revokeInvitation,

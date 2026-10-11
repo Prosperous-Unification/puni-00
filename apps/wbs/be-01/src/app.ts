@@ -6,6 +6,7 @@ import type {
   EditAdmission,
   EmailDelivery,
   EmailVerification,
+  EnterpriseConnections,
   HistoryService,
   ImportService,
   Invitation,
@@ -30,6 +31,7 @@ import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
 import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
+import { ssoConnectionRoutes } from '@wbs/core/http/sso-connection.routes';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import type { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
@@ -130,6 +132,11 @@ export interface AppOptions {
   memberships: MembershipAdministration;
   /** Checked policy and transactional challenge storage; omission is a composition error. */
   domains: DomainChallenges;
+  /**
+   * Enterprise connection records (`organization-sso`): administration,
+   * login routing and proof by routed link. Required like `domains`.
+   */
+  enterpriseConnections: EnterpriseConnections;
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
   /** Required durable challenge boundary; absence is a boot configuration error. */
@@ -388,6 +395,7 @@ export function mountedEndpoints(
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
     ...organizationSelectionRoutes(opts.organizationSelection ?? REFUSE_ORGANIZATION_SELECTION),
     ...domainRoutes(opts.organizations, opts.domains, opts.clock),
+    ...ssoConnectionRoutes(opts.organizations, opts.enterpriseConnections, opts.clock),
     ...onboardingRoutes(opts.onboarding, opts.clock),
     ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),
     ...invitationRoutes(

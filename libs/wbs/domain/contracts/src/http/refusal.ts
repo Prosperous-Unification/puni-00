@@ -320,7 +320,16 @@ type BareRefusalCode =
   | 'unknown_parent'
   // Capacity mode (`share-people-across-projects` 8.1): a mode this release
   // does not list in `SUPPORTED_CAPACITY_MODES`.
-  | 'capacity_mode_unsupported';
+  | 'capacity_mode_unsupported'
+  // Enterprise SSO (`organization-sso`): connection administration refusals,
+  // a domain release a connection still names, and an unknown login slug.
+  | 'domain_not_verified'
+  | 'sso_connection_exists'
+  | 'login_slug_taken'
+  | 'provisioning_active'
+  | 'sso_connection_unproven'
+  | 'enforcement_would_lock_out_actor'
+  | 'sso_connection_not_found';
 
 type SharedCommandCode =
   'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use' | 'calendar_range';
