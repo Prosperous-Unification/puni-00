@@ -1,3 +1,7 @@
+// Who does one step of one work item, and who is assumed to when nobody is named. Moved out of
+// the core's `service/` on 2026-10-11 (task 6.1, A12); the ports re-export `Assignment`.
+export type * from './assignment';
+export * from './assumed-assignee';
 export * from './assumed-duration';
 // One press of `Arrange by schedule`: every sibling group put in the order its
 // bars start. Here because it is a question about a plan's shape answered from
@@ -12,6 +16,8 @@ export * from './clean-name';
 // TASK-219's and expands offsets down the tree, where this one only turns dates
 // into offsets and expands nothing.
 export * from './deadline-offsets';
+// Whether a finish-to-start edge may exist (task 6.1).
+export * from './dependency';
 export * from './dependency-reach';
 // Moved out of `apps/wbs/be-01/src/service/` on 2026-09-02. Both were already pure —
 // neither imported anything at all — and both answer questions about a plan's
@@ -73,13 +79,18 @@ export * from './organization-access';
 export * from './project-ownership';
 export * from './project-roll-up';
 export * from './public-email-domain';
+// Per-step estimate, actual, measure and progress folds up the tree (task 6.1).
+export * from './roll-up';
 // The value a Saved plan's input body is, and the pure fold that produces it.
-// Types and one pure function: the reads it is folded from live in be-01, and
-// the hash is taken over this module's serialization.
+// Types and one pure function: the reads it is folded from (`saved-plan-capture-values.ts`) live
+// beside it, and the hash is taken over this module's serialization.
 export * from './saved-plan';
-// A Saved plan's default name, size limits and schedule body: pure decisions the
+// The reads one Saved plan capture holds (task 6.1, A12); the ports re-export them.
+export type * from './saved-plan-capture-values';
+// A Saved plan's default name, input fold, size limits and schedule body: pure decisions the
 // Saved plans feature calls, moved out of the core's `service/` on 2026-10-11.
 export * from './saved-plan-default-name';
+export * from './saved-plan-input';
 export * from './saved-plan-quota';
 export * from './saved-plan-schedule-body';
 // Moved out of `apps/wbs/be-01/src/service/` on 2026-09-02, once its last storage
@@ -136,6 +147,8 @@ export * from './step-code';
 // renumbering-sensitive spelling (ADR 0031).
 export * from './step-node';
 export * from './step-reference';
+// The stored per-step facts: estimates, actuals, measures and progress (task 6.1, A12).
+export type * from './step-values';
 // The order every reader draws a project in, and the one sibling grouping
 // `deriveNumbers`, `treeOrder` and `arrangeBySchedule` share. Since ADR 0023 a
 // number is a name rather than a place, so the order has to be stated: two

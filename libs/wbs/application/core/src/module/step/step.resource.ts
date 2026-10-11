@@ -1,5 +1,7 @@
 import {
   type AllowancePercent,
+  type AssumedAssigneeFlip,
+  assumedAssigneeFlips,
   cleanName,
   isReservedStepCode,
   isStepCode,
@@ -18,7 +20,6 @@ import {
 import type { Broadcaster } from '../../ports/project-event';
 import type { Project, ProjectStore } from '../../ports/project-store';
 import type { Step, StepStore, StepUsageRows } from '../../ports/step-store';
-import { type AssumedAssigneeFlip, assumedAssigneeFlips } from '../../service/assumed-assignee';
 import type { DependencyGraphGuard } from '../../service/dependency-graph';
 
 export interface StepServiceOptions {

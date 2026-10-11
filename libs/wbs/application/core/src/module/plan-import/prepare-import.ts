@@ -2,6 +2,7 @@ import type { PlanDocumentImport } from '@wbs/contracts';
 import {
   type AllowancePercent,
   allowancePercentOf,
+  canDepend,
   cleanName,
   findTypedEndpointDefect,
   formatTypedDependencyKey,
@@ -33,7 +34,6 @@ import type { StoredDependency } from '../../ports/dependency-values';
 import type { Scheduler } from '../../ports/scheduler';
 import type { WorkItem } from '../../ports/work-item-values';
 import { MOST_CHARACTERS_IN_A_REF_NAME } from '../../service/command-normalizers';
-import { canDepend } from '../../service/dependency';
 import { findDependencyGraphCycle } from '../../service/dependency-graph';
 
 type DocumentRow = PlanDocumentImport['workItems'][number];

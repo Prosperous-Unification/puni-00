@@ -1,13 +1,7 @@
-import type { MeasureMetric } from '@wbs/domain';
-import { DEFAULT_ESTIMATE_RULE, type EstimateRule, type StepAllowances } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import type { StoredActual } from '../ports/actual-store';
-import type { StoredEstimate } from '../ports/estimate-store';
-import type { StoredMeasure } from '../ports/measure-store';
-import type { StoredProgress } from '../ports/progress-store';
-import type { WorkItem } from '../ports/work-item-store';
-import { workItemRow } from '../testing/work-item-fixture';
+import { DEFAULT_ESTIMATE_RULE, type EstimateRule, type StepAllowances } from './estimate';
+import type { ParentedRow } from './is-within';
 import {
   rollUp,
   rollUpActuals,
@@ -17,15 +11,10 @@ import {
   rollUpWorkItemStatuses,
   workedStepsOf,
 } from './roll-up';
+import type { StoredActual, StoredEstimate, StoredMeasure, StoredProgress } from './step-values';
+import type { MeasureMetric } from './stored-vocabularies';
 
-const item = (id: string, parentId: string | null): WorkItem =>
-  workItemRow({
-    id,
-    projectId: 'p',
-    parentId,
-    position: 10,
-    name: id,
-  });
+const item = (id: string, parentId: string | null): ParentedRow => ({ id, parentId });
 
 const held = (
   workItemId: string,
@@ -316,7 +305,7 @@ const said = (
 
 /** The fold and the reading in one call, as `tree()` runs them. */
 function fold(
-  rows: readonly WorkItem[],
+  rows: readonly ParentedRow[],
   estimates: readonly StoredEstimate[],
   actuals: readonly StoredActual[],
   stated: readonly StoredProgress[],

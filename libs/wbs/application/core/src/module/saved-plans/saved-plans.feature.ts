@@ -7,6 +7,7 @@ import {
   defaultSavedPlanName,
   diffPlans,
   normalisePlanInputForward,
+  planInputRowsOf,
   PlanInputVersionError,
   type PlanScheduleValue,
   type PlanSide,
@@ -30,7 +31,6 @@ import type {
 } from '../../ports/saved-plan-values';
 import type { Scheduler } from '../../ports/scheduler';
 import type { AccessRefused, SharedPeopleRead } from '../../ports/shared-people-values';
-import { planInputRowsOf } from '../../service/saved-plan-input';
 import type { SavedPlanResource } from './saved-plan.resource';
 import { bodyByteLength } from './saved-plan-integrity';
 import { scheduleInputOfCaptured } from './saved-plan-schedule';

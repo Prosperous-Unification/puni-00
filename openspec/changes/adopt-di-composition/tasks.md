@@ -276,21 +276,30 @@
 
 ## 6. Domain moves the map names
 
-- [ ] 6.1 The fourteen portable-core domain moves: `assumed-assignee.ts`, `clean-name.ts`,
+- [x] 6.1 The fourteen portable-core domain moves: `assumed-assignee.ts`, `clean-name.ts`,
       `command-normalizers.ts`, `compensating.ts`, `dependency.ts`, `directory-usage.ts`,
       `numbered-work-item.ts`, `plan-command.ts`, `roll-up.ts`, `saved-plan-default-name.ts`,
       `saved-plan-input.ts`, `saved-plan-quota.ts`, `saved-plan-schedule-body.ts`,
-      `smoke.service.ts`. **2026-10-11, five of fourteen:** `clean-name.ts`,
-      `saved-plan-default-name.ts`, `saved-plan-quota.ts` and `saved-plan-schedule-body.ts` moved
-      to `libs/wbs/domain/domain/src/` with their tests, and `smoke.service.ts` became the pure
-      `echoSmokeText` there; importers name `@wbs/domain` and the `@wbs/core` barrel keeps the
-      moved symbols as compatibility exports. The other nine (`assumed-assignee.ts`,
-      `command-normalizers.ts`, `compensating.ts`, `dependency.ts`, `directory-usage.ts`,
-      `numbered-work-item.ts`, `plan-command.ts`, `roll-up.ts`, `saved-plan-input.ts`) read
-      application-ring repository record types (`WorkItem`, `StoredDependency`, `Assignment`,
-      the stored estimate, actual, measure and progress records, `PlanInputReads`) or core
-      `http/` body parsers, which the `ring:domain` boundary forbids the domain library to import.
-      Their destination is an open architecture decision recorded in `verify.md`.
+      `smoke.service.ts`. **Amended 2026-10-11 (decision A12 and its Fable review):** nine moved
+      and five were reclassified. `clean-name.ts`, `saved-plan-default-name.ts`,
+      `saved-plan-quota.ts` and `saved-plan-schedule-body.ts` moved to `libs/wbs/domain/domain/src/`
+      with their tests; `smoke.service.ts` became the pure `echoSmokeText` there. `assumed-assignee.ts`
+      (with its test), `dependency.ts`, `roll-up.ts` and `saved-plan-input.ts` followed, together with
+      the value records they read: `Assignment` (`assignment.ts`), the epoch-ms `StoredEstimate`,
+      `StoredActual`, `StoredMeasure` and `StoredProgress` facts (`step-values.ts`), and the whole
+      `saved-plan-capture-values.ts`. The ports re-export each name. `WorkItem`, `LabelledWorkItem` and
+      `WorkItemPatch` stay port types, so `dependency.ts` reads the domain's `PlannedRow` and
+      `DependencyEdge` and `roll-up.ts` reads `ParentedRow` (option B); `Days` moved with
+      `roll-up.ts`. `compensating.ts` (inverse store writes), `command-normalizers.ts` and
+      `plan-command.ts` (request-body normalization through the core's `http/` parsers),
+      `directory-usage.ts` (projections over the `DirectoryUsageRows` store read) and
+      `numbered-work-item.ts` (a reader value extending `LabelledWorkItem`) are application code:
+      `kinds.json` reclassifies them in place, naming `module/work-item`, `module/plan-commands` or
+      `module/directory` as each one's owner. The `dependency.test.ts` and `roll-up.test.ts` suites
+      moved with their owners onto `PlannedRow` and `ParentedRow` literals. Importers name
+      `@wbs/domain`; the `@wbs/core` barrel keeps compatibility exports until task 7.1.
+      `libs/wbs/domain/domain/src/domain-ring-boundary.test.ts` lints every moved rule and refuses a
+      port or core parser import inside one.
 - [x] 6.2 The two backend domain moves: `solver-exit-outcome.ts`, `solver-request-pair.ts`.
       Landed 2026-10-11 in the domain-ring solver contracts,
       `libs/wbs/domain/contracts/solver/src/`, beside the request builder and revalidation they
@@ -322,7 +331,7 @@
       `saved-plan.service.ts` and `saved-plan-schedule.ts` compatibility adapters stay, since
       direct callers still construct them from stores. The task stays open for its first half:
       tests of moved code (`gateway-broadcaster.test.ts`, the two `replay-buffer` suites,
-      `retention-timer.test.ts`, `prepare-import.test.ts` under `service/`, and
+      `retention-timer.test.ts`, `prepare-import.test.ts` and `saved-plan-input.test.ts` (it reaches Saved plans' `saved-plan-schedule.ts`) under `service/`, and
       `use-cases/admission.test.ts`, and be-01 `service/` suites such as `retention-job.test.ts`
       and `replay-orchestrator.test.ts`) still live outside their owners' modules.
 - [x] 7.2 Update `docs/code-organization/kinds.json` for every moved and suffix-declared file: a

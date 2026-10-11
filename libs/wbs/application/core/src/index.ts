@@ -116,21 +116,33 @@ export * from './ports/user-store';
 export * from './ports/work-item-store';
 export type { WriteStamp } from './ports/write-stamp';
 export { DeadlineExceeded, delay, untilAborted, withinDeadline } from './runtime/deadline';
-export * from './service/assumed-assignee';
 export * from './service/auth.service';
 export * from './service/compensating';
-export * from './service/dependency';
 export * from './service/directory-usage';
 // Compatibility export: these domain rules moved to `@wbs/domain` (task 6.1) and keep their
 // barrel names until importers name the domain library; task 7.1 retires it.
 export {
+  assumedAssignee,
+  type AssumedAssigneeFlip,
+  assumedAssigneeFlips,
   bodyBytesRefusal,
   buildScheduleBody,
+  canDepend,
+  canReparent,
   cleanName,
   type DatedTiming,
+  type Days,
   DEFAULT_SAVED_PLAN_QUOTA,
   defaultSavedPlanName,
+  type DependencyRefusal,
   holdingRefusal,
+  planInputRowsOf,
+  rollUp,
+  rollUpActuals,
+  rollUpFinals,
+  rollUpMeasures,
+  rollUpProgress,
+  rollUpWorkItemStatuses,
   type SavedPlanHolding,
   type SavedPlanLimit,
   type SavedPlanQuota,
@@ -139,6 +151,7 @@ export {
   type ScheduleBody,
   serialiseScheduleBody,
   type SpanDates,
+  workedStepsOf,
 } from '@wbs/domain';
 // Compatibility export: Plan history's symbols keep their barrel names.
 export * from './module/authentication/login-throttle';
@@ -167,9 +180,7 @@ export * from './service/numbered-work-item';
 export * from './service/optimizer-trigger-broadcaster';
 export * from './service/person-load.feature';
 export * from './service/plan-command';
-export * from './service/roll-up';
 export * from './service/saved-plan.service';
-export * from './service/saved-plan-input';
 export * from './service/saved-plan-schedule';
 export * from './service/shared-people';
 export * from './service/space.resource';
