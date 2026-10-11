@@ -1,8 +1,9 @@
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import { afterEach, describe, expect, it } from 'bun:test';
-import { errors } from 'jose';
+import { errors, SignJWT } from 'jose';
 
 import type { OidcRouteOptions } from './controller/oidc-options';
+import { TEST_JWT_KEY } from './testing/auth-fixture';
 import {
   BOOTED_INTERNAL_SECRET,
   BOOTED_ORIGIN,
@@ -122,6 +123,17 @@ async function preActivationAnswers(authority: 'enabled' | 'disabled'): Promise<
   // A syntactically valid selection signed by someone else's key, and a
   // malformed one: before activation neither may change any answer.
   const forged = 'eyJhbGciOiJIUzI1NiJ9.eyJvcmciOiJvcmctYSJ9.c2lnbmF0dXJl';
+  // A native session issued before tokens carried a `jti`: it authenticates,
+  // but it is no organization credential evidence.
+  const unidentified = {
+    authorization: `Bearer ${await new SignJWT({ username: 'ada' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(be.userId('ada'))
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(TEST_JWT_KEY))}`,
+    origin: BOOTED_ORIGIN,
+  };
   const requests: [string, string, Record<string, string>, unknown?][] = [
     ['GET', '/api/projects', bearer(be, 'ada')],
     ['GET', '/api/projects', bearer(be, 'grace')],
@@ -133,6 +145,9 @@ async function preActivationAnswers(authority: 'enabled' | 'disabled'): Promise<
     ['GET', '/api/organization/memberships', bearer(be, 'ada')],
     ['GET', '/api/organization/memberships', bearer(be, 'grace')],
     ['GET', '/api/organization/memberships', {}],
+    ['GET', '/api/organization/memberships', unidentified],
+    ['POST', '/api/organization/active', unidentified, { organizationId: 'org-a' }],
+    ['GET', '/api/projects', unidentified],
     ['POST', '/api/organization/active', bearer(be, 'ada'), { organizationId: 'org-a' }],
     ['POST', '/api/organization/active', bearer(be, 'grace'), { organizationId: 'org-a' }],
     [
@@ -223,6 +238,7 @@ describe('bootBe01 browser session authority', () => {
     expect(enabled[0]).toMatchObject({ status: 200 });
     expect(enabled[1]).toEqual(enabled[0]);
     expect(enabled[10]).toEqual({ status: 403, body: { error: 'onboarding_inactive' } });
+    expect(enabled[11]).toEqual(enabled[10]);
   });
 
   it('refuses the whole old token and organization cookie pair once native logout commits', async () => {

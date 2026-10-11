@@ -55,24 +55,35 @@ export function organizationSelection(
   return {
     endpoints: {
       async list(principal) {
+        // The marker first: before activation every caller receives the
+        // refusing composition's answer, whatever credential it presents.
+        // Proof: reading it after the evidence check made the booted
+        // pre-activation matrix answer a jti-less native session 401 instead
+        // of 403 onboarding_inactive (boot-browser-session.db.test.ts,
+        // 4 pass, 1 fail, 2026-10-11).
+        const memberships = await choices.list(principal.id);
+        if (memberships === 'inactive') return { kind: 'inactive' };
         if (principal.delegation !== undefined) return { kind: 'invalid_credential' };
         const evidence = principal.organizationBinding?.credential;
         if (evidence === undefined) return { kind: 'invalid_credential' };
         // Proof: bypassing this lookup let the mounted old-token membership
         // list answer 200 after a second connection committed revocation.
         if (await revocations.isRevoked(evidence)) return { kind: 'invalid_credential' };
-        const memberships = await choices.list(principal.id);
-        return memberships === 'inactive' ? { kind: 'inactive' } : { kind: 'listed', memberships };
+        return { kind: 'listed', memberships };
       },
       async select(principal, organizationId) {
+        // The marker first, as in `list`; the snapshot it returns is the
+        // membership check below, so a revoked credential still learns nothing.
+        // Proof: the same reordering here alone failed the same matrix
+        // (4 pass, 1 fail, 2026-10-11).
+        const memberships = await choices.list(principal.id);
+        if (memberships === 'inactive') return { kind: 'inactive' };
         if (principal.delegation !== undefined) return { kind: 'invalid_credential' };
         const evidence = principal.organizationBinding?.credential;
         if (evidence === undefined) return { kind: 'invalid_credential' };
         // Proof: bypassing this lookup made the mounted revoked token receive
         // a fresh organization cookie after revocation committed.
         if (await revocations.isRevoked(evidence)) return { kind: 'invalid_credential' };
-        const memberships = await choices.list(principal.id);
-        if (memberships === 'inactive') return { kind: 'inactive' };
         // Proof: bypassing this current-membership check made the mounted
         // foreign-selection negative issue a cookie for org-b.
         if (!memberships.some((member) => member.organizationId === organizationId))
