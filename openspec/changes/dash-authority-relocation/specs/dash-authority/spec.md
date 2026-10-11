@@ -96,10 +96,19 @@ and `terminal` records without moving a ref, and SHALL refuse records that need 
 
 ### Requirement: Burokrat ships no authority writer
 
-Burokrat SHALL NOT expose `submit-admission`, and its validator bundle SHALL contain neither the
-store schema name nor `bun:sqlite`.
+Burokrat SHALL NOT expose `submit-admission`, and its validator bundle SHALL carry none of the
+authority store's markers: the schema version `module-wiki-authority`, the table name
+`authority_generation` and the database file name `authority.sqlite`. The bundle MAY import
+`bun:sqlite`, because the judge's relationship parser uses an in-memory database that holds no
+authority state.
 
 #### Scenario: Old command
 
 - **WHEN** `twilight-burokrat submit-admission` is invoked
 - **THEN** it fails as an unknown command
+
+#### Scenario: Validator bundle
+
+- **WHEN** the validator bundle is built from Burokrat's `cli.ts`
+- **THEN** it contains none of `module-wiki-authority`, `authority_generation` and `authority.sqlite`
+- **AND** a route that imports the moved store makes all three appear
