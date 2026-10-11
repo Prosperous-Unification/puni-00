@@ -2,8 +2,10 @@ import { describe, expect, it } from 'bun:test';
 
 import { type ExecuteOptions, executeRelease, ReleaseFailedError } from './execute';
 import { CrashSignal, FakeCluster, memoryJournal } from './fake-cluster';
+import { migrationIdentityOf, sealMigrationCapture, sha256Of } from './migration-capture';
 import {
   FORWARD_PHASES,
+  initialState,
   type ReleaseIdentity,
   releaseIdOf,
   type ReleasePhase,
@@ -311,6 +313,223 @@ describe('executeRelease', () => {
     });
   }
 
+  it('restores an older-stamp addition after a newer baseline on failed health', async () => {
+    const fake = cluster(PREVIOUS);
+    fake.migrationsByImage.set(NEW.images.backend, [
+      { name: '0000_older', hash: 'hash-0000_older', downSha256: 'down-0' },
+      { name: '0001_init', hash: 'hash-0001_init', downSha256: 'down-1' },
+    ]);
+    const migrate = fake.migrate.bind(fake);
+    fake.migrate = async (releaseId, image) => {
+      await migrate(releaseId, image);
+      fake.applied.sort();
+      return [...fake.applied];
+    };
+    fake.unhealthy.add(NEW.images.backend);
+    const failed = await failure(executeRelease(request(), memoryJournal(), fake, quiet, on(fake)));
+    expect(failed.state.phase).toBe('rolled-back');
+    expect(fake.applied).toEqual(['0001_init']);
+    expect(fake.rows).toContain('row-before');
+    expect(fake.writesOpen).toBe(true);
+  });
+
+  it('refuses an interrupted legacy capture before changing its journal or cluster', async () => {
+    const fake = cluster(PREVIOUS);
+    const journal = memoryJournal();
+    const release = request();
+    const legacyCapture = {
+      baseline: '0001_init',
+      applied: [{ name: '0001_init', hash: 'hash-0001_init' }],
+      pending: [{ name: '0002_add', downSha256: 'down-2' }],
+    };
+    journal.stored = JSON.stringify({
+      schemaVersion: 1,
+      request: release,
+      state: { ...initialState(release), phase: 'state-captured', capture: legacyCapture },
+      history: [{ phase: 'state-captured', at: '2026-10-06T00:00:00.000Z' }],
+    });
+    const retained = journal.stored;
+    const refusal = await rejection(executeRelease(release, journal, fake, quiet, on(fake)));
+    expect(refusal).toContain('legacy migration capture');
+    expect(journal.stored).toBe(retained);
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('refuses a captured phase without its capture before any mutation', async () => {
+    const fake = cluster(PREVIOUS);
+    const journal = memoryJournal();
+    const release = request();
+    journal.stored = JSON.stringify({
+      schemaVersion: 2,
+      request: release,
+      state: { ...initialState(release), phase: 'migrated', capture: null },
+      history: [{ phase: 'migrated', at: '2026-10-06T00:00:00.000Z' }],
+    });
+    const retained = journal.stored;
+    expect(await rejection(executeRelease(release, journal, fake, quiet, on(fake)))).toContain(
+      'without migration capture',
+    );
+    expect(journal.stored).toBe(retained);
+    expect(fake.calls).toEqual([]);
+  });
+
+  for (const fault of [
+    'wrong target',
+    'wrong attempt',
+    'wrong candidate',
+    'altered bytes',
+  ] as const) {
+    it(`refuses ${fault} in a resumed capture before journal or cluster mutation`, async () => {
+      const fake = cluster(PREVIOUS);
+      const journal = memoryJournal();
+      journal.crashAfter = 'state-captured';
+      await executeRelease(request(), journal, fake, quiet, on(fake)).catch((error: unknown) => {
+        expect(error).toBeInstanceOf(CrashSignal);
+      });
+      const recorded = journal.read();
+      if (recorded?.state.capture === null || recorded === null)
+        throw new Error('expected capture');
+      const capture = recorded.state.capture;
+      const identity = migrationIdentityOf(request(), recorded.state.transactionId);
+      const foreign =
+        fault === 'altered bytes'
+          ? { ...capture, bytes: ` ${capture.bytes}` }
+          : sealMigrationCapture(
+              {
+                ...identity,
+                ...(fault === 'wrong target'
+                  ? { target: 'another-cluster' }
+                  : fault === 'wrong attempt'
+                    ? { attempt: 'another-attempt' }
+                    : { candidate: OLD.images.backend }),
+              },
+              capture.applied,
+              capture.pending,
+            );
+      journal.stored = JSON.stringify({
+        ...recorded,
+        state: { ...recorded.state, capture: foreign },
+      });
+      const retained = journal.stored;
+      fake.calls.splice(0);
+      const refusal = await rejection(executeRelease(request(), journal, fake, quiet, on(fake)));
+      expect(refusal).toMatch(/migration capture (belongs to another|differs from)/);
+      expect(journal.stored).toBe(retained);
+      expect(fake.calls).toEqual([]);
+    });
+  }
+
+  for (const fault of [
+    'duplicate identity',
+    'reordered pending',
+    'malformed forward hash',
+    'divergent envelope',
+    'unsupported format',
+  ] as const) {
+    it(`refuses ${fault} in a durable capture before Lease or journal mutation`, async () => {
+      const fake = cluster(PREVIOUS);
+      const journal = memoryJournal();
+      journal.crashAfter = 'state-captured';
+      await executeRelease(request(), journal, fake, quiet, on(fake)).catch((error: unknown) => {
+        expect(error).toBeInstanceOf(CrashSignal);
+      });
+      const recorded = journal.read();
+      if (recorded?.state.capture === null || recorded === null)
+        throw new Error('expected capture');
+      const capture = recorded.state.capture;
+      const payload = JSON.parse(capture.bytes) as {
+        format: string;
+        applied: { name: string; hash: string }[];
+        pending: { name: string; hash: string; downHash: string }[];
+      };
+      if (fault === 'duplicate identity') payload.pending.push({ ...payload.pending[0] });
+      if (fault === 'reordered pending') {
+        payload.pending.push({ ...payload.pending[0], name: '0003_other' });
+        payload.pending.reverse();
+      }
+      if (fault === 'malformed forward hash') payload.pending[0].hash = 'bad';
+      if (fault === 'unsupported format') payload.format = 'legacy-format';
+      const bytes = JSON.stringify(payload);
+      const altered =
+        fault === 'divergent envelope'
+          ? { ...capture, baseline: 'other' }
+          : { ...capture, bytes, sha256: sha256Of(bytes), pending: payload.pending };
+      journal.stored = JSON.stringify({
+        ...recorded,
+        state: { ...recorded.state, capture: altered },
+      });
+      const retained = journal.stored;
+      fake.calls.splice(0);
+      expect(await rejection(executeRelease(request(), journal, fake, quiet, on(fake)))).toMatch(
+        /duplicate|pending migration order|malformed|envelope differs|unsupported migration capture/,
+      );
+      expect(journal.stored).toBe(retained);
+      expect(fake.calls).toEqual([]);
+    });
+  }
+
+  it('refuses a foreign capture before journal persistence', async () => {
+    const fake = cluster(PREVIOUS);
+    const capture = fake.capture.bind(fake);
+    fake.capture = async (identity, image) => {
+      const observed = await capture(identity, image);
+      return {
+        ...observed,
+        capture: sealMigrationCapture(
+          { ...identity, target: 'another-cluster' },
+          observed.capture.applied,
+          observed.capture.pending,
+        ),
+      };
+    };
+    const journal = memoryJournal();
+    const failed = await failure(executeRelease(request(), journal, fake, quiet, on(fake)));
+    expect(failed.state.phase).toBe('rolled-back');
+    expect(journal.read()?.history.map((entry) => entry.phase)).not.toContain('state-captured');
+    expect(fake.migrationJobRuns).toBe(0);
+  });
+
+  it('does not promote a failed candidate capability capture or launch migration', async () => {
+    const fake = cluster(PREVIOUS);
+    fake.capture = () =>
+      Promise.reject(new Error('exact-set migration CLI capability probe failed'));
+    const journal = memoryJournal();
+    const failed = await failure(executeRelease(request(), journal, fake, quiet, on(fake)));
+    expect({
+      captured: journal.read()?.history.some((entry) => entry.phase === 'state-captured'),
+      migrationJobRuns: fake.migrationJobRuns,
+    }).toEqual({ captured: false, migrationJobRuns: 0 });
+    expect(failed.state.phase).toBe('rolled-back');
+    expectRestored(fake);
+  });
+
+  it('refuses changed restored hash before reopening writes', async () => {
+    const fake = cluster(PREVIOUS);
+    fake.unhealthy.add(NEW.images.backend);
+    const restore = fake.rollbackSchema.bind(fake);
+    fake.rollbackSchema = async (...args) =>
+      (await restore(...args)).map((row) => ({ ...row, hash: 'f'.repeat(64) }));
+    const failed = await failure(executeRelease(request(), memoryJournal(), fake, quiet, on(fake)));
+    expect(failed.state.phase).toBe('rollback-failed');
+    expect(failed.state.failure?.message).toContain('after rollback the database records');
+    expect(fake.writesOpen).toBe(false);
+    expect(fake.lease?.parked).toBe('rollback-failed');
+  });
+
+  it('refuses duplicate restored identities before reopening writes', async () => {
+    const fake = cluster(PREVIOUS);
+    fake.unhealthy.add(NEW.images.backend);
+    const restore = fake.rollbackSchema.bind(fake);
+    fake.rollbackSchema = async (...args) => {
+      const observed = await restore(...args);
+      return [...observed, observed[0]];
+    };
+    const failed = await failure(executeRelease(request(), memoryJournal(), fake, quiet, on(fake)));
+    expect(failed.state.phase).toBe('rollback-failed');
+    expect(failed.state.failure?.message).toContain('after rollback the database records');
+    expect(fake.writesOpen).toBe(false);
+  });
+
   it('leaves writes fenced and prints the manual command when rollback fails', async () => {
     const fake = cluster();
     fake.unhealthy.add(NEW.images.backend);
@@ -322,8 +541,9 @@ describe('executeRelease', () => {
     expect(fake.lease?.holder.startsWith(failed.state.transactionId)).toBe(true);
     expect(fake.lease?.parked).toBe('rollback-failed');
     expect(fake.fluxSuspended).toBe(true);
+    if (failed.state.capture === null) throw new Error('rollback failure lost its capture');
     expect(failed.message).toContain(
-      `manual command: kubectl --context lab create -f /state/wbs-manual-rollback-${failed.state.transactionId}.json # --to=0001_init`,
+      `manual command: kubectl --context lab create -f /state/wbs-manual-rollback-${failed.state.transactionId}.json # capture-sha256=${failed.state.capture.sha256}`,
     );
     expect(failed.message).toContain(
       'captured migration set: baseline 0001_init; applied [0001_init]; pending [0002_add]',

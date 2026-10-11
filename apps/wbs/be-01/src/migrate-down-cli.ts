@@ -1,31 +1,57 @@
-// Reverses migrations this deploy applied, run from the swap executor's abort
-// path while the incoming container is still up:
+// Reverses migrations this deploy applied, run from the Compose swap's and the
+// Kubernetes schema Job's abort path:
 //
-//   docker exec be-01-<color> bun run src/migrate-down-cli.ts --to=<name|none>
+//   bun run src/migrate-down-cli.ts --capture-file=<path> --target=<t> --attempt=<a>
+//     --candidate=<c> [--capture-sha256=<hex>]
+//   bun run src/migrate-down-cli.ts --to=<name|none>
 //
-// `--to` is the newest migration that was applied BEFORE the deploy, captured
-// by migrate-status-cli.ts in the same swap. `none` means the database had no
-// migrations applied at all, so everything this deploy added comes back off.
+// The capture is the complete applied set `migrate-status-cli.ts --capture` wrote
+// before the forward migration. Exact-set mode removes every migration absent from
+// it, including one older than the captured newest, and refuses changed bytes or an
+// unexpected ledger. `--to` is the legacy manual timestamp rollback; `none` reverses all.
 //
 // Blue and green share one SQLite file. A forward migration is required to be
 // additive, so the old colour keeps working while green migrates; the reverse
 // is not additive by nature, which is why this runs only on an abort, when
 // green is being taken away and blue is the release that will keep serving.
-import { ROLLBACK_ALL, rollbackTo } from '@wbs/store-sqlite/migrate-down';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+import { rollbackTo } from '@wbs/store-sqlite/migrate-down';
+import {
+  parseMigrationSetCapture,
+  restoreAppliedMigrationSet,
+} from '@wbs/store-sqlite/migration-set';
+
+import { downModeOf } from './migration-cli-options';
 
 const dbPath = process.env['DB_PATH'];
 if (dbPath === undefined || dbPath === '') throw new Error('DB_PATH must be set');
 
-const arg = process.argv.slice(2).find((a) => a.startsWith('--to='));
-if (arg === undefined) {
-  throw new Error(
-    'refusing: --to=<migration-name|none> is required.\n' +
-      '  Without it there is no way to tell which migrations this deploy added,\n' +
-      '  and rolling back the wrong number is worse than rolling back none.',
+const mode = downModeOf(process.argv.slice(2));
+if (mode.kind === 'capture') {
+  // Proof: replacing capture read/parse errors with legacy rollback-to-none made the
+  // missing, unreadable and malformed-capture CLI tests exit 0 and reverse additions.
+  const bytes = readFileSync(mode.path);
+  // Proof: removing this comparison made the Compose manual-recovery test exit 0
+  // and delete both the baseline shared-people and candidate lifecycle tables.
+  if (
+    mode.expectedSha256 !== null &&
+    createHash('sha256').update(bytes).digest('hex') !== mode.expectedSha256
+  ) {
+    throw new Error('migration capture SHA-256 differs from the recorded deploy attempt');
+  }
+  const capture: unknown = JSON.parse(bytes.toString('utf8'));
+  const reversed = restoreAppliedMigrationSet(
+    dbPath,
+    './drizzle',
+    parseMigrationSetCapture(capture, mode.identity),
   );
+  console.log(`restored captured migration set: ${reversed.join(', ') || '(already restored)'}`);
+  process.exit(0);
 }
-const target = arg.slice('--to='.length);
-if (target === '') throw new Error(`--to must name a migration, or "${ROLLBACK_ALL}"`);
+
+const target = mode.target;
 
 const reversed = rollbackTo(dbPath, './drizzle', target);
 if (reversed.length === 0) {
