@@ -1,3 +1,5 @@
+import { submitAdmission } from './authority/submit-admission';
+
 const enrollmentFlags = [
   '--fleet',
   '--observation',
@@ -19,12 +21,19 @@ async function runFleetPlan(argv: readonly string[]): Promise<void> {
   await runPlan(argv);
 }
 
-/** Dispatches only enrollment planning through the fixed fleet planner. */
+/**
+ * Dispatches enrollment planning through the fixed fleet planner and admission submission
+ * through the runtime authority; every other command refuses before any effect.
+ */
 export async function runDash(
   argv: readonly string[],
   planEnrollment: PlanEnrollment = runFleetPlan,
 ): Promise<void> {
   const [command, ...argumentsAfterCommand] = argv;
+  if (command === 'submit-admission') {
+    submitAdmission(argumentsAfterCommand, (text) => process.stdout.write(text));
+    return;
+  }
   if (command !== 'plan-enrollment') {
     // Proof: bypassing this allowlist made the unsupported-command dispatcher negative invoke
     // the fleet planner for apply/discover/build/deploy instead of refusing at the Dash boundary.

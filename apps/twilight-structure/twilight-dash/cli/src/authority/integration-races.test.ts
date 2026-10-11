@@ -13,18 +13,20 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { Database } from 'bun:sqlite';
-import { afterAll, expect, test } from 'bun:test';
-
 import {
   certifyIntegrationCandidate,
+  hashBytes,
+  hashCanonical,
   type IntegrationEvidence,
   type IntegrationEvidenceVerifier,
   type IntegrationPolicy,
+  serializeCanonical,
   type SubmittedCandidate,
   type UncheckedIntegrationCandidate,
-} from '../admission-judge/integration-candidate';
-import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
+} from '@twilight-burokrat/judge';
+import { Database } from 'bun:sqlite';
+import { afterAll, expect, test } from 'bun:test';
+
 import {
   MemoryAuthorityStore,
   openAuthorityStore,

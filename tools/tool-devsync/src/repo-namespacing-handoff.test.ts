@@ -403,8 +403,8 @@ async function legacySourceOccurrences(): Promise<{
                   : [
                         '.dockerignore',
                         '.github/workflows/ci.yml',
-                        'apps/twilight-structure/twilight-burokrat/cli/src/admission-runtime/authority-store.ts',
-                        'apps/twilight-structure/twilight-burokrat/cli/src/admission-runtime/claims.ts',
+                        'apps/twilight-structure/twilight-dash/cli/src/authority/authority-store.ts',
+                        'apps/twilight-structure/twilight-dash/cli/src/authority/claims.ts',
                         'apps/twilight-structure/twilight-burokrat/cli/src/contracts/records.ts',
                         'lefthook.yml',
                         'tools/tool-dagger/src/main.ts',
@@ -892,9 +892,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // 321 occurrences and categories: the two `production proof or revision transition` contexts
     // in `authority-store.ts` and `claims.ts` kept their match and class and changed only the
     // path they are reported under, none unclassified (2026-10-11).
+    // Proof: leaving `a68a8631…` here after the runtime authority moved from Burokrat's
+    // `admission-runtime/` to `twilight-dash/cli/src/authority/` failed on the observed digest
+    // below at the same 321 occurrences and categories; the two proof contexts changed only the
+    // path they are reported under, none unclassified (2026-10-11).
     // Proof: one injected legacy source occurrence changed this count/digest
     // and failed the named corpus test; restoring it passed again.
-    digest: 'a68a86315f3be8b80368668a7bb78f108064407de1430e8307fc6e793c1d72f0',
+    digest: '7b8d87be67c78beb6c7e101e28826844584acac0831a18aaddd5266cc3584bd2',
     occurrences: 321,
     unclassified: [],
   });

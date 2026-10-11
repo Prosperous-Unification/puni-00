@@ -3,20 +3,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  type AdmissionPacket,
+  assertAdmissionPacket,
+  type CandidateEntry,
+  compareCanonicalText,
+  decodeAdmissionPacketBody,
   decodeIntegrationPolicy,
+  hashBytes,
+  hashCanonical,
   type IntegrationCandidateBody,
   type IntegrationGenerationSnapshot,
   type IntegrationRequest,
   type SubmittedCandidate,
   type UncheckedIntegrationCandidate,
-} from '../admission-judge/integration-candidate';
-import {
-  type AdmissionPacket,
-  assertAdmissionPacket,
-  decodeAdmissionPacketBody,
-} from '../admission-judge/packet-codec';
-import { compareCanonicalText, hashBytes, hashCanonical } from '../evidence/content-manifest';
-import type { CandidateEntry } from '../inventory/read-candidate';
+} from '@twilight-burokrat/judge';
+
 import type { AuthorityGeneration, AuthorityStore } from './authority-store';
 
 interface GitOutput {

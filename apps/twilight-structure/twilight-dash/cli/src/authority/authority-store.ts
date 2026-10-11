@@ -1,8 +1,6 @@
 import { existsSync, lstatSync, mkdirSync, realpathSync, rmdirSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 
-import { Database } from 'bun:sqlite';
-
 import {
   assertAuthorityClaimPath,
   assertAuthorityConflictGroup,
@@ -10,12 +8,13 @@ import {
   assertAuthoritySessionId,
   assertAuthorityWorktreePath,
   type AuthorityClaim,
+  decodeAdmissionPacketBody,
   type GroupClaim,
   type PathAccess,
   type PathClaim,
-} from '../admission-judge/authority-identities';
-import type { SubmissionIdentity } from '../admission-judge/integration-candidate';
-import { decodeAdmissionPacketBody } from '../admission-judge/packet-codec';
+  type SubmissionIdentity,
+} from '@twilight-burokrat/judge';
+import { Database } from 'bun:sqlite';
 
 export {
   assertAuthorityClaimPath,
@@ -23,7 +22,7 @@ export {
   assertAuthorityPathAccess,
   assertAuthoritySessionId,
   assertAuthorityWorktreePath,
-} from '../admission-judge/authority-identities';
+} from '@twilight-burokrat/judge';
 
 /**
  * v4 added durable integration/recovery history; v5 renames the on-disk authority from

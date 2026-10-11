@@ -2,17 +2,21 @@ import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterAll, expect, test } from 'bun:test';
-
 import {
   certifyIntegrationCandidate,
+  hashBytes,
+  hashCanonical,
   type IntegrationEvidence,
   type IntegrationEvidenceVerifier,
+  packetBody,
+  packetBodyBytes,
+  readCandidate,
+  serializeCanonical,
   type VerifiedIntegrationReceipt,
-} from '../admission-judge/integration-candidate';
-import { packetBody, packetBodyBytes, withPacketIdentity } from '../admission-judge/packet-codec';
-import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
-import { readCandidate } from '../inventory/read-candidate';
+  withPacketIdentity,
+} from '@twilight-burokrat/judge';
+import { afterAll, expect, test } from 'bun:test';
+
 import { MemoryAuthorityStore, openAuthorityStore } from './authority-store';
 import { acquireClaims } from './claims';
 import { rejectGeneration } from './generations';

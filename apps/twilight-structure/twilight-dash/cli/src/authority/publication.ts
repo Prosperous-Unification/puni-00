@@ -3,10 +3,13 @@ import { realpathSync } from 'node:fs';
 import {
   assertCheckedIntegrationCandidate,
   type CheckedIntegrationCandidate,
+  compareCanonicalText,
+  hashBytes,
+  hashCanonical,
   type IntegrationRequest,
   type UncheckedIntegrationCandidate,
-} from '../admission-judge/integration-candidate';
-import { compareCanonicalText, hashBytes, hashCanonical } from '../evidence/content-manifest';
+} from '@twilight-burokrat/judge';
+
 import type {
   AuthorityGeneration,
   AuthorityState,

@@ -19,7 +19,6 @@ const validatorCommands = new Set([
   'freeze-exhaustive',
   'verify-exhaustive',
   'evaluate-exhaustive-coverage',
-  'submit-admission',
   'lint-local',
   'lint-ci',
   'explain',

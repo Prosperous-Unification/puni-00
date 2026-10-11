@@ -68,7 +68,7 @@ describe('the effective production and test boundaries', () => {
       throw new Error('Dash production boundary options are malformed');
     }
     expect(cliBoundary[0]).toEqual(peerBoundary[0]);
-    expect(cliOptions['allow']).toEqual(['^@tools/fleet-plan$']);
+    expect(cliOptions['allow']).toEqual(['^@tools/fleet-plan$', '^@twilight-burokrat/judge$']);
     const withoutLocalAlias: Readonly<Record<string, unknown>> = { ...cliOptions, allow: [] };
     expect(withoutLocalAlias).toEqual(peerOptions);
 
@@ -91,7 +91,11 @@ describe('the effective production and test boundaries', () => {
     if (!isRecord(testOptions) || !isRecord(peerOptions)) {
       throw new Error('Dash test boundary options are malformed');
     }
-    expect(testOptions['allow']).toEqual(['^@tools/fleet-plan$', '^@tools/test-scratch$']);
+    expect(testOptions['allow']).toEqual([
+      '^@tools/fleet-plan$',
+      '^@tools/test-scratch$',
+      '^@twilight-burokrat/judge$',
+    ]);
     const withoutLocalAliases: Readonly<Record<string, unknown>> = { ...testOptions, allow: [] };
     expect(withoutLocalAliases).toEqual(peerOptions);
     // Proof: widening the Dash test override to `['^@tools/']` failed this test at the exact
@@ -99,6 +103,35 @@ describe('the effective production and test boundaries', () => {
     expect(await ruleIds(testPath, "await import('@tools/deploy-contract');")).toContain(
       '@nx/enforce-module-boundaries',
     );
+  }, 30_000);
+
+  it('Dash authority reaches only the judge alias', async () => {
+    const authorityPath = 'apps/twilight-structure/twilight-dash/cli/src/authority/claims.ts';
+    const peerPath = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
+    const authorityOptions = boundaryOf(await lint.calculateConfigForFile(authorityPath))[1];
+    const peerOptions = boundaryOf(await lint.calculateConfigForFile(peerPath))[1];
+    if (!isRecord(authorityOptions) || !isRecord(peerOptions)) {
+      throw new Error('Dash authority boundary options are malformed');
+    }
+    // Proof: widening the authority override to `['^@twilight-burokrat/']` failed this test at
+    // the exact allow-list assertion (2026-10-11).
+    expect(authorityOptions['allow']).toEqual(['^@twilight-burokrat/judge$']);
+    expect({ ...authorityOptions, allow: [] }).toEqual(peerOptions);
+    expect(
+      await ruleIds(authorityPath, "import { hashBytes } from '@twilight-burokrat/judge';"),
+    ).not.toContain('@nx/enforce-module-boundaries');
+    expect(
+      await ruleIds(
+        authorityPath,
+        "import { decodeAdmissionPacket } from '../../../../twilight-burokrat/cli/src/admission-judge/packet-codec';",
+      ),
+    ).toContain('@nx/enforce-module-boundaries');
+    expect(await ruleIds(authorityPath, "await import('@tools/fleet-plan');")).toContain(
+      '@nx/enforce-module-boundaries',
+    );
+    expect(
+      await ruleIds(peerPath, "import { hashBytes } from '@twilight-burokrat/judge';"),
+    ).toContain('@nx/enforce-module-boundaries');
   }, 30_000);
 
   it('rejects runtime packages and drivers from core and domain production', async () => {

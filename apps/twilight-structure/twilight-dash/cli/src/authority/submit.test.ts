@@ -10,11 +10,10 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { decodeAdmissionPacket, hashCanonical, serializeCanonical } from '@twilight-burokrat/judge';
 import { Database } from 'bun:sqlite';
 import { afterAll, expect, test } from 'bun:test';
 
-import { decodeAdmissionPacket } from '../admission-judge/packet-codec';
-import { hashCanonical, serializeCanonical } from '../evidence/content-manifest';
 import {
   MemoryAuthorityStore,
   openAuthorityStore,
@@ -481,7 +480,7 @@ test('production CLI reports submission detection scope and rejects undeclared p
   const packetPath = join(subject.repository, '.git', 'packet.json');
   writeFileSync(packetPath, `${JSON.stringify(subject.packet)}\n`);
   subject.store.close();
-  const cli = join(import.meta.dir, '..', 'cli.ts');
+  const cli = join(import.meta.dir, '..', 'entrypoint.ts');
   const accepted = Bun.spawnSync(
     [
       process.execPath,
@@ -528,7 +527,7 @@ test('production CLI reports submission detection scope and rejects undeclared p
 });
 
 test('production CLI independently refuses hash-valid symlink and Gitlink descendants', () => {
-  const cli = join(import.meta.dir, '..', 'cli.ts');
+  const cli = join(import.meta.dir, '..', 'entrypoint.ts');
   for (const kind of ['symlink', 'gitlink'] as const) {
     const subject = fixture();
     let revision = subject.baseCommit;
@@ -701,7 +700,7 @@ test('refuses an unrelated committed candidate and an index race before authorit
   const racedCli = Bun.spawnSync(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'cli.ts'),
+      join(import.meta.dir, '..', 'entrypoint.ts'),
       'submit-admission',
       raced.repository,
       packetPath,
@@ -817,7 +816,7 @@ test.each([
 ] as const)(
   'CLI rejects independently rehashed malformed packet: %s',
   (label, expected, mutate) => {
-    const cli = join(import.meta.dir, '..', 'cli.ts');
+    const cli = join(import.meta.dir, '..', 'entrypoint.ts');
     const subject = fixture();
     const candidate = JSON.parse(JSON.stringify(subject.packet)) as Record<string, unknown>;
     mutate(candidate);
@@ -844,7 +843,7 @@ test.each([
 );
 
 test('CLI rejects a packet whose bytes changed without a new packet identity', () => {
-  const cli = join(import.meta.dir, '..', 'cli.ts');
+  const cli = join(import.meta.dir, '..', 'entrypoint.ts');
   const changedIdentity = fixture();
   const identityPath = join(changedIdentity.repository, '.git', 'changed-identity.json');
   writeFileSync(

@@ -7,10 +7,10 @@
 
 ## 2. Move the runtime half to Dash (S1)
 
-- [ ] 2.1 This change's proposal, design, spec, tasks and verify skeleton; OpenSpec validates; the first change's tasks point here.
-- [ ] 2.2 `git mv` `admission-runtime/*` to Dash `authority/`; imports from `@twilight-burokrat/judge`; alias in `tsconfig.base.json`; Dash lint overrides; boundaries test `Dash authority reaches only the judge alias` with watched negatives.
-- [ ] 2.3 Burokrat drops `submit-admission` from `cli.ts`, `bin.ts` and usage; tests `submit-admission is an unknown command` and the validator bundle contains neither the schema name nor `bun:sqlite`.
-- [ ] 2.4 Re-pin the namespacing handoff digest; RESTART_PATHS if the oracle requires it; Dash and Burokrat README first paragraphs.
+- [x] 2.1 This change's proposal, design, spec, tasks and verify skeleton; OpenSpec validates; the first change's tasks point here.
+- [x] 2.2 `git mv` `admission-runtime/*` to Dash `authority/`; imports from `@twilight-burokrat/judge`; alias in `tsconfig.base.json`; Dash lint overrides; boundaries test `Dash authority reaches only the judge alias` with watched negatives.
+- [x] 2.3 Burokrat drops `submit-admission` from `cli.ts`, `bin.ts` and usage; tests `submit-admission is an unknown command` and `the validator bundle carries no authority store` (schema version, table and file name; `bun:sqlite` stays because the judge's relationship parser uses an in-memory database). The command moves to Dash unchanged in this slice so its five production-CLI cases keep running; S3 and S4 change its open semantics and add idempotency.
+- [x] 2.4 Re-pin the namespacing handoff digest; RESTART_PATHS if the oracle requires it; Dash and Burokrat README first paragraphs.
 
 ## 3. Required clock (S2)
 

@@ -1,4 +1,5 @@
-import { compareCanonicalText } from '../evidence/content-manifest';
+import { compareCanonicalText } from '@twilight-burokrat/judge';
+
 import type {
   AuthorityClaim,
   AuthorityGeneration,

@@ -1,23 +1,22 @@
-import { assertAuthoritySessionId } from '../admission-judge/authority-identities';
 import {
   type AdmissionPacket,
   type AdmissionPacketIntent,
   assertAdmissionPacket,
+  assertAuthoritySessionId,
   assertNarrative,
+  assertUnambiguousPath,
   canonicalPaths,
+  canonicalRepository,
+  compareCanonicalText,
+  packetAuthorityClaims,
   packetBody,
   packetBodyBytes,
-  uniqueSorted,
-  withPacketIdentity,
-} from '../admission-judge/packet-codec';
-import {
-  assertUnambiguousPath,
-  canonicalRepository,
-  packetAuthorityClaims,
   readBaseEntries,
+  uniqueSorted,
   validatePacketAgainstBase,
-} from '../admission-judge/packet-judgment';
-import { compareCanonicalText } from '../evidence/content-manifest';
+  withPacketIdentity,
+} from '@twilight-burokrat/judge';
+
 import type { AuthorityPacketBinding, AuthorityStore } from './authority-store';
 import { bindAdmissionPacket, type ClaimToken, expandBoundPacketClaims } from './claims';
 

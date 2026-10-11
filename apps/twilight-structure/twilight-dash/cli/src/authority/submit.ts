@@ -1,13 +1,16 @@
 import { Buffer } from 'node:buffer';
 
-import type { AdmissionSubmissionReport } from '../admission-judge/integration-candidate';
-import type { AdmissionPacket } from '../admission-judge/packet-codec';
 import {
+  type AdmissionPacket,
+  type AdmissionSubmissionReport,
+  type CandidateEntry,
+  hashBytes,
+  hashCanonical,
   packetAuthorityClaims,
+  readCandidate,
   validatePacketAgainstBase,
-} from '../admission-judge/packet-judgment';
-import { hashBytes, hashCanonical } from '../evidence/content-manifest';
-import { type CandidateEntry, readCandidate } from '../inventory/read-candidate';
+} from '@twilight-burokrat/judge';
+
 import type { AuthorityStore } from './authority-store';
 import { type ClaimToken } from './claims';
 import { submitGenerationMatching } from './generations';
