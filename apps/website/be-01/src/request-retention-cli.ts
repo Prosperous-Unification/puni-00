@@ -6,6 +6,8 @@ import {
   type RetentionSubjectKind,
 } from '@website/store-sqlite';
 
+import { journalCommands, runRetentionJournalCommand } from './retention-journal-cli';
+
 const usage =
   'Usage: report DATABASE | coverage DATABASE | ambiguous DATABASE | resolve DATABASE KIND SUBJECT_ID ANCHOR_MS EVIDENCE_REFERENCE ACTOR';
 
@@ -27,10 +29,20 @@ function parseAnchor(value: string): number {
  * print counts only; `ambiguous` prints typed identities without content. Nothing here deletes
  * or blanks content.
  */
-export function runRequestRetentionCommand(arguments_: string[], now: number): unknown {
+export function runRequestRetentionCommand(
+  arguments_: string[],
+  now: number,
+  environment: Record<string, string | undefined> = {},
+): unknown {
   const [command, databasePath] = arguments_;
   if (!databasePath) throw new Error(usage);
   if (command === 'resolve') {
+    // A local resolution would not survive a restore once the journal is active (veto V8).
+    // Proof: dropping this refusal made `resolve refuses while the journal is active` resolve locally.
+    if (environment['RETENTION_JOURNAL'] === 's3')
+      throw new Error(
+        'resolve is local-only; with RETENTION_JOURNAL=s3 the resolution must be journaled',
+      );
     const [, , kind, subjectId, anchorText, evidenceReference, actor] = arguments_;
     if (
       arguments_.length !== 7 ||
@@ -63,7 +75,16 @@ export function runRequestRetentionCommand(arguments_: string[], now: number): u
 
 if (import.meta.main) {
   try {
-    console.log(JSON.stringify(runRequestRetentionCommand(Bun.argv.slice(2), Date.now())));
+    const arguments_ = Bun.argv.slice(2);
+    if (journalCommands.some((command) => command === arguments_[0])) {
+      const outcome = await runRetentionJournalCommand(arguments_, {
+        environment: process.env,
+        now: Date.now(),
+      });
+      console.log(JSON.stringify(outcome.output));
+      process.exitCode = outcome.exitCode;
+    } else
+      console.log(JSON.stringify(runRequestRetentionCommand(arguments_, Date.now(), process.env)));
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Request retention failed');
     process.exitCode = 1;

@@ -17,6 +17,8 @@ import {
 } from './store';
 import { seedLegacyRequest } from './testing/legacy-account-fixture';
 
+/** 006 and the 010 journal migration that extends its tables; tests that omit 006 omit both. */
+const retentionMigrations: readonly string[] = ['006_retention_subject', '010_retention_journal'];
 const leapDay = Date.UTC(2024, 1, 29, 15, 0, 0, 0);
 const leapDeadline = Date.UTC(2025, 1, 28, 15, 0, 0, 0);
 
@@ -263,12 +265,15 @@ test('migration 006 rolls back to the 005 schema', () => {
         expected,
         websiteMigrations()
           .map(({ name }) => name)
-          .filter((name) => name !== '006_retention_subject'),
+          .filter((name) => !retentionMigrations.includes(name)),
       );
-      const migration = websiteMigrations().find(({ name }) => name === '006_retention_subject');
-      if (!migration) throw new Error('Missing migration 006');
-      database.run(readFileSync(join(migration.directory, 'down.sql'), 'utf8'));
-      database.run("DELETE FROM schema_migration WHERE name = '006_retention_subject'");
+      // 010 extends 006's tables, so it rolls back first.
+      for (const name of [...retentionMigrations].reverse()) {
+        const migration = websiteMigrations().find((candidate) => candidate.name === name);
+        if (!migration) throw new Error(`Missing migration ${name}`);
+        database.run(readFileSync(join(migration.directory, 'down.sql'), 'utf8'));
+        database.query('DELETE FROM schema_migration WHERE name = ?').run(name);
+      }
       const schema =
         "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name";
       expect(database.query(schema).all()).toEqual(expected.query(schema).all());
@@ -383,7 +388,7 @@ test('an account submission sharing an unsubmitted request draft is overlapping 
         database,
         websiteMigrations()
           .map(({ name }) => name)
-          .filter((name) => name !== '006_retention_subject'),
+          .filter((name) => !retentionMigrations.includes(name)),
       );
       database.run(
         "INSERT INTO intake_draft (id, description, claim_hash, created_at, expires_at, consumed_at) VALUES ('d', 'secret', 'c', 100, 200, 150)",
@@ -757,4 +762,37 @@ test('the schema refuses to rewrite an operator resolution', () => {
       database.close();
     }
   });
+});
+
+test('resolve validation waits for a concurrent writer', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'puni-retention-resolve-busy-'));
+  const databasePath = join(directory, 'website.sqlite');
+  try {
+    historicDatabase(databasePath);
+    new WebsiteStore(databasePath).close();
+    const resolverPath = join(directory, 'resolver.ts');
+    writeFileSync(
+      resolverPath,
+      `import { resolveRetentionAnchor } from ${JSON.stringify(join(import.meta.dir, 'store.ts'))};
+resolveRetentionAnchor(Bun.argv[2] ?? '', { kind: 'software_request', subjectId: 'early-draft', anchorAt: 100, evidenceReference: 'ops-ticket:1', actor: 'operator-1' }, 20_000);
+`,
+    );
+    const holder = new Database(databasePath);
+    holder.run('BEGIN EXCLUSIVE');
+    const resolver = Bun.spawn(['bun', resolverPath, databasePath], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    await Bun.sleep(700);
+    holder.run('COMMIT');
+    holder.close();
+    const exitCode = await resolver.exited;
+    const error = await new Response(resolver.stderr).text();
+    expect({ exitCode, error }).toEqual({ exitCode: 0, error: '' });
+    expect(subject(databasePath, 'software_request', 'early-draft')?.anchor_source).toBe(
+      'operator',
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

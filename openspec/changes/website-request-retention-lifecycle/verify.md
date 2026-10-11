@@ -94,3 +94,226 @@ The concurrent-writer test no longer proves the `pending_content` predicate. Onc
 - The h2puni host gate (`bin/h2puni-gate.sh`) has not run in this slice. The parent session runs it.
 - The private recovery command's known migration list is not updated for 006. That repository is out of scope here, and task 4.1 owns it. Until then, the private restore path may not recognise a database that has migration 006 applied. This has not been checked.
 - No live database was inspected. No content, backup or journal was changed.
+
+## Stage 2 (WBS 060.06.2, batch 10)
+
+Design: Fable 5.1 retention stage 2 design and its slice list (private planning repository, `batch-10/design/060-06-2-*`). Each slice is one stacked PR; commands below ran in `/home/df/wd/puni/b10-retention` under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`.
+
+### Slice 0: immediate write transactions and bounded read-only waits (2026-10-11)
+
+Every `database.transaction(...)` in `store.ts`, `conversation-store.ts` and `guardrail-store.ts` now runs `.immediate()` (22 of 22), and the read-only validation connection of the retention commands sets `PRAGMA busy_timeout`.
+
+| Guard                             | Injected fault                                       | Observed failure                                                                                                                       |
+| --------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Immediate content write           | `updateAccountBrief` as a deferred transaction       | `(fail) a content write waits for a concurrent writer instead of failing busy`: child stderr `SQLiteError: database is locked`, exit 1 |
+| Read-only validation busy timeout | No `PRAGMA busy_timeout` on the read-only connection | `(fail) resolve validation waits for a concurrent writer`: child stderr `SQLiteError: database is locked`                              |
+
+- `bun test libs/website/adapters/store-sqlite/src`: `82 pass`, `0 fail`, 389 expect() calls.
+- `bun test apps/website/be-01/src --timeout=30000`: `153 pass`, `0 fail`.
+- `NX_DAEMON=false bunx nx run-many -t lint,typecheck -p website-store-sqlite,website-be-01`: `Successfully ran targets lint, typecheck for 2 projects`. The projects have no `lint:fast` target.
+- `bunx prettier --check` on the changed files: `All matched files use Prettier code style!`
+
+### Slice 1: migration `010_retention_journal` and content fences (2026-10-11)
+
+The migration adds the journal-position columns, classification-evidence and erasure columns on `retention_subject`, the append-only `retention_journal_applied` mirror, an erasure-is-final trigger, and twenty content fences: an insert trigger and a nonblank-update trigger on each of `software_request`, `intake_draft`, `proposal_submission`, `chat_turn`, `chat_operation`, `request_concept_preview`, `conversation_turn`, `conversation_operation`, `account_request` and `concept_preview`. Tests are in `retention-journal-schema.test.ts` (16). Three older rollback tests now roll back 010 before 006 or 009, because 010 extends 006's tables.
+
+Each fault below was applied to `migration.sql` by a scratch runner. The runner then ran the named test with `bun test … -t` and restored the file. Every run exited 1.
+
+| Guard                                         | Injected fault        | Observed failure                                                                      |
+| --------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------- |
+| Each of the 20 fence triggers (one at a time) | trigger removed       | `(fail) a fenced subject refuses an older binary's content write: <that table>`       |
+| `chat_turn` update fence condition            | `WHEN 0`              | refusal case for `chat_turn` failed; `a fenced subject accepts blanking` stayed green |
+| Mirror `no_update` / `no_delete`              | trigger removed       | `(fail) the applied-event mirror is append-only`                                      |
+| Erasure is final                              | trigger removed       | `(fail) erasure is final in the schema`                                               |
+| Migration lint pairing                        | `down.sql` moved away | `010_retention_journal has no down.sql`, exit 1                                       |
+
+- `bun test libs/website/adapters/store-sqlite/src`: `98 pass`, `0 fail`.
+- `bun test apps/website/be-01/src --timeout=30000`: `153 pass`, `0 fail`.
+- Review fix (Fable, 2026-10-11): a legacy `chat_turn` with no `request_id` is now fenced through its account, the same way the legacy account copies are. Fault: fence keyed on `request_id` only. Observed: `(fail) a fenced subject refuses an older binary's content write: chat_turn without request`, `Received function did not throw`.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $(git ls-files '*.sql') <010 files>` (the CI step plus the new files): exit 0.
+- `nx run-many -t lint,typecheck -p website-store-sqlite,website-be-01`: success.
+
+### Slice 2: journal records, chain verification, port and memory remote (2026-10-11)
+
+New files in `libs/website/adapters/store-sqlite/src/retention-journal/`:
+
+- `record.ts` holds canonical JSON, `hashEvent`, `sealEvent`, the encoders and the strict parsers. One validator is used both to build and to parse. Parsers refuse unknown or extra fields at every level, a bad hash, an off-pattern evidence reference or actor, and non-canonical bytes. A missing trailing newline counts as truncated.
+- `remote.ts` holds the `RetentionJournalRemote` port. The version-id check lives at the adapter boundary.
+- `memory-remote.ts` is a versioned test double with fault switches.
+- `chain.ts` holds `readJournalTip` and `verifyChain`, which refuse with `uninitialised`, `missing`, `unreadable`, `malformed`, `truncated`, `gapped`, `stale`, `forked` and `foreign`.
+
+Tests: `record.test.ts` (11), `chain.test.ts` (11) and `memory-remote.test.ts` (3).
+
+The fault proofs below were run by the slice's helper agent and are carried by the adjacent `Proof:` comments. In each case one check was removed or broken, the named test was run with `-t`, and the observed failure is listed.
+
+| Check                                       | Observed failure with the check removed                                         |
+| ------------------------------------------- | ------------------------------------------------------------------------------- |
+| unknown fields                              | `parse refuses …`: "hash does not match" instead of the unknown-field refusal   |
+| schema string                               | same test: "hash does not match", not "schema is not one of"                    |
+| evidence pattern                            | `a record with an email-shaped evidence reference is refused`: no error         |
+| hash hex, hash equals body, canonical bytes | the respective parse test: no `JournalRecordError`                              |
+| trailing newline, JSON end-of-input         | `truncated and malformed …`: received `malformed`                               |
+| uninitialised, missing head, gapped         | the refusal test failed with a `TypeError`                                      |
+| unreadable and record-error mapping         | the refusal test received the raw port or record error class                    |
+| foreign (genesis, head, position, event)    | the refusal blamed the wrong key or reported `forked`                           |
+| stale against applied and against seen      | `a rolled-back head is refused as stale naming both sequences` failed           |
+| previousHash, head closes the chain         | `a forked journal is refused` resolved                                          |
+| fork at the same sequence                   | the message lost "head and database disagree" (the closing check still refuses) |
+
+- `bun test libs/website/adapters/store-sqlite/src/retention-journal` (this slice): `25 pass`, `0 fail`.
+- Review fix (Fable, 2026-10-11): `verifyChain` now checks that the head's `eventVersionId` equals the current version of its event object. Fault: comparison replaced by `if (false)`. Observed: `(fail) a head naming another event version is refused as forked`, `expected a RetentionJournalError`.
+
+### Slice 3: S3 journal adapter against a local stand-in (2026-10-11)
+
+`retention-journal/s3-remote.ts` (`S3JournalRemote`, `readS3JournalConfig`) PUTs and GETs through presigned URLs with `fetch` so that `x-amz-version-id` can be read. It sends `If-None-Match: *` on request and lists with `client.list` continuation. `s3-stand-in.ts` is a `Bun.serve` path-style emulation on a loopback port. It refuses an object request without `X-Amz-Signature` and a listing without a SigV4 `Authorization` header. No real endpoint or credential was used.
+
+| Check                        | Observed failure with the check removed                                |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| PUT version id required      | `an unversioned bucket is refused`: no `JournalRemoteError`            |
+| non-2xx is an error          | `a 5xx is a JournalRemoteError naming the key`: received `unversioned` |
+| 412 mapping                  | received `unreadable`                                                  |
+| fetch failure wrapped        | raw `TypeError` "Unable to connect"                                    |
+| truncated list without token | `a truncated list without a token throws`: no error                    |
+| endpoint loopback rule       | config test accepted `http://storage.example.test`                     |
+| prefix segments              | config test accepted `retention-journal/../website/`                   |
+
+- Review fixes (Fable, 2026-10-11):
+  - A 404 is absence only when its S3 error code is `NoSuchKey`. `NoSuchBucket`, or a 404 with no code, is `unreadable`. Fault: every 404 returned `null`. Observed: `(fail) a missing bucket is unreadable, not absent`.
+  - The stand-in now ignores `If-None-Match` by default, as a Hetzner versioned bucket does. Fault: default `true`. Observed: `(fail) an if-none-match put on an existing key is accepted when the bucket ignores it`.
+- `bun test libs/website/adapters/store-sqlite/src/retention-journal/s3-remote.test.ts`: `12 pass`, `0 fail`.
+
+### Slice 4: the eraser, without the journal (2026-10-11)
+
+`request-erasure.ts` contains:
+
+- `fenceSubject`: moves a `non_client` subject from `none` to `fenced` and turns in-flight chat and conversation operations `unknown`, keeping their reservations.
+- `releaseFence`.
+- `eraseSubjectContent`: blanks the current and legacy rows of both subject kinds and their claim replay rows, refuses shared draft lineage, and treats an absent subject as a tombstone.
+- `eraseAccountIdentityIfUnneeded`: sets the email to `erased:<id>` and deletes the OIDC link and sessions.
+- `prepareErasureConnection` (`secure_delete`) and `compactAfterErasure` (`VACUUM`).
+
+`admitChatOperation` maps a content-fence ABORT to `request_unavailable`. Tests: `request-erasure.test.ts` (9).
+
+| Guard                           | Injected fault                               | Observed failure                                                                            |
+| ------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Blanking list (request)         | `chat_turn` update removed                   | `(fail) a due account request is blanked …`: `+ "chat_turn.content"`                        |
+| Blanking list (legacy)          | `account_request` update made a no-op        | same test: `+ "account_request.description"`, `+ "account_request.brief"`                   |
+| Claim replay blanking (manual)  | `submission_replay` update made a no-op      | `(fail) a standalone manual proposal …`: `+ "submission_replay.body_hash"`, `"…receipt"`    |
+| Held-request shared identity    | `others.some(...)` check removed             | `(fail) two due requests sharing an account …`: `identityErased` `true` instead of `false`  |
+| Fence only `non_client`         | classification condition removed             | `(fail) fencing refuses a client or held subject`: did not throw                            |
+| Shared draft (request / manual) | refusal replaced by `if (false)`             | `(fail) shared draft lineage is refused, not erased`: did not throw (each fault separately) |
+| Fence turns operations unknown  | chat `state = 'unknown'` update made a no-op | `(fail) unknown provider usage keeps its reservation`: `"state": "inflight"`                |
+| Fence ABORT mapped at admission | mapping removed                              | same test failed (the SQLite fence error escaped)                                           |
+| `secure_delete` plus `VACUUM`   | both removed                                 | `(fail) erased text is absent …`: `"file": true`. Either one alone cleared this fixture.    |
+
+- Review fix (Fable, 2026-10-11): legacy `chat_turn` rows with no `request_id` are blanked together with the account identity, once no other content-bearing request of the account remains. Fault: the update made a no-op. Observed: `(fail) a due account request is blanked in every current and legacy table`.
+- `bun test libs/website/adapters/store-sqlite/src`: `142 pass`, `0 fail`. `bun test apps/website/be-01/src`: `153 pass`, `0 fail`.
+- `nx run-many -t lint,typecheck -p website-store-sqlite,website-be-01`: success.
+
+### Slice 5: policy lock, append protocol, replay and startup (2026-10-11), task 2.1
+
+- `retention-journal/policy-lock.ts`: `withPolicyLock` runs `BEGIN IMMEDIATE` on `<database>.policy-lock`, polling without blocking the event loop, and throws `RetentionPolicyBusyError` after 30 s.
+- `retention-journal/session.ts`:
+  - `openRetentionJournal` and `RetentionJournalSession.synchronise` bind the database to the journal three ways (env/options, database, genesis and head) and refuse a stale head before settling an orphan. They verify the chain and replay each event in its own immediate transaction together with its mirror row.
+  - `append` refuses while the remote is ahead (`behind`). It writes the event and then the head; each write is read back and compared by bytes and version id. Only then does the primary transaction commit.
+  - `initJournal`, `attachJournal`, `status`.
+
+Task 2.1 is ticked. Its "local fsync followed by remote failure" case is `remote failure before head leaves the database unchanged`: this design writes no local candidate. "Host loss" is the older-snapshot replay, with the remote as the authority.
+
+| Guard                                   | Injected fault                           | Observed failure                                                               |
+| --------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------ |
+| Read-back comparison                    | condition reduced to `readBack === null` | `(fail) append detects an overwritten event`: the append resolved              |
+| Stale before orphan settlement          | stale check removed                      | `(fail) startup refuses a rolled-back head`: event 2 re-adopted, open resolved |
+| Orphan settlement                       | returns the tip unconditionally          | `(fail) an orphan event is settled before new appends`                         |
+| Policy lock                             | `work()` run without the lock            | `(fail) concurrent appends serialise under the policy lock`: one `rejected`    |
+| Remote-ahead refusal                    | `behind` check removed                   | `(fail) another process refuses cleanup until it replays`                      |
+| Transition check                        | always allowed                           | `(fail) an erase of a newly designated client is refused after replay`         |
+| Snapshot missing a named subject        | refusal skipped                          | `(fail) restore refuses a snapshot missing a designated subject`               |
+| Database journal-id binding             | comparison removed                       | `(fail) startup refuses a foreign journal`                                     |
+| Lock expiry                             | never expires                            | `(fail) policy lock expiry refuses, not hangs` (resolved after the 3 s holder) |
+| `journal-init` over an existing journal | refusal skipped                          | `(fail) journal-init refuses an existing genesis`                              |
+| `journal-attach` only at sequence 0     | applied condition dropped                | `(fail) journal-attach refuses applied_sequence > 0`                           |
+
+Review fix (Fable, 2026-10-11): orphan settlement now runs inside the same catch as `verifyChain`, so a head read-back that forks during settlement marks the database `forked`. Fault: settlement moved outside the catch. Observed: `(fail) a forked orphan settlement marks the database forked`, `Expected: "forked"`, `Received: "attached"`. The JSDoc of `openRetentionJournal` now states that an erase replay runs `secure_delete` and `VACUUM` on the live connection.
+
+The lock test uses a 300 ms wait against a child holding the lock for 3 s and asserts the 30 000 ms production constant. It does not wait out 30 s.
+
+- `bun test libs/website/adapters/store-sqlite/src`: `161 pass`, `0 fail` (`session.test.ts`: 19). `bun test apps/website/be-01/src`: `153 pass`, `0 fail`.
+- `nx run-many -t lint,typecheck,build,test:package -p website-store-sqlite,website-be-01`: success.
+
+### Slice 6: API configuration, startup replay and operator routes (2026-10-11), task 2.3
+
+- `runtime-config.ts`:
+  - `readRetentionJournalSetting` reads `RETENTION_JOURNAL`, which is required and has no default. `s3` also needs `RETENTION_JOURNAL_ID`, the `S3_*` and bucket and prefix variables, `RETENTION_WRITER_RELEASE` and `RETENTION_WRITER_REVISION`.
+  - `readRetentionErasure` takes `report` or `erase`, and `erase` requires `s3`.
+- `main.ts` awaits `api.openRetentionJournal()` before `Bun.serve`.
+- `server.ts` adds two routes:
+  - `POST /operator/retention/events` requires an operator session and CSRF. It answers 400 for a malformed event, 404 for an unknown subject, 409 for an invalid transition, 503 `retention_journal_disabled`, 503 `retention_journal_unavailable`, and 503 `retention_journal_replayed` after it synchronises a remote that was ahead.
+  - `GET /operator/retention/status`.
+- `.env.example` sets `RETENTION_JOURNAL=disabled`.
+- Tests: `retention-routes.test.ts` (8) and two in `runtime-config.test.ts`.
+
+| Guard                            | Injected fault                       | Observed failure                                                                                     |
+| -------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Required `RETENTION_JOURNAL`     | absent value defaulted to `disabled` | `(fail) a missing RETENTION_JOURNAL refuses startup`: did not throw                                  |
+| `erase` requires `s3`            | refusal removed                      | `(fail) erase without s3 is refused`: received `"erase"`                                             |
+| Operator session and CSRF        | both checks removed                  | `(fail) designation requires an operator session and CSRF`: `Expected: 401`, `Received: 201`         |
+| Journal disabled                 | refusal removed                      | `(fail) journal disabled answers 503 …`: `retention_journal_unavailable` instead of `…_disabled`     |
+| Remote failure mapping           | error rethrown                       | `(fail) a remote failure answers 503 and changes nothing`                                            |
+| Evidence validation at the route | pattern check removed                | `(fail) an invalid transition is 409`: the record layer's refusal escaped instead of a 400           |
+| Stream fence (slice 4 fence)     | chat `unknown` update made a no-op   | `(fail) a fenced stream completion becomes unknown and keeps its reservation`: `"state": "inflight"` |
+
+Review fix (Fable, 2026-10-11): when the route replays after a `behind` refusal, a failing replay now answers 503 `retention_journal_unavailable` instead of escaping as a 500. Fault: the mapping removed. Observed: `(fail) a failed replay after a remote-ahead refusal answers 503`. Control: without the injected read failure the same request answers `retention_journal_replayed`, which proves the test reaches the `behind` branch.
+
+The pre-hold snapshot replay that task 2.3 names is `an old snapshot replays designation, hold and erasure` (slice 5).
+
+- `bun test apps/website/be-01/src --timeout=30000`: `163 pass`, `0 fail`.
+- `nx run-many -t lint,typecheck,build,test:package -p website-store-sqlite,website-be-01`: success.
+
+### Slice 7: CLI journal commands, build capability, documentation (2026-10-11), tasks 3.2 and 3.3
+
+- `apps/website/be-01/src/retention-journal-cli.ts` adds the commands `journal-init` (creates the journal and attaches the database), `journal-attach`, `journal-status`, `journal-replay` (read-only against the remote), `event` and `erase-due`.
+- `request-retention-cli.ts` dispatches those commands and refuses a local `resolve` while `RETENTION_JOURNAL=s3`.
+- Store additions: `openMaintenanceDatabase`, `listDueRetentionSubjects`, `assertErasable`, and a `readOnly` session option.
+- `build.ts` writes `dist/capabilities.json`. `build-smoke.ts` runs the bundled `journal-init` and `journal-status` against the loopback S3 stand-in, through the real S3 adapter with dummy credentials.
+- Documentation: ADR 0047, the journal section of `docs/website/request-retention.md`, seven glossary terms, the rewritten journal section of `design.md`, and spec deltas for journaled anchor resolutions, the operator actor, hourly snapshots and the 48 h / 30 d / 60 d aging bound.
+- Tests: `retention-journal-cli.test.ts` (9) and `session.test.ts` `journal-replay never writes the remote`.
+
+| Guard                                    | Injected fault                    | Observed failure                                                                               |
+| ---------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `RETENTION_ERASURE=erase` gate           | gate removed                      | `(fail) erase-due in report mode changes nothing`: `"erased": 2` instead of `0`                |
+| Coverage gate                            | gate removed                      | `(fail) cleanup refuses while coverage is incomplete`: no rejection                            |
+| Erasability rehearsal before journaling  | rehearsal removed                 | `(fail) erase-due erases due subjects, reports exceptions and exits non-zero on a refused one` |
+| Journal required for every command       | binding built regardless          | `(fail) erase-due refuses without a journal`: foreign-journal refusal instead                  |
+| Local `resolve` refused with `s3`        | refusal removed                   | `(fail) resolve refuses while the journal is active`                                           |
+| Read-only replay never settles an orphan | refusal removed                   | `(fail) journal-replay never writes the remote`                                                |
+| Build capability                         | `capabilities.json` write removed | `build-smoke.ts` exit 1: `ENOENT … bundle/capabilities.json`                                   |
+
+Documentation has no negative of its own. The proofs are the validators below.
+
+- `bun test apps/website/be-01/src --timeout=30000`: `172 pass`, `0 fail`. `bun test libs/website/adapters/store-sqlite/src`: `162 pass`, `0 fail`.
+- `nx run-many -t lint,typecheck,build,test:package -p website-store-sqlite,website-be-01 --skip-nx-cache`: success. `main.js` contains neither test double.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: `158` passed, `0` failed. `validate website-request-retention-lifecycle --strict`: valid.
+
+### Review fixes for slices 4–7 (Fable, 2026-10-11)
+
+| Finding                                                      | Fix                                                                                                                                                                     | Injected fault                         | Observed failure                                                                                                                                                    |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1 `resolve_anchor` had no producer under `s3`               | `event … resolve_anchor ANCHOR_MS`; `requireTransition` applies stage 1's surviving-content and `now` bound                                                             | bound removed                          | `(fail) a journaled anchor resolution refuses an anchor after surviving content` and `(fail) a resolved ambiguous subject becomes erasable`: `expected a rejection` |
+| F3 a failed replay after `behind` escaped as a 500           | the replay error is mapped to 503 `retention_journal_unavailable`                                                                                                       | mapping removed                        | `(fail) a failed replay after a remote-ahead refusal answers 503`. Control: without the read fault the request answers `retention_journal_replayed`                 |
+| F4 orphan settlement could fork without marking the database | settlement runs inside the fork catch                                                                                                                                   | settlement moved out                   | `(fail) a forked orphan settlement marks the database forked`: `Received: "attached"`                                                                               |
+| F5 an interrupted `journal-init` could not be retried        | `initJournal` completes head 0 for a genesis of the same id; the CLI resumes a database attached at 0; another journal's genesis is `foreign` and detaches the database | another genesis adopted / never resume | `(fail) journal-init refuses an existing genesis`; `(fail) an interrupted journal-init is completed by a retry`                                                     |
+| F6 a replay failure inside `erase-due` aborted the run       | counted as `journal_<reason>`                                                                                                                                           | error rethrown                         | `(fail) a failed replay after a refused erasure is counted, not fatal`. Control: without the fault `journal_unreadable` is absent                                   |
+| F7                                                           | writer parsing shared through `readRetentionWriter`; `openRetentionJournal` JSDoc names the live `secure_delete` and `VACUUM`                                           | —                                      | —                                                                                                                                                                   |
+
+F7, `dev:setup`: `tools/dev/setup.ts` seeds only `apps/wbs/*/.env`, so it has never written the website `.env`. The website's `.env.example` sets `RETENTION_JOURNAL=disabled`, and task 6.1's `dev:setup` clause is met by that file. The tasks file is amended in the lane record.
+
+Review items 4 and 5 (slices 1–2), erasure finality and hash and truncation pinning, are now recorded in ADR 0047 under "Pinned invariants" and in `design.md`.
+
+### Merge with `batch-10/integration-3` (2026-10-11)
+
+#312 (S4) removed the account write path, including `admitChatOperation`, `completeChatOperation` and `updateAccountBrief`, together with the account chat routes. Merging it changed three things in this stack:
+
+- The slice 4 fence mapping in `admitChatOperation` is gone with that method. Legacy chat rows are still fenced by the migration-010 triggers.
+- `a content write waits for a concurrent writer instead of failing busy` now uses `submit`. Fault: `submit` as a deferred transaction. Observed: child stderr `SQLiteError: database is locked`.
+- `unknown provider usage keeps its reservation` now seeds a legacy chat operation and a conversation operation in flight. Faults: the chat or the conversation `unknown` update made a no-op. Observed: `"state": "inflight"` in each case. The API test `a fenced stream completion becomes unknown and keeps its reservation` was removed, because `/chat/stream` no longer exists. The live conversation path cannot reach a subject's draft, since a submitted or attached draft is consumed.

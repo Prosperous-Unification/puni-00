@@ -20,6 +20,7 @@ function mountApi(config: WebsiteApiConfig): ReturnType<typeof createWebsiteApi>
   const api = createWebsiteApi(config);
   return {
     fetch: (request, clientAddress = '127.0.0.1') => api.fetch(request, clientAddress),
+    openRetentionJournal: () => api.openRetentionJournal(),
     settleAlerts: () => api.settleAlerts(),
     close: () => {
       api.close();

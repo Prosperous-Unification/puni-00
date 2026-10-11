@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -122,6 +122,12 @@ test('009_guardrails applies on a fresh database and on one at 008, and down.sql
       ]);
       const guardrails = websiteMigrations().find(({ name }) => name === '009_guardrails');
       if (!guardrails) throw new Error('009_guardrails is not catalogued');
+      for (const later of websiteMigrations()
+        .filter(({ name }) => name > '009_guardrails')
+        .reverse()) {
+        database.run(readFileSync(join(later.directory, 'down.sql'), 'utf8'));
+        database.query('DELETE FROM schema_migration WHERE name = ?').run(later.name);
+      }
       database.run(readFileSync(join(guardrails.directory, 'down.sql'), 'utf8'));
       database.query('DELETE FROM schema_migration WHERE name = ?').run('009_guardrails');
       expect(listGuardrailObjects(database)).toEqual([]);
@@ -166,6 +172,75 @@ test('a second open inference pause is refused by the open-pause index', () => {
         .get()?.count,
     ).toBe(1);
     database.close();
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+/**
+ * Runs `script` in a child after it opened the store, while this process holds a write lock
+ * with a pending change for `holdMilliseconds`; resolves the child's exit code and stderr.
+ */
+async function writeUnderHeldLock(
+  databasePath: string,
+  directory: string,
+  script: string,
+  holdMilliseconds: number,
+): Promise<{ exitCode: number; error: string }> {
+  const writerPath = join(directory, 'writer.ts');
+  writeFileSync(
+    writerPath,
+    `import { WebsiteStore } from ${JSON.stringify(join(import.meta.dir, 'store.ts'))};
+const store = new WebsiteStore(Bun.argv[2] ?? '');
+console.log('ready');
+for await (const line of console) if (line === 'go') break;
+${script}
+store.close();
+`,
+  );
+  const writer = Bun.spawn(['bun', writerPath, databasePath], {
+    stdin: 'pipe',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const reader = writer.stdout.getReader();
+  const ready = await reader.read();
+  expect(new TextDecoder().decode(ready.value)).toContain('ready');
+  const holder = new Database(databasePath);
+  holder.run('PRAGMA busy_timeout = 5000');
+  holder.run('BEGIN IMMEDIATE');
+  holder.run('UPDATE retention_journal_position SET applied_sequence = applied_sequence');
+  void writer.stdin.write('go\n');
+  void writer.stdin.flush();
+  await Bun.sleep(holdMilliseconds);
+  holder.run('COMMIT');
+  holder.close();
+  void writer.stdin.end();
+  const exitCode = await writer.exited;
+  return { exitCode, error: await new Response(writer.stderr).text() };
+}
+
+test('a content write waits for a concurrent writer instead of failing busy', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'puni-website-immediate-'));
+  try {
+    const databasePath = join(directory, 'website.sqlite');
+    const store = new WebsiteStore(databasePath);
+    store.createDraft('draft-1', 'A booking app', 'claim-1', 100, 100_000, 'source-test');
+    store.close();
+    expect(
+      await writeUnderHeldLock(
+        databasePath,
+        directory,
+        `const outcome = store.submit('claim-1', 'key-12345678', 'hash', 'owner@example.test', 'A booking app', 'receipt-1', 200, 'source-test');
+if (outcome.kind !== 'created') throw new Error(outcome.kind);`,
+        700,
+      ),
+    ).toEqual({ exitCode: 0, error: '' });
+    const reopened = new Database(databasePath, { readonly: true });
+    expect(reopened.query('SELECT receipt FROM proposal_submission').all()).toEqual([
+      { receipt: 'receipt-1' },
+    ]);
+    reopened.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

@@ -53,6 +53,13 @@ import {
 } from './guardrail-store';
 import { websiteMigrations } from './migration-catalogue';
 import { backfillRetentionSubjects, insertRetentionSubject } from './request-retention';
+import type { RetentionJournalRemote } from './retention-journal/remote';
+import {
+  openRetentionJournal,
+  type RetentionJournalOptions,
+  type RetentionJournalSession,
+} from './retention-journal/session';
+export { openMaintenanceDatabase } from './checked-database';
 export type {
   ConversationAdmission,
   ConversationAdmissionRequest,
@@ -75,6 +82,20 @@ export type {
   ProposalCapRefusal,
 } from './guardrail-store';
 export { guardrailAllowance } from './guardrail-store';
+export type { DueRetentionSubject, ErasureOutcome, RetentionSubjectRef } from './request-erasure';
+export {
+  assertErasable,
+  compactAfterErasure,
+  contentFenceMessage,
+  eraseAccountIdentityIfUnneeded,
+  eraseSubjectContent,
+  ErasureRefusedError,
+  fenceSubject,
+  isContentFence,
+  listDueRetentionSubjects,
+  prepareErasureConnection,
+  releaseFence,
+} from './request-erasure';
 export type {
   AmbiguousRetentionSubject,
   AnchorResolution,
@@ -90,6 +111,28 @@ export {
   listAmbiguousRetentionSubjects,
   resolveRetentionAnchor,
 } from './request-retention';
+export type { JournalPosition, JournalRefusal } from './retention-journal/chain';
+export { RetentionJournalError } from './retention-journal/chain';
+export { MemoryJournalRemote } from './retention-journal/memory-remote';
+export {
+  policyLockTimeoutMilliseconds,
+  RetentionPolicyBusyError,
+} from './retention-journal/policy-lock';
+export type { JournalEvent, JournalEventBody, JournalWriter } from './retention-journal/record';
+export type { RetentionJournalRemote } from './retention-journal/remote';
+export { JournalRemoteError } from './retention-journal/remote';
+export type { S3JournalConfig } from './retention-journal/s3-remote';
+export { readS3JournalConfig, S3JournalRemote } from './retention-journal/s3-remote';
+/** Loopback S3 emulation for tests and the build smoke; never pointed at a real bucket. */
+export { S3StandIn } from './retention-journal/s3-stand-in';
+export type { RetentionJournalOptions, RetentionJournalStatus } from './retention-journal/session';
+export {
+  attachJournal,
+  initJournal,
+  openRetentionJournal,
+  RetentionJournalSession,
+  RetentionTransitionError,
+} from './retention-journal/session';
 
 interface DraftRow {
   id: string;
@@ -153,6 +196,8 @@ export type DraftCreation = { kind: 'created'; siteCount: number } | { kind: Dra
  * `chat_*`, `provider_call`, `request_concept_preview`) are legacy since prospect sign-in was
  * retired (ADR 0039): no route writes them, retention still covers their rows, and the site-day
  * spend still sums `provider_call`.
+ * Every write transaction is `.immediate()`: a deferred one that reads first deadlocks with a
+ * committing writer, and SQLite answers `SQLITE_BUSY` without waiting out the busy timeout.
  */
 export class WebsiteStore {
   private readonly database: Database;
@@ -177,12 +222,14 @@ export class WebsiteStore {
       if (applied && applied.checksum !== checksum)
         throw new Error(`Website migration ${migration.name} changed after application`);
       if (!applied) {
-        this.database.transaction(() => {
-          this.database.run(forward);
-          this.database
-            .query('INSERT INTO schema_migration (name, checksum) VALUES (?, ?)')
-            .run(migration.name, checksum);
-        })();
+        this.database
+          .transaction(() => {
+            this.database.run(forward);
+            this.database
+              .query('INSERT INTO schema_migration (name, checksum) VALUES (?, ?)')
+              .run(migration.name, checksum);
+          })
+          .immediate();
       }
     }
     backfillRetentionSubjects(this.database);
@@ -252,6 +299,17 @@ export class WebsiteStore {
     idempotencyKey: string,
   ): ConversationOperationRecord | null {
     return findConversationOperation(this.database, conversationId, idempotencyKey);
+  }
+
+  /**
+   * Binds this store's connection to the remote retention journal and replays it; see
+   * {@link openRetentionJournal}. Call before serving.
+   */
+  openRetentionJournal(
+    remote: RetentionJournalRemote,
+    options: RetentionJournalOptions,
+  ): Promise<RetentionJournalSession> {
+    return openRetentionJournal(this.database, remote, options);
   }
 
   findLatestConversationOperation(conversationId: string): ConversationOperationRecord | null {
@@ -393,20 +451,22 @@ export class WebsiteStore {
    * A consumed draft belongs to a submission or a legacy account request and is never discarded.
    */
   discardDraft(claimHash: string, now: number): 'discarded' | 'consumed' | 'missing' {
-    return this.database.transaction(() => {
-      const draft = this.database
-        .query<Pick<DraftRow, 'id' | 'expires_at' | 'consumed_at'>, [string]>(
-          'SELECT id, expires_at, consumed_at FROM intake_draft WHERE claim_hash = ?',
-        )
-        .get(claimHash);
-      if (!draft) return 'missing';
-      if (draft.consumed_at !== null) return 'consumed';
-      if (draft.expires_at > now)
-        this.database
-          .query('UPDATE intake_draft SET expires_at = ? WHERE id = ? AND consumed_at IS NULL')
-          .run(now, draft.id);
-      return 'discarded';
-    })();
+    return this.database
+      .transaction(() => {
+        const draft = this.database
+          .query<Pick<DraftRow, 'id' | 'expires_at' | 'consumed_at'>, [string]>(
+            'SELECT id, expires_at, consumed_at FROM intake_draft WHERE claim_hash = ?',
+          )
+          .get(claimHash);
+        if (!draft) return 'missing';
+        if (draft.consumed_at !== null) return 'consumed';
+        if (draft.expires_at > now)
+          this.database
+            .query('UPDATE intake_draft SET expires_at = ? WHERE id = ? AND consumed_at IS NULL')
+            .run(now, draft.id);
+        return 'discarded';
+      })
+      .immediate();
   }
 
   updateBrief(claimHash: string, brief: string, now: number): boolean {
@@ -451,6 +511,7 @@ export class WebsiteStore {
    * request is counted against the UTC-day caps ({@link countProposal}) in the same transaction,
    * so a refused cap leaves no submission, replay or retention-subject row.
    */
+  // Proof: a deferred transaction here made the content-write-waits test's child fail "database is locked".
   submit(
     claimHash: string,
     idempotencyKey: string,
@@ -488,38 +549,40 @@ export class WebsiteStore {
     now: number,
     sourceHash: string,
   ): SubmitOutcome {
-    return this.database.transaction((): SubmitOutcome => {
-      const replay = this.replaySubmission(claimHash, idempotencyKey, bodyHash, now);
-      if (replay.kind !== 'unavailable') return replay;
-      const draft = this.findDraft(claimHash, now);
-      if (!draft) return { kind: 'unavailable' };
-      // Proof: counting after this transaction committed left a proposal_submission row in the per-email cap test.
-      const siteCount = countProposal(this.database, sourceHash, this.emailKey(email, now), now);
-      const id = crypto.randomUUID();
-      this.database
-        .query(
-          'INSERT INTO proposal_submission (id, draft_id, email, brief, receipt, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        )
-        .run(id, draft.id, email, brief, receipt, 'submitted', now, now);
-      // Proof: removing this insert made the standalone manual proposal test find no subject.
-      insertRetentionSubject(this.database, 'proposal_submission', id, {
-        resolution: 'anchored',
-        anchorAt: this.draftCreatedAt(draft.id),
-        source: 'draft',
-      });
-      const consumed = this.database
-        .query('UPDATE intake_draft SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL')
-        .run(now, draft.id);
-      if (consumed.changes !== 1) throw new Error('Draft consumption was not atomic');
-      // Proof: removing this handoff left the conversation `open` in the handoff test.
-      handOffConversation(this.database, draft.id);
-      this.database
-        .query(
-          'INSERT INTO submission_replay (claim_hash, idempotency_key, body_hash, receipt, expires_at) VALUES (?, ?, ?, ?, ?)',
-        )
-        .run(claimHash, idempotencyKey, bodyHash, receipt, now + 24 * 60 * 60 * 1000);
-      return { kind: 'created', receipt, siteCount };
-    })();
+    return this.database
+      .transaction((): SubmitOutcome => {
+        const replay = this.replaySubmission(claimHash, idempotencyKey, bodyHash, now);
+        if (replay.kind !== 'unavailable') return replay;
+        const draft = this.findDraft(claimHash, now);
+        if (!draft) return { kind: 'unavailable' };
+        // Proof: counting after this transaction committed left a proposal_submission row in the per-email cap test.
+        const siteCount = countProposal(this.database, sourceHash, this.emailKey(email, now), now);
+        const id = crypto.randomUUID();
+        this.database
+          .query(
+            'INSERT INTO proposal_submission (id, draft_id, email, brief, receipt, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          )
+          .run(id, draft.id, email, brief, receipt, 'submitted', now, now);
+        // Proof: removing this insert made the standalone manual proposal test find no subject.
+        insertRetentionSubject(this.database, 'proposal_submission', id, {
+          resolution: 'anchored',
+          anchorAt: this.draftCreatedAt(draft.id),
+          source: 'draft',
+        });
+        const consumed = this.database
+          .query('UPDATE intake_draft SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL')
+          .run(now, draft.id);
+        if (consumed.changes !== 1) throw new Error('Draft consumption was not atomic');
+        // Proof: removing this handoff left the conversation `open` in the handoff test.
+        handOffConversation(this.database, draft.id);
+        this.database
+          .query(
+            'INSERT INTO submission_replay (claim_hash, idempotency_key, body_hash, receipt, expires_at) VALUES (?, ?, ?, ?, ?)',
+          )
+          .run(claimHash, idempotencyKey, bodyHash, receipt, now + 24 * 60 * 60 * 1000);
+        return { kind: 'created', receipt, siteCount };
+      })
+      .immediate();
   }
 
   createOperatorSession(tokenHash: string, csrfHash: string, expiresAt: number): void {
