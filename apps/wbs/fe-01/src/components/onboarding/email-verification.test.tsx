@@ -35,6 +35,17 @@ async function confirmCode(code: string) {
 }
 
 describe('password email verification', () => {
+  it('tells a provider sign-in where to verify, beside the password challenge', async () => {
+    stubServer({ 'GET /api/onboarding': [unverified] });
+    renderScreen();
+    expect(
+      await screen.findByText(
+        'Signed in with Google, GitHub or an email code? Verify this address with your sign-in provider and sign in again.',
+      ),
+    ).toBeDefined();
+    expect(screen.getByLabelText('Email address')).toBeDefined();
+  });
+
   it('sends a challenge, confirms the code and re-reads onboarding', async () => {
     const sent = stubServer({
       'GET /api/onboarding': [unverified, verified],

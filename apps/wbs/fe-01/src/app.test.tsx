@@ -1140,7 +1140,8 @@ describe('log out', () => {
       await waitFor(() => {
         expect(screen.getByRole('link', { name: 'Continue with SSO' })).toBeDefined();
       });
-      expect(paths.slice(sent)).toEqual([]);
+      // The sign-in card reads its public method list; log out itself sends nothing.
+      expect(paths.slice(sent)).toEqual(['/api/auth/methods']);
       expect(window.location.pathname).toBe('/directory');
 
       // A reload is a fresh document: the cookie the log out left alone restores the identity.

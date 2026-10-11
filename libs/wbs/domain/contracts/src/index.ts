@@ -1,3 +1,4 @@
+export * from './auth-methods';
 export * from './commands/definitions';
 export * from './errors';
 export * from './http/auth-oidc-shapes';

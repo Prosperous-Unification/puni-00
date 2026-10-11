@@ -47,7 +47,11 @@ import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
 
-import { authOidcEndpoints, nativeBrowserLogoutEndpoints } from './controller/auth-oidc-endpoints';
+import {
+  authOidcEndpoints,
+  nativeAuthMethodEndpoints,
+  nativeBrowserLogoutEndpoints,
+} from './controller/auth-oidc-endpoints';
 import { authPasswordEndpoints } from './controller/auth-password-endpoints';
 import { bearerContextRoutes } from './controller/bearer-context.routes';
 import type { BrowserSessionAuthority } from './controller/browser-session';
@@ -359,9 +363,12 @@ export function mountedEndpoints(
     // Proof: removing this spread made app.routes.test.ts receive 40 bindings
     // instead of the 44 required by the OIDC composition.
     ...(opts.oidc === undefined
-      ? opts.browserSession === undefined
-        ? []
-        : nativeBrowserLogoutEndpoints(opts.appOrigin, opts.browserSession)
+      ? [
+          ...nativeAuthMethodEndpoints(),
+          ...(opts.browserSession === undefined
+            ? []
+            : nativeBrowserLogoutEndpoints(opts.appOrigin, opts.browserSession)),
+        ]
       : authOidcEndpoints(opts.auth, opts.oidc, passwordThrottle, opts.browserSession)),
     // Proof: omitting this binding made “binds each shared HTTP shape once”
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).

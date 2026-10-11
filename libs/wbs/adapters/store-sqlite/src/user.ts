@@ -8,7 +8,7 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { auditOnCreate, auditOnCreateBesidesCreatedAt, auditOnUpdate } from './audit';
 import { canonicalOidcEmail } from './canonical-oidc-email';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
-import { ExternalIdentityRepository } from './external-identity';
+import { assertOwnPairMapped, ExternalIdentityRepository } from './external-identity';
 import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
 import { externalIdentity, users } from './schema';
@@ -55,17 +55,18 @@ export class UserRepository implements UserStore {
     return new ExternalIdentityRepository(this.db, this.gate).isLinkActive();
   }
 
+  /** Every pair mapped to the user. */
+  listIdentities(userId: string) {
+    return new ExternalIdentityRepository(this.db, this.gate).listIdentities(userId);
+  }
+
   /** One explicit link, separate from login resolution and its account-creation branch. */
-  linkPasswordIdentity(
+  linkIdentity(
     userId: string,
     identity: Pick<OidcIdentity, 'issuer' | 'subject' | 'email' | 'emailVerified'>,
     stamp: WriteStamp,
   ) {
-    return new ExternalIdentityRepository(this.db, this.gate).linkPasswordIdentity(
-      userId,
-      identity,
-      stamp,
-    );
+    return new ExternalIdentityRepository(this.db, this.gate).linkIdentity(userId, identity, stamp);
   }
 
   /**
@@ -186,11 +187,7 @@ export class UserRepository implements UserStore {
         const owner = tx.select(USER_COLUMNS).from(users).where(eq(users.id, mapping.userId)).get();
         if (owner === undefined)
           throw new Error(`external identity ${issuer} ${subject} maps to no user`);
-        const unbound = owner.idpIssuer === null && owner.idpSub === null;
-        if (!unbound && (owner.idpIssuer !== issuer || owner.idpSub !== subject))
-          throw new Error(
-            `external identity ${issuer} ${subject} disagrees with its user's own pair`,
-          );
+        assertOwnPairMapped(tx, owner);
         if (legacyOwners.some((legacy) => legacy.id !== owner.id))
           throw new Error(`external identity ${issuer} ${subject} is another user's legacy pair`);
         return owner;
@@ -356,14 +353,14 @@ function resolveMappedIdentity(
     if (typeof mapping.userId !== 'string' || mapping.userId.length === 0)
       throw new Error(`external identity ${issuer} ${subject} has a malformed user id`);
     const owner = tx.select(USER_COLUMNS).from(users).where(eq(users.id, mapping.userId)).get();
-    // Proof: skipping this check, then the disagreement check below, each
-    // made `throws on a mapping to no user and on one its user disagrees with`
-    // in `user-oidc.db.test.ts` fail; watched 2026-09-28.
+    // Proof: skipping this check made `throws on a mapping to no user` in
+    // `user-oidc.db.test.ts` fail; watched 2026-09-28.
     if (owner === undefined)
       throw new Error(`external identity ${issuer} ${subject} maps to no user`);
-    const ownPair = owner.idpIssuer === null && owner.idpSub === null;
-    if (!ownPair && (owner.idpIssuer !== issuer || owner.idpSub !== subject))
-      throw new Error(`external identity ${issuer} ${subject} disagrees with its user's own pair`);
+    // A user may hold several mapped pairs; its own first pair must stay its own.
+    // Proof: 2026-10-11, deleting this check made `throws when the owner's own
+    // pair is unmapped or maps to another user` resolve `existing`.
+    assertOwnPairMapped(tx, owner);
     // Proof: skipping this made `throws when the pair maps to one user and
     // is another's legacy pair` in `user-oidc.db.test.ts` resolve; watched
     // 2026-09-28.

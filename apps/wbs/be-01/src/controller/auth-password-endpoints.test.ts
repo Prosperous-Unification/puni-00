@@ -88,7 +88,12 @@ test('direct me binding distinguishes signed out, invalid credentials and store 
     status: 200,
     headers: sessionHeaders,
     body: {
-      user: { id: registered.value.user.id, username: 'ada', scopes: ['read', 'write', 'editor'] },
+      user: {
+        id: registered.value.user.id,
+        username: 'ada',
+        scopes: ['read', 'write', 'editor'],
+        linkedMethods: [],
+      },
     },
   });
   expect(

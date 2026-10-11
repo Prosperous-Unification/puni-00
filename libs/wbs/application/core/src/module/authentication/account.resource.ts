@@ -22,14 +22,19 @@ export class AccountResource {
   }
 
   /** Commit a verified pair to a password user; the store rechecks activation and ownership. */
-  async linkPasswordIdentity(userId: string, identity: OidcIdentity) {
-    if (this.opts.identities?.linkPasswordIdentity === undefined)
+  async linkIdentity(userId: string, identity: OidcIdentity) {
+    if (this.opts.identities?.linkIdentity === undefined)
       throw new Error('explicit OIDC link store is not configured');
-    return this.opts.identities.linkPasswordIdentity(
-      userId,
-      identity,
-      this.opts.clock.stampFor(userId),
-    );
+    return this.opts.identities.linkIdentity(userId, identity, this.opts.clock.stampFor(userId));
+  }
+
+  /**
+   * The pairs mapped to an account. A composition without an identity store
+   * has no mappings at all, so its accounts hold none.
+   */
+  async listIdentities(userId: string): Promise<readonly { issuer: string; subject: string }[]> {
+    if (this.opts.identities === undefined) return [];
+    return this.opts.identities.listIdentities(userId);
   }
 
   /** Mint and stamp an account after the caller has hashed its password. */

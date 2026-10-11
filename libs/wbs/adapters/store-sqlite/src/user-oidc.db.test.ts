@@ -335,7 +335,51 @@ describe('UserRepository.resolveOidcIdentity after activation', () => {
 
   // Proof: skipping the owner check made this read `undefined` as the user;
   // watched 2026-09-28.
-  it('throws on a mapping to no user and on one its user disagrees with', async () => {
+  it('keeps Auth0 connection subjects apart and refuses a held email for a new one', async () => {
+    activate();
+    const google = { subject: 'google-oauth2|1', email: 'a@x.test' };
+    expect(await resolve(google)).toMatchObject({ id: 'new', email: 'a@x.test' });
+    const before = rows('SELECT * FROM users');
+    expect(
+      await users.resolveOidcIdentity(
+        { ...identity, subject: 'github|2', email: 'a@x.test' },
+        { id: 'second' },
+        selfMade('second', 10),
+      ),
+    ).toBeNull();
+    expect(rows('SELECT * FROM users')).toEqual(before);
+    expect(rows('SELECT subject FROM external_identity')).toEqual([{ subject: 'google-oauth2|1' }]);
+  });
+
+  it('creates an unverified GitHub user and verifies it on the next verified login', async () => {
+    activate();
+    const github = { subject: 'github|3', email: 'g@x.test', emailVerified: false };
+    expect(await resolve(github)).toMatchObject({ id: 'new', email: 'g@x.test' });
+    expect(rows("SELECT email_verified FROM users WHERE id = 'new'")).toEqual([
+      { email_verified: 0 },
+    ]);
+    expect(await resolve({ ...github, emailVerified: true })).toMatchObject({
+      id: 'new',
+      email: 'g@x.test',
+    });
+    expect(rows("SELECT email_verified FROM users WHERE id = 'new'")).toEqual([
+      { email_verified: 1 },
+    ]);
+  });
+
+  it('creates one account for two concurrent first logins of an email-code subject', async () => {
+    activate();
+    const second = new UserRepository(openDrizzle(join(dir, 'test.db')), OPEN);
+    const code = { ...identity, subject: 'email|3', email: 'c@x.test' };
+    const [first, other] = await Promise.all([
+      users.resolveOidcIdentity(code, { id: 'new' }, selfMade('new', 9)),
+      second.resolveOidcIdentity(code, { id: 'other' }, selfMade('other', 9)),
+    ]);
+    expect(first?.id).toBe(other?.id ?? 'unresolved');
+    expect(rows("SELECT user_id FROM external_identity WHERE subject = 'email|3'")).toHaveLength(1);
+  });
+
+  it('throws on a mapping to no user', async () => {
     await federated('existing');
     map('existing');
     raw(
@@ -344,8 +388,43 @@ describe('UserRepository.resolveOidcIdentity after activation', () => {
     activate();
 
     expect(await failureOf(resolve({ subject: 'subject-ghost' }))).toContain('maps to no user');
-    map('existing', identity.issuer, 'subject-2');
-    expect(await failureOf(resolve({ subject: 'subject-2' }))).toContain('disagrees');
+  });
+
+  it('resolves a second mapped pair to the same user', async () => {
+    await federated('existing', 'dany@puni.show');
+    map('existing');
+    map('existing', identity.issuer, 'github|2');
+    activate();
+
+    expect(await resolve({ subject: 'github|2' })).toMatchObject({ id: 'existing' });
+    expect(await resolve()).toMatchObject({ id: 'existing' });
+    expect(
+      await users.findExistingOidcIdentity({ ...identity, subject: 'github|2' }),
+    ).toMatchObject({ id: 'existing' });
+  });
+
+  // Proof: 2026-10-11, deleting the own-pair check made both cases resolve
+  // `existing` through its second pair, and the read-only lookup too.
+  it("throws when the owner's own pair is unmapped or maps to another user", async () => {
+    await federated('existing');
+    await users.create(
+      { id: 'other', username: 'other-oidc', passwordHash: null, createdAt: 1 },
+      selfMade('other', 1),
+    );
+    map('existing', identity.issuer, 'github|2');
+    activate();
+
+    expect(await failureOf(resolve({ subject: 'github|2' }))).toContain(
+      'own pair is not mapped to it',
+    );
+    expect(
+      await failureOf(users.findExistingOidcIdentity({ ...identity, subject: 'github|2' })),
+    ).toContain('own pair is not mapped to it');
+    map('other');
+    expect(await failureOf(resolve({ subject: 'github|2' }))).toContain(
+      'own pair is not mapped to it',
+    );
+    expect(rows("SELECT id FROM users WHERE id = 'new'")).toEqual([]);
   });
 
   it("throws when the pair maps to one user and is another's legacy pair", async () => {
@@ -369,7 +448,7 @@ describe('UserRepository.resolveOidcIdentity after activation', () => {
     map('a');
     activate();
 
-    expect(await failureOf(resolve())).toContain('disagrees');
+    expect(await failureOf(resolve())).toContain('partial own identity pair');
   });
 
   it('throws on a duplicate or malformed mapping', async () => {

@@ -93,6 +93,16 @@ never replaced with a process-wide account. `WBS_BASIC_AUTH=user:pass` is an
 optional legacy proxy credential and is sent as `Proxy-Authorization` so it
 cannot displace the caller's Bearer header.
 
+### Which sign-in methods a connector sees
+
+The connector's consent runs the upstream Auth0 code flow with the same OIDC
+application as the browser, and sends no `connection`: Universal Login offers
+every connection enabled on that application (Google, GitHub, the email code).
+There is no mcp-01 setting for this. The grant carries the chosen identity's own
+subject (`google-oauth2|…`, `github|…`, `email|…`), and be-01 resolves the
+forwarded upstream token to the WBS user that subject is mapped to, so a person
+who linked several methods acts as one user whichever one they used.
+
 ## Durable sessions and key rotation
 
 `MCP_STORE_PATH` names the SQLite store. On dev it must be

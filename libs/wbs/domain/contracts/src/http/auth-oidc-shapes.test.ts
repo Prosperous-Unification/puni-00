@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test';
 
+import { AUTH_METHODS } from '../auth-methods';
 import {
   completeAuth0Link,
   completeOidcLogin,
+  listAuthMethods,
   logoutOidcSession,
   refreshOidcSession,
   startAuth0Link,
@@ -23,7 +25,7 @@ test('declares four OIDC operations, open provider queries and empty redirects',
   expect(refreshOidcSession.responses).toEqual([{ kind: 'empty', status: 204 }]);
   expect(
     completeOidcLogin.refusals.filter((refusal) => 'kind' in refusal).map(({ status }) => status),
-  ).toEqual([400, 401, 409, 500, 503]);
+  ).toEqual([400, 401, 500, 503]);
   const callback = documentFromShapes(shapes).paths['/api/auth/okta/callback']?.['get'];
   expect(callback?.responses['500']).toEqual({ description: 'Refusal' });
   expect(callback?.responses['503']).toEqual({ description: 'Refusal' });
@@ -41,4 +43,35 @@ test('declares a JSON link start and a callback whose outcomes are all redirects
   // Handler outcomes are 302s to `/?auth_link=`; only pre-handler refusals remain.
   expect(completeAuth0Link.refusals.map(({ status }) => status)).toEqual([400, 400, 405]);
   expect(paths['/api/auth/link/auth0/callback']?.['get']?.responses).not.toHaveProperty('409');
+});
+
+test('declares the public method list and the login method hint', () => {
+  const paths = documentFromShapes([startOidcLogin, listAuthMethods]).paths;
+  expect(listAuthMethods.policies).toEqual([]);
+  expect(paths['/api/auth/methods']?.['get']?.responses).toHaveProperty('200');
+  const methods = { methods: [{ id: 'google', label: 'Continue with Google' }] };
+  expect(
+    listAuthMethods.responses[0].schema.validator['~standard'].validate(methods),
+  ).not.toHaveProperty('issues');
+  const hint = startOidcLogin.query.validator['~standard'];
+  expect(hint.validate({ method: 'github' })).toEqual({ value: { method: 'github' } });
+  expect(hint.validate({})).toEqual({ value: {} });
+  expect(hint.validate({ method: 'facebook' })).toHaveProperty('issues');
+  for (const { id } of AUTH_METHODS)
+    expect(hint.validate({ method: id })).not.toHaveProperty('issues');
+  expect(paths['/api/auth/login']?.['get']?.parameters[0].schema).toMatchObject({
+    enum: AUTH_METHODS.map(({ id }) => id).sort(),
+  });
+  expect(paths['/api/auth/login']?.['get']?.parameters).toMatchObject([
+    { in: 'query', name: 'method', required: false },
+  ]);
+});
+
+test('lets a link start carry a method and omit the password', () => {
+  const start = startAuth0Link.body.validator['~standard'];
+  expect(start.validate({ method: 'google' })).toEqual({ value: { method: 'google' } });
+  expect(start.validate({ password: 'p', method: 'email' })).toEqual({
+    value: { password: 'p', method: 'email' },
+  });
+  expect(start.validate({ method: 'facebook' })).toHaveProperty('issues');
 });

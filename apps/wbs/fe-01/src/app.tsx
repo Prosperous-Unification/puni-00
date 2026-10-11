@@ -8,7 +8,7 @@ import {
 } from 'react';
 
 import { AppRouter } from '@/app-router';
-import { AuthForm } from '@/components/auth/auth-form';
+import { SignInCard } from '@/components/auth/auth-form';
 import { AccountMenu } from '@/components/chrome/account-menu';
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { LifetimeFault } from '@/components/chrome/lifetime-fault';
@@ -289,7 +289,7 @@ function AppContent({
          */}
         <h1 className="mb-6 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
         {sessionError !== '' && <p role="alert">{sessionError}</p>}
-        <AuthForm onSignedIn={acceptSession} />
+        <SignInCard onSignedIn={acceptSession} />
       </main>
     );
 

@@ -10,6 +10,7 @@ import {
   type TokenStore,
   type TokenVerifier,
 } from '@wbs/auth';
+import { type AuthMethodId, parseAuthMethods } from '@wbs/contracts';
 import type { BrowserAuthLifecycle } from '@wbs/store-sqlite';
 
 import { oidcCallbackUrlFromEnv } from '../config';
@@ -30,6 +31,8 @@ export interface OidcRouteOptions {
   groupPrefix: string;
   groupsClaim: string;
   logger?: AuthRouteLog;
+  /** Methods offered as direct buttons and accepted as `method` hints, in catalogue order. */
+  methods: readonly AuthMethodId[];
   mode: 'oidc';
   now?: () => number;
   passwordLoginEnabled?: boolean;
@@ -41,7 +44,13 @@ export interface OidcRouteOptions {
   verifier: TokenVerifier;
 }
 
-/** Builds the OIDC composition from validated operator configuration. */
+/**
+ * Builds the OIDC composition from validated operator configuration.
+ *
+ * @throws when a provider key is missing, the callback path drifts, a password
+ *   flag is malformed, or `AUTH_METHODS` is missing or malformed (`none` is the
+ *   explicit empty list; nothing is defaulted).
+ */
 export function oidcRouteOptionsFromEnv(env: Record<string, string | undefined>): OidcRouteOptions {
   for (const key of [
     'AUTH_ISSUER_DISCOVERY_URL',
@@ -53,6 +62,7 @@ export function oidcRouteOptionsFromEnv(env: Record<string, string | undefined>)
       throw new Error(`${key} is required in AUTH_MODE=oidc`);
   }
   const redirectUri = oidcCallbackUrlFromEnv(env);
+  const methods = parseAuthMethods(env['AUTH_METHODS']);
   const passwordLoginEnabled = booleanFlagOf(env, 'AUTH_PASSWORD_LOGIN', true);
   const passwordRegisterEnabled = booleanFlagOf(env, 'AUTH_PASSWORD_REGISTER', false);
   if (passwordRegisterEnabled && !passwordLoginEnabled) {
@@ -63,6 +73,7 @@ export function oidcRouteOptionsFromEnv(env: Record<string, string | undefined>)
     client: browserOidcClientFromEnv(env),
     groupPrefix: env['NODE_ENV'] === 'production' ? 'prod' : 'dev',
     groupsClaim: env['AUTH_GROUPS_CLAIM'] ?? 'wbs_groups',
+    methods,
     mode: 'oidc',
     passwordLoginEnabled,
     passwordRegisterEnabled,

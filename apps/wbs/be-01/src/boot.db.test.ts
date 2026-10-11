@@ -225,6 +225,7 @@ async function boot(
 function oidcOptions(passwordLoginEnabled: boolean): OidcRouteOptions {
   return {
     appOrigin: 'https://dev.wbs.test',
+    methods: [] as const,
     mode: 'oidc',
     now: () => 1,
     passwordLoginEnabled,

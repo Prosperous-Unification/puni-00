@@ -15,10 +15,12 @@ import {
   type RefreshRecord,
   selectBrowserBindings,
 } from '@wbs/auth';
-import type { VerifiedOrganizationCredential } from '@wbs/contracts';
+import type { AuthMethodId, VerifiedOrganizationCredential } from '@wbs/contracts';
 import {
+  authMethod,
   completeAuth0Link,
   completeOidcLogin,
+  listAuthMethods,
   logoutOidcSession,
   refreshOidcSession,
   startAuth0Link,
@@ -193,6 +195,36 @@ async function logoutBrowser(
   return { ok: true, status: 204, body: EMPTY, headers: clearSession() };
 }
 
+/**
+ * The provider connection for a requested method, `undefined` for no method,
+ * or `null` when the method is not enabled here. Callers refuse `null` before
+ * any transaction or binding is saved.
+ */
+function connectionFor(
+  enabled: readonly AuthMethodId[],
+  requested: AuthMethodId | undefined,
+): string | undefined | null {
+  if (requested === undefined) return undefined;
+  return enabled.includes(requested) ? authMethod(requested).connection : null;
+}
+
+/** The enabled methods as the public list reply. */
+function methodList(enabled: readonly AuthMethodId[]) {
+  return enabled.map((id) => ({ id, label: authMethod(id).label }));
+}
+
+/**
+ * Answers the public method list in a composition without a provider: no
+ * direct buttons, so fe-01 shows the chooser link alone.
+ */
+export function nativeAuthMethodEndpoints() {
+  return [
+    bind(listAuthMethods, () =>
+      Promise.resolve({ ok: true, status: 200, body: { methods: [] } } as const),
+    ),
+  ] as const;
+}
+
 /** Mounts the common browser logout even when no OIDC provider is configured. */
 export function nativeBrowserLogoutEndpoints(
   appOrigin: string,
@@ -324,7 +356,18 @@ export function authOidcEndpoints(
   const links = new InMemoryOidcLinkStore(now);
   const linkRedirectUri = new URL('/api/auth/link/auth0/callback', options.redirectUri).href;
   return [
-    bind(startOidcLogin, async ({ request }) => {
+    bind(listAuthMethods, () =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        body: { methods: methodList(options.methods) },
+      } as const),
+    ),
+    bind(startOidcLogin, async ({ query, request }) => {
+      const connection = connectionFor(options.methods, query.method);
+      // Proof: 2026-10-11, moving this refusal after `transactions.save` made
+      // `refuses a disabled method without saving a transaction` count one save.
+      if (connection === null) return { ok: false, status: 400, body: { error: 'invalid_query' } };
       const browserBinding = random();
       const state = random();
       const nonce = random();
@@ -335,6 +378,7 @@ export function authOidcEndpoints(
         state,
         verifier,
         redirectUri: options.redirectUri,
+        ...(connection === undefined ? {} : { connection }),
       });
       const held = selectBrowserBindings(options.transactions, browserBindingsOf(request), now());
       const evicted = [
@@ -542,14 +586,16 @@ export function authOidcEndpoints(
             accessEvidence.identity.subject !== identity.subject)
         )
           return { ok: false, status: 401, body: EMPTY, headers: clearsFor(settled) };
-        // Proof: catching account-store failure as null returned409 instead of500 in the mounted failure test.
+        // Proof: catching account-store failure as null returned409 (now the account_exists 302) instead of500 in the mounted failure test.
         const account = await auth.resolveOidcIdentity(identity);
+        // A verified email another account holds: a rendered refusal naming no
+        // provider or method; nothing was written and no session is issued.
         if (account === null)
           return {
-            ok: false,
-            status: 409,
+            ok: true,
+            status: 302,
             body: EMPTY,
-            headers: clearsFor(settled),
+            headers: [...clearsFor(settled), ['location', '/?auth_error=account_exists']],
           };
         // Proof: without this retirement, a mounted native predecessor still
         // had no B1 row after OIDC callback issued replacement cookies (0/1).
@@ -796,32 +842,54 @@ export function authOidcEndpoints(
       if (!(await auth.isLinkActive()))
         return { ok: false, status: 403, body: { error: 'onboarding_inactive' } };
       const session = cookieValue(request.headers.get('cookie') ?? undefined, '__Host-wbs_access');
-      const account = await auth.passwordSessionUser(session);
+      // A password session proves itself with its own signature; an OIDC
+      // session is re-verified and resolved through existing mappings only.
+      // Proof: 2026-10-11, dropping `sessionUser`'s refusal of an unverified
+      // OIDC token made `refuses a link start whose OIDC token no longer
+      // verifies` answer 500 instead of 401.
+      const current = await auth.sessionUser(session);
       // Proof: 2026-09-28, removing this refusal made `refuses a link start without a password session before throttle admission` receive 500 instead of 401.
-      if (account === null)
+      if (current === null || session === null)
         return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
-      const throttleIp = clientIpOf(request.headers);
-      // This route exists only behind OIDC, so a missing edge IP is refused as
-      // login refuses it rather than pooled into one shared throttle bucket.
-      // Proof: 2026-09-28, defaulting to 'local-direct' again made `refuses a link start without an edge client address before throttle admission` start the link (then a 302, now a 200) instead of 400.
-      if (throttleIp === null) return { ok: false, status: 400, body: { error: 'invalid_client' } };
-      // Proof: 2026-09-28, bypassing reserve made `admits at most five held fresh-password verifications and releases capacity` observe six verifiers.
-      const release = passwordThrottle.reserve(account.username, throttleIp);
-      // Proof: 2026-09-28, removing the exhausted-capacity refusal made `admits at most five held fresh-password verifications and releases capacity` observe six verifiers.
-      if (release === null)
-        return { ok: false, status: 429, body: { error: 'invalid_credentials' } };
+      const connection = connectionFor(options.methods, body.method);
+      // A disabled method is refused before any binding or provider address exists.
+      if (connection === null) return { ok: false, status: 400, body: { error: 'invalid_body' } };
       let user;
-      try {
-        user = await auth.provePasswordSession(session, body.password);
-        if (user === null) passwordThrottle.recordFailure(account.username, throttleIp);
-        else passwordThrottle.recordSuccess(account.username);
-      } finally {
-        // Proof: 2026-09-28, omitting release made `admits at most five held fresh-password verifications and releases capacity` and `releases fresh-password admission after verifier errors` receive 429 for the next start instead of 302.
-        release();
+      if (current.kind === 'oidc') {
+        // No password exists to prove; one sent anyway is a confused client.
+        // Proof: 2026-10-11, accepting it made `refuses a password sent with
+        // an OIDC session` start a link (200) instead of 400.
+        if (body.password !== undefined)
+          return { ok: false, status: 400, body: { error: 'invalid_body' } };
+        user = current.user;
+      } else {
+        const password = body.password;
+        if (password === undefined)
+          return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
+        const account = current.user;
+        const throttleIp = clientIpOf(request.headers);
+        // This route exists only behind OIDC, so a missing edge IP is refused as
+        // login refuses it rather than pooled into one shared throttle bucket.
+        // Proof: 2026-09-28, defaulting to 'local-direct' again made `refuses a link start without an edge client address before throttle admission` start the link (then a 302, now a 200) instead of 400.
+        if (throttleIp === null)
+          return { ok: false, status: 400, body: { error: 'invalid_client' } };
+        // Proof: 2026-09-28, bypassing reserve made `admits at most five held fresh-password verifications and releases capacity` observe six verifiers.
+        const release = passwordThrottle.reserve(account.username, throttleIp);
+        // Proof: 2026-09-28, removing the exhausted-capacity refusal made `admits at most five held fresh-password verifications and releases capacity` observe six verifiers.
+        if (release === null)
+          return { ok: false, status: 429, body: { error: 'invalid_credentials' } };
+        try {
+          user = await auth.provePasswordSession(session, password);
+          if (user === null) passwordThrottle.recordFailure(account.username, throttleIp);
+          else passwordThrottle.recordSuccess(account.username);
+        } finally {
+          // Proof: 2026-09-28, omitting release made `admits at most five held fresh-password verifications and releases capacity` and `releases fresh-password admission after verifier errors` receive 429 for the next start instead of 302.
+          release();
+        }
+        // Proof: 2026-09-28, accepting an unmatched password made `refuses a wrong fresh password` redirect to Auth0.
+        if (user === null)
+          return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
       }
-      // Proof: 2026-09-28, accepting an unmatched password made `refuses a wrong fresh password` redirect to Auth0.
-      if (user === null || session === null)
-        return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
       const binding = random();
       const state = random();
       const nonce = random();
@@ -833,6 +901,7 @@ export function authOidcEndpoints(
         verifier,
         redirectUri: linkRedirectUri,
         prompt: 'login',
+        ...(connection === undefined ? {} : { connection }),
       });
       return {
         ok: true,
@@ -873,9 +942,10 @@ export function authOidcEndpoints(
         const proof = links.consume(binding, state, session);
         // Proof: 2026-09-28, retaining the consumed transaction made `refuses a replayed link callback` link twice (then two 302s; now two `linked` outcomes).
         if (proof === null) return unconsumedLinkRefusal();
-        const user = await auth.passwordSessionUser(session);
+        const current = await auth.sessionUser(session);
         // Proof: 2026-09-28, skipping this recheck made `refuses a link whose originating account lost its password credential` answer 500 instead of the refusal (then 401; now `refused`).
-        if (user?.id !== proof.userId) return linkOutcome('refused');
+        if (current?.user.id !== proof.userId) return linkOutcome('refused');
+        const user = current.user;
         // Proof: 2026-09-28, bypassing this per-callback marker read made `refuses a callback after activation is lost before contacting Auth0` contact the provider once.
         if (!(await auth.isLinkActive())) return linkOutcome('inactive');
         const callbackUrl = new URL(linkRedirectUri);
