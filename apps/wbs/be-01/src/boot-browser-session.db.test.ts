@@ -29,6 +29,7 @@ function oidcOptions(): OidcRouteOptions {
   return {
     appOrigin: 'https://dev.wbs.test',
     mode: 'oidc',
+    methods: [] as const,
     now: () => 1,
     passwordLoginEnabled: true,
     random: () => 'r'.repeat(43),

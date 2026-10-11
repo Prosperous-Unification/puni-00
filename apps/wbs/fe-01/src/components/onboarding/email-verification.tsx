@@ -93,7 +93,14 @@ export function EmailVerification({
   return (
     <section>
       <p>Verify your email address to continue.</p>
-      <p>Accounts that sign in through an identity provider verify there, then sign in again.</p>
+      {/*
+       * A provider sign-in (Google, GitHub, an email code) refreshes the
+       * verified flag on every login, so verifying there is the whole fix.
+       */}
+      <p>
+        Signed in with Google, GitHub or an email code? Verify this address with your sign-in
+        provider and sign in again.
+      </p>
       {step.kind === 'address' ? (
         <form onSubmit={(event) => void sendCode(event)}>
           <label htmlFor="verification-address">Email address</label>

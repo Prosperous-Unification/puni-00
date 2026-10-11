@@ -30,6 +30,7 @@ export function createWorkingPlanRows(
 
   return {
     listByProject: async () => reads.all(),
+    listUpdateInstants: guarded((projectId) => source().listUpdateInstants(projectId)),
     listByIds: async (_projectId, ids) => reads.byIds(ids),
     listPlacements: async (_projectId, ids) => reads.placements(ids),
     findById: guarded((id) => source().findById(id)),

@@ -3,6 +3,8 @@ import {
   applyProjectCommands,
   commandParserRefusal,
   getStepReference,
+  getWorkItem,
+  getWorkItemRows,
   getWorkItems,
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
@@ -26,7 +28,9 @@ import type { UndoOutcome, WorkItemService } from '../module/work-item/work-item
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Digest } from '../ports/runtime';
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
+import { hasRepeatedKey, pageQueryOf } from '../service/list-query';
 import type { PlanCommand } from '../service/plan-command';
+import { pageWorkItems, slicesByWorkItem, workItemPageQueryOf } from '../service/work-item-page';
 import { BadCapacity } from './capacity-body';
 import { bind, type HttpReply, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
@@ -397,36 +401,46 @@ export function workItemRoutes(
   organizations: OrganizationAccess,
 ) {
   return [
-    bind(getWorkItems, async ({ params, principal }): Promise<HttpReply<typeof getWorkItems>> => {
-      // Proof: reading the tree without resolving access made `refuses an
-      // unbound session and a removed member before any lookup` in
-      // `schedule-organization.controller.db.test.ts` answer 200; watched
-      // 2026-09-27.
-      const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
-      const tree = await workItems.treeWithin(params.id, resolved.access);
-      if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
-      // Proof: removing this branch made the mounted unavailable work-item read
-      // receive 500 instead of the required 409.
-      // Proof: removing this mapping failed mounted revocation: expected 403 became 500.
-      if ('kind' in tree && tree.kind === 'access_refused')
-        return organizationRefusal(tree.refusal);
-      if ('kind' in tree)
+    bind(
+      getWorkItems,
+      async ({ params, principal, request }): Promise<HttpReply<typeof getWorkItems>> => {
+        // `full=true` is the same dump; the mount already refused any other value
+        // or key, and only a repeated key reaches here collapsed.
+        // Proof, observed 2026-10-11: without this check, `refuses any other query
+        // with 400` in `work-item-rows.controller.db.test.ts` answered 200 for
+        // `full=true&full=true`.
+        if (hasRepeatedKey(request.url))
+          return { ok: false, status: 400, body: { error: 'invalid_query' } };
+        // Proof: reading the tree without resolving access made `refuses an
+        // unbound session and a removed member before any lookup` in
+        // `schedule-organization.controller.db.test.ts` answer 200; watched
+        // 2026-09-27.
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        const tree = await workItems.treeWithin(params.id, resolved.access);
+        if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        // Proof: removing this branch made the mounted unavailable work-item read
+        // receive 500 instead of the required 409.
+        // Proof: removing this mapping failed mounted revocation: expected 403 became 500.
+        if ('kind' in tree && tree.kind === 'access_refused')
+          return organizationRefusal(tree.refusal);
+        if ('kind' in tree)
+          return {
+            ok: false,
+            status: 409,
+            body: { error: tree.error, engine: tree.engine },
+          };
         return {
-          ok: false,
-          status: 409,
-          body: { error: tree.error, engine: tree.engine },
+          ok: true,
+          status: 200,
+          body: {
+            ...tree,
+            ...(await workItems.undoState(params.id, principal.id)),
+            ...(await readStepAddresses(params.id, tree, digest)),
+          },
         };
-      return {
-        ok: true,
-        status: 200,
-        body: {
-          ...tree,
-          ...(await workItems.undoState(params.id, principal.id)),
-          ...(await readStepAddresses(params.id, tree, digest)),
-        },
-      };
-    }),
+      },
+    ),
     bind(
       applyProjectCommands,
       async ({ params, body, principal }): Promise<HttpReply<typeof applyProjectCommands>> => {
@@ -535,5 +549,79 @@ export function workItemRoutes(
         };
       },
     ),
+    bind(
+      getWorkItemRows,
+      async ({ params, query, request, principal }): Promise<HttpReply<typeof getWorkItemRows>> => {
+        const common = pageQueryOf(query, request.url);
+        const paged = common === null ? null : workItemPageQueryOf(common, query);
+        // Proof, observed 2026-09-29: answering 200 here made `refuses every
+        // value outside the grammar with 400` in
+        // `work-item-rows.controller.db.test.ts` receive 200 for `limit=0`.
+        if (paged === null) return { ok: false, status: 400, body: { error: 'invalid_query' } };
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        // The whole tree through the caller's access before anything is
+        // filtered, cut or given a cursor: a foreign project is 404 alike.
+        // Proof, observed 2026-09-29: reading both with legacy access made
+        // `answers a foreign project as not found` in
+        // `work-item-rows.controller.db.test.ts` answer the foreign rows.
+        const tree = await workItems.treeWithin(params.id, resolved.access);
+        if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        if ('kind' in tree && tree.kind === 'access_refused')
+          return organizationRefusal(tree.refusal);
+        if ('kind' in tree)
+          return { ok: false, status: 409, body: { error: tree.error, engine: tree.engine } };
+        const instants = await workItems.updateInstantsWithin(params.id, resolved.access);
+        if (instants === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        const page = pageWorkItems(tree, instants, paged);
+        if (!page.ok)
+          return page.refusal === 'stale_cursor'
+            ? { ok: false, status: 409, body: { error: 'stale_cursor' } }
+            : { ok: false, status: 404, body: { error: 'unknown_parent' } };
+        return {
+          ok: true,
+          status: 200,
+          body: {
+            rows: page.rows,
+            nextCursor: page.nextCursor,
+            projectRevision: tree.projectRevision,
+          },
+        };
+      },
+    ),
+    bind(getWorkItem, async ({ params, principal }): Promise<HttpReply<typeof getWorkItem>> => {
+      const resolved = await organizations.resolve(principal);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      const tree = await workItems.treeWithin(params.id, resolved.access);
+      if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+      if ('kind' in tree && tree.kind === 'access_refused')
+        return organizationRefusal(tree.refusal);
+      if ('kind' in tree)
+        return { ok: false, status: 409, body: { error: tree.error, engine: tree.engine } };
+      const workItem = tree.workItems.find((candidate) => candidate.id === params.workItemId);
+      const instants = await workItems.updateInstantsWithin(params.id, resolved.access);
+      const updatedAt = instants?.get(params.workItemId);
+      // Absent, foreign-project and deleted-since-the-tree work items answer alike.
+      // Proof, observed 2026-09-29: reading with legacy access made `answers an
+      // absent and a foreign work item alike` in
+      // `work-item-rows.controller.db.test.ts` answer the foreign project's work item.
+      if (workItem === undefined || updatedAt === undefined)
+        return { ok: false, status: 404, body: { error: 'not_found' } };
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          workItem: {
+            ...workItem,
+            updatedAt,
+            // Proof, observed 2026-09-29: answering every slice of the tree
+            // made `answers one work item as the whole-tree read does, with its
+            // own slices` receive another work item's slice.
+            slices: slicesByWorkItem(tree.slices).get(workItem.id) ?? [],
+          },
+          projectRevision: tree.projectRevision,
+        },
+      };
+    }),
   ] as const;
 }

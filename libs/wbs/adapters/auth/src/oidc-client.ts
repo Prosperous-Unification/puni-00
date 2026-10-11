@@ -22,6 +22,8 @@ export interface BrowserOidcClient {
     state: string;
     verifier: string;
     prompt?: 'login';
+    /** The provider connection to sign in with (Auth0 `connection`); absent shows the provider's chooser. */
+    connection?: string;
   }): Promise<URL>;
   exchange(
     request: Request,
@@ -159,6 +161,7 @@ export function browserOidcClientFromEnv(
       };
       if (audience !== undefined && audience !== '') parameters['audience'] = audience;
       if (input.prompt !== undefined) parameters['prompt'] = input.prompt;
+      if (input.connection !== undefined) parameters['connection'] = input.connection;
       return buildAuthorizationUrl(await config(), parameters);
     },
     async exchange(request, checks) {

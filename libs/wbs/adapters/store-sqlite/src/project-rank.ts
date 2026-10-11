@@ -1,11 +1,24 @@
-import type { ProjectRankStore, RankedProject, RankMoved, WriteStamp } from '@wbs/core';
-import { POSITION_STEP } from '@wbs/domain';
+import type {
+  ProjectRankStore,
+  RankedProject,
+  RankMoved,
+  SharedPeopleStore,
+  WriteStamp,
+} from '@wbs/core';
+import { type CapacityMode, POSITION_STEP } from '@wbs/domain';
 import { and, asc, eq } from 'drizzle-orm';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
-import { project, projectOrganization, projectRank } from './schema';
+import {
+  organization,
+  project,
+  projectOrganization,
+  projectRank,
+  sharedPeopleAudit,
+} from './schema';
+import { readCapacityMode } from './shared-people-mode';
 
 type Reader = Pick<Drizzle, 'select'>;
 
@@ -59,7 +72,7 @@ const ranksOf = (held: readonly Held[]): RankedProject[] =>
  * never needs to respace. The composite reference is the second line: a rank
  * across organizations cannot be stored even if a read here were wrong.
  */
-export class ProjectRankRepository implements ProjectRankStore {
+export class ProjectRankRepository implements ProjectRankStore, SharedPeopleStore {
   constructor(
     private readonly db: Drizzle,
     private readonly gate: Gate,
@@ -117,6 +130,54 @@ export class ProjectRankRepository implements ProjectRankStore {
               }
             });
             return { ok: true, order: ranksOf(heldIn(tx, organizationId)) };
+          },
+          { behavior: 'immediate' },
+        ),
+      ),
+    );
+  }
+
+  capacityModeIn(organizationId: string): Promise<CapacityMode> {
+    // In the executor, so a missing organization rejects rather than throws.
+    return new Promise((resolve) => {
+      resolve(readCapacityMode(this.db, organizationId));
+    });
+  }
+
+  /**
+   * The mode and its audit row in one immediate transaction, decided from a
+   * read inside it: two super-admins switching at once record one switch.
+   *
+   * Proof: the audit insert removed made `records each switch, and nothing for
+   * the mode it already has` (`shared-people-audit.db.test.ts`) find no
+   * record; watched 2026-10-11.
+   */
+  setCapacityMode(
+    organizationId: string,
+    mode: CapacityMode,
+    stamp: WriteStamp,
+    auditId: string,
+  ): Promise<{ changed: boolean }> {
+    return this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction(
+          (tx) => {
+            if (readCapacityMode(tx, organizationId) === mode) return { changed: false };
+            const encoded = mode === 'shared' ? 1 : 0;
+            tx.update(organization)
+              .set({ sharedPeople: encoded, ...auditOnUpdate(stamp) })
+              .where(eq(organization.id, organizationId))
+              .run();
+            tx.insert(sharedPeopleAudit)
+              .values({
+                id: auditId,
+                organizationId,
+                actorId: stamp.by,
+                sharedPeople: encoded,
+                createdAt: stamp.at,
+              })
+              .run();
+            return { changed: true };
           },
           { behavior: 'immediate' },
         ),

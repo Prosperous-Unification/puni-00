@@ -431,10 +431,40 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
 
 ## 7. fe
 
-- [ ] 7.1 The `elsewhere` sentence, `waitingElsewhere`, refetch, and the settings switch.
-- [ ] 7.2 Negative: floor kind unmapped → Error Boundary, not a blank card.
+- [x] 7.1 The `elsewhere` sentence, `waitingElsewhere`, refetch, and the settings switch.
+      Ported onto the coherent chain in batch 10 (lane `capacity-ui-mode`, from batch-9
+      `fce82cbb0`/`908939385`): `readSharedPeople` labels each holder a target slice names from the
+      influencer rows it captured; the tree carries `elsewhereHolders` exactly beside
+      `waitingElsewhere`; the chart's floor sentence reads "Waits for Ana to finish 010.3 Rewire in
+      Platform"; `elsewhere_changed` refetches the tree only. fe-01 shows no header count for any
+      floor, so `waitingElsewhere` stays on the wire beside `waitingForPerson`/`waitingForCapacity`,
+      which fe-01 omits alike; the sentence is hover text, so it is not a link. The settings switch
+      (`SharingPanel` on `/organization`) shipped with its route (8.1): it reads the mode and
+      `sharingAvailable`, offers no switch a release without shared people would refuse, always
+      lets a shared organization stop sharing, and confirms before switching. After Fable's review
+      of #324 the reply also carries `canSwitch` (super-admin in person); everyone else reads why
+      there is no switch, and the confirm line says switching back restores the dates.
+      Owed (recorded, not done): an eye review of `/organization` on the dev stack and an
+      e2e/pixel screen of it; no screens capture covers that page yet.
+- [x] 7.2 Negative: floor kind unmapped → Error Boundary, not a blank card. Done as a holder the
+      read does not label: `GanttDataError`, not a sentence blaming nobody; and in be-01 a slice
+      naming an unlabelled holder fails the read. Evidence: verify.md "UI 7 port (batch 10)".
 
 ## 8. Mode route
 
-- [ ] 8.1 `PATCH /api/organization {sharedPeople}`, super-admin only, after 6 and 7 are on main.
-- [ ] 8.2 Negative: policy removed → an admin gets 200, not 403.
+- [x] 8.1 `PATCH /api/organization {sharedPeople}`, super-admin only, after 6 and 7 are on main.
+      Ported in batch 10 (lane `capacity-ui-mode`, from batch-9 `1d8ab64d6`/`dfd7782a9`) onto the
+      current runtime: `GET /api/organization` for any member; the switch re-reads super-admin
+      membership on the writer inside `standaloneCapacityModeSwitch`, refuses delegations, and
+      refuses a mode outside `SUPPORTED_CAPACITY_MODES` (`409 capacity_mode_unsupported`), so this
+      release stays isolated-only until solver-image activation. A switch writes a
+      `shared_people_audit` row (`20261011200000_add_shared_people_audit`, guarded `down.sql`) and
+      one `elsewhere_changed` (null cause) per organization project in the same unit of work;
+      delivery follows release. `shared-people-rollback-cli.ts remove` refuses once a switch is
+      recorded. Not ported: the batch-9 in-memory fan-out record reset (no such memory now), the
+      project-deletion guard (6j fans deletion out), the restore-audit (shared restore is
+      refused), and the 8.0 cost measurement. The fe switch is 7.1's.
+      Owed before `SUPPORTED_CAPACITY_MODES` gains `shared` (WBS step 4, standing model-test rule):
+      the shared-people model test needs a `SwitchMode` command.
+- [x] 8.2 Negative: policy removed → an admin gets 200, not 403. Evidence with the other route,
+      storage and owner faults: verify.md "Mode route 8 port (batch 10)".

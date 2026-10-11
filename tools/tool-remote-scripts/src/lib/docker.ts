@@ -226,6 +226,7 @@ const APP_ENV_ALLOWED_KEYS: Record<Tier, readonly string[]> = {
     'GW_URL',
     'DB_PATH',
     'AUTH_MODE',
+    'AUTH_METHODS',
     'APP_ORIGIN',
     'BROWSER_SESSION_AUTHORITY',
     // Proof: deleting these three entries made the production startGreen test
@@ -308,11 +309,23 @@ const APP_ENV_REQUIRED_KEYS: Record<Tier, readonly string[]> = {
   // Proof: dropping GW_URL here made `refuses a be env file without GW_URL`
   // and `demands only keys the be release refuses to boot without` fail
   // (164 pass, 2 fail, 2026-09-29).
+  // The release accepts only AUTH_MODE=oidc, where be-01 refuses to boot
+  // without AUTH_METHODS (`oidcRouteOptionsFromEnv`).
+  // Proof: 2026-10-11, dropping AUTH_METHODS here made `demands only keys the
+  // be release refuses to boot without` fail (Expected to contain AUTH_METHODS).
   // be-01 has no default for BROWSER_SESSION_AUTHORITY: whether logout
   // durably revokes is the operator's explicit choice in this file.
   // Proof: dropping it here made `demands only keys the be release refuses to
   // boot without` fail (98 pass, 1 fail, 2026-10-11).
-  be: ['PORT', 'LOG_LEVEL', 'GW_URL', 'DB_PATH', 'AUTH_MODE', 'BROWSER_SESSION_AUTHORITY'],
+  be: [
+    'PORT',
+    'LOG_LEVEL',
+    'GW_URL',
+    'DB_PATH',
+    'AUTH_MODE',
+    'AUTH_METHODS',
+    'BROWSER_SESSION_AUTHORITY',
+  ],
   gw: ['PORT', 'LOG_LEVEL', 'BE_URL', 'AUTH_MODE'],
   fe: [],
 };
@@ -367,6 +380,19 @@ const LOG_LEVELS: ReadonlySet<string> = new Set([
   'fatal',
 ]);
 
+/**
+ * Mirrors `parseAuthMethods` in `@wbs/contracts`: ids from its catalogue, or `none`.
+ * Proof: 2026-10-11, admitting every value made `refuses only value shapes the
+ * be release also refuses` fail on AUTH_METHODS=facebook.
+ */
+export const AUTH_METHOD_IDS: ReadonlySet<string> = new Set(['google', 'github', 'email', 'apple']);
+const authMethods = (value: string): string | null => {
+  const named = value.split(',').map((part) => part.trim());
+  const known = named.every((name) => AUTH_METHOD_IDS.has(name));
+  if (value.trim() === 'none' || (known && new Set(named).size === named.length)) return null;
+  return 'must be none or a comma list of distinct methods from google, github, email, apple';
+};
+
 const atLeast32 = (value: string): string | null =>
   value.length >= 32 ? null : 'must be at least 32 characters';
 /**
@@ -396,6 +422,7 @@ const VALUE_RULES: Readonly<Partial<Record<string, (value: string) => string | n
   // also refuses` fail on `on` (98 pass, 1 fail, 2026-10-11).
   BROWSER_SESSION_AUTHORITY: (value) =>
     value === 'enabled' || value === 'disabled' ? null : 'must be enabled|disabled',
+  AUTH_METHODS: authMethods,
   INTERNAL_AUTH_SECRET: atLeast32,
   JWT_SIGNING_KEY_CURRENT: atLeast32,
   JWT_SIGNING_KEY_PREVIOUS: atLeast32,

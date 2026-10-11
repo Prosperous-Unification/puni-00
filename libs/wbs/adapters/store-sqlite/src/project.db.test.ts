@@ -120,6 +120,7 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20261011200000_add_shared_people_audit',
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
@@ -255,6 +256,36 @@ describe('ProjectRepository', () => {
     const listed = await repo.listFor(ownerId);
     expect(listed.map((p) => p.name)).toEqual(['B', 'A', 'C']);
     expect(listed.map((p) => p.lastOpenedAt)).toEqual([2000, 1000, null]);
+  });
+
+  it('answers the update instant as the newest of its row, its work items and its plan events', async () => {
+    const db = openDatabase(join(dir, 'test.db'));
+    const a = project('A', 100);
+    await repo.create(a, steps(a.id, 'Dev'), wrote());
+    const instant = async () => (await repo.listFor(ownerId))[0]?.updatedAt;
+    const workItem = db.prepare(
+      'INSERT INTO work_item (id, project_id, position, updated_at) VALUES (?, ?, ?, ?)',
+    );
+    const planEvent = db.prepare(
+      `INSERT INTO plan_event (id, project_id, user_id, kind, label, before, after, created_at)
+       VALUES (?, ?, ?, 'rename', 'rename', '{}', '{}', ?)`,
+    );
+    try {
+      db.run('UPDATE project SET updated_at = NULL');
+      expect(await instant()).toBeNull();
+      workItem.run('w0', a.id, 0, null);
+      expect(await instant()).toBeNull();
+      db.run('UPDATE project SET updated_at = 10');
+      expect(await instant()).toBe(10);
+      workItem.run('w1', a.id, 1, 20);
+      expect(await instant()).toBe(20);
+      planEvent.run('e1', a.id, ownerId, 30);
+      expect(await instant()).toBe(30);
+      db.run('UPDATE project SET updated_at = 40');
+      expect(await instant()).toBe(40);
+    } finally {
+      db.close();
+    }
   });
 
   it('gives another account its own order', async () => {

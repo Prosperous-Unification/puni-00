@@ -1,0 +1,28 @@
+{
+  "name": "twilight-navigator",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/twilight-structure/twilight-navigator/cli/src",
+  "projectType": "application",
+  "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:twilight-navigator"],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --preload ../../../../tools/test/scratch/preload.ts src --timeout=30000",
+        "cwd": "apps/twilight-structure/twilight-navigator/cli"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint apps/twilight-structure/twilight-navigator/cli/src"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force apps/twilight-structure/twilight-navigator/cli/tsconfig.json"
+      }
+    }
+  }
+}

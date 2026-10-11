@@ -89,7 +89,7 @@ const STATUS_WORDS: Readonly<Record<WorkItemStatus, string>> = {
   on_hold: `Status: ${STATUS_LABEL.on_hold}. This work is parked and takes no part in the schedule.`,
   blocked: `Status: ${STATUS_LABEL.blocked}. This work is stopped by something outside the plan; it keeps its place in the schedule.`,
   in_progress: `Status: ${STATUS_LABEL.in_progress}. Its steps disagree — one has finished, or one has said nothing — so the row is part-way through. Set it per step, or choose Done for all of it.`,
-  done: `Status: ${STATUS_LABEL.done}. Every step of this work item says finished. The chart draws it over its fact span, the row is tinted, and its name is struck through.`,
+  done: `Status: ${STATUS_LABEL.done}. Every step of this work item says finished. The chart draws it over its fact span, the row is tinted, and its number is struck through.`,
 };
 
 export interface StatusCellProps {

@@ -745,6 +745,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261011200000_add_shared_people_audit',
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
@@ -771,6 +772,7 @@ describe('20260927120000_add_organization_records', () => {
         (name) =>
           name !== 'browser_auth_association' &&
           name !== 'browser_auth_lifecycle' &&
+          name !== 'shared_people_audit' &&
           name !== 'browser_credential_revocations' &&
           name !== 'email_challenge' &&
           name !== 'typed_dependency' &&

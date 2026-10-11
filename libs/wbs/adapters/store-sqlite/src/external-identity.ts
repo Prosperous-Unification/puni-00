@@ -19,8 +19,8 @@ export interface IssuerSubject {
 /** Whether a pair now maps to the requested user, or already belongs to another. */
 export type IdentityMapping = { kind: 'mapped' } | { kind: 'collision'; userId: string };
 
-/** Expected outcomes of an explicit, password-account-only Auth0 link. */
-export type PasswordIdentityLink =
+/** Expected outcomes of an explicit Auth0 link started by a signed-in account. */
+export type IdentityLink =
   | { kind: 'linked' }
   | {
       kind:
@@ -44,20 +44,27 @@ export class ExternalIdentityRepository {
     return readOrganizationActivation(this.db) === 'activated';
   }
 
-  /** Commits a proved user's mapping and verified email in one immediate transaction.
+  /**
+   * Commits a proved user's mapping and verified email in one immediate
+   * transaction. An account may hold several mapped pairs (social-sign-in D6):
+   * its own `idp_issuer/idp_sub` pair, when present, must already be mapped to
+   * it, and the new pair must be unmapped or already this account's.
+   *
+   * @throws on a partial own pair, an own pair not mapped to this account, or
+   *   a legacy pair whose mapping disagrees: corrupt trusted state.
    * Proof: 2026-09-28, bypassing pair ownership made `refuses an existing pair or email belonging to another user without changing either account` receive `linked` for the owned pair.
    * Proof: 2026-09-28, bypassing email ownership made the same test throw a SQLite uniqueness error instead of returning typed `email_collision`.
    */
-  async linkPasswordIdentity(
+  async linkIdentity(
     userId: string,
     identity: IssuerSubject & { readonly email: string | null; readonly emailVerified: boolean },
     stamp: WriteStamp,
-  ): Promise<PasswordIdentityLink> {
+  ): Promise<IdentityLink> {
     return this.gate.enter(async () => {
       await Promise.resolve();
       // Proof: 2026-09-28, replacing the transaction with direct writes made `rolls mapping insertion back when the email update aborts` leave one external_identity row after the update trigger aborted.
       return this.db.transaction(
-        (tx): PasswordIdentityLink => {
+        (tx): IdentityLink => {
           // Proof: 2026-09-28, bypassing the activation check made `refuses unverified identity and an inactive marker without creating a mapping` receive linked while inactive.
           if (readOrganizationActivation(tx) !== 'activated') return { kind: 'inactive' };
           if (identity.issuer === '' || identity.subject === '')
@@ -68,25 +75,18 @@ export class ExternalIdentityRepository {
           if (!identity.emailVerified || email === null) return { kind: 'unverified' };
           const account = tx
             .select({
-              passwordHash: users.passwordHash,
               idpIssuer: users.idpIssuer,
               idpSub: users.idpSub,
             })
             .from(users)
             .where(eq(users.id, userId))
             .get();
-          // Proof: 2026-09-28, bypassing this check made `refuses a link after the password credential is removed` receive linked.
+          // An OIDC-only account may link too; only a vanished account is refused.
           if (account === undefined) return { kind: 'invalid_account' };
-          if (account.passwordHash === null) return { kind: 'invalid_account' };
-          // Proof: 2026-09-28, bypassing this invariant made `throws on a partial legacy identity pair before linking` resolve with an ordinary collision.
-          if ((account.idpIssuer === null) !== (account.idpSub === null))
-            throw new Error(`password account ${userId} has a partial legacy identity pair`);
-          // Proof: 2026-09-28, omitting this check made `refuses a new pair on an account with a different legacy OIDC pair` receive linked and create a mapping normal login cannot resolve.
-          if (
-            account.idpIssuer !== null &&
-            (account.idpIssuer !== identity.issuer || account.idpSub !== identity.subject)
-          )
-            return { kind: 'identity_collision' };
+          // Proof: 2026-09-28, bypassing the partial-pair invariant made `throws on a partial legacy identity pair before linking` resolve with an ordinary collision.
+          // Proof: 2026-10-11, deleting the own-pair check made `throws when the
+          // account own pair is unmapped or mapped to another user` answer linked for both.
+          assertOwnPairMapped(tx, { id: userId, ...account });
           const owner = tx
             .select({ userId: externalIdentity.userId })
             .from(externalIdentity)
@@ -182,6 +182,17 @@ export class ExternalIdentityRepository {
     });
   }
 
+  /** Every pair mapped to one user, in subject order. */
+  async listIdentities(userId: string): Promise<IssuerSubject[]> {
+    await Promise.resolve();
+    return this.db
+      .select({ issuer: externalIdentity.issuer, subject: externalIdentity.subject })
+      .from(externalIdentity)
+      .where(eq(externalIdentity.userId, userId))
+      .orderBy(externalIdentity.subject)
+      .all();
+  }
+
   /** The local user a verified pair maps to, or null when it maps to none. */
   async findUserId(pair: IssuerSubject): Promise<string | null> {
     await Promise.resolve();
@@ -253,6 +264,31 @@ export function backfillExternalIdentities(tx: Transaction, at: number): number 
     added += 1;
   }
   return added;
+}
+
+/**
+ * Invariant 2 of social-sign-in D6: a user's own `idp_issuer/idp_sub` pair,
+ * when present, is mapped to that user. A user may hold further mapped pairs;
+ * this is what keeps the first one from drifting to another account.
+ *
+ * @throws on a half-present own pair, or one unmapped or mapped elsewhere:
+ *   corrupt trusted state, never repaired here.
+ */
+export function assertOwnPairMapped(
+  tx: Transaction,
+  user: { readonly id: string; readonly idpIssuer: string | null; readonly idpSub: string | null },
+): void {
+  if ((user.idpIssuer === null) !== (user.idpSub === null))
+    throw new Error(`user ${user.id} has a partial own identity pair`);
+  if (user.idpIssuer === null || user.idpSub === null) return;
+  const own = tx
+    .select({ userId: externalIdentity.userId })
+    .from(externalIdentity)
+    .where(
+      and(eq(externalIdentity.issuer, user.idpIssuer), eq(externalIdentity.subject, user.idpSub)),
+    )
+    .get();
+  if (own?.userId !== user.id) throw new Error(`user ${user.id} own pair is not mapped to it`);
 }
 
 /** Stored identity text: a non-empty string, not a blob, number or null. */

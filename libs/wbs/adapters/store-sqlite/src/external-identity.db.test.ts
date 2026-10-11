@@ -111,7 +111,7 @@ describe('explicit Auth0 link', () => {
   it('links a verified pair to the proved password user without changing local IDs', async () => {
     const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
     expect(
-      await store.linkPasswordIdentity(
+      await store.linkIdentity(
         'u',
         { issuer: 'https://idp.test', subject: 's', email: 'u@test.example', emailVerified: true },
         { at: 2, by: 'u' },
@@ -138,7 +138,7 @@ describe('explicit Auth0 link', () => {
     db.close();
     const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
     expect(
-      await store.linkPasswordIdentity(
+      await store.linkIdentity(
         'u',
         {
           issuer: 'https://idp.test',
@@ -150,7 +150,7 @@ describe('explicit Auth0 link', () => {
       ),
     ).toEqual({ kind: 'identity_collision' });
     expect(
-      await store.linkPasswordIdentity(
+      await store.linkIdentity(
         'u',
         {
           issuer: 'https://idp.test',
@@ -175,7 +175,7 @@ describe('explicit Auth0 link', () => {
     db.close();
     const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
     expect(
-      await store.linkPasswordIdentity(
+      await store.linkIdentity(
         'u',
         {
           issuer: 'https://idp.test',
@@ -196,7 +196,7 @@ describe('explicit Auth0 link', () => {
   it('refuses a malformed provider email domain before inserting a mapping', async () => {
     const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
     expect(
-      await store.linkPasswordIdentity(
+      await store.linkIdentity(
         'u',
         {
           issuer: 'https://idp.test',
@@ -221,7 +221,7 @@ describe('explicit Auth0 link', () => {
     db.close();
     const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
     const failure = await store
-      .linkPasswordIdentity(
+      .linkIdentity(
         'u',
         {
           issuer: 'https://idp.test',
@@ -247,7 +247,7 @@ describe('explicit Auth0 link', () => {
   it('refuses unverified identity and an inactive marker without creating a mapping', async () => {
     const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
     expect(
-      await store.linkPasswordIdentity(
+      await store.linkIdentity(
         'u',
         { issuer: 'https://idp.test', subject: 's', email: 'u@test.example', emailVerified: false },
         { at: 2, by: 'u' },
@@ -260,7 +260,7 @@ describe('explicit Auth0 link', () => {
     );
     db.close();
     expect(
-      await store.linkPasswordIdentity(
+      await store.linkIdentity(
         'u',
         { issuer: 'https://idp.test', subject: 's', email: 'u@test.example', emailVerified: true },
         { at: 2, by: 'u' },
@@ -273,47 +273,98 @@ describe('explicit Auth0 link', () => {
     check.close();
   });
 
-  it('refuses a link after the password credential is removed', async () => {
+  it('links an account that has no password credential', async () => {
+    // An OIDC-only account may add a method (social-sign-in D6); only an
+    // absent account is refused.
     const db = openDatabase(path);
     db.run("UPDATE users SET password_hash = NULL WHERE id = 'u'");
     db.close();
     const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
     expect(
-      await store.linkPasswordIdentity(
+      await store.linkIdentity(
         'u',
         { issuer: 'https://idp.test', subject: 's', email: 'u@test.example', emailVerified: true },
         { at: 2, by: 'u' },
       ),
+    ).toEqual({ kind: 'linked' });
+    expect(
+      await store.linkIdentity(
+        'absent',
+        { issuer: 'https://idp.test', subject: 't', email: 'x@test.example', emailVerified: true },
+        { at: 2, by: 'absent' },
+      ),
     ).toEqual({ kind: 'invalid_account' });
+  });
+
+  it('adds a second pair to an account whose own pair is mapped to it', async () => {
+    const db = openDatabase(path);
+    db.run(
+      "UPDATE users SET password_hash = NULL, idp_issuer = 'https://idp.test', idp_sub = 'google-oauth2|1', email = 'u@test.example', email_verified = 1 WHERE id = 'u'",
+    );
+    db.run(
+      "INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES ('m', 'u', 'https://idp.test', 'google-oauth2|1', 1)",
+    );
+    db.close();
+    const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
+    const github = {
+      issuer: 'https://idp.test',
+      subject: 'github|2',
+      email: 'u@test.example',
+      emailVerified: true,
+    };
+    // Proof: 2026-10-11, restoring the different-own-pair refusal made this
+    // answer identity_collision instead of linked.
+    expect(await store.linkIdentity('u', github, { at: 2, by: 'u' })).toEqual({ kind: 'linked' });
+    // Proof: 2026-10-11, inserting the mapping even when it already belongs to
+    // this account made the relink throw the unique-index error instead.
+    expect(await store.linkIdentity('u', github, { at: 3, by: 'u' })).toEqual({ kind: 'linked' });
     const check = openDatabase(path);
-    expect(check.query('SELECT COUNT(*) AS count FROM external_identity').get()).toEqual({
-      count: 0,
+    expect(
+      check.query("SELECT user_id FROM external_identity WHERE subject = 'github|2'").all(),
+    ).toEqual([{ user_id: 'u' }]);
+    expect(check.query("SELECT idp_issuer, idp_sub FROM users WHERE id = 'u'").get()).toEqual({
+      idp_issuer: 'https://idp.test',
+      idp_sub: 'google-oauth2|1',
     });
     check.close();
   });
 
-  it('refuses a new pair on an account with a different legacy OIDC pair', async () => {
-    const db = openDatabase(path);
-    db.run("UPDATE users SET idp_issuer = 'https://old.test', idp_sub = 'old' WHERE id = 'u'");
-    db.close();
-    const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
-    expect(
-      await store.linkPasswordIdentity(
-        'u',
-        {
-          issuer: 'https://idp.test',
-          subject: 'new',
-          email: 'u@test.example',
-          emailVerified: true,
-        },
-        { at: 2, by: 'u' },
-      ),
-    ).toEqual({ kind: 'identity_collision' });
-    const check = openDatabase(path);
-    expect(check.query('SELECT COUNT(*) AS count FROM external_identity').get()).toEqual({
-      count: 0,
-    });
-    check.close();
+  it('throws when the account own pair is unmapped or mapped to another user', async () => {
+    for (const mappedTo of [null, 'v']) {
+      const db = openDatabase(path);
+      db.run('DELETE FROM external_identity');
+      db.run("UPDATE users SET idp_issuer = 'https://idp.test', idp_sub = 'old' WHERE id = 'u'");
+      if (mappedTo !== null)
+        db.run(
+          `INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES ('m', '${mappedTo}', 'https://idp.test', 'old', 1)`,
+        );
+      db.close();
+      const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
+      // Proof: 2026-10-11, deleting the own-pair check made both cases answer
+      // linked and write a mapping.
+      const thrown = await store
+        .linkIdentity(
+          'u',
+          {
+            issuer: 'https://idp.test',
+            subject: 'new',
+            email: 'u@test.example',
+            emailVerified: true,
+          },
+          { at: 2, by: 'u' },
+        )
+        .then(
+          () => null,
+          (error: unknown) => error,
+        );
+      expect(thrown).toBeInstanceOf(Error);
+      expect(String(thrown)).toContain('own pair is not mapped to it');
+      const check = openDatabase(path);
+      expect(
+        check.query("SELECT COUNT(*) AS count FROM external_identity WHERE subject = 'new'").get(),
+      ).toEqual({ count: 0 });
+      check.close();
+    }
   });
 
   it('throws on a partial legacy identity pair before linking', () => {
@@ -322,7 +373,7 @@ describe('explicit Auth0 link', () => {
     db.close();
     const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
     expect(
-      store.linkPasswordIdentity(
+      store.linkIdentity(
         'u',
         {
           issuer: 'https://idp.test',
@@ -332,7 +383,7 @@ describe('explicit Auth0 link', () => {
         },
         { at: 2, by: 'u' },
       ),
-    ).rejects.toThrow('partial legacy identity pair');
+    ).rejects.toThrow('partial own identity pair');
     const check = openDatabase(path);
     expect(check.query('SELECT COUNT(*) AS count FROM external_identity').get()).toEqual({
       count: 0,
@@ -346,7 +397,7 @@ describe('explicit Auth0 link', () => {
     db.close();
     const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
     expect(
-      store.linkPasswordIdentity(
+      store.linkIdentity(
         'u',
         {
           issuer: 'https://idp.test',
@@ -356,7 +407,7 @@ describe('explicit Auth0 link', () => {
         },
         { at: 2, by: 'u' },
       ),
-    ).rejects.toThrow('legacy pair has no mapping');
+    ).rejects.toThrow('own pair is not mapped to it');
     const check = openDatabase(path);
     expect(check.query('SELECT COUNT(*) AS count FROM external_identity').get()).toEqual({
       count: 0,
@@ -370,7 +421,7 @@ describe('explicit Auth0 link', () => {
     db.close();
     const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
     expect(
-      store.linkPasswordIdentity(
+      store.linkIdentity(
         'u',
         {
           issuer: 'https://idp.test',
@@ -397,7 +448,7 @@ describe('explicit Auth0 link', () => {
     db.close();
     const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
     expect(
-      store.linkPasswordIdentity(
+      store.linkIdentity(
         'u',
         {
           issuer: 'https://idp.test',

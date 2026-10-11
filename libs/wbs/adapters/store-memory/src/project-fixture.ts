@@ -178,6 +178,10 @@ export function inMemoryProjects(
           ...project,
           lastOpenedAt: opened.get(`${userId}::${project.id}`) ?? null,
           ownerName: owner.username,
+          // This fixture's writes ignore their stamps, so it holds no instant:
+          // every project reads as one written before the audit columns. The
+          // instant's rules are proved against SQLite (`project.db.test.ts`).
+          updatedAt: null,
         });
       }
       return withAccess.sort((a, b) => {

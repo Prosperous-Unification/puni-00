@@ -23,7 +23,7 @@ const typedEndpoint = type({
   // fields while allowing additive metadata` accept a numeric node ID; watched 2026-09-27.
   'stepNodeId?': 'string',
 });
-const numberedWorkItem = type({
+export const numberedWorkItem = type({
   id: 'string',
   projectId: 'string',
   parentId: 'string | null',
@@ -69,7 +69,7 @@ const numberedWorkItem = type({
   assignees: type({ '[string]': 'string' }),
   doesEveryStep: 'string | null',
 });
-const slice = scheduled.and({
+export const workItemSlice = scheduled.and({
   id: 'string',
   workItemId: 'string',
   stepId: 'string | null',
@@ -149,7 +149,18 @@ export const workItemTree = type({
   scheduleError: "'calendar_range' | 'cycle' | null",
   waitingForPerson: 'number',
   waitingForCapacity: 'number',
-  slices: slice.array(),
+  // Both present exactly when the displayed schedule was placed around bookings
+  // in other projects (`share-people-across-projects`): the engine's count, and
+  // one label per holder a slice's `elsewhereHolder` names.
+  'waitingElsewhere?': 'number',
+  'elsewhereHolders?': type({
+    projectId: 'string',
+    projectName: 'string',
+    workItemId: 'string',
+    number: 'string',
+    name: 'string',
+  }).array(),
+  slices: workItemSlice.array(),
   steps: stepShape.array(),
   assignedPeople: named.array(),
   teamCapacities: type({ serviceTeamId: 'string', size: 'number' }).array(),

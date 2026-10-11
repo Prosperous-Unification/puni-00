@@ -953,6 +953,32 @@ describe('InMemoryMcpOAuth', () => {
     expect((await exchange())?.status).toBe(400);
   });
 
+  // social-sign-in D8: the consent is connection-agnostic. Whatever connection
+  // the person chose at Auth0 arrives as its own subject, and the grant carries
+  // that subject while be-01 receives the upstream token itself.
+  it('mints a grant for an Auth0 social subject and forwards its upstream token', async () => {
+    const { oauth, authorizationCalls } = fixture({
+      exchange: () => Promise.resolve({ accessToken: 'upstream-google-token', expiresIn: 300 }),
+      verifyUpstream: (token) =>
+        token === 'upstream-google-token'
+          ? Promise.resolve({
+              iss: 'https://idp.example',
+              sub: 'google-oauth2|1',
+              wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
+            })
+          : Promise.reject(new Error('not an upstream token')),
+    });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const response = await tokenResponse(oauth, 'random-1', code, verifier);
+    expect(response.status).toBe(200);
+    const { access_token: accessToken } = (await response.json()) as { access_token: string };
+    expect(await oauth.verify(accessToken)).toMatchObject({ sub: 'google-oauth2|1' });
+    expect(await oauth.upstreamTokenFor(accessToken)).toBe('upstream-google-token');
+    expect(authorizationCalls).toHaveLength(1);
+    expect(authorizationCalls[0]).not.toHaveProperty('connection');
+  });
+
   // Proof: accepting a provider token with neither expiresIn nor a verified exp
   // makes the second authorization redirect with a code instead of access_denied.
   it('uses a verified exp when the provider omits expiresIn and refuses when both are missing', async () => {

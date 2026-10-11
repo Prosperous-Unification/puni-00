@@ -249,6 +249,11 @@ describe('toolsFromDocument, on the generated document', () => {
     expect(EXCLUDED_PATHS).toHaveLength(5);
   });
 
+  it('never offers the sign-in method list as a tool', () => {
+    expect(tools.map((tool) => tool.name)).not.toContain('getApiAuthMethods');
+    expect(tools.filter((tool) => tool.path.startsWith('/api/auth/'))).toHaveLength(0);
+  });
+
   it('offers batches, not single writes (plan-commands)', () => {
     // Proof: `/api/work-items/*` dropped from `EXCLUDED_PATHS`, this failed on
     // `expected [] to have a length of 0` with sixteen names in it. Watched,
@@ -402,15 +407,43 @@ describe('toolsFromDocument, on the generated document', () => {
   });
 
   it('derives a path-parameter-only read the way the document declares it', () => {
+    const workItem = byName(tools, 'getApiProjectsByIdWork-itemsByWorkItemId');
+    expect(workItem.method).toBe('get');
+    expect(workItem.path).toBe('/api/projects/{id}/work-items/{workItemId}');
+    expect(workItem.inputSchema).toEqual({
+      type: 'object',
+      properties: { id: { type: 'string' }, workItemId: { type: 'string' } },
+      required: ['id', 'workItemId'],
+      additionalProperties: false,
+    });
+  });
+
+  it('keeps the whole-tree read callable with its id alone, full=true optional', () => {
     const workItems = byName(tools, 'getApiProjectsByIdWork-items');
-    expect(workItems.method).toBe('get');
     expect(workItems.path).toBe('/api/projects/{id}/work-items');
     expect(workItems.inputSchema).toEqual({
       type: 'object',
-      properties: { id: { type: 'string' } },
+      properties: { id: { type: 'string' }, full: { const: 'true' } },
       required: ['id'],
       additionalProperties: false,
     });
+  });
+
+  it('derives the work-item page with every filter optional', () => {
+    const rows = byName(tools, 'getApiProjectsByIdWork-item-rows');
+    expect(rows.path).toBe('/api/projects/{id}/work-item-rows');
+    expect(rows.inputSchema.required).toEqual(['id']);
+    expect(Object.keys(rows.inputSchema.properties).sort()).toEqual([
+      'cursor',
+      'depth',
+      'fields',
+      'id',
+      'limit',
+      'parentId',
+      'q',
+      'status',
+      'updatedSince',
+    ]);
   });
 
   it('exposes revision-bound step resolution as a read tool', () => {

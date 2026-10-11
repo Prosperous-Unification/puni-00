@@ -1,6 +1,7 @@
 import {
   type AccountfulServices,
   type Broadcaster,
+  type CapacityModeSwitch,
   type Clock,
   clockOf,
   composeServices,
@@ -11,6 +12,7 @@ import {
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
+import { standaloneCapacityModeSwitch } from '@wbs/core/service/standalone-capacity-mode';
 import { standaloneRankStore } from '@wbs/core/service/standalone-rank';
 import { contractVersionOf } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
@@ -72,7 +74,7 @@ export interface BeServices extends AccountfulServices {
   readonly optimizer: OptimizationCoordinator | undefined;
   readonly optimizationLifecycle: OptimizationLifecycle;
   readonly gate: SqliteSource['gate'];
-  readonly projectRanks: ProjectRankStore;
+  readonly projectRanks: ProjectRankStore & CapacityModeSwitch;
 }
 
 export type { WritingServices } from '@wbs/core';
@@ -269,6 +271,12 @@ export function buildServices(options: ServicesOptions): BeServices {
     // undefined when this process had no active solver runtime.
     optimizationLifecycle,
     gate: source.gate,
-    projectRanks: standaloneRankStore(publicRanks, boundSource.uow, graph.committedFanout),
+    projectRanks: {
+      ...standaloneRankStore(publicRanks, boundSource.uow, graph.committedFanout),
+      // Proof: binding the raw repository here instead made the mounted
+      // demoted-switch and every-project cases in
+      // `capacity-mode.controller.db.test.ts` fail; watched 2026-10-11.
+      ...standaloneCapacityModeSwitch(publicRanks, boundSource.uow, graph.committedFanout),
+    },
   };
 }

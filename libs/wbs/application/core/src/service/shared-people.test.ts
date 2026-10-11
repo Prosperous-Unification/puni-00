@@ -1,4 +1,4 @@
-import { schedule, sliceKey } from '@wbs/domain';
+import { deriveNumbers, schedule, sliceKey } from '@wbs/domain';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import type { PlanInputReads } from '../ports/saved-plan-capture-store';
@@ -424,5 +424,48 @@ describe('readSharedPeople', () => {
       projectId: 'A',
       name: 'A',
     });
+  });
+  it('labels each holder a target slice waits for from the influencer it read', () => {
+    const above = plan('A', ['ana']);
+    const named = {
+      ...above,
+      project: { ...above.project, name: 'Platform' },
+      workItems: above.workItems.map((row) => ({ ...row, name: 'Rewire' })),
+    };
+    const chain = readSharedPeople([named, plan('B', ['ana'])], 'B', scheduler);
+    if (chain.kind !== 'scheduled') throw new Error('expected schedule');
+    const number = deriveNumbers(named.workItems).get('A');
+    if (number === undefined) throw new Error('A has no number');
+    expect(chain.holders).toEqual([
+      {
+        projectId: 'A',
+        projectName: 'Platform',
+        workItemId: 'A',
+        number,
+        name: 'Rewire',
+      },
+    ]);
+    const alone = readSharedPeople([plan('B', ['ana'])], 'B', scheduler);
+    if (alone.kind !== 'scheduled') throw new Error('expected schedule');
+    expect(alone.holders).toEqual([]);
+  });
+
+  it('throws when a target slice names a holder the chain read no label for', () => {
+    const lost = capturedScheduler((ask) => {
+      const read = scheduler.read(ask);
+      if (ask.projectId !== 'B' || read.kind !== 'scheduled') return read;
+      const slices = new Map(
+        [...read.fast.slices].map(([key, slice]) => [
+          key,
+          slice.boundBy === 'elsewhere'
+            ? { ...slice, elsewhereHolder: { projectId: 'Z', workItemId: 'Z' } }
+            : slice,
+        ]),
+      );
+      return { ...read, fast: { ...read.fast, slices } };
+    });
+    expect(() => readSharedPeople([plan('A', ['ana']), plan('B', ['ana'])], 'B', lost)).toThrow(
+      'booking elsewhere held by Z/Z has no label',
+    );
   });
 });

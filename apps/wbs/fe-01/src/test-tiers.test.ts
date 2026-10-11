@@ -70,7 +70,11 @@ const DOM_EVIDENCE =
  * arrived as `ReferenceError: location is not defined`, on the first run of
  * the tier that had it.
  */
-const INDIRECT_DOM_SUITES: readonly string[] = ['src/lib/api.test.ts'];
+const INDIRECT_DOM_SUITES: readonly string[] = [
+  'src/lib/api.test.ts',
+  // `readAuthMethods` goes through `browserClient`, which reads `location.origin`.
+  'src/components/auth/auth-methods.test.ts',
+];
 
 /**
  * The third tier: suites `vitest.zoned.config.ts` collects and neither other

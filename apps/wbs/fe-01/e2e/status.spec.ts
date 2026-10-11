@@ -237,11 +237,18 @@ test.describe('marking a row done, in a browser', () => {
       expect(painted.layer, `the ${name} cell has no tint layer`).toMatch(/linear-gradient/);
       expect(painted.layer, `the ${name} cell's tint is clear`).not.toMatch(/rgba\(0, 0, 0, 0\)/);
     }
-    const struck = await page
-      .locator('tbody tr[data-row-done="true"] td[data-column="name"] [data-cell]')
+    const doneRow = page.locator('tbody tr[data-row-done="true"]');
+    const nameDecoration = await doneRow
+      .locator('td[data-column="name"] [data-cell-rendered]')
+      .evaluate((name) => getComputedStyle(name).textDecorationLine);
+    expect(nameDecoration, 'the done row’s name is struck through').toBe('none');
+    const numberDecoration = await doneRow
+      .locator('[data-number]')
       .first()
-      .evaluate((cell) => getComputedStyle(cell).textDecorationLine);
-    expect(struck, 'the done row’s name is not struck through').toContain('line-through');
+      .evaluate((number) => getComputedStyle(number).textDecorationLine);
+    expect(numberDecoration, 'the done row’s number is not struck through').toContain(
+      'line-through',
+    );
 
     // One bar for the row, done, stopping earlier than the estimate did …
     const bar = page.locator('[data-gantt-bar][data-done="true"]');

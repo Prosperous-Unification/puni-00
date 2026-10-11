@@ -3075,6 +3075,28 @@ export const organizationAudit = sqliteTable(
 );
 
 /**
+ * One switch of an organization between isolated and shared people, written
+ * with the switch; see `20261011200000_add_shared_people_audit`. `actor_id`
+ * references nothing so the record outlives the account.
+ */
+export const sharedPeopleAudit = sqliteTable(
+  'shared_people_audit',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    actorId: text('actor_id').notNull(),
+    sharedPeople: integer('shared_people').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    check('shared_people_audit_shared_people', sql`${t.sharedPeople} IN (0, 1)`),
+    index('shared_people_audit_organization_created').on(t.organizationId, t.createdAt),
+  ],
+);
+
+/**
  * An organization's named, ordered lens over its projects; see
  * `20260929100000_add_spaces` and ADR 0033. `(id, organization_id)` is unique
  * so membership can reference the pair.
