@@ -2046,28 +2046,29 @@ compiler and counts clock references. A reference is any of the following:
 - any value use of `performance`, `Temporal` or a global object;
 - any use of `process` or `Bun` other than a literal non-clock member;
 - any member, key, binding or named import called `hrtime`, `uptime`, `nanoseconds` or
-  `timeOrigin`;
+  `timeOrigin`, `randomUUIDv7` or `DateTimeFormat`;
 - any load of `perf_hooks` or of a computed module specifier.
 
 Each listed file may keep at most its current count, and an entry whose file no longer exists
 fails. A swap inside a listed file that keeps the count unchanged is not caught. Clocks outside the
-runtime, computed keys on other objects and `eval` are not seen. The test's JSDoc says both.
+runtime, computed keys on other objects, `new Date(arg)` whose argument is undefined only at
+runtime, and `eval` are not seen. The test's JSDoc says both.
 
 Faults injected by hand, each restored and rerun green:
 
-| Fault                                                              | Observed                                                              |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| `const { now: sampleNow } = Date` appended to `evidence/manual.ts` | scan failed listing `evidence/manual.ts` `Date`                       |
-| `globalThis.Date.now()` appended to `contracts/records.ts`         | scan failed listing `globalThis`                                      |
-| `process['uptime']()` appended to `rules/check.ts`                 | scan failed listing `process['uptime']` and `process`                 |
-| an eleventh `Date.now()` in `review/invoker.ts`                    | scan failed listing the invoker's eleven reads                        |
-| the activation entry renamed to a missing path                     | stale-entry check failed listing the missing path                     |
-| the glob changed to `**/*.tsx`                                     | anchor failed: `Expected to contain: "cli.ts"`                        |
-| Date rule off                                                      | detector test lost 15 lines (`Date.now()` … `extends Date`)           |
-| clock-globals rule off                                             | detector test lost `globalThis`, `performance`, `Temporal` lines      |
-| clock-holders rule off                                             | detector test lost `process[key]`, `const P = process`                |
-| clock-member rule off                                              | detector test lost `os.uptime()`, `import { hrtime as clock }`        |
-| module-load rule off                                               | detector test lost the four `perf_hooks` and computed-specifier lines |
-| `undefined` argument test off                                      | detector test lost `new Date(undefined)`                              |
-| every `new Date(x)` treated as a read                              | detector flagged pure lines 2 and 3; scan flagged six pure uses       |
-| type-position skip off                                             | detector flagged `let typed: Date`; scan flagged four type uses       |
+| Fault                                                              | Observed                                                                                                    |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `const { now: sampleNow } = Date` appended to `evidence/manual.ts` | scan failed listing `evidence/manual.ts` `Date`                                                             |
+| `globalThis.Date.now()` appended to `contracts/records.ts`         | scan failed listing `globalThis`                                                                            |
+| `process['uptime']()` appended to `rules/check.ts`                 | scan failed listing `process['uptime']` and `process`                                                       |
+| an eleventh `Date.now()` in `review/invoker.ts`                    | scan failed listing the invoker's eleven reads                                                              |
+| the activation entry renamed to a missing path                     | stale-entry check failed listing the missing path                                                           |
+| the glob changed to `**/*.tsx`                                     | anchor failed: `Expected to contain: "cli.ts"`                                                              |
+| Date rule off                                                      | detector test lost 15 lines (`Date.now()` … `extends Date`)                                                 |
+| clock-globals rule off                                             | detector test lost `globalThis`, `performance`, `Temporal` lines                                            |
+| clock-holders rule off                                             | detector test lost `process[key]`, `const P = process`                                                      |
+| clock-member rule off                                              | detector test lost `os.uptime()`, `Bun.randomUUIDv7()`, `Intl.DateTimeFormat`, `import { hrtime as clock }` |
+| module-load rule off                                               | detector test lost the four `perf_hooks` and computed-specifier lines                                       |
+| `undefined` argument test off                                      | detector test lost `new Date(undefined)`                                                                    |
+| every `new Date(x)` treated as a read                              | detector flagged pure lines 2 and 3; scan flagged six pure uses                                             |
+| type-position skip off                                             | detector flagged `let typed: Date`; scan flagged four type uses                                             |

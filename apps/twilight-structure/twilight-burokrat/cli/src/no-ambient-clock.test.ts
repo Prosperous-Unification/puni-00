@@ -21,10 +21,12 @@ interface ClockRead {
  * A clock reference is any value use of `Date` other than `new Date(x)` with a defined argument,
  * `Date.parse`, `Date.UTC` or `instanceof Date`; any value use of `performance`, `Temporal` or a
  * global object; any use of `process` or `Bun` other than a literal non-clock member; any member,
- * key, binding or named import called `hrtime`, `uptime`, `nanoseconds` or `timeOrigin`; and any
+ * key, binding or named import called `hrtime`, `uptime`, `nanoseconds`, `timeOrigin`,
+ * `randomUUIDv7` or `DateTimeFormat`; and any
  * load of `perf_hooks` or of a computed module specifier. Not caught: clocks outside the
  * JavaScript runtime (file times, a subprocess that runs `date`), computed keys on other objects
- * (`os[key]()`, `Reflect.get(os, name)`) and code built at runtime (`eval`, `new Function`).
+ * (`os[key]()`, `Reflect.get(os, name)`), `new Date(arg)` whose argument is undefined only at
+ * runtime, and code built at runtime (`eval`, `new Function`).
  */
 const dashOwnedClockReads: readonly { readonly paths: readonly string[]; readonly most: number }[] =
   [
@@ -47,8 +49,18 @@ const sourceRoot = import.meta.dir;
 const clockGlobals = new Set(['performance', 'Temporal', 'globalThis', 'global', 'window', 'self']);
 /** Globals whose other members are not clocks: only a literal non-clock member may be read. */
 const clockHolders = new Set(['process', 'Bun']);
-/** Member names that read a clock on any object (`process`, `os`, `perf_hooks`, `Bun`). */
-const clockMembers = new Set(['hrtime', 'uptime', 'nanoseconds', 'timeOrigin']);
+/**
+ * Member names that read a clock on any object (`process`, `os`, `perf_hooks`, `Bun`):
+ * `randomUUIDv7` embeds the current time and `Intl.DateTimeFormat` formats it by default.
+ */
+const clockMembers = new Set([
+  'hrtime',
+  'uptime',
+  'nanoseconds',
+  'timeOrigin',
+  'randomUUIDv7',
+  'DateTimeFormat',
+]);
 /** Named imports that bind a clock, whatever local name they take. */
 const clockImports = new Set([...clockMembers, 'performance', 'Temporal']);
 const clockModules = new Set(['perf_hooks', 'node:perf_hooks']);
@@ -243,6 +255,8 @@ const clockLines = [
   'const x = Temporal.Now.instant();',
   'const { Now } = Temporal;',
   'const y = os.uptime();',
+  'const uuid = Bun.randomUUIDv7();',
+  'const formatted = new Intl.DateTimeFormat("en").format();',
   "import { hrtime as clock } from 'node:process';",
   "import { performance as perf } from 'node:perf_hooks';",
   "import * as hooks from 'perf_hooks';",
@@ -258,7 +272,8 @@ test('findClockReads names every clock reference and ignores pure dates, types a
   // Proof (2026-10-11): switching off one rule at a time dropped its lines from this set: the Date
   // rule (15 lines, `Date.now()` to `extends Date`), clock globals (`globalThis`, `performance`,
   // `Temporal`), clock holders (`process[key]`, `const P = process`), clock members
-  // (`os.uptime()`, `import { hrtime as clock }`), module loads (the four `perf_hooks` and
+  // (`os.uptime()`, `Bun.randomUUIDv7()`,
+  // `Intl.DateTimeFormat`, `import { hrtime as clock }`), module loads (the four `perf_hooks` and
   // computed specifiers) and the `undefined` argument test (`new Date(undefined)`). Switching off
   // the type-position skip flagged `let typed: Date` here and four type uses in the package.
   expect([...flaggedLines].sort((left, right) => left - right)).toEqual(expectedLines);
