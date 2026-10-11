@@ -27,7 +27,11 @@ import {
 import { Database } from 'bun:sqlite';
 import { afterAll, expect, test } from 'bun:test';
 
-import { MemoryAuthorityStore, resolveAuthorityDatabasePath } from './authority-store';
+import {
+  MemoryAuthorityStore,
+  openAuthority,
+  resolveAuthorityDatabasePath,
+} from './authority-store';
 import { acquireClaims } from './claims';
 import { rejectGeneration } from './generations';
 import { composeIntegrationCandidate } from './integration-compose';
@@ -2537,4 +2541,127 @@ test('the queue deadline is refreshed between failed attempts', async () => {
   });
   expect(probes).toBe(2);
   subject.store.close();
+});
+
+function recoverThroughCli(repository: string, integrationId: string) {
+  const execution = Bun.spawnSync(
+    [
+      process.execPath,
+      join(import.meta.dir, '..', 'entrypoint.ts'),
+      'recover-publication',
+      repository,
+      '--integration-id',
+      integrationId,
+    ],
+    { stderr: 'pipe', stdout: 'pipe' },
+  );
+  return {
+    exitCode: execution.exitCode,
+    stderr: execution.stderr.toString('utf8'),
+    stdout: execution.stdout.toString('utf8'),
+  };
+}
+
+function authorityDigest(repository: string): string {
+  return new Bun.CryptoHasher('sha256')
+    .update(readFileSync(resolveAuthorityDatabasePath(repository)))
+    .digest('hex');
+}
+
+/** The wall clock, which the recovery CLI also reads; tests may read it, production may not. */
+const LIVE_CLOCK = { read: () => Date.now() };
+
+function readRefOrUndefined(repository: string, ref: string): string | undefined {
+  const invocation = Bun.spawnSync(
+    ['git', '-C', repository, 'rev-parse', '--verify', '--quiet', ref],
+    {
+      stderr: 'pipe',
+      stdout: 'pipe',
+    },
+  );
+  return invocation.exitCode === 0 ? invocation.stdout.toString('utf8').trim() : undefined;
+}
+
+// The CLI composes the wall clock, so these fixtures start near it: a fixture at 1 000 ms would
+// read as a queue older than the five-minute deadline and starve.
+test('a fresh process publishes a reserved integration whose refs never moved', () => {
+  const subject = fixture({ now: Date.now() });
+  const { commit, reserved } = preparePublication(subject, 'recover-before');
+  const base = git(subject.repository, ['rev-parse', 'refs/heads/main']);
+  subject.store.close();
+  expect(readRefOrUndefined(subject.repository, reserved.markerRef)).toBeUndefined();
+  // Proof: bypassing `updateRefs` when the marker is absent made this fresh process report
+  // `waiting` (`publication-contended`) with both refs unchanged (2026-10-12).
+  const recovered = recoverThroughCli(subject.repository, 'recover-before');
+  expect(recovered.exitCode, recovered.stderr).toBe(0);
+  expect(JSON.parse(recovered.stdout)).toMatchObject({ commit, status: 'integrated' });
+  expect(git(subject.repository, ['rev-parse', reserved.markerRef])).toBe(commit);
+  expect(git(subject.repository, ['rev-parse', 'refs/heads/main'])).toBe(commit);
+  expect(git(subject.repository, ['rev-parse', `${commit}^`])).toBe(base);
+  const store = openAuthority(subject.repository, { clock: LIVE_CLOCK });
+  const state = store.inspect();
+  store.close();
+  expect(state.integrations[0]?.status).toBe('published');
+  expect(state.generations[0]?.status).toBe('integrated');
+});
+
+test('a fresh process finalizes a marker-proven publication without a second CAS', () => {
+  // Queued ten minutes ago: past the five-minute deadline the CLI enforces before any CAS.
+  const subject = fixture({ now: Date.now() - 10 * 60_000 });
+  const { commit, reserved } = preparePublication(subject, 'recover-after');
+  expect(publishIntegrationRefs(subject.store, subject.repository, reserved)).toBe(true);
+  subject.store.close();
+  const advanced = subject.advance('other.ts', 'export const other = 9;\n');
+  // Proof: deleting the marker-proven finalization in publishReservedIntegration sent this
+  // recovery to the pre-CAS deadline check, which reported `terminal` `starvation` for a commit
+  // the marker already proves published (2026-10-12).
+  const recovered = recoverThroughCli(subject.repository, 'recover-after');
+  expect(recovered.exitCode, recovered.stderr).toBe(0);
+  expect(JSON.parse(recovered.stdout)).toMatchObject({ commit, status: 'integrated' });
+  expect(git(subject.repository, ['rev-parse', reserved.markerRef])).toBe(commit);
+  expect(git(subject.repository, ['rev-parse', 'refs/heads/main'])).toBe(advanced);
+  const store = openAuthority(subject.repository, { clock: LIVE_CLOCK });
+  expect(store.inspect().integrations[0]?.status).toBe('published');
+  store.close();
+});
+
+test('repeated recovery reports the same publication and moves no ref', () => {
+  const subject = fixture({ now: Date.now() });
+  const { reserved } = preparePublication(subject, 'recover-twice');
+  subject.store.close();
+  const first = recoverThroughCli(subject.repository, 'recover-twice');
+  expect(first.exitCode, first.stderr).toBe(0);
+  const refs = [reserved.markerRef, 'refs/heads/main'].map((ref) =>
+    git(subject.repository, ['rev-parse', ref]),
+  );
+  const digest = authorityDigest(subject.repository);
+  // Proof: removing the `published` branch from recoverPublication made the repeat refuse as
+  // needing a certifier instead of printing the same report (2026-10-12).
+  expect(recoverThroughCli(subject.repository, 'recover-twice')).toEqual(first);
+  expect(
+    [reserved.markerRef, 'refs/heads/main'].map((ref) =>
+      git(subject.repository, ['rev-parse', ref]),
+    ),
+  ).toEqual(refs);
+  expect(authorityDigest(subject.repository)).toBe(digest);
+});
+
+test('recovery refuses records that need a certifier', () => {
+  const subject = fixture({ now: Date.now() });
+  const one = subject.submission('one', 'src/one.ts', 'export const one = 2;\n');
+  const request = { policy, submissions: [one] };
+  enqueueIntegration(subject.store, request, options('recover-queued'));
+  subject.store.close();
+  const queued = recoverThroughCli(subject.repository, 'recover-queued');
+  expect(queued.exitCode).toBe(1);
+  expect(queued.stderr).toBe(
+    'error: publication needs a certifier; not recoverable here: recover-queued is queued\n',
+  );
+  const store = openAuthority(subject.repository, { clock: LIVE_CLOCK });
+  const candidate = composeIntegrationCandidate(store, subject.repository, request);
+  recordIntegrationCheck(store, 'recover-queued', candidate);
+  store.close();
+  expect(recoverThroughCli(subject.repository, 'recover-queued').stderr).toContain(
+    'recover-queued is checking',
+  );
 });

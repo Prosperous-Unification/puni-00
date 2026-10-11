@@ -33,8 +33,8 @@
 
 ## 6. Publication recovery (S5)
 
-- [ ] 6.1 `recoverPublication` and CLI `recover-publication`; two-process tests for refs not moved and refs moved.
-- [ ] 6.2 Record the six mandatory proofs in `verify.md` from the relocated code.
+- [x] 6.1 `recoverPublication` and CLI `recover-publication`; two-process tests for refs not moved and refs moved.
+- [x] 6.2 Record the six mandatory proofs in `verify.md` from the relocated code.
 
 ## 7. Rollback proof and documents (S6)
 

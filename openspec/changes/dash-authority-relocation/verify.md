@@ -132,6 +132,45 @@ half in S5.
 | store opened before the packet is decoded                 | `submit-admission refuses before opening the store on a malformed packet`: `authority absent` instead of the packet field |
 | five lifecycle sabotages                                  | `authority lifecycle matches its model across concurrent processes`; counterexamples in its `Proof:`                      |
 
-## S5–S6
+## S5: `recover-publication` and the mandatory proofs
 
-Recorded by each slice as it lands.
+| Command                                                           | Result                     |
+| ----------------------------------------------------------------- | -------------------------- |
+| `bun test --preload … src --timeout=30000` in `twilight-dash/cli` | 213 pass, 0 fail, 14 files |
+
+Each recovery test has process A's work done in the test process (store closed afterwards, so no
+in-memory state survives). Process B is the real entrypoint, `recover-publication`, run as a
+fresh Bun process.
+
+| Injected fault                                                       | Observed failure                                                                                                              |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `updateRefs` bypassed when the marker is absent                      | `a fresh process publishes a reserved integration whose refs never moved`: `waiting` report, refs unchanged                   |
+| marker-proven finalization deleted from `publishReservedIntegration` | `a fresh process finalizes a marker-proven publication without a second CAS`: `terminal` `starvation` (queued 10 min earlier) |
+| `published` branch removed from `recoverPublication`                 | `repeated recovery reports the same publication and moves no ref`: `needs a certifier … is published`                         |
+| `recover-publication` grammar loosened to `argv.length < 3`          | CLI canary: `authority absent` instead of usage                                                                               |
+
+A Git `reference-transaction` hook cannot observe a stale second CAS: Git refuses the old value at
+`prepare`, before the hook runs. The deleted branch shows up only through the deadline ordering.
+
+### The six mandatory proofs (observed passing at this head)
+
+1. **Interrupted publication before and after ref movement**: `a fresh process publishes a
+reserved integration whose refs never moved`; `a fresh process finalizes a marker-proven
+publication without a second CAS`.
+2. **Missing versus unreadable adoption state**: `refuses an absent authority instead of creating
+one`; `distinguishes an unreadable authority from an absent one` (S3).
+3. **Overlapping worktree claims**: `two Bun processes atomically refuse overlap and both admit
+disjoint work`; the lifecycle model's I5 (S4).
+4. **Old-writer fencing**: `separate processes fence stale generations and preserve a successor
+and frozen publication`; `every old-writer mutation is fenced after successor acquisition`;
+   `a restarted coordinator fences a durable checking attempt and stale certification`; `a stale
+attempt identity cannot reserve an equal checked candidate`.
+5. **Lost-response reconciliation**: `an exact repeated submission returns the same report without
+a write`; `a different candidate after a lost response is refused` (S4); `repeated recovery
+reports the same publication and moves no ref`; token recovery through `inspect-authority
+--session` (`inspect-authority prints the state and refuses an absent store`, S3).
+6. **Rollback preserving accepted identities**: S6.
+
+## S6
+
+Recorded when the slice lands.

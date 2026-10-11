@@ -1,4 +1,8 @@
-import { bootstrapAuthorityCommand, inspectAuthorityCommand } from './authority/authority-commands';
+import {
+  bootstrapAuthorityCommand,
+  inspectAuthorityCommand,
+  recoverPublicationCommand,
+} from './authority/authority-commands';
 import type { AuthorityClock } from './authority/authority-store';
 import { submitAdmission } from './authority/submit-admission';
 
@@ -31,8 +35,8 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
 }
 
 /**
- * Dispatches enrollment planning through the fixed fleet planner and the three authority
- * commands (`bootstrap-authority`, `inspect-authority`, `submit-admission`) through the runtime
+ * Dispatches enrollment planning through the fixed fleet planner and the four authority commands
+ * (`bootstrap-authority`, `inspect-authority`, `recover-publication`, `submit-admission`) through the runtime
  * authority; every other command refuses before any effect.
  */
 export async function runDash(argv: readonly string[], deps: DashDependencies): Promise<void> {
@@ -54,6 +58,10 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
   }
   if (command === 'inspect-authority') {
     inspectAuthorityCommand(argumentsAfterCommand, authority);
+    return;
+  }
+  if (command === 'recover-publication') {
+    recoverPublicationCommand(argumentsAfterCommand, authority);
     return;
   }
   if (command === 'submit-admission') {
