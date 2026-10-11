@@ -134,6 +134,12 @@ export async function mcpHttpResponse(
  * The response is materialised before the transport closes: `enableJsonResponse`
  * makes the SDK buffer the JSON-RPC reply into a plain `Response`, and a
  * stateless endpoint has no standalone SSE stream to keep open.
+ *
+ * Request size is bounded by the SDK's defaults, inherited because no
+ * `maxRequestBodySize` is passed: since 1.30.1, a body over
+ * `DEFAULT_MAX_REQUEST_BODY_SIZE` (4 MiB) answers 413 and a JSON-RPC batch over
+ * `MAX_BATCH_SIZE` (100) answers 400. Proof: `http.test.ts`, "refuses a tool
+ * call one byte over the 4 MiB request-body cap with 413".
  */
 export function mcpFetchHandler(
   // eslint-disable-next-line @typescript-eslint/no-deprecated -- low-level Server preserves OpenAPI-derived schemas; see createServer.
