@@ -195,8 +195,8 @@ function ManualPage() {
         csrfToken: load.draft.csrfToken,
         createdAt: Date.now(),
       };
+      // Stored for a reload after a lost response; the notice is only for an earlier page load.
       sessionStorage.setItem(pendingKey, JSON.stringify(pending));
-      setPendingProposal(pending);
       const answer = await requestJson<{ receipt: string }>('/proposals', {
         method: 'POST',
         headers: { 'X-Puni-CSRF': pending.csrfToken },
@@ -573,7 +573,7 @@ function OperatorPage() {
                   <p className="small">Original request</p>
                   <p>{submission.description}</p>
                   <p className="small">Submitted brief</p>
-                  <p>{submission.brief}</p>
+                  <p className="submission-brief">{submission.brief}</p>
                   <div className="status-actions">
                     {(['reviewing', 'contacted', 'closed'] as const).map((status) => (
                       <button

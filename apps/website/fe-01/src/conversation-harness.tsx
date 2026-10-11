@@ -17,6 +17,7 @@ import {
   selectComposerMode,
   selectStoppedAttempt,
 } from './build-contract';
+import { siteOrigin } from './chrome';
 
 /** Characters a visitor may send after the Home request; the API refuses longer messages. */
 const messageLimit = 1_500;
@@ -556,6 +557,10 @@ function SendArrow() {
  * request), an email field and `Request a proposal` through the existing `POST /proposals` with
  * the draft claim and CSRF. Success replaces the form with the opaque receipt. There is never a
  * price, date or contract field.
+ *
+ * An edit is saved to the draft through `PATCH /brief` when the field loses focus, so it survives
+ * a reload; an unchanged or blank brief is never written, and a refused save says so instead of
+ * claiming success. The submission carries the text on screen whether or not it was saved.
  */
 function ProposalCard({
   conversation,
@@ -567,6 +572,8 @@ function ProposalCard({
   onSubmitted: (receipt: string) => void;
 }) {
   const [brief, setBrief] = useState(conversation.brief || conversation.description);
+  const [savedBrief, setSavedBrief] = useState(brief);
+  const [isSaved, setSaved] = useState(false);
   const [email, setEmail] = useState('');
   const [isPending, setPending] = useState(false);
   const [failure, setFailure] = useState('');
@@ -577,9 +584,28 @@ function ProposalCard({
     if (receipt !== null) thanks.current?.focus();
   }, [receipt]);
 
+  async function saveBrief(): Promise<void> {
+    const text = brief;
+    if (text === savedBrief || text.trim() === '') return;
+    setSaved(false);
+    setFailure('');
+    try {
+      await requestJson<{ brief: string }>('/brief', {
+        method: 'PATCH',
+        headers: { 'X-Puni-CSRF': conversation.csrfToken },
+        body: JSON.stringify({ brief: text }),
+      });
+      setSavedBrief(text);
+      setSaved(true);
+    } catch (error) {
+      setFailure(`Your edit is not saved yet. ${describeFailure(error)}`);
+    }
+  }
+
   async function submit(event: React.SubmitEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setPending(true);
+    setSaved(false);
     setFailure('');
     try {
       const answer = await requestJson<{ receipt: string }>('/proposals', {
@@ -635,8 +661,15 @@ function ProposalCard({
           required
           onChange={(event) => {
             setBrief(event.target.value);
+            setSaved(false);
           }}
+          onBlur={() => void saveBrief()}
         />
+        {isSaved && (
+          <p className="proposal-saved" role="status">
+            Saved. It stays with this browser for 24 hours.
+          </p>
+        )}
         <label htmlFor="proposal-email" className="proposal-label">
           Email
         </label>
@@ -654,10 +687,19 @@ function ProposalCard({
               }}
             />
           </div>
-          <button className="composer-send-pill" type="submit" disabled={isPending}>
-            Request a proposal <span aria-hidden="true">↗</span>
+          <button
+            className="composer-send-pill"
+            type="submit"
+            disabled={isPending}
+            aria-busy={isPending}
+          >
+            {isPending ? 'Sending…' : 'Request a proposal'} <span aria-hidden="true">↗</span>
           </button>
         </div>
+        <p className="proposal-privacy">
+          We use your email only to reply about this brief.{' '}
+          <a href={`${siteOrigin}/privacy/`}>How we handle requests</a>
+        </p>
         {failure && (
           <p className="proposal-failure" role="alert">
             {failure}

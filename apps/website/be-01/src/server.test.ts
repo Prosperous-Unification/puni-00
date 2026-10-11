@@ -220,6 +220,62 @@ test('anonymous manual request persists, consumes its claim and replays one rece
   api.close();
 });
 
+test('a storage failure while submitting returns no receipt, keeps the draft and the key retries', async () => {
+  const { api, config } = fixture();
+  const { cookie, csrf } = await beginDraft(api);
+  const payload = {
+    email: 'owner@example.test',
+    brief: 'Calendar and payments',
+    idempotencyKey: 'submit-storage-fault',
+  };
+  const fault = new Database(config.databasePath);
+  fault.run(
+    "CREATE TRIGGER fail_submission BEFORE INSERT ON proposal_submission BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+  );
+  // Proof: catching the store error and answering 201 with the fresh receipt left `thrown` null.
+  let thrown: unknown = null;
+  try {
+    await api.fetch(request('/proposals', 'POST', config.appOrigin, payload, cookie, csrf));
+  } catch (error) {
+    thrown = error;
+  }
+  expect(String(thrown)).toContain('disk full');
+  const counts = () =>
+    fault
+      .query<{ submissions: number; consumed: number; replays: number }, []>(
+        'SELECT (SELECT count(*) FROM proposal_submission) AS submissions, (SELECT count(*) FROM intake_draft WHERE consumed_at IS NOT NULL) AS consumed, (SELECT count(*) FROM submission_replay) AS replays',
+      )
+      .get();
+  expect(counts()).toEqual({ submissions: 0, consumed: 0, replays: 0 });
+  expect(
+    (await api.fetch(request('/draft', 'GET', config.appOrigin, undefined, cookie))).status,
+  ).toBe(200);
+  fault.run('DROP TRIGGER fail_submission');
+  const retry = await api.fetch(
+    request('/proposals', 'POST', config.appOrigin, payload, cookie, csrf),
+  );
+  expect(retry.status).toBe(201);
+  expect(counts()).toEqual({ submissions: 1, consumed: 1, replays: 1 });
+  fault.close();
+  api.close();
+});
+
+test('operator sign-in without a configured password answers 503 and creates no session', async () => {
+  const { config } = fixture();
+  const api = mountApi({ ...config, operatorPassword: undefined });
+  const login = await api.fetch(
+    request('/operator/session', 'POST', config.appOrigin, { password: 'anything' }),
+  );
+  // Proof: deleting the unconfigured guard made this answer 401.
+  expect(login.status).toBe(503);
+  expect(await login.json()).toEqual({ code: 'operator_unconfigured' });
+  expect(login.headers.get('set-cookie')).toBeNull();
+  const database = new Database(config.databasePath, { readonly: true });
+  expect(database.query('SELECT count(*) AS n FROM operator_session').get()).toEqual({ n: 0 });
+  database.close();
+  api.close();
+});
+
 test('anonymous receipt replay survives a new intake without changing its active draft', async () => {
   const { api, config } = fixture();
   const first = await beginDraft(api);

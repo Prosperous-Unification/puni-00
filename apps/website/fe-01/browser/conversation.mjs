@@ -145,6 +145,8 @@ async function expectNoOverflow(page, label) {
     )) {
       const box = element.getBoundingClientRect();
       if (box.width === 0 || box.height === 0) continue;
+      // WCAG 2.5.8 exempts links inside running text, as screens.mjs does.
+      if (element.tagName === 'A' && element.closest('p')) continue;
       if (box.height < 44 && !element.closest('.visually-hidden'))
         small.push(`${element.tagName} ${element.textContent?.trim() ?? ''} ${String(box.height)}`);
     }

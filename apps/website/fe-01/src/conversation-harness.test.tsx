@@ -239,6 +239,133 @@ test('a proposal refused by a daily cap shows the cap copy in the card', async (
   });
 });
 
+/** Types `text` into a React-controlled textarea, as a visitor's input event would. */
+function typeInto(field: HTMLTextAreaElement, text: string): void {
+  // React loaded before `document` existed, so it detects edits through its legacy input
+  // polyfill: focusin starts watching the field (through IE's attachEvent, stubbed here) and keyup
+  // compares its value.
+  Object.assign(field, { attachEvent: () => undefined, detachEvent: () => undefined });
+  field.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
+  // The prototype setter bypasses React's own tracker, so the polyfill sees a changed value.
+  Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value')?.set?.call(
+    field,
+    text,
+  );
+  field.dispatchEvent(new dom.window.KeyboardEvent('keyup', { bubbles: true }));
+}
+
+test('an edited brief is saved to the draft when the field loses focus, once per change', async () => {
+  const saves: { body: string; csrf: string | null }[] = [];
+  globalThis.fetch = Object.assign(
+    (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/brief') && init?.method === 'PATCH') {
+        saves.push({
+          body: typeof init.body === 'string' ? init.body : '',
+          csrf: new Headers(init.headers).get('X-Puni-CSRF'),
+        });
+        return Promise.resolve(
+          new Response(init.body, { headers: { 'content-type': 'application/json' } }),
+        );
+      }
+      throw new Error(`Unexpected request ${url}`);
+    },
+    { preconnect: realFetch.preconnect },
+  );
+  const container = dom.window.document.createElement('div');
+  dom.window.document.body.replaceChildren(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(
+      <LiveHarness initial={briefed} onReload={() => undefined} onHandedOff={() => undefined} />,
+    );
+    await Promise.resolve();
+  });
+  const field = container.querySelector<HTMLTextAreaElement>('#proposal-brief');
+  if (!field) throw new Error('proposal brief missing');
+  const blur = async () => {
+    await act(async () => {
+      field.dispatchEvent(new dom.window.FocusEvent('focusout', { bubbles: true }));
+      await Promise.resolve();
+    });
+  };
+  // An unchanged brief is never written.
+  await blur();
+  expect(saves).toHaveLength(0);
+  await act(async () => {
+    typeInto(field, '- Users: workshop volunteers\n- Edited by the visitor.');
+    await Promise.resolve();
+  });
+  await blur();
+  const status = () => container.querySelector('.proposal-saved')?.textContent ?? '';
+  // Proof: removing the onBlur save left `saves` empty and no saved line here.
+  await settleUntil(() => status() === 'Saved. It stays with this browser for 24 hours.', status);
+  expect(saves).toEqual([
+    {
+      body: JSON.stringify({ brief: '- Users: workshop volunteers\n- Edited by the visitor.' }),
+      csrf: briefed.csrfToken,
+    },
+  ]);
+  // Blurring again without a change writes nothing more.
+  await blur();
+  expect(saves).toHaveLength(1);
+  act(() => {
+    root.unmount();
+  });
+});
+
+test('a brief save the API refuses says the edit is not saved and offers no success', async () => {
+  globalThis.fetch = Object.assign(
+    (input: Parameters<typeof fetch>[0]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/brief'))
+        return Promise.resolve(
+          new Response(JSON.stringify({ code: 'rate_limited' }), {
+            status: 429,
+            headers: { 'content-type': 'application/json', 'retry-after': '60' },
+          }),
+        );
+      throw new Error(`Unexpected request ${url}`);
+    },
+    { preconnect: realFetch.preconnect },
+  );
+  const container = dom.window.document.createElement('div');
+  dom.window.document.body.replaceChildren(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(
+      <LiveHarness initial={briefed} onReload={() => undefined} onHandedOff={() => undefined} />,
+    );
+    await Promise.resolve();
+  });
+  const field = container.querySelector<HTMLTextAreaElement>('#proposal-brief');
+  if (!field) throw new Error('proposal brief missing');
+  await act(async () => {
+    typeInto(field, 'A changed brief');
+    await Promise.resolve();
+  });
+  await act(async () => {
+    field.dispatchEvent(new dom.window.FocusEvent('focusout', { bubbles: true }));
+    await Promise.resolve();
+  });
+  const failure = () => container.querySelector('.proposal-failure')?.textContent ?? '';
+  // Proof: showing the saved line regardless of the answer left this failure empty.
+  await settleUntil(() => failure().startsWith('Your edit is not saved yet.'), failure);
+  expect(container.querySelector('.proposal-saved')).toBeNull();
+  act(() => {
+    root.unmount();
+  });
+});
+
+test('the card names how the email is used and links the privacy page', () => {
+  const markup = renderToStaticMarkup(
+    <LiveHarness initial={briefed} onReload={() => undefined} onHandedOff={() => undefined} />,
+  );
+  // Proof: deleting the privacy line from ProposalCard failed both assertions.
+  expect(markup).toContain('We use your email only to reply about this brief.');
+  expect(markup).toMatch(/href="[^"]*\/privacy\/"/);
+});
+
 test('the paused harness shows the paused row, the manual path and the card, no composer', () => {
   const markup = renderToStaticMarkup(
     <PausedHarness
