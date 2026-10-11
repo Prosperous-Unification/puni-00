@@ -63,8 +63,10 @@ creates one file the same way. Stdout is the digest only.
 status on `(workItemId, stepId)`, then one `setMeasure` per present measure, `token_actual`
 before `hours_actual`. The intent named `setStatus`; that command acts on a whole work item
 (`done` marks every step done), while a receipt entry names one step, so `setProgress` is the
-existing command with the receipt's exact scope. The batch `{ id: plan, commands }` must pass
-`@wbs/contracts`' `planCommandsBody` before it is written.
+existing command with the receipt's exact scope. The batch `{ id: plan, commands }` is built from
+`@wbs/contracts`' `PlanCommandWire` type, and the tests validate it against the
+`postApiProjectsByIdCommands` endpoint's own body and params shapes; a runtime check would
+re-verify what the types already fix and could not fail.
 
 **Dispatcher.** `runNavigator(argv)` accepts exactly `plan-reference` and `receipt-to-commands`
 with their flags, each required once with a nonempty value. Any other command, an unknown,

@@ -34,6 +34,26 @@ export's `exportedAt`, so the same inputs give the same bytes.
 
 The plan reference is prepared, not applied: nothing is sent to WBS or Dash.
 
+## `twin receipt-to-commands`
+
+```sh
+bun apps/twilight-structure/twilight-navigator/cli/src/entrypoint.ts receipt-to-commands \
+  --receipt /path/to/progress-receipt.json \
+  --plan-reference /path/to/plan-reference.json \
+  --tasks /path/to/tasks.json \
+  --output /path/to/new-command-batch.json
+```
+
+It decodes the progress receipt and plan reference through Burokrat (which verifies their
+digests), checks the task export against the reference's `tasksDigest`, and refuses a receipt
+for another plan reference or an entry naming a task or step code the plan does not hold. It
+writes one owner-only WBS command batch `{ id, commands }`: per entry in receipt order, a
+`setProgress` for the step, then a `setMeasure` for `token_actual` and `hours_actual` when the
+entry carries them. It prints the batch digest.
+
+Applying the batch is a person's or the WBS MCP's act (`postApiProjectsByIdCommands`):
+Navigator sends nothing. Dash does not emit progress receipts yet.
+
 ## Exit codes
 
 Exit 2 is a refused invocation (unknown command, unknown, duplicate, missing or valueless

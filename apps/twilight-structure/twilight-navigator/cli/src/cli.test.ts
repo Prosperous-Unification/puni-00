@@ -68,6 +68,29 @@ describe('twin dispatch', () => {
     expect(readdirSync(scratch.path)).toEqual([]);
   });
 
+  test('a complete receipt-to-commands request reaches the reader', async () => {
+    const run = await runTwinInProcess([
+      'receipt-to-commands',
+      '--receipt',
+      join(scratch.path, 'absent-receipt.json'),
+      '--plan-reference',
+      join(scratch.path, 'absent-reference.json'),
+      '--tasks',
+      join(scratch.path, 'absent-tasks.json'),
+      '--output',
+      join(scratch.path, 'batch.json'),
+    ]);
+    expect(run.exitCode).toBe(1);
+    expect(run.stderr).toMatch(/progress receipt is missing/);
+  });
+
+  test("refuses another command's flag before any read", async () => {
+    await expectUsageRefusal(
+      ['receipt-to-commands', ...planReferenceFlags()],
+      /Unsupported twin flag: --export/,
+    );
+  });
+
   test('refuses no command at all', async () => {
     await expectUsageRefusal([], /Unsupported twin command: \n/);
   });
@@ -117,7 +140,10 @@ describe('twin dispatch', () => {
     const run = await runTwinInProcess(['--help']);
     expect(run.exitCode).toBe(0);
     expect(run.stdout).toBe(`${USAGE}\n`);
-    expect(USAGE.split('\n').map((line) => line.split(' ')[1])).toEqual(['plan-reference']);
+    expect(USAGE.split('\n').map((line) => line.split(' ')[1])).toEqual([
+      'plan-reference',
+      'receipt-to-commands',
+    ]);
     await expectUsageRefusal(['--help', 'plan-reference'], /takes no arguments/);
   });
 });

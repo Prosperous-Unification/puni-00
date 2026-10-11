@@ -1,4 +1,5 @@
 import { PLAN_REFERENCE_FLAGS, runPlanReference } from './plan-reference';
+import { RECEIPT_TO_COMMANDS_FLAGS, runReceiptToCommands } from './receipt-to-commands';
 
 /**
  * A refused invocation: unknown command, or an unknown, duplicate, missing or valueless flag.
@@ -13,6 +14,7 @@ export type FlagValues<Flag extends string> = (flag: Flag) => string;
 
 const COMMAND_FLAGS = {
   'plan-reference': PLAN_REFERENCE_FLAGS,
+  'receipt-to-commands': RECEIPT_TO_COMMANDS_FLAGS,
 } as const;
 
 /** The usage text, one line per command with its required flags. */
@@ -75,6 +77,8 @@ export async function runNavigator(argv: readonly string[]): Promise<string> {
   switch (name) {
     case 'plan-reference':
       return await runPlanReference(parseFlags(PLAN_REFERENCE_FLAGS, flagArguments));
+    case 'receipt-to-commands':
+      return await runReceiptToCommands(parseFlags(RECEIPT_TO_COMMANDS_FLAGS, flagArguments));
     case '--help':
       if (flagArguments.length === 0) return USAGE;
       throw new UsageRefusal(`twin --help takes no arguments\n${USAGE}`);
