@@ -124,6 +124,8 @@ const EXEMPT = new Set([
   // An audit record is its own authorship: `actor_id` and `created_at` are
   // the act it records, not audit columns about the row.
   'organizationAudit',
+  // The same, for a switch of the organization's capacity mode.
+  'sharedPeopleAudit',
   // Short-lived address proof: challenge rows date creation and each state
   // transition (`revoked_at`, `consumed_at`), with no actor or general audit
   // columns. The exemption assertion below checks the schema.

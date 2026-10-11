@@ -1,6 +1,7 @@
 import { type DirectoryStore, readChain } from '@wbs/core';
 import type {
   BeforeImport,
+  BeforeModeSwitch,
   BeforeProjectUpdate,
   BeforeRankMove,
   BeforeStepRemoval,
@@ -164,6 +165,30 @@ export function authorizeRankMoveIn(db: Drizzle): BeforeRankMove {
       role === 'admin' || role === 'super_admin'
         ? { ok: true }
         : { ok: false, reason: 'forbidden' },
+    );
+  };
+}
+
+/**
+ * Current super-admin membership on the borrowed writer, read inside the
+ * switch's own turn so a demotion queued ahead of it refuses the switch.
+ */
+export function authorizeModeSwitchIn(db: Drizzle): BeforeModeSwitch {
+  return (organizationId, actorId) => {
+    const membership = db
+      .select({ role: organizationMembership.role })
+      .from(organizationMembership)
+      .where(
+        and(
+          eq(organizationMembership.organizationId, organizationId),
+          eq(organizationMembership.userId, actorId),
+        ),
+      )
+      .get();
+    if (membership === undefined) return Promise.resolve({ ok: false, reason: 'forbidden' });
+    const role = validateStoredRole(membership.role, organizationId);
+    return Promise.resolve(
+      role === 'super_admin' ? { ok: true } : { ok: false, reason: 'forbidden' },
     );
   };
 }

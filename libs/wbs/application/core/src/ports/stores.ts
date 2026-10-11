@@ -11,7 +11,7 @@ import type { MeasureStore } from './measure-store';
 import type { PlanEventStore } from './plan-event-store';
 import type { PriorityBandStore } from './priority-band-store';
 import type { StepProgressStore } from './progress-store';
-import type { ProjectRankStore } from './project-rank-store';
+import type { ProjectRankStore, SharedPeopleStore } from './project-rank-store';
 import type { ProjectStore } from './project-store';
 import type { SavedPlanCaptureStore } from './saved-plan-capture-store';
 import type { SavedPlanStore } from './saved-plan-store';
@@ -26,8 +26,11 @@ export interface PlanTransactionalStores {
   /** Optional only for legacy fixture adapters; production SQLite installs it explicitly. */
   livePlans?: LivePlanStore;
   projects: ProjectStore;
-  /** Borrowed SQLite rank writer; legacy in-memory sources need not install this capability. */
-  projectRanks?: ProjectRankStore;
+  /**
+   * Borrowed SQLite rank and capacity-mode writer; legacy in-memory sources
+   * need not install this capability.
+   */
+  projectRanks?: ProjectRankStore & SharedPeopleStore;
   directory: DirectoryStore;
   capacity: CapacityStore;
   priorityBands: PriorityBandStore;

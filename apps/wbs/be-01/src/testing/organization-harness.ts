@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { buildOidcVerifier, oidcCredentialEvidence, type TokenVerifier } from '@wbs/auth';
-import { CREATOR_ADMISSION, type DomainResolver, type PasswordHasher } from '@wbs/core';
+import {
+  type CapacityModeSwitch,
+  CREATOR_ADMISSION,
+  type DomainResolver,
+  type PasswordHasher,
+  type ProjectRankStore,
+} from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
@@ -14,6 +20,7 @@ import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { SavedPlanCaptureStore } from '@wbs/core/ports/saved-plan-capture-store';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { AuthService } from '@wbs/core/service/auth.service';
+import type { CapacityMode } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import {
   DomainClaimRepository,
@@ -384,7 +391,7 @@ export class OrganizationHarness {
       invitations: new InvitationRepository(db, OPEN),
       joinRequests: new JoinRequestRepository(db, OPEN),
       spaces: new SpaceRepository(db, OPEN),
-      projectRanks: new ProjectRankRepository(db, OPEN),
+      projectRanks: uncomposedRanks(new ProjectRankRepository(db, OPEN)),
       emailDelivery: {
         deliver: async (address, token) => {
           await mail.beforeDelivery?.();
@@ -457,6 +464,7 @@ export class OrganizationHarness {
     onFanoutCapture?: (organizationId: string) => unknown,
     onCapturedFanout?: (captured: CapturedFanout) => void,
     onBorrowedUnitOfWork?: () => void,
+    supportedCapacityModes?: readonly CapacityMode[],
   ): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
@@ -512,6 +520,7 @@ export class OrganizationHarness {
       joinRequests: new JoinRequestRepository(source.db, services.gate),
       spaces: new SpaceRepository(source.db, services.gate),
       projectRanks: services.projectRanks,
+      ...(supportedCapacityModes === undefined ? {} : { supportedCapacityModes }),
       emailDelivery: {
         deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
       },
@@ -720,4 +729,21 @@ export class OrganizationHarness {
     const text = await res.text();
     return { status: res.status, body: text.startsWith('{') ? JSON.parse(text) : text };
   }
+}
+
+/**
+ * The raw rank repository for the uncomposed harness. Switching the capacity
+ * mode needs the composed write-turn owner, so it refuses here; use
+ * {@link OrganizationHarness.openComposed}.
+ */
+function uncomposedRanks(ranks: ProjectRankRepository): ProjectRankStore & CapacityModeSwitch {
+  return {
+    orderIn: (organizationId) => ranks.orderIn(organizationId),
+    moveAfter: (...args) => ranks.moveAfter(...args),
+    capacityModeIn: (organizationId) => ranks.capacityModeIn(organizationId),
+    switchCapacityMode: () =>
+      Promise.reject(
+        new Error('the uncomposed harness switches no capacity mode; use openComposed'),
+      ),
+  };
 }

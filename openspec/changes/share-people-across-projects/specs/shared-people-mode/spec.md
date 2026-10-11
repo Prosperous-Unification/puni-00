@@ -464,21 +464,46 @@ events; an expired replay range SHALL retain the existing snapshot-required beha
 
 ### Requirement: Super-admins switch the mode
 
-`PATCH /api/organization {sharedPeople}` SHALL be allowed only to a super-admin. An admin SHALL
-be answered `403 forbidden`, and legacy access SHALL be answered `409 organization_required`.
-The route SHALL ship only after the engines, the chain and fe-01 understand `shared`.
+`PATCH /api/organization {sharedPeople}` SHALL be allowed only to a super-admin whose membership
+is re-read on the writer inside the switch, and never through a delegation
+(`403 insufficient_scope`). An admin SHALL be answered `403 forbidden`, and legacy access SHALL be
+answered `409 organization_required`. Any current member SHALL read the mode with
+`GET /api/organization`. A mode outside the release's `SUPPORTED_CAPACITY_MODES` SHALL be
+answered `409 capacity_mode_unsupported` before anything is written. Every switch SHALL be
+recorded in `shared_people_audit` (who, when, to which mode) in the same transaction, together
+with one `elsewhere_changed {projectId, causeProjectId: null}` event row per project of the
+organization; setting the mode the organization already has SHALL record and publish nothing.
+Switching back to `isolated` SHALL restore each project's isolated dates. A rollback SHALL never
+discard a recorded switch: the audit migration's `down.sql` and `shared-people-rollback-cli.ts
+remove` SHALL refuse while one exists. The route SHALL ship only after the engines, the chain
+and fe-01 understand `shared`.
 
 #### Scenario: an admin switches
 
 - **WHEN** an admin patches `sharedPeople: true`
 - **THEN** the answer is `403 forbidden` and the organization stays isolated
 
+#### Scenario: an isolated-only release
+
+- **GIVEN** the release's supported capacity modes are `['isolated']`
+- **WHEN** a super-admin patches `sharedPeople: true`
+- **THEN** the answer is `409 capacity_mode_unsupported` and nothing is stored, audited or published
+
+#### Scenario: a release that supports shared people
+
+- **GIVEN** the release supports `shared` and Platform ranks above Billing, both booking Ana
+- **WHEN** a super-admin patches `sharedPeople: true`
+- **THEN** one audit row and one `elsewhere_changed` per project are recorded, and Billing's work
+  for Ana starts after Platform's
+- **AND** patching `sharedPeople: false` restores Billing's isolated dates
+
 ### Requirement: Stored encoding does not advertise runtime capability
 
 The intermediate storage and runtime/cache releases SHALL advertise supported `capacityModes`
 exactly `['isolated']` until runtime/cache, durable fan-out and UI prerequisites are complete.
-They SHALL NOT install a shared-mode setter, activation route or environment override, and
-SHALL continue refusing shared restores. A dormant runtime reader exercised with seeded shared
+They SHALL NOT install a shared-mode setter that can store `shared`, an activation route or an
+environment override, and SHALL continue refusing shared restores. The mode route SHALL refuse
+`shared` while the release does not list it. A dormant runtime reader exercised with seeded shared
 state SHALL NOT itself authorize production activation.
 The swap SHALL inspect stored encodings truthfully: old schemas lacking the column mean isolated;
 a missing organization table, present unreadable column or value outside 0/1 SHALL refuse.

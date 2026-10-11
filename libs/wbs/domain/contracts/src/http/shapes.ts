@@ -18,6 +18,7 @@ import {
   removeCalendarMarker,
   updateCalendarMarker,
 } from './calendar-marker-shapes';
+import { readCapacityMode, switchCapacityMode } from './capacity-mode-shapes';
 import {
   listExternalSystems,
   listPeople,
@@ -151,6 +152,8 @@ export const httpShapes = [
   readPersonLoad,
   readProjectRank,
   moveProjectRank,
+  readCapacityMode,
+  switchCapacityMode,
   readHistory,
   readSolution,
   createProject,
