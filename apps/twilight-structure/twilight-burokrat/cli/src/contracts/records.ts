@@ -6,8 +6,8 @@ const RelativePathPattern =
   /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))(?!.*[*?[\]{}\\])(?!.*\/\/)(?!.*\/$).+$/;
 const IsoInstantPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 const OpaqueIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
-const GitObjectId = type(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/);
-const Sha256 = type(/^[0-9a-f]{64}$/);
+export const GitObjectId = type(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/);
+export const Sha256 = type(/^[0-9a-f]{64}$/);
 export const RelativePath = type(RelativePathPattern).narrow((path, context) => {
   // Proof: removing this entire canonical-path narrow produced [0, 0, 0, 0];
   // removing only the NUL refusal accepted its third CLI case: [1, 1, 0, 1].
