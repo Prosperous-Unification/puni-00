@@ -251,7 +251,7 @@ function openRetainedCandidate(
     return Uint8Array.from(entry.bytes);
   };
   return Object.freeze({
-    [CandidateOwnership]: true,
+    [CandidateOwnership]: true as const,
     snapshot,
     read,
     readBlob(gitObjectId: string, path: string): Uint8Array {
@@ -301,7 +301,7 @@ export function installLocalReviewSource(
   requireLocalSource(configuration.sourceRepository);
   const installed = Object.freeze({ ...configuration, binding, classificationPolicy });
   return Object.freeze({
-    [SourceOwnership]: true,
+    [SourceOwnership]: true as const,
     prepare: (request: ActivationRequest) =>
       prepareRetainedLocalReviewCandidate(installed, request),
     read: (snapshotIdentity: string) =>

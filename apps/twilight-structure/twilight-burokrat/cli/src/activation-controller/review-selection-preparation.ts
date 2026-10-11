@@ -36,7 +36,7 @@ export interface ReviewCandidateManifestV1 {
   tree: string;
   entries: {
     path: string;
-    mode: ClassifiedEntry['mode'];
+    mode: Exclude<ClassifiedEntry['mode'], '160000'>;
     gitObjectId: string;
     rawIdentity: string;
     classification: ClassifiedEntry['classification'];
@@ -201,6 +201,8 @@ export function readOwnedReviewCandidate(input: OwnedReviewCandidateInput): {
     baseSha: input.baseSha,
     tree,
     entries: classified.map(({ path, mode, blob, classification }) => {
+      // Gitlinks were refused before any blob read; this restatement narrows the mode type.
+      if (mode === '160000') throw new Error(`review candidate Gitlink is unresolved: ${path}`);
       const raw = blobsByObject.get(blob);
       if (raw === undefined) throw new Error('review candidate raw blob is absent');
       return { path, mode, gitObjectId: blob, rawIdentity: hashBytes(raw), classification };

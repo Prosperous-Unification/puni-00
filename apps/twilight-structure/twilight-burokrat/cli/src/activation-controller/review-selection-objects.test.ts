@@ -22,11 +22,12 @@ import { dirname, join, relative } from 'node:path';
 import { parseOrThrow } from '@shared/validation';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
-import { ClassificationPolicy } from '../contracts/records';
+import { ClassificationPolicy, RelationshipRequest } from '../contracts/records';
 import * as contentManifest from '../evidence/content-manifest';
 import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
 import { validateGitHubRepositoryBinding } from './github-source';
 import { createActivationRequest } from './request';
+import { deriveHistoricalSelections } from './review-selection-history';
 import { installLocalReviewSource } from './review-selection-objects';
 import * as reviewPreparation from './review-selection-preparation';
 
@@ -127,6 +128,75 @@ test.each(['sha1', 'sha256'] as const)(
     );
   },
 );
+
+test('retained declaration selects a third exact historical commit without reading its current path', () => {
+  const input = fixture();
+  const historical = git(input.sourceRepository, 'rev-parse', 'HEAD');
+  const oldBlob = git(input.sourceRepository, 'rev-parse', `${historical}:src.ts`);
+  writeFileSync(join(input.sourceRepository, 'src.ts'), 'export const exact = 2;\n');
+  writeFileSync(
+    join(input.sourceRepository, 'history.json'),
+    JSON.stringify({
+      schemaVersion: 1,
+      declarationId: 'history',
+      selectorVersion: 1,
+      coverage: 'selected-facts-only',
+      facts: [
+        {
+          factId: 'old-source',
+          family: 'generated',
+          kind: 'generated-blob',
+          at: { kind: 'historical', revision: historical },
+          path: 'src.ts',
+          expectedBlob: oldBlob,
+        },
+      ],
+      edges: [],
+    }),
+  );
+  symlinkSync('history.json', join(input.sourceRepository, 'history-link.json'));
+  git(input.sourceRepository, 'add', '--all');
+  git(input.sourceRepository, 'commit', '--quiet', '-m', 'head with declaration');
+  const { requestIdentity: _identity, schemaVersion: _version, ...requestFields } = input.request;
+  const request = createActivationRequest({
+    ...requestFields,
+    headSha: git(input.sourceRepository, 'rev-parse', 'HEAD'),
+  }).request;
+  const { request: _request, ...configuration } = input;
+  const owner = installLocalReviewSource(configuration);
+  const prepared = owner.prepare(request);
+  rmSync(input.sourceRepository, { recursive: true });
+  const candidate = owner.open(request, prepared.snapshotIdentity);
+  const relationshipRequest = parseOrThrow(RelationshipRequest, {
+    schemaVersion: 1,
+    declarationPaths: ['history-link.json'],
+    typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src.ts'] },
+  });
+  const historyIdentity = prepared.manifest.entries.find(
+    ({ path }) => path === 'history.json',
+  )?.rawIdentity;
+  if (historyIdentity === undefined) throw new Error('fixture history declaration is absent');
+  expect(
+    deriveHistoricalSelections(candidate, relationshipRequest, {
+      maximumDeclarationPaths: 1,
+      maximumDeclarationBytes: 4096,
+      maximumDeclarationFacts: 1,
+      maximumHistoricalSelections: 1,
+    }),
+  ).toEqual([
+    {
+      revision: historical,
+      path: 'src.ts',
+      uses: [
+        {
+          declarationPath: 'history-link.json',
+          declarationIdentity: historyIdentity,
+          factId: 'old-source',
+        },
+      ],
+    },
+  ]);
+});
 
 test('installed owner opens an exact retained candidate after the source checkout is removed', () => {
   const input = fixture();
@@ -922,7 +992,7 @@ test('pending cleanup failure preserves an earlier Git acquisition failure', () 
   const original = filesystem.rmSync;
   const remove = spyOn(filesystem, 'rmSync').mockImplementation(((
     path: string,
-    options: unknown,
+    options?: filesystem.RmOptions,
   ) => {
     if (path.startsWith(join(input.storeBase, '.pending-')) && !path.endsWith('/git'))
       throw new Error('injected pending cleanup failure');
@@ -950,7 +1020,7 @@ test('acquisition refuses when final pending cleanup consumes the whole deadline
   let expired = false;
   const remove = spyOn(filesystem, 'rmSync').mockImplementation(((
     path: string,
-    options: unknown,
+    options?: filesystem.RmOptions,
   ) => {
     original(path, options);
     if (path.startsWith(join(input.storeBase, '.pending-')) && !path.endsWith('/git'))
@@ -983,7 +1053,7 @@ test('deadline consumed in cleanup preserves the prior Git failure', () => {
   let expired = false;
   const remove = spyOn(filesystem, 'rmSync').mockImplementation(((
     path: string,
-    options: unknown,
+    options?: filesystem.RmOptions,
   ) => {
     original(path, options);
     if (path.startsWith(join(input.storeBase, '.pending-')) && !path.endsWith('/git'))
@@ -1011,14 +1081,14 @@ test('ambient Git object overrides cannot redirect acquired objects', () => {
   const input = fixture();
   const emptyObjects = join(dirname(input.sourceRepository), 'empty-objects');
   mkdirSync(emptyObjects, { mode: 0o700 });
-  const prior = process.env.GIT_OBJECT_DIRECTORY;
-  process.env.GIT_OBJECT_DIRECTORY = emptyObjects;
+  const prior = process.env['GIT_OBJECT_DIRECTORY'];
+  process.env['GIT_OBJECT_DIRECTORY'] = emptyObjects;
   try {
     const prepared = prepare(input);
     expect(prepared.manifest.entries).toHaveLength(2);
   } finally {
-    if (prior === undefined) delete process.env.GIT_OBJECT_DIRECTORY;
-    else process.env.GIT_OBJECT_DIRECTORY = prior;
+    if (prior === undefined) delete process.env['GIT_OBJECT_DIRECTORY'];
+    else process.env['GIT_OBJECT_DIRECTORY'] = prior;
   }
 });
 
@@ -1286,7 +1356,7 @@ test('retained manifest refuses canonical but undeclared classification', () => 
   alteredManifest.entries[1].classification = {
     kind: 'content',
     contentClass: 'foreign',
-  } as (typeof alteredManifest.entries)[number]['classification'];
+  } as unknown as (typeof alteredManifest.entries)[number]['classification'];
   const bytes = serializeCanonical(alteredManifest);
   const identity = hashBytes(Buffer.from(bytes));
   const altered = join(input.storeBase, `ready-${identity}`);

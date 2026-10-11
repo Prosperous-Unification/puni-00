@@ -218,12 +218,15 @@ test('owned candidate refuses a deadline overrun after manifest construction', (
   const spawn = Bun.spawnSync.bind(Bun);
   let commands = 0;
   let lastCommandCompleted = false;
-  const processCall = spyOn(Bun, 'spawnSync').mockImplementation((command, options) => {
+  const processCall = spyOn(Bun, 'spawnSync').mockImplementation(((
+    command: string[],
+    options: Parameters<typeof Bun.spawnSync>[1],
+  ) => {
     const response = spawn(command, options);
     commands += 1;
     if (commands === 6) lastCommandCompleted = true;
     return response;
-  });
+  }) as typeof Bun.spawnSync);
   const clock = spyOn(performance, 'now').mockImplementation(() =>
     lastCommandCompleted ? 10_001 : 0,
   );

@@ -3704,3 +3704,37 @@ separate bare-init argument omission. Direct CLI typecheck, four-file scoped ESL
 build, five-file Prettier, and `git diff HEAD --check` all exited zero. Pinned OpenSpec
 strict validation passed 1/1 and `--all` passed 143/143. Host gate and CI remain unrun
 on the uncommitted slice.
+
+### Batch-10 integration onto main `99ab00fb0` (2026-10-11)
+
+Branch `batch-10/030-6-automatic-activation` merges `feat/automatic-trusted-activation-impl`
+(`157772b9a`) into main `99ab00fb0`. Conflicts: Burokrat `project.json` keeps main's
+`test:architecture:level` beside this change's `test:worker`; the activation runbook keeps
+main's temporary CI-pause section beside the observation-service link. The activation-authority
+ADR is renumbered 0037 → 0048 because main took 0037–0047. The previously uncommitted
+2.1b/2.1d.1 slice (`review-authentication.*`, `review-selection*.ts`,
+`review-selection-history.ts`, and the `review-selection-objects.test.ts` extension) is
+committed here from the old worktree without behavioural edits.
+
+**Correction to earlier evidence.** The checkpoints above that cite direct
+`bunx tsc --noEmit --project apps/twilight-structure/twilight-burokrat/cli/tsconfig.json`
+as exiting 0 were vacuous: that config is solution-style (`"files": []`, `"include": []`),
+so the command compiles nothing (R5 catalogue 004). The declared
+`twilight-burokrat:typecheck` target (`tsc --build --force`) reported 22 errors in the
+review-selection slice: ownership brands widened to `boolean` inside `Object.freeze`, the
+retained manifest type admitting Gitlink mode `160000` that the reader already refuses,
+an unnarrowed `owner` record in the Actions projection, and test-only typing faults. Fixes
+are type-level (`true as const`, `Exclude<…, '160000'>` with a narrowing restatement of the
+existing Gitlink refusal, `const` aliases narrowed by the existing `isRecord` guard) and
+change no accepted or refused input. Afterward the declared typecheck reported zero errors
+and scoped ESLint reported zero problems.
+
+Fresh results on these bytes (2026-10-11, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`,
+`TOOL_WIKI_TRUSTED_NODE_MODULES` pinned, Burokrat test preload): `src/activation-controller`,
+`src/review/exhaustive-coverage.test.ts` and `src/inventory` passed 1293/1293 tests, 4227
+assertions across 20 files, exit 0. The four review files alone passed 314/314. The
+worker-isolation and observation-unit tests passed 14/14. `tsc --noEmit -p` on
+`infra/ci/burokrat/observation/tsconfig.json` and `tools/worker-isolation/tsconfig.json`
+(non-solution configs, `include: ["*.ts"]`) reported zero errors; neither is in a declared
+Nx typecheck target. Pinned OpenSpec `validate --all --json` passed 171/171. No R5 omission
+was rerun for this integration: no guard was added or changed. Tasks stay unchecked.
