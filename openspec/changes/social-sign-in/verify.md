@@ -63,18 +63,18 @@ reverted.
 
 Per touched project, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run <project>:test --skip-nx-cache`:
 
-| Project             | Result                                                                        |
-| ------------------- | ----------------------------------------------------------------------------- |
-| wbs-contracts       | 464 pass, 0 fail                                                              |
-| wbs-auth            | 108 pass, 0 fail                                                              |
-| wbs-core            | 772 pass, 0 fail                                                              |
-| wbs-store-memory    | 146 pass, 0 fail                                                              |
-| wbs-store-sqlite    | 1315 pass, 0 fail                                                             |
-| wbs-mcp-01          | 333 pass, 0 fail                                                              |
-| wbs-gw-01           | 130 pass, 0 fail                                                              |
-| tool-remote-scripts | 372 pass, 0 fail (boot-heavy coherence cases given an explicit 120 s timeout) |
-| wbs-fe-01           | exit 0: test:unit, UTC Vitest (858 tests) and zoned runs                      |
-| wbs-be-01           | 2022 pass, 1 skip, 0 fail                                                     |
+| Project             | Result                                                                      |
+| ------------------- | --------------------------------------------------------------------------- |
+| wbs-contracts       | 464 pass, 0 fail                                                            |
+| wbs-auth            | 108 pass, 0 fail                                                            |
+| wbs-core            | 772 pass, 0 fail                                                            |
+| wbs-store-memory    | 146 pass, 0 fail                                                            |
+| wbs-store-sqlite    | 1315 pass, 0 fail                                                           |
+| wbs-mcp-01          | 333 pass, 0 fail                                                            |
+| wbs-gw-01           | 130 pass, 0 fail                                                            |
+| tool-remote-scripts | 373 pass, 2 skip, 0 fail (boot-heavy cases given an explicit 120 s timeout) |
+| wbs-fe-01           | exit 0: test:unit, UTC Vitest (858 tests) and zoned runs                    |
+| wbs-be-01           | 2022 pass, 1 skip, 0 fail                                                   |
 
 `bunx nx run-many -t lint:fast typecheck` over the ten touched projects: "Successfully ran targets
 lint:fast, typecheck for 10 projects". Prettier was run on every touched file.
