@@ -18,10 +18,10 @@ Dany enabled `openai/gpt-6-luna` for the anonymous Build chat. The OpenRouter ZD
 
 Two validated runtime settings support it; any other value stops the API at startup:
 
-| Setting                            | Allowed                                              | Effect                                                                                                                                                                                                                                 |
-| ---------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OPENROUTER_REASONING_EFFORT`      | unset (or empty), `none`, `minimal`, `low`, `medium` | When set, every paid request sends `reasoning: { effort, exclude: true }`, so reasoning text is never returned or stored. Unset sends no `reasoning` field.                                                                            |
-| `OPENROUTER_MAX_COMPLETION_TOKENS` | unset (or empty, meaning 400), integers 100–2000     | The anonymous conversation's `max_completion_tokens` and the output term of each reservation, so the per-conversation, per-source and site ceilings count the worst case including reasoning. The signed-in `/chat*` paths keep 1,024. |
+| Setting                            | Allowed                                              | Effect                                                                                                                                                                                        |
+| ---------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPENROUTER_REASONING_EFFORT`      | unset (or empty), `none`, `minimal`, `low`, `medium` | When set, every paid request sends `reasoning: { effort, exclude: true }`, so reasoning text is never returned or stored. Unset sends no `reasoning` field.                                   |
+| `OPENROUTER_MAX_COMPLETION_TOKENS` | unset (or empty, meaning 400), integers 100–2000     | The anonymous conversation's `max_completion_tokens` and the output term of each reservation, so the per-conversation, per-source and site ceilings count the worst case including reasoning. |
 
 Settlement charges the provider's `completion_tokens`, which already include `completion_tokens_details.reasoning_tokens`; it does not read OpenRouter's `usage.cost`.
 

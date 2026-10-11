@@ -34,10 +34,7 @@
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "0.76.0",
     "@agentclientprotocol/sdk": "1.4.0",
-    "@ai-sdk/react": "4.0.121",
     "@ark/schema": "0.56.0",
-    "@assistant-ui/ai-sdk": "0.0.8",
-    "@assistant-ui/react": "0.15.22",
     "@elysiajs/openapi": "^1.4.16",
     "@elysiajs/opentelemetry": "^1.4.11",
     "@langchain/langgraph": "1.4.15",

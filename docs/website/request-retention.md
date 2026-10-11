@@ -1,6 +1,6 @@
 # Request retention deadlines
 
-Each retention subject (an account-owned software request, or a standalone manual proposal submission with no software request) gets a fixed deadline 12 UTC calendar months after its first stored nonempty content. The rules and state live on `backfillRetentionSubjects`, `anchorRequestContent` and `addUtcMonths` in `libs/website/adapters/store-sqlite/src/request-retention.ts`. The [retention change](../../openspec/changes/website-request-retention-lifecycle/design.md) owns the full lifecycle.
+Each retention subject (an account-owned software request, or a standalone manual proposal submission with no software request) gets a fixed deadline 12 UTC calendar months after its first stored nonempty content. The rules and state live on `backfillRetentionSubjects` and `addUtcMonths` in `libs/website/adapters/store-sqlite/src/request-retention.ts`. Since prospect sign-in was retired ([ADR 0039](../adr/0039-anonymous-paid-chat-bound-to-the-browser-claim.md)) no route writes account content, so existing account requests keep the anchor or ambiguity they hold and no new first-write anchor is recorded. The [retention change](../../openspec/changes/website-request-retention-lifecycle/design.md) owns the full lifecycle.
 
 This release **only reports**. No command deletes or blanks content, and there is no schedule or HTTP endpoint. Designation, holds, erasure and the recovery journal are later slices.
 

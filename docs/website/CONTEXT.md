@@ -47,7 +47,7 @@ The pseudonymous, daily-salted hash of the client address behind the gateway, us
 _Avoid_: IP, visitor id
 
 **Concept preview**:
-An optional interactive illustration of a possible interface, rendered from constrained components. It makes no claim that the software has been built.
+An optional interactive illustration of a possible interface, rendered from constrained components. It makes no claim that the software has been built. Retired with the account path (ADR 0039); no route serves it until it is re-planned on the conversation.
 _Avoid_: Prototype delivery
 
 **Proposal request**:

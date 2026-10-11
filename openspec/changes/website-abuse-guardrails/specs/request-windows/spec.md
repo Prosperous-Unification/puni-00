@@ -19,6 +19,8 @@ The API SHALL count every request except `GET /health` against a general fixed o
 - **WHEN** the gateway's health probe calls `GET /health` without `X-Forwarded-For` while `TRUSTED_PROXY_HOPS=1`
 - **THEN** it answers 200 and no window counts it
 
+Retired 2026-10-11 by `retire-prospect-sign-in`; the routes no longer exist.
+
 ### Requirement: Per-path windows include the OIDC routes
 
 The existing per-path windows (30 per source and 300 global per minute) SHALL also apply to `GET /session/oidc/start` and `GET /session/oidc/callback`, and every per-path 429 SHALL carry `Retry-After`. `createOidcLogin` SHALL delete expired `oidc_login` rows in the same transaction as its insert.

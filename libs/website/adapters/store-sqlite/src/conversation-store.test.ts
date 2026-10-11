@@ -8,6 +8,7 @@ import { afterEach, expect, test } from 'bun:test';
 import type { ConversationAdmissionRequest, ConversationPricing } from './conversation-store';
 import { websiteMigrations } from './migration-catalogue';
 import { WebsiteStore } from './store';
+import { seedLegacyAccount } from './testing/legacy-account-fixture';
 
 const directories: string[] = [];
 afterEach(() => {
@@ -16,6 +17,7 @@ afterEach(() => {
 });
 
 const day = Date.UTC(2026, 9, 6, 12);
+const utcDay = '2026-10-06';
 
 function databaseFile(): string {
   const directory = mkdtempSync(join(tmpdir(), 'puni-conversation-'));
@@ -411,21 +413,13 @@ test('per-conversation and per-source spend ceilings exhaust with their reasons'
   store.close();
 });
 
-test('the site-day ceiling and unsettled-call count are shared with account reservations', () => {
+test('the site-day ceiling and unsettled-call count still read legacy provider_call rows', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
   resumeTodaysPause(store);
-  const account = store.createProspect('owner@example.test', day);
-  store.ensureBlankRequest(account.id, day);
-  const request = store.findAccountRequest(account.id);
-  if (!request) throw new Error('Missing account request');
-  const reservation = store.reserveProviderCall(account.id, request.id, 400_000, day);
-  if (reservation.kind !== 'reserved') throw new Error('Account reservation refused');
-  const database = new Database(databasePath);
-  database.run(
-    'UPDATE provider_call SET reserved_micro_usd = 9_999_000, settled_micro_usd = 9_999_000',
-  );
-  database.close();
+  seedLegacyAccount(databasePath, [
+    { utcDay, reservedMicroUsd: 9_999_000, settledMicroUsd: 9_999_000 },
+  ]);
   store.createDraft(
     'draft-1',
     'Build a booking app',
@@ -452,13 +446,6 @@ test('the site-day ceiling and unsettled-call count are shared with account rese
       pricing: paid(900),
     }),
   );
-  const shared = new Database(databasePath);
-  shared.run('UPDATE provider_call SET reserved_micro_usd = 400_000, settled_micro_usd = 400_000');
-  shared.run('UPDATE conversation_operation SET reserved_micro_usd = 9_599_900');
-  shared.close();
-  // Anonymous reservations fill the same site day for the account path.
-  expect(store.reserveProviderCall(account.id, request.id, 200, day)).toEqual({ kind: 'refused' });
-
   const unsettled = new Database(databasePath);
   unsettled.run('UPDATE provider_call SET reserved_micro_usd = 10, settled_micro_usd = NULL');
   unsettled.run('UPDATE conversation_operation SET reserved_micro_usd = 900');
@@ -494,19 +481,12 @@ test('two processes racing for the last site-day reservation leave exactly one',
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
   resumeTodaysPause(store);
-  const account = store.createProspect('owner@example.test', day);
-  store.ensureBlankRequest(account.id, day);
-  const request = store.findAccountRequest(account.id);
-  if (!request) throw new Error('Missing account request');
-  store.reserveProviderCall(account.id, request.id, 1, day);
   store.createDraft('draft-1', 'R', 'claim-1', day, day + 1e6, 'source-test');
   store.createDraft('draft-2', 'R', 'claim-2', day, day + 1e6, 'source-test');
   store.close();
-  const seed = new Database(databasePath);
-  seed.run(
-    'UPDATE provider_call SET reserved_micro_usd = 9_990_000, settled_micro_usd = 9_990_000',
-  );
-  seed.close();
+  seedLegacyAccount(databasePath, [
+    { utcDay, reservedMicroUsd: 9_990_000, settledMicroUsd: 9_990_000 },
+  ]);
   const writerPath = join(databasePath, '..', 'writer.ts');
   writeFileSync(
     writerPath,
@@ -660,16 +640,9 @@ test('ceiling-settled operations count fully against the source and site ceiling
     ),
   ).toEqual({ kind: 'exhausted', reason: 'source_spend' });
 
-  const account = store.createProspect('owner@example.test', day);
-  store.ensureBlankRequest(account.id, day);
-  const request = store.findAccountRequest(account.id);
-  if (!request || store.reserveProviderCall(account.id, request.id, 1, day).kind !== 'reserved')
-    throw new Error('Account reservation refused');
-  const database = new Database(databasePath);
-  database.run(
-    'UPDATE provider_call SET reserved_micro_usd = 9_710_000, settled_micro_usd = 9_710_000',
-  );
-  database.close();
+  seedLegacyAccount(databasePath, [
+    { utcDay, reservedMicroUsd: 9_710_000, settledMicroUsd: 9_710_000 },
+  ]);
   store.createDraft('draft-4', 'R', 'claim-4', day, day + 1_000_000, 'source-test');
   expect(
     store.admitConversationOperation(
@@ -928,12 +901,6 @@ test('stopped operations never hold the site-wide concurrency count', () => {
       ask('claim-5', 'initial:draft-5', 'R', { initial: true, sourceHash: 'source-5' }),
     ),
   ).toMatchObject({ kind: 'started' });
-  const account = store.createProspect('owner@example.test', day);
-  store.ensureBlankRequest(account.id, day);
-  const request = store.findAccountRequest(account.id);
-  if (!request) throw new Error('Missing account request');
-  // Proof: the same fault in reserveProviderCall refused this account reservation.
-  expect(store.reserveProviderCall(account.id, request.id, 1_000, day).kind).toBe('reserved');
   store.close();
 });
 

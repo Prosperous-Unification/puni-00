@@ -49,11 +49,28 @@ function readMaxCompletionTokens(environment: Environment): number {
 }
 
 /**
+ * Prospect sign-in was retired (ADR 0039, 2026-10-11 amendment). Any `OIDC_*` name, even with an
+ * empty value, throws, so no deployment can believe sign-in exists.
+ */
+function refuseRetiredOidc(environment: Environment): void {
+  const retired = Object.keys(environment)
+    .filter((name) => name.startsWith('OIDC_'))
+    .sort();
+  // Proof: deleting this refusal let every OIDC_* name through and failed the retired-OIDC config test.
+  if (retired.length > 0)
+    throw new Error(
+      `prospect sign-in was retired on 2026-10-11 (ADR 0039); remove ${retired.join(', ')} (an empty value is still a setting)`,
+    );
+}
+
+/**
  * Reads the API configuration from the process environment. Malformed flags, rates, proxy
- * hops, reasoning efforts, completion caps and a non-`https` alert webhook throw instead of disabling a feature; absent provider settings leave the provider
- * disabled, which `GET /conversation` reports.
+ * hops, reasoning efforts, completion caps, a non-`https` alert webhook and any retired `OIDC_*`
+ * setting ({@link refuseRetiredOidc}) throw instead of disabling a feature; absent provider
+ * settings leave the provider disabled, which `GET /conversation` reports.
  */
 export function readWebsiteApiConfig(environment: Environment): WebsiteApiConfig {
+  refuseRetiredOidc(environment);
   const publicOrigin = environment['PUBLIC_ORIGIN'] ?? 'http://localhost:4321';
   const appOrigin = environment['APP_ORIGIN'] ?? 'http://localhost:4201';
   return {
@@ -76,10 +93,6 @@ export function readWebsiteApiConfig(environment: Environment): WebsiteApiConfig
     openRouterPrivacyVerified: readFlag(environment, 'OPENROUTER_PRIVACY_VERIFIED'),
     openRouterReasoningEffort: readReasoningEffort(environment),
     openRouterMaxCompletionTokens: readMaxCompletionTokens(environment),
-    oidcIssuer: environment['OIDC_ISSUER'],
-    oidcClientId: environment['OIDC_CLIENT_ID'],
-    oidcClientSecret: environment['OIDC_CLIENT_SECRET'],
-    oidcRedirectUri: environment['OIDC_REDIRECT_URI'],
     guardrailWebhookUrl: readWebhookUrl(environment['GUARDRAIL_WEBHOOK_URL']),
   };
 }
