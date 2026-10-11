@@ -3761,3 +3761,36 @@ The restored file passed 9/9 tests, and `request.test.ts` with it passed 13/13. 
 faults. Task 1.1 stays open. The receipt/descriptor contract must still bind the typed
 subject and target ref, and that needs the publication stage (3.1). Concrete provider/store
 selection remains an external bootstrap decision.
+
+### Acceptance-name traceability for 1.2 and 1.2a–1.2d (2026-10-11, source inspection)
+
+This table maps acceptance names to the current mounted tests that exercise each behaviour. It
+was built by reading test names and bodies, not by rerunning omissions, and it closes no box. A
+row marked "partial" or "absent" is open work.
+
+| Acceptance name                                                    | Current mounted test (file)                                                                                                     | Status  |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `duplicate and lost events converge`                               | `duplicate and lost events converge on one durable request per subject` (controller.db)                                         | present |
+| `expired worker is fenced`                                         | `expired worker is fenced and a changed head supersedes only its logical subject` (controller.db)                               | present |
+| `webhook and polling converge on one request`                      | `webhook and polling converge while conflicting delivery reuse is refused` (controller.db)                                      | present |
+| `conflicting delivery reuse is refused`                            | same test as above                                                                                                              | present |
+| `delayed events cannot supersede another subject`                  | `delayed delivery cannot choose another subject or revive an old merge-group composition` (controller.db)                       | present |
+| `returning candidate never revives its old worker`                 | `returning candidate allocates a new audit generation and never revives its first worker` (controller.db)                       | present |
+| `close and reopen retain generation history`                       | `closing and reopening a subject preserves its audit-generation high water` (controller.db)                                     | present |
+| `current request separates authority and audit generation`         | `ingress accepts a current later audit generation under the same pinned authority` (ingress)                                    | partial |
+| `older source response refetches after subject advancement`        | `older source response refetches after another owner advances the subject` (controller.db)                                      | present |
+| `ordinary PR provider refuses foreign and malformed responses`     | `foreign repository or unsupported subject refuses before a GitHub read`; `current read refuses another PR number …` (source)   | present |
+| `pagination ambiguity never becomes empty discovery`               | `pagination cursor, duplicate subject, and malformed page refuse before durable writes` (source); `malformed pagination Link …` | present |
+| `timer discovers an ordinary PR without delivery`                  | `timer discovers a ready PR but commits only a fresh exact current read` (source)                                               | present |
+| `current read replaces stale discovery`                            | same test as above                                                                                                              | present |
+| `lost close supersedes durable active PR`                          | `timer rereads an active PR omitted from discovery and retires only explicit closed state` (source)                             | present |
+| `draft and ready preserve generation history`                      | `draft retirement and ready return survive controller restart with new generation` (source)                                     | present |
+| `ambiguous current read preserves state`                           | `ambiguous missing or failed current reads leave the active PR unchanged` (source)                                              | present |
+| `held current response cannot revive an obsolete generation`       | `two owners refetch a held old PR response after a newer head commits` (source)                                                 | present |
+| `provider retry is bounded without a transaction across awaits`    | `three competing observations exhaust the bounded source-version retry` (source)                                                | present |
+| 1.2d fake-HTTP list/current, anonymous and token, Link, cap, abort | the github-reader.db tests named in the 1.2d rows above                                                                         | present |
+
+"Partial": the authority/audit-generation split is proved at ingress only. No controller test
+under that name joins both generations across a pinned-authority change. Parent 1.2 also
+still requires webhook verification, merge-group and protected-revision observation, live timer
+installation, and the guarded later-stage refusal contract. Those are not covered here.
