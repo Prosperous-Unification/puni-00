@@ -1,6 +1,7 @@
 import {
   type ClientReply,
   loginPassword,
+  logoutOidcSession,
   readPasswordSession,
   registerPassword,
 } from '@wbs/contracts';
@@ -11,7 +12,12 @@ import { browserClient } from './http';
 export type Session = Extract<ClientReply<typeof loginPassword>, { kind: 'success' }>['body'];
 export type SessionUser = Session['user'];
 
-const sessions = browserClient([registerPassword, loginPassword, readPasswordSession]);
+const sessions = browserClient([
+  registerPassword,
+  loginPassword,
+  readPasswordSession,
+  logoutOidcSession,
+]);
 
 /** Returns validated success, application refusal or transport/contract failure. */
 export const register = (username: string, password: string) =>
@@ -27,6 +33,15 @@ export const login = (username: string, password: string) =>
 
 /** A null user or invalid_token means signed out; boundary failures stay distinct. */
 export const me = () => sessions.getApiAuthMe({});
+
+/** Requests durable browser logout with the one credential the session supplied. */
+export const logout = (token: string, signal: AbortSignal) =>
+  sessions.postApiAuthLogout({
+    signal,
+    // Proof: dropping this explicit native header made the shape-derived
+    // adapter test send a JSON-issued session without any identity proof.
+    ...(token === '' ? {} : { headers: { authorization: `Bearer ${token}` } }),
+  });
 
 /** The access cookie authenticates the upgrade; the URL carries no credential. */
 export function websocketUrl(): string {

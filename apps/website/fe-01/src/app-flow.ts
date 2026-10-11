@@ -2,83 +2,29 @@ import { ApiFailure } from './api';
 
 export const unreachableMessage = 'We couldn’t reach PUNI. Check your connection and try again.';
 
-/** The sign-in status every app route reads from `GET /session`. */
-export interface SessionStatus {
-  mode: 'demo' | 'oidc';
-  configured: boolean;
-  signedIn: boolean;
-}
-
-/** The `GET /session` body did not match the API contract. */
-export class InvalidSessionStatus extends Error {
-  constructor() {
-    super('Invalid session status');
-  }
+/**
+ * Whether the manual brief links to Build: always while the draft claim is live. There is no
+ * prospect sign-in (ADR 0039), so a live claim is all Build needs.
+ * @throws Error when `expiresAt` is not a date; the draft read is the API's contract.
+ */
+export function offersBuild(draft: { expiresAt: string }, now: number): boolean {
+  const expiresAt = Date.parse(draft.expiresAt);
+  if (Number.isNaN(expiresAt)) throw new Error(`Invalid claim expiry: ${draft.expiresAt}`);
+  // Proof: returning false here failed app-flow.test.ts "the manual brief offers Build whenever
+  // the claim is live" and the `manual` capture in browser/screens.mjs.
+  return expiresAt > now;
 }
 
 /**
- * Validates the `GET /session` body at the API boundary.
- * @throws InvalidSessionStatus when the mode, configured flag or account shape is not the API contract.
+ * Whether the manual brief offers AI exploration: the claim is live ({@link offersBuild}) and the
+ * conversation provider answers (`openrouter` or `demo`). A disabled or paused provider would only
+ * send the visitor to a Build that sends them back (veto V14).
  */
-export function parseSessionStatus(value: unknown): SessionStatus {
-  if (
-    typeof value !== 'object' ||
-    value === null ||
-    !('mode' in value) ||
-    (value.mode !== 'demo' && value.mode !== 'oidc') ||
-    !('configured' in value) ||
-    typeof value.configured !== 'boolean' ||
-    !('account' in value) ||
-    (value.account !== null && typeof value.account !== 'object')
-  )
-    throw new InvalidSessionStatus();
-  return { mode: value.mode, configured: value.configured, signedIn: value.account !== null };
-}
-
-/** The sign-in Build offers a signed-out visitor; `unavailable` sends them to the manual brief. */
-export function signInRoute(status: SessionStatus): 'google' | 'demo' | 'unavailable' {
-  if (status.mode === 'demo') return 'demo';
-  return status.configured ? 'google' : 'unavailable';
-}
-
-/**
- * Whether the manual brief may link to Build for AI exploration. It shares {@link signInRoute}
- * with Build so the two routes can never send a visitor back and forth.
- */
-export function offersAiExploration(status: SessionStatus): boolean {
-  // Proof: returning true here failed two app-flow.test.ts cases and the oidc-off `manual`
-  // capture in browser/screens.mjs ("manual brief links back to Build").
-  return status.signedIn || signInRoute(status) !== 'unavailable';
-}
-
-/** The manual brief's optional AI card; `unavailable` renders as hidden but keeps its cause. */
-export type AiExploration =
-  | { kind: 'offered' }
-  | { kind: 'hidden' }
-  | { kind: 'unavailable'; error: ApiFailure | TypeError | InvalidSessionStatus };
-
-/**
- * Resolves the manual brief's optional AI card. The card is an optional shortcut, so a typed API
- * failure, a network failure or a malformed session status yields `unavailable` instead of
- * blocking the manual brief.
- * @throws any other error unchanged; it is a defect, not a modelled outcome.
- */
-export async function loadAiExploration(
-  readSession: () => Promise<unknown>,
-): Promise<AiExploration> {
-  try {
-    return offersAiExploration(parseSessionStatus(await readSession()))
-      ? { kind: 'offered' }
-      : { kind: 'hidden' };
-  } catch (error) {
-    // Proof: catching every error (the guard removed) failed the app-flow.test.ts rethrow case;
-    // dropping any one branch failed the matching unavailable case.
-    if (error instanceof ApiFailure || error instanceof InvalidSessionStatus)
-      return { kind: 'unavailable', error };
-    if (error instanceof TypeError && isNetworkFailure(error))
-      return { kind: 'unavailable', error };
-    throw error;
-  }
+export function offersAi(
+  draft: { expiresAt: string; provider: 'openrouter' | 'demo' | 'disabled' | 'paused' },
+  now: number,
+): boolean {
+  return offersBuild(draft, now) && (draft.provider === 'openrouter' || draft.provider === 'demo');
 }
 
 /** Fetch rejects with a TypeError for network failures; browsers word its message differently. */

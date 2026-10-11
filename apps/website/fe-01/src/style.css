@@ -708,15 +708,13 @@ p {
   margin-top: var(--space-6);
 }
 .field label,
-.operator-login label,
-.build-signin-card label,
-.revision-form label {
+.operator-login label {
   display: block;
   font-size: var(--text-small);
   font-weight: 500;
   margin: 0 0 var(--space-2);
 }
-:is(.form-panel, .operator-login, .build-signin-card, .revision-form) :is(input, textarea) {
+:is(.form-panel, .operator-login) :is(input, textarea) {
   display: block;
   width: 100%;
   min-height: 48px;
@@ -899,9 +897,13 @@ textarea {
 .operator-page {
   background: var(--paper-2);
 }
+/* The footer starts below the first viewport: the signed-in panels replace the short login form
+   after the Argon2id check, often more than 500 ms after the click, and would otherwise push a
+   visible footer out of view as a layout shift (operator-inbox-390 measured CLS 0.073). */
 .operator-layout {
   width: 100%;
   max-width: 1200px;
+  min-height: 100vh;
   padding: var(--space-8) var(--gutter);
   flex: 1;
 }
@@ -961,6 +963,69 @@ textarea {
 .guardrails-alerts {
   margin: var(--space-2) 0 0;
   padding-left: var(--space-4);
+}
+.funnel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+  margin-top: var(--space-5);
+  line-height: 1.6;
+}
+.funnel h2 {
+  font-size: var(--text-h3);
+  margin: 0 0 var(--space-3);
+}
+.funnel-share {
+  min-height: 3.2em;
+  margin: 0 0 var(--space-2);
+}
+/* A fixed height in every state: the counts arrive after the page renders and must not shift it. */
+.funnel-scroll {
+  height: 18rem;
+  overflow: auto;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-field);
+}
+.funnel-scroll > p {
+  margin: var(--space-3);
+}
+.funnel-scroll:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.funnel-table {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.funnel-table :is(th, td) {
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+}
+.funnel-table :is(th:first-child, tbody th) {
+  text-align: left;
+}
+.funnel-table tbody th {
+  font-weight: 500;
+}
+.funnel-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+}
+/* The UTC day stays in view while the table scrolls sideways at narrow widths. */
+.funnel-table tbody th,
+.funnel-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--paper);
+}
+.funnel-table thead th:first-child {
+  z-index: 1;
 }
 .inbox {
   display: grid;
@@ -1418,26 +1483,6 @@ body:has(.night-shell) {
   flex-wrap: wrap;
   gap: var(--space-3);
 }
-.harness-signin {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding-top: var(--space-5);
-  border-top: 1px solid rgb(255 255 255 / 0.14);
-}
-.harness-signin h2 {
-  margin: 0;
-}
-.harness-signin p {
-  margin: 0;
-  font-size: var(--text-small);
-  color: var(--on-night-muted);
-}
-.harness-signin label {
-  display: block;
-  margin-bottom: var(--space-2);
-  font-size: var(--text-small);
-}
 /* Live harness: typing indicator, streaming caret, stopped replies and the closed line. */
 .harness-simulated {
   display: flex;
@@ -1653,234 +1698,6 @@ body:has(.night-shell) {
   }
 }
 
-/* Concept preview */
-.concept-card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: var(--paper);
-  padding: var(--space-5);
-}
-.concept-card h3 {
-  font-size: var(--text-h3);
-}
-.concept-card section {
-  border-top: 1px solid var(--line);
-  margin-top: var(--space-5);
-  padding-top: var(--space-2);
-}
-.concept-card section p {
-  line-height: 1.6;
-  margin-top: var(--space-1);
-}
-.preview-workspace {
-  margin: var(--space-5) 0;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--paper);
-  padding: var(--space-5);
-  color: var(--ink);
-}
-.preview-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  border-bottom: 1px solid var(--line);
-  padding-bottom: var(--space-4);
-  font-weight: 500;
-}
-.preview-header button {
-  margin-left: auto;
-  min-height: var(--target);
-  border: 1px solid var(--line);
-  background: var(--paper-2);
-  color: var(--muted);
-  border-radius: var(--radius-pill);
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-micro);
-}
-.preview-logo {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--night);
-  color: var(--paper);
-}
-.preview-workspace h4 {
-  font:
-    500 1.375rem var(--font-display),
-    sans-serif;
-  letter-spacing: -0.02em;
-  margin: var(--space-2) 0;
-}
-.preview-workspace p {
-  line-height: 1.55;
-}
-.preview-columns {
-  display: grid;
-  grid-template-columns: 1.3fr 0.7fr;
-  gap: var(--space-5);
-  margin-top: var(--space-5);
-}
-.slot-list {
-  display: grid;
-  gap: var(--space-2);
-  margin-top: var(--space-5);
-}
-.slot-list button,
-.workflow-row button,
-.dashboard-controls button,
-.preview-switch {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: var(--target);
-  border: 1px solid var(--line-strong);
-  background: var(--paper);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-field);
-  color: var(--ink);
-}
-.slot-list button.selected,
-.dashboard-controls button[aria-pressed='true'] {
-  background: #fff0d6;
-  border-color: var(--focus);
-}
-.preview-aside {
-  background: var(--paper-2);
-  border-radius: var(--radius-field);
-  padding: var(--space-4);
-}
-.preview-aside button {
-  min-height: var(--target);
-  background: var(--ink);
-  color: var(--paper);
-  border: 0;
-  border-radius: var(--radius-pill);
-  padding: var(--space-2) var(--space-4);
-  font-weight: 500;
-}
-.preview-aside button:disabled {
-  opacity: 0.45;
-}
-.workflow-list {
-  display: grid;
-  gap: var(--space-2);
-  margin-top: var(--space-5);
-}
-.workflow-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  align-items: center;
-  background: var(--paper-2);
-  border-radius: var(--radius-field);
-  padding: var(--space-3) var(--space-4);
-}
-.workflow-row p {
-  font-size: var(--text-micro);
-  margin: var(--space-1) 0;
-}
-.preview-status {
-  font-size: var(--text-micro);
-  color: var(--accent-ink);
-}
-.dashboard-controls {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: var(--space-3);
-  margin: var(--space-5) 0;
-}
-.dashboard-controls > div:last-child {
-  display: flex;
-  gap: var(--space-2);
-}
-.dashboard-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-2);
-}
-.dashboard-metrics > div {
-  padding: var(--space-4);
-  background: var(--paper-2);
-  border-radius: var(--radius-field);
-}
-.dashboard-metrics span {
-  display: block;
-  font-size: var(--text-micro);
-  color: var(--muted);
-}
-.dashboard-metrics strong {
-  display: block;
-  font:
-    500 1.25rem var(--font-display),
-    sans-serif;
-  margin-top: var(--space-2);
-}
-.preview-switch {
-  margin-top: var(--space-4);
-}
-.dashboard-notes {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--space-3);
-  margin-top: var(--space-5);
-}
-.dashboard-notes article {
-  border-top: 2px solid var(--accent);
-  padding-top: var(--space-2);
-}
-.dashboard-notes h5 {
-  font-size: var(--text-small);
-  margin: var(--space-2) 0;
-}
-.dashboard-notes p {
-  font-size: var(--text-micro);
-}
-.revision-form {
-  display: grid;
-  gap: var(--space-3);
-  justify-items: start;
-  padding: var(--space-5) 0 0;
-  border-top: 1px solid var(--line);
-}
-.revision-form label {
-  margin: 0;
-}
-@media (max-width: 699px) {
-  .preview-columns {
-    grid-template-columns: 1fr;
-  }
-  .dashboard-controls {
-    display: block;
-  }
-  .dashboard-controls > div:last-child {
-    margin-top: var(--space-3);
-  }
-  .dashboard-metrics {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-@media (max-width: 479px) {
-  .dashboard-metrics {
-    grid-template-columns: 1fr;
-  }
-  .dashboard-metrics > div {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-  }
-  .dashboard-metrics strong {
-    margin: 0;
-  }
-  .preview-header {
-    flex-wrap: wrap;
-  }
-}
 .glass-field textarea {
   field-sizing: content;
 }
@@ -1888,11 +1705,6 @@ body:has(.night-shell) {
   border-color: #fff;
   background: #f4f2f7;
   color: var(--ink);
-}
-.harness-signin-panel .harness-signin {
-  padding-block: var(--space-3) var(--space-4);
-  border-top: 0;
-  border-bottom: 1px solid rgb(255 255 255 / 0.14);
 }
 .glass-field textarea[readonly] {
   max-height: calc(4 * 24px + 30px);

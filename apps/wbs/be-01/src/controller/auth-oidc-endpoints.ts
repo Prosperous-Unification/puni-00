@@ -9,10 +9,13 @@ import {
   InMemoryOidcLinkStore,
   isOidcCallbackRefused,
   MAX_BROWSER_BINDINGS,
+  oidcCredentialEvidence,
   type OidcFailureKind,
   oidcIdentityFromClaims,
+  type RefreshRecord,
   selectBrowserBindings,
 } from '@wbs/auth';
+import type { VerifiedOrganizationCredential } from '@wbs/contracts';
 import {
   completeAuth0Link,
   completeOidcLogin,
@@ -23,6 +26,7 @@ import {
 } from '@wbs/contracts';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { AuthService } from '@wbs/core/service/auth.service';
+import { BrowserLifecycleRefusedError } from '@wbs/store-sqlite';
 
 import {
   bind,
@@ -34,6 +38,15 @@ import {
 } from '../http/endpoint';
 import { cookiesIn, cookieValue } from '../middleware/authenticated';
 import { clientIpOf } from './auth-password-endpoints';
+import {
+  accessOf,
+  type BrowserSessionAuthority,
+  correlationOf,
+  credentialDigest,
+  invalidBrowserCarriers,
+  proveBrowserPredecessor,
+  retireBrowserPredecessor,
+} from './browser-session';
 import type { OidcRouteOptions } from './oidc-options';
 
 const reportable = new Set([
@@ -73,9 +86,124 @@ const browserBindingsOf = (request: RequestMetadata): HeldBrowserBinding[] =>
 const clearSession = (): Header[] => [
   cookie('__Host-wbs_access', '', 0),
   cookie('__Host-wbs_session', '', 0),
+  cookie('__Host-wbs_organization', '', 0),
 ];
-const correlationOf = (request: RequestMetadata) =>
-  cookieValue(request.headers.get('cookie') ?? undefined, '__Host-wbs_session');
+type BoundRefreshRecord = RefreshRecord & {
+  readonly userId: string;
+  readonly generation: number;
+  readonly credential: VerifiedOrganizationCredential;
+};
+function isBoundRefreshRecord(record: RefreshRecord): record is BoundRefreshRecord {
+  return (
+    typeof record.userId === 'string' &&
+    record.userId.length > 0 &&
+    Number.isSafeInteger(record.generation) &&
+    (record.generation ?? 0) > 0 &&
+    record.credential?.kind === 'oidc' &&
+    record.credential.userId === record.userId &&
+    /^[0-9a-f]{64}$/.test(record.credential.digest) &&
+    Number.isSafeInteger(record.credential.expiresAt)
+  );
+}
+
+/** One logout decision for native-only and OIDC browser compositions. */
+async function logoutBrowser(
+  request: RequestMetadata,
+  appOrigin: string,
+  now: () => number,
+  browserSession?: BrowserSessionAuthority,
+  options?: OidcRouteOptions,
+): Promise<HttpReply<typeof logoutOidcSession>> {
+  if (browserSession !== undefined) {
+    if (request.headers.get('origin') !== appOrigin)
+      return { ok: false, status: 403, body: { error: 'invalid_origin' } };
+    // Proof: malformed or duplicated access/correlation carriers and a
+    // delegated Authorization bearer must fail before shared mutation.
+    if (invalidBrowserCarriers(request) || request.headers.has('x-wbs-token'))
+      return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+    const correlation = correlationOf(request);
+    const cookieAccess = accessOf(request);
+    const authorization = request.headers.get('authorization');
+    // Proof: the real native JSON-token login could not sign out through the
+    // common route until its sole Bearer carrier was admitted (401 vs 204).
+    // Proof: removing the cookie-carrier refusal made the mounted mixed
+    // native logout return 204 instead of 401 (0/1, 2026-10-01).
+    // Proof: treating every Cookie header as an access carrier made verified
+    // native Bearer logout with only organization/UI cookies return 401
+    // instead of 204 (0/1, 2026-10-01).
+    // A simultaneous access or correlation cookie is ambiguous proof.
+    if (
+      authorization !== null &&
+      (cookieAccess !== null ||
+        correlation !== null ||
+        !/^Bearer [A-Za-z0-9._~-]+$/.test(authorization))
+    )
+      return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+    const presented = authorization === null ? cookieAccess : authorization.slice(7);
+    if (presented === null) return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+    if (correlation !== null) {
+      if (
+        options === undefined ||
+        browserSession.lifecycle === undefined ||
+        browserSession.tokens === undefined ||
+        browserSession.revokeProvider === undefined
+      )
+        return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+      // A native credential paired with an OIDC correlation is not a second
+      // possible proof path. It is a conflicting browser identity.
+      if ((await browserSession.verifyNativeBrowserCredential(presented)) !== null)
+        return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+      try {
+        // Proof: omitting historical association closure let a predecessor
+        // logout leave the refreshed successor unrevoked (0/1, 2026-10-01).
+        const outcome = await browserSession.lifecycle.close(
+          correlation,
+          { kind: 'oidc', digest: credentialDigest(presented) },
+          now(),
+        );
+        const record = browserSession.tokens.read(correlation);
+        // Proof: upstream revoke failure after local deletion left durable
+        // closure intact and a proved retry acknowledged 204.
+        browserSession.tokens.delete(correlation);
+        if (outcome === 'closed' && record !== null)
+          await browserSession.revokeProvider(record.refreshToken);
+        return { ok: true, status: 204, body: EMPTY, headers: clearSession() };
+      } catch (cause) {
+        if (cause instanceof BrowserLifecycleRefusedError)
+          return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+        throw cause;
+      }
+    }
+    const native = await browserSession.verifyNativeBrowserCredential(presented);
+    if (native === null) return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+    // Proof: native-only mounted logout was 404 without this common route;
+    // its exact B1 row is the acknowledgement point, not a user-wide flag.
+    // Proof: skipping B1 revoke made mounted native logout answer 204 with
+    // no revocation row, and the unreadable-table negative answer 204 instead
+    // of 500 (both 0/1, 2026-10-01).
+    await browserSession.revocations.revoke(native, now());
+    return { ok: true, status: 204, body: EMPTY, headers: clearSession() };
+  }
+  if (options === undefined) throw new Error('browser logout has no configured authority');
+  const correlation = correlationOf(request);
+  const record = correlation === null ? null : options.tokens.read(correlation);
+  // Proof: revoking before deletion left stored material in the legacy mounted failure test.
+  if (correlation !== null) options.tokens.delete(correlation);
+  if (record !== null) await options.client.revoke(record.refreshToken);
+  return { ok: true, status: 204, body: EMPTY, headers: clearSession() };
+}
+
+/** Mounts the common browser logout even when no OIDC provider is configured. */
+export function nativeBrowserLogoutEndpoints(
+  appOrigin: string,
+  browserSession: BrowserSessionAuthority,
+) {
+  return [
+    bind(logoutOidcSession, async ({ request }) =>
+      logoutBrowser(request, appOrigin, Date.now, browserSession),
+    ),
+  ] as const;
+}
 /** HEAD must not spend state or mint a session; transport retains its Allow header.
  * Proof: deleting this admission made the mounted HEAD test receive302 instead of405. */
 function callbackAdmission(request: RequestMetadata) {
@@ -184,9 +312,15 @@ export function authOidcEndpoints(
   auth: AuthService,
   options: OidcRouteOptions,
   passwordThrottle: LoginThrottle,
+  browserSession?: BrowserSessionAuthority,
 ) {
   const now = options.now ?? Date.now;
   const random = options.random ?? (() => randomBytes(32).toString('base64url'));
+  const verifyEvidence = oidcCredentialEvidence(
+    options.verifier,
+    { groupPrefix: options.groupPrefix, groupsClaim: options.groupsClaim },
+    now,
+  );
   const links = new InMemoryOidcLinkStore(now);
   const linkRedirectUri = new URL('/api/auth/link/auth0/callback', options.redirectUri).href;
   return [
@@ -240,6 +374,12 @@ export function authOidcEndpoints(
             // discarding the logins in flight` fail at its honest callback, Expected302 Received400.
             headers: clearsFor(settled),
           };
+        const predecessor =
+          browserSession === undefined
+            ? { kind: 'none' as const }
+            : await proveBrowserPredecessor(request, browserSession, options.appOrigin);
+        if (predecessor === null)
+          return { ok: false, status: 401, body: EMPTY, headers: clearsFor(settled) };
         const consumed = consumeBrowserBinding(
           options.transactions,
           held.offered.map(({ binding }) => binding),
@@ -394,6 +534,14 @@ export function authOidcEndpoints(
             headers: clearsFor(settled),
           };
         }
+        const accessEvidence =
+          options.browserLifecycle === undefined ? null : await verifyEvidence(tokens.accessToken);
+        if (
+          options.browserLifecycle !== undefined &&
+          (accessEvidence?.identity.issuer !== identity.issuer ||
+            accessEvidence.identity.subject !== identity.subject)
+        )
+          return { ok: false, status: 401, body: EMPTY, headers: clearsFor(settled) };
         // Proof: catching account-store failure as null returned409 instead of500 in the mounted failure test.
         const account = await auth.resolveOidcIdentity(identity);
         if (account === null)
@@ -403,12 +551,35 @@ export function authOidcEndpoints(
             body: EMPTY,
             headers: clearsFor(settled),
           };
+        // Proof: without this retirement, a mounted native predecessor still
+        // had no B1 row after OIDC callback issued replacement cookies (0/1).
+        if (browserSession !== undefined)
+          await retireBrowserPredecessor(predecessor, browserSession, now());
         const correlation = random();
+        if (options.browserLifecycle !== undefined && accessEvidence !== null)
+          await options.browserLifecycle.open(correlation, {
+            kind: 'oidc',
+            userId: account.id,
+            digest: accessEvidence.digest,
+            expiresAt: accessEvidence.expiresAt,
+          });
         if (tokens.refreshToken !== undefined)
           options.tokens.save({
             expiresAt: now() + 30 * 86400000,
             refreshToken: tokens.refreshToken,
             sessionCorrelation: correlation,
+            ...(accessEvidence === null
+              ? {}
+              : {
+                  userId: account.id,
+                  generation: 1,
+                  credential: {
+                    kind: 'oidc' as const,
+                    userId: account.id,
+                    digest: accessEvidence.digest,
+                    expiresAt: accessEvidence.expiresAt,
+                  },
+                }),
           });
         // Proof: JSON null instead of EMPTY returned500 instead of302 in the mounted recovery test.
         return {
@@ -419,6 +590,7 @@ export function authOidcEndpoints(
             ...clearsFor(settled),
             cookie('__Host-wbs_access', tokens.accessToken, tokens.expiresIn),
             cookie('__Host-wbs_session', correlation, 30 * 86400),
+            ...(browserSession === undefined ? [] : [cookie('__Host-wbs_organization', '', 0)]),
             ['location', '/'],
           ],
         };
@@ -426,6 +598,21 @@ export function authOidcEndpoints(
       { prevalidate: callbackAdmission, classifyRequestFailure: callbackFailure },
     ),
     bind(refreshOidcSession, async ({ request }): Promise<HttpReply<typeof refreshOidcSession>> => {
+      if (options.browserLifecycle !== undefined) {
+        if (request.headers.get('origin') !== options.appOrigin)
+          return { ok: false, status: 403, body: { error: 'invalid_origin' } };
+        // Proof: without this admission, a mounted delegated Authorization
+        // bearer plus browser correlation reached the provider and returned 204.
+        if (request.headers.has('authorization'))
+          return { ok: false, status: 401, body: { error: 'invalid_oidc_session' } };
+        if (invalidBrowserCarriers(request))
+          return {
+            ok: false,
+            status: 401,
+            body: { error: 'invalid_oidc_session' },
+            headers: clearSession(),
+          };
+      }
       const correlation = correlationOf(request);
       const current = correlation === null ? null : options.tokens.read(correlation);
       if (correlation === null || current === null)
@@ -435,6 +622,144 @@ export function authOidcEndpoints(
           body: { error: 'invalid_oidc_session' },
           headers: clearSession(),
         };
+      if (options.browserLifecycle !== undefined) {
+        const refused = (): HttpReply<typeof refreshOidcSession> => ({
+          ok: false,
+          status: 401,
+          body: { error: 'invalid_oidc_session' },
+          headers: clearSession(),
+        });
+        // Proof: accepting an unbound process-local record would let a stale
+        // server skip the durable generation/user/tuple join before provider IO.
+        if (!isBoundRefreshRecord(current)) return refused();
+        const attempt = options.tokens.claimIfCurrent(correlation, current);
+        // Proof: a contender after the owner's durable CAS was previously
+        // classified stale before seeing the in-flight local owner, and its
+        // 401 Set-Cookie could clear the browser's pending winner.
+        if (attempt === 'busy')
+          return { ok: false, status: 409, body: { error: 'refresh_in_progress' } };
+        if (attempt === null) return refused();
+        try {
+          let captured;
+          try {
+            captured = await options.browserLifecycle.generation(correlation);
+            // Proof: bypassing the captured local/durable generation and tuple
+            // join made a stale process refresh return 204 instead of 401
+            // before provider IO (0/1, 2026-10-01).
+            if (
+              captured.generation !== current.generation ||
+              captured.current.kind !== current.credential.kind ||
+              captured.current.userId !== current.userId ||
+              captured.current.digest !== current.credential.digest ||
+              captured.current.expiresAt !== current.credential.expiresAt
+            )
+              return refused();
+            const presented = accessOf(request);
+            // Proof: re-verifying the presented access JWT for current expiry
+            // made an exact previously verified but expired token refuse refresh
+            // (401 instead of 204; 0/1, 2026-10-01). It is only a digest here.
+            // Proof: disabling this check made a same-user token from another
+            // lifecycle refresh the captured session (204 instead of 401;
+            // 0/1, 2026-10-01).
+            if (presented !== null)
+              await options.browserLifecycle.proveAssociation(correlation, {
+                kind: 'oidc',
+                digest: credentialDigest(presented),
+              });
+          } catch (cause) {
+            if (cause instanceof BrowserLifecycleRefusedError) return refused();
+            throw cause;
+          }
+          let spent = false;
+          try {
+            // A provider-call failure has unknown spend status. Once it returns,
+            // only an explicitly rotated secret is treated as spent on later faults.
+            spent = true;
+            const next = await options.client.refresh(current.refreshToken);
+            const refreshToken = next.refreshToken ?? current.refreshToken;
+            spent = refreshToken !== current.refreshToken;
+            // Proof: falling back from missing verified exp to identity claims and
+            // an invented TTL made mounted malformed-evidence refresh return 204
+            // instead of 401 (0/1, 2026-10-01).
+            const evidence = await verifyEvidence(next.accessToken);
+            if (evidence === null) {
+              if (spent) attempt.delete();
+              return refused();
+            }
+            // Proof: replacing this with resolveOidcIdentity made the mounted
+            // unknown-subject/same-email negative link the password account.
+            const account = await auth.readExistingOidcIdentity(evidence.identity);
+            // Proof: removing this comparison called lifecycle.replace for the
+            // wrong local user before refusing.
+            if (account?.id !== current.userId) {
+              if (spent) attempt.delete();
+              return refused();
+            }
+            const successor: VerifiedOrganizationCredential = {
+              kind: 'oidc',
+              userId: account.id,
+              digest: evidence.digest,
+              expiresAt: evidence.expiresAt,
+            };
+            let nextGeneration: number;
+            try {
+              nextGeneration = await options.browserLifecycle.replace(
+                correlation,
+                captured.generation,
+                captured.current,
+                successor,
+                now(),
+              );
+            } catch (cause) {
+              if (cause instanceof BrowserLifecycleRefusedError) {
+                attempt.delete();
+                return refused();
+              }
+              throw cause;
+            }
+            // Proof: replacing without owner identity let a delayed completion
+            // recreate local material after logout or overwrite a new record.
+            if (
+              !attempt.replace({
+                expiresAt: now() + 30 * 86400000,
+                refreshToken,
+                userId: account.id,
+                generation: nextGeneration,
+                credential: successor,
+              })
+            )
+              return refused();
+            return {
+              ok: true,
+              status: 204,
+              body: EMPTY,
+              headers: [
+                cookie('__Host-wbs_access', next.accessToken, next.expiresIn),
+                cookie('__Host-wbs_organization', '', 0),
+              ],
+            };
+          } catch (cause) {
+            // Proof: rotated evidence verification and read-only mapping faults
+            // left a replayable old secret until the owner removed it.
+            if (spent) {
+              try {
+                attempt.delete();
+              } catch (cleanupCause) {
+                // Both faults matter: the provider's original failure explains
+                // why local material must be invalidated, and cleanup failed.
+                throw new AggregateError(
+                  [cause, cleanupCause],
+                  'refresh failed and local cleanup failed',
+                  { cause: cleanupCause },
+                );
+              }
+            }
+            throw cause;
+          }
+        } finally {
+          attempt.release();
+        }
+      }
       const next = await options.client.refresh(current.refreshToken);
       const refreshToken = next.refreshToken ?? current.refreshToken;
       const expiresAt = now() + 30 * 86400000;
@@ -463,14 +788,9 @@ export function authOidcEndpoints(
         headers: [cookie('__Host-wbs_access', next.accessToken, next.expiresIn)],
       };
     }),
-    bind(logoutOidcSession, async ({ request }) => {
-      const correlation = correlationOf(request);
-      const record = correlation === null ? null : options.tokens.read(correlation);
-      // Proof: revoking before deletion left the stored token present in the mounted logout failure test.
-      if (correlation !== null) options.tokens.delete(correlation);
-      if (record !== null) await options.client.revoke(record.refreshToken);
-      return { ok: true, status: 204, body: EMPTY, headers: clearSession() };
-    }),
+    bind(logoutOidcSession, async ({ request }) =>
+      logoutBrowser(request, options.appOrigin, now, browserSession, options),
+    ),
     bind(startAuth0Link, async ({ body, request }) => {
       // Proof: 2026-09-28, skipping this marker check made `refuses link start before activation` answer an Auth0 location.
       if (!(await auth.isLinkActive()))

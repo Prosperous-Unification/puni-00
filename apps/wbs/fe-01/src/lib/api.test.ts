@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { login, me, register, websocketUrl } from './api';
+import { login, logout, me, register, websocketUrl } from './api';
 
 const response = (status: number, body: unknown) => Response.json(body, { status });
 afterEach(() => {
@@ -171,6 +171,41 @@ describe('current session', () => {
       kind: 'success',
       body: { user: null },
     });
+  });
+});
+
+describe('server-acknowledged browser logout', () => {
+  it('sends the captured native JSON token as sole Authorization and validates empty 204', async () => {
+    const send = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+    vi.stubGlobal('fetch', send);
+    const abort = new AbortController();
+    await expect(logout('native-token', abort.signal)).resolves.toMatchObject({
+      kind: 'success',
+      status: 204,
+    });
+    expect(send.mock.calls[0]?.[0]).toBe('/api/auth/logout');
+    const init = send.mock.calls[0]?.[1];
+    const headers = new Headers(init?.headers);
+    expect(headers.get('authorization')).toBe('Bearer native-token');
+    expect(headers.has('x-wbs-token')).toBe(false);
+    expect(init?.signal).toBe(abort.signal);
+  });
+
+  it('sends the restored cookie session without a JavaScript credential header or fallback', async () => {
+    const send = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+    vi.stubGlobal('fetch', send);
+    await expect(logout('', new AbortController().signal)).resolves.toMatchObject({
+      kind: 'success',
+      status: 204,
+    });
+    const headers = new Headers(send.mock.calls[0]?.[1]?.headers);
+    expect(headers.has('authorization')).toBe(false);
+    expect(headers.has('x-wbs-token')).toBe(false);
+    expect(headers.has('cookie')).toBe(false);
   });
 });
 

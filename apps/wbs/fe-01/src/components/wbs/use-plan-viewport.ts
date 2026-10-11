@@ -11,8 +11,8 @@ import {
 } from './plan-viewport';
 import { recordScrollProbe, scrollProbeStart } from './scroll-performance';
 
-/** The vertical allowance published in the measured-rendering budget. */
-export const ROW_OVERSCAN_PX = 768;
+/** The logical row allowance before each 640 px publication bucket. */
+export const ROW_OVERSCAN_BEFORE_PX = 128;
 
 /** The horizontal allowance published in the measured-rendering budget. */
 export const COLUMN_OVERSCAN_PX = 256;
@@ -20,16 +20,14 @@ export const COLUMN_OVERSCAN_PX = 256;
 /** The measured one-line plan-row height used only until Chromium reports the row's own height. */
 export const ESTIMATED_ROW_HEIGHT_PX = 26.1875;
 
-/**
- * How far compositor motion may travel before React publishes another row window.
- *
- * This remains smaller than the row overscan, so the previously published slice
- * still extends beyond the visible frame throughout one bucket. Without this
- * retention, a 96px wheel step changes an overscan edge on almost every input:
- * the hook technically publishes only changed windows, but still commits once
- * per wheel event because rows cross that moving edge.
- */
+/** How far compositor motion may travel before React publishes another row window. */
 export const ROW_PUBLICATION_STEP_PX = 640;
+
+/** The logical row allowance after a bucket; retains the visible frame to its end. */
+// Proof: reducing this to 128 px made the real Browser `a row window covers
+// the visible table through bucket edges and frame resize` test fail at
+// scrollTop 639 with `gaps: ['bottom']`; restoring 768 px passed.
+export const ROW_OVERSCAN_AFTER_PX = ROW_PUBLICATION_STEP_PX + ROW_OVERSCAN_BEFORE_PX;
 
 /**
  * Pins a compositor offset to the start of its retained publication bucket.
@@ -50,6 +48,34 @@ export function publicationOffset(offsetPx: number, stepPx: number): number {
  */
 export function columnPublicationOffset(offsetPx: number): number {
   return Math.max(0, offsetPx);
+}
+
+/** Selects the same measured row interval for publication comparison and rendering. */
+function selectRows({
+  rowIds,
+  heights,
+  scrollTop,
+  viewportHeight,
+  pinnedIds,
+}: {
+  rowIds: readonly string[];
+  heights: ReadonlyMap<string, number>;
+  scrollTop: number;
+  viewportHeight: number;
+  pinnedIds: ReadonlySet<string>;
+}): ViewportSlice {
+  // Proof: changing only the current-window call back to symmetric 768 px
+  // made the row-publication hook test fail with `Maximum update depth exceeded`.
+  return viewportRows({
+    rowIds,
+    heights,
+    estimatedHeight: ESTIMATED_ROW_HEIGHT_PX,
+    scrollTop,
+    viewportHeight,
+    beforePx: ROW_OVERSCAN_BEFORE_PX,
+    afterPx: ROW_OVERSCAN_AFTER_PX,
+    pinnedIds,
+  });
 }
 
 interface FrameViewport {
@@ -203,22 +229,18 @@ export function usePlanViewport({
       if (current.measured && current.heightPx === heightPx && current.widthPx === widthPx) {
         const pinnedRowIds = new Set(pinnedCells.map((cell) => cell.rowId));
         const pinnedColumnIds = new Set(pinnedCells.map((cell) => cell.columnId));
-        const currentRows = viewportRows({
+        const currentRows = selectRows({
           rowIds,
           heights: heightReadings.current,
-          estimatedHeight: ESTIMATED_ROW_HEIGHT_PX,
           scrollTop: current.scrollTop,
           viewportHeight: current.heightPx,
-          overscanPx: ROW_OVERSCAN_PX,
           pinnedIds: pinnedRowIds,
         });
-        const nextRows = viewportRows({
+        const nextRows = selectRows({
           rowIds,
           heights: heightReadings.current,
-          estimatedHeight: ESTIMATED_ROW_HEIGHT_PX,
           scrollTop,
           viewportHeight: heightPx,
-          overscanPx: ROW_OVERSCAN_PX,
           pinnedIds: pinnedRowIds,
         });
         const currentColumns = viewportColumns({
@@ -259,13 +281,11 @@ export function usePlanViewport({
 
   const rows = useMemo(
     () =>
-      viewportRows({
+      selectRows({
         rowIds,
         heights,
-        estimatedHeight: ESTIMATED_ROW_HEIGHT_PX,
         scrollTop: frame.scrollTop,
         viewportHeight: frame.heightPx,
-        overscanPx: ROW_OVERSCAN_PX,
         pinnedIds: new Set(pinnedCells.map((cell) => cell.rowId)),
       }),
     [frame, heights, pinnedCells, rowIds],

@@ -253,13 +253,14 @@ test('refresh and logout require cookie Origin before reading state and retain e
     headers: { origin, cookie: '__Host-wbs_session=session' },
   });
   expect(loggedOut.status).toBe(204);
-  expect(loggedOut.headers.getSetCookie()).toHaveLength(2);
+  expect(loggedOut.headers.getSetCookie()).toHaveLength(3);
+  expect(loggedOut.headers.getSetCookie().join('; ')).toContain('__Host-wbs_organization=;');
   expect(f.revoked).toEqual(['rotated']);
   expect(f.options.tokens.read('session')).toBeNull();
   const missing = await f.send('/api/auth/refresh', { method: 'POST' });
   expect(missing.status).toBe(401);
   expect(await missing.json()).toEqual({ error: 'invalid_oidc_session' });
-  expect(missing.headers.getSetCookie()).toHaveLength(2);
+  expect(missing.headers.getSetCookie()).toHaveLength(3);
 });
 
 test.each(['missing', 'malformed', 'conflict'] as const)(
@@ -294,7 +295,7 @@ test('refresh refuses lost rotation, retains a nonrotating token, and leaves unk
   const rotate = spyOn(f.options.tokens, 'rotate').mockReturnValueOnce('missing');
   const refused = await f.send('/api/auth/refresh', request);
   expect(refused.status).toBe(401);
-  expect(refused.headers.getSetCookie()).toHaveLength(2);
+  expect(refused.headers.getSetCookie()).toHaveLength(3);
   rotate.mockRestore();
   spyOn(f.options.client, 'refresh').mockResolvedValueOnce({
     accessToken: 'unchanged',

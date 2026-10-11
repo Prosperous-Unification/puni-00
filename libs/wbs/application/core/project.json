@@ -28,7 +28,7 @@
     "test:unit": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src -name '*.test.ts' | tr '\\n' ' ') --coverage --coverage-reporter=lcov --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-core.unit.xml --timeout=10000",
+        "command": "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-core.unit.xml && files=$(find src -name '*.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: wbs-core:test:unit' >&2; exit 1; fi && bun test $files --coverage --coverage-reporter=lcov --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-core.unit.xml --timeout=10000",
         "cwd": "libs/wbs/application/core"
       },
       "outputs": ["{projectRoot}/coverage"]
@@ -60,6 +60,14 @@
         "command": "bunx playwright test --config=libs/wbs/application/core/playwright.config.ts"
       },
       "outputs": ["{workspaceRoot}/tmp/core-portable-results"]
+    },
+    "test:browser:portable:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-devsync/src/browser-level.ts portable",
+        "forwardAllArgs": false
+      }
     },
     "typecheck:module": {
       "executor": "nx:run-commands",

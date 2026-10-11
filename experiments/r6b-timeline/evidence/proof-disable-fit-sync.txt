@@ -1,0 +1,24 @@
+61 |   const fittedControls = await page.evaluate(() => ({
+62 |     span: window.timeline.viewport.span,
+63 |     displayedSpan: Number((document.getElementById('span') as HTMLSelectElement).value),
+64 |     slider: Number((document.getElementById('zoom') as HTMLInputElement).value),
+65 |   }));
+66 |   assert.equal(
+              ^
+AssertionError: fit-all discrete display is stale
++ actual - expected
+
++ 604800000
+- 42407200
+
+ generatedMessage: false,
+     actual: 604800000,
+   expected: 42407200,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at <experiment>/browser.ts:66:10
+      at processTicksAndRejections (native:7:39)
+
+Bun v1.4.2 (Linux x64)

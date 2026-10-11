@@ -15,8 +15,8 @@ Each `tasks.md` slice names its intended acceptance test and, for a safety check
 ## Release gates
 
 - **Repository foundation**: pinned common baseline, private Nx bootstrap, both clean-copy directions and private-source transfer refusal pass before private release; baseline bootstrap precedes licensed site import.
-- **Manual funnel (M1)**: static site, browser-bound anonymous intake/resume, claim-scoped brief and idempotent opaque receipt, authenticated operator inbox, privacy lifecycle, backup/restore, multi-host browser path and accessibility checks pass. Prospect sign-in and inference may remain unavailable.
-- **Chat (M2)**: prospect sign-in/atomic draft upgrade, approved processor wording, current compatible provider/price, dedicated key and monthly ceiling, reservation/concurrency faults, streaming settlement/cancellation, abuse corpus and pilot review pass. No paid call is part of this planning change.
+- **Manual funnel (M1)**: static site, browser-bound anonymous intake/resume, claim-scoped brief and idempotent opaque receipt, authenticated operator inbox, privacy lifecycle, backup/restore, multi-host browser path and accessibility checks pass. There is no prospect sign-in; inference may be disabled or paused.
+- **Chat (M2)**: claim-bound conversation, approved processor wording, current compatible provider/price, dedicated key and monthly ceiling, reservation/concurrency faults, streaming settlement/cancellation, abuse corpus and pilot review pass. No paid call is part of this planning change.
 - **Preview**: typed schema/renderer rejection proof, separate preview allowance, simulated-auth clarity and optional submission path pass.
 
 ## Deferred evidence

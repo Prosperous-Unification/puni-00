@@ -7,8 +7,12 @@ import { afterEach, describe, expect, test } from 'bun:test';
 
 import type { CandidateEntry } from '../inventory/read-candidate';
 import { resolveKinds } from './kinds';
+import { registeredRules } from './registry';
 
 const cliPath = join(import.meta.dir, '..', 'cli.ts');
+const trustedNodeModules = dirname(
+  dirname(Bun.resolveSync('typescript/package.json', import.meta.dir)),
+);
 const inventoryPath = 'docs/kinds.json';
 const scratchRoots: string[] = [];
 
@@ -81,30 +85,19 @@ function commitCandidate(
   return { repository, revision: runGit(repository, ['rev-parse', 'HEAD']) };
 }
 
-const ruleIds = [
-  'F1',
-  'F7',
-  'INV-CLASSIFY',
-  'K2',
-  'K3',
-  'K4',
-  'K5',
-  'K6',
-  'MOD-DIRECT-ENTRIES',
-  'MOD-INDEX',
-  'MOD-LAYOUT',
-  'REL-EXTRACT',
-];
+const ruleIds = registeredRules().map(({ id }) => id);
 
 /** A rule policy outside every candidate; it names the inventory unless told otherwise. */
-function writePolicy(options: { namesInventory: boolean }): string {
+function writePolicy(options: { namesInventory: boolean; omitRuleId?: string }): string {
   const path = join(scratch('twilight-kind-inventory-policy-'), 'rule-policy.json');
   writeFileSync(
     path,
     `${JSON.stringify({
       schemaVersion: 1,
       policyId: 'rules.kind-inventory.v1',
-      ruleModes: ruleIds.map((ruleId) => ({ ruleId, mode: 'observe' })),
+      ruleModes: ruleIds
+        .filter((ruleId) => ruleId !== options.omitRuleId)
+        .map((ruleId) => ({ ruleId, mode: 'observe' })),
       relationshipRequest: {
         schemaVersion: 1,
         typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/entry.ts'] },
@@ -141,7 +134,12 @@ function check(
       '--rule',
       ruleId,
     ],
-    { cwd: import.meta.dir, env: process.env, stderr: 'pipe', stdout: 'pipe' },
+    {
+      cwd: import.meta.dir,
+      env: { ...process.env, TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    },
   );
   const stderr = Buffer.from(invocation.stderr).toString('utf8');
   const stdout = Buffer.from(invocation.stdout).toString('utf8');
@@ -208,6 +206,36 @@ describe('kind inventory in the kind graph', () => {
 });
 
 describe('kind inventory through the production CLI', () => {
+  test('refuses a policy missing an unselected registered rule mode', () => {
+    // Proof: disabling the policy's registered-rule coverage loop made this
+    // selected-K2 invocation succeed despite the omitted PERF-THRESHOLD mode.
+    const candidate = commitCandidate(deliveryImportsStore, storeIsResource);
+    const policyPath = writePolicy({ namesInventory: true, omitRuleId: 'PERF-THRESHOLD' });
+    const invocation = Bun.spawnSync(
+      [
+        process.execPath,
+        'run',
+        cliPath,
+        'check',
+        'committed',
+        candidate.repository,
+        candidate.revision,
+        policyPath,
+        '--rule',
+        'K2',
+      ],
+      {
+        cwd: import.meta.dir,
+        env: { ...process.env, TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules },
+        stderr: 'pipe',
+        stdout: 'pipe',
+      },
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(invocation.stderr.toString()).toContain('rule policy states no mode for PERF-THRESHOLD');
+    expect(invocation.stdout.toString()).toBe('');
+  }, 30_000);
+
   test('an inventory-declared resource makes an unsuffixed delivery import a K2 finding', () => {
     const candidate = commitCandidate(deliveryImportsStore, storeIsResource);
     // Proof: on 2026-09-27, passing no inventory entries to resolveKinds in check.ts made this test

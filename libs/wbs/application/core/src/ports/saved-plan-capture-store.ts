@@ -1,13 +1,8 @@
 import type { PlanInputReads } from './saved-plan-capture-values';
 export type {
-  CapturedActual,
-  CapturedAssignment,
   CapturedDependency,
-  CapturedEstimate,
-  CapturedMeasure,
   CapturedNamedValue,
   CapturedPerson,
-  CapturedProgress,
   CapturedProject,
   CapturedStep,
   CapturedTeam,

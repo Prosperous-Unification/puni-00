@@ -1,7 +1,7 @@
+import { buildSolverRequestPair } from '@wbs/contracts/solver/solver-request-pair';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 
-import { buildSolverRequestPair } from '../../service/solver-request-pair';
 import type { ReservedSpawnRequest } from '../optimization/contract';
 import type { SolverSupervisorRequest } from './solver-supervisor.repository';
 import { solverSupervisorSpawner } from './solver-supervisor-spawner';

@@ -1,10 +1,9 @@
 import { createHash } from 'node:crypto';
 
-import { CANONICAL_PLAN_INPUT_SCHEMA_VERSION } from '@wbs/domain';
+import { CANONICAL_PLAN_INPUT_SCHEMA_VERSION, SCHEDULE_BODY_SCHEMA_VERSION } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { Digest } from '../../ports/runtime';
-import { SCHEDULE_BODY_SCHEMA_VERSION } from '../../service/saved-plan-schedule-body';
 import {
   assertKnownBodyVersion,
   bodySha256,

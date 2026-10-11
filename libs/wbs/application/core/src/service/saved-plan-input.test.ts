@@ -1,4 +1,4 @@
-import { canonicalisePlanInput, sliceKey } from '@wbs/domain';
+import { canonicalisePlanInput, planInputRowsOf, sliceKey } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import {
@@ -6,7 +6,6 @@ import {
   schedulePlanInput,
 } from '../module/saved-plans/saved-plan-schedule';
 import type { PlanInputReads } from '../ports/saved-plan-capture-store';
-import { planInputRowsOf } from './saved-plan-input';
 
 /**
  * One capture's reads, as the eighteen stores hand them over.

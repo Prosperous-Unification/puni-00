@@ -1,4 +1,5 @@
 import {
+  assumedAssignee,
   byTreeOrder,
   deriveNumbers,
   type EffectiveTeams,
@@ -8,7 +9,6 @@ import {
 
 import type { Assignment, DirectoryUsageRows } from '../ports/directory-store';
 import type { LabelledWorkItem } from '../ports/work-item-store';
-import { assumedAssignee } from './assumed-assignee';
 
 /**
  * What removing a directory entry would do to one work item.

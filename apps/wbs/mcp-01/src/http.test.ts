@@ -218,6 +218,33 @@ describe('mcpFetchHandler', () => {
     expect(listed.result.tools).toHaveLength(tools.length);
   });
 
+  // Proof: passing `maxRequestBodySize: 8 * 1024 * 1024` to the transport in
+  // `mcpFetchHandler` let the oversized body through: 200, not 413.
+  it('refuses a tool call one byte over the 4 MiB request-body cap with 413', async () => {
+    const handle = mcpFetchHandler(
+      () =>
+        createServer({
+          tools: toolsFromDocument(readDocument()),
+          config: CONFIG,
+          reportUnexpectedToolFailure: unusedUnexpectedToolFailureReporter,
+        }),
+      CONFIG,
+      { verify: () => Promise.resolve(claims) },
+      {},
+    );
+    // An unknown tool name keeps the at-cap request off the network.
+    const call = (pad: string) => ({
+      id: 3,
+      method: 'tools/call',
+      params: { name: 'noSuchTool', arguments: { pad } },
+    });
+    const overhead = JSON.stringify({ jsonrpc: '2.0', ...call('') }).length;
+    const sized = (bytes: number) => rpc(call('a'.repeat(bytes - overhead)));
+
+    expect((await handle(sized(4 * 1024 * 1024))).status).not.toBe(413);
+    expect((await handle(sized(4 * 1024 * 1024 + 1))).status).toBe(413);
+  });
+
   // Proof: skipping endSession leaves the verifier live and makes the second
   // request return another MCP 200 instead of an invalid_token challenge.
   it('ends a local session after be-01 rejects its upstream token', async () => {

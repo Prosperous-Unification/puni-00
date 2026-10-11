@@ -3,8 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
-import { planInputRowsOf } from '@wbs/core/service/saved-plan-input';
-import { canonicalisePlanInput, serialiseCanonicalPlanInput } from '@wbs/domain';
+import { canonicalisePlanInput, planInputRowsOf, serialiseCanonicalPlanInput } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from '../repository/capacity';

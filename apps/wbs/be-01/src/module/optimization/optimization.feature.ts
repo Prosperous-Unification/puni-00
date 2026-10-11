@@ -1,16 +1,19 @@
 import {
+  evaluateSolverOutcome,
+  type SolverProcessOutcome,
+} from '@wbs/contracts/solver/solver-exit-outcome';
+import {
   dispositionOfExitCode,
   dispositionOfPreflightFailure,
 } from '@wbs/contracts/solver/solver-failure-disposition';
+import {
+  buildSolverRequestPair,
+  type SolverRequestPair,
+} from '@wbs/contracts/solver/solver-request-pair';
 import type { CommittedProjectEvent } from '@wbs/core/service/committed-fanout';
 import type { Schedule, SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
-import {
-  evaluateSolverOutcome,
-  type SolverProcessOutcome,
-} from '../../service/solver-exit-outcome';
-import { buildSolverRequestPair, type SolverRequestPair } from '../../service/solver-request-pair';
 import type {
   OptimizationOutcomeWrite,
   OptimizationRepository,
@@ -627,7 +630,12 @@ export class OptimizationCoordinator {
     }
 
     const now = this.options.now();
-    const observed = await this.options.repository.observeForAdmission(key, now);
+    const committedObservation = await this.options.repository.observeForAdmission(key, now);
+    // Proof: dropping these envelopes left B's durable generation-eviction
+    // event unpushed; awaiting delivery here withheld the committed readPlan
+    // decision behind B's held transport instead of returning its original pair.
+    this.trackCommittedDelivery(committedObservation.envelopes);
+    const observed = committedObservation.decision;
     if (observed.kind === 'idle') {
       return {
         ...key,

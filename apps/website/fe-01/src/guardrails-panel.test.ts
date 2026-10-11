@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 
 import {
+  describeCeilingSettled,
   describePause,
   InvalidGuardrailOverview,
   parseGuardrailOverview,
@@ -19,6 +20,7 @@ const overview = {
   proposalsToday: 3,
   accountLockedUntil: null,
   lockedSources: 1,
+  ceilingSettledToday: { count: 2, microUsd: 5_000 },
   alerts: [
     {
       kind: 'inference_paused',
@@ -53,4 +55,19 @@ test('a malformed overview throws instead of rendering defaults', () => {
       alerts: [{ ...overview.alerts[0], delivery: 'queued' }],
     }),
   ).toThrow(InvalidGuardrailOverview);
+});
+
+test('the ceiling-settled line counts operations and the amount they may over-count', () => {
+  const parsed = parseGuardrailOverview(overview);
+  expect(describeCeilingSettled(parsed.ceilingSettledToday)).toBe(
+    '2 operations · $0.005 recorded at the full reservation',
+  );
+  expect(describeCeilingSettled({ count: 1, microUsd: 3_000 })).toBe(
+    '1 operation · $0.003 recorded at the full reservation',
+  );
+  expect(describeCeilingSettled({ count: 0, microUsd: 0 })).toBe('None');
+  // Proof: defaulting a missing field to zero let this overview parse.
+  expect(() => parseGuardrailOverview({ ...overview, ceilingSettledToday: undefined })).toThrow(
+    InvalidGuardrailOverview,
+  );
 });

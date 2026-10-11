@@ -537,6 +537,38 @@ describe('production plan input boundary', () => {
     }
   });
 
+  test('reports malformed required state without echoing its contents', async () => {
+    // Spec requirement (dash-enrollment-plan: diagnostics SHALL NOT dump input contents or
+    // credentials), not test convenience: a fleet or observation file can hold secrets.
+    const fixture = await createPlanFixture();
+    const marker = 'SECRETMARKER_TOKEN_abc123';
+    const malformedFleet = join(fixture.directory, 'secret.yaml');
+    const malformedObservation = join(fixture.directory, 'secret.json');
+    await writeFile(malformedFleet, `nodes:\n  - id: a\n${marker}: oops\n  bad: [\n`);
+    await writeFile(malformedObservation, `{"token": ${marker}}`);
+    for (const [fleet, observation, diagnostic] of [
+      [malformedFleet, fixture.observation, 'malformed YAML'],
+      [fixture.fleet, malformedObservation, 'malformed JSON'],
+    ] as const) {
+      const invocation = invokePlan([
+        '--fleet',
+        fleet,
+        '--observation',
+        observation,
+        '--output',
+        fixture.output,
+        '--operation',
+        'retire',
+        '--node',
+        'workers-agent-a',
+        ...retirementEvidenceArguments(),
+      ]);
+      expect(invocation.exitCode).not.toBe(0);
+      expect(invocation.stderr.toString()).toContain(diagnostic);
+      expect(invocation.stderr.toString()).not.toContain(marker);
+    }
+  });
+
   test('refuses an occupied output without changing its bytes', async () => {
     const fixture = await createPlanFixture();
     await writeFile(fixture.output, 'reviewed-plan-bytes\n');

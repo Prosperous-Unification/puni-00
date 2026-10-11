@@ -1,12 +1,8 @@
+import type { StoredEstimate } from '@wbs/domain';
+
 import type { WriteStamp } from './write-stamp';
 
-export interface StoredEstimate {
-  workItemId: string;
-  stepId: string;
-  optimistic: number;
-  realistic: number;
-  pessimistic: number;
-}
+export type { StoredEstimate } from '@wbs/domain';
 
 /**
  * What a write that names a step answers when the step is not there.

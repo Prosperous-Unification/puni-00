@@ -117,7 +117,7 @@ function resumable(recordedContext: string) {
   const journalPath = join(state, 'staging', 'journal', 'release.json');
   mkdirSync(join(state, 'staging', 'journal'), { recursive: true, mode: 0o700 });
   fileJournal(journalPath).write({
-    schemaVersion: 1,
+    schemaVersion: 2,
     request: recorded,
     state: { ...initialState(recorded), phase: 'writes-reopened', writesReopened: true },
     history: [{ phase: 'writes-reopened', at: '2026-09-18T00:00:00.000Z' }],

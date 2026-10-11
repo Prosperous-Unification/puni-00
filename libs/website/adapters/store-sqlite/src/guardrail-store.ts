@@ -361,7 +361,8 @@ export function resumeInferencePause(database: Database, now: number): boolean {
 }
 
 /**
- * The pause rule inside a paid admission transaction, after the site's UTC-day spend is summed:
+ * The pause rule inside the conversation admission transaction (its only caller), after the site's
+ * UTC-day spend is summed:
  * an open pause refuses (`openedPauseId` null); a reservation that brings the spend to
  * {@link guardrailAllowance.pauseMicroUsd} or above opens a `site_spend` pause and refuses,
  * unless a `site_spend` pause was already opened this UTC day. So after an operator resumes, the
@@ -407,10 +408,33 @@ export interface GuardrailOverview {
   proposalsToday: number;
   accountLockedUntil: number | null;
   lockedSources: number;
+  /** See {@link readCeilingSettled}: how far today's recorded spend may over-count. */
+  ceilingSettledToday: CeilingSettled;
   alerts: GuardrailAlert[];
 }
 
-/** Settled and reserved spend of one UTC day across conversations and account calls. */
+/** Operations settled at their full reservation, and the micro-USD that settlement recorded. */
+export interface CeilingSettled {
+  count: number;
+  microUsd: number;
+}
+
+/**
+ * The `unknown` conversation operations of one UTC day: usage never arrived (stop, disconnect,
+ * timeout, stream error, restart), so each was settled at its full reservation. Recorded spend
+ * may over-count by up to this amount and never under-counts.
+ */
+export function readCeilingSettled(database: Database, utcDay: string): CeilingSettled {
+  const row = database
+    .query<{ count: number; micro_usd: number }, [string]>(
+      "SELECT count(*) AS count, COALESCE(SUM(settled_micro_usd), 0) AS micro_usd FROM conversation_operation WHERE state = 'unknown' AND utc_day = ?",
+    )
+    .get(utcDay);
+  if (!row) throw new Error('Ceiling-settled count query returned no row');
+  return { count: row.count, microUsd: row.micro_usd };
+}
+
+/** Settled and reserved spend of one UTC day across conversations and legacy account calls. */
 export function readSiteSpend(database: Database, utcDay: string): number {
   const spent = 'COALESCE(SUM(COALESCE(settled_micro_usd, reserved_micro_usd)), 0)';
   const row = database
@@ -473,6 +497,7 @@ export function readGuardrailOverview(
     proposalsToday: readSiteCount(database, 'proposal:site', utcDay),
     accountLockedUntil: locks.accountLockedUntil,
     lockedSources: locks.lockedSources,
+    ceilingSettledToday: readCeilingSettled(database, utcDay),
     alerts: listRecentAlerts(database, 50),
   };
 }

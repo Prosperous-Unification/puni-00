@@ -4,18 +4,16 @@ import { join } from 'node:path';
 
 import { captureAndSchedulePlan } from '@wbs/core/service/saved-plan-schedule';
 import {
-  buildScheduleBody,
-  SCHEDULE_BODY_SCHEMA_VERSION,
-  serialiseScheduleBody,
-} from '@wbs/core/service/saved-plan-schedule-body';
-import {
   addWorkdays,
+  buildScheduleBody,
   firstWorkdayOf,
   type IsoDate,
   lastWorkdayOf,
   type Schedule,
   SCHEDULE_ALGORITHM_ID,
+  SCHEDULE_BODY_SCHEMA_VERSION,
   type Scheduled,
+  serialiseScheduleBody,
 } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 

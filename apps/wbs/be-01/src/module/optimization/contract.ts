@@ -1,9 +1,8 @@
 import type { BuiltSolverRequest } from '@wbs/contracts/solver/build-request';
-import type { OptimizedResult } from '@wbs/contracts/solver/optimized-result';
-import type { PlanInfeasibleResult } from '@wbs/contracts/solver/plan-infeasible';
+import type { OptimizationOutcome } from '@wbs/contracts/solver/solver-exit-outcome';
 import type { OptimizationVariantState, ProjectEvent, RecordedEvent } from '@wbs/core';
 import type { CommittedProjectEvent } from '@wbs/core/service/committed-fanout';
-import type { SolverFailureReason, SolverObjectiveName } from '@wbs/domain';
+import type { SolverObjectiveName } from '@wbs/domain';
 import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
@@ -156,16 +155,6 @@ export type OptimizationCachedVariant =
 export type OptimizationCachedPair = Readonly<
   Record<SolverObjectiveName, OptimizationCachedVariant>
 >;
-export type OptimizationOutcome =
-  | {
-      readonly kind: 'ok';
-      readonly optimized: OptimizedResult;
-    }
-  | { readonly kind: 'failed'; readonly reason: SolverFailureReason }
-  | {
-      readonly kind: 'plan-infeasible';
-      readonly certificate: PlanInfeasibleResult;
-    };
 
 export interface SolverSlotIdentity {
   readonly projectId: string;
@@ -250,6 +239,19 @@ export interface CommittedDecision<T> {
   readonly envelopes: readonly CommittedProjectEvent[];
 }
 
+/** The immutable generation, pair and requests read in one source turn. */
+export type OptimizationAdmissionObservation =
+  | { readonly kind: 'idle' }
+  | {
+      readonly kind: 'observed';
+      readonly generation: number;
+      readonly pair: OptimizationCachedPair;
+      readonly requests: readonly {
+        readonly key: OptimizationCacheKey;
+        readonly objective: SolverObjectiveName;
+      }[];
+    };
+
 /** Durable optimization decisions. Outcome recording and slot release are separate transactions. */
 export interface OptimizationRepository extends SolverSlotRepository {
   allocateGeneration(
@@ -262,18 +264,7 @@ export interface OptimizationRepository extends SolverSlotRepository {
   observeForAdmission(
     key: OptimizationCacheKey,
     now: number,
-  ): Promise<
-    | { readonly kind: 'idle' }
-    | {
-        readonly kind: 'observed';
-        readonly generation: number;
-        readonly pair: OptimizationCachedPair;
-        readonly requests: readonly {
-          readonly key: OptimizationCacheKey;
-          readonly objective: SolverObjectiveName;
-        }[];
-      }
-  >;
+  ): Promise<CommittedDecision<OptimizationAdmissionObservation>>;
   isVariantLive(
     key: OptimizationCacheKey,
     generation: number,

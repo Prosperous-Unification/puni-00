@@ -12,6 +12,10 @@ export interface UserStore {
 }
 
 export interface OidcIdentityStore {
+  /** Reads an already-bound exact issuer/subject pair without creating or updating an account. */
+  findExistingOidcIdentity(
+    identity: Pick<OidcIdentity, 'issuer' | 'subject'>,
+  ): Promise<User | null>;
   /** Explicit linking is absent in older in-memory fixtures, which cannot activate. */
   isLinkActive?(): Promise<boolean>;
   linkPasswordIdentity?(

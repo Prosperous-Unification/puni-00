@@ -309,3 +309,11 @@ Documentation has no negative of its own. The proofs are the validators below.
 F7, `dev:setup`: `tools/dev/setup.ts` seeds only `apps/wbs/*/.env`, so it has never written the website `.env`. The website's `.env.example` sets `RETENTION_JOURNAL=disabled`, and task 6.1's `dev:setup` clause is met by that file. The tasks file is amended in the lane record.
 
 Review items 4 and 5 (slices 1–2), erasure finality and hash and truncation pinning, are now recorded in ADR 0047 under "Pinned invariants" and in `design.md`.
+
+### Merge with `batch-10/integration-3` (2026-10-11)
+
+#312 (S4) removed the account write path, including `admitChatOperation`, `completeChatOperation` and `updateAccountBrief`, together with the account chat routes. Merging it changed three things in this stack:
+
+- The slice 4 fence mapping in `admitChatOperation` is gone with that method. Legacy chat rows are still fenced by the migration-010 triggers.
+- `a content write waits for a concurrent writer instead of failing busy` now uses `submit`. Fault: `submit` as a deferred transaction. Observed: child stderr `SQLiteError: database is locked`.
+- `unknown provider usage keeps its reservation` now seeds a legacy chat operation and a conversation operation in flight. Faults: the chat or the conversation `unknown` update made a no-op. Observed: `"state": "inflight"` in each case. The API test `a fenced stream completion becomes unknown and keeps its reservation` was removed, because `/chat/stream` no longer exists. The live conversation path cannot reach a subject's draft, since a submitted or attached draft is consumed.

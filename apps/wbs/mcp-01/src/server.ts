@@ -103,7 +103,7 @@ const asCallToolResult = (
  * Not connected to a transport — `main.ts` does that, and the test connects it
  * to an in-memory pair instead.
  *
- * **`Server` is deprecated in 1.30.0 and used anyway**, which the two disable
+ * **`Server` is deprecated (still so in 1.31.0) and used anyway**, which the two disable
  * comments below say at the point of use. The deprecation's own words are "Only
  * use `Server` for advanced use cases"; this is one. `McpServer.registerTool`
  * types `inputSchema` as `ZodRawShapeCompat | AnySchema` — checked against the

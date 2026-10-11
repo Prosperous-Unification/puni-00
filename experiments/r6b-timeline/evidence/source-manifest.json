@@ -1,0 +1,20 @@
+{
+  "base": "c5f16573afab47065bd8b6d4dba40755544ca8e3",
+  "sha256": {
+    "app.js": "4cc2694c6e140d8a03d0086e3350a4d9e24dbfedbda8be62c62b9a928b651a07",
+    "model.js": "3af78afc20bbba53ee84aa304bf670413586edb52cc9660264f372640efab8ea",
+    "index.html": "4a62a7e1d4434e158bda9fe8aed7cde00aed0dab5652feebfef57b309f5f3a91",
+    "style.css": "6a36fbe3071272349f21d9882b22417cfac4fe7bb50b3dc8583dd0a85166716e",
+    "browser.ts": "ecafb5f170236db7b72e252f33f7209f23de7c2f5ddcc4957eb3c6e6b56319ea",
+    "audit.ts": "a32dd26e843b1317892b420bcd599373a233bb553428dfbf22c43d08e0604a22",
+    "model.test.ts": "ba61328f539f05130565c97e6101ed0e80c2fc26de7af2f62798809fcb4db19e",
+    "proofs.ts": "325673fd2479ed49f85826b197fa0a1e505ed6a5b32c6f70e4146199b43103f7",
+    "serve.ts": "fbfb3225f9f3d00cb227299c83ea388b36ea57f8b3a7059f590c44961d4484cd",
+    "fixtures/batch-1.json": "793e4c8198812da5dfb052926251d97fc0d95cd0511ca88df31eb3f8d58b3bb7",
+    "fixtures/ambiguity.json": "e083f474b93d3f4d891ed164b23aa550adb41a49c312b85f91318819b1a6abfe"
+  },
+  "modelAtMeasurementSha256": "5f3fa55a9b74036a019d8f3947c2ecf5857c250791a93147b33f0bb9cea4ffd5",
+  "rendererExecutionUnchangedSinceFinalMeasurements": true,
+  "afterMeasurementChanges": "Only model Proof comments and JSDoc parameter types (2026-10-11, for checkJs), app browser-global lint annotation, a browser-harness cast boundary comment (2026-10-11) and parser-guard test assertions added; runtime renderer/model/harness behavior unchanged.",
+  "appAtMeasurementSha256": "51e24c86031b66b3ea57d1511dbdb4eb7b57b83aed6b4e050682a654248e412c"
+}

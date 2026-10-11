@@ -238,6 +238,36 @@ describe('the role -> step rename waiver', () => {
     expect((await lintMigration(file, root))?.reason).toMatch(/DROP TABLE/);
   });
 
+  it('lints the rollback-fault lab migration under its own root only', async () => {
+    const root = scratchSync('wbs-lab-rollback-fault-');
+    roots.push(root);
+    const lab = join(root, 'deploy', 'k8s', 'wbs', 'lab');
+    const allowed = join(lab, 'rollback-fault', 'migrations', '29991231010000_lab_fault');
+    const outside = join(lab, 'rollback-fault', 'fixtures', '29991231010000_lab_fault');
+    mkdirSync(allowed, { recursive: true });
+    mkdirSync(outside, { recursive: true });
+    const forward = join(allowed, 'migration.sql');
+    writeFileSync(join(allowed, 'down.sql'), 'DROP TABLE lab_rollback_control;');
+    writeFileSync(forward, 'CREATE TABLE lab_rollback_control (id integer);');
+    // Proof: with this root absent from MIGRATION_ROOTS the CI `Migration lint` step on
+    // fb548469e refused the tracked fixture with `does not own migration` (2026-10-11).
+    expect(await lintMigration(forward, root)).toBeNull();
+    writeFileSync(forward, 'DROP TABLE work_item;');
+    expect((await lintMigration(forward, root))?.reason).toMatch(/DROP TABLE/);
+    const unrelated = join(outside, 'migration.sql');
+    writeFileSync(join(outside, 'down.sql'), 'SELECT 1;');
+    writeFileSync(unrelated, 'CREATE TABLE lab_rollback_control (id integer);');
+    // Proof: widening this root to deploy/k8s/wbs/lab/rollback-fault accepted the
+    // sibling fixtures migration instead of refusing its path.
+    let rejection: unknown;
+    try {
+      await lintMigration(unrelated, root);
+    } catch (error) {
+      rejection = error;
+    }
+    expect(String(rejection)).toMatch(/does not own migration/);
+  });
+
   it('lints website migrations only under the SQLite adapter source root', async () => {
     const root = scratchSync('website-migration-lint-');
     roots.push(root);

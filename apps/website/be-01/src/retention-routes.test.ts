@@ -4,7 +4,6 @@ import { join } from 'node:path';
 
 import {
   attachJournal,
-  fenceSubject,
   initJournal,
   MemoryJournalRemote,
   openRetentionJournal,
@@ -411,89 +410,6 @@ test('startup refuses a journal it cannot verify', async () => {
     await api.openRetentionJournal().catch((error: unknown) => {
       expect(error).toMatchObject({ reason: 'uninitialised' });
     });
-  } finally {
-    api.close();
-  }
-});
-
-test('a fenced stream completion becomes unknown and keeps its reservation', async () => {
-  let databasePath = '';
-  const { api, config } = await journaledApi({
-    demoAuth: true,
-    openRouterEnabled: true,
-    openRouterKey: 'fixture-key',
-    openRouterModel: 'fixture/model',
-    openRouterProvider: 'Fixture',
-    openRouterInputUsdPerMillion: 1,
-    openRouterOutputUsdPerMillion: 2,
-    openRouterPrivacyVerified: true,
-    providerFetch: () => {
-      // Erasure begins while the provider is still answering.
-      const database = new Database(databasePath);
-      try {
-        const request = database.query<{ id: string }, []>('SELECT id FROM software_request').get();
-        if (!request) throw new Error('no request');
-        fenceSubject(database, { kind: 'software_request', id: request.id });
-      } finally {
-        database.close();
-      }
-      const chunks = [
-        {
-          id: 'fenced',
-          model: 'fixture/model',
-          choices: [{ index: 0, delta: { role: 'assistant', content: 'SECRET reply' } }],
-        },
-        {
-          id: 'fenced',
-          model: 'fixture/model',
-          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
-          usage: { prompt_tokens: 20, completion_tokens: 3, total_tokens: 23 },
-        },
-      ];
-      return Promise.resolve(
-        new Response(
-          chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n',
-          { headers: { 'content-type': 'text/event-stream' } },
-        ),
-      );
-    },
-  });
-  databasePath = config.databasePath;
-  try {
-    const login = await api.fetch(
-      request('/session/demo', 'POST', { email: 'fenced@example.test' }),
-      '127.0.0.1',
-    );
-    const cookie = login.headers.get('set-cookie')?.split(';')[0];
-    const csrf = ((await login.json()) as { csrfToken: string }).csrfToken;
-    const response = await api.fetch(
-      request(
-        '/chat/stream',
-        'POST',
-        { message: 'A booking tool', idempotencyKey: 'fenced-key-12345' },
-        cookie,
-        csrf,
-      ),
-      '127.0.0.1',
-    );
-    const text = await response.text();
-    // The fenced completion is never confirmed: the stream ends in the interrupted error, not a finish.
-    expect(text).toContain('Your allowance remains on hold.');
-    expect(text).not.toContain('"type":"finish"');
-    const database = new Database(databasePath, { readonly: true });
-    try {
-      expect({
-        operations: database.query('SELECT state, reply FROM chat_operation').all(),
-        calls: database.query('SELECT settled_micro_usd FROM provider_call').all(),
-        turns: database.query('SELECT count(*) AS count FROM chat_turn').get(),
-      }).toEqual({
-        operations: [{ state: 'unknown', reply: null }],
-        calls: [{ settled_micro_usd: null }],
-        turns: { count: 0 },
-      });
-    } finally {
-      database.close();
-    }
   } finally {
     api.close();
   }

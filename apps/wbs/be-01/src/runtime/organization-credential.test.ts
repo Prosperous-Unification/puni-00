@@ -5,7 +5,36 @@ import { SignJWT } from 'jose';
 import { inMemoryUsers } from '../testing/auth-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { bunPasswordHasher, joseTokenCodec } from './bun-runtime';
-import { organizationCredentialEvidence } from './organization-credential';
+import {
+  nativeBrowserCredentialEvidence,
+  organizationCredentialEvidence,
+} from './organization-credential';
+
+test('native browser evidence verifies exact bytes without caller-provided user identity', async () => {
+  const key = 'k'.repeat(64);
+  const auth = new AuthService({
+    clock: testClock,
+    users: inMemoryUsers(),
+    tokens: joseTokenCodec(key),
+    passwords: bunPasswordHasher,
+  });
+  const registered = await auth.register('ada', 'correct-horse');
+  if (!registered.ok) throw new Error('registration failed');
+  const verifyNative = nativeBrowserCredentialEvidence(auth, key);
+  expect(await verifyNative(registered.value.token)).toMatchObject({
+    kind: 'native',
+    userId: registered.value.user.id,
+  });
+  expect(await verifyNative(`${registered.value.token}x`)).toBeNull();
+  const delegation = await new SignJWT({ username: registered.value.user.username })
+    .setProtectedHeader({ alg: 'HS256', typ: 'wbs-delegation+jwt' })
+    .setSubject(registered.value.user.id)
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .setJti(crypto.randomUUID())
+    .sign(new TextEncoder().encode(key));
+  expect(await verifyNative(delegation)).toBeNull();
+});
 
 test('native evidence verifies account, jti, expiry and exact credential bytes', async () => {
   const key = 'k'.repeat(64);

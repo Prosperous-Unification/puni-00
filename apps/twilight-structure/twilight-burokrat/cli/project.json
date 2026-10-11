@@ -25,6 +25,14 @@
         "cwd": "apps/twilight-structure/twilight-burokrat/cli"
       }
     },
+    "test:architecture:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun src/architecture-level.ts . ../../../../tmp/junit/twilight-burokrat.architecture.xml",
+        "cwd": "apps/twilight-structure/twilight-burokrat/cli"
+      }
+    },
     "lint": {
       "executor": "nx:run-commands",
       "cache": false,

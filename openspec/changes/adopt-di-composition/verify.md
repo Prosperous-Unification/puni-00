@@ -2637,3 +2637,73 @@ not held forever` fail (`0` pass, `1` fail, `12` filtered), receiving sequence `
 configured`. The index CLI suite passed `57` tests, `0` failures, `454` expectations.
   `git diff --check` and changed-file Prettier passed. The canonical h2puni gate is deferred to
   the final pushed SHA as requested.
+
+### Domain moves, tasks 6.1 (five of fourteen) and 6.2 (WBS 040.18) — 2026-10-11
+
+- Base `origin/main` `a3b1526bd`, worktree `/home/df/wd/puni/b10-domain-services`. The 2026-10-08
+  implementation in `/tmp/puni-sol-040-18-domain-services` (`11692ce40`, `dd9426f5b`) no longer
+  exists, so both tasks were redone from the task text.
+- Red first: the moved `saved-plan-quota.test.ts` and `saved-plan-default-name.test.ts` under
+  `libs/wbs/domain/domain/src/` failed with `Cannot find module './saved-plan-quota'` (0 pass,
+  2 fail) before their sources moved; the moved `solver-request-pair.test.ts` and
+  `solver-exit-outcome.test.ts` under `libs/wbs/domain/contracts/solver/src/` failed the same way
+  (0 pass, 2 fail), then passed 10/10.
+- The smoke response-boundary negative now spies on `@wbs/domain`'s `echoSmokeText`; it still
+  observes the 500 a non-string echo earns, so the spy reaches the production route (the
+  integration file passed 10/10).
+- `bunx nx run-many -t typecheck lint:fast -p wbs-contracts wbs-be-01 wbs-domain wbs-core
+tool-devsync`: success. Tests: `wbs-domain` 887/887, `wbs-core` 831/831, `wbs-contracts`
+  457/457, `tool-devsync` 392/392 (its index-check case first failed only because
+  `smoke-echo.ts` was untracked, then passed once staged). `wbs-be-01` 1870 pass, 1 fail: the
+  untouched `organization-selection.controller.db.test.ts` case "a committed revocation refuses the
+  old browser pair…" hit its 10 s timeout under the parallel run and passed 8/8 when its file was
+  rerun alone.
+- `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes staged . HEAD`:
+  exit 0. `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 158/158 passed.
+- Not moved: nine 6.1 files whose imports reach application-ring record types or core `http/`
+  parsers (see task 6.1). The `ring:domain` constraint in `eslint.config.js` allows the domain
+  library to depend only on `ring:domain` projects, so moving them needs those types to move
+  first or the files to declare their own inputs. Recorded as an open decision for the
+  orchestrator; the h2puni gate was not run from this lane.
+
+### Domain records and the rest of task 6.1 (WBS 040.18, decision A12) — 2026-10-11
+
+- Branch `batch-10/040-18-domain-records`, stacked on `batch-10/040-18-domain-services` (#299).
+  `203ba0e0e` first moved every port value record. It was reverted (`1b9f0fee5`) when the Fable
+  review narrowed A12 to records that are already values.
+- Red first: `libs/wbs/domain/domain/src/domain-ring-boundary.test.ts` failed 0/2 before the
+  moves. The `assumed-assignee.ts` existence check reported `Received: false`, and linting the
+  absent `roll-up.ts` gave a project-service parse error instead of a boundary verdict. After the
+  moves it passed 2/2.
+- R5 proofs on this tree:
+  - Turning `@nx/enforce-module-boundaries` off in `eslint.config.js` failed the refusal case with
+    `Received: []` (1 pass, 1 fail).
+  - Importing `WorkItemStore` from `@wbs/core/ports/work-item-store` into `roll-up.ts` failed
+    `wbs-domain:lint:fast` with `Circular dependency between "wbs-domain" and "wbs-core"`.
+  - Both injections were reverted.
+- `tools/tool-devsync/src/module-labels.test.ts`'s shim-form fixture named the moved
+  `service/assumed-assignee.ts`, which it imports. It now names `service/directory-usage.ts`, which
+  still exists and exports nothing of the capacity module, and the case passes with the same
+  mismatch text.
+- `bunx nx affected -t typecheck lint:fast --base=HEAD`: 19 projects passed.
+- Tests:
+  - wbs-domain 896/896
+  - wbs-core 824/824 (seven assumed-assignee cases moved to the domain)
+  - wbs-contracts 457/457
+  - wbs-store-memory 146/146
+  - wbs-store-sqlite 1287/1287
+  - tool-devsync 392/392
+  - be-01 `saved-plan-atomicity.db.test.ts` and `schedule-unestimated.test.ts` 12/12
+- `check-indexes staged . HEAD` exited 0. `openspec validate --all --json` passed 158/158.
+- Not run: the full be-01 suite on this slice, and the h2puni gate.
+- Review fixes on #314 (2026-10-11):
+  - What changed:
+    - `dependency.test.ts` and `roll-up.test.ts` moved to the domain, on `PlannedRow` and `ParentedRow` literals.
+    - `saved-plan-input.test.ts` stays in core and is listed in task 7.1, because it reaches `saved-plan-schedule.ts`.
+    - Step's contract and the design ledger now name `dependency-graph.ts` as remaining `service/` support.
+    - `kinds.json` dispositions name each owning module.
+    - `Stored*` and `Assignment` fields are readonly, and the duplicate `Captured*` value types are gone.
+  - Results:
+    - `nx affected -t typecheck lint:fast`: 19 projects pass.
+    - Tests: wbs-domain 950/950 and wbs-core 770/770 (the 54 cases moved between them), store-memory 146/146, store-sqlite 1287/1287, tool-devsync 392/392.
+    - `check-indexes` exits 0; OpenSpec passes 158/158.

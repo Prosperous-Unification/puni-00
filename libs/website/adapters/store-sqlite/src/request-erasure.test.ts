@@ -313,54 +313,51 @@ test('erasure is idempotent', () => {
 
 test('unknown provider usage keeps its reservation', () => {
   const databasePath = databaseFile();
-  const store = new WebsiteStore(databasePath);
-  try {
-    const account = store.createProspect('owner@example.test', 100);
-    store.ensureBlankRequest(account.id, 100);
-    const request = store.findAccountRequest(account.id);
-    if (!request) throw new Error('No active request');
-    const admission = store.admitChatOperation(
-      account.id,
-      request.id,
-      'key-12345678',
-      'hash',
-      `${sentinel} build me a shop`,
-      true,
-      900,
-      200,
-    );
-    if (admission.kind !== 'started') throw new Error(`Admission ${admission.kind}`);
-    const database = new Database(databasePath);
-    try {
-      fenceSubject(database, { kind: 'software_request', id: request.id });
-      expect(
-        database.query('SELECT state FROM chat_operation WHERE id = ?').get(admission.id),
-      ).toEqual({ state: 'unknown' });
-    } finally {
-      database.close();
-    }
-    expect(store.completeChatOperation(admission.id, `${sentinel} reply`, 700, 300)).toBe(false);
-    expect(store.listTurns(request.id)).toEqual([]);
-    expect(
-      store.admitChatOperation(
-        account.id,
-        request.id,
-        'key-87654321',
-        'hash-2',
-        'more',
-        false,
-        null,
-        400,
-      ),
-    ).toEqual({ kind: 'request_unavailable' });
-  } finally {
-    store.close();
-  }
+  new WebsiteStore(databasePath).close();
   const database = new Database(databasePath);
   try {
-    expect(
-      database.query('SELECT reserved_micro_usd, settled_micro_usd FROM provider_call').all(),
-    ).toEqual([{ reserved_micro_usd: 900, settled_micro_usd: null }]);
+    // A legacy account request with a paid chat operation and a paid conversation operation in flight.
+    database.run(`
+      INSERT INTO prospect_account (id, email, created_at) VALUES ('acct', 'owner@example.test', 10);
+      INSERT INTO intake_draft (id, description, brief, claim_hash, created_at, expires_at) VALUES
+        ('draft-a', '${sentinel} text', '', 'claim-a', 10, 99999);
+      INSERT INTO software_request (id, account_id, draft_id, description, brief, created_at) VALUES
+        ('req-a', 'acct', 'draft-a', '${sentinel} text', '', 10);
+      INSERT INTO provider_call (id, account_id, utc_day, reserved_micro_usd, created_at, request_id) VALUES
+        ('call-a', 'acct', '1970-01-01', 900, 20, 'req-a');
+      INSERT INTO chat_operation (id, account_id, request_id, idempotency_key, body_hash, message, initial, state, provider_call_id, created_at) VALUES
+        ('op-a', 'acct', 'req-a', 'key-a', 'hash', '${sentinel} hello', 1, 'inflight', 'call-a', 20);
+      INSERT INTO conversation (id, draft_id, source_hash, state, created_at) VALUES ('conv-a', 'draft-a', 'source', 'open', 10);
+      INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, created_at) VALUES
+        ('cop-a', 'conv-a', 'key-c', 'source', 'hash', '${sentinel} hi', 1, 'clarify', 'v1', 'inflight', '1970-01-01', 500, 20);
+      INSERT INTO retention_subject (subject_kind, subject_id, resolution, anchor_at, deadline_at, anchor_source) VALUES
+        ('software_request', 'req-a', 'anchored', 10, 1000, 'draft');
+    `);
+    fenceSubject(database, { kind: 'software_request', id: 'req-a' });
+    expect({
+      chat: database.query("SELECT state, reply FROM chat_operation WHERE id = 'op-a'").get(),
+      call: database.query("SELECT settled_micro_usd FROM provider_call WHERE id = 'call-a'").get(),
+      conversation: database
+        .query(
+          "SELECT state, settlement, settled_micro_usd FROM conversation_operation WHERE id = 'cop-a'",
+        )
+        .get(),
+    }).toEqual({
+      chat: { state: 'unknown', reply: null },
+      call: { settled_micro_usd: null },
+      conversation: { state: 'unknown', settlement: 'reserved_ceiling', settled_micro_usd: 500 },
+    });
+    // A completion that still arrives (an older binary's stream) is refused by the fence.
+    expect(() =>
+      database.run(
+        `UPDATE chat_operation SET state = 'completed', reply = '${sentinel} late' WHERE id = 'op-a'`,
+      ),
+    ).toThrow('retention: subject content is fenced');
+    expect(() =>
+      database.run(
+        `INSERT INTO conversation_turn (id, conversation_id, role, content, created_at) VALUES ('late', 'conv-a', 'assistant', '${sentinel} late', 30)`,
+      ),
+    ).toThrow('retention: subject content is fenced');
   } finally {
     database.close();
   }

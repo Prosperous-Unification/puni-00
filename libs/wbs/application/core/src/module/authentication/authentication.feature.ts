@@ -185,6 +185,13 @@ export class AuthService {
     return this.opts.account.resolveIdentity(identity);
   }
 
+  /** Resolves only a pre-existing exact verified pair; refresh may not create or link users. */
+  readExistingOidcIdentity(
+    identity: Pick<OidcIdentity, 'issuer' | 'subject'>,
+  ): Promise<User | null> {
+    return this.opts.account.readExistingIdentity(identity);
+  }
+
   private async issue(user: User): Promise<SignedIn> {
     const token = await this.opts.tokens.sign(
       { subject: user.id, username: user.username },

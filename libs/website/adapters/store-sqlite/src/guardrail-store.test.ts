@@ -6,6 +6,7 @@ import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
 import { conversationAllowance, guardrailAllowance, WebsiteStore } from './store';
+import { seedLegacyAccount } from './testing/legacy-account-fixture';
 
 const directories: string[] = [];
 afterEach(() => {
@@ -193,30 +194,6 @@ test('a replayed proposal is not counted again', () => {
   store.close();
 });
 
-test('the signed-in submission counts source and email', () => {
-  const databasePath = databaseFile();
-  const store = new WebsiteStore(databasePath);
-  const account = store.createProspect('owner@example.test', day);
-  for (let index = 0; index < 4; index += 1) {
-    draft(store, index, `source-${String(index)}`);
-    expect(store.attachDraft(account.id, `claim-${String(index)}`, day)).toBe(true);
-    const outcome = store.submitAccount(
-      account.id,
-      `key-${String(index)}-0000`,
-      'hash',
-      'owner@example.test',
-      'brief',
-      `r-${String(index)}`,
-      day,
-      `source-${String(index)}`,
-    );
-    expect(outcome.kind).toBe(index < 3 ? 'created' : 'limited');
-    if (index === 3) expect(outcome).toEqual({ kind: 'limited', code: 'proposal_email_limit' });
-  }
-  expect(count(databasePath, 'SELECT count(*) AS count FROM proposal_submission')).toBe(3);
-  store.close();
-});
-
 test('two connections at the source cap insert exactly one draft', () => {
   const databasePath = databaseFile();
   const first = new WebsiteStore(databasePath);
@@ -260,19 +237,11 @@ test('the pause and half-spend marks are 80% and 50% of the site-day ceiling', (
   );
 });
 
-/** Settles one account call so the site day has spent `spentMicroUsd`. */
-function spendSiteDay(store: WebsiteStore, databasePath: string, spentMicroUsd: number): void {
-  const account = store.createProspect('owner@example.test', day);
-  store.ensureBlankRequest(account.id, day);
-  const request = store.findAccountRequest(account.id);
-  if (!request) throw new Error('Missing account request');
-  const reservation = store.reserveProviderCall(account.id, request.id, 1, day);
-  if (reservation.kind !== 'reserved') throw new Error('Account reservation refused');
-  const database = new Database(databasePath);
-  database
-    .query('UPDATE provider_call SET reserved_micro_usd = ?1, settled_micro_usd = ?1')
-    .run(spentMicroUsd);
-  database.close();
+/** Seeds one settled legacy account call so the site day has spent `spentMicroUsd`. */
+function spendSiteDay(databasePath: string, spentMicroUsd: number): void {
+  seedLegacyAccount(databasePath, [
+    { utcDay: '2026-10-07', reservedMicroUsd: spentMicroUsd, settledMicroUsd: spentMicroUsd },
+  ]);
 }
 
 function openPauses(databasePath: string) {
@@ -291,7 +260,7 @@ function openPauses(databasePath: string) {
 test('a reservation reaching 80% of the site ceiling opens a site_spend pause and is refused', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
-  spendSiteDay(store, databasePath, 7_990_000);
+  spendSiteDay(databasePath, 7_990_000);
   draft(store, 1);
   const admission = store.admitConversationOperation({
     claimHash: 'claim-1',
@@ -311,15 +280,21 @@ test('a reservation reaching 80% of the site ceiling opens a site_spend pause an
   expect(admission.openedPauseId).toMatch(/^[0-9a-f-]{36}$/);
   expect(openPauses(databasePath)).toEqual([{ reason: 'site_spend', paused_by: 'system' }]);
   expect(count(databasePath, 'SELECT count(*) AS count FROM conversation_operation')).toBe(0);
-  // An open pause refuses the account path too, without opening a second one.
-  const account = store.createProspect('second@example.test', day);
-  store.ensureBlankRequest(account.id, day);
-  const request = store.findAccountRequest(account.id);
-  if (!request) throw new Error('Missing account request');
-  expect(store.reserveProviderCall(account.id, request.id, 1_000, day)).toEqual({
-    kind: 'paused',
-    openedPauseId: null,
-  });
+  // An open pause refuses the next admission too, without opening a second one.
+  expect(
+    store.admitConversationOperation({
+      claimHash: 'claim-1',
+      sourceHash: 'source-a',
+      idempotencyKey: 'initial:draft-1',
+      bodyHash: 'hash',
+      message: 'Build a booking app',
+      initial: true,
+      promptVersion: 'puni-sales-v1',
+      browserCheck: 'verified',
+      pricing: { kind: 'paid', price: () => 1_000 },
+      now: day,
+    }),
+  ).toEqual({ kind: 'paused', openedPauseId: null });
   expect(store.openInferencePause('operator', 'operator', day)).toBeNull();
   expect(openPauses(databasePath)).toHaveLength(1);
   store.close();
@@ -344,20 +319,6 @@ test('a reservation reaching 80% of the site ceiling opens a site_spend pause an
     }).kind,
   ).toBe('started');
   reopened.close();
-});
-
-test('the account reservation trips the pause at 80% too', () => {
-  const databasePath = databaseFile();
-  const store = new WebsiteStore(databasePath);
-  spendSiteDay(store, databasePath, 7_990_000);
-  const account = store.createProspect('second@example.test', day);
-  store.ensureBlankRequest(account.id, day);
-  const request = store.findAccountRequest(account.id);
-  if (!request) throw new Error('Missing account request');
-  const reservation = store.reserveProviderCall(account.id, request.id, 20_000, day);
-  expect(reservation.kind).toBe('paused');
-  expect(openPauses(databasePath)).toEqual([{ reason: 'site_spend', paused_by: 'system' }]);
-  store.close();
 });
 
 test('plus tags share one per-email cap; dots stay distinct', () => {
@@ -397,5 +358,65 @@ test('plus tags share one per-email cap; dots stay distinct', () => {
       'source-9',
     ).kind,
   ).toBe('created');
+  store.close();
+});
+
+test("the overview counts today's ceiling-settled operations", () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  draft(store, 1);
+  const database = new Database(databasePath);
+  database
+    .query(
+      "INSERT INTO conversation (id, draft_id, source_hash, state, created_at) VALUES ('conversation-1', 'draft-1', 'source-a', 'open', ?)",
+    )
+    .run(day);
+  const seed = database.query(
+    "INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, settled_micro_usd, settlement, reply, created_at) VALUES (?, 'conversation-1', ?, 'source-a', 'hash', 'message', 0, 'clarify', 'puni-sales-v1', ?, ?, ?, ?, ?, ?, ?)",
+  );
+  seed.run(
+    'stop-1',
+    'turn-1',
+    'unknown',
+    '2026-10-07',
+    3_000,
+    3_000,
+    'reserved_ceiling',
+    null,
+    day,
+  );
+  seed.run(
+    'stop-2',
+    'turn-1',
+    'unknown',
+    '2026-10-07',
+    2_000,
+    2_000,
+    'reserved_ceiling',
+    null,
+    day,
+  );
+  seed.run('done-1', 'turn-1', 'completed', '2026-10-07', 4_000, 1_000, 'usage', 'reply', day);
+  seed.run(
+    'stop-0',
+    'turn-0',
+    'unknown',
+    '2026-10-06',
+    9_000,
+    9_000,
+    'reserved_ceiling',
+    null,
+    day - 24 * hour,
+  );
+  database.close();
+  // Proof: counting every operation of the day instead of `unknown` ones made `count` 3 here.
+  expect(store.readGuardrailOverview(day).ceilingSettledToday).toEqual({
+    count: 2,
+    microUsd: 5_000,
+  });
+  expect(store.readGuardrailOverview(day + 24 * hour).ceilingSettledToday).toEqual({
+    count: 0,
+    microUsd: 0,
+  });
   store.close();
 });

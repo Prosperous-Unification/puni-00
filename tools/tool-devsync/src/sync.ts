@@ -496,6 +496,10 @@ export const RESTART_PATHS: readonly string[] = [
   // at startup` on `Expected to contain:
   // "apps/twilight-structure/twilight-burokrat/cli/project.json"` (2026-09-25).
   'apps/twilight-structure/twilight-burokrat/cli/project.json',
+  // Proof: omitting it failed `names every app project.json, which the supervisor reads once at
+  // startup` on `Expected to contain: "apps/twilight-structure/twilight-dash/cli/project.json"`
+  // (2026-10-11).
+  'apps/twilight-structure/twilight-dash/cli/project.json',
   'apps/wbs/fe-01/vite.config.ts',
   // TypeScript config is read once, at process start. A moved path alias
   // resolves against the old mapping in three already-running processes while
@@ -512,6 +516,10 @@ export const RESTART_PATHS: readonly string[] = [
   // start` on `Expected to contain:
   // "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json"` (2026-09-25).
   'apps/twilight-structure/twilight-burokrat/cli/tsconfig.json',
+  // Proof: omitting this entry failed `names every app tsconfig, which is read once at process
+  // start` on `Expected to contain: "apps/twilight-structure/twilight-dash/cli/tsconfig.json"`
+  // (2026-10-11).
+  'apps/twilight-structure/twilight-dash/cli/tsconfig.json',
   // A library's project.json can change what its serve-time build resolves to,
   // and the Nx supervisor read the project graph at startup like the rest.
   // Listed per library rather than as `libs`, which would restart on every
@@ -544,6 +552,10 @@ export const RESTART_PATHS: readonly string[] = [
   // Proof: omitting the failures manifest failed `names every library project.json that exists
   // on disk` with `Expected to contain: "libs/shared/domain/failures/project.json"` (2026-09-20).
   'libs/shared/domain/failures/project.json',
+  // Proof: the library-manifest coverage test failed on this exact missing path
+  // when the test-evidence project entered the candidate tree.
+  'libs/shared/domain/test-evidence/project.json',
+  'libs/shared/domain/test-levels/project.json',
   // Proof: CI run 36312821466 failed RESTART_PATHS coverage when the new portable
   // project manifests were omitted from the supervisor's startup fingerprint.
   'libs/shared/domain/portability-format/project.json',
