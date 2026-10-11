@@ -2016,3 +2016,8 @@ Faults, each injected by hand, its tests run, the file restored and the tests re
 | `c1`  | `cli.ts` samples `new Date()` again instead of `--now` | `inspect-manual evaluated at the last instant of the deadline date`; `… without an evaluation instant`; `… malformed …` | exit 1 for the boundary case; 0 for the two refusals |
 | `c2`  | the overdue comparison is `>=`                         | `inspect-manual evaluated at the last instant of the deadline date`                                                     | `Expected: 0, Received: 1`                           |
 | `c3`  | `readEvaluationInstant` keeps only the finiteness test | `inspect-manual refuses a malformed evaluation instant`; `readEvaluationInstant refuses the malformed instant …`        | `2026-02-30…` and `2026-10-11` accepted              |
+
+Scope: only `inspect-manual` stopped reading the clock. The review of this change found clock
+reads remaining in `review/invoker.ts`, `policy/prepare-activation-cli.ts`,
+`policy/prepare-relocation-activation-cli.ts` and `admission/authority-store.ts`, recorded as a
+follow-up under task 2.1 in `tasks.md`.

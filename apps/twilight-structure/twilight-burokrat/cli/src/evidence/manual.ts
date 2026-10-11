@@ -123,7 +123,7 @@ export const ManualAcceptanceApproval = type({
 export type EvaluationInstantFailure = 'absent' | 'malformed';
 
 /**
- * A refused `--now` argument. Burokrat reads no clock (docs/twilight-structure/names.md), so the
+ * A refused `--now` argument. `inspect-manual` reads no clock (docs/twilight-structure/names.md), so the
  * instant a Manual observation is judged at is supplied by its caller, Twilight Dash, and a
  * missing one is a refusal rather than a default.
  */
