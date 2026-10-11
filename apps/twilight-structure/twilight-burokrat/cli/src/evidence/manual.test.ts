@@ -16,9 +16,15 @@ import { afterEach, expect, test } from 'bun:test';
 
 import { registeredRules } from '../rules/registry';
 import { hashBytes, hashCanonical } from './content-manifest';
+import { EvaluationInstantError, readEvaluationInstant } from './manual';
 
 const scratch: string[] = [];
 const cli = join(import.meta.dir, '..', 'cli.ts');
+/**
+ * The evaluation instant every case passes as `--now`, as Twilight Dash would: after every
+ * fixture timestamp, so the ordinary chain is current, and fixed, so no case reads a clock.
+ */
+const EVALUATED_AT = '2026-10-11T00:00:00.000Z';
 const digest = (record: unknown): string => hashBytes(Buffer.from(JSON.stringify(record)));
 function git(root: string, args: string[]): string {
   const call = Bun.spawnSync(['git', '-C', root, ...args], { stdout: 'pipe', stderr: 'pipe' });
@@ -218,7 +224,7 @@ function fixture(baseLamp = true) {
     reportPath: join(base, 'report.json'),
   };
 }
-function inspect(setup: ReturnType<typeof fixture>, env = process.env) {
+function inspect(setup: ReturnType<typeof fixture>, env = process.env, now = EVALUATED_AT) {
   return Bun.spawnSync(
     [
       process.execPath,
@@ -229,6 +235,8 @@ function inspect(setup: ReturnType<typeof fixture>, env = process.env) {
       setup.revision,
       setup.policyPath,
       setup.reportPath,
+      '--now',
+      now,
     ],
     { env, stdout: 'pipe', stderr: 'pipe' },
   );
@@ -368,6 +376,65 @@ test('inspect-manual maps an overdue approved report to a named refusal verdict'
   expect(observation['finding']).toBe('EXAMPLE-001 review overdue on 2000-01-01');
   expect(observation['certifies']).toBe(false);
 });
+
+test.each([
+  ['the last instant of the deadline date', '2026-10-09T23:59:59.999Z', 'current', 0],
+  ['the first instant after the deadline date', '2026-10-10T00:00:00.000Z', 'overdue', 1],
+] as const)('inspect-manual evaluated at %s (%s)', (_case, now, state, exitCode) => {
+  const setup = fixture();
+  setup.records.review.reviewBy = '2026-10-09';
+  writeApprovedChain(setup);
+  const call = inspect(setup, process.env, now);
+  expect(call.exitCode, call.stderr.toString()).toBe(exitCode);
+  const observation = JSON.parse(call.stdout.toString()) as Record<string, unknown>;
+  expect(observation['state']).toBe(state);
+});
+
+test('inspect-manual refuses to run without an evaluation instant', () => {
+  const setup = fixture();
+  const call = Bun.spawnSync(
+    [
+      process.execPath,
+      'run',
+      cli,
+      'inspect-manual',
+      setup.root,
+      setup.revision,
+      setup.policyPath,
+      setup.reportPath,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  expect(call.exitCode).toBe(1);
+  expect(call.stdout.toString()).toBe('');
+  expect(call.stderr.toString()).toContain('inspect-manual requires --now <UTC instant>');
+});
+
+test('inspect-manual refuses a malformed evaluation instant', () => {
+  const call = inspect(fixture(), process.env, '2026-02-30T00:00:00.000Z');
+  expect(call.exitCode).toBe(1);
+  expect(call.stdout.toString()).toBe('');
+  expect(call.stderr.toString()).toContain(
+    'inspect-manual --now is not a UTC instant: 2026-02-30T00:00:00.000Z',
+  );
+});
+
+test.each([
+  ['absent', undefined],
+  ['malformed', '2026-10-11'],
+] as const)(
+  'readEvaluationInstant refuses the %s instant with its typed error',
+  (failure, value) => {
+    let refusal: unknown;
+    try {
+      readEvaluationInstant(value);
+    } catch (cause) {
+      refusal = cause;
+    }
+    expect(refusal).toBeInstanceOf(EvaluationInstantError);
+    expect((refusal as EvaluationInstantError).failure).toBe(failure);
+  },
+);
 
 test('inspect-manual gives overdue precedence over failed outcome and stale source', () => {
   const setup = fixture();

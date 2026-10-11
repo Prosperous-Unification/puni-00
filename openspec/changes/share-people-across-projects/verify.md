@@ -4197,3 +4197,16 @@ Final rerun on the closing bytes, under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYP
 - `NX_DAEMON=false bunx nx run-many -t test,lint:fast,typecheck -p wbs-be-01,wbs-core --skip-nx-cache`
   printed Nx success. be-01 had 1923 pass, 1 skip, 0 fail of 1924; core passed 846/846.
 - OpenSpec all passed 158/158.
+
+## WBS 57dbb916 (batch 10): no fan-out captures on a pure cache hit
+
+Observed 2026-10-11 on `batch-10/010-4-16-capture-on-cache-hit`, from `batch-10/integration-4` at
+`9a9d5677f`. The observation owner checks `reusesEnabledGeneration` (enabled project, equal stored
+input hash) inside its `BEGIN IMMEDIATE` turn and then observes with no captures.
+
+| Check                                                                                      | Observed                                                                                                                   |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `skips whole-organization fan-out captures on a pure equal-hash cache hit`, before the fix | `Expected: 0, Received: 2`                                                                                                 |
+| Same test after the fix                                                                    | pass                                                                                                                       |
+| Skip made unconditional (`true \|\|`)                                                      | `records selected-display eviction when an installed stale observation advances generation` failed: B's A-cause event lost |
+| services, coordinator, coordinator model and optimization repository db tests              | 232 pass, 0 fail                                                                                                           |

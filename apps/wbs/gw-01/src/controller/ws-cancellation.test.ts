@@ -1,6 +1,7 @@
 import { expect, it } from 'bun:test';
 
 import { SubscriptionMap } from '../service/subscription-map';
+import { grantingAccess } from '../testing/project-access';
 import type { UnexpectedBackendFailure } from './unexpected-backend-failure';
 import { handleWsMessage } from './ws.controller';
 
@@ -20,7 +21,10 @@ for (const kind of ['forward', 'resume'] as const) {
       frame:
         kind === 'forward'
           ? { subscription: 'presence', message: { write: true } }
-          : { type: 'resume', resume_points: { presence: 0 } },
+          : {
+              type: 'resume',
+              resume_points: { 'project:00000000-0000-4000-8000-0000000000aa': 0 },
+            },
       socket: {
         send: (frame) => {
           sent.push(frame);
@@ -30,6 +34,7 @@ for (const kind of ['forward', 'resume'] as const) {
       clientId: 'u',
       connectionId: 'c',
       reportUnexpectedBackendFailure: (failure) => reports.push(failure),
+      access: grantingAccess(),
       forward: () => pending,
       resume: () => pending,
       signal: cancellation.signal,
@@ -61,7 +66,7 @@ it('closed connection suppresses a late successful replay', async () => {
     resolveRequest = resolve;
   });
   const handling = handleWsMessage({
-    frame: { type: 'resume', resume_points: { presence: 0 } },
+    frame: { type: 'resume', resume_points: { 'project:00000000-0000-4000-8000-0000000000aa': 0 } },
     socket: {
       send: (frame) => {
         sent.push(frame);
@@ -71,13 +76,17 @@ it('closed connection suppresses a late successful replay', async () => {
     clientId: 'u',
     connectionId: 'c',
     reportUnexpectedBackendFailure: () => undefined,
+    access: grantingAccess(),
     forward: () => Promise.resolve({ ack: true }),
     resume: () => pending,
     signal: cancellation.signal,
   });
   cancellation.abort();
   resolveRequest({
-    presence: { status: 'replaying', events: [{ seq: 1, message: { late: true } }] },
+    'project:00000000-0000-4000-8000-0000000000aa': {
+      status: 'replaying',
+      events: [{ seq: 1, message: { late: true } }],
+    },
   });
   await handling;
   expect(sent).toEqual([]);
