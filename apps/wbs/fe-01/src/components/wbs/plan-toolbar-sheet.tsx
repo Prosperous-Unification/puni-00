@@ -1,4 +1,4 @@
-import { type ReactNode, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
@@ -101,10 +101,18 @@ export const TAKES_THE_FOCUS = 'data-takes-the-focus';
 export interface PlanToolbarSheetProps {
   /** The toolbar's controls, exactly as the wide face lays them out. */
   children: ReactNode;
+  /** False while a mounted Plan is hidden behind the page's Board. */
+  active?: boolean;
 }
 
-export function PlanToolbarSheet({ children }: PlanToolbarSheetProps): React.JSX.Element {
+export function PlanToolbarSheet({
+  children,
+  active = true,
+}: PlanToolbarSheetProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!active) setOpen(false);
+  }, [active]);
   /**
    * Whether the control that closed the sheet aims the caret itself — the
    * {@link TAKES_THE_FOCUS} mark, read off the control that was clicked.
@@ -120,7 +128,7 @@ export function PlanToolbarSheet({ children }: PlanToolbarSheetProps): React.JSX
    */
   const controlTakesTheFocus = useRef(false);
   return (
-    <Modal open={open} onOpenChange={setOpen}>
+    <Modal open={active && open} onOpenChange={setOpen}>
       {/*
         The trigger belongs to the modal rather than sitting beside it, for
         `ProjectSettingsModal`'s reason: Radix restores the focus to its trigger
