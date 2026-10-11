@@ -23,6 +23,7 @@
   },
   "targets": {
     "test": {
+      "inputs": ["default", "^production", "{workspaceRoot}/docs/website/walkthrough.md"],
       "executor": "nx:run-commands",
       "options": {
         "command": "bun test apps/website/fe-01/src --timeout=30000"
