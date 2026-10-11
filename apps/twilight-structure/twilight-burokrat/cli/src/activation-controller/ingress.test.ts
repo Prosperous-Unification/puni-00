@@ -4,9 +4,9 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
-import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
+import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
 import { assertObservedRequestCurrent, prepareObservedRequest } from './ingress';
-import { createActivationRequest } from './request';
+import { createActivationRequest, decodeActivationRequest } from './request';
 
 const scratch: string[] = [];
 afterEach(() => {
@@ -175,4 +175,90 @@ test('ingress accepts a current later audit generation under the same pinned aut
   expect(() => {
     assertObservedRequestCurrent(later, fixture.path, fixture.pin, fixture.observed);
   }).not.toThrow();
+});
+
+function installedRefusal(
+  fixture: ReturnType<typeof mounted>,
+  original: Parameters<typeof prepareObservedRequest>[2],
+  changed: Parameters<typeof prepareObservedRequest>[2],
+): void {
+  const frozen = prepareObservedRequest(fixture.path, fixture.pin, original);
+  const other = prepareObservedRequest(fixture.path, fixture.pin, changed);
+  expect(other.identity).not.toBe(frozen.identity);
+  expect(() => {
+    assertObservedRequestCurrent(frozen.request, fixture.path, fixture.pin, changed);
+  }).toThrow('activation request identity changed');
+}
+
+test('same commits do not alias different PR subjects', () => {
+  const fixture = mounted();
+  installedRefusal(fixture, fixture.observed, {
+    ...fixture.observed,
+    subject: { kind: 'pull-request', number: 283 },
+  });
+});
+
+test('PR and protected revision cannot share approval', () => {
+  const fixture = mounted();
+  installedRefusal(fixture, fixture.observed, {
+    ...fixture.observed,
+    subject: { kind: 'protected-revision', ref: fixture.observed.targetRef },
+  });
+});
+
+test('retargeting the same base changes admission', () => {
+  const fixture = mounted();
+  installedRefusal(fixture, fixture.observed, {
+    ...fixture.observed,
+    targetRef: 'refs/heads/release',
+  });
+});
+
+test('ordered group members bind the request', () => {
+  const fixture = mounted();
+  const members = [
+    { repositoryId: 8241, pullRequestNumber: 282, headSha: '1'.repeat(40) },
+    { repositoryId: 8241, pullRequestNumber: 283, headSha: '6'.repeat(40) },
+  ];
+  const group = {
+    ...fixture.observed,
+    subject: {
+      kind: 'merge-group' as const,
+      groupRef: 'refs/heads/gh-readonly-queue/main/group-1',
+      members,
+    },
+  };
+  installedRefusal(fixture, group, {
+    ...group,
+    subject: { ...group.subject, members: [...members].reverse() },
+  });
+  const [first, second] = members;
+  installedRefusal(fixture, group, {
+    ...group,
+    subject: { ...group.subject, members: [first, { ...second, headSha: '7'.repeat(40) }] },
+  });
+  installedRefusal(fixture, group, {
+    ...group,
+    subject: { ...group.subject, members: [first] },
+  });
+});
+
+test('old request schema cannot acquire default authority', () => {
+  const fixture = mounted();
+  const frozen = prepareObservedRequest(fixture.path, fixture.pin, fixture.observed);
+  const { subject: _subject, targetRef: _targetRef, ...beforeSubjects } = frozen.request;
+  const { authorityIdentity: _authority, ...beforeAuthority } = frozen.request;
+  for (const legacy of [beforeSubjects, beforeAuthority, { ...frozen.request, schemaVersion: 0 }]) {
+    const { requestIdentity: _identity, ...body } = legacy;
+    const rehashed = { ...body, requestIdentity: hashCanonical(body) };
+    expect(() => decodeActivationRequest(serializeCanonical(rehashed))).toThrow();
+    expect(() => {
+      assertObservedRequestCurrent(
+        rehashed as unknown as typeof frozen.request,
+        fixture.path,
+        fixture.pin,
+        fixture.observed,
+      );
+    }).toThrow();
+  }
 });

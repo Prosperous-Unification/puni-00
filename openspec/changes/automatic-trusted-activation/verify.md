@@ -3738,3 +3738,26 @@ worker-isolation and observation-unit tests passed 14/14. `tsc --noEmit -p` on
 (non-solution configs, `include: ["*.ts"]`) reported zero errors; neither is in a declared
 Nx typecheck target. Pinned OpenSpec `validate --all --json` passed 171/171. No R5 omission
 was rerun for this integration: no guard was added or changed. Tasks stay unchecked.
+
+### 1.1 acceptance-named installed current-request tests (2026-10-11)
+
+The five 1.1 subject/target acceptance names had equivalent coverage under combined names
+only. `ingress.test.ts` now carries each exact name. Each asserts a distinct canonical identity
+and refusal through installed `assertObservedRequestCurrent`, so hashing alone cannot
+mask a missing admission comparison: `same commits do not alias different PR subjects`,
+`PR and protected revision cannot share approval`, `retargeting the same base changes
+admission`, `ordered group members bind the request` (reorder, member head change and member
+removal), and `old request schema cannot acquire default authority` (rehashed records without
+subject/targetRef, without authorityIdentity, or with schemaVersion 0). A one-guard-at-a-time
+harness edited `request.ts`, ran `ingress.test.ts`, then restored the source bytes:
+
+| Injected fault                                    | Observed RED (exit 1)                                                           |
+| ------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Omit `requireCurrentRequest` subject join         | the PR-subject, protected-revision and ordered-member tests plus two existing   |
+| Omit `requireCurrentRequest` target-ref join      | `retargeting the same base changes admission` plus the existing ingress recheck |
+| Replace `ActivationRequestRecord` parse with cast | `old request schema cannot acquire default authority`                           |
+
+The restored file passed 9/9 tests, and `request.test.ts` with it passed 13/13. Adjacent `Proof:` comments name these
+faults. Task 1.1 stays open. The receipt/descriptor contract must still bind the typed
+subject and target ref, and that needs the publication stage (3.1). Concrete provider/store
+selection remains an external bootstrap decision.

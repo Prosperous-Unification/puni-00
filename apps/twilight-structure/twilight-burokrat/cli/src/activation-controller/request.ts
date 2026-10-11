@@ -71,6 +71,8 @@ function assertSubjectTarget(body: ActivationRequestBody): void {
 
 /** Checks every request identity before it can authorize a stage or be reused after a PR moves. */
 export function assertActivationRequest(input: unknown): ActivationRequest {
+  // Proof: replacing this parse with a cast let rehashed requests without subject/targetRef or
+  // authorityIdentity decode; `old request schema cannot acquire default authority` failed.
   const request = parseOrThrow(ActivationRequestRecord, input);
   assertSubjectTarget(requestBody(request));
   // Proof: omitting the digest check accepted a modified stored request under its old identity.
@@ -117,7 +119,11 @@ export function requireCurrentRequest(
   // Proof: independent field omissions let mounted current-request checks reuse the old candidate.
   if (
     stored.repositoryId !== observed.repositoryId ||
+    // Proof: omitting the subject join let installed ingress accept another PR, a protected
+    // revision and reordered/changed group members; the three 1.1 subject tests failed.
     hashCanonical(stored.subject) !== hashCanonical(observed.subject) ||
+    // Proof: omitting the target-ref join let installed ingress accept a retargeted PR with
+    // unchanged commits; `retargeting the same base changes admission` failed.
     stored.targetRef !== observed.targetRef ||
     stored.headSha !== observed.headSha ||
     stored.baseSha !== observed.baseSha ||
