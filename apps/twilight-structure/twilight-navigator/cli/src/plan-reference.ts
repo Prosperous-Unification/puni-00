@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 import { digestOf, type PlanRef, PlanReferenceRecord } from '@twilight-burokrat/contracts';
-import { PLAN_DOCUMENT_VERSION, type PlanDocument, planDocument } from '@wbs/contracts';
+import { type PlanDocument, planDocument } from '@wbs/contracts';
 
 import type { FlagValues } from './cli';
 import { type PlanTask, PlanTasks } from './plan-tasks';
@@ -27,6 +27,13 @@ export const PLAN_REFERENCE_FLAGS = [
 
 type PlanReferenceFlag = (typeof PLAN_REFERENCE_FLAGS)[number];
 
+/**
+ * The one WBS plan document version Navigator reads, pinned here rather than imported so a WBS
+ * bump is refused until Navigator, the `planDocumentVersion: 6` literal in Burokrat's
+ * `PlanReferenceRecord`, and the v6 fixture move together.
+ */
+const NAVIGATOR_PLAN_DOCUMENT_VERSION = 6;
+
 const EXPORT_ROLE = 'plan export';
 const REQUIREMENTS_ROLE = 'requirements file';
 
@@ -43,7 +50,7 @@ function sha256Hex(bytes: Uint8Array): string {
 /**
  * Reads and validates one WBS plan export.
  *
- * @throws when the document is not a WBS plan, is not version {@link PLAN_DOCUMENT_VERSION},
+ * @throws when the document is not a WBS plan, is not version {@link NAVIGATOR_PLAN_DOCUMENT_VERSION},
  * or fails the version-6 contract with any undeclared key.
  */
 function decodePlanExport(bytes: Uint8Array, path: string): PlanDocument {
@@ -52,10 +59,12 @@ function decodePlanExport(bytes: Uint8Array, path: string): PlanDocument {
   if (header instanceof type.errors) {
     throw new Error(`${EXPORT_ROLE} is malformed: ${path} is not a WBS plan (${header.summary})`);
   }
-  // Proof: removing this check failed `refuses a version-5 document before writing` (2026-10-11).
-  if (header.document.version !== PLAN_DOCUMENT_VERSION) {
+  // Proof: removing this check failed `refuses a version-5 document before writing`. Comparing
+  // to WBS's imported PLAN_DOCUMENT_VERSION, bumped to 7 in libs/wbs, failed `refuses a version-7
+  // document before writing` (received `plan export is malformed`) (2026-10-11).
+  if (header.document.version !== NAVIGATOR_PLAN_DOCUMENT_VERSION) {
     throw new Error(
-      `${EXPORT_ROLE} ${path} has version ${String(header.document.version)}; twin reads version ${String(PLAN_DOCUMENT_VERSION)} only`,
+      `${EXPORT_ROLE} ${path} has version ${String(header.document.version)}; twin reads version ${String(NAVIGATOR_PLAN_DOCUMENT_VERSION)} only`,
     );
   }
   try {
@@ -80,8 +89,8 @@ export function derivePlanTasks(document: PlanDocument): PlanTasks {
   if (new Set(steps.map((step) => step.code)).size !== steps.length) {
     throw new Error('plan export repeats a step code');
   }
-  const itemById = new Map(document.workItems.map((item) => [item.id, item]));
-  const parents = new Set(document.workItems.map((item) => item.parentId));
+  const itemById = new Map(document.workItems.map((workItem) => [workItem.id, workItem]));
+  const parents = new Set(document.workItems.map((workItem) => workItem.parentId));
 
   const ancestorsOf = (id: string): string[] => {
     const names: string[] = [];
@@ -99,22 +108,22 @@ export function derivePlanTasks(document: PlanDocument): PlanTasks {
   };
 
   const tasks: PlanTask[] = document.workItems
-    .filter((item) => !parents.has(item.id))
-    .map((item) => {
-      for (const stepId of Object.keys(item.estimates)) {
+    .filter((workItem) => !parents.has(workItem.id))
+    .map((workItem) => {
+      for (const stepId of Object.keys(workItem.estimates)) {
         if (!stepById.has(stepId)) {
-          throw new Error(`plan export estimates ${item.id} on an unknown step ${stepId}`);
+          throw new Error(`plan export estimates ${workItem.id} on an unknown step ${stepId}`);
         }
       }
       return {
-        id: item.id,
-        number: item.number,
-        name: item.name,
-        ancestors: ancestorsOf(item.id),
+        id: workItem.id,
+        number: workItem.number,
+        name: workItem.name,
+        ancestors: ancestorsOf(workItem.id),
         estimateDays: steps
-          .filter((step) => Object.hasOwn(item.estimates, step.id))
+          .filter((step) => Object.hasOwn(workItem.estimates, step.id))
           .map((step) => {
-            const trio = item.estimates[step.id];
+            const trio = workItem.estimates[step.id];
             return {
               stepCode: step.code,
               optimistic: trio.optimistic,
@@ -122,9 +131,9 @@ export function derivePlanTasks(document: PlanDocument): PlanTasks {
               pessimistic: trio.pessimistic,
             };
           }),
-        dependsOn: [...item.dependsOn],
+        dependsOn: [...workItem.dependsOn],
         typedDependencies: document.typedDependencies
-          .filter((dependency) => dependency.successor.workItem === item.id)
+          .filter((dependency) => dependency.successor.workItem === workItem.id)
           .map((dependency) => ({
             id: dependency.id,
             type: dependency.type,
@@ -175,7 +184,7 @@ export async function runPlanReference(request: FlagValues<PlanReferenceFlag>): 
     schemaVersion: 1,
     kind: 'plan-reference',
     planRef,
-    planDocumentVersion: PLAN_DOCUMENT_VERSION,
+    planDocumentVersion: NAVIGATOR_PLAN_DOCUMENT_VERSION,
     exportDigest: sha256Hex(exportBytes),
     tasksDigest: digestOf(tasks),
     taskCount: tasks.tasks.length,

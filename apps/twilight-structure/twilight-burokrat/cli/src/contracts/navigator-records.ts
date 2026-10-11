@@ -5,7 +5,12 @@ import { GitObjectId, IsoInstant, RelativePath, SchemaVersion, Sha256 } from './
 
 /** A WBS identifier: WBS ids may begin with a digit, which Burokrat's `OpaqueId` refuses. */
 const WbsId = type(/^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$/);
-/** A manifest `repositoryId` or normalized Git remote URL: nonblank, no whitespace. */
+/**
+ * Caller-supplied, not derived: the client repository manifest's `repositoryId`, or the
+ * normalized Git remote URL when there is no manifest (`twin plan-reference --repository`).
+ * Only its shape is checked here, nonblank with no whitespace; `PlanRef` equality is what binds
+ * a receipt to its reference, so the spelling must stay the same across both.
+ */
 const RepositoryId = type(/^\S{1,512}$/);
 /** An OpenSpec change name. */
 const ChangeName = type(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);

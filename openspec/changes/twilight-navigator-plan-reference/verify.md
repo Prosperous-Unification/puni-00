@@ -37,6 +37,15 @@ directory. The alias is now `@twilight-burokrat/contracts` and the link `../../t
 Afterwards `bunx nx run-many -t test lint typecheck -p tool-devsync twilight-navigator
 --skip-nx-cache` exited 0: tool-devsync 395/395 across 28 files, Navigator 29/29.
 
+## Fable review fixes (2026-10-11)
+
+Renamed `handle` → `opened` and `item` → `workItem`. Navigator now pins
+`NAVIGATOR_PLAN_DOCUMENT_VERSION = 6` instead of importing WBS's constant. ENOENT on an
+exclusive create is refused as `output directory is missing: <dir>`. `RepositoryId` is
+documented as caller-supplied; its shape is unchanged. Afterwards, uncached `twilight-navigator`
+test, lint and typecheck exited 0 (31/31). Burokrat `src/contracts/` passed 30/30, with eslint
+and tsc clean. OpenSpec passed 161/161 and Prettier was clean.
+
 ## R5 proofs
 
 Each fault was injected alone, the named test watched failing, and the source restored before
@@ -70,6 +79,8 @@ the green run above. The adjacent `Proof:` comments name the same faults.
 | Navigator `project.json` / `tsconfig.json` removed from `RESTART_PATHS`         | `names every app project.json…` / `names every app tsconfig…`                                                   |
 | graph pair `twilight-navigator → twilight-burokrat` / `→ wbs-contracts` removed | real Nx graph oracle reported that edge                                                                         |
 | Navigator lint allow widened to `^@wbs/`                                        | `lets Navigator reach exactly the Burokrat and WBS record contracts` at the allow-list assertion                |
+| comparing the version to WBS's imported constant, bumped to 7 in libs/wbs       | `refuses a version-7 document before writing` (received `plan export is malformed`)                             |
+| ENOENT on exclusive create left unmapped                                        | `refuses a missing output directory and names it` (raw `ENOENT … open`)                                         |
 | Navigator lint override removed                                                 | `eslint` on Navigator: `Imports of apps are forbidden` and the product tag refusal                              |
 
 The emitted command batch is checked against `postApiProjectsByIdCommands`' own params and body

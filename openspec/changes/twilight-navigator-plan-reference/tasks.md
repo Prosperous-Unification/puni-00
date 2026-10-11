@@ -1,7 +1,7 @@
 ## 1. Record kinds in Burokrat's contracts
 
-- [x] 1.1 Red then green: `PlanReferenceRecord` and `ProgressReceiptRecord` v1 in `contracts/navigator-records.ts`, both in `RecordKind` and `decodeRecord`. Tests: decodes both; refuses an undeclared key, a wrong schema version, a non-hex digest, an empty entry list, an unknown status; the kind set is exactly the documented list. R5: drop undeclared-key rejection on one record and watch the undeclared-key case decode; remove `plan-reference` from `RecordKind` and watch the kind-set and production `validate` cases fail.
-- [x] 1.2 Red then green: `contracts/canonical.ts` with canonical JSON, `digestOf` and `verifyDigest`. Tests: byte-stable across key order; a changed field changes the digest; `verifyDigest` refuses a tampered record. R5: skip the digest comparison and watch the tamper case pass.
+- [x] 1.1 Red then green: `PlanReferenceRecord` and `ProgressReceiptRecord` v1 in `contracts/navigator-records.ts`, both in `RecordKind` and `decodeRecord`. Tests (`contracts/navigator-records.test.ts`): decodes both; refuses an undeclared key, a wrong schema version, a non-hex digest, an empty entry list, an unknown status; the kind set is exactly the documented list. R5: drop undeclared-key rejection on one record and watch the undeclared-key case decode; remove `plan-reference` from `RecordKind` and watch the kind-set and production `validate` cases fail.
+- [x] 1.2 Red then green: `contracts/canonical.ts` with canonical JSON, `digestOf` and `verifyDigest`. Tests (`contracts/canonical.test.ts`): byte-stable across key order; a changed field changes the digest; `verifyDigest` refuses a tampered record. R5: skip the digest comparison and watch the tamper case pass.
 
 ## 2. `twin plan-reference`
 

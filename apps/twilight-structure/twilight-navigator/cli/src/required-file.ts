@@ -1,4 +1,5 @@
 import { open, readFile, rm } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 function errorCode(failure: unknown): unknown {
   return typeof failure === 'object' && failure !== null && 'code' in failure
@@ -68,12 +69,19 @@ export async function createExclusiveFiles(
     for (const file of files) {
       // Proof: opening with 'w' instead of 'wx' failed `refuses an existing output file and keeps
       // its bytes` and `removes its own first file when the second is occupied` (2026-10-11).
-      const handle = await open(file.path, 'wx', 0o600);
+      const opened = await open(file.path, 'wx', 0o600).catch((failure: unknown) => {
+        // Proof: rethrowing ENOENT unchanged failed `refuses a missing output directory and
+        // names it`: the diagnostic was the raw `ENOENT … open` text (2026-10-11).
+        if (errorCode(failure) === 'ENOENT') {
+          throw new Error(`output directory is missing: ${dirname(file.path)}`, { cause: failure });
+        }
+        throw failure;
+      });
       created.push(file.path);
       try {
-        await handle.writeFile(file.text, 'utf8');
+        await opened.writeFile(file.text, 'utf8');
       } finally {
-        await handle.close();
+        await opened.close();
       }
     }
   } catch (failure) {

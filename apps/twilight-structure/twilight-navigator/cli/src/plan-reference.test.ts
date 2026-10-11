@@ -155,6 +155,27 @@ describe('twin plan-reference', () => {
     );
   });
 
+  test('refuses a version-7 document before writing', async () => {
+    const path = writeExport((document) => {
+      document['document'] = {
+        format: 'wbs-plan',
+        version: 7,
+        exportedAt: '2026-10-11T09:00:00.000Z',
+      };
+    });
+    expectRefusal(
+      await planReference({ '--export': path }),
+      /has version 7; twin reads version 6 only/,
+    );
+  });
+
+  test('refuses a missing output directory and names it', async () => {
+    const absent = join(scratch.path, 'absent-dir');
+    const run = await planReference({ '--output': absent });
+    expect(run.exitCode).toBe(1);
+    expect(run.stderr).toBe(`output directory is missing: ${absent}`);
+  });
+
   test('refuses an export carrying a key the version-6 contract does not declare', async () => {
     const path = writeExport((document) => {
       document['navigatorNote'] = 'extra';
