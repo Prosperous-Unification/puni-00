@@ -79,6 +79,8 @@ beforeAll(() => {
     sessionStorage: dom.window.sessionStorage,
     IS_REACT_ACT_ENVIRONMENT: true,
   });
+  // jsdom lays nothing out and has no scrollIntoView; the card scrolls its failure line into view.
+  Object.assign(dom.window.HTMLElement.prototype, { scrollIntoView: () => undefined });
 });
 afterAll(() => {
   globalThis.fetch = realFetch;
@@ -352,6 +354,61 @@ test('a brief save the API refuses says the edit is not saved and offers no succ
   // Proof: showing the saved line regardless of the answer left this failure empty.
   await settleUntil(() => failure().startsWith('Your edit is not saved yet.'), failure);
   expect(container.querySelector('.proposal-saved')).toBeNull();
+  act(() => {
+    root.unmount();
+  });
+});
+
+test('a save answered after the request started never shows under Sending', async () => {
+  const save = Promise.withResolvers<Response>();
+  const post = Promise.withResolvers<Response>();
+  globalThis.fetch = Object.assign(
+    (input: Parameters<typeof fetch>[0]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/brief')) return save.promise;
+      if (url.endsWith('/proposals')) return post.promise;
+      throw new Error(`Unexpected request ${url}`);
+    },
+    { preconnect: realFetch.preconnect },
+  );
+  const container = dom.window.document.createElement('div');
+  dom.window.document.body.replaceChildren(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(
+      <LiveHarness initial={briefed} onReload={() => undefined} onHandedOff={() => undefined} />,
+    );
+    await Promise.resolve();
+  });
+  const field = container.querySelector<HTMLTextAreaElement>('#proposal-brief');
+  const form = container.querySelector('.proposal-card form');
+  if (!field || !form) throw new Error('proposal card missing');
+  await act(async () => {
+    typeInto(field, 'A changed brief');
+    await Promise.resolve();
+  });
+  // Pressing the button blurs the field (the save starts), then submits.
+  await act(async () => {
+    field.dispatchEvent(new dom.window.FocusEvent('focusout', { bubbles: true }));
+    form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+  });
+  // The request consumed the draft first, so the save is refused.
+  await act(async () => {
+    save.resolve(
+      new Response(JSON.stringify({ code: 'draft_unavailable' }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+  // Proof: without the submission guard in saveBrief this showed "Your edit is not saved yet.".
+  expect(container.querySelector('.proposal-failure')).toBeNull();
+  expect(container.querySelector('.proposal-saved')).toBeNull();
+  expect(container.querySelector('.proposal-card button[type="submit"]')?.textContent).toContain(
+    'Sending…',
+  );
   act(() => {
     root.unmount();
   });

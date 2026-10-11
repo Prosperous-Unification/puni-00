@@ -578,15 +578,30 @@ function ProposalCard({
   const [isPending, setPending] = useState(false);
   const [failure, setFailure] = useState('');
   const thanks = useRef<HTMLHeadingElement>(null);
+  const failureLine = useRef<HTMLParagraphElement>(null);
+  // Counts submissions; a save answered after one started reports nothing (see saveBrief).
+  const submissions = useRef(0);
   const headingId = useId();
 
   useEffect(() => {
     if (receipt !== null) thanks.current?.focus();
   }, [receipt]);
 
+  // On a phone the line lands below the fold of the scrolling thread; bring it into view.
+  useEffect(() => {
+    if (failure) failureLine.current?.scrollIntoView({ block: 'nearest' });
+  }, [failure]);
+
+  /**
+   * Pressing the request button blurs the field first, so a save can race the submission. The
+   * submission carries the same text and its outcome is the one the visitor sees: a save answered
+   * after a submission started (refused because that submission consumed the draft, or accepted)
+   * changes nothing on screen.
+   */
   async function saveBrief(): Promise<void> {
     const text = brief;
     if (text === savedBrief || text.trim() === '') return;
+    const started = submissions.current;
     setSaved(false);
     setFailure('');
     try {
@@ -595,15 +610,18 @@ function ProposalCard({
         headers: { 'X-Puni-CSRF': conversation.csrfToken },
         body: JSON.stringify({ brief: text }),
       });
+      if (submissions.current !== started) return;
       setSavedBrief(text);
       setSaved(true);
     } catch (error) {
+      if (submissions.current !== started) return;
       setFailure(`Your edit is not saved yet. ${describeFailure(error)}`);
     }
   }
 
   async function submit(event: React.SubmitEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    submissions.current += 1;
     setPending(true);
     setSaved(false);
     setFailure('');
@@ -701,7 +719,7 @@ function ProposalCard({
           <a href={`${siteOrigin}/privacy/`}>How we handle requests</a>
         </p>
         {failure && (
-          <p className="proposal-failure" role="alert">
+          <p className="proposal-failure" role="alert" ref={failureLine}>
             {failure}
           </p>
         )}

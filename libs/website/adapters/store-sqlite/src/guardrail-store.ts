@@ -422,9 +422,12 @@ export interface Inflight {
 }
 
 /**
- * The `inflight` conversation operations of one UTC day: admitted, reserved and not yet settled.
- * Site spend already counts them at their reservation; a restart settles any left over at that
- * reservation (`unknown`), so they never leave the day's spend.
+ * The `inflight` conversation operations admitted on one UTC day (`utc_day` is the admission
+ * day, as for site spend): reserved and not yet settled. A call admitted just before midnight and
+ * still running after it is counted under its admission day, so for at most the 30-second
+ * deadline it is missing from "today". Site spend already counts these at their reservation; a
+ * restart settles any left over at that reservation (`unknown`), so they never leave the day's
+ * spend.
  */
 export function readInflight(database: Database, utcDay: string): Inflight {
   const row = database

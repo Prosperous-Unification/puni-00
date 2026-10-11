@@ -70,7 +70,7 @@ The [abuse guardrails design](../../openspec/changes/website-abuse-guardrails/de
 ### Reading the operator panels
 
 - `Today's spend` is the UTC day's recorded site spend against the $10 ceiling: settled amounts, plus the reservations of calls still in flight. It never under-counts.
-- `In flight now` is today's paid calls admitted and not yet settled, and the reservation they hold. A call normally settles within the 30-second deadline. One that stays here longer is a stuck reservation: restart the API, which settles every in-flight call at its full reservation, so the line returns to `None` and `Today's spend` does not change.
+- `In flight now` is the paid calls admitted today (UTC admission day) and not yet settled, and the reservation they hold; a call admitted before midnight is not listed after it. A call normally settles within the 30-second deadline. One that stays here longer is a stuck reservation: restart the API with only one replica running (the k3s Deployment uses `Recreate`), because startup settles every in-flight call in the database at its full reservation, including another live process's, so the line returns to `None` and `Today's spend` does not change.
 - `Ceiling-settled today` is how far `Today's spend` may over-count: calls whose usage never arrived (Stop, disconnect, timeout, stream error, restart) were recorded at their full reservation. There is no reconciliation ([batch 10 decision D3](../../openspec/changes/website-funnel-counts/proposal.md)).
 - The Funnel's `Spend` column is the same daily figure for each of the last 30 UTC days, so a trend in spend sits beside the drafts, briefs and proposals it bought.
 

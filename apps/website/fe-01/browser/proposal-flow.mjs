@@ -176,6 +176,20 @@ async function submitThroughFault(page, posts, email, label, success) {
     await alert.waitFor();
     const text = await alert.innerText();
     if (!/couldn’t reach PUNI|try again/i.test(text)) fail(`${label}: fault copy ${text}`);
+    // The refusal is read where it appears: wholly inside the viewport and above the Build dock.
+    // Proof: without ManualPage's scrollIntoView effect this failed at manual-768; without the
+    // card's, at build-390.
+    await page.waitForTimeout(300);
+    const box = await alert.boundingBox();
+    const dock =
+      (await page.locator('.harness-dock').count()) === 1
+        ? await page.locator('.harness-dock').boundingBox()
+        : null;
+    const limit = dock ? dock.y : (page.viewportSize()?.height ?? 0);
+    if (!box || box.y < 0 || box.y + box.height > limit + 1)
+      fail(
+        `${label}: the refusal is not fully visible (${JSON.stringify(box)}, limit ${String(limit)})`,
+      );
     if (await success.count()) fail(`${label}: success shown after a storage fault`);
     if (countSubmissions(email) !== 0) fail(`${label}: the fault stored a submission`);
     // The notice is for a submission left by an earlier page load, not the one just refused.

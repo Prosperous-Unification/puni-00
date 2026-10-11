@@ -21,3 +21,13 @@ Each fault was injected into production source, observed, and reverted.
 | Operator password required            | disable the `operator_unconfigured` guard | `(fail) operator sign-in without a configured password ...`: Expected 503, Received 401                                                                      |
 | No stale "previous submission" notice | (before the fix)                          | `proposal-flow.mjs`: "manual-1440: the refused submission is announced as a previous one"                                                                    |
 | Inbox keeps line breaks               | (before `white-space: pre-line`)          | `proposal-flow.mjs`: "Inbox 1440: the brief lost its line breaks"                                                                                            |
+
+## 2026-10-11 review fixes (Fable: MERGE AFTER FIXES)
+
+- Finding 1, a blur save racing the submission: `saveBrief` ignores an answer that arrives after a submission started. The submission carries the same text. New test: "a save answered after the request started never shows under Sending". Proof: without the guard it showed "Your edit is not saved yet.".
+- Finding 2, a refusal hidden under the dock at 390 and 320 px: the card scrolls its failure line into view, and the manual page scrolls its feedback into view. `proposal-flow.mjs` now asserts that the refusal sits wholly inside the viewport and above the Build dock. Proofs:
+  - Without ManualPage's effect, the run failed with "manual-768: the refusal is not fully visible".
+  - Without the card's effect, it failed with "build-390: the refusal is not fully visible".
+- Results:
+  - `proposal-flow.mjs` exit 0 at all four widths, with the screenshots re-captured and reviewed.
+  - The operator-inbox PNGs from this run include the Guardrails `In flight now` row and the Funnel `Spend` column.
