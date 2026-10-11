@@ -36,7 +36,12 @@ import {
 import { readHistory } from './history-shapes';
 import { importProject } from './import-shapes';
 import { health, metrics } from './infrastructure-shapes';
-import { forwardInternal, gatewayProjectAccess, resumeInternal } from './internal-http-shapes';
+import {
+  forwardInternal,
+  gatewayBrowserProjectAccess,
+  gatewayProjectAccess,
+  resumeInternal,
+} from './internal-http-shapes';
 import {
   acceptInvitation,
   createInvitation,
@@ -190,4 +195,5 @@ export const httpShapes = [
   forwardInternal,
   resumeInternal,
   gatewayProjectAccess,
+  gatewayBrowserProjectAccess,
 ] as const;

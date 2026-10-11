@@ -1,4 +1,4 @@
-import { PROMETHEUS_CONTENT_TYPE } from '@wbs/contracts';
+import { PROMETHEUS_CONTENT_TYPE, wsError } from '@wbs/contracts';
 import { createLogger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { systemTimers, type Timers } from '@wbs/runtime-portable';
 import { Elysia } from 'elysia';
@@ -6,10 +6,16 @@ import { Elysia } from 'elysia';
 import { internalController, type SocketLike } from './controller/internal.controller';
 import { createUnexpectedBackendFailureReporter } from './controller/unexpected-backend-failure';
 import { handleWsMessage, projectIdOf } from './controller/ws.controller';
+import {
+  type ForwardedBrowserCredential,
+  forwardedCookieHeader,
+} from './service/browser-access-client';
+import { ConnectionAccess } from './service/connection-access';
 import { type FetchLike, ForwardClient } from './service/forward-client';
 import { GatewayMetrics } from './service/gateway-metrics';
 import { JwtVerifier, type TokenVerifier } from './service/jwt-auth';
 import { Presence } from './service/presence';
+import type { CheckProjectAccess } from './service/project-access';
 import { ResumeClient } from './service/resume-client';
 import { socketWriter } from './service/socket-writer';
 import { SubscriptionMap } from './service/subscription-map';
@@ -19,10 +25,31 @@ import { decodeWireFrame, gatewayAdapter } from './ws-wire';
 const HEALTH_PROBE_TIMEOUT_MS = 2_000;
 const LOCAL_IDENTITY = Symbol('local websocket identity');
 const VERIFIED_TOKEN = Symbol('verified websocket token');
+const FORWARDED_CREDENTIAL = Symbol('websocket browser credential as sent');
 
 interface WsAuthCarrier {
   [LOCAL_IDENTITY]?: string;
   [VERIFIED_TOKEN]?: string;
+  [FORWARDED_CREDENTIAL]?: ForwardedBrowserCredential;
+}
+
+/**
+ * What authenticated one socket, handed to the project access adapter so it
+ * can prove that principal to be-01. Never a name the client chose.
+ */
+export type SocketCredential =
+  | { readonly kind: 'cookie'; readonly forwarded: ForwardedBrowserCredential }
+  | { readonly kind: 'local'; readonly identity: string };
+
+/** A cookie's value exactly as sent, still percent-encoded, or null when absent. */
+function rawCookieValue(raw: string | null, name: string): string | null {
+  for (const part of (raw ?? '').split(';')) {
+    const separator = part.indexOf('=');
+    if (separator > 0 && part.slice(0, separator).trim() === name) {
+      return part.slice(separator + 1).trim();
+    }
+  }
+  return null;
 }
 
 function cookieValue(raw: string | null, name: string): string | null {
@@ -67,6 +94,10 @@ interface WsConnection {
    * Never rejects: a token that fails here is already handled inside it.
    */
   joined: Promise<void>;
+  /** This socket's project authorization, created before `open`'s first await. */
+  access: ConnectionAccess;
+  /** The forwarded browser cookies for `/internal/resume`; absent in local mode. */
+  forwardedCookie?: string;
   query?: WsAuthCarrier;
 }
 
@@ -99,6 +130,13 @@ export interface AppOptions {
   verifier?: TokenVerifier;
   /** Overrides the framework-free Prometheus collector in tests. */
   metricsScrape?: () => Promise<MetricsScrape>;
+  /**
+   * Builds one socket's project access check from its credential. Required:
+   * a gateway that cannot ask be-01 about a project cannot serve one.
+   */
+  projectAccess: (credential: SocketCredential) => CheckProjectAccess;
+  /** Lease cadence and check deadline overrides for tests; production uses the constants. */
+  lease?: { timers: Timers; renewMs: number; checkDeadlineMs: number };
 }
 
 export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = createLogger) {
@@ -126,6 +164,16 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
     ...(opts.requests ?? { timers: systemTimers, attemptMs: 5000, overallMs: 15000 }),
   };
   const forwarder = new ForwardClient(requestOptions);
+  /** Takes a connection out of a project roster after it left or lost that subscription. */
+  const leaveProject = (connectionId: string, subscription: string): void => {
+    const projectId = projectIdOf(subscription);
+    if (projectId === null) return;
+    const affected = presence.leaveProject(connectionId, projectId);
+    presence.broadcast(affected);
+    // Proof: omitting reset leaves no empty frame after real-socket unsubscribe;
+    // removing the condition instead sends a frame during the stale-unsubscribe no-op.
+    if (affected.length > 0) presence.sendRoster(connectionId);
+  };
   const resumer = new ResumeClient(requestOptions);
 
   return (
@@ -217,6 +265,14 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             return { error: 'invalid token' };
           }
           auth[VERIFIED_TOKEN] = token;
+          const cookies = request.headers.get('cookie');
+          const accessCookie = rawCookieValue(cookies, '__Host-wbs_access');
+          // cookieValue found and decoded it above, so the raw value is present.
+          if (accessCookie === null) throw new Error('verified access cookie vanished');
+          auth[FORWARDED_CREDENTIAL] = {
+            accessCookie,
+            organizationCookie: rawCookieValue(cookies, '__Host-wbs_organization'),
+          };
           return undefined;
         },
         async open(ws) {
@@ -235,21 +291,62 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           // wrote to a socket and none of them read what Bun answered.
           const writer = socketWriter(ws, metrics);
           conn.socket = { send: (payload) => void writer.send(payload) };
+          const localIdentity = conn.query?.[LOCAL_IDENTITY];
+          const accessToken = conn.query?.[VERIFIED_TOKEN];
+          const forwarded = conn.query?.[FORWARDED_CREDENTIAL];
+          conn.forwardedCookie =
+            forwarded === undefined ? undefined : forwardedCookieHeader(forwarded);
+          let username: string | null = null;
+          conn.access = new ConnectionAccess({
+            check:
+              localIdentity !== undefined
+                ? opts.projectAccess({ kind: 'local', identity: localIdentity })
+                : forwarded !== undefined
+                  ? opts.projectAccess({ kind: 'cookie', forwarded })
+                  : // No credential: `open` closes this socket below, before any
+                    // frame is served, so nothing can reach this check.
+                    () => Promise.resolve('unauthenticated'),
+            timers: opts.lease?.timers ?? systemTimers,
+            signal: conn.cancellation.signal,
+            ...(opts.lease === undefined
+              ? {}
+              : { leaseRenewMs: opts.lease.renewMs, checkDeadlineMs: opts.lease.checkDeadlineMs }),
+            onRevoked: (subscription) => {
+              subs.unsubscribe(subscription, conn.socket);
+              leaveProject(conn.connectionId, subscription);
+              conn.socket.send(wsError('subscription_revoked', { subscription }));
+            },
+            onUnauthenticated: () => {
+              ws.close(1008, 'unauthenticated');
+            },
+            onUnavailable: (caught) => {
+              reportUnexpectedBackendFailure({
+                caught,
+                operation: 'project_access',
+                connectionId: conn.connectionId,
+                clientId: username ?? 'unjoined',
+              });
+              metrics.backendUnavailable();
+              // 1013 Try Again Later: the client reconnects and asks again
+              // rather than staying subscribed on authority nobody confirmed.
+              ws.close(1013, 'project access unavailable');
+            },
+          });
           // Assigned before this handler's first `await`, which is the only
           // point at which `message` and `close` can start. See {@link
           // WsConnection.joined} for what happened when they did not wait.
           conn.joined = (async () => {
             try {
-              let username = conn.query?.[LOCAL_IDENTITY];
-              if (username === undefined) {
-                const token = conn.query?.[VERIFIED_TOKEN];
-                if (token === undefined) return;
-                const claims = await verifier.verify(token);
-                username = typeof claims['username'] === 'string' ? claims['username'] : claims.sub;
+              let joining = localIdentity;
+              if (joining === undefined) {
+                if (accessToken === undefined) return;
+                const claims = await verifier.verify(accessToken);
+                joining = typeof claims['username'] === 'string' ? claims['username'] : claims.sub;
               }
+              username = joining;
               // Only an id being replaced can affect an existing project.
               // The newcomer has named no project and needs its own empty roster.
-              presence.broadcast(presence.join(conn.connectionId, username, conn.socket));
+              presence.broadcast(presence.join(conn.connectionId, joining, conn.socket));
               // Proof: omitting this leaves the real-socket newcomer with no initial frame.
               presence.sendRoster(conn.connectionId);
             } catch {
@@ -290,6 +387,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             connectionId: conn.connectionId,
             clientId,
             reportUnexpectedBackendFailure,
+            access: conn.access,
             forward: (m) =>
               forwarder.forward(
                 m,
@@ -307,6 +405,11 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
                   clientId,
                   connectionId: conn.connectionId,
                   traceId: crypto.randomUUID(),
+                  // be-01 rechecks every replayed project for this principal.
+                  // Proof: omitting the forwarded cookie made `resumes for the
+                  // socket's own principal through be-01`
+                  // (composition.integration.test.ts) send none (2026-10-11).
+                  ...(conn.forwardedCookie === undefined ? {} : { cookie: conn.forwardedCookie }),
                 },
                 conn.cancellation.signal,
               ),
@@ -328,13 +431,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
               presence.broadcast(presence.enterProject(conn.connectionId, projectId));
             },
             onUnsubscribed: (subscription) => {
-              const projectId = projectIdOf(subscription);
-              if (projectId === null) return;
-              const affected = presence.leaveProject(conn.connectionId, projectId);
-              presence.broadcast(affected);
-              // Proof: omitting reset leaves no empty frame after real-socket unsubscribe;
-              // removing the condition instead sends a frame during the stale-unsubscribe no-op.
-              if (affected.length > 0) presence.sendRoster(conn.connectionId);
+              leaveProject(conn.connectionId, subscription);
             },
             roster: () => presence.rosterFor(conn.connectionId),
           });

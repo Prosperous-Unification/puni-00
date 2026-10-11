@@ -1,7 +1,21 @@
 import { ValidationError } from '@wbs/validation';
 import { expect, test } from 'bun:test';
 
-import { type InternalCallContext, internalRoutes } from './internal.routes';
+import type { ProjectService } from '../module/project/project.resource';
+import { LEGACY_ACCESS, type OrganizationAccess } from '../ports/organization-access';
+import { type InternalCallContext, type InternalDeps, internalRoutes } from './internal.routes';
+
+// Test doubles: every project exists under legacy access, so these cases
+// exercise payload handling rather than the per-subscription access check.
+const access = {
+  projects: { readWithin: () => Promise.resolve({}) } as unknown as ProjectService,
+  organizations: {
+    resolve: () => Promise.resolve({ ok: true, access: LEGACY_ACCESS }),
+  } satisfies OrganizationAccess,
+};
+const routes = (deps: Pick<InternalDeps, 'onForward' | 'onResume'>) =>
+  internalRoutes({ ...deps, ...access });
+const user = { id: 'ada', username: 'ada', scopes: ['read' as const] };
 
 const request = {
   method: 'POST',
@@ -17,7 +31,7 @@ const common = {
 
 test('direct internal bindings preserve opaque payload, trace and nullable context headers', async () => {
   const calls: { message: unknown; context: InternalCallContext }[] = [];
-  const [forward] = internalRoutes({
+  const [forward] = routes({
     onForward: (message, context) => {
       calls.push({ message, context });
       return Promise.resolve({ push_responses: [null, { arbitrary: true }] });
@@ -46,7 +60,7 @@ test('direct internal bindings preserve opaque payload, trace and nullable conte
 
 test('direct resume normalizes legacy array entries without narrowing numeric cursors', async () => {
   const calls: { points: Record<string, number>; context: InternalCallContext }[] = [];
-  const [, resume] = internalRoutes({
+  const [, resume] = routes({
     onForward: () => Promise.resolve({}),
     onResume: (points, context) => {
       calls.push({ points, context });
@@ -54,11 +68,35 @@ test('direct resume normalizes legacy array entries without narrowing numeric cu
     },
   });
   expect(
-    await resume.handle({ ...common, body: { resume_points: [-1, 0.5], trace_id: 'trace' } }),
+    await resume.handle({
+      ...common,
+      principal: user,
+      body: { resume_points: [-1, 0.5], trace_id: 'trace' },
+    }),
+  ).toEqual({
+    ok: true,
+    status: 200,
+    body: {
+      p: { status: 'denied', reason: 'out_of_range' },
+      // Array indices name no project: parsed, then denied without replay.
+      '0': { status: 'denied', reason: 'forbidden' },
+      '1': { status: 'denied', reason: 'forbidden' },
+    },
+  });
+  expect(
+    await resume.handle({
+      ...common,
+      principal: user,
+      body: { resume_points: { 'project:p': -1, 'project:q': 0.5 }, trace_id: 'trace' },
+    }),
   ).toEqual({ ok: true, status: 200, body: { p: { status: 'denied', reason: 'out_of_range' } } });
   expect(calls).toEqual([
     {
-      points: { '0': -1, '1': 0.5 },
+      points: {},
+      context: { clientId: 'client', connectionId: 'connection', traceId: 'trace' },
+    },
+    {
+      points: { 'project:p': -1, 'project:q': 0.5 },
       context: { clientId: 'client', connectionId: 'connection', traceId: 'trace' },
     },
   ]);
@@ -69,7 +107,7 @@ test('both direct callbacks reject original errors including ValidationError', a
     new Error('store unavailable'),
     new ValidationError('trusted callback invalid'),
   ]) {
-    const [forward, resume] = internalRoutes({
+    const [forward, resume] = routes({
       onForward: () => {
         return Promise.reject(failure);
       },
@@ -84,7 +122,7 @@ test('both direct callbacks reject original errors including ValidationError', a
     ).toBe(failure);
     expect(
       await resume
-        .handle({ ...common, body: { resume_points: {}, trace_id: 't' } })
+        .handle({ ...common, principal: user, body: { resume_points: {}, trace_id: 't' } })
         .catch((cause: unknown) => cause),
     ).toBe(failure);
   }
