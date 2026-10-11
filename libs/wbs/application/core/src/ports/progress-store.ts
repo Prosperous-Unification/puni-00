@@ -1,9 +1,28 @@
-import type { StoredProgress } from '@wbs/domain';
+import type { StepState } from '@wbs/domain';
 
 import type { StepWriteOutcome, ValueGroupPlacement } from './estimate-store';
 import type { WriteStamp } from './write-stamp';
 
-export type { ProgressKey, StoredProgress } from '@wbs/domain';
+/**
+ * Where one step's work on one work item has got to, and when somebody said so.
+ *
+ * `state` is one of the two a step may be **stored** in. The third state — not
+ * started — is the absence of this row, so it has no spelling here and cannot
+ * be written by anybody: see {@link StepState} in `@wbs/domain`.
+ */
+export interface StoredProgress {
+  workItemId: string;
+  stepId: string;
+  state: StepState;
+  /** When somebody said so, in epoch milliseconds. */
+  statedAt: number;
+}
+
+/** One progress row's whole identity: the pair its primary key is. */
+export interface ProgressKey {
+  workItemId: string;
+  stepId: string;
+}
 
 /**
  * Reading and writing where the work has got to.

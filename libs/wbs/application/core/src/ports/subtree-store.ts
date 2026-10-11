@@ -1,5 +1,3 @@
-import type { EstimateKey } from '@wbs/domain';
-
 import type { ActualKey, StoredActual } from './actual-store';
 import type { StoredDependency } from './dependency-store';
 import type { Assignment } from './directory-store';
@@ -8,8 +6,6 @@ import type { MeasureKey, StoredMeasure } from './measure-store';
 import type { ProgressKey, StoredProgress } from './progress-store';
 import type { Reparented, Repositioned, WorkItem } from './work-item-store';
 import type { WriteStamp } from './write-stamp';
-
-export type { EstimateKey } from '@wbs/domain';
 
 /**
  * A duplicated subtree, ready to be written: every copied row and everything
@@ -123,6 +119,12 @@ export interface SubtreeCopy {
    * putting back, and taking the pair away wholesale would delete it.
    */
   removedMeasures: readonly MeasureKey[];
+}
+
+/** One estimate row's whole identity: the pair its primary key is. */
+export interface EstimateKey {
+  workItemId: string;
+  stepId: string;
 }
 
 export interface SubtreeStore {

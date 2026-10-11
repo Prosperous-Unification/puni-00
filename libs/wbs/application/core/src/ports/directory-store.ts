@@ -1,4 +1,4 @@
-import type { DirectoryUsageRows, PersonKind } from '@wbs/domain';
+import type { PersonKind } from '@wbs/domain';
 
 import type {
   Assignment,
@@ -13,6 +13,7 @@ import type {
 import type {
   AssignmentWritten,
   ExternalSystem,
+  LabelledWorkItem,
   Service,
   ServiceWritten,
   Tag,
@@ -31,7 +32,6 @@ export type {
   ServiceTeam,
   TeamWithServices,
 } from './directory-values';
-export type { DirectoryUsageRows } from '@wbs/domain';
 
 /**
  * A change to one team: a new name, a new owned set, or both.
@@ -138,6 +138,62 @@ export type PersonWritten =
  * for a client whose picker was rendered a moment too early.
  */
 export type PersonAdded = { ok: true; person: Person } | { ok: false; reason: 'unknown_team' };
+
+/**
+ * The rows a refused directory removal is described from, read in one place for
+ * both the fast path and the transaction that decides.
+ *
+ * **Whole projects, not only the touched rows.** A work item's number is
+ * derived from the tree it sits in, so naming `3.1` needs every sibling and
+ * ancestor around it; reading only the rows that point at the entity would name
+ * them by a number nobody's screen shows.
+ *
+ * `assignments` are every assignment in those projects rather than the ones
+ * naming the entity, for the reason {@link StepUsageRows} gives: whether a work
+ * item's **assumed assignee** moves depends on what it holds for the *other*
+ * steps.
+ */
+export interface DirectoryUsageRows {
+  /**
+   * Labelled, because the usage is computed through `effectiveTeamsOf` — which
+   * reads the join and never the column — and a row without its set would make
+   * every effect the confirmation names come out empty.
+   */
+  workItems: readonly LabelledWorkItem[];
+  projects: readonly { id: string; name: string }[];
+  assignments: readonly Assignment[];
+  steps: readonly { id: string; name: string }[];
+  /** Every person an assignment above names, so an effect can say who rather than which id. */
+  people: readonly Person[];
+  /**
+   * People whose membership the removal would drop, **other than the entity
+   * being removed**. Empty for a person: their own memberships name nobody
+   * else and go with them, so they force no confirmation.
+   *
+   * Named rather than {@link Person}, the shape `projects` and `steps` above
+   * already use: the confirmation prints who loses the membership, and
+   * `directory-usage.ts` narrows this to `{ id, name }` before it leaves the
+   * service. Widening it to a whole person would mean reading a `kind` column
+   * to satisfy a type, which is the tail wagging the query.
+   */
+  members: readonly { id: string; name: string }[];
+  /**
+   * What each project in this usage has stated about the team being removed, as
+   * `projectId -> slots`. Empty when the usage is a person's.
+   *
+   * Carried because removing a team a project has **stated a capacity for** does
+   * more than null a label: it takes a pool constraint away, and every row whose
+   * effective team is this one moves. The reader cannot tell that from the work
+   * items alone, and a confirmation that says only "the label goes" about a
+   * removal that also moves every date is a confirmation of the wrong thing.
+   *
+   * **Per project, and that is the change `capacity-per-project` made here.** The
+   * same team may be stated at four on one plan and unstated on the next, so a
+   * single number for the whole confirmation would name a bound that does not
+   * apply to half the rows it is printed on.
+   */
+  capacityOf: ReadonlyMap<string, number>;
+}
 
 /** What one confirmed directory removal took with it. */
 export interface DirectoryRemoval {

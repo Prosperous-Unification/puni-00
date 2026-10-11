@@ -1,9 +1,25 @@
-import type { StoredActual } from '@wbs/domain';
-
 import type { StepWriteOutcome, ValueGroupPlacement } from './estimate-store';
 import type { WriteStamp } from './write-stamp';
 
-export type { ActualKey, StoredActual } from '@wbs/domain';
+/**
+ * The days one step spent on one work item, and when somebody said so.
+ *
+ * One number rather than a trio: an estimate is a guess about a range and an
+ * actual is a fact about what happened.
+ */
+export interface StoredActual {
+  workItemId: string;
+  stepId: string;
+  days: number;
+  /** When the number was typed, in epoch milliseconds. */
+  recordedAt: number;
+}
+
+/** One actual row's whole identity: the pair its primary key is. */
+export interface ActualKey {
+  workItemId: string;
+  stepId: string;
+}
 
 /**
  * Reading and writing the days actually spent.
