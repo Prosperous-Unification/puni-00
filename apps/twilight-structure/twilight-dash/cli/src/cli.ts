@@ -1,3 +1,4 @@
+import { bootstrapAuthorityCommand, inspectAuthorityCommand } from './authority/authority-commands';
 import type { AuthorityClock } from './authority/authority-store';
 import { submitAdmission } from './authority/submit-admission';
 
@@ -30,8 +31,9 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
 }
 
 /**
- * Dispatches enrollment planning through the fixed fleet planner and admission submission
- * through the runtime authority; every other command refuses before any effect.
+ * Dispatches enrollment planning through the fixed fleet planner and the three authority
+ * commands (`bootstrap-authority`, `inspect-authority`, `submit-admission`) through the runtime
+ * authority; every other command refuses before any effect.
  */
 export async function runDash(argv: readonly string[], deps: DashDependencies): Promise<void> {
   // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.
@@ -44,11 +46,18 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
     }
   }
   const [command, ...argumentsAfterCommand] = argv;
+  const authority = { clock: deps.clock, write: (text: string) => deps.stdout.write(text) };
+  // Each authority command parses its whole grammar before it opens or creates a store.
+  if (command === 'bootstrap-authority') {
+    bootstrapAuthorityCommand(argumentsAfterCommand, authority);
+    return;
+  }
+  if (command === 'inspect-authority') {
+    inspectAuthorityCommand(argumentsAfterCommand, authority);
+    return;
+  }
   if (command === 'submit-admission') {
-    submitAdmission(argumentsAfterCommand, {
-      clock: deps.clock,
-      write: (text) => deps.stdout.write(text),
-    });
+    submitAdmission(argumentsAfterCommand, authority);
     return;
   }
   if (command !== 'plan-enrollment') {

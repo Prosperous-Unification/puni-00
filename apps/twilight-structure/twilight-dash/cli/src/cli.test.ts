@@ -1,8 +1,18 @@
+import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
 
+import { openAuthority } from './authority/authority-store';
+import { acquireClaims } from './authority/claims';
 import { type DashDependencies, runDash } from './cli';
+
+const scratchRoots: string[] = [];
+
+afterAll(() => {
+  for (const root of scratchRoots) rmSync(root, { force: true, recursive: true });
+});
 
 const FIXED_CLOCK = { read: () => 1_000 };
 
@@ -163,4 +173,108 @@ test('runDash refuses missing dependencies', async () => {
     'Dash dependency is required: planEnrollment',
   );
   expect(planner.calls).toEqual([]);
+});
+
+function scratchRepository(): string {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'dash-authority-cli-')));
+  scratchRoots.push(root);
+  const init = Bun.spawnSync(['git', 'init', '--quiet', root], { stderr: 'pipe' });
+  if (init.exitCode !== 0) throw new Error(init.stderr.toString('utf8'));
+  return root;
+}
+
+function capturingDependencies(): { deps: DashDependencies; output: string[] } {
+  const output: string[] = [];
+  return {
+    deps: {
+      clock: FIXED_CLOCK,
+      planEnrollment: () => Promise.reject(new Error('this case plans nothing')),
+      stdout: { write: (text: string) => output.push(text) },
+    },
+    output,
+  };
+}
+
+async function refusalMessage(argv: readonly string[], deps: DashDependencies): Promise<string> {
+  try {
+    await runDash(argv, deps);
+  } catch (cause) {
+    if (cause instanceof Error) return cause.message;
+    throw new Error('Dash did not return an Error', { cause });
+  }
+  throw new Error(`Dash accepted ${argv.join(' ')}`);
+}
+
+test('bootstrap-authority creates the store once and refuses the second time', async () => {
+  const root = scratchRepository();
+  const first = capturingDependencies();
+  await runDash(['bootstrap-authority', root], first.deps);
+  const databasePath = join(root, '.git', 'module-wiki', 'authority.sqlite');
+  expect(first.output).toEqual([
+    `${JSON.stringify({ path: databasePath, status: 'bootstrapped' })}\n`,
+  ]);
+  const second = capturingDependencies();
+  expect(await refusalMessage(['bootstrap-authority', root], second.deps)).toContain(
+    `authority already exists: ${databasePath}`,
+  );
+  expect(second.output).toEqual([]);
+});
+
+test('inspect-authority prints the state and refuses an absent store', async () => {
+  const root = scratchRepository();
+  const absent = capturingDependencies();
+  expect(await refusalMessage(['inspect-authority', root], absent.deps)).toContain(
+    'twilight-dash bootstrap-authority <repository>',
+  );
+  expect(existsSync(join(root, '.git', 'module-wiki'))).toBe(false);
+
+  await runDash(['bootstrap-authority', root], capturingDependencies().deps);
+  const store = openAuthority(root, { clock: FIXED_CLOCK });
+  acquireClaims(store, {
+    conflictGroups: [],
+    owner: { sessionId: 'session-a', worktreePath: root },
+    paths: [{ access: 'write', path: 'src' }],
+  });
+  const state = store.inspect();
+  store.close();
+
+  const whole = capturingDependencies();
+  await runDash(['inspect-authority', root], whole.deps);
+  expect(JSON.parse(whole.output.join(''))).toEqual(JSON.parse(JSON.stringify(state)));
+
+  const session = capturingDependencies();
+  await runDash(['inspect-authority', root, '--session', 'session-a'], session.deps);
+  expect(JSON.parse(session.output.join(''))).toEqual(
+    JSON.parse(JSON.stringify({ generations: state.generations, sessionId: 'session-a' })),
+  );
+  const unknown = capturingDependencies();
+  await runDash(['inspect-authority', root, '--session', 'session-z'], unknown.deps);
+  expect(JSON.parse(unknown.output.join(''))).toEqual({ generations: [], sessionId: 'session-z' });
+});
+
+test('unknown commands and flags refuse before any store open', async () => {
+  const root = scratchRepository();
+  const cases: readonly (readonly string[])[] = [
+    ['bootstrap-authority'],
+    ['bootstrap-authority', root, 'extra'],
+    ['bootstrap-authority', root, '--force', 'yes'],
+    ['inspect-authority'],
+    ['inspect-authority', root, '--sessions', 'a'],
+    ['inspect-authority', root, '--session'],
+    ['inspect-authority', root, '--session', 'a', '--session', 'b'],
+    ['inspect-authority', root, 'extra'],
+    ['acquire-claims', root],
+    ['publish', root],
+  ];
+  for (const argv of cases) {
+    const refused = capturingDependencies();
+    // Proof: loosening bootstrap's grammar to `argv.length === 0` made Dash accept and execute
+    // `bootstrap-authority <root> extra`; routing unknown commands to bootstrap made Dash accept
+    // `acquire-claims <root>`; both failed this canary (2026-10-11).
+    expect(await refusalMessage(argv, refused.deps), argv.join(' ')).toMatch(
+      /^(?:usage: twilight-dash |Unsupported Dash command: )/,
+    );
+    expect(refused.output, argv.join(' ')).toEqual([]);
+    expect(existsSync(join(root, '.git', 'module-wiki')), argv.join(' ')).toBe(false);
+  }
 });

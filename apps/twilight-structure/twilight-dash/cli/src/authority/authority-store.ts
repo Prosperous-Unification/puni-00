@@ -1470,7 +1470,11 @@ class SqliteAuthorityStore implements AuthorityStore {
   readonly #database: Database;
   readonly #options: RequiredAuthorityStoreOptions;
 
-  constructor(database: Database, options: RequiredAuthorityStoreOptions) {
+  /** The canonical database file this store holds open. */
+  readonly databasePath: string;
+
+  constructor(databasePath: string, database: Database, options: RequiredAuthorityStoreOptions) {
+    this.databasePath = databasePath;
     this.#options = options;
     this.#database = database;
   }
@@ -1594,7 +1598,11 @@ export function openAuthority(
 ): SqliteAuthorityStore {
   const required = requiredOptions(options);
   const databasePath = resolveAuthorityDatabasePath(worktreePath);
-  return new SqliteAuthorityStore(connectExistingAuthority(databasePath, required), required);
+  return new SqliteAuthorityStore(
+    databasePath,
+    connectExistingAuthority(databasePath, required),
+    required,
+  );
 }
 
 /**
@@ -1611,5 +1619,5 @@ export function bootstrapAuthority(
 ): SqliteAuthorityStore {
   const required = requiredOptions(options);
   const databasePath = resolveAuthorityDatabasePath(worktreePath);
-  return new SqliteAuthorityStore(createAuthority(databasePath, required), required);
+  return new SqliteAuthorityStore(databasePath, createAuthority(databasePath, required), required);
 }
