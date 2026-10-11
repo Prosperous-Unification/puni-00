@@ -16,7 +16,7 @@
 
 - [x] 3.1 Delete both `Date.now` defaults; `authority/clock.ts` `wallClock()`; tests `refuses construction without a clock` and `only clock.ts reads the wall clock` with watched negatives.
 - [x] 3.2 `runDash(argv, deps)` with required `planEnrollment`, `clock`, `stdout`; `entrypoint.ts` composes them; `runDash refuses missing dependencies`.
-- [x] 3.3 `openspec/changes/test-axes/verify.md` drops the authority clock entries. At `99ab00fb0` its remaining-clock list names only `inspect-manual`; there was no authority entry to remove. The ambient-clock scan covers production modules only, because tests time their own harness (readiness deadlines), not the authority; it also pins `wallClock()` composition to `entrypoint.ts`.
+- [x] 3.3 `openspec/changes/test-axes/verify.md` and `tasks.md` drop `admission/authority-store.ts` from the remaining Burokrat clock reads (added on main by WBS 9a25268b) and name this change. The ambient-clock scan covers production modules only, because tests time their own harness (readiness deadlines), not the authority; it also pins `wallClock()` composition to `entrypoint.ts`.
 
 ## 4. Absence refuses, bootstrap is explicit (S3)
 
