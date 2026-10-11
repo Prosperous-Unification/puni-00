@@ -1165,9 +1165,6 @@ async function runLockedPerformanceLevel(
   const bundleRelative = `${performanceBundleRoot}/${invocationId}`;
   const bundle = join(candidateRoot, bundleRelative);
   const evidenceFile = join(bundle, 'evidence.json');
-  // Proof: removing this admitted-run invalidation made the threshold-breach
-  // production test read a stale current-success pointer instead of ENOENT.
-  await rm(join(candidateRoot, performanceCurrentPath), { force: true });
   await mkdir(join(candidateRoot, performanceBundleRoot), { recursive: true });
   await mkdir(bundle, { recursive: false });
 
@@ -1185,11 +1182,52 @@ async function runLockedPerformanceLevel(
   const preflight = checkPerformance(candidateRoot, revision, policyPath);
   const preflightVerdict = readVerdict(preflight, 'preflight');
   assertPreflight(preflightVerdict, candidate);
+  // Only an admitted run invalidates the last success. Proof: removing this
+  // made the threshold-breach production test read a stale current-success
+  // pointer instead of ENOENT. Proof: placing it above the policy refusal made
+  // the absent-policy production test find its prior pointer erased.
+  await rm(join(candidateRoot, performanceCurrentPath), { force: true });
 
   const archiveParent = await mkdtemp(join(tmpdir(), 'puni-performance-'));
   const checkoutRoot = join(archiveParent, 'candidate');
   let checkoutAdded = false;
   let owner: PerformanceProcessOwner | undefined;
+  let stopping: Promise<void> | undefined;
+  const stopOwner = (active: PerformanceProcessOwner): Promise<void> =>
+    (stopping ??= active.stop());
+  const cancellation = { requested: false };
+  const cancel = (signal: 'SIGTERM' | 'SIGINT'): void => {
+    if (cancellation.requested) return;
+    cancellation.requested = true;
+    const cleanup = owner === undefined ? Promise.resolve() : stopOwner(owner);
+    void cleanup
+      .then(undefined, (cause: unknown) => {
+        // The process still dies by the re-raised signal below; this names the
+        // cleanup fault that the signal status alone cannot carry.
+        process.stderr.write(`Performance cancellation cleanup failed: ${String(cause)}\n`);
+      })
+      .finally(() => {
+        detachCancellation();
+        process.kill(process.pid, signal);
+      });
+  };
+  const onTerminate = (): void => {
+    cancel('SIGTERM');
+  };
+  const onInterrupt = (): void => {
+    cancel('SIGINT');
+  };
+  const detachCancellation = (): void => {
+    process.off('SIGTERM', onTerminate);
+    process.off('SIGINT', onInterrupt);
+  };
+  // Cancellation is a controlled exit: stop every owned process, then re-raise
+  // so the caller still observes the signal. Listeners stay attached during
+  // cleanup so a repeated signal cannot interrupt it. Proof: without these
+  // listeners the cancelled-supervisor production test found shifted port 9100
+  // still bound by an orphaned service.
+  process.on('SIGTERM', onTerminate);
+  process.on('SIGINT', onInterrupt);
   let publish = false;
   let hasExecutionFailure = false;
   let executionFailure: unknown;
@@ -1467,72 +1505,77 @@ async function runLockedPerformanceLevel(
     hasExecutionFailure = true;
     executionFailure = cause;
   } finally {
-    const cleanupFailures: unknown[] = [];
-    if (owner !== undefined) {
-      try {
-        // Proof: the threshold plus injected pidfd signal fault kept both
-        // errors in failure.json; the combined orphan timeout reaped children.
-        await owner.stop();
-      } catch (cause) {
-        cleanupFailures.push(cause);
-      }
-      try {
-        await assertShiftedPortsFree(shift);
-      } catch (cause) {
-        cleanupFailures.push(cause);
-      }
-    }
-    if (checkoutAdded) {
-      try {
-        requireGit(
-          candidateRoot,
-          ['worktree', 'remove', '--force', checkoutRoot],
-          'checkout cleanup',
-        );
-      } catch (cause) {
-        cleanupFailures.push(cause);
-      }
-    }
     try {
-      await rm(archiveParent, { recursive: true, force: true });
-    } catch (cause) {
-      cleanupFailures.push(cause);
-    }
-    if (hasExecutionFailure || cleanupFailures.length > 0) {
+      const cleanupFailures: unknown[] = [];
+      if (owner !== undefined) {
+        try {
+          // Proof: the threshold plus injected pidfd signal fault kept both
+          // errors in failure.json; the combined orphan timeout reaped children.
+          await stopOwner(owner);
+        } catch (cause) {
+          cleanupFailures.push(cause);
+        }
+        try {
+          await assertShiftedPortsFree(shift);
+        } catch (cause) {
+          cleanupFailures.push(cause);
+        }
+      }
+      if (checkoutAdded) {
+        try {
+          requireGit(
+            candidateRoot,
+            ['worktree', 'remove', '--force', checkoutRoot],
+            'checkout cleanup',
+          );
+        } catch (cause) {
+          cleanupFailures.push(cause);
+        }
+      }
       try {
-        // Proof: the production threshold plus injected pidfd signal fault
-        // formerly left failure.json with only the threshold error.
-        // Proof: dropping recursive rendering made the combined capture/close
-        // negative save only the outer AggregateError in failure.json.
-        const executionDiagnostic = hasExecutionFailure
-          ? renderFailureChain(executionFailure)
-          : null;
-        const cleanupDiagnostics = cleanupFailures.map(renderFailureChain);
-        await writeBundleArtifact(
-          bundle,
-          'failure.json',
-          `${JSON.stringify({
-            schemaVersion: 1,
-            invocationId,
-            message: executionDiagnostic ?? 'Performance cleanup failed',
-            executionFailure: executionDiagnostic,
-            cleanupFailures: cleanupDiagnostics,
-          })}\n`,
-        );
+        await rm(archiveParent, { recursive: true, force: true });
       } catch (cause) {
         cleanupFailures.push(cause);
       }
-    }
-    // Proof: the post-run inventory ambiguity and threshold-breach runner
-    // negatives retained diagnostics and never published a current pointer.
-    requirePerformanceSuccess(executionFailure, hasExecutionFailure, cleanupFailures);
-    if (publish) {
-      // Proof: the occupied-port and threshold negatives found no new pointer;
-      // the sequential passing runner test published fresh invocation IDs.
-      const pointer = `${JSON.stringify({ schemaVersion: 1, certifies: false, invocationId, bundle: bundleRelative })}\n`;
-      const temporary = join(candidateRoot, 'tmp/junit', `${invocationId}.current.tmp`);
-      await writeFile(temporary, pointer, { flag: 'wx' });
-      await rename(temporary, join(candidateRoot, performanceCurrentPath));
+      if (hasExecutionFailure || cleanupFailures.length > 0) {
+        try {
+          // Proof: the production threshold plus injected pidfd signal fault
+          // formerly left failure.json with only the threshold error.
+          // Proof: dropping recursive rendering made the combined capture/close
+          // negative save only the outer AggregateError in failure.json.
+          const executionDiagnostic = hasExecutionFailure
+            ? renderFailureChain(executionFailure)
+            : null;
+          const cleanupDiagnostics = cleanupFailures.map(renderFailureChain);
+          await writeBundleArtifact(
+            bundle,
+            'failure.json',
+            `${JSON.stringify({
+              schemaVersion: 1,
+              invocationId,
+              message: executionDiagnostic ?? 'Performance cleanup failed',
+              executionFailure: executionDiagnostic,
+              cleanupFailures: cleanupDiagnostics,
+            })}\n`,
+          );
+        } catch (cause) {
+          cleanupFailures.push(cause);
+        }
+      }
+      // Proof: the post-run inventory ambiguity and threshold-breach runner
+      // negatives retained diagnostics and never published a current pointer.
+      requirePerformanceSuccess(executionFailure, hasExecutionFailure, cleanupFailures);
+      if (publish) {
+        // Proof: the occupied-port and threshold negatives found no new pointer;
+        // the sequential passing runner test published fresh invocation IDs.
+        const pointer = `${JSON.stringify({ schemaVersion: 1, certifies: false, invocationId, bundle: bundleRelative })}\n`;
+        const temporary = join(candidateRoot, 'tmp/junit', `${invocationId}.current.tmp`);
+        await writeFile(temporary, pointer, { flag: 'wx' });
+        await rename(temporary, join(candidateRoot, performanceCurrentPath));
+      }
+    } finally {
+      // A cancelled run detaches only after its own cleanup re-raises the signal.
+      if (!cancellation.requested) detachCancellation();
     }
   }
 }

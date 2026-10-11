@@ -1970,3 +1970,27 @@ Candidate `3b0f60f08` (the branch plus one test-only commit). All commands ran u
 - `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 158/158. `bunx prettier --check --ignore-unknown` on every changed file: clean. Without `--ignore-unknown`, Prettier exits 2 only because it has no parser for the committed `evidence/*/report.xml` files.
 
 Follow-up debt this audit found but did not fix: a Bun per-test timeout in `performance-level.test.ts` skips the fixture's cleanup, so its shifted listeners outlive the test and cascade into the next cases. The production runner's own timeout path does reap. Only the test harness leaks.
+
+### 080.34 Fable review follow-ups — 2026-10-11
+
+The Fable review of `c09aa1d9a` returned MERGE. It asked for three changes in this PR.
+
+**Cancellation is a controlled exit.**
+
+- `runLockedPerformanceLevel` now keeps `SIGTERM` and `SIGINT` listeners for the life of the run. On a signal it stops the owned processes once, using the same memoized `stop()` that ordinary cleanup awaits. It then detaches the listeners and re-raises the signal. The listeners stay attached during cleanup, so a repeated signal cannot interrupt it.
+- In the test harness, `performance-level.test.ts` tracks every live fixture supervisor. Its `afterEach` sends `SIGTERM` to any supervisor that a timed-out test abandoned, then waits for it to exit (15 s deadline).
+- New production test: `a cancelled supervisor stops its owned services and frees the shifted ports`. It starts the `hang` fixture, waits until 9100, 9200 and 10200 are bound, then cancels the supervisor. It expects `Performance supervisor exited 143`, all three ports free, and no current pointer. It passed (2.69 s).
+- Watched fault: with both listener registrations commented out, the same test failed at the port assertion. Its exact-array diff showed three changed entries (`- Expected - 3 / + Received + 3`). `ss -ltnp` showed orphaned `bun` listeners on all three ports. The lane killed those listeners, then restored `performance-level.ts` byte for byte (SHA-256 compared).
+
+**Only an admitted run invalidates the last success.**
+
+- Before this change, removing `tmp/junit/wbs-fe-01.performance.current.json` happened ahead of the policy-selection refusal. A misconfigured invocation therefore erased the prior success pointer without being admitted. The removal now runs after `assertPreflight`.
+- The absent-policy production test (`requires an externally selected readable policy before Playwright`) now seeds a prior pointer. It requires that pointer to be byte-equal after the refusal. It passed.
+- Watched fault: with the removal moved back above the refusal, the test failed at that pointer read (`performance-level.test.ts:1439`, ENOENT). The file was restored byte for byte. The threshold-breach invalidation proof still holds, because the removal still precedes execution.
+
+**Routing.** `LLM_README.md` now has one route line to this change's `tasks.md` and `verify.md`. The file is 136 lines. The route makes `verify.md` a current document. The repository namespacing sweep then refused it (`verify.md:legacy-root`), because it quotes an injected pre-move source path as fault evidence. It now carries a `legacy-root` exemption in `docs/findings/current-document-check-exemptions.json`, like other change verification records. `repo-namespacing-handoff.test.ts` passed 15/0.
+
+**Deferred to WBS follow-ups by the reviewer.**
+
+- Burokrat `inspect-manual` reads the wall clock (`cli.ts:427`). The evaluation instant should become an explicit CLI argument supplied by Dash.
+- Level target names have drifted: `test:api`/`test:unit` versus `test:conformance:level`/`test:unit:level`, and there are three Browser level targets in fe-01. These should be normalized when non-pilot projects get level targets.

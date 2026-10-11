@@ -20,6 +20,8 @@ import {
 import { awaitPerformanceSupervisor } from './performance-supervisor-test';
 
 const roots: string[] = [];
+/** Fixture supervisors still running; afterEach cancels any a timed-out test abandoned. */
+const supervisors = new Set<Bun.Subprocess>();
 const declarationPath = 'apps/wbs/fe-01/playwright.performance.cases.json';
 const configPath = 'apps/wbs/fe-01/playwright.performance.config.ts';
 const reportPath = 'tmp/junit/wbs-fe-01.performance.xml';
@@ -137,9 +139,14 @@ async function runPerformanceLevel(
       ],
       { cwd: supervisorRoot, env: environment, stdout: 'ignore', stderr: 'pipe' },
     );
-    const { exitCode, stderr } = await awaitPerformanceSupervisor(supervisor, 145_000);
-    if (exitCode !== 0)
-      throw new Error(stderr.trim() || `Performance supervisor exited ${String(exitCode)}`);
+    supervisors.add(supervisor);
+    try {
+      const { exitCode, stderr } = await awaitPerformanceSupervisor(supervisor, 145_000);
+      if (exitCode !== 0)
+        throw new Error(stderr.trim() || `Performance supervisor exited ${String(exitCode)}`);
+    } finally {
+      supervisors.delete(supervisor);
+    }
   } finally {
     await rm(supervisorRoot, { recursive: true, force: true });
   }
@@ -462,7 +469,51 @@ async function expectFailureMessage(operation: Promise<unknown>, phrase: string)
   expect(diagnostics.some((line) => line.includes(phrase))).toBe(true);
 }
 
+/** Cancels a supervisor and waits for its owned cleanup under a bounded deadline. */
+async function cancelSupervisor(supervisor: Bun.Subprocess): Promise<void> {
+  if (supervisor.exitCode === null && supervisor.signalCode === null) supervisor.kill('SIGTERM');
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      supervisor.exited,
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => {
+          reject(new Error(`Performance supervisor ${String(supervisor.pid)} ignored SIGTERM`));
+        }, 15_000);
+      }),
+    ]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
+
+async function isPortFree(port: number): Promise<boolean> {
+  const probe = createServer();
+  const bound = await new Promise<boolean>((resolve, reject) => {
+    probe.once('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') resolve(false);
+      else reject(error);
+    });
+    probe.listen(port, () => {
+      resolve(true);
+    });
+  });
+  if (bound)
+    await new Promise<void>((resolve, reject) => {
+      probe.close((error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+    });
+  return bound;
+}
+
 afterEach(async () => {
+  // A Bun per-test timeout abandons the awaiting test body; without this the
+  // next case met the abandoned run's services on its shifted ports.
+  const abandoned = [...supervisors];
+  supervisors.clear();
+  await Promise.all(abandoned.map(cancelSupervisor));
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
@@ -1214,6 +1265,30 @@ describe('Performance level target production boundary', () => {
     ).toContain('timed out');
   }, 140_000);
 
+  it('a cancelled supervisor stops its owned services and frees the shifted ports', async () => {
+    const fixture = await committedPerformanceFixture('hang');
+    const run = runPerformanceLevel(fixture.root, fixture.policyPath).then(
+      () => new Error('cancelled run unexpectedly succeeded'),
+      (error: unknown) => error,
+    );
+    const started = Date.now();
+    let ready = false;
+    while (!ready && Date.now() - started < 60_000) {
+      ready = !(await isPortFree(9100)) && !(await isPortFree(9200)) && !(await isPortFree(10200));
+      if (!ready) await Bun.sleep(200);
+    }
+    expect(ready).toBe(true);
+    const [supervisor] = [...supervisors];
+    await cancelSupervisor(supervisor);
+    expect(String(await run)).toContain('Performance supervisor exited 143');
+    expect([await isPortFree(9100), await isPortFree(9200), await isPortFree(10200)]).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
+  }, 90_000);
+
   it('times out execution and reaps immediate-wrapper separate-session listener and TERM-resistant sleeper', async () => {
     const fixture = await committedPerformanceFixture('hang', 'orphan-hang');
     const foreign = Bun.spawn(['sleep', '180'], { stdout: 'ignore', stderr: 'ignore' });
@@ -1355,8 +1430,13 @@ describe('Performance level target production boundary', () => {
     const fixture = await committedPerformanceFixture();
     const priorPolicy = process.env['PUNI_PERFORMANCE_RULE_POLICY'];
     delete process.env['PUNI_PERFORMANCE_RULE_POLICY'];
+    const priorPointer = '{"schemaVersion":1,"certifies":false,"invocationId":"prior"}\n';
+    await mkdir(join(fixture.root, 'tmp/junit'), { recursive: true });
+    await writeFile(join(fixture.root, currentPath), priorPointer);
     try {
       await expectFailure(runPerformanceLevel(fixture.root), 'externally selected');
+      // An unadmitted invocation keeps the last success pointer.
+      expect(await readFile(join(fixture.root, currentPath), 'utf8')).toBe(priorPointer);
       await expectFailure(
         runPerformanceLevel(fixture.root, join(fixture.root, 'missing-policy.json')),
         'ENOENT',
