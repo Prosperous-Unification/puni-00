@@ -250,6 +250,19 @@ export interface CommittedDecision<T> {
   readonly envelopes: readonly CommittedProjectEvent[];
 }
 
+/** The immutable generation, pair and requests read in one source turn. */
+export type OptimizationAdmissionObservation =
+  | { readonly kind: 'idle' }
+  | {
+      readonly kind: 'observed';
+      readonly generation: number;
+      readonly pair: OptimizationCachedPair;
+      readonly requests: readonly {
+        readonly key: OptimizationCacheKey;
+        readonly objective: SolverObjectiveName;
+      }[];
+    };
+
 /** Durable optimization decisions. Outcome recording and slot release are separate transactions. */
 export interface OptimizationRepository extends SolverSlotRepository {
   allocateGeneration(
@@ -262,18 +275,7 @@ export interface OptimizationRepository extends SolverSlotRepository {
   observeForAdmission(
     key: OptimizationCacheKey,
     now: number,
-  ): Promise<
-    | { readonly kind: 'idle' }
-    | {
-        readonly kind: 'observed';
-        readonly generation: number;
-        readonly pair: OptimizationCachedPair;
-        readonly requests: readonly {
-          readonly key: OptimizationCacheKey;
-          readonly objective: SolverObjectiveName;
-        }[];
-      }
-  >;
+  ): Promise<CommittedDecision<OptimizationAdmissionObservation>>;
   isVariantLive(
     key: OptimizationCacheKey,
     generation: number,

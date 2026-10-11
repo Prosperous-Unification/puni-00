@@ -174,10 +174,13 @@ describe('the Optimization module', () => {
         calls.push('observe');
         const idle = { kind: 'non-ready', state: { state: 'idle' }, schedule: null } as const;
         return Promise.resolve({
-          kind: 'observed',
-          generation: 3,
-          pair: { pri: idle, time: idle },
-          requests: [],
+          decision: {
+            kind: 'observed',
+            generation: 3,
+            pair: { pri: idle, time: idle },
+            requests: [],
+          },
+          envelopes: [],
         });
       },
       isVariantLive: () => {

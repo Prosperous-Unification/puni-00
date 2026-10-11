@@ -627,7 +627,12 @@ export class OptimizationCoordinator {
     }
 
     const now = this.options.now();
-    const observed = await this.options.repository.observeForAdmission(key, now);
+    const committedObservation = await this.options.repository.observeForAdmission(key, now);
+    // Proof: dropping these envelopes left B's durable generation-eviction
+    // event unpushed; awaiting delivery here withheld the committed readPlan
+    // decision behind B's held transport instead of returning its original pair.
+    this.trackCommittedDelivery(committedObservation.envelopes);
+    const observed = committedObservation.decision;
     if (observed.kind === 'idle') {
       return {
         ...key,

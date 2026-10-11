@@ -97,7 +97,7 @@ describe('Optimization SQLite adapter', () => {
     };
     const repository = createOptimizationRepository(db, log, gate);
 
-    const observed = await repository.observeForAdmission(key, 11);
+    const observed = await repository.observeForAdmission(key, 11).then(decisionOf);
     if (competitor === undefined) throw new Error('competing source turn was not queued');
     await competitor;
     expect(observed).toMatchObject({
@@ -136,9 +136,10 @@ describe('Optimization SQLite adapter', () => {
     await entered.promise;
     let settled = false;
     try {
-      const observation = repository.observeForAdmission(key, 11).then((observed) => {
+      const observation = repository.observeForAdmission(key, 11).then((committed) => {
         settled = true;
-        return observed;
+        expect(committed.envelopes).toEqual([]);
+        return decisionOf(committed);
       });
       await Promise.resolve();
       expect(settled).toBe(false);
@@ -698,7 +699,7 @@ describe('Optimization SQLite adapter', () => {
   it('projects a cache miss before reserving the captured objectives', async () => {
     const { db, log, key } = fixture();
     const repository = createOptimizationRepository(db, log, OPEN);
-    const observed = await repository.observeForAdmission(key, 10);
+    const observed = await repository.observeForAdmission(key, 10).then(decisionOf);
     if (observed.kind !== 'observed') throw new Error('fixture observation refused');
     expect(observed.pair).toEqual({
       pri: { kind: 'non-ready', state: { state: 'idle' }, schedule: null },
@@ -709,7 +710,7 @@ describe('Optimization SQLite adapter', () => {
   it('returns the pre-admission cache snapshot when a later write commits a marker', async () => {
     const { db, log, key, generation } = fixture();
     const repository = createOptimizationRepository(db, log, OPEN);
-    const observed = await repository.observeForAdmission(key, 10);
+    const observed = await repository.observeForAdmission(key, 10).then(decisionOf);
     if (observed.kind !== 'observed') throw new Error('fixture observation refused');
     expect(observed.requests.map(({ objective }) => objective)).toContain('pri');
     const objective = 'pri' as const;
@@ -737,7 +738,7 @@ describe('Optimization SQLite adapter', () => {
     ).toBe('stored');
     await repository.releaseSlot(slot);
     expect(observed.pair.pri.state).toEqual({ state: 'idle' });
-    const later = await repository.observeForAdmission(key, 12);
+    const later = await repository.observeForAdmission(key, 12).then(decisionOf);
     if (later.kind !== 'observed') throw new Error('fixture observation refused');
     expect(later.pair.pri.state).toEqual({
       state: 'failed',
@@ -814,7 +815,7 @@ describe('Optimization SQLite adapter', () => {
         })
         .then(decisionOf);
     expect(await retry()).toMatchObject({ kind: 'accepted', generation });
-    const observed = await repository.observeForAdmission(key, 21);
+    const observed = await repository.observeForAdmission(key, 21).then(decisionOf);
     if (observed.kind !== 'observed') throw new Error('fixture observation refused');
     expect(observed.pair.pri.state.state).toBe('failed');
     expect(await retry()).toEqual({ kind: 'already-running' });
