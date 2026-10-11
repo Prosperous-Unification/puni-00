@@ -18,7 +18,8 @@ let running = false;
  * when one is already running instead of mixing their output. A test about the process boundary
  * itself (arity, usage, real exit status) still spawns the CLI.
  *
- * `environment` sets `process.env` keys for the call and restores them afterwards. It reaches what
+ * `environment` sets `process.env` keys for the call (an `undefined` value unsets one) and restores
+ * them afterwards. It reaches what
  * the command reads from `process.env` itself, such as `TOOL_WIKI_TRUSTED_NODE_MODULES`, but not
  * a child it spawns without an explicit `env`: Bun gives such a child the environment the process
  * started with. A test whose subject is a child's environment (a fake `git` on `PATH`, a sentinel
@@ -26,7 +27,7 @@ let running = false;
  */
 export async function invokeCli(
   argv: readonly string[],
-  environment: Readonly<Record<string, string>> = {},
+  environment: Readonly<Record<string, string | undefined>> = {},
 ): Promise<CliInvocation> {
   if (running) throw new Error('invokeCli calls overlap; they share process stdout and exit code');
   running = true;
@@ -44,7 +45,10 @@ export async function invokeCli(
     stderr.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'));
     return true;
   };
-  Object.assign(process.env, environment);
+  for (const [key, value] of Object.entries(environment)) {
+    if (value === undefined) Reflect.deleteProperty(process.env, key);
+    else process.env[key] = value;
+  }
   process.exitCode = 0;
   try {
     await executeCli(argv);
