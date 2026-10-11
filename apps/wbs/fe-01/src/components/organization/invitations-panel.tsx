@@ -6,6 +6,8 @@ import {
 } from '@wbs/contracts';
 import { useCallback, useEffect, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import {
@@ -16,6 +18,18 @@ import {
   RELOAD,
   said,
 } from './organization-access';
+import {
+  ALERT_CLASS,
+  CONTROL_HEIGHT,
+  FIELD_CLASS,
+  FIELD_LABEL_CLASS,
+  FORM_CLASS,
+  LIST_CLASS,
+  OrganizationSection,
+  ROW_CLASS,
+  SELECT_CLASS,
+  STATUS_CLASS,
+} from './organization-section';
 
 const invitations = browserClient([listInvitations, createInvitation, revokeInvitation]);
 
@@ -141,58 +155,77 @@ export function InvitationsPanel({
   }
 
   return (
-    <section aria-labelledby="invitations-heading" className="mb-8">
-      <h2 id="invitations-heading" className="mb-2 text-xl font-semibold">
-        Invitations
-      </h2>
-      {view.kind === 'loading' && <p>Loading invitations…</p>}
-      {view.kind === 'failure' && <p role="alert">{view.message}</p>}
+    <OrganizationSection id="invitations-heading" title="Invitations">
+      {view.kind === 'loading' && <p className={STATUS_CLASS}>Loading invitations…</p>}
+      {view.kind === 'failure' && (
+        <p role="alert" className={ALERT_CLASS}>
+          {view.message}
+        </p>
+      )}
       {view.kind === 'ready' && (
         <>
-          <form onSubmit={(event) => void send(event)} className="mb-4 flex flex-wrap gap-2">
-            <label htmlFor="invitation-email">Email address</label>
-            <input
-              id="invitation-email"
-              className="border p-2"
-              type="email"
-              value={email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-              }}
-              required
-              maxLength={254}
-            />
-            <label htmlFor="invitation-role">Role</label>
-            <select
-              id="invitation-role"
-              className="border p-2"
-              value={role}
-              onChange={(event) => {
-                setRole(roleOf(event.target.value));
-              }}
-            >
-              <option value="viewer">Viewer</option>
-              <option value="member">Member</option>
-              <option value="admin">Admin</option>
-            </select>
-            <button type="submit" disabled={sending}>
+          <form onSubmit={(event) => void send(event)} className={FORM_CLASS}>
+            <span className={`${FIELD_CLASS} sm:flex-1`}>
+              <label htmlFor="invitation-email" className={FIELD_LABEL_CLASS}>
+                Email address
+              </label>
+              <Input
+                id="invitation-email"
+                className={CONTROL_HEIGHT}
+                type="email"
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                }}
+                required
+                maxLength={254}
+              />
+            </span>
+            <span className={FIELD_CLASS}>
+              <label htmlFor="invitation-role" className={FIELD_LABEL_CLASS}>
+                Role
+              </label>
+              <select
+                id="invitation-role"
+                className={SELECT_CLASS}
+                value={role}
+                onChange={(event) => {
+                  setRole(roleOf(event.target.value));
+                }}
+              >
+                <option value="viewer">Viewer</option>
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+            </span>
+            <Button type="submit" className={CONTROL_HEIGHT} disabled={sending}>
               Send invitation
-            </button>
+            </Button>
           </form>
           {view.invitations.length === 0 ? (
-            <p>No invitations yet.</p>
+            <p className="text-muted-foreground text-sm">No invitations yet.</p>
           ) : (
-            <ul>
+            <ul className={`${LIST_CLASS} border-border divide-border divide-y border-t`}>
               {view.invitations.map((invitation) => {
                 const standing = standingOf(invitation, view.readAt);
                 return (
-                  <li key={invitation.id} className="flex flex-wrap items-center gap-2">
-                    <span>{invitation.email}</span>
-                    <span>{ROLE_NAMES[invitation.role]}</span>
-                    <span>{STANDING_NAMES[standing]}</span>
+                  <li key={invitation.id} className={ROW_CLASS}>
+                    <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="font-medium [overflow-wrap:anywhere]">
+                        {invitation.email}
+                      </span>
+                      <span className="text-muted-foreground text-sm">
+                        {ROLE_NAMES[invitation.role]}
+                      </span>
+                      <span className="text-muted-foreground text-sm">
+                        {STANDING_NAMES[standing]}
+                      </span>
+                    </span>
                     {standing === 'pending' && (
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        className={`self-start sm:self-auto ${CONTROL_HEIGHT}`}
                         disabled={sending}
                         aria-label={`Revoke the invitation for ${invitation.email}`}
                         onClick={() => {
@@ -200,7 +233,7 @@ export function InvitationsPanel({
                         }}
                       >
                         Revoke
-                      </button>
+                      </Button>
                     )}
                   </li>
                 );
@@ -209,8 +242,12 @@ export function InvitationsPanel({
           )}
         </>
       )}
-      {message !== '' && <p role="status">{message}</p>}
-    </section>
+      {message !== '' && (
+        <p role="status" className={STATUS_CLASS}>
+          {message}
+        </p>
+      )}
+    </OrganizationSection>
   );
 }
 

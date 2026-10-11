@@ -53,6 +53,82 @@ describe('organization page', () => {
   });
 });
 
+describe('organization page drawing', () => {
+  /**
+   * Every control the page offers, in every panel, filled so each panel draws
+   * its rows: an unstyled control is one the platform draws as a bevelled box
+   * beside the chrome's flat ones.
+   */
+  function stubEveryPanel() {
+    stubPage({
+      'GET /api/organization/members': [
+        () =>
+          answer(200, {
+            members: [{ userId: 'u1', username: 'sam', email: null, role: 'admin', createdAt: 1 }],
+          }),
+      ],
+      'GET /api/organization/invitations': [
+        () =>
+          answer(200, {
+            invitations: [offer('a', 'pending@acme.test', { expiresAt: Date.now() + DAY })],
+          }),
+      ],
+      'GET /api/organization/join-requests': [
+        () =>
+          answer(200, {
+            requests: [{ id: 'r', email: 'ask@acme.test', status: 'pending', createdAt: 1 }],
+          }),
+      ],
+      'GET /api/organization/domains': [
+        () =>
+          answer(200, {
+            domains: [
+              {
+                id: 'd',
+                domain: 'acme.test',
+                status: 'pending',
+                challengeExpiresAt: Date.now() + DAY,
+                lastSuccessAt: null,
+                lastCheckedAt: null,
+                proofWarning: false,
+              },
+            ],
+          }),
+      ],
+      'GET /api/organization': [
+        () => answer(200, { sharedPeople: false, sharingAvailable: true, canSwitch: true }),
+      ],
+    });
+  }
+
+  it("draws every control with the chrome's rounded, tokenised box", async () => {
+    stubEveryPanel();
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove sam' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Release acme.test' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Share people across projects' }));
+    await screen.findByRole('button', { name: 'Confirm: share people' });
+    const controls = [...document.querySelectorAll('main button, main input, main select')];
+    expect(controls.length).toBeGreaterThan(12);
+    const unstyled = controls
+      .filter((control) => !control.classList.contains('rounded-md'))
+      .map((control) => control.getAttribute('aria-label') ?? control.textContent);
+    // Proof: 2026-10-12, restoring `members-panel.tsx`'s bare controls failed
+    // this listing `Change the role of sam`, `Confirm removing sam` and the rest
+    // of that panel, and failed the card test below on `Members`.
+    expect(unstyled).toEqual([]);
+  });
+
+  it('draws each panel as a card named by its heading', async () => {
+    stubEveryPanel();
+    renderPage();
+    for (const name of ['Members', 'Invitations', 'Join requests', 'Domains', 'Shared people']) {
+      const region = await screen.findByRole('region', { name });
+      expect(region.querySelector('.rounded-lg.border')).not.toBeNull();
+    }
+  });
+});
+
 describe('organization invitations', () => {
   it('renders loading, then the empty state', async () => {
     stubPage({ 'GET /api/organization/invitations': [() => answer(200, { invitations: [] })] });
