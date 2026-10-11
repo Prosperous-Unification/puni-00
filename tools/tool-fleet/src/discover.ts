@@ -1133,7 +1133,10 @@ function positiveMilliseconds(
   return milliseconds;
 }
 
-/** Run read-only fleet discovery and exclusively persist its digest-bearing observation. */
+/**
+ * Run read-only fleet discovery and exclusively persist its digest-bearing observation. SSH nodes
+ * of a production fleet are reached only through `--ssh-transport` ({@link readSshTransport}).
+ */
 export async function runDiscover(argv: readonly string[], root: string): Promise<void> {
   const flags = readDiscoveryFlags(argv);
   const fleetPath = requiredDiscoveryFlag(flags, '--fleet');

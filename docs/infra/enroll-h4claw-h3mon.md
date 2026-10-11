@@ -155,9 +155,25 @@ Validation compares each Kubernetes node's machine ID and address with the one r
 then removes the enrollment taints.
 
 `tool-fleet:discover` and `plan --operation enroll` also refuse a wrong or missing target (see
-`placement.test.ts`), but production SSH discovery cannot yet pass a user or known-hosts file into
-the controller, so this procedure uses the playbooks directly; the ID checks above are its
-identity gate.
+`placement.test.ts`). This procedure uses the playbooks directly; the ID checks above are its
+identity gate. Discovery reaches both hosts read-only through an SSH transport file beside
+`$OPS/vars.json`, mode `0600`, using the same `known_hosts` and an account the forwarded agent's
+key can log in as (the admin user, or `puni-fleet` from the inventory's `puni_operator_name`):
+
+```sh
+printf '{"user":"<user>","knownHostsFile":"%s/known_hosts"}\n' "$OPS" > "$OPS/ssh-transport.json"
+chmod 600 "$OPS/ssh-transport.json"
+bunx nx run tool-fleet:discover -- --fleet infra/fleet/desired.yaml \
+  --output "$OPS/observation-$(date -u +%Y%m%dT%H%M%SZ).json" --ssh-transport "$OPS/ssh-transport.json"
+```
+
+The SSH facts need `SSH_AUTH_SOCK` (connect to h2puni with `ssh -A`) and pin exactly the
+reviewed keys; `"jump": {"user": …, "address": …}` adds a hop whose key must be in the same
+`known_hosts`. Every refusal and rendered SSH option is in
+[the discovery transport change](../../openspec/changes/discovery-ssh-transport/verify.md).
+The other sources still need `HCLOUD_TOKEN` and a `KUBECONFIG` with `platform` and `workers`
+contexts whose API admits the controller; the fleet firewall admits only enrolled addresses and
+loopback, so no production run has completed yet.
 
 ## 6. Check h3mon's memory
 
