@@ -19,6 +19,7 @@ const EXPECTED_PRODUCT_PROJECTS = [
   // `['apps/twilight-structure/twilight-burokrat/cli', 'twilight-burokrat']` tuple, and the
   // product-axis case below on its `product:twilight-burokrat` companion (2026-09-25).
   ['apps/twilight-structure/twilight-burokrat/cli', 'twilight-burokrat'],
+  ['apps/twilight-structure/twilight-dash/cli', 'twilight-dash'],
   ['apps/wbs/be-01', 'wbs-be-01'],
   ['apps/wbs/fe-01', 'wbs-fe-01'],
   ['apps/wbs/gw-01', 'wbs-gw-01'],
@@ -56,6 +57,17 @@ const EXPECTED_PRODUCT_PROJECTS = [
 const ALLOWED_INFRA_TO_PRODUCT_EDGES = [
   ['@wbs/contracts/solver/supervisor-protocol', 'wbs-solver-supervisor-protocol'],
   ['@wbs/domain', 'wbs-domain'],
+] as const;
+
+// Proof: omitting the fleet pair made the real graph oracle report
+// `twilight-dash -> tool-fleet`; omitting the scratch pair reported
+// `twilight-dash -> tool-test-scratch` (2026-10-11). This graph oracle sees project pairs,
+// not source files or import specifiers. The product-local effective ESLint tests pin
+// @tools/fleet-plan to cli.ts and its tests, @tools/test-scratch to tests, and refuse a
+// sibling infra alias from both.
+const ALLOWED_DASH_TO_INFRA_EDGES = [
+  ['twilight-dash', 'tool-fleet'],
+  ['twilight-dash', 'tool-test-scratch'],
 ] as const;
 
 /** Every `from '…';` specifier under `root`, skipping comment lines that merely name one. */
@@ -426,6 +438,13 @@ describe('productConstraints', () => {
         const target = graph.nodes[dependency.target];
         if (
           constraint.onlyDependOnLibsWithTags.some((allowed) => target.data.tags?.includes(allowed))
+        ) {
+          continue;
+        }
+        if (
+          ALLOWED_DASH_TO_INFRA_EDGES.some(
+            ([source, reached]) => project.name === source && target.name === reached,
+          )
         ) {
           continue;
         }

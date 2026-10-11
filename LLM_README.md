@@ -4,6 +4,7 @@
 WBS: `be-01` (Elysia+Drizzle+bun:sqlite, :3100), `gw-01` (WS, :3200),
 `fe-01` (Vite+React, :80 image/:4200 dev), `mcp-01` (Streamable HTTP MCP over be-01, default :3300). Nx and Bun; never npm.
 `twilight-burokrat` (`apps/twilight-structure/twilight-burokrat/cli`, `product:twilight-burokrat`) is Twilight Burokrat, the separately released rules and module-wiki validator.
+`twilight-dash` (`apps/twilight-structure/twilight-dash/cli`, `product:twilight-dash`) is Twilight Dash; today it only plans fleet enrollment ([README](apps/twilight-structure/twilight-dash/cli/README.md)).
 
 Three facts explain most decisions:
 

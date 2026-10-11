@@ -311,6 +311,9 @@ export const APPLICATION_SUITES = Object.freeze(['twilight-structure']);
  */
 export const APPLICATION_NAME_EXCEPTIONS = {
   'apps/twilight-structure/twilight-burokrat/cli': 'twilight-burokrat',
+  // Proof: omitting this exact Dash CLI root made the live namespace-layout test demand
+  // twilight-dash-cli despite the reviewed Nx project name twilight-dash.
+  'apps/twilight-structure/twilight-dash/cli': 'twilight-dash',
 };
 
 /**

@@ -24,6 +24,7 @@
     "types": ["bun-types"],
     "paths": {
       "@tools/fleet-operation-plan-schema": ["./infra/fleet/schemas/operation-plan.json"],
+      "@tools/fleet-plan": ["./tools/tool-fleet/src/plan-facade.ts"],
       "@wbs/auth": ["./libs/wbs/adapters/auth/src/index.ts"],
       "@wbs/config": ["./libs/wbs/adapters/config/src/index.ts"],
       "@wbs/contracts": ["./libs/wbs/domain/contracts/src/index.ts"],
