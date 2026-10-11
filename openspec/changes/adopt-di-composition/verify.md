@@ -2696,3 +2696,14 @@ tool-devsync`: success. Tests: `wbs-domain` 887/887, `wbs-core` 831/831, `wbs-co
   - be-01 `saved-plan-atomicity.db.test.ts` and `schedule-unestimated.test.ts` 12/12
 - `check-indexes staged . HEAD` exited 0. `openspec validate --all --json` passed 158/158.
 - Not run: the full be-01 suite on this slice, and the h2puni gate.
+- Review fixes on #314 (2026-10-11):
+  - What changed:
+    - `dependency.test.ts` and `roll-up.test.ts` moved to the domain, on `PlannedRow` and `ParentedRow` literals.
+    - `saved-plan-input.test.ts` stays in core and is listed in task 7.1, because it reaches `saved-plan-schedule.ts`.
+    - Step's contract and the design ledger now name `dependency-graph.ts` as remaining `service/` support.
+    - `kinds.json` dispositions name each owning module.
+    - `Stored*` and `Assignment` fields are readonly, and the duplicate `Captured*` value types are gone.
+  - Results:
+    - `nx affected -t typecheck lint:fast`: 19 projects pass.
+    - Tests: wbs-domain 950/950 and wbs-core 770/770 (the 54 cases moved between them), store-memory 146/146, store-sqlite 1287/1287, tool-devsync 392/392.
+    - `check-indexes` exits 0; OpenSpec passes 158/158.

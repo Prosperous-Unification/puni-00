@@ -2,11 +2,11 @@ import type { StepState } from './progress';
 import type { MeasureMetric } from './stored-vocabularies';
 
 export interface StoredEstimate {
-  workItemId: string;
-  stepId: string;
-  optimistic: number;
-  realistic: number;
-  pessimistic: number;
+  readonly workItemId: string;
+  readonly stepId: string;
+  readonly optimistic: number;
+  readonly realistic: number;
+  readonly pessimistic: number;
 }
 
 /**
@@ -16,11 +16,11 @@ export interface StoredEstimate {
  * actual is a fact about what happened.
  */
 export interface StoredActual {
-  workItemId: string;
-  stepId: string;
-  days: number;
+  readonly workItemId: string;
+  readonly stepId: string;
+  readonly days: number;
   /** When the number was typed, in epoch milliseconds. */
-  recordedAt: number;
+  readonly recordedAt: number;
 }
 
 /**
@@ -33,13 +33,13 @@ export interface StoredActual {
  * `openspec/changes/token-tracking/design.md` D1.
  */
 export interface StoredMeasure {
-  workItemId: string;
-  stepId: string;
-  metric: MeasureMetric;
+  readonly workItemId: string;
+  readonly stepId: string;
+  readonly metric: MeasureMetric;
   /** The figure itself — tokens or hours, in whatever `metric` says. */
-  value: number;
+  readonly value: number;
   /** When the number was typed, in epoch milliseconds. */
-  recordedAt: number;
+  readonly recordedAt: number;
 }
 
 /**
@@ -47,12 +47,12 @@ export interface StoredMeasure {
  *
  * `state` is one of the two a step may be **stored** in. The third state — not
  * started — is the absence of this row, so it has no spelling here and cannot
- * be written by anybody: see {@link StepState} in `@wbs/domain`.
+ * be written by anybody: see {@link StepState} in `progress.ts`.
  */
 export interface StoredProgress {
-  workItemId: string;
-  stepId: string;
-  state: StepState;
+  readonly workItemId: string;
+  readonly stepId: string;
+  readonly state: StepState;
   /** When somebody said so, in epoch milliseconds. */
-  statedAt: number;
+  readonly statedAt: number;
 }

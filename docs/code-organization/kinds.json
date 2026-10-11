@@ -52,13 +52,13 @@
     {
       "path": "libs/wbs/application/core/src/service/command-normalizers.ts",
       "kind": "support",
-      "disposition": "application support; stays in the core (task 6.1 reclassified it 2026-10-11)",
+      "disposition": "application support; move into module/plan-commands (task 6.1 reclassified it from the domain library, 2026-10-11)",
       "rationale": "work-item.routes.ts normalizes request command values through the core's capacity and priority-ladder body parsers, and prepare-import.ts shares its limits; it is request-boundary code over the command definitions, not domain code"
     },
     {
       "path": "libs/wbs/application/core/src/service/compensating.ts",
       "kind": "support",
-      "disposition": "application support; stays in the core (task 6.1 reclassified it 2026-10-11)",
+      "disposition": "application support; move into module/work-item (task 6.1 reclassified it from the domain library, 2026-10-11)",
       "rationale": "work-item.resource.ts decodes journal entries into the inverse store writes undo applies (WorkItemPatch, Reparented, FrozenNumber and the stored-value keys); its vocabulary is the stores', so it is not domain code"
     },
     {
@@ -70,8 +70,8 @@
     {
       "path": "libs/wbs/application/core/src/service/directory-usage.ts",
       "kind": "support",
-      "disposition": "application support; stays in the core (task 6.1 reclassified it 2026-10-11)",
-      "rationale": "directory.resource.ts projects removal effects over the DirectoryUsageRows store read and its labelled work items; those records stay port types under decision A12, so the projection stays with them"
+      "disposition": "application support; move into module/directory (task 6.1 reclassified it from the domain library, 2026-10-11)",
+      "rationale": "directory.resource.ts projects removal effects over DirectoryUsageRows and its labelled work items; the blocker for the domain library is LabelledWorkItem, which stays a port type under decision A12, and DirectoryUsageRows carries it"
     },
     {
       "path": "libs/wbs/application/core/src/service/domain-proof.service.ts",
@@ -82,8 +82,8 @@
     {
       "path": "libs/wbs/application/core/src/service/numbered-work-item.ts",
       "kind": "support",
-      "disposition": "application support; stays in the core (task 6.1 reclassified it 2026-10-11)",
-      "rationale": "its NumberedWorkItem reader value extends the LabelledWorkItem port record, which stays a port type under decision A12; Days moved to @wbs/domain with roll-up.ts"
+      "disposition": "application support; move into module/work-item (task 6.1 reclassified it from the domain library, 2026-10-11)",
+      "rationale": "its NumberedWorkItem reader value extends the LabelledWorkItem port record, which stays a port type under decision A12; a minimal (B) shape would be the whole record, so the file stays application code. Days moved to @wbs/domain with roll-up.ts"
     },
     {
       "path": "libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.ts",
@@ -94,7 +94,7 @@
     {
       "path": "libs/wbs/application/core/src/service/plan-command.ts",
       "kind": "support",
-      "disposition": "application support; stays beside command-normalizers.ts (task 6.1 reclassified it 2026-10-11)",
+      "disposition": "application support; move into module/plan-commands beside command-normalizers.ts (task 6.1 reclassified it from the domain library, 2026-10-11)",
       "rationale": "plan-commands.ts consumes the normalized command type and the batch limit command-normalizers.ts produces, so it follows that file"
     },
     {

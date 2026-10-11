@@ -1,8 +1,10 @@
+import type { Assignment } from './assignment';
 import type { DependencyReach } from './dependency-reach';
 import type { EstimateMethod, EstimateRounding, PertWeights } from './estimate';
 import type { PriorityBand } from './priority-band';
 import type { Hold, Readiness } from './progress';
-import type { MeasureMetric, ScheduleEngine, SolverObjectiveName } from './stored-vocabularies';
+import type { StoredActual, StoredEstimate, StoredMeasure, StoredProgress } from './step-values';
+import type { ScheduleEngine, SolverObjectiveName } from './stored-vocabularies';
 import type { TypedDependency } from './typed-dependency';
 import type { IsoDate } from './workday';
 
@@ -61,45 +63,9 @@ export interface CapturedWorkItem {
   }[];
 }
 
-export interface CapturedEstimate {
-  readonly workItemId: string;
-  readonly stepId: string;
-  readonly optimistic: number;
-  readonly realistic: number;
-  readonly pessimistic: number;
-}
-
-export interface CapturedActual {
-  readonly workItemId: string;
-  readonly stepId: string;
-  readonly days: number;
-  readonly recordedAt: number;
-}
-
-export interface CapturedProgress {
-  readonly workItemId: string;
-  readonly stepId: string;
-  readonly state: 'in_progress' | 'done';
-  readonly statedAt: number;
-}
-
-export interface CapturedMeasure {
-  readonly workItemId: string;
-  readonly stepId: string;
-  readonly metric: MeasureMetric;
-  readonly value: number;
-  readonly recordedAt: number;
-}
-
 export interface CapturedDependency {
   readonly predecessorId: string;
   readonly successorId: string;
-}
-
-export interface CapturedAssignment {
-  readonly workItemId: string;
-  readonly stepId: string;
-  readonly personId: string;
 }
 
 export interface CapturedNamedValue {
@@ -120,14 +86,14 @@ export interface PlanInputReads {
   readonly project: CapturedProject;
   readonly steps: readonly CapturedStep[];
   readonly workItems: readonly CapturedWorkItem[];
-  readonly estimates: readonly CapturedEstimate[];
-  readonly actuals: readonly CapturedActual[];
-  readonly progress: readonly CapturedProgress[];
-  readonly measures: readonly CapturedMeasure[];
+  readonly estimates: readonly StoredEstimate[];
+  readonly actuals: readonly StoredActual[];
+  readonly progress: readonly StoredProgress[];
+  readonly measures: readonly StoredMeasure[];
   readonly dependencies: readonly CapturedDependency[];
   /** Detached relationship identities and endpoints from the capture snapshot. */
   readonly typedDependencies: readonly TypedDependency[];
-  readonly assignments: readonly CapturedAssignment[];
+  readonly assignments: readonly Assignment[];
   readonly capacity: ReadonlyMap<string, number>;
   readonly priorityBands: readonly PriorityBand[];
   readonly people: readonly CapturedPerson[];

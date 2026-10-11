@@ -1,23 +1,19 @@
-import { canDepend, type DependencyRefusal, schedule } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import type { StoredDependency } from '../ports/dependency-store';
-import type { WorkItem } from '../ports/work-item-store';
-import { workItemRow } from '../testing/work-item-fixture';
+import { canDepend, type DependencyRefusal } from './dependency';
+import type { PlannedRow } from './derive-numbers';
+import { type DependencyEdge, schedule } from './schedule';
 
 let position = 0;
-const item = (id: string, parentId: string | null = null): WorkItem =>
-  workItemRow({
-    id,
-    projectId: 'p1',
-    parentId,
-    position: (position += 10),
-    name: id,
-  });
+const item = (id: string, parentId: string | null = null): PlannedRow => ({
+  id,
+  parentId,
+  position: (position += 10),
+  frozenNumber: null,
+  priority: null,
+});
 
-const edge = (predecessorId: string, successorId: string): StoredDependency => ({
-  id: `${predecessorId}->${successorId}`,
-  projectId: 'p1',
+const edge = (predecessorId: string, successorId: string): DependencyEdge => ({
   predecessorId,
   successorId,
 });
@@ -31,7 +27,7 @@ const edge = (predecessorId: string, successorId: string): StoredDependency => (
  * loose
  * ```
  */
-const ROWS: WorkItem[] = [
+const ROWS: PlannedRow[] = [
   item('step'),
   item('early', 'step'),
   item('late', 'step'),
@@ -42,7 +38,7 @@ const ROWS: WorkItem[] = [
 const check = (
   predecessorId: string,
   successorId: string,
-  existing: StoredDependency[] = [],
+  existing: DependencyEdge[] = [],
 ): DependencyRefusal | null => canDepend(ROWS, existing, predecessorId, successorId);
 
 describe('canDepend', () => {

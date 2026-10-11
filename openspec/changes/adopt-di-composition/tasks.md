@@ -294,7 +294,9 @@
       `plan-command.ts` (request-body normalization through the core's `http/` parsers),
       `directory-usage.ts` (projections over the `DirectoryUsageRows` store read) and
       `numbered-work-item.ts` (a reader value extending `LabelledWorkItem`) are application code:
-      `kinds.json` reclassifies them in place, and they stay in the core's `service/`. Importers name
+      `kinds.json` reclassifies them in place, naming `module/work-item`, `module/plan-commands` or
+      `module/directory` as each one's owner. The `dependency.test.ts` and `roll-up.test.ts` suites
+      moved with their owners onto `PlannedRow` and `ParentedRow` literals. Importers name
       `@wbs/domain`; the `@wbs/core` barrel keeps compatibility exports until task 7.1.
       `libs/wbs/domain/domain/src/domain-ring-boundary.test.ts` lints every moved rule and refuses a
       port or core parser import inside one.
@@ -329,7 +331,7 @@
       `saved-plan.service.ts` and `saved-plan-schedule.ts` compatibility adapters stay, since
       direct callers still construct them from stores. The task stays open for its first half:
       tests of moved code (`gateway-broadcaster.test.ts`, the two `replay-buffer` suites,
-      `retention-timer.test.ts`, `prepare-import.test.ts` under `service/`, and
+      `retention-timer.test.ts`, `prepare-import.test.ts` and `saved-plan-input.test.ts` (it reaches Saved plans' `saved-plan-schedule.ts`) under `service/`, and
       `use-cases/admission.test.ts`, and be-01 `service/` suites such as `retention-job.test.ts`
       and `replay-orchestrator.test.ts`) still live outside their owners' modules.
 - [x] 7.2 Update `docs/code-organization/kinds.json` for every moved and suffix-declared file: a
