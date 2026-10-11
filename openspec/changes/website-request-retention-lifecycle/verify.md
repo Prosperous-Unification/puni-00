@@ -263,6 +263,8 @@ The lock test uses a 300 ms wait against a child holding the lock for 3 s and as
 | Evidence validation at the route | pattern check removed                | `(fail) an invalid transition is 409`: the record layer's refusal escaped instead of a 400           |
 | Stream fence (slice 4 fence)     | chat `unknown` update made a no-op   | `(fail) a fenced stream completion becomes unknown and keeps its reservation`: `"state": "inflight"` |
 
+Review fix (Fable, 2026-10-11): when the route replays after a `behind` refusal, a failing replay now answers 503 `retention_journal_unavailable` instead of escaping as a 500. Fault: the mapping removed. Observed: `(fail) a failed replay after a remote-ahead refusal answers 503`. Control: without the injected read failure the same request answers `retention_journal_replayed`, which proves the test reaches the `behind` branch.
+
 The pre-hold snapshot replay that task 2.3 names is `an old snapshot replays designation, hold and erasure` (slice 5).
 
 - `bun test apps/website/be-01/src --timeout=30000`: `163 pass`, `0 fail`.
