@@ -5,6 +5,12 @@ import { join, relative } from 'node:path';
 
 import { isTerminal, type JournalRecord, type ReleaseJournal } from './journal';
 import {
+  assertMigrationCapture,
+  migrationIdentityOf,
+  type MigrationSetIdentity,
+  sealMigrationCapture,
+} from './migration-capture';
+import {
   admittedBackendImages,
   assertDownMigrationsUnchanged,
   assertMigratedSet,
@@ -15,6 +21,7 @@ import {
   decideLease,
   failStep,
   type FluxUnit,
+  FORWARD_PHASES,
   initialState,
   K8S_TIERS,
   type K8sTier,
@@ -70,7 +77,7 @@ export interface ReleaseEffects {
   /** Scales the backend to zero and proves no writer Pod of any kind remains. */
   stopWriter(): Promise<void>;
   capture(
-    releaseId: string,
+    identity: MigrationSetIdentity,
     backendImage: string,
   ): Promise<{ capture: MigrationCapture; snapshot: Snapshot }>;
   /** Runs the release's single migration Job; returns the applied set it then observes. */
@@ -79,14 +86,20 @@ export interface ReleaseEffects {
     releaseId: string,
     backendImage: string,
   ): Promise<readonly { name: string; downSha256: string }[]>;
-  /** Reverses migrations after `baseline`; returns the applied set it then observes. */
+  /** Reverses exactly the pinned pending set; returns complete ledger identities. */
   rollbackSchema(
     releaseId: string,
     backendImage: string,
-    baseline: string,
-  ): Promise<readonly string[]>;
+    identity: MigrationSetIdentity,
+    capture: MigrationCapture,
+  ): Promise<readonly { name: string; hash: string }[]>;
   /** Exact command an operator runs to finish the schema rollback by hand. */
-  manualSchemaCommand(releaseId: string, backendImage: string, baseline: string): string;
+  manualSchemaCommand(
+    releaseId: string,
+    backendImage: string,
+    identity: MigrationSetIdentity,
+    capture: MigrationCapture,
+  ): string;
   /**
    * Exact commands that reopen writes and release the Lease, for an operator who has restored
    * and verified the previous release by hand after any other rollback step failed.
@@ -199,8 +212,16 @@ async function perform(
     case 'rollback-stop-writer':
       await effects.stopWriter();
       return {};
-    case 'capture-state':
-      return effects.capture(state.transactionId, request.release.images.backend);
+    case 'capture-state': {
+      const identity = migrationIdentityOf(request, state.transactionId);
+      // Proof: replacing a rejected capability Job with a fabricated capture made the
+      // coordinator test record state-captured and launch forward migration instead of refusing.
+      const observation = await effects.capture(identity, request.release.images.backend);
+      // Proof: skipping capture-boundary validation made `refuses a foreign capture before
+      // journal persistence` promote a foreign target capture.
+      assertMigrationCapture(observation.capture, identity);
+      return observation;
+    }
     case 'migrate': {
       const applied = await effects.migrate(state.transactionId, request.release.images.backend);
       assertMigratedSet(requireCapture(state), applied);
@@ -261,7 +282,12 @@ async function perform(
       );
       assertRestoredSet(
         capture,
-        await effects.rollbackSchema(state.transactionId, image, capture.baseline),
+        await effects.rollbackSchema(
+          state.transactionId,
+          image,
+          migrationIdentityOf(request, state.transactionId),
+          capture,
+        ),
       );
       return {};
     }
@@ -284,7 +310,8 @@ function manualCommandFor(
     return effects.manualSchemaCommand(
       state.transactionId,
       request.release.images.backend,
-      state.capture.baseline,
+      migrationIdentityOf(request, state.transactionId),
+      state.capture,
     );
   }
   if (step.startsWith('rollback-')) return effects.manualReopenCommand(state.releaseId);
@@ -295,6 +322,30 @@ function manualCommandFor(
 function startingState(request: ReleaseRequest, journal: ReleaseJournal): ReleaseState {
   const existing = journal.read();
   if (existing === null) return initialState(request);
+  const forward: readonly string[] = FORWARD_PHASES;
+  const recordedAt = forward.indexOf(existing.state.phase);
+  const rollbackFrom =
+    existing.state.rollbackFrom === null ? -1 : forward.indexOf(existing.state.rollbackFrom);
+  const capturedAt = forward.indexOf('state-captured');
+  // Proof: omitting this missing-capture refusal made `refuses a captured phase without its
+  // capture before any mutation` resume a migration with no rollback set.
+  if (existing.state.capture === null && (recordedAt >= capturedAt || rollbackFrom >= capturedAt)) {
+    throw new Error(`journal ${journal.path} reached a captured phase without migration capture`);
+  }
+  if (
+    existing.state.capture !== null &&
+    existing.state.phase !== 'recovery-required' &&
+    existing.state.phase !== 'lease-released' &&
+    existing.state.phase !== 'rolled-back'
+  ) {
+    // Proof: bypassing this preflight let an unsupported legacy capture resume into a
+    // schema Job and rewrite the journal; `refuses an interrupted legacy capture before
+    // changing its journal or cluster` failed.
+    assertMigrationCapture(
+      existing.state.capture,
+      migrationIdentityOf(request, existing.state.transactionId),
+    );
+  }
   const requestedId = releaseIdOf(request.release);
   if (existing.state.phase === 'recovery-required' || isTerminal(existing.state)) {
     // Proof: without this check `stops at recovery-required ... recovers with a fresh capture` started a fresh
@@ -415,7 +466,7 @@ export async function executeRelease(
   const history: { phase: string; at: string }[] = [...(existing?.history ?? [])];
   const record = (next: ReleaseState): void => {
     history.push({ phase: next.phase, at: new Date(clock()).toISOString() });
-    const entry: JournalRecord = { schemaVersion: 1, request, state: next, history };
+    const entry: JournalRecord = { schemaVersion: 2, request, state: next, history };
     journal.write(entry);
   };
   // Proof: recording before claiming let `refuses to resume a transaction whose live
@@ -643,13 +694,69 @@ const sha = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 const dbPath = process.env.DB_PATH;
 const mode = process.env.PUNI_TASK;
 if (!dbPath || !mode) throw new Error('DB_PATH and PUNI_TASK are required');
+// Proof: moving this preflight after VACUUM made the old --to-only candidate's
+// generated-script test find an already-created snapshot before capability refusal.
+// Proof: creating the snapshot directory before this probe made that test fail
+// its directory-absence assertion even without a snapshot file.
+if (mode === 'capture') {
+  // Proof: removing this invocation made the legacy --to-only candidate test create a snapshot.
+  const child = Bun.spawnSync(['bun', 'run', 'src/migrate-capabilities-cli.ts'],
+    { stdout: 'pipe', stderr: 'pipe' });
+  // Proof: ignoring a nonzero capability process made the failing-executable test
+  // report a malformed response instead of refusing the failed probe.
+  if (child.exitCode !== 0) {
+    throw new Error('exact-set migration CLI capability probe failed: ' + child.stderr.toString());
+  }
+  let advertised;
+  // Proof: substituting a successful response for malformed stdout made its
+  // generated-script test reach the absent database.
+  try { advertised = JSON.parse(child.stdout.toString()); }
+  catch { throw new Error('exact-set migration CLI capability response is malformed'); }
+  // Proof: removing exact-key, protocol or version checks independently made the
+  // unknown-field, wrong-protocol or wrong-version tests reach the absent database.
+  if (advertised === null || typeof advertised !== 'object' || Array.isArray(advertised) ||
+      Object.keys(advertised).sort().join(',') !== 'capabilities,protocol,version' ||
+      advertised.protocol !== 'wbs-migration' || advertised.version !== 1 ||
+      !Array.isArray(advertised.capabilities)) {
+    throw new Error('exact-set migration CLI capability response is unsupported');
+  }
+  // Proof: removing the count check made the duplicate-capability test reach SQLite;
+  // dropping either required-capability check made its partial candidate do the same.
+  if (advertised.capabilities.length !== 2 ||
+      !advertised.capabilities.includes('capture-v1') ||
+      !advertised.capabilities.includes('restore-v1-sha256')) {
+    throw new Error('exact-set migration CLI capability response lacks required operations');
+  }
+}
 if (!fs.existsSync(dbPath)) throw new Error('database ' + dbPath + ' does not exist');
 const cli = (args) => {
   const child = Bun.spawnSync(['bun', 'run', ...args], { stdout: 'inherit', stderr: 'inherit' });
   if (child.exitCode !== 0) throw new Error(args.join(' ') + ' exited ' + child.exitCode);
 };
 if (mode === 'migrate') cli(['src/migrate-cli.ts']);
-if (mode === 'rollback') cli(['src/migrate-down-cli.ts', '--to=' + process.env.PUNI_BASELINE]);
+if (mode === 'rollback') {
+  // Proof: removing captured-byte transport made the generated-script older-stamp
+  // regression fail before it could restore its candidate table.
+  const bytes = process.env.PUNI_CAPTURE_BYTES;
+  const pin = process.env.PUNI_CAPTURE_SHA256;
+  const target = process.env.PUNI_CAPTURE_TARGET;
+  const attempt = process.env.PUNI_CAPTURE_ATTEMPT;
+  const candidate = process.env.PUNI_CAPTURE_CANDIDATE;
+  // Proof: removing the required-field refusal made the real generated-script missing-capture
+  // test see a later file-write error instead of the exact-set input-boundary refusal.
+  if (!bytes || !pin || !target || !attempt || !candidate) {
+    throw new Error('exact-set rollback requires captured bytes, digest and caller identity');
+  }
+  const path = '/tmp/wbs-migration-capture-' + process.pid + '.json';
+  fs.writeFileSync(path, bytes, { flag: 'wx', mode: 0o600 });
+  try {
+    // Proof: replacing exact-set CLI with legacy --to left an older candidate migration
+    // applied in the generated-script older-stamp regression.
+    cli(['src/migrate-down-cli.ts', '--capture-file=' + path,
+      '--capture-sha256=' + pin, '--target=' + target, '--attempt=' + attempt,
+      '--candidate=' + candidate]);
+  } finally { fs.rmSync(path); }
+}
 const db = new Database(dbPath, { readwrite: true, create: false });
 const table = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='__drizzle_migrations'").get();
 const applied = table === null ? [] : db.query('SELECT name, hash, created_at FROM __drizzle_migrations ORDER BY created_at').all();
@@ -714,7 +821,10 @@ export function parseTaskReport(logs: string): BackendTaskReport {
  * Derives capture facts from a capture Job's report. Every applied migration must exist in the
  * candidate image with the same hash, or its rollback script would describe something else.
  */
-export function captureFromReport(report: BackendTaskReport): {
+export function captureFromReport(
+  report: BackendTaskReport,
+  identity: MigrationSetIdentity,
+): {
   capture: MigrationCapture;
   snapshot: Snapshot;
 } {
@@ -735,16 +845,24 @@ export function captureFromReport(report: BackendTaskReport): {
     .filter((folder) => !appliedNames.has(folder.name))
     .map((folder) => {
       if (folder.downSha256 === null) throw new Error(`${folder.name} has no down.sql`);
-      return { name: folder.name, downSha256: folder.downSha256 };
+      return { name: folder.name, hash: folder.hash, downHash: folder.downSha256 };
     });
   return {
-    capture: {
-      baseline: report.applied.at(-1)?.name ?? 'none',
-      applied: report.applied.map((row) => ({ name: row.name, hash: row.hash })),
+    capture: sealMigrationCapture(
+      identity,
+      report.applied.map((row) => ({ name: row.name, hash: row.hash })),
       pending,
-    },
+    ),
     snapshot: report.snapshot,
   };
+}
+
+function assertSchemaCaller(attempt: string, image: string, identity: MigrationSetIdentity): void {
+  // Proof: disabling the caller check made `refuses a foreign capture before rendering manual
+  // recovery or contacting the cluster` accept a different image/attempt at the adapter edge.
+  if (attempt !== identity.attempt || image !== identity.candidate) {
+    throw new Error('schema Job caller differs from the captured attempt or candidate image');
+  }
 }
 
 const SECURITY_CONTEXT = {
@@ -1497,13 +1615,15 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
         async () => (await writerPods()).length === 0,
       );
     },
-    async capture(releaseId, image) {
+    async capture(identity, image) {
+      assertSchemaCaller(identity.attempt, image, identity);
       return captureFromReport(
-        await backendTask('capture', releaseId, image, {
+        await backendTask('capture', identity.attempt, image, {
           PUNI_TASK: 'capture',
-          PUNI_RELEASE: releaseId,
+          PUNI_RELEASE: identity.attempt,
           PUNI_SNAPSHOT_DIR: '/data/snapshots',
         }),
+        identity,
       );
     },
     async migrate(releaseId, image) {
@@ -1516,12 +1636,20 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
         folder.downSha256 === null ? [] : [{ name: folder.name, downSha256: folder.downSha256 }],
       );
     },
-    async rollbackSchema(releaseId, image, baseline) {
+    async rollbackSchema(releaseId, image, identity, capture) {
+      assertSchemaCaller(releaseId, image, identity);
+      // Proof: removing this guard made the adapter's foreign-capture negative reach kubectl
+      // writer inspection instead of refusing before cluster contact.
+      assertMigrationCapture(capture, identity);
       const report = await backendTask('rollback', releaseId, image, {
         PUNI_TASK: 'rollback',
-        PUNI_BASELINE: baseline,
+        PUNI_CAPTURE_BYTES: capture.bytes,
+        PUNI_CAPTURE_SHA256: capture.sha256,
+        PUNI_CAPTURE_TARGET: identity.target,
+        PUNI_CAPTURE_ATTEMPT: identity.attempt,
+        PUNI_CAPTURE_CANDIDATE: identity.candidate,
       });
-      return report.applied.map((row) => row.name);
+      return report.applied;
     },
     manualReopenCommand(releaseId) {
       const prefix = base.join(' ');
@@ -1531,14 +1659,33 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
         `${OBJECTS.lease} # only after the previous release is restored and verified; release ${releaseId}`
       );
     },
-    manualSchemaCommand(releaseId, image, baseline) {
+    manualSchemaCommand(releaseId, image, identity, capture) {
+      assertSchemaCaller(releaseId, image, identity);
+      // Proof: removing this guard rendered a manual manifest for a foreign target in
+      // `refuses a foreign capture before rendering manual recovery or contacting the cluster`.
+      assertMigrationCapture(capture, identity);
       const name = jobName('manual-rollback', releaseId);
       const path = join(settings.stateDir, `${name}.json`);
+      const recoveryEnv = {
+        PUNI_TASK: 'rollback',
+        PUNI_CAPTURE_BYTES: capture.bytes,
+        // Proof: dropping the original pin made the generated-manifest test observe an empty
+        // digest rather than a command bound to the recorded capture.
+        PUNI_CAPTURE_SHA256: capture.sha256,
+        PUNI_CAPTURE_TARGET: identity.target,
+        PUNI_CAPTURE_ATTEMPT: identity.attempt,
+        PUNI_CAPTURE_CANDIDATE: identity.candidate,
+      };
       writeFileSync(
         path,
-        `${JSON.stringify(backendTaskJob(settings, name, image, { PUNI_TASK: 'rollback', PUNI_BASELINE: baseline }), null, 2)}\n`,
+        `${JSON.stringify(backendTaskJob(settings, name, image, recoveryEnv), null, 2)}\n`,
       );
-      return `${settings.kubectl} --context ${settings.context} create -f ${path}`;
+      // Proof: independently omitting kubeconfig and shell quoting made `prints an executable
+      // manual recovery command with the pinned kubeconfig and intact arguments` fail with
+      // missing kubeconfig arguments and a split kubectl path, respectively.
+      return [...base, 'create', '-f', path]
+        .map((argument) => `'${argument.replaceAll("'", "'\\''")}'`)
+        .join(' ');
     },
     async rolloutBackend(image) {
       const writers = await writerPods();

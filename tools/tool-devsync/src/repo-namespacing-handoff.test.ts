@@ -641,6 +641,8 @@ test('every legacy source occurrence and relevant text family is pinned', async 
         'apps/wbs/gw-01/Dockerfile',
         'apps/wbs/mcp-01/Dockerfile',
         'deploy/dev-src/Dockerfile',
+        // Added with the 070.12 rollback-failure lab image; occurrence counts are unchanged.
+        'deploy/k8s/wbs/lab/backend-rollback-fault.Dockerfile',
         'deploy/k8s/wbs/lab/backend-unhealthy.Dockerfile',
         'deploy/k8s/wbs/lab/backend-upgrade.Dockerfile',
         'deploy/k8s/wbs/lab/mcp-01.Dockerfile',

@@ -23,6 +23,7 @@ import {
   ROLLBACK_ALL,
   rollbackTo,
 } from './migrate-down';
+import { captureAppliedMigrationSet, restoreAppliedMigrationSet } from './migration-set';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const INIT = '20260426171432_talented_smiling_tiger';
@@ -732,6 +733,38 @@ describe('readMigrationFolders', () => {
 });
 
 describe('rollbackTo, against a real database', () => {
+  it('exact set restores an older newly introduced migration after a newer baseline', () => {
+    const db = tempDb();
+    const candidateFolder = mkdtempSync(join(tmpdir(), 'wbs-older-candidate-'));
+    const candidateName = '20261001020000_add_browser_auth_lifecycle';
+    try {
+      cpSync(FOLDER, candidateFolder, { recursive: true });
+      runMigrations(db.path, FOLDER);
+      const originalNames = appliedNames(db.path);
+      expect(originalNames.at(-1)).toBe('20261005110000_add_shared_people');
+      const candidate = join(candidateFolder, candidateName);
+      mkdirSync(candidate);
+      writeFileSync(join(candidate, 'migration.sql'), 'CREATE TABLE lifecycle_probe (id text);');
+      writeFileSync(join(candidate, 'down.sql'), 'DROP TABLE lifecycle_probe;');
+      const capture = captureAppliedMigrationSet(db.path, candidateFolder, {
+        target: 'wbs-be-01',
+        attempt: 'store-test',
+        candidate: 'deadbeef',
+      });
+      expect(capture.pending.map((entry) => entry.name)).toEqual([candidateName]);
+      runMigrations(db.path, candidateFolder);
+      expect(tables(db.path)).toContain('lifecycle_probe');
+      expect(restoreAppliedMigrationSet(db.path, candidateFolder, capture)).toEqual([
+        candidateName,
+      ]);
+      expect(tables(db.path)).not.toContain('lifecycle_probe');
+      expect(appliedNames(db.path)).toEqual(originalNames);
+    } finally {
+      db.cleanup();
+      rmSync(candidateFolder, { recursive: true, force: true });
+    }
+  });
+
   it('reverses the newest migration and leaves the earlier one applied', () => {
     const db = tempDb();
     try {

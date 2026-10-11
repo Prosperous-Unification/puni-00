@@ -23,6 +23,7 @@ export interface MigrationFolder {
   name: string;
   hash: string;
   downSql: string;
+  downHash: string;
 }
 
 export const ROLLBACK_ALL = 'none';
@@ -153,6 +154,7 @@ export function readMigrationFolders(migrationsFolder: string): MigrationFolder[
       name,
       hash: createHash('sha256').update(readFileSync(up).toString()).digest('hex'),
       downSql,
+      downHash: createHash('sha256').update(downSql).digest('hex'),
     });
   }
   return out;
@@ -176,53 +178,63 @@ export function rollbackTo(dbPath: string, migrationsFolder: string, target: str
       .query<AppliedMigration, []>('SELECT id, hash, created_at, name FROM __drizzle_migrations')
       .all();
     const doomed = migrationsToRollback(applied, target);
-    const reversed: string[] = [];
-
-    for (const row of doomed) {
-      if (row.name === null) {
-        throw new Error(
-          `a migration applied at ${String(row.created_at)} has no name recorded, ` +
-            'so the down script that reverses it cannot be identified',
-        );
-      }
-      const folder = folders.get(row.name);
-      if (folder === undefined) {
-        throw new Error(`${row.name} is applied but no longer exists on disk`);
-      }
-      if (folder.hash !== row.hash) {
-        // The file changed after it was applied, so its down.sql describes a
-        // different forward migration than the one in the database.
-        throw new Error(
-          `${row.name} on disk does not match what was applied (hash differs); ` +
-            'its down.sql cannot be trusted to reverse it',
-        );
-      }
-      const rebuild = folder.downSql.includes(FOREIGN_KEYS_OFF_MARKER);
-      if (rebuild) db.run('PRAGMA foreign_keys = OFF;');
-      db.run('BEGIN');
-      try {
-        for (const statement of folder.downSql.split('--> statement-breakpoint')) {
-          if (statement.trim() === '') continue;
-          // Bun 1.3.14 treats a bare `INSERT … SELECT;\n` as an empty final
-          // statement and reports zero changes. Trimming makes the statement
-          // that was hashed and reviewed the one SQLite actually executes.
-          db.run(statement.trim());
-        }
-        db.run('DELETE FROM __drizzle_migrations WHERE id = ?', [row.id]);
-        db.run('COMMIT');
-      } catch (e: unknown) {
-        db.run('ROLLBACK');
-        if (rebuild) db.run('PRAGMA foreign_keys = ON;');
-        throw new Error(
-          `rolling back ${row.name} failed: ${e instanceof Error ? e.message : String(e)}`,
-          { cause: e },
-        );
-      }
-      if (rebuild) db.run('PRAGMA foreign_keys = ON;');
-      reversed.push(row.name);
-    }
-    return reversed;
+    return rollbackAppliedRows(db, folders, doomed);
   } finally {
     db.close();
   }
+}
+
+/** Execute selected down scripts and delete each paired ledger row atomically. */
+export function rollbackAppliedRows(
+  db: ReturnType<typeof openDatabase>,
+  folders: ReadonlyMap<string, MigrationFolder>,
+  doomed: readonly AppliedMigration[],
+): string[] {
+  const reversed: string[] = [];
+  for (const row of doomed) {
+    if (row.name === null) {
+      throw new Error(
+        `a migration applied at ${String(row.created_at)} has no name recorded, ` +
+          'so the down script that reverses it cannot be identified',
+      );
+    }
+    const folder = folders.get(row.name);
+    if (folder === undefined) {
+      throw new Error(`${row.name} is applied but no longer exists on disk`);
+    }
+    if (folder.hash !== row.hash) {
+      // The file changed after it was applied, so its down.sql describes a
+      // different forward migration than the one in the database.
+      throw new Error(
+        `${row.name} on disk does not match what was applied (hash differs); ` +
+          'its down.sql cannot be trusted to reverse it',
+      );
+    }
+    const rebuild = folder.downSql.includes(FOREIGN_KEYS_OFF_MARKER);
+    if (rebuild) db.run('PRAGMA foreign_keys = OFF;');
+    // Proof: committing the first down statement before this per-migration transaction
+    // ended made the failed-down CLI test retain its inserted marker while the ledger row remained.
+    db.run('BEGIN');
+    try {
+      for (const statement of folder.downSql.split('--> statement-breakpoint')) {
+        if (statement.trim() === '') continue;
+        // Bun 1.3.14 treats a bare `INSERT … SELECT;\n` as an empty final
+        // statement and reports zero changes. Trimming makes the statement
+        // that was hashed and reviewed the one SQLite actually executes.
+        db.run(statement.trim());
+      }
+      db.run('DELETE FROM __drizzle_migrations WHERE id = ?', [row.id]);
+      db.run('COMMIT');
+    } catch (e: unknown) {
+      db.run('ROLLBACK');
+      if (rebuild) db.run('PRAGMA foreign_keys = ON;');
+      throw new Error(
+        `rolling back ${row.name} failed: ${e instanceof Error ? e.message : String(e)}`,
+        { cause: e },
+      );
+    }
+    if (rebuild) db.run('PRAGMA foreign_keys = ON;');
+    reversed.push(row.name);
+  }
+  return reversed;
 }

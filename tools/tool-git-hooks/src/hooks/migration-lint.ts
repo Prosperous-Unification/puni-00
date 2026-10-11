@@ -95,12 +95,14 @@ const WAIVERS = new Map<string, Waiver>([
  * Directories whose `migration.sql` files reach a managed migrator. The website SQLite adapter
  * also owns paired forward and down scripts. The lab root holds
  * migrations that `deploy/k8s/wbs/lab/backend-upgrade.Dockerfile` copies into the drizzle root of a
- * lab-only backend image, so they run through the same migrator and obey the same rules.
+ * lab-only backend image, so they run through the same migrator and obey the same rules;
+ * `lab/rollback-fault/migrations` is the same for `backend-rollback-fault.Dockerfile`.
  */
 const MIGRATION_ROOTS: readonly (readonly string[])[] = [
   ['apps', 'wbs', 'be-01', 'drizzle'],
   ['apps', 'wbs', 'mcp-01', 'drizzle'],
   ['deploy', 'k8s', 'wbs', 'lab', 'migrations'],
+  ['deploy', 'k8s', 'wbs', 'lab', 'rollback-fault', 'migrations'],
   ['libs', 'website', 'adapters', 'store-sqlite', 'src'],
 ];
 
