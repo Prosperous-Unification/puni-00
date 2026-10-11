@@ -23,7 +23,11 @@ import {
 } from '@website/store-sqlite';
 import type { Database } from 'bun:sqlite';
 
-import { readRetentionErasure, readRetentionJournalSetting } from './runtime-config';
+import {
+  readRetentionErasure,
+  readRetentionJournalSetting,
+  readRetentionWriter,
+} from './runtime-config';
 
 type Environment = Record<string, string | undefined>;
 
@@ -51,18 +55,10 @@ export const journalCommands = [
 ] as const;
 
 const usage =
-  'Usage: journal-init DATABASE | journal-attach DATABASE | journal-status DATABASE | journal-replay DATABASE | event DATABASE TYPE KIND SUBJECT_ID EVIDENCE_REFERENCE ACTOR | erase-due DATABASE';
+  'Usage: journal-init DATABASE | journal-attach DATABASE | journal-status DATABASE | journal-replay DATABASE | event DATABASE TYPE KIND SUBJECT_ID EVIDENCE_REFERENCE ACTOR [ANCHOR_MS for resolve_anchor] | erase-due DATABASE';
 const purpose = 'Retention journal';
-const writerPattern = /^[A-Za-z0-9][A-Za-z0-9._:/+-]{0,127}$/;
-
 function writer(environment: Environment) {
-  const release = environment['RETENTION_WRITER_RELEASE'];
-  const privateRevision = environment['RETENTION_WRITER_REVISION'];
-  if (release === undefined || !writerPattern.test(release))
-    throw new Error('RETENTION_WRITER_RELEASE is missing or malformed');
-  if (privateRevision === undefined || !writerPattern.test(privateRevision))
-    throw new Error('RETENTION_WRITER_REVISION is missing or malformed');
-  return { release, privateRevision, process: 'cli' as const };
+  return { ...readRetentionWriter(environment), process: 'cli' as const };
 }
 
 /** The journal binding every command but `journal-init` needs; `disabled` refuses. */
@@ -86,13 +82,26 @@ function withDatabase<T>(databasePath: string, work: (database: Database) => Pro
   });
 }
 
-function parseEvent(type: string, evidenceReference: string, actor: string): JournalEventBody {
+const anchorPattern = /^(0|[1-9][0-9]*)$/;
+
+function parseEvent(
+  type: string,
+  evidenceReference: string,
+  actor: string,
+  anchorText: string | undefined,
+): JournalEventBody {
   const evidence = { evidenceReference, actor };
+  if (type === 'resolve_anchor') {
+    if (anchorText === undefined || !anchorPattern.test(anchorText))
+      throw new Error('resolve_anchor needs ANCHOR_MS as decimal UTC epoch milliseconds');
+    return { type, anchorAt: Number(anchorText), ...evidence };
+  }
+  if (anchorText !== undefined) throw new Error(usage);
   if (type === 'designate_client' || type === 'place_hold' || type === 'release_hold')
     return { type, ...evidence };
   if (type === 'correct_classification') return { type, to: 'non_client', ...evidence };
   throw new Error(
-    'TYPE must be designate_client, correct_classification, place_hold or release_hold',
+    'TYPE must be designate_client, correct_classification, place_hold, release_hold or resolve_anchor',
   );
 }
 
@@ -181,7 +190,21 @@ async function eraseDue(databasePath: string, context: JournalCommandContext) {
         if (reason === null) throw error;
         counts.exceptions[reason] = (counts.exceptions[reason] ?? 0) + 1;
         // The remote may hold the erasure although the local apply failed; replay decides.
-        await session.synchronise();
+        try {
+          await session.synchronise();
+        } catch (replayError) {
+          // Proof: letting this escape made `a failed replay after a refused erasure is counted, not fatal` throw.
+          if (
+            !(replayError instanceof RetentionJournalError) &&
+            !(replayError instanceof RetentionPolicyBusyError)
+          )
+            throw replayError;
+          const replayReason =
+            replayError instanceof RetentionJournalError
+              ? `journal_${replayError.reason}`
+              : 'policy_busy';
+          counts.exceptions[replayReason] = (counts.exceptions[replayReason] ?? 0) + 1;
+        }
         releaseFence(database, subject);
       }
     }
@@ -209,21 +232,38 @@ export async function runRetentionJournalCommand(
   if (!databasePath || (command !== 'event' && rest.length > 0)) throw new Error(usage);
   if (command === 'journal-init') {
     const s3 = readS3JournalConfig(context.environment);
-    const journalId = crypto.randomUUID();
+    const initWriter = writer(context.environment);
     const remote = context.remote ?? new S3JournalRemote(s3);
     return withDatabase(databasePath, async (database) => {
-      attachJournal(database, journalId);
+      const position = database
+        .query<{ journal_id: string | null; state: string; applied_sequence: number }, []>(
+          'SELECT journal_id, state, applied_sequence FROM retention_journal_position WHERE singleton = 1',
+        )
+        .get();
+      if (!position) throw new Error('retention_journal_position has no singleton row');
+      // A database attached at sequence 0 by an interrupted init resumes that journal.
+      // Proof: never resuming made `an interrupted journal-init is completed by a retry` fail in journal-attach.
+      const resuming =
+        position.state === 'attached' &&
+        position.applied_sequence === 0 &&
+        position.journal_id !== null;
+      const journalId =
+        resuming && position.journal_id !== null ? position.journal_id : crypto.randomUUID();
+      if (!resuming) attachJournal(database, journalId);
       try {
         await initJournal(remote, {
           journalId,
           environment: environmentOf(s3.prefix),
-          writer: writer(context.environment),
+          writer: initWriter,
           now: context.now,
         });
       } catch (error) {
-        database.run(
-          "UPDATE retention_journal_position SET journal_id = NULL, state = 'detached' WHERE singleton = 1",
-        );
+        // Nothing was written for another journal's genesis; any other failure may be partial
+        // and stays attached so a retry completes it.
+        if (error instanceof RetentionJournalError && error.reason === 'foreign' && !resuming)
+          database.run(
+            "UPDATE retention_journal_position SET journal_id = NULL, state = 'detached' WHERE singleton = 1",
+          );
         throw error;
       }
       return { output: { journalId }, exitCode: 0 };
@@ -251,10 +291,17 @@ export async function runRetentionJournalCommand(
     }));
   }
   if (command === 'event') {
-    const [type, kind, subjectId, evidenceReference, actor] = rest;
-    if (rest.length !== 5 || !type || !kind || !subjectId || !evidenceReference || !actor)
+    const [type, kind, subjectId, evidenceReference, actor, anchorText] = rest;
+    if (
+      (rest.length !== 5 && rest.length !== 6) ||
+      !type ||
+      !kind ||
+      !subjectId ||
+      !evidenceReference ||
+      !actor
+    )
       throw new Error(usage);
-    const body = parseEvent(type, evidenceReference, actor);
+    const body = parseEvent(type, evidenceReference, actor, anchorText);
     const { remote, options } = journalBinding(context);
     return withDatabase(databasePath, async (database) => {
       const session = await openRetentionJournal(database, remote, options);

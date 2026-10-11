@@ -214,7 +214,7 @@ test('journal-init refuses an existing genesis', async () => {
         remote,
       }),
     ),
-  ).toContain('requires a detached database');
+  ).toContain('already exists');
   const freshPath = join(directory, 'fresh.sqlite');
   new WebsiteStore(freshPath).close();
   expect(
@@ -225,7 +225,7 @@ test('journal-init refuses an existing genesis', async () => {
         remote,
       }),
     ),
-  ).toContain('already exists');
+  ).toContain('already belongs to another journal');
   const fresh = new Database(freshPath, { readonly: true });
   try {
     expect(fresh.query('SELECT journal_id, state FROM retention_journal_position').get()).toEqual({
@@ -235,6 +235,97 @@ test('journal-init refuses an existing genesis', async () => {
   } finally {
     fresh.close();
   }
+});
+
+test('an interrupted journal-init is completed by a retry', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'puni-retention-journal-init-'));
+  directories.push(directory);
+  const databasePath = join(directory, 'website.sqlite');
+  new WebsiteStore(databasePath).close();
+  const remote = new MemoryJournalRemote();
+  remote.failPutOnce('head.json');
+  const init = () =>
+    runRetentionJournalCommand(['journal-init', databasePath], {
+      environment: s3Environment,
+      now,
+      remote,
+    });
+  expect(await rejection(init())).toContain('head.json');
+  const retried = await init();
+  const { journalId } = retried.output as { journalId: string };
+  expect(remote.keys()).toEqual(['genesis.json', 'head.json']);
+  const status = await runRetentionJournalCommand(['journal-status', databasePath], {
+    environment: { ...s3Environment, RETENTION_JOURNAL: 's3', RETENTION_JOURNAL_ID: journalId },
+    now,
+    remote,
+  });
+  expect(status.output).toMatchObject({ journalId, state: 'attached', headSequence: 0 });
+});
+
+test('a resolved ambiguous subject becomes erasable', async () => {
+  const { databasePath, context } = await fixture();
+  const database = new Database(databasePath);
+  database.run(`
+    INSERT INTO prospect_account (id, email, created_at) VALUES ('acct-odd', 'odd@example.test', 1);
+    INSERT INTO software_request (id, account_id, description, brief, created_at) VALUES ('req-odd', 'acct-odd', 'odd text', '', 1);
+    INSERT INTO chat_turn (id, account_id, role, content, created_at, request_id) VALUES ('turn-odd', 'acct-odd', 'user', 'odd turn', 400, 'req-odd');
+    INSERT INTO retention_subject (subject_kind, subject_id, resolution, ambiguity) VALUES
+      ('software_request', 'req-odd', 'ambiguous', 'unanchored_content');
+  `);
+  database.close();
+  const resolve = (anchor: string) =>
+    runRetentionJournalCommand(
+      [
+        'event',
+        databasePath,
+        'resolve_anchor',
+        'software_request',
+        'req-odd',
+        'ops-ticket:3',
+        'dany',
+        anchor,
+      ],
+      context('erase'),
+    );
+  expect(await rejection(resolve('500'))).toContain('later than now or than surviving content');
+  expect(
+    await rejection(runRetentionJournalCommand(['erase-due', databasePath], context('erase'))),
+  ).toContain('Retention activation refused');
+  expect(await resolve('300')).toEqual({ output: { sequence: 1 }, exitCode: 0 });
+  // The resolved deadline is 12 UTC months after 300 ms; run cleanup just after it.
+  const afterDeadline = { ...context('erase'), now: Date.UTC(1971, 0, 1, 0, 0, 0, 301) };
+  const outcome = await runRetentionJournalCommand(['erase-due', databasePath], afterDeadline);
+  expect(outcome).toMatchObject({ output: { erased: 4, exceptions: {} }, exitCode: 0 });
+  expect(contents(databasePath).erasure).toContainEqual({
+    subject_id: 'req-odd',
+    erasure_state: 'erased',
+  });
+});
+
+test('a failed replay after a refused erasure is counted, not fatal', async () => {
+  const { databasePath, remote, context } = await fixture();
+  const database = new Database(databasePath);
+  database.run(`
+    INSERT INTO prospect_account (id, email, created_at) VALUES ('acct-other', 'other@example.test', 1);
+    INSERT INTO account_request (account_id, description, brief, created_at, draft_id) VALUES
+      ('acct-other', 'legacy text', '', 1, 'draft-m');
+  `);
+  database.close();
+  // req-due erases; sub-due is refused for shared lineage, and the replay after it cannot read.
+  const original = remote.get.bind(remote);
+  let genesisReads = 0;
+  remote.get = (key: string) => {
+    if (key === 'genesis.json') {
+      genesisReads += 1;
+      if (genesisReads === 3) remote.failGetOnce(key);
+    }
+    return original(key);
+  };
+  const outcome = await runRetentionJournalCommand(['erase-due', databasePath], context('erase'));
+  expect(outcome).toMatchObject({
+    output: { erased: 1, exceptions: { shared_draft_lineage: 1, journal_unreadable: 1 } },
+    exitCode: 1,
+  });
 });
 
 test('journal-attach refuses applied_sequence > 0', async () => {

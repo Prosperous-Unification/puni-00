@@ -6,7 +6,7 @@ import {
   prepareErasureConnection,
   type RetentionSubjectRef,
 } from '../request-erasure';
-import { addUtcMonths, retentionMonths } from '../request-retention';
+import { addUtcMonths, readSurvivingContentBound, retentionMonths } from '../request-retention';
 import {
   type JournalPosition,
   type JournalTip,
@@ -28,6 +28,7 @@ import {
   journalSchema,
   type JournalWriter,
   parseEvent,
+  parseGenesis,
   sealEvent,
   zeroHash,
 } from './record';
@@ -230,6 +231,7 @@ function requireTransition(
   database: Database,
   subject: RetentionSubjectRef,
   body: JournalEventBody,
+  now: number,
 ) {
   const row = subjectRow(database, subject);
   if (!row)
@@ -254,6 +256,15 @@ function requireTransition(
     throw new RetentionTransitionError(
       'transition_invalid',
       `${body.type} does not apply to ${subject.kind} ${subject.id} (${row.classification}, ${row.resolution}, ${row.erasure_state})`,
+    );
+  if (body.type !== 'resolve_anchor') return;
+  const bound = readSurvivingContentBound(database, subject.kind, subject.id);
+  // Stage 1's rule for the local resolve: first content precedes everything that survives.
+  // Proof: removing this bound made `a journaled anchor resolution refuses an anchor after surviving content` append it.
+  if (body.anchorAt > now || (bound !== null && body.anchorAt > bound))
+    throw new RetentionTransitionError(
+      'transition_invalid',
+      `resolve_anchor of ${subject.kind} ${subject.id} is later than now or than surviving content`,
     );
 }
 
@@ -435,8 +446,8 @@ export class RetentionJournalSession {
           'behind',
           `retention journal head ${String(tip.head.sequence)} is ahead of applied sequence ${String(position.appliedSequence)}; replay first`,
         );
-      requireTransition(this.database, subject, body);
       const now = this.options.now();
+      requireTransition(this.database, subject, body, now);
       const event = sealEvent({
         schema: journalSchema,
         journalId: this.options.journalId,
@@ -509,19 +520,20 @@ export async function openRetentionJournal(
 }
 
 /**
- * Writes genesis and head 0 of a new journal (`journal-init`). Refuses when either already
- * exists, so a journal is never re-created over its history.
+ * Writes genesis and head 0 of journal `init.journalId` (`journal-init`). A genesis of the same
+ * journal without a head is an interrupted init and is completed; an existing head, or a genesis
+ * of another journal, refuses, so a journal is never re-created over its history.
  *
- * @throws RetentionJournalError `unavailable` on a remote failure or an existing journal.
+ * @throws RetentionJournalError `foreign` (nothing written) for another journal's genesis,
+ *   `unavailable` for an existing head or a remote failure (genesis may already be written).
  */
 export async function initJournal(
   remote: RetentionJournalRemote,
   init: { journalId: string; environment: string; writer: JournalWriter; now: number },
 ): Promise<void> {
-  for (const key of [genesisKey, headKey]) {
-    let existing;
+  const read = async (key: string) => {
     try {
-      existing = await remote.get(key);
+      return await remote.get(key);
     } catch (error) {
       if (error instanceof JournalRemoteError)
         throw new RetentionJournalError('unavailable', `retention journal ${key} is unreadable`, {
@@ -529,25 +541,34 @@ export async function initJournal(
         });
       throw error;
     }
+  };
+  const genesis = await read(genesisKey);
+  if (genesis !== null) {
+    // Proof: completing any existing genesis made `journal-init refuses an existing genesis` adopt another journal.
+    if (parseGenesis(genesis.bytes, genesisKey).journalId !== init.journalId)
+      throw new RetentionJournalError(
+        'foreign',
+        `retention journal ${genesisKey} already belongs to another journal; journal-init never re-creates a journal`,
+      );
     // Proof: skipping this refusal made `journal-init refuses an existing genesis` overwrite the journal.
-    if (existing !== null)
+    if ((await read(headKey)) !== null)
       throw new RetentionJournalError(
         'unavailable',
-        `retention journal ${key} already exists; journal-init never re-creates a journal`,
+        `retention journal ${headKey} already exists; journal-init never re-creates a journal`,
       );
-  }
-  await confirmedPut(
-    remote,
-    genesisKey,
-    encodeGenesis({
-      schema: journalSchema,
-      journalId: init.journalId,
-      environment: init.environment,
-      createdAt: init.now,
-      createdBy: { release: init.writer.release, privateRevision: init.writer.privateRevision },
-    }),
-    true,
-  );
+  } else
+    await confirmedPut(
+      remote,
+      genesisKey,
+      encodeGenesis({
+        schema: journalSchema,
+        journalId: init.journalId,
+        environment: init.environment,
+        createdAt: init.now,
+        createdBy: { release: init.writer.release, privateRevision: init.writer.privateRevision },
+      }),
+      true,
+    );
   await confirmedPut(
     remote,
     headKey,

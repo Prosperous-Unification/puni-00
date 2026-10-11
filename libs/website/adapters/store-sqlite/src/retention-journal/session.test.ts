@@ -544,6 +544,39 @@ test('journal-init refuses an existing genesis', async () => {
     (await refusal(initJournal(remote, { journalId, environment: 'website-test', writer, now: 6 })))
       .message,
   ).toContain('already exists');
+  remote.remove(headKey);
+  expect(
+    (
+      await refusal(
+        initJournal(remote, {
+          journalId: '0e9b3c1d-2f4a-4b5c-8d6e-7f8091a2b3c4',
+          environment: 'website-test',
+          writer,
+          now: 6,
+        }),
+      )
+    ).reason,
+  ).toBe('foreign');
+  expect(remote.current(headKey)).toBeNull();
+});
+
+test('an interrupted journal-init completes head 0 on retry', async () => {
+  const remote = new MemoryJournalRemote();
+  remote.failPutOnce(headKey);
+  const init = { journalId, environment: 'website-test', writer, now: 6 };
+  expect((await refusal(initJournal(remote, init))).reason).toBe('unavailable');
+  expect({
+    genesis: remote.versionCount('genesis.json'),
+    head: remote.versionCount(headKey),
+  }).toEqual({
+    genesis: 1,
+    head: 0,
+  });
+  await initJournal(remote, init);
+  expect({ genesis: remote.versionCount('genesis.json'), head: headSequence(remote) }).toEqual({
+    genesis: 1,
+    head: 0,
+  });
 });
 
 test('journal-attach refuses applied_sequence > 0', async () => {
@@ -601,5 +634,47 @@ test('a forked orphan settlement marks the database forked', async () => {
     expect(position(database)?.state).toBe('forked');
   } finally {
     database.close();
+  }
+});
+
+test('a journaled anchor resolution refuses an anchor after surviving content', async () => {
+  const { databasePath, directory, remote } = await fixture();
+  const database = open(databasePath);
+  const snapshotPath = join(directory, 'snapshot.sqlite');
+  try {
+    database.run(`
+      INSERT INTO prospect_account (id, email, created_at) VALUES ('acct-odd', 'odd@example.test', 1);
+      INSERT INTO software_request (id, account_id, description, brief, created_at) VALUES ('req-odd', 'acct-odd', 'odd text', '', 1);
+      INSERT INTO chat_turn (id, account_id, role, content, created_at, request_id) VALUES ('turn-odd', 'acct-odd', 'user', 'early turn', 400, 'req-odd');
+      INSERT INTO retention_subject (subject_kind, subject_id, resolution, ambiguity) VALUES
+        ('software_request', 'req-odd', 'ambiguous', 'unanchored_content');
+    `);
+    database.run(`VACUUM INTO '${snapshotPath}'`);
+    const session = await openRetentionJournal(database, remote, options());
+    const resolve = (anchorAt: number) =>
+      session.append(subject('req-odd'), { type: 'resolve_anchor', anchorAt, ...evidence });
+    expect(await rejectionOf(resolve(401))).toThrow('later than now or than surviving content');
+    expect(headSequence(remote)).toBe(0);
+    await resolve(300);
+    expect(
+      database
+        .query(
+          "SELECT resolution, anchor_at, anchor_source FROM retention_subject WHERE subject_id = 'req-odd'",
+        )
+        .get(),
+    ).toEqual({ resolution: 'anchored', anchor_at: 300, anchor_source: 'operator' });
+  } finally {
+    database.close();
+  }
+  const restored = open(snapshotPath);
+  try {
+    await openRetentionJournal(restored, remote, options());
+    expect(
+      restored
+        .query("SELECT resolution, anchor_at FROM retention_subject WHERE subject_id = 'req-odd'")
+        .get(),
+    ).toEqual({ resolution: 'anchored', anchor_at: 300 });
+  } finally {
+    restored.close();
   }
 });

@@ -109,6 +109,22 @@ function requiredMatch(environment: Environment, name: string, pattern: RegExp):
 }
 
 /**
+ * Reads the journal writer identity, `RETENTION_WRITER_RELEASE` and `RETENTION_WRITER_REVISION`,
+ * shared by the API and every CLI command that writes the journal.
+ *
+ * @throws naming the first missing or malformed variable.
+ */
+export function readRetentionWriter(environment: Environment): {
+  release: string;
+  privateRevision: string;
+} {
+  return {
+    release: requiredMatch(environment, 'RETENTION_WRITER_RELEASE', writerPattern),
+    privateRevision: requiredMatch(environment, 'RETENTION_WRITER_REVISION', writerPattern),
+  };
+}
+
+/**
  * Reads `RETENTION_JOURNAL`, which has no default (veto V12): `disabled`, or `s3` with
  * `RETENTION_JOURNAL_ID` (UUID v4), the bucket settings of {@link readS3JournalConfig} and the
  * writer identity `RETENTION_WRITER_RELEASE` and `RETENTION_WRITER_REVISION`.
@@ -124,8 +140,7 @@ export function readRetentionJournalSetting(environment: Environment): Retention
     mode,
     journalId: requiredMatch(environment, 'RETENTION_JOURNAL_ID', journalIdPattern),
     s3: readS3JournalConfig(environment),
-    release: requiredMatch(environment, 'RETENTION_WRITER_RELEASE', writerPattern),
-    privateRevision: requiredMatch(environment, 'RETENTION_WRITER_REVISION', writerPattern),
+    ...readRetentionWriter(environment),
   };
 }
 

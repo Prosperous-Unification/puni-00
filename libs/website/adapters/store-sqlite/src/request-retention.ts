@@ -189,6 +189,22 @@ const survivingContentBound = {
 } as const;
 
 /**
+ * The earliest surviving content time of a subject: its first content cannot be later. `null`
+ * when nothing dated survives. Bounds every operator anchor resolution, local or journaled.
+ */
+export function readSurvivingContentBound(
+  database: Database,
+  kind: RetentionSubjectKind,
+  subjectId: string,
+): number | null {
+  const row = database
+    .query<{ bound: number | null }, [string]>(survivingContentBound[kind])
+    .get(subjectId);
+  if (!row) throw new Error('Retention content bound query returned no row');
+  return row.bound;
+}
+
+/**
  * Adds UTC calendar months, keeping the UTC time of day and clamping the day to the target
  * month's last day (2024-02-29 plus 12 months is 2025-02-28).
  *
@@ -455,12 +471,9 @@ export function resolveRetentionAnchor(
     database.run(`PRAGMA busy_timeout = ${String(busyTimeoutMilliseconds)}`);
     database.run('BEGIN IMMEDIATE');
     try {
-      const bound = database
-        .query<{ bound: number | null }, [string]>(survivingContentBound[resolution.kind])
-        .get(resolution.subjectId);
-      if (!bound) throw new Error('Retention content bound query returned no row');
+      const bound = readSurvivingContentBound(database, resolution.kind, resolution.subjectId);
       // Proof: removing this bound accepted an anchor after the pre-draft chat turn.
-      if (bound.bound !== null && resolution.anchorAt > bound.bound)
+      if (bound !== null && resolution.anchorAt > bound)
         throw new Error('Anchor cannot be later than surviving content');
       const deadlineAt = addUtcMonths(resolution.anchorAt, retentionMonths);
       const update = database

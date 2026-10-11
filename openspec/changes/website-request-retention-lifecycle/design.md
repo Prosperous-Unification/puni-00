@@ -32,12 +32,16 @@ At a due non-client subject, fence all writes and any running stream before remo
 
 Events are canonical JSON: sorted keys, no whitespace, a trailing newline. Each carries the journal id, sequence, previous hash, UTC time, typed subject, writer release, and its own SHA-256. The event types are designation, correction, classification hold, hold release, anchor resolution and erasure. They carry an opaque evidence reference and actor where applicable, and never any content. The operator API records the actor `operator`; the CLI takes an explicit one.
 
+**Hashing.** The event hash is the SHA-256 of the canonical bytes including the trailing newline. A record missing that newline, or one that ends inside a JSON value, counts as truncated. Detecting the second case depends on Bun's `JSON.parse` message, which a test pins. A head whose `eventVersionId` differs from its event object's current version is a fork.
+
 **SQLite.** Migration `010_retention_journal` adds:
 
 - on the journal position: the journal id, applied hash, last head version and highest head sequence seen, and a `detached | attached | forked` state;
 - an append-only mirror of applied events;
 - erasure state on each subject;
 - content fences: triggers that refuse any content insert, and any nonblank update, for a fenced or erased subject. Because they are triggers, they bind an older binary too.
+- erasure is final: once a subject is `erased`, any update of its erasure columns aborts, so replay skips the state change for an already-erased subject.
+- legacy `chat_turn` rows without a `request_id` are fenced through their account, and erased together with the account identity.
 
 **Append.** Every policy change runs under a cross-process policy lock, a separate SQLite file beside the database. In order:
 

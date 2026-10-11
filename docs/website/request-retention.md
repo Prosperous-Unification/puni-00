@@ -46,11 +46,11 @@ bun request-retention-cli.js journal-init DATABASE     # new journal; attaches D
 bun request-retention-cli.js journal-attach DATABASE   # binds a detached database at sequence 0
 bun request-retention-cli.js journal-status DATABASE   # local position and remote head; never replays
 bun request-retention-cli.js journal-replay DATABASE   # replays into DATABASE; never writes the remote
-bun request-retention-cli.js event DATABASE TYPE KIND SUBJECT_ID EVIDENCE_REFERENCE ACTOR
+bun request-retention-cli.js event DATABASE TYPE KIND SUBJECT_ID EVIDENCE_REFERENCE ACTOR [ANCHOR_MS]
 bun request-retention-cli.js erase-due DATABASE        # daily cleanup; counts only
 ```
 
-`journal-init` needs only the bucket and writer settings. Every other command needs `RETENTION_JOURNAL=s3` and the id. `TYPE` is `designate_client`, `correct_classification`, `place_hold` or `release_hold`. The operator API offers the same events at `POST /operator/retention/events` with actor `operator`, and reports the position at `GET /operator/retention/status`.
+`journal-init` needs only the bucket and writer settings. If it is interrupted after writing genesis, rerunning it against the same database completes head 0. Every other command needs `RETENTION_JOURNAL=s3` and the id. `TYPE` is `designate_client`, `correct_classification`, `place_hold`, `release_hold` or `resolve_anchor`. `resolve_anchor` takes a trailing `ANCHOR_MS`, which may not be later than now or than any surviving content. While the journal is `s3`, it is the only way to resolve an ambiguous anchor. The operator API offers the same events at `POST /operator/retention/events` with actor `operator`, and reports the position at `GET /operator/retention/status`.
 
 `erase-due` refuses unless the journal is open and in sync and coverage is ready. In `report` mode it prints the due, held and client counts and changes nothing. In `erase` mode it does the following for each due non-client subject, in deadline order:
 
