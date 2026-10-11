@@ -932,8 +932,20 @@ export function copyMigrationCaptureCommand(
 }
 
 /** Reads the copied bytes through the incoming image before rollback can consume them. */
-export function migrationCaptureDigestCommand(container: string, containerPath: string): string[] {
-  return ['exec', container, 'bun', 'run', 'src/migrate-capture-digest-cli.ts', containerPath];
+export function migrationCaptureDigestCommand(
+  container: string,
+  containerRoot: string,
+  containerPath: string,
+): string[] {
+  return [
+    'exec',
+    container,
+    'bun',
+    'run',
+    'src/migrate-capture-digest-cli.ts',
+    `--root=${containerRoot}`,
+    containerPath,
+  ];
 }
 
 /** Observes the green process's actual database path for a later manual recovery. */
