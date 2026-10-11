@@ -203,6 +203,27 @@ export function allocateEnabledGeneration(
   );
 }
 
+/**
+ * Whether {@link allocateEnabledGenerationIn} would answer the current generation
+ * without writing: the project is enabled and this release's row already holds
+ * `inputHash`. Only meaningful under the caller's write lock, which keeps the
+ * answer true until that caller's own allocation runs.
+ */
+export function reusesEnabledGeneration(
+  db: GenerationReader,
+  projectId: string,
+  contractVersion: string,
+  inputHash: string,
+): boolean {
+  const enabled = db
+    .select({ enabled: project.optimizationEnabled })
+    .from(project)
+    .where(eq(project.id, projectId))
+    .get()?.enabled;
+  if (enabled !== true) return false;
+  return readGeneration(db, projectId, contractVersion)?.inputHash === inputHash;
+}
+
 /** Reuses the caller's synchronous writer-owned transaction for one coherent admission observation. */
 export function allocateEnabledGenerationIn(
   tx: Transaction,
