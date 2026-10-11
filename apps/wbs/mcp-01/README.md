@@ -12,7 +12,7 @@ an ordered list of typed commands (create, patch, move, estimate, dependency,
 capacity, directory entries…) applied all or none, recorded as **one undo**, and
 answering the id each `ref` became. A later command names what an earlier one
 created by its ref. The directory has no project, so its edits alone have
-`postApiDirectoryCommands`. 69 tools in all: the reads, the two person-load reads, the project rank read and move, the two batches,
+`postApiDirectoryCommands`. 73 tools in all: the reads, the work-item page and single work-item reads, the two person-load reads, the project rank read and move, the organization's capacity-mode read and switch (the switch refuses every delegated caller and so answers an MCP client with 403), the two batches,
 undo, redo, the project and step routes, the export, the import, the six saved-plan
 routes — the five that create, list, read, rename and delete a snapshot, plus
 `getApiProjectsByIdSaved-plansCompare`, which answers what changed between two
@@ -92,6 +92,16 @@ the inbound Host. There is no `WBS_TOKEN`: caller authority is
 never replaced with a process-wide account. `WBS_BASIC_AUTH=user:pass` is an
 optional legacy proxy credential and is sent as `Proxy-Authorization` so it
 cannot displace the caller's Bearer header.
+
+### Which sign-in methods a connector sees
+
+The connector's consent runs the upstream Auth0 code flow with the same OIDC
+application as the browser, and sends no `connection`: Universal Login offers
+every connection enabled on that application (Google, GitHub, the email code).
+There is no mcp-01 setting for this. The grant carries the chosen identity's own
+subject (`google-oauth2|…`, `github|…`, `email|…`), and be-01 resolves the
+forwarded upstream token to the WBS user that subject is mapped to, so a person
+who linked several methods acts as one user whichever one they used.
 
 ## Durable sessions and key rotation
 

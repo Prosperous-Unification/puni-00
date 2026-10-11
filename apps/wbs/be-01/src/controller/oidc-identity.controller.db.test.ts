@@ -18,7 +18,7 @@ import {
   SqliteBrowserCredentialRevocations,
 } from '@wbs/store-sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { SignJWT } from 'jose';
+import { errors, SignJWT } from 'jose';
 
 import { buildApp } from '../app';
 import { openDatabase, openDrizzle } from '../repository/db';
@@ -81,7 +81,10 @@ describe('the OIDC callback after activation', () => {
     verifier: string;
     redirectUri: string;
     prompt?: 'login';
+    connection?: string;
   } | null;
+  /** Access tokens the OIDC verifier fixture answers for itself; `expired` throws as jose does. */
+  let accessClaims: Map<string, JwtClaims | 'expired'>;
   let exchangeChecks: { nonce: string; state: string; verifier: string } | null;
   let passwordVerifyHold: Promise<void> | null;
   let passwordVerifications: number;
@@ -109,6 +112,7 @@ describe('the OIDC callback after activation', () => {
     runMigrations(path, FOLDER);
     exchanges = 0;
     linkAuthorization = null;
+    accessClaims = new Map();
     exchangeChecks = null;
     passwordVerifyHold = null;
     passwordVerifications = 0;
@@ -174,6 +178,7 @@ describe('the OIDC callback after activation', () => {
           verifier: string;
           redirectUri: string;
           prompt?: 'login';
+          connection?: string;
         }) => {
           linkAuthorization = input;
           return Promise.resolve(new URL(`https://idp.test/authorize?state=${input.state}`));
@@ -211,12 +216,17 @@ describe('the OIDC callback after activation', () => {
       },
       groupPrefix: 'dev',
       groupsClaim: 'wbs_groups',
+      methods: ['google', 'github'] as const,
       mode: 'oidc' as const,
       now: () => now,
       random: () => 'session-1',
       redirectUri: 'https://dev.wbs.test/api/auth/okta/callback',
       verifier: {
         verify: (token: string) => {
+          const known = accessClaims.get(token);
+          if (known === 'expired')
+            throw new errors.JWTExpired('"exp" claim timestamp check failed', {});
+          if (known !== undefined) return Promise.resolve(known);
           if (token === refreshAccess && refreshVerifyFault) throw new Error('JWKS unavailable');
           return Promise.resolve(
             token.startsWith('access-from-refresh')
@@ -399,7 +409,8 @@ describe('the OIDC callback after activation', () => {
 
   // Proof: resolving by the legacy email match after activation (the marker
   // branch skipped) made this answer 302 and sign in as `legacy`; skipping the
-  // email-holder refusal made it answer 302 with a new account; watched
+  // email-holder refusal made it answer 302 with a new account (both now fail the
+  // account_exists location and the cookie assertions); watched
   // 2026-09-28.
   it('refuses an unmapped identity whose verified email an account holds, issuing no session', async () => {
     legacyAccount();
@@ -408,7 +419,8 @@ describe('the OIDC callback after activation', () => {
 
     const res = await callback();
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/?auth_error=account_exists');
     expect(res.headers.get('set-cookie') ?? '').not.toContain('__Host-wbs_access=');
     expect(all('SELECT * FROM users')).toEqual(before);
     expect(all('SELECT * FROM external_identity')).toEqual([]);
@@ -426,7 +438,8 @@ describe('the OIDC callback after activation', () => {
 
     const res = await callback();
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/?auth_error=account_exists');
     expect(res.headers.get('set-cookie') ?? '').not.toContain('__Host-wbs_access=');
     expect(all("SELECT idp_sub FROM users WHERE id = 'legacy'")).toEqual([{ idp_sub: null }]);
     expect(all("SELECT email, email_verified FROM users WHERE id = 'mapped'")).toEqual([
@@ -842,6 +855,178 @@ describe('the OIDC callback after activation', () => {
     expect(outcomeOf(honest)).toBe('linked');
     expect(all('SELECT user_id FROM external_identity')).toEqual([
       { user_id: registration.value.user.id },
+    ]);
+  });
+
+  /** A Google-first account G holding `subject-1`, mapped, as activation leaves it. */
+  const googleAccount = (id = 'g', subject = 'subject-1') => {
+    sql(
+      `INSERT INTO users (id, username, password_hash, email, email_verified, idp_issuer, idp_sub, created_at) VALUES ('${id}', '${id}-oidc', NULL, '${id}@puni.test', 1, 'https://idp.test', '${subject}', 1)`,
+    );
+    sql(
+      `INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES ('map-${id}', '${id}', 'https://idp.test', '${subject}', 1)`,
+    );
+  };
+  const githubClaims = { ...claims, sub: 'github|2', email: 'g@puni.test' };
+  const startOidcLink = (
+    app: ReturnType<typeof buildApp>,
+    token: string,
+    body: Readonly<Record<string, string>>,
+  ) =>
+    app.handle(
+      new Request('https://dev.wbs.test/api/auth/link/auth0', {
+        method: 'POST',
+        headers: {
+          cookie: `__Host-wbs_access=${token}`,
+          origin: 'https://dev.wbs.test',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      }),
+    );
+
+  it('adds a second method to an OIDC session without a password', async () => {
+    activate();
+    googleAccount('g', 'google-oauth2|1');
+    accessClaims.set('google-access', {
+      ...claims,
+      sub: 'google-oauth2|1',
+      exp: Math.floor((now + 900_000) / 1000),
+    });
+    const app = mounted(githubClaims);
+    const start = await startOidcLink(app, 'google-access', { method: 'github' });
+    expect(start.status).toBe(200);
+    expect(linkAuthorization).toMatchObject({ prompt: 'login', connection: 'github' });
+    expect(passwordVerifications).toBe(0);
+    expect(outcomeOf(await linkCallback(app, start, 'google-access'))).toBe('linked');
+    expect(all('SELECT user_id, subject FROM external_identity ORDER BY subject')).toEqual([
+      { user_id: 'g', subject: 'github|2' },
+      { user_id: 'g', subject: 'google-oauth2|1' },
+    ]);
+
+    // A later GitHub sign-in is the same user, and so is a Bearer carrying it.
+    const login = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: { cookie: `${browserBindingCookieName('binding-1')}=binding-1` },
+      }),
+    );
+    expect(login.status).toBe(302);
+    expect(login.headers.get('location')).toBe('/');
+    expect(all('SELECT id FROM users')).toEqual([{ id: 'g' }]);
+    accessClaims.set('github-access', { ...githubClaims, exp: Math.floor((now + 900_000) / 1000) });
+    const me = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/me', {
+        headers: { authorization: 'Bearer github-access' },
+      }),
+    );
+    expect(((await me.json()) as { user: { id: string } }).user.id).toBe('g');
+
+    // Linked methods come from the mappings, not from the presented token's claims.
+    // Proof: 2026-10-11, answering no mapped pairs from the account read made
+    // this answer [] instead of both.
+    const viaGoogle = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/me', {
+        headers: { authorization: 'Bearer google-access' },
+      }),
+    );
+    expect(
+      ((await viaGoogle.json()) as { user: { linkedMethods: string[] } }).user.linkedMethods,
+    ).toEqual(['google', 'github']);
+  });
+
+  it('still asks a password session for its fresh password', async () => {
+    activate();
+    const app = mounted(githubClaims);
+    const registration = await auth.register('password_user', 'fresh-password');
+    if (!registration.ok) throw new Error('test registration refused');
+    const bare = await startOidcLink(app, registration.value.token, { method: 'github' });
+    expect(bare.status).toBe(401);
+    expect(await bare.json()).toEqual({ error: 'invalid_credentials' });
+    expect(linkAuthorization).toBeNull();
+    const proved = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/link/auth0', {
+        method: 'POST',
+        headers: {
+          cookie: `__Host-wbs_access=${registration.value.token}`,
+          origin: 'https://dev.wbs.test',
+          'content-type': 'application/json',
+          'x-forwarded-for': '203.0.113.7',
+        },
+        body: JSON.stringify({ password: 'fresh-password', method: 'google' }),
+      }),
+    );
+    expect(proved.status).toBe(200);
+    expect(linkAuthorization).toMatchObject({ prompt: 'login', connection: 'google-oauth2' });
+  });
+
+  it('refuses a password sent with an OIDC session', async () => {
+    activate();
+    googleAccount();
+    accessClaims.set('google-access', { ...claims, exp: Math.floor((now + 900_000) / 1000) });
+    const app = mounted(githubClaims);
+    const start = await startOidcLink(app, 'google-access', {
+      method: 'github',
+      password: 'anything',
+    });
+    // Proof: 2026-10-11, accepting a password on an OIDC session made this
+    // start a link (200) instead of 400.
+    expect(start.status).toBe(400);
+    expect(await start.json()).toEqual({ error: 'invalid_body' });
+    expect(linkAuthorization).toBeNull();
+  });
+
+  it('refuses a link start whose OIDC token no longer verifies', async () => {
+    activate();
+    googleAccount();
+    accessClaims.set('stale-access', 'expired');
+    const app = mounted(githubClaims);
+    const start = await startOidcLink(app, 'stale-access', { method: 'github' });
+    // Proof: 2026-10-11, dropping `sessionUser`'s refusal of an unverified
+    // OIDC token made this answer 500 instead of 401.
+    expect(start.status).toBe(401);
+    expect(linkAuthorization).toBeNull();
+  });
+
+  it('refuses a disabled method before contacting Auth0', async () => {
+    activate();
+    googleAccount();
+    accessClaims.set('google-access', { ...claims, exp: Math.floor((now + 900_000) / 1000) });
+    const app = mounted(githubClaims);
+    const start = await startOidcLink(app, 'google-access', { method: 'apple' });
+    expect(start.status).toBe(400);
+    expect(await start.json()).toEqual({ error: 'invalid_body' });
+    expect(linkAuthorization).toBeNull();
+    expect(start.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('refuses a replayed or swapped callback of an OIDC-started link', async () => {
+    activate();
+    googleAccount();
+    googleAccount('h', 'subject-h');
+    const fresh = Math.floor((now + 900_000) / 1000);
+    accessClaims.set('google-access', { ...claims, exp: fresh });
+    accessClaims.set('h-access', { ...claims, sub: 'subject-h', exp: fresh });
+    const app = mounted(githubClaims);
+    const start = await startOidcLink(app, 'google-access', { method: 'github' });
+    expect(outcomeOf(await linkCallback(app, start, 'h-access'))).toBe('refused');
+    expect(all("SELECT * FROM external_identity WHERE subject = 'github|2'")).toEqual([]);
+    expect(outcomeOf(await linkCallback(app, start, 'google-access'))).toBe('linked');
+    expect(outcomeOf(await linkCallback(app, start, 'google-access'))).toBe('refused');
+    expect(all("SELECT user_id FROM external_identity WHERE subject = 'github|2'")).toEqual([
+      { user_id: 'g' },
+    ]);
+  });
+
+  it('answers collision when the second pair already belongs to another user', async () => {
+    activate();
+    googleAccount();
+    googleAccount('h', 'github|2');
+    accessClaims.set('google-access', { ...claims, exp: Math.floor((now + 900_000) / 1000) });
+    const app = mounted(githubClaims);
+    const start = await startOidcLink(app, 'google-access', { method: 'github' });
+    expect(outcomeOf(await linkCallback(app, start, 'google-access'))).toBe('collision');
+    expect(all("SELECT user_id FROM external_identity WHERE subject = 'github|2'")).toEqual([
+      { user_id: 'h' },
     ]);
   });
 

@@ -313,7 +313,14 @@ type BareRefusalCode =
   | 'organization_required'
   | 'name_taken'
   | 'already_in_space'
-  | 'virtual_space';
+  | 'virtual_space'
+  // Work-item pages (`list-search-and-paging`): a cursor whose work item has
+  // left the project; a `parentId` naming no work item of the project.
+  | 'stale_cursor'
+  | 'unknown_parent'
+  // Capacity mode (`share-people-across-projects` 8.1): a mode this release
+  // does not list in `SUPPORTED_CAPACITY_MODES`.
+  | 'capacity_mode_unsupported';
 
 type SharedCommandCode =
   'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use' | 'calendar_range';

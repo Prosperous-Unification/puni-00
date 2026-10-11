@@ -314,6 +314,9 @@ export const APPLICATION_NAME_EXCEPTIONS = {
   // Proof: omitting this exact Dash CLI root made the live namespace-layout test demand
   // twilight-dash-cli despite the reviewed Nx project name twilight-dash.
   'apps/twilight-structure/twilight-dash/cli': 'twilight-dash',
+  // Proof: omitting this exact Navigator CLI root made the live namespace-layout test demand
+  // twilight-navigator-cli instead of the Nx project name twilight-navigator (2026-10-11).
+  'apps/twilight-structure/twilight-navigator/cli': 'twilight-navigator',
 };
 
 /**

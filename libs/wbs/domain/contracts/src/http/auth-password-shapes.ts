@@ -16,8 +16,17 @@ const signedIn = responseSchema(
   type({ token: 'string', user: { id: 'string', username: 'string' } }),
 );
 const scope = type("'read' | 'write' | 'editor'");
+const methodId = type("'google' | 'github' | 'email' | 'apple'");
+/** `linkedMethods`: catalogue methods of the account's mapped identities, read from the store; be-01 always sends it, older fixtures omit it. */
 const currentUser = responseSchema(
-  type({ user: type({ id: 'string', username: 'string', scopes: scope.array() }).or('null') }),
+  type({
+    user: type({
+      id: 'string',
+      username: 'string',
+      scopes: scope.array(),
+      'linkedMethods?': methodId.array(),
+    }).or('null'),
+  }),
 );
 
 /** Creates a password account and returns its local bearer or hardened browser session. */

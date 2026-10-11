@@ -1,6 +1,7 @@
 import {
   completeAuth0Link,
   completeOidcLogin,
+  listAuthMethods,
   logoutOidcSession,
   refreshOidcSession,
   startAuth0Link,
@@ -18,6 +19,7 @@ import {
   removeCalendarMarker,
   updateCalendarMarker,
 } from './calendar-marker-shapes';
+import { readCapacityMode, switchCapacityMode } from './capacity-mode-shapes';
 import {
   listExternalSystems,
   listPeople,
@@ -101,6 +103,8 @@ import {
   applyDirectoryCommands,
   applyProjectCommands,
   getStepReference,
+  getWorkItem,
+  getWorkItemRows,
   getWorkItems,
   redoProject,
   undoProject,
@@ -114,6 +118,7 @@ export const httpShapes = [
   loginPassword,
   readPasswordSession,
   issueBearerContext,
+  listAuthMethods,
   startOidcLogin,
   completeOidcLogin,
   startAuth0Link,
@@ -156,6 +161,8 @@ export const httpShapes = [
   readPersonLoad,
   readProjectRank,
   moveProjectRank,
+  readCapacityMode,
+  switchCapacityMode,
   readHistory,
   readSolution,
   createProject,
@@ -167,6 +174,8 @@ export const httpShapes = [
   patchProject,
   retryProjectOptimization,
   getWorkItems,
+  getWorkItemRows,
+  getWorkItem,
   getStepReference,
   applyProjectCommands,
   applyDirectoryCommands,

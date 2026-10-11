@@ -101,6 +101,35 @@ describe('the effective production and test boundaries', () => {
     );
   }, 30_000);
 
+  it('lets Navigator reach exactly the Burokrat and WBS record contracts', async () => {
+    const navigatorPath = 'apps/twilight-structure/twilight-navigator/cli/src/plan-reference.ts';
+    const peerPath = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
+    const navigatorOptions = boundaryOf(await lint.calculateConfigForFile(navigatorPath))[1];
+    const peerOptions = boundaryOf(await lint.calculateConfigForFile(peerPath))[1];
+    if (!isRecord(navigatorOptions) || !isRecord(peerOptions)) {
+      throw new Error('Navigator boundary options are malformed');
+    }
+    expect(navigatorOptions['allow']).toEqual([
+      '^@twilight-burokrat/contracts$',
+      '^@wbs/contracts$',
+    ]);
+    const withoutRecordAliases: Readonly<Record<string, unknown>> = {
+      ...navigatorOptions,
+      allow: [],
+    };
+    expect(withoutRecordAliases).toEqual(peerOptions);
+    // Proof: widening the Navigator override's WBS entry to `^@wbs/` failed this test at the
+    // exact allow-list assertion (2026-10-11); the sibling probes keep the remaining fences live.
+    for (const sibling of ['@wbs/core', '@tools/fleet-plan', '@wbs/contracts/ws-frames']) {
+      expect(await ruleIds(navigatorPath, `await import('${sibling}');`)).toContain(
+        '@nx/enforce-module-boundaries',
+      );
+    }
+    expect(await ruleIds(peerPath, "await import('@twilight-burokrat/contracts');")).toContain(
+      '@nx/enforce-module-boundaries',
+    );
+  }, 30_000);
+
   it('rejects runtime packages and drivers from core and domain production', async () => {
     // Proof: before the core/domain production override existed, the Elysia
     // probe returned no `no-restricted-imports` diagnostic. Real uncached lint

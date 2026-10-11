@@ -1,3 +1,5 @@
+import type { CapacityMode } from '@wbs/domain';
+
 import type { WriteStamp } from './write-stamp';
 
 /** One project's place in its organization's project rank (CONTEXT "Project rank"). */
@@ -35,4 +37,50 @@ export interface ProjectRankStore {
     afterProjectId: string | null,
     stamp: WriteStamp,
   ): Promise<RankMoved>;
+}
+
+/**
+ * Whether an organization shares its people (CONTEXT "Shared people"): the
+ * mode and its audited setter on the borrowed writer. Stored beside the rank
+ * because both decide whose bookings a project is scheduled around.
+ */
+export interface SharedPeopleStore {
+  /**
+   * The organization's stored mode.
+   *
+   * @throws when the organization is absent or its encoding is malformed:
+   * every caller resolved it from a session a moment ago.
+   */
+  capacityModeIn(organizationId: string): Promise<CapacityMode>;
+  /**
+   * Sets the mode by `stamp.by` at `stamp.at` and, when that changes it,
+   * records the switch under `auditId` in the same transaction. Setting the
+   * mode an organization already has writes nothing and answers
+   * `changed: false`.
+   */
+  setCapacityMode(
+    organizationId: string,
+    mode: CapacityMode,
+    stamp: WriteStamp,
+    auditId: string,
+  ): Promise<{ changed: boolean }>;
+}
+
+export type CapacityModeSwitched =
+  { ok: true; changed: boolean } | { ok: false; reason: 'forbidden' };
+
+/**
+ * The public capacity-mode owner: one complete write turn that re-checks the
+ * actor's current super-admin membership on the writer, sets and audits the
+ * mode, and records one `elsewhere_changed` per project of the organization
+ * when it changed; delivery follows the turn.
+ */
+export interface CapacityModeSwitch {
+  capacityModeIn(organizationId: string): Promise<CapacityMode>;
+  switchCapacityMode(
+    organizationId: string,
+    mode: CapacityMode,
+    stamp: WriteStamp,
+    auditId: string,
+  ): Promise<CapacityModeSwitched>;
 }

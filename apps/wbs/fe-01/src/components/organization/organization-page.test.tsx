@@ -29,6 +29,9 @@ function stubPage(routes: Parameters<typeof stubServer>[0]) {
     'GET /api/organization/join-requests': [() => answer(200, { requests: [] })],
     'GET /api/organization/domains': [() => answer(200, { domains: [] })],
     'GET /api/organization/members': [() => answer(200, { members: [] })],
+    'GET /api/organization': [
+      () => answer(200, { sharedPeople: false, sharingAvailable: false, canSwitch: false }),
+    ],
     ...routes,
   });
 }
@@ -36,6 +39,19 @@ function stubPage(routes: Parameters<typeof stubServer>[0]) {
 function renderPage() {
   render(<OrganizationPage nav={<nav />} account={<span />} />);
 }
+
+describe('organization page', () => {
+  it('shows whether the organization shares its people', async () => {
+    stubPage({ 'GET /api/organization/invitations': [() => answer(200, { invitations: [] })] });
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Shared people' })).toBeDefined();
+    expect(
+      await screen.findByText(
+        'Sharing people across projects is not available in this release yet.',
+      ),
+    ).toBeDefined();
+  });
+});
 
 describe('organization invitations', () => {
   it('renders loading, then the empty state', async () => {
@@ -206,6 +222,9 @@ describe('organization invitations', () => {
       'GET /api/organization/join-requests': [() => answer(403, { error: 'not_a_member' })],
       'GET /api/organization/domains': [() => answer(200, { domains: [] })],
       'GET /api/organization/members': [() => answer(200, { members: [] })],
+      'GET /api/organization': [
+        () => answer(200, { sharedPeople: false, sharingAvailable: false, canSwitch: false }),
+      ],
     });
     renderPage();
     expect(await screen.findByRole('alert')).toHaveProperty(

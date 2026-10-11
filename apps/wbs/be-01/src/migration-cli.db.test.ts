@@ -304,7 +304,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261011120000_add_browser_auth_lifecycle');
+    expect(baselineLedger.at(-1)?.name).toBe('20261011200000_add_shared_people_audit');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
