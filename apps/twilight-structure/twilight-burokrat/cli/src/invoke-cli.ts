@@ -16,11 +16,18 @@ let running = false;
  *
  * It swaps the process-global stdout, stderr and exit code, so calls must not overlap: it throws
  * when one is already running instead of mixing their output. A test about the process boundary
- * itself (arity, usage, real exit status) still spawns the CLI, and so does one that changes the
- * child's environment: Bun spawns `git` with the environment the process started with, so a
- * `process.env` change here would not reach it.
+ * itself (arity, usage, real exit status) still spawns the CLI.
+ *
+ * `environment` sets `process.env` keys for the call and restores them afterwards. It reaches what
+ * the command reads from `process.env` itself, such as `TOOL_WIKI_TRUSTED_NODE_MODULES`, but not
+ * a child it spawns without an explicit `env`: Bun gives such a child the environment the process
+ * started with. A test whose subject is a child's environment (a fake `git` on `PATH`, a sentinel
+ * a candidate script would write) still spawns the CLI.
  */
-export async function invokeCli(argv: readonly string[]): Promise<CliInvocation> {
+export async function invokeCli(
+  argv: readonly string[],
+  environment: Readonly<Record<string, string>> = {},
+): Promise<CliInvocation> {
   if (running) throw new Error('invokeCli calls overlap; they share process stdout and exit code');
   running = true;
   const stdout: string[] = [];
@@ -28,6 +35,7 @@ export async function invokeCli(argv: readonly string[]): Promise<CliInvocation>
   const writeStdout = process.stdout.write.bind(process.stdout);
   const writeStderr = process.stderr.write.bind(process.stderr);
   const exitCode = process.exitCode;
+  const replaced = Object.keys(environment).map((key) => [key, process.env[key]] as const);
   process.stdout.write = (chunk: string | Uint8Array): boolean => {
     stdout.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'));
     return true;
@@ -36,6 +44,7 @@ export async function invokeCli(argv: readonly string[]): Promise<CliInvocation>
     stderr.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'));
     return true;
   };
+  Object.assign(process.env, environment);
   process.exitCode = 0;
   try {
     await executeCli(argv);
@@ -47,6 +56,10 @@ export async function invokeCli(argv: readonly string[]): Promise<CliInvocation>
   } finally {
     process.stdout.write = writeStdout;
     process.stderr.write = writeStderr;
+    for (const [key, value] of replaced) {
+      if (value === undefined) Reflect.deleteProperty(process.env, key);
+      else process.env[key] = value;
+    }
     process.exitCode = exitCode;
     running = false;
   }
