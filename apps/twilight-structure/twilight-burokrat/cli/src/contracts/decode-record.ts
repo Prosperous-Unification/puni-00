@@ -1,5 +1,6 @@
 import { parseOrThrow, type } from '@shared/validation';
 
+import { PlanReferenceRecord, ProgressReceiptRecord } from './navigator-records';
 import {
   BenchmarkCorpus,
   CandidateEntry,
@@ -15,8 +16,10 @@ import {
   ReviewReceipt,
 } from './records';
 
+// Proof: removing 'plan-reference' from this set made `the kind set is exactly the documented
+// list` and `the production validate command accepts both kinds` fail (2026-10-11).
 export const RecordKind = type(
-  "'benchmark-corpus'|'candidate-entry'|'candidate-inventory'|'check-receipt'|'classification-policy'|'elapsed-receipt'|'experiment-manifest'|'granularity-policy'|'invocation-receipt'|'module-mapping'|'opaque-transcript'|'review-receipt'",
+  "'benchmark-corpus'|'candidate-entry'|'candidate-inventory'|'check-receipt'|'classification-policy'|'elapsed-receipt'|'experiment-manifest'|'granularity-policy'|'invocation-receipt'|'module-mapping'|'opaque-transcript'|'plan-reference'|'progress-receipt'|'review-receipt'",
 );
 export type RecordKind = typeof RecordKind.infer;
 
@@ -32,6 +35,8 @@ export type ContractRecord =
   | typeof InvocationReceipt.infer
   | typeof ModuleMapping.infer
   | typeof OpaqueTranscript.infer
+  | PlanReferenceRecord
+  | ProgressReceiptRecord
   | typeof ReviewReceipt.infer;
 
 /** Validates one untrusted JSON record once, before internal code can observe it. */
@@ -59,6 +64,10 @@ export function decodeRecord(kind: RecordKind, input: unknown): ContractRecord {
       return parseOrThrow(ModuleMapping, input);
     case 'opaque-transcript':
       return parseOrThrow(OpaqueTranscript, input);
+    case 'plan-reference':
+      return parseOrThrow(PlanReferenceRecord, input);
+    case 'progress-receipt':
+      return parseOrThrow(ProgressReceiptRecord, input);
     case 'review-receipt':
       return parseOrThrow(ReviewReceipt, input);
   }
