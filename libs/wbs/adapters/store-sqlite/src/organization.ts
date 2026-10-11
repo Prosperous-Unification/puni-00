@@ -278,7 +278,11 @@ export class OrganizationRepository implements MembershipAdministration {
  * @throws when the stored role is not one of {@link ORGANIZATION_ROLES}: an
  * unknown role reaching the policy must never be read as a privileged one.
  */
-function roleIn(tx: Transaction, organizationId: string, userId: string): OrganizationRole | null {
+export function roleIn(
+  tx: Transaction,
+  organizationId: string,
+  userId: string,
+): OrganizationRole | null {
   const found = tx
     .select({ role: organizationMembership.role })
     .from(organizationMembership)
@@ -293,7 +297,7 @@ function roleIn(tx: Transaction, organizationId: string, userId: string): Organi
   return found.role;
 }
 
-function membershipOf(organizationId: string, userId: string) {
+export function membershipOf(organizationId: string, userId: string) {
   return and(
     eq(organizationMembership.organizationId, organizationId),
     eq(organizationMembership.userId, userId),
@@ -305,15 +309,16 @@ function membershipOf(organizationId: string, userId: string) {
  * member's new role, or null for removal. Runs inside the caller's immediate
  * transaction, so the count it reads is the count the write commits against.
  *
- * Ordinary administration only. External deprovisioning of a departing owner
- * needs a separate audited recovery path (design.md, "Ownership and roles")
- * and must not go through here.
+ * Ordinary administration, and SCIM deprovisioning, which refuses the last
+ * super-admin exactly as a super-admin removal does (`organization-scim`).
+ * Removing a departing owner still needs the separate audited recovery path
+ * (design.md, "Ownership and roles").
  *
  * Proof: returning null instead of reading the remaining count failed
  * `refuses demoting or removing the final super-admin and keeps the role`
  * (`Received: "changed"`). Observed 2026-09-27.
  */
-function guardFinalSuperAdmin(
+export function guardFinalSuperAdmin(
   tx: Transaction,
   organizationId: string,
   userId: string,
