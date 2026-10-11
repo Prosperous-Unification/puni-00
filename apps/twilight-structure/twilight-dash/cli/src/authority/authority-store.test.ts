@@ -6,8 +6,9 @@ import { afterAll, expect, test } from 'bun:test';
 
 import {
   type AuthorityStoreOptions,
+  bootstrapAuthority,
   MemoryAuthorityStore,
-  openAuthorityStore,
+  openAuthority,
 } from './authority-store';
 
 const scratch: string[] = [];
@@ -32,6 +33,7 @@ test('refuses construction without a clock', () => {
   );
   const root = repository();
   const withoutClock = { maxBusyAttempts: 1 } as unknown as AuthorityStoreOptions;
-  expect(() => openAuthorityStore(root, withoutClock)).toThrow('authority clock is required');
+  expect(() => bootstrapAuthority(root, withoutClock)).toThrow('authority clock is required');
+  expect(() => openAuthority(root, withoutClock)).toThrow('authority clock is required');
   expect(existsSync(join(root, '.git', 'module-wiki', 'authority.sqlite'))).toBe(false);
 });

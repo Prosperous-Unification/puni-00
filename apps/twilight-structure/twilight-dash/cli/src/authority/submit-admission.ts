@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { decodeAdmissionPacket } from '@twilight-burokrat/judge';
 
-import { type AuthorityClock, openAuthorityStore } from './authority-store';
+import { type AuthorityClock, openAuthority } from './authority-store';
 import { submitPacket } from './submit';
 
 const usage =
@@ -49,7 +49,7 @@ export function submitAdmission(
   }
   try {
     const packet = decodeAdmissionPacket(readPacketJson(packetPath));
-    const store = openAuthorityStore(repository, { clock });
+    const store = openAuthority(repository, { clock });
     try {
       const selection =
         kind === 'staged' ? ({ base: revision, kind } as const) : ({ kind, revision } as const);

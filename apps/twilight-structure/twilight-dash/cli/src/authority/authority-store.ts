@@ -1,5 +1,5 @@
-import { existsSync, lstatSync, mkdirSync, realpathSync, rmdirSync } from 'node:fs';
-import { isAbsolute, join, resolve } from 'node:path';
+import { existsSync, lstatSync, mkdirSync, realpathSync, rmdirSync, type Stats } from 'node:fs';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 import {
   assertAuthorityClaimPath,
@@ -712,6 +712,32 @@ export class AuthorityContentionError extends Error {
   }
 }
 
+/** Why the authority could not be opened or bootstrapped; each kind is an operator decision. */
+export type AuthorityOpenFailure =
+  | 'not-repository'
+  | 'legacy-store'
+  | 'absent'
+  | 'unreadable'
+  | 'not-canonical'
+  | 'corrupt'
+  | 'incompatible'
+  | 'exists';
+
+/**
+ * A typed refusal to open or create the authority. `absent` names the bootstrap command and is
+ * never treated as an empty authority; `unreadable` carries the filesystem code and is never
+ * treated as absent.
+ */
+export class AuthorityOpenError extends Error {
+  readonly failure: AuthorityOpenFailure;
+
+  constructor(failure: AuthorityOpenFailure, message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'AuthorityOpenError';
+    this.failure = failure;
+  }
+}
+
 function errorCode(error: unknown): unknown {
   return error instanceof Error && 'code' in error ? error.code : undefined;
 }
@@ -769,7 +795,8 @@ function runGitCommonDirectory(worktreePath: string): string {
   });
   const stderr = new TextDecoder().decode(invocation.stderr).trim();
   if (invocation.exitCode !== 0) {
-    throw new Error(
+    throw new AuthorityOpenError(
+      'not-repository',
       `cannot resolve common Git directory for ${worktreePath}: ${stderr || `exit ${String(invocation.exitCode)}`}`,
     );
   }
@@ -784,7 +811,9 @@ function runGitCommonDirectory(worktreePath: string): string {
 }
 
 /**
- * Resolves the one authority file shared by every linked or symlinked worktree.
+ * Resolves the one authority file shared by every linked or symlinked worktree. Resolution has
+ * no filesystem effect: it never creates `module-wiki`, so asking where the authority lives
+ * cannot make an empty one appear.
  *
  * Refuses outright while the superseded `wbs-wiki` directory is still present. The v5 version
  * check can only fire on a row it finds at the new path, and a rename produces no such row, so
@@ -813,23 +842,64 @@ export function resolveAuthorityDatabasePath(worktreePath: string): string {
     lstatSync(legacyDirectory);
   } catch (error) {
     if (errorCode(error) !== 'ENOENT') {
-      throw new Error(`cannot read legacy authority store at ${legacyDirectory}`, { cause: error });
+      throw new AuthorityOpenError(
+        'unreadable',
+        `cannot read legacy authority store at ${legacyDirectory}`,
+        { cause: error },
+      );
     }
     legacyPresent = false;
   }
   if (legacyPresent) {
-    throw new Error(
+    throw new AuthorityOpenError(
+      'legacy-store',
       `legacy authority store present at ${legacyDirectory}: this version keeps its authority in ${join(commonDirectory, 'module-wiki')} and migrates nothing, so remove or archive the legacy directory deliberately before continuing`,
     );
   }
   const authorityDirectory = join(commonDirectory, 'module-wiki');
-  mkdirSync(authorityDirectory, { recursive: true });
+  // Proof: restoring `mkdirSync(authorityDirectory, { recursive: true })` here made `open creates
+  // no directory` and `refuses an absent authority instead of creating one` observe
+  // `.git/module-wiki` (2026-10-11).
+  if (lstatAuthorityPath(authorityDirectory, true) !== undefined) {
+    assertCanonicalDirectory(authorityDirectory);
+  }
+  return join(authorityDirectory, 'authority.sqlite');
+}
+
+/**
+ * `lstat` of one authority path. ENOENT is `absent` unless `absentAllowed`, which returns
+ * `undefined`; every other failure is `unreadable` with its code, never absence.
+ */
+function lstatAuthorityPath(path: string, absentAllowed: boolean): Stats | undefined {
+  try {
+    return lstatSync(path);
+  } catch (error) {
+    const code = errorCode(error);
+    if (code === 'ENOENT') {
+      if (absentAllowed) return undefined;
+      throw new AuthorityOpenError(
+        'absent',
+        `authority absent: ${path}; run \`twilight-dash bootstrap-authority <repository>\` to create it`,
+        { cause: error },
+      );
+    }
+    // Proof: mapping every lstat failure to `absent` made `distinguishes an unreadable authority
+    // from an absent one` receive `absent` for the search-denied directory (2026-10-11).
+    throw new AuthorityOpenError('unreadable', `authority unreadable: ${path}: ${String(code)}`, {
+      cause: error,
+    });
+  }
+}
+
+function assertCanonicalDirectory(authorityDirectory: string): void {
   // Proof: omitting this comparison let `.git/module-wiki` redirect the authority outside the
   // common Git directory; the symlink test observed that resolution did not throw.
   if (realpathSync(authorityDirectory) !== authorityDirectory) {
-    throw new Error(`authority directory is not canonical: ${authorityDirectory}`);
+    throw new AuthorityOpenError(
+      'not-canonical',
+      `authority directory is not canonical: ${authorityDirectory}`,
+    );
   }
-  return join(authorityDirectory, 'authority.sqlite');
 }
 
 function normalizedSql(sql: string): string {
@@ -841,7 +911,10 @@ function assertSchema(database: Database): void {
   // Proof: persisted unknown status, regressed status time and integrated-without-submission faults
   // each made the SQLite lifecycle test observe this production open refuse as corrupt.
   if (quick?.quick_check !== 'ok') {
-    throw new Error(`authority database corrupt: quick_check=${quick?.quick_check ?? 'missing'}`);
+    throw new AuthorityOpenError(
+      'corrupt',
+      `authority database corrupt: quick_check=${quick?.quick_check ?? 'missing'}`,
+    );
   }
   const foreignKeyFaults = database
     .query<Record<string, unknown>, []>('PRAGMA foreign_key_check')
@@ -849,7 +922,7 @@ function assertSchema(database: Database): void {
   // Proof: omitting this check let an orphan `libs/contracts` claim open as healthy; the
   // relational-corruption test observed that `openAuthorityStore` did not throw.
   if (foreignKeyFaults.length !== 0) {
-    throw new Error('authority database corrupt: foreign-key check failed');
+    throw new AuthorityOpenError('corrupt', 'authority database corrupt: foreign-key check failed');
   }
   // Proof: SQL LIKE treated `_` as a wildcard and hid `sqliteXerase`; the production schema
   // test observed that its trigger erased every claim instead of being refused.
@@ -873,7 +946,7 @@ function assertSchema(database: Database): void {
   // Proof: bypassing this comparison let an existing database with `foreign_state` open;
   // the strict-schema test observed that `openAuthorityStore` did not throw.
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error('authority database schema is incompatible');
+    throw new AuthorityOpenError('incompatible', 'authority database schema is incompatible');
   }
   const meta = database
     .query<MetaRow, []>(
@@ -885,10 +958,10 @@ function assertSchema(database: Database): void {
   // `openAuthorityStore` did not throw. Treating v3 as an empty v4 queue made `existing v3
   // authority state is refused` fail on `Received function did not throw`.
   if (meta?.schemaVersion !== AUTHORITY_SCHEMA_VERSION) {
-    throw new Error('authority database version is incompatible');
+    throw new AuthorityOpenError('incompatible', 'authority database version is incompatible');
   }
   if (!Number.isSafeInteger(meta.nextGeneration) || meta.nextGeneration < 1) {
-    throw new Error('authority database next generation is invalid');
+    throw new AuthorityOpenError('corrupt', 'authority database next generation is invalid');
   }
   // Proof: without decoding persisted identities here, `bad/session`, a relative worktree,
   // `libs/./contracts` and `bad/group` each opened as trusted state; the persisted-identity test
@@ -942,7 +1015,8 @@ function openDatabase(
   try {
     database = new Database(databasePath, { create: initialize, strict: true });
   } catch (error) {
-    throw new Error(
+    throw new AuthorityOpenError(
+      'unreadable',
       `authority database unreadable: ${databasePath}: ${error instanceof Error ? error.message : String(error)}`,
       { cause: error },
     );
@@ -953,15 +1027,21 @@ function openDatabase(
     const foreignKeys = database.query<{ foreign_keys: number }, []>('PRAGMA foreign_keys').get();
     const busy = database.query<{ timeout: number }, []>('PRAGMA busy_timeout').get();
     if (foreignKeys?.foreign_keys !== 1 || busy?.timeout !== 0) {
-      throw new Error('authority database connection pragmas were not adopted');
+      throw new AuthorityOpenError(
+        'corrupt',
+        'authority database connection pragmas were not adopted',
+      );
     }
     if (initialize) initializeDatabase(database);
     assertSchemaWithRetry(database, options);
     return database;
   } catch (error) {
     database.close();
-    if (error instanceof Error && error.message.startsWith('authority database')) throw error;
-    throw new Error(
+    if (error instanceof AuthorityOpenError || error instanceof AuthorityContentionError) {
+      throw error;
+    }
+    throw new AuthorityOpenError(
+      'corrupt',
       `authority database corrupt or incompatible: ${error instanceof Error ? error.message : String(error)}`,
       { cause: error },
     );
@@ -976,33 +1056,67 @@ function waitForInitializer(initializerPath: string, options: RequiredAuthorityS
   throw new AuthorityContentionError(options.maxBusyAttempts);
 }
 
-function connectAuthority(databasePath: string, options: RequiredAuthorityStoreOptions): Database {
+function assertDatabaseFile(databasePath: string): void {
+  // Proof: omitting this check followed `authority.sqlite` to an external empty database; the
+  // database-symlink test received a schema error instead of the canonical-location refusal.
+  if (lstatAuthorityPath(databasePath, false)?.isSymbolicLink() === true) {
+    throw new AuthorityOpenError(
+      'not-canonical',
+      `authority database is not canonical: ${databasePath}`,
+    );
+  }
+}
+
+/** Refuses an existing database, or one this process cannot prove absent, before creation. */
+function refuseExistingDatabase(databasePath: string): void {
+  if (lstatAuthorityPath(databasePath, true) !== undefined) {
+    throw new AuthorityOpenError(
+      'exists',
+      `authority already exists: ${databasePath}; open it instead of bootstrapping`,
+    );
+  }
+}
+
+function connectExistingAuthority(
+  databasePath: string,
+  options: RequiredAuthorityStoreOptions,
+): Database {
+  waitForInitializer(`${databasePath}.initializing`, options);
+  lstatAuthorityPath(dirname(databasePath), false);
+  assertDatabaseFile(databasePath);
+  return openDatabase(databasePath, false, options);
+}
+
+function createAuthority(databasePath: string, options: RequiredAuthorityStoreOptions): Database {
+  const authorityDirectory = dirname(databasePath);
   try {
-    // Proof: omitting this check followed `authority.sqlite` to an external empty database; the
-    // database-symlink test received a schema error instead of the canonical-location refusal.
-    if (lstatSync(databasePath).isSymbolicLink()) {
-      throw new Error(`authority database is not canonical: ${databasePath}`);
-    }
+    mkdirSync(authorityDirectory);
   } catch (error) {
-    if (errorCode(error) !== 'ENOENT') throw error;
+    if (errorCode(error) !== 'EEXIST') {
+      throw new AuthorityOpenError(
+        'unreadable',
+        `cannot create authority directory ${authorityDirectory}: ${String(errorCode(error))}`,
+        { cause: error },
+      );
+    }
   }
+  assertCanonicalDirectory(authorityDirectory);
   const initializerPath = `${databasePath}.initializing`;
-  if (existsSync(databasePath)) {
-    waitForInitializer(initializerPath, options);
-    return openDatabase(databasePath, false, options);
-  }
   try {
     mkdirSync(initializerPath);
   } catch (error) {
     if (errorCode(error) !== 'EEXIST') throw error;
     waitForInitializer(initializerPath, options);
-    if (!existsSync(databasePath)) {
-      throw new Error('authority initialization ended without a database', { cause: error });
-    }
-    return openDatabase(databasePath, false, options);
+    // Proof: dropping this check made the losing process of `two bootstraps yield one creator and
+    // one exists refusal` report `authority initialization ended without a database` (2026-10-11).
+    refuseExistingDatabase(databasePath);
+    throw new Error('authority initialization ended without a database', { cause: error });
   }
   try {
-    if (existsSync(databasePath)) return openDatabase(databasePath, false, options);
+    // The one `exists` refusal, taken under the lock so no bootstrap can pass it while another
+    // is creating. Proof: dropping it made `bootstrap refuses an existing authority` receive
+    // `corrupt` from SQLite's already-present tables instead of `exists` (2026-10-11).
+    refuseExistingDatabase(databasePath);
     return openDatabase(databasePath, true, options);
   } finally {
     rmdirSync(initializerPath);
@@ -1356,9 +1470,9 @@ class SqliteAuthorityStore implements AuthorityStore {
   readonly #database: Database;
   readonly #options: RequiredAuthorityStoreOptions;
 
-  constructor(databasePath: string, options: AuthorityStoreOptions) {
-    this.#options = requiredOptions(options);
-    this.#database = connectAuthority(databasePath, this.#options);
+  constructor(database: Database, options: RequiredAuthorityStoreOptions) {
+    this.#options = options;
+    this.#database = database;
   }
 
   transact<T>(operation: (transaction: AuthorityTransaction) => T): T {
@@ -1466,10 +1580,36 @@ class SqliteAuthorityStore implements AuthorityStore {
   }
 }
 
-/** Opens the canonical authority selected by a repository or linked worktree. */
-export function openAuthorityStore(
+/**
+ * Opens the existing canonical authority selected by a repository or linked worktree. It never
+ * creates one: absence refuses as `absent` naming `twilight-dash bootstrap-authority`, which is
+ * distinct from `unreadable`, `not-canonical`, `corrupt` and `incompatible`.
+ *
+ * @throws AuthorityOpenError for every refusal above; AuthorityContentionError when a bootstrap
+ *   in progress outlasts the busy budget.
+ */
+export function openAuthority(
   worktreePath: string,
   options: AuthorityStoreOptions,
 ): SqliteAuthorityStore {
-  return new SqliteAuthorityStore(resolveAuthorityDatabasePath(worktreePath), options);
+  const required = requiredOptions(options);
+  const databasePath = resolveAuthorityDatabasePath(worktreePath);
+  return new SqliteAuthorityStore(connectExistingAuthority(databasePath, required), required);
+}
+
+/**
+ * Creates the authority for a repository that has none: the only creator. It takes the
+ * `.initializing` directory lock and re-checks absence under it, so two concurrent bootstraps
+ * yield one store and one `exists` refusal.
+ *
+ * @throws AuthorityOpenError `exists` when a database is already present, and the same
+ *   resolution refusals as {@link openAuthority}.
+ */
+export function bootstrapAuthority(
+  worktreePath: string,
+  options: AuthorityStoreOptions,
+): SqliteAuthorityStore {
+  const required = requiredOptions(options);
+  const databasePath = resolveAuthorityDatabasePath(worktreePath);
+  return new SqliteAuthorityStore(createAuthority(databasePath, required), required);
 }

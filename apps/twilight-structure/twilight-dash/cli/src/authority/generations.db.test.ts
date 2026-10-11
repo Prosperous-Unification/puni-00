@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { Database } from 'bun:sqlite';
 import { afterAll, expect, test } from 'bun:test';
 
-import { type AuthorityStore, MemoryAuthorityStore, openAuthorityStore } from './authority-store';
+import { type AuthorityStore, MemoryAuthorityStore } from './authority-store';
 import { acquireClaims } from './claims';
 import {
   abandonGeneration,
@@ -17,6 +17,7 @@ import {
   releaseGeneration,
   submitGeneration,
 } from './generations';
+import { openOrBootstrapAuthority } from './testing/open-or-bootstrap';
 
 /** Fixed authority time for cases that do not exercise the clock. */
 const FIXED_CLOCK = { read: () => 1_000_000 };
@@ -60,7 +61,7 @@ const submission = {
 test('SQLite persists terminal history and immutable submitted claims', () => {
   const root = repository();
   let now = 1_000;
-  const store = openAuthorityStore(root, { clock: { read: () => now } });
+  const store = openOrBootstrapAuthority(root, { clock: { read: () => now } });
   const rejected = acquireClaims(store, {
     owner: { sessionId: 'rejected', worktreePath: root },
     paths: [{ access: 'write', path: 'tools/rejected' }],
@@ -78,7 +79,7 @@ test('SQLite persists terminal history and immutable submitted claims', () => {
   submitGeneration(store, submitted, submission);
   store.close();
 
-  const reopened = openAuthorityStore(root, { clock: { read: () => 1_040 } });
+  const reopened = openOrBootstrapAuthority(root, { clock: { read: () => 1_040 } });
   expect(reopened.inspect().generations).toEqual([
     {
       claims: [],
@@ -108,7 +109,7 @@ test('memory and SQLite adapters persist the same lifecycle transitions', () => 
   const root = repository();
   let now = 1_000;
   const memory = new MemoryAuthorityStore(undefined, { read: () => now });
-  const sqlite = openAuthorityStore(root, { clock: { read: () => now } });
+  const sqlite = openOrBootstrapAuthority(root, { clock: { read: () => now } });
   const stores: AuthorityStore[] = [memory, sqlite];
   for (const store of stores) {
     const released = acquireClaims(store, {
@@ -157,7 +158,7 @@ test('SQLite refuses malformed lifecycle state before it can be treated as avail
     `UPDATE authority_generation SET status = 'submitted', patch_identity = 'bad', candidate_diff_identity = '${DIFF}', content_identity = '${CONTENT}'`,
   ]) {
     const root = repository();
-    const store = openAuthorityStore(root, { clock: { read: () => 1_000 } });
+    const store = openOrBootstrapAuthority(root, { clock: { read: () => 1_000 } });
     acquireClaims(store, {
       owner: { sessionId: 'session-a', worktreePath: root },
       paths: [{ access: 'write', path: 'tools/shared' }],
@@ -169,7 +170,7 @@ test('SQLite refuses malformed lifecycle state before it can be treated as avail
     database.run(mutation);
     database.close();
 
-    expect(() => openAuthorityStore(root, { clock: FIXED_CLOCK })).toThrow(
+    expect(() => openOrBootstrapAuthority(root, { clock: FIXED_CLOCK })).toThrow(
       'authority database corrupt',
     );
   }
@@ -177,15 +178,17 @@ test('SQLite refuses malformed lifecycle state before it can be treated as avail
 
 test('SQLite refuses a malformed trusted clock adapter during construction', () => {
   const root = repository();
-  expect(() => openAuthorityStore(root, { clock: {} })).toThrow('invalid authority clock adapter');
+  expect(() => openOrBootstrapAuthority(root, { clock: {} })).toThrow(
+    'invalid authority clock adapter',
+  );
 });
 
 const WORKER = `
-const [{ openAuthorityStore }, { acquireClaims }, generations] = await Promise.all([
+const [{ openOrBootstrapAuthority }, { acquireClaims }, generations] = await Promise.all([
   import(process.argv[2]), import(process.argv[3]), import(process.argv[4]),
 ]);
 const input = JSON.parse(process.argv[5]);
-const store = openAuthorityStore(input.root, { clock: { read: () => 1_000_000 } });
+const store = openOrBootstrapAuthority(input.root, { clock: { read: () => 1_000_000 } });
 try {
   let output;
   if (input.operation === 'acquire') output = acquireClaims(store, input.request);
@@ -212,7 +215,7 @@ async function runWorker(root: string, input: unknown): Promise<Observation> {
     [
       process.execPath,
       worker,
-      pathToFileURL(join(import.meta.dir, 'authority-store.ts')).href,
+      pathToFileURL(join(import.meta.dir, 'testing', 'open-or-bootstrap.ts')).href,
       pathToFileURL(join(import.meta.dir, 'claims.ts')).href,
       pathToFileURL(join(import.meta.dir, 'generations.ts')).href,
       JSON.stringify(input),
@@ -282,7 +285,7 @@ test('separate processes fence stale generations and preserve a successor and fr
     }),
   ).toMatchObject({ ok: false, message: 'generation already submitted: session-b' });
 
-  const store = openAuthorityStore(root, { clock: FIXED_CLOCK });
+  const store = openOrBootstrapAuthority(root, { clock: FIXED_CLOCK });
   expect(store.inspect().generations.find(({ generation }) => generation === 2)).toMatchObject({
     claims: [{ access: 'write', identity: 'tools/shared', kind: 'path' }],
     status: 'submitted',

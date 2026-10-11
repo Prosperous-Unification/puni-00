@@ -17,12 +17,13 @@ import {
 } from '@twilight-burokrat/judge';
 import { afterAll, expect, test } from 'bun:test';
 
-import { MemoryAuthorityStore, openAuthorityStore } from './authority-store';
+import { MemoryAuthorityStore } from './authority-store';
 import { acquireClaims } from './claims';
 import { rejectGeneration } from './generations';
 import { composeIntegrationCandidate, recomposeIntegrationCandidate } from './integration-compose';
 import { createAdmissionPacket } from './packet-binding';
 import { submitPacket } from './submit';
+import { openOrBootstrapAuthority } from './testing/open-or-bootstrap';
 
 /** Fixed authority time for cases that do not exercise the clock. */
 const FIXED_CLOCK = { read: () => 1_000_000 };
@@ -60,7 +61,7 @@ function integrationFixture() {
     commit: git(root, ['rev-parse', 'HEAD']),
     tree: git(root, ['rev-parse', 'HEAD^{tree}']),
   };
-  const store = openAuthorityStore(root, { clock: FIXED_CLOCK });
+  const store = openOrBootstrapAuthority(root, { clock: FIXED_CLOCK });
 
   function submission(
     sessionId: string,
