@@ -99,6 +99,28 @@ async function readBoundedOutput(
   }
 }
 
+const GroupSettleMs = 2_000;
+
+/**
+ * Waits until no process remains in the killed verifier's process group, so "terminated"
+ * means reaped rather than merely signalled. A loaded host can leave a SIGKILLed descendant
+ * runnable for a while; this bounded wait throws instead of returning while it still exists.
+ */
+async function awaitProcessGroupGone(groupId: number): Promise<void> {
+  const settleBy = performance.now() + GroupSettleMs;
+  for (;;) {
+    try {
+      killProcess(-groupId, 0);
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ESRCH') return;
+      throw cause;
+    }
+    if (performance.now() >= settleBy)
+      throw new Error('review verifier descendant survived its process-group kill');
+    await Bun.sleep(5);
+  }
+}
+
 /** Runs an absolute executable with private inputs and an empty environment after the caller independently validates its runtime and trust pins. */
 export async function runPinnedOfflineGh(
   process: OfflineVerifierProcess,
@@ -136,10 +158,10 @@ export async function runPinnedOfflineGh(
   const cleanupFailures: unknown[] = [];
   const processState = { timedOut: false, cancelled: false };
   const readers = new AbortController();
-  let treeKilled = false;
+  const tree = { killed: false };
   const killTree = () => {
-    if (treeKilled || child === undefined) return;
-    treeKilled = true;
+    if (tree.killed || child === undefined) return;
+    tree.killed = true;
     try {
       // Proof: descendant_group omission left the recorded sleep process alive
       // although pipe cancellation made the runner return promptly.
@@ -237,6 +259,15 @@ export async function runPinnedOfflineGh(
         await child.exited;
       } catch (cause) {
         cleanupFailures.push(cause);
+      }
+      // Proof: with this wait removed and 2x-nproc CPU spinners running, the descendant test
+      // read /proc state "R" in 3 of 10 runs (h2puni's gate symptom); restored: 0 of 10.
+      if (tree.killed) {
+        try {
+          await awaitProcessGroupGone(child.pid);
+        } catch (cause) {
+          cleanupFailures.push(cause);
+        }
       }
     }
     // Proof: sibling_settle omission returned after stdout overflow while a

@@ -406,7 +406,7 @@ test('pinned runner terminates the descendant process rather than only cancellin
     } catch (cause) {
       if (!(cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')) throw cause;
     }
-    expect(['gone', 'Z', 'X']).toContain(state);
+    expect(state).toBe('gone');
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

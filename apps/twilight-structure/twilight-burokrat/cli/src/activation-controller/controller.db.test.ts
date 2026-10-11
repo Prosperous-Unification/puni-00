@@ -20,7 +20,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
@@ -9072,9 +9072,13 @@ test('selected check stages only bytes from trusted complete-tree manifests', as
   });
   try {
     baseline = descriptorTargets();
+    // The staging walk opens every ancestor directory of each staged root; derive them from
+    // the actual roots so a host whose temporary root is /var/tmp expects /var and /var/tmp.
+    const ancestors = (path: string): string[] =>
+      dirname(path) === path ? [path] : [...ancestors(dirname(path)), path];
     const ownedPaths = new Set([
-      '/',
-      '/tmp',
+      ...ancestors(dirname(selected.snapshotRoot)),
+      ...ancestors(dirname(selected.runtimeRoot)),
       selected.snapshotRoot,
       selected.runtimeRoot,
       join(selected.snapshotRoot, 'main.txt'),
