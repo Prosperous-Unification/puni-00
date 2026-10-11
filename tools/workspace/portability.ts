@@ -253,6 +253,26 @@ function inspectTree(directory: string): void {
     else if (!entry.isFile()) throw new Error(`Unsupported filesystem entry: ${entry.name}`);
   }
 }
+const sourceExtension = /\.(?:[cm]?[jt]s|[jt]sx)$/;
+const importSpecifier = /(?:\bfrom\s*|\bimport\s*\(?\s*)['"]([^'"]+)['"]/g;
+/** Lists module specifiers in the tree's JavaScript and TypeScript files; inspect the tree first. */
+function readImports(directory: string): Set<string> {
+  const specifiers = new Set<string>();
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const location = join(directory, entry.name);
+    if (entry.isDirectory())
+      for (const specifier of readImports(location)) specifiers.add(specifier);
+    else if (sourceExtension.test(entry.name))
+      for (const match of readFileSync(location, 'utf8').matchAll(importSpecifier))
+        specifiers.add(match[1]);
+  }
+  return specifiers;
+}
+function matchesAlias(specifier: string, alias: string): boolean {
+  return alias.endsWith('/*')
+    ? specifier.startsWith(alias.slice(0, -1))
+    : specifier === alias || specifier.startsWith(`${alias}/`);
+}
 
 /** Copies an explicitly classified project and its declared local dependency closure.
  * Performs every classification, collision, schema and filesystem check before writes.
@@ -387,6 +407,18 @@ export function copyProject(source: string, destination: string, project: string
         );
     }
     inspectTree(join(sourceRoot, path));
+    const owners = [path, ...dependencies];
+    for (const specifier of readImports(join(sourceRoot, path))) {
+      for (const [alias, mapping] of Object.entries(sourceAliases)) {
+        if (!matchesAlias(specifier, alias)) continue;
+        const target: unknown = Array.isArray(mapping) ? mapping.at(0) : undefined;
+        // Proof: deleting this ownership check copied apps/website/fe-01 without its contracts library.
+        if (typeof target !== 'string' || !owners.some((owner) => target.startsWith(`./${owner}/`)))
+          throw new Error(
+            `Invalid dependency closure: ${path} imports ${alias} from ${String(target)}; declare its project in metadata.portability.dependencies`,
+          );
+      }
+    }
     // Proof: omitting traversal fails the bidirectional closure test before its unchanged-byte assertion.
     for (const dependency of dependencies) visit(dependency);
     visiting.delete(path);
