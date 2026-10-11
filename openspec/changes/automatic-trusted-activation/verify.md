@@ -3853,3 +3853,13 @@ monotonic reads through an injected monotonic source is open. PR #331's
 **Audit rule.** spec.md's independent-bootstrap requirement now names the 2026-10-01 audit rule in
 a scenario: no historical operator capture is replayed as trusted evidence, and
 `local-cooperative` is refused under `require-external`.
+
+Fresh full `twilight-burokrat:test` at `c581cac1c` (host load average about 6): 2434 pass, 2 fail.
+The failures were `terminal close crossing only the tick deadline preserves committed completion`
+(observation-tick.db, one fewer diagnostic than expected) and `protected registration FIFO
+refuses promptly without blocking the reader` (review-journal, child exit 124 instead of 0). This
+review round did not touch either file or its source. Both files then passed 118/118 in isolation
+in three consecutive runs. Both tests depend on wall-clock deadlines in the hundreds of
+milliseconds to 2 s, so they are load-sensitive. That is an open flakiness risk for the host gate,
+not a fixed result. Nx `typecheck` and `lint:fast` reported success at this head, and OpenSpec
+`validate --all` passed 171/171.
