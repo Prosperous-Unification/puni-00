@@ -38,5 +38,5 @@
 
 ## 7. Rollback proof and documents (S6)
 
-- [ ] 7.1 `rollback-compatibility.test.ts` against the pinned pre-relocation commit.
-- [ ] 7.2 ADR 0048, ADR 0021 pointer, `names.md`, `LLM_README.md`, `CONTEXT.md`, READMEs, `verify.md`.
+- [x] 7.1 `rollback-compatibility.test.ts` against the pinned pre-relocation commit.
+- [x] 7.2 ADR 0050 (0048 and 0049 were taken), ADR 0021 pointer, `names.md`, `LLM_README.md`, `CONTEXT.md`, READMEs, `verify.md`.

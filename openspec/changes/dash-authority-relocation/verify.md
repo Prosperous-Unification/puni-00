@@ -171,6 +171,28 @@ reports the same publication and moves no ref`; token recovery through `inspect-
 --session` (`inspect-authority prints the state and refuses an absent store`, S3).
 6. **Rollback preserving accepted identities**: S6.
 
-## S6
+## S6: rollback proof and documents
 
-Recorded when the slice lands.
+Mandatory proof "rollback preserving accepted identities":
+`integration-races.test.ts`: `the pre-relocation authority opens a Dash-written store with
+identical state and continues its generations`. Dash writes a store with a published
+integration and its marker, a submitted session, a live session and a released session. The
+test runs `git archive e57278139 apps/twilight-structure/twilight-burokrat/cli/src` into scratch,
+with a `tsconfig.json` mapping `@shared/validation` and a `node_modules` link, and loads the old
+`admission-runtime/{authority-store,claims,generations}.ts`. The old `openAuthorityStore` opens
+the store, its `inspect()` deep-equals Dash's, and old `acquireClaims` continues at Dash's
+`nextGeneration` and refuses an overlapping path. Old `heartbeatGeneration` accepts Dash's live
+token and refuses the released one (`generation is terminal: released`).
+
+`e57278139` was chosen because it is S0's split: the last commit whose Burokrat package holds
+`admission-runtime/authority-store.ts`, and an ancestor of every branch carrying the relocation.
+
+| Injected fault                                                                                     | Observed                                                                                         |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| none (built-in live half): one persisted status flipped to `publishedx` with check constraints off | old open refused `authority database corrupt or incompatible`                                    |
+| the flip removed                                                                                   | the same old open returned a store; the assertion failed                                         |
+| `PRE_RELOCATION_SHA` pointed at a missing object                                                   | `cannot archive the pre-relocation authority at 0000…0001: fatal: not a tree object`, not a skip |
+
+Documents: ADR 0050 (0048 and 0049 were taken), the pointer line in ADR 0021, `names.md` row and
+bullet, `LLM_README.md` line (139 lines), and three `CONTEXT.md` terms (Generation, Publication
+marker, Authority bootstrap). Dash README lists five commands.

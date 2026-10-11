@@ -7,6 +7,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  symlinkSync,
   watch,
   writeFileSync,
 } from 'node:fs';
@@ -33,7 +34,7 @@ import {
   resolveAuthorityDatabasePath,
 } from './authority-store';
 import { acquireClaims } from './claims';
-import { rejectGeneration } from './generations';
+import { rejectGeneration, releaseGeneration } from './generations';
 import { composeIntegrationCandidate } from './integration-compose';
 import { createAdmissionPacket } from './packet-binding';
 import {
@@ -2665,3 +2666,145 @@ test('recovery refuses records that need a certifier', () => {
     'recover-queued is checking',
   );
 });
+
+/**
+ * The last commit whose Burokrat package still held the runtime authority
+ * (`admission-runtime/authority-store.ts`): slice S0's split, an ancestor of every branch that
+ * carries the relocation. CI checks out with full history and the h2puni gate is a full clone.
+ */
+const PRE_RELOCATION_SHA = 'e57278139bc168eb454125cd2c730d6ed7769f86';
+const WORKSPACE_ROOT = join(import.meta.dir, '..', '..', '..', '..', '..', '..');
+
+interface PreRelocationAuthority {
+  readonly openAuthorityStore: (
+    worktreePath: string,
+    options: { readonly clock: { read(): number } },
+  ) => {
+    inspect(): unknown;
+    close(): void;
+  };
+  readonly acquireClaims: (
+    store: unknown,
+    request: unknown,
+  ) => { generation: number; sessionId: string };
+  readonly heartbeatGeneration: (store: unknown, token: unknown) => unknown;
+}
+
+/** Extracts the pinned Burokrat source into scratch and loads its authority modules. */
+async function loadPreRelocationAuthority(): Promise<PreRelocationAuthority> {
+  const root = mkdtempSync(join(tmpdir(), 'dash-rollback-'));
+  scratch.push(root);
+  const archive = Bun.spawnSync(
+    [
+      'git',
+      '-C',
+      WORKSPACE_ROOT,
+      'archive',
+      PRE_RELOCATION_SHA,
+      'apps/twilight-structure/twilight-burokrat/cli/src',
+    ],
+    { stderr: 'pipe', stdout: 'pipe' },
+  );
+  if (archive.exitCode !== 0) {
+    // Never a skip: a missing object means the rollback proof could not run.
+    throw new Error(
+      `cannot archive the pre-relocation authority at ${PRE_RELOCATION_SHA}: ${archive.stderr.toString('utf8').trim()}`,
+    );
+  }
+  const extract = Bun.spawnSync(['tar', '-x', '-C', root], {
+    stderr: 'pipe',
+    stdin: archive.stdout,
+  });
+  if (extract.exitCode !== 0) throw new Error(extract.stderr.toString('utf8'));
+  writeFileSync(
+    join(root, 'tsconfig.json'),
+    `${JSON.stringify({
+      compilerOptions: {
+        paths: {
+          '@shared/validation': [
+            join(WORKSPACE_ROOT, 'libs/shared/domain/validation/src/index.ts'),
+          ],
+        },
+      },
+    })}\n`,
+  );
+  symlinkSync(join(WORKSPACE_ROOT, 'node_modules'), join(root, 'node_modules'));
+  const runtime = join(root, 'apps/twilight-structure/twilight-burokrat/cli/src/admission-runtime');
+  // The pinned modules are loaded by path; their exports are typed by the interface above, which
+  // the assertions below exercise call by call.
+  const [store, claims, generations] = (await Promise.all([
+    import(join(runtime, 'authority-store.ts')),
+    import(join(runtime, 'claims.ts')),
+    import(join(runtime, 'generations.ts')),
+  ])) as [
+    Pick<PreRelocationAuthority, 'openAuthorityStore'>,
+    Pick<PreRelocationAuthority, 'acquireClaims'>,
+    Pick<PreRelocationAuthority, 'heartbeatGeneration'>,
+  ];
+  return {
+    acquireClaims: claims.acquireClaims,
+    heartbeatGeneration: generations.heartbeatGeneration,
+    openAuthorityStore: store.openAuthorityStore,
+  };
+}
+
+test('the pre-relocation authority opens a Dash-written store with identical state and continues its generations', async () => {
+  const subject = fixture({ now: Date.now() });
+  const { reserved } = preparePublication(subject, 'rollback');
+  expect(publishIntegrationRefs(subject.store, subject.repository, reserved)).toBe(true);
+  finalizeIntegrationPublication(subject.store, subject.repository, reserved);
+  subject.submission('two', 'src/two.ts', 'export const two = 2;\n');
+  const live = acquireClaims(subject.store, {
+    conflictGroups: [],
+    owner: { sessionId: 'live', worktreePath: subject.repository },
+    paths: [{ access: 'write', path: 'src/three.ts' }],
+  });
+  const released = releaseGeneration(
+    subject.store,
+    acquireClaims(subject.store, {
+      conflictGroups: [],
+      owner: { sessionId: 'released', worktreePath: subject.repository },
+      paths: [{ access: 'write', path: 'src/four.ts' }],
+    }),
+  );
+  const dashState = subject.store.inspect();
+  subject.store.close();
+  expect(dashState.integrations[0]?.status).toBe('published');
+
+  const old = await loadPreRelocationAuthority();
+  const store = old.openAuthorityStore(subject.repository, { clock: LIVE_CLOCK });
+  expect(store.inspect()).toEqual(dashState);
+  expect(
+    old.acquireClaims(store, {
+      conflictGroups: [],
+      owner: { sessionId: 'after-rollback', worktreePath: subject.repository },
+      paths: [{ access: 'write', path: 'src/five.ts' }],
+    }),
+  ).toEqual({ generation: dashState.nextGeneration, sessionId: 'after-rollback' });
+  expect(() =>
+    old.acquireClaims(store, {
+      conflictGroups: [],
+      owner: { sessionId: 'overlap', worktreePath: subject.repository },
+      paths: [{ access: 'write', path: 'src/three.ts' }],
+    }),
+  ).toThrow('path claim overlaps session live');
+  expect(old.heartbeatGeneration(store, live)).toEqual(live);
+  expect(() => old.heartbeatGeneration(store, released)).toThrow(
+    'generation is terminal: released',
+  );
+  store.close();
+
+  // The comparison is live: one persisted status byte flipped behind both codes' backs makes the
+  // pre-relocation open refuse the store.
+  // Proof: with the flip the old open refused `authority database corrupt or incompatible`;
+  // with the flip line removed the same old open returned a store and this assertion failed.
+  // Pointing PRE_RELOCATION_SHA at a missing object threw `cannot archive the pre-relocation
+  // authority at 0000…0001: fatal: not a tree object` instead of skipping (2026-10-12).
+  const database = new Database(resolveAuthorityDatabasePath(subject.repository));
+  database.run('PRAGMA ignore_check_constraints = ON');
+  database.run("UPDATE authority_generation SET status = 'publishedx' WHERE session_id = 'two'");
+  database.close();
+  expect(() => old.openAuthorityStore(subject.repository, { clock: LIVE_CLOCK })).toThrow(
+    'authority database corrupt',
+  );
+}, 60_000);
