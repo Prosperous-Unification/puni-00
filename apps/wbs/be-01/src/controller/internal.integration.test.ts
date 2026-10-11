@@ -1,7 +1,7 @@
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
-import { testAuthService } from '../testing/auth-fixture';
+import { testLocalAuthService } from '../testing/auth-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
@@ -34,6 +34,10 @@ const SECRET = 'test-secret-must-be-32-chars-at-least-!';
 
 function buildHarness() {
   const { log, buffer, replay } = testReplay();
+  // Every project exists here, so these cases exercise the replay route itself;
+  // the per-project access check is gateway-browser.controller.db.test.ts's.
+  const projects = testProjectService();
+  spyOn(projects, 'readWithin').mockResolvedValue({ project: {}, steps: [] } as never);
   const app = buildApp({
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
@@ -53,8 +57,9 @@ function buildHarness() {
     priorityBands: testPriorityBandService(),
     history: testHistoryService(),
     calendarMarkers: testCalendarMarkerService(),
-    auth: testAuthService(),
-    projects: testProjectService(),
+    // Local mode: the forwarded principal is the fixed local identity.
+    auth: testLocalAuthService({ id: 'ada', username: 'ada', scopes: ['read', 'write'] }),
+    projects,
     workItems: testWorkItemService(),
     savedPlans: testSavedPlanService(),
     steps: testStepService(),
