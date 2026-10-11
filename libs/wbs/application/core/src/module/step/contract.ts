@@ -8,12 +8,10 @@ import type { StepService, StepServiceOptions } from './step.resource';
  * clock and the dependency graph guard. `servicesOver` supplies the stores of each admitted scope, so one
  * installation never outlives the scope it was built over.
  *
- * **No K6 debt; K4 support and K2 debt disclosed.** Step is a resource: it
- * imports the domain library, repository ports and no other resource. It
- * still imports one support file from `service/`, `assumed-assignee.ts`, which
- * the backend module map moves to the domain library (task 6.1); until then
- * that is a resource reading application-ring support rather than the domain.
- * `cleanName` already moved to `@wbs/domain`. Delivery's side is not closed either:
+ * **No K6 or K4 support debt; K2 debt disclosed.** Step is a resource: it
+ * imports the domain library, repository ports and no other resource. Its
+ * former `service/` support, `cleanName` and the assumed-assignee rules, moved
+ * to `@wbs/domain` under task 6.1. Delivery's side is not closed either:
  * `http/step.routes.ts` still accepts `StepService` directly, the direct
  * resource dependency of delivery (K2) the map lists under its composition
  * hazards. Tracked under task 7.4 of

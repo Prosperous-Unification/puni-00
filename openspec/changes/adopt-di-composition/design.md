@@ -155,11 +155,11 @@ support a resource still imports.
 | Plan document        | `http/project.routes.ts` installs it (a composition export changes `AppOptions`) | none                                 | Plan document composition export        |
 | Calendar marker      | routes take `CalendarMarkerService`                                              | none                                 | feature owners                          |
 | Capacity             | Plan commands and delivery name `CapacityService`                                | none                                 | feature owners                          |
-| Directory            | routes, Plan import and Plan commands name `DirectoryService`                    | none (K4 support: task 6.1)          | feature owners; task 6.1                |
+| Directory            | routes, Plan import and Plan commands name `DirectoryService`                    | none (task 6.1 reclassified support) | feature owners                          |
 | Priority band        | Plan commands and delivery name `PriorityBandService`                            | none                                 | feature owners                          |
 | Project              | routes and Saved plans name `ProjectService`                                     | none                                 | feature owners                          |
-| Step                 | `http/step.routes.ts` takes `StepService`                                        | none (K4 support: task 6.1)          | feature owners; task 6.1                |
-| Work item            | routes, Plan commands, Plan import and Saved plans name it                       | none (K4 support: task 6.1)          | feature owners; task 6.1                |
+| Step                 | `http/step.routes.ts` takes `StepService`                                        | none (K4 support closed by task 6.1) | feature owners                          |
+| Work item            | routes, Plan commands, Plan import and Saved plans name it                       | none (task 6.1 reclassified support) | feature owners                          |
 | Solver launcher      | none                                                                             | none                                 | —                                       |
 | Solver supervisor    | none                                                                             | none (K5 by the map's carve-out)     | —                                       |
 

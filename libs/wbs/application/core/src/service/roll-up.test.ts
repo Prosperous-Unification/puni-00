@@ -1,5 +1,16 @@
-import type { MeasureMetric } from '@wbs/domain';
-import { DEFAULT_ESTIMATE_RULE, type EstimateRule, type StepAllowances } from '@wbs/domain';
+import {
+  DEFAULT_ESTIMATE_RULE,
+  type EstimateRule,
+  type MeasureMetric,
+  rollUp,
+  rollUpActuals,
+  rollUpFinals,
+  rollUpMeasures,
+  rollUpProgress,
+  rollUpWorkItemStatuses,
+  type StepAllowances,
+  workedStepsOf,
+} from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { StoredActual } from '../ports/actual-store';
@@ -8,15 +19,6 @@ import type { StoredMeasure } from '../ports/measure-store';
 import type { StoredProgress } from '../ports/progress-store';
 import type { WorkItem } from '../ports/work-item-store';
 import { workItemRow } from '../testing/work-item-fixture';
-import {
-  rollUp,
-  rollUpActuals,
-  rollUpFinals,
-  rollUpMeasures,
-  rollUpProgress,
-  rollUpWorkItemStatuses,
-  workedStepsOf,
-} from './roll-up';
 
 const item = (id: string, parentId: string | null): WorkItem =>
   workItemRow({

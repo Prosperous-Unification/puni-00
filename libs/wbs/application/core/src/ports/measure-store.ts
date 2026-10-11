@@ -1,26 +1,9 @@
-import type { MeasureMetric } from '@wbs/domain';
+import type { MeasureMetric, StoredMeasure } from '@wbs/domain';
 
 import type { StepWriteOutcome, ValueGroupPlacement } from './estimate-store';
 import type { WriteStamp } from './write-stamp';
 
-/**
- * What one step's work on one work item cost in one unit that is not days, and
- * when somebody said so.
- *
- * `metric` is part of the identity rather than a property of it: the same pair
- * holding a token estimate, a token fact and an hours fact is three of these,
- * and each is absent on its own. See {@link stepMeasure} in `schema.ts` and
- * `openspec/changes/token-tracking/design.md` D1.
- */
-export interface StoredMeasure {
-  workItemId: string;
-  stepId: string;
-  metric: MeasureMetric;
-  /** The figure itself — tokens or hours, in whatever `metric` says. */
-  value: number;
-  /** When the number was typed, in epoch milliseconds. */
-  recordedAt: number;
-}
+export type { StoredMeasure } from '@wbs/domain';
 
 /** One measure row's whole identity: the triple its primary key is. */
 export interface MeasureKey {

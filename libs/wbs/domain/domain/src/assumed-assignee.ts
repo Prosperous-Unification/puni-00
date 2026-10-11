@@ -1,4 +1,4 @@
-import type { Assignment } from '../ports/directory-store';
+import type { Assignment } from './assignment';
 
 /**
  * Who a work item's assignments are taken to cover every step with, or nobody.

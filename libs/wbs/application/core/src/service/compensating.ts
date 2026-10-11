@@ -1,5 +1,4 @@
-import type { AllowancePercent, MeasureMetric } from '@wbs/domain';
-import type { StepState } from '@wbs/domain';
+import type { AllowancePercent, Days, MeasureMetric, StepState } from '@wbs/domain';
 
 import type { ActualKey, StoredActual } from '../ports/actual-store';
 import type { StoredDependency } from '../ports/dependency-store';
@@ -10,7 +9,6 @@ import type { ProgressKey, StoredProgress } from '../ports/progress-store';
 import type { EstimateKey } from '../ports/subtree-store';
 import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { FrozenNumber, Reparented, WorkItem, WorkItemPatch } from '../ports/work-item-store';
-import type { Days } from './roll-up';
 
 /**
  * One command, expressed so that it can be applied without knowing what it is

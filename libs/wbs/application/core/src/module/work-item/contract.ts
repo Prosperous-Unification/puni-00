@@ -14,11 +14,10 @@ import type { WorkItemService, WorkItemServiceOptions } from './work-item.resour
  * `StepProgressStore`, `DirectoryStore`, `CapacityStore`, `PriorityBandStore`,
  * `DependencyStore`, `TypedDependencyStore`, `SubtreeStore` and
  * `CommandJournalStore` — and no other
- * resource. It still imports five support files from `service/`,
- * `assumed-assignee.ts`, `compensating.ts`, `dependency.ts`,
- * `numbered-work-item.ts` and `roll-up.ts`, which the backend module map moves
- * to the domain library (task 6.1); until then that is a resource reading
- * application-ring support rather than the domain. Its consumers' side is not
+ * resource. Of its five former `service/` support files, task 6.1 moved the
+ * assumed-assignee, dependency and roll-up rules to `@wbs/domain` and
+ * reclassified `compensating.ts` and `numbered-work-item.ts` as application
+ * support over port records, which stay in the core. Its consumers' side is not
  * closed either: `http/project.routes.ts` and `http/work-item.routes.ts` accept
  * `WorkItemService` directly, Plan commands and Plan import name it, and Saved
  * plans' `saved-plan-schedule.ts` imports its `NO_DEADLINES` and `slicesOf`

@@ -1,6 +1,13 @@
-import { rollUp } from '@wbs/core/service/roll-up';
-import type { DependencyEdge, PoolSizes, Schedule, ScheduledSlice, Slice } from '@wbs/domain';
-import { schedule, sliceKey } from '@wbs/domain';
+import {
+  type DependencyEdge,
+  type PoolSizes,
+  rollUp,
+  type Schedule,
+  schedule,
+  type ScheduledSlice,
+  type Slice,
+  sliceKey,
+} from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { WorkItem } from '../repository';

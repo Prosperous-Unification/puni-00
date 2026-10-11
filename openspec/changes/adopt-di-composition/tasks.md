@@ -276,21 +276,28 @@
 
 ## 6. Domain moves the map names
 
-- [ ] 6.1 The fourteen portable-core domain moves: `assumed-assignee.ts`, `clean-name.ts`,
+- [x] 6.1 The fourteen portable-core domain moves: `assumed-assignee.ts`, `clean-name.ts`,
       `command-normalizers.ts`, `compensating.ts`, `dependency.ts`, `directory-usage.ts`,
       `numbered-work-item.ts`, `plan-command.ts`, `roll-up.ts`, `saved-plan-default-name.ts`,
       `saved-plan-input.ts`, `saved-plan-quota.ts`, `saved-plan-schedule-body.ts`,
-      `smoke.service.ts`. **2026-10-11, five of fourteen:** `clean-name.ts`,
-      `saved-plan-default-name.ts`, `saved-plan-quota.ts` and `saved-plan-schedule-body.ts` moved
-      to `libs/wbs/domain/domain/src/` with their tests, and `smoke.service.ts` became the pure
-      `echoSmokeText` there; importers name `@wbs/domain` and the `@wbs/core` barrel keeps the
-      moved symbols as compatibility exports. The other nine (`assumed-assignee.ts`,
-      `command-normalizers.ts`, `compensating.ts`, `dependency.ts`, `directory-usage.ts`,
-      `numbered-work-item.ts`, `plan-command.ts`, `roll-up.ts`, `saved-plan-input.ts`) read
-      application-ring repository record types (`WorkItem`, `StoredDependency`, `Assignment`,
-      the stored estimate, actual, measure and progress records, `PlanInputReads`) or core
-      `http/` body parsers, which the `ring:domain` boundary forbids the domain library to import.
-      Their destination is an open architecture decision recorded in `verify.md`.
+      `smoke.service.ts`. **Amended 2026-10-11 (decision A12 and its Fable review):** nine moved
+      and five were reclassified. `clean-name.ts`, `saved-plan-default-name.ts`,
+      `saved-plan-quota.ts` and `saved-plan-schedule-body.ts` moved to `libs/wbs/domain/domain/src/`
+      with their tests; `smoke.service.ts` became the pure `echoSmokeText` there. `assumed-assignee.ts`
+      (with its test), `dependency.ts`, `roll-up.ts` and `saved-plan-input.ts` followed, together with
+      the value records they read: `Assignment` (`assignment.ts`), the epoch-ms `StoredEstimate`,
+      `StoredActual`, `StoredMeasure` and `StoredProgress` facts (`step-values.ts`), and the whole
+      `saved-plan-capture-values.ts`. The ports re-export each name. `WorkItem`, `LabelledWorkItem` and
+      `WorkItemPatch` stay port types, so `dependency.ts` reads the domain's `PlannedRow` and
+      `DependencyEdge` and `roll-up.ts` reads `ParentedRow` (option B); `Days` moved with
+      `roll-up.ts`. `compensating.ts` (inverse store writes), `command-normalizers.ts` and
+      `plan-command.ts` (request-body normalization through the core's `http/` parsers),
+      `directory-usage.ts` (projections over the `DirectoryUsageRows` store read) and
+      `numbered-work-item.ts` (a reader value extending `LabelledWorkItem`) are application code:
+      `kinds.json` reclassifies them in place, and they stay in the core's `service/`. Importers name
+      `@wbs/domain`; the `@wbs/core` barrel keeps compatibility exports until task 7.1.
+      `libs/wbs/domain/domain/src/domain-ring-boundary.test.ts` lints every moved rule and refuses a
+      port or core parser import inside one.
 - [x] 6.2 The two backend domain moves: `solver-exit-outcome.ts`, `solver-request-pair.ts`.
       Landed 2026-10-11 in the domain-ring solver contracts,
       `libs/wbs/domain/contracts/solver/src/`, beside the request builder and revalidation they

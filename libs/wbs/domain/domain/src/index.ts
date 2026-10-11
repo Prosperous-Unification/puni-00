@@ -145,3 +145,14 @@ export * from './stored-vocabularies';
 export * from './tree-order';
 export * from './typed-dependency';
 export * from './workday';
+// Rules over the plan's value records, moved out of the core's `service/` on 2026-10-11 (task
+// 6.1, A12): who is assumed to do a step, whether an edge may exist, how per-step figures roll
+// up, and a Saved plan's input fold. The value records they read moved with them; the core's
+// ports re-export those types.
+export type * from './assignment';
+export * from './assumed-assignee';
+export * from './dependency';
+export * from './roll-up';
+export type * from './saved-plan-capture-values';
+export * from './saved-plan-input';
+export type * from './step-values';
