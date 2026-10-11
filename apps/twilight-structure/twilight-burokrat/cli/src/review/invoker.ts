@@ -615,6 +615,10 @@ function isExistingLock(cause: unknown): boolean {
   return cause instanceof Error && Reflect.get(cause, 'code') === 'EEXIST';
 }
 
+/**
+ * Waits on the host clock for at most `waitMs`. This is Twilight Dash's dynamic half still inside
+ * the Burokrat package (docs/twilight-structure/names.md); it relocates with the review invoker.
+ */
 function createLockDirectory(path: string, waitMs: number): void {
   const deadline = Date.now() + waitMs;
   let lastConflict: unknown;
@@ -844,6 +848,7 @@ export class FileInvocationJournal implements InvocationJournal {
   }
 }
 
+/** Records the host clock around the harness run: a Twilight Dash measurement, not a judgment. */
 function phaseObservation(
   phase: 'cold' | 'informed',
   stdinBytes: string,
@@ -964,7 +969,11 @@ function informedAttempt(stdinBytes: string, harnessArgv: readonly string[]): In
   }
 }
 
-/** Invokes cold and informed phases with a durable acknowledgement between their launches. */
+/**
+ * Invokes cold and informed phases with a durable acknowledgement between their launches. It
+ * launches processes and stamps the journal from the host clock, so it is Twilight Dash's work
+ * still inside the Burokrat package (docs/twilight-structure/names.md, "Clock reads").
+ */
 export class ProcessReviewInvoker implements ReviewInvoker {
   constructor(
     private readonly journal: InvocationJournal,

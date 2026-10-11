@@ -2021,3 +2021,27 @@ Scope: only `inspect-manual` stopped reading the clock. The review of this chang
 reads remaining in `review/invoker.ts`, `policy/prepare-activation-cli.ts`,
 `policy/prepare-relocation-activation-cli.ts` and `admission/authority-store.ts`, recorded as a
 follow-up under task 2.1 in `tasks.md`.
+
+## WBS 080.36 (batch 10) — the remaining Burokrat clock reads are Twilight Dash's
+
+Observed 2026-10-11 on branch `batch-10/080-36-burokrat-clocks`. Every remaining read measures work
+that names.md places in Twilight Dash: the review harness journal and its lock wait
+(`review/invoker.ts`, 10 reads), the candidate check runs of both activation CLIs (2 reads each)
+and the lease authority's default clock (`admission/authority-store.ts`, 2 reads, removed by WBS
+080.19). None is an instant a judgment compares, so none takes `--now`; each is documented as
+Dash-owned and moves with its owner. No CLI contract changed.
+
+`src/no-ambient-clock.test.ts` parses every non-test source in the package with the TypeScript
+compiler and finds `Date.now()`, argument-less `new Date`, `Date()`, `performance.now()`,
+`Bun.nanoseconds()`, `process.hrtime` and `Temporal.Now`. Each listed file may keep at most its
+current count, and a listed file that no longer exists fails. Faults injected by hand, each
+restored and rerun green:
+
+| Fault                                           | Observed                                                              |
+| ----------------------------------------------- | --------------------------------------------------------------------- |
+| `Date.now()` appended to `evidence/manual.ts`   | scan failed listing `evidence/manual.ts` `Date.now()`                 |
+| `Date()` appended to `contracts/records.ts`     | scan failed listing `contracts/records.ts` `Date()`                   |
+| an eleventh `new Date()` in `review/invoker.ts` | scan failed listing the invoker's eleven reads                        |
+| the activation entry renamed to a missing path  | stale-entry check failed listing the missing path                     |
+| the glob changed to `**/*.tsx`                  | anchor failed: `Expected to contain: "cli.ts"`                        |
+| the detector's argument test dropped            | detector test flagged lines 2 and 3; scan flagged `new Date(epochMs)` |

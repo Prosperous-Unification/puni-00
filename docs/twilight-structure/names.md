@@ -71,6 +71,22 @@ act as the trusted gate. Twilight Dash holds the secrets and performs the effect
   verify tool. Its verification half is Twilight Burokrat's work and its compile half is
   Twilight Dash's. No separate tool is created.
 
+### Clock reads
+
+Twilight Burokrat takes every instant it judges from its caller: `inspect-manual` requires
+`--now`, and Twilight Dash supplies it. The clock reads still in the Burokrat package measure work
+that is Twilight Dash's and move with it:
+
+| Site                                                      | What it measures                                      | Moves with                   |
+| --------------------------------------------------------- | ----------------------------------------------------- | ---------------------------- |
+| `review/invoker.ts`                                       | review harness journal timestamps and its lock's wait | the review invoker           |
+| `policy/prepare-activation-cli.ts`                        | start and end of each candidate check it runs         | the check runner             |
+| `policy/prepare-relocation-activation-cli.ts`             | start and end of each candidate check it runs         | the check runner             |
+| `admission/authority-store.ts` (default `AuthorityClock`) | lease and claim instants                              | the lease authority (080.19) |
+
+`no-ambient-clock.test.ts` in the Burokrat package fails on a read anywhere else, or on more reads
+in these files than they hold today.
+
 ## How the tools depend on each other
 
 ```mermaid
