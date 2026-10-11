@@ -379,8 +379,13 @@ export function assertStagePlacement(
 
 /** Secrets that an operator or controller in the graph creates, not Git. */
 const producedSecrets: Readonly<Record<string, readonly string[]>> = {
-  // ECK writes the elastic user and the public HTTP CA for the `elasticsearch` cluster.
-  observability: ['elasticsearch-es-elastic-user', 'elasticsearch-es-http-certs-public'],
+  // ECK writes the elastic user and the public HTTP CAs for the `elasticsearch` cluster and the
+  // `kibana` instance.
+  observability: [
+    'elasticsearch-es-elastic-user',
+    'elasticsearch-es-http-certs-public',
+    'kibana-kb-http-certs-public',
+  ],
 };
 
 /** Secrets a chart reads by a fixed name that its values never mention. */

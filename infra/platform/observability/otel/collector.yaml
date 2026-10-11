@@ -100,9 +100,61 @@ spec:
           start_at: end
           include_file_path: true
           storage: file_storage/checkpoints
+          # A WBS pino line keeps its whole text in `body`; only the closed set of fields named in
+          # elastic/settings/failure-fields.json is lifted into attributes, each only when its value
+          # has the shape the log schema declares. Anything else stays text in `body` and still ships.
           operators:
             - type: container
               id: container-parser
+            - type: json_parser
+              id: pino-parser
+              if: 'body matches "^\\{"'
+              parse_to: attributes.pino
+              on_error: send
+            # JSON from any other workload is not lifted: its fields are not ours to index.
+            - type: remove
+              id: pino-foreign
+              if: 'attributes.pino != nil && (type(attributes.pino?.service) != "string" || !(attributes.pino.service in ["be-01", "gw-01", "fe-01", "mcp-01"]))'
+              field: attributes.pino
+            - type: move
+              id: pino-level
+              if: 'type(attributes.pino?.level) == "string" && attributes.pino.level in ["trace", "debug", "info", "warn", "error", "fatal"]'
+              from: attributes.pino.level
+              to: attributes.level
+            - type: move
+              id: pino-msg
+              if: 'type(attributes.pino?.msg) == "string"'
+              from: attributes.pino.msg
+              to: attributes.msg
+            - type: move
+              id: pino-time
+              if: 'type(attributes.pino?.time) in ["int", "float"]'
+              from: attributes.pino.time
+              to: attributes.time
+            - type: move
+              id: failure-occurrence-id
+              if: 'type(attributes.pino?.err) == "map" && type(attributes.pino.err.occurrence_id) == "string" && attributes.pino.err.occurrence_id matches "^[A-Za-z0-9_.:-]{1,128}$"'
+              from: attributes.pino.err.occurrence_id
+              to: attributes["failure.occurrence_id"]
+            - type: move
+              id: failure-fingerprint
+              if: 'type(attributes.pino?.err) == "map" && type(attributes.pino.err.fingerprint) == "string" && attributes.pino.err.fingerprint matches "^[A-Za-z0-9_.:-]{1,128}$"'
+              from: attributes.pino.err.fingerprint
+              to: attributes["failure.fingerprint"]
+            - type: move
+              id: failure-v
+              if: 'type(attributes.pino?.err) == "map" && type(attributes.pino.err.v) == "string" && attributes.pino.err.v matches "^corj/[A-Za-z0-9_.-]{1,32}$"'
+              from: attributes.pino.err.v
+              to: attributes["failure.v"]
+            - type: move
+              id: pino-service
+              if: 'attributes.pino != nil'
+              from: attributes.pino.service
+              to: attributes.service
+            - type: remove
+              id: pino-rest
+              if: 'attributes.pino != nil'
+              field: attributes.pino
         otlp:
           protocols:
             grpc:
@@ -114,7 +166,8 @@ spec:
           check_interval: 1s
           limit_mib: 240
           spike_limit_mib: 60
-        # Bodies stay one text field; credential shapes are replaced before export.
+        # Bodies stay one text field; credential shapes are replaced before export, in the body and
+        # in `msg`, the one free-text attribute the filelog operators lift out of it.
         transform/redact:
           log_statements:
             - context: log
@@ -124,6 +177,11 @@ spec:
                 - replace_pattern(body, "AKIA[0-9A-Z]{16}", "[REDACTED]")
                 - replace_pattern(body, "(?i)(authorization:\\s*(bearer|basic)\\s+)[^\\s\"]+", "$$1[REDACTED]")
                 - replace_pattern(body, "(?i)((password|passwd|secret|token|api[_-]?key)[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+", "$$1[REDACTED]")
+                - replace_pattern(attributes["msg"], "AGE-SECRET-KEY-1[0-9A-Z]{58}", "[REDACTED]")
+                - replace_pattern(attributes["msg"], "gh[pousr]_[A-Za-z0-9]{36,}", "[REDACTED]")
+                - replace_pattern(attributes["msg"], "AKIA[0-9A-Z]{16}", "[REDACTED]")
+                - replace_pattern(attributes["msg"], "(?i)(authorization:\\s*(bearer|basic)\\s+)[^\\s\"]+", "$$1[REDACTED]")
+                - replace_pattern(attributes["msg"], "(?i)((password|passwd|secret|token|api[_-]?key)[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+", "$$1[REDACTED]")
         resource/stream:
           attributes:
             - { key: data_stream.dataset, value: puni, action: upsert }
