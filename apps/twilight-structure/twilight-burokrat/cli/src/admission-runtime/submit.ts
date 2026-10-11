@@ -1,11 +1,16 @@
 import { Buffer } from 'node:buffer';
 
+import type { AdmissionSubmissionReport } from '../admission-judge/integration-candidate';
+import type { AdmissionPacket } from '../admission-judge/packet-codec';
+import {
+  packetAuthorityClaims,
+  validatePacketAgainstBase,
+} from '../admission-judge/packet-judgment';
 import { hashBytes, hashCanonical } from '../evidence/content-manifest';
 import { type CandidateEntry, readCandidate } from '../inventory/read-candidate';
-import type { AuthorityStore, SubmissionIdentity } from './authority-store';
+import type { AuthorityStore } from './authority-store';
 import { type ClaimToken } from './claims';
 import { submitGenerationMatching } from './generations';
-import { type AdmissionPacket, packetAuthorityClaims, validatePacketAgainstBase } from './packet';
 
 const ObjectIdentity = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
@@ -13,15 +18,7 @@ export type SubmissionSelection =
   | { readonly kind: 'staged'; readonly base: string }
   | { readonly kind: 'committed'; readonly revision: string };
 
-export interface AdmissionSubmissionReport extends SubmissionIdentity {
-  readonly status: 'submitted';
-  readonly sessionId: string;
-  readonly generation: number;
-  readonly candidateTree: string;
-  readonly baseRelationship: 'index-based-on-packet-head' | 'commit-descends-from-packet-base';
-  readonly changedPaths: readonly string[];
-  readonly scope: 'publication violations were detected and refused at submission; editing-time writes were not prevented';
-}
+export type { AdmissionSubmissionReport };
 
 interface GitOutput {
   readonly stdout: Buffer;

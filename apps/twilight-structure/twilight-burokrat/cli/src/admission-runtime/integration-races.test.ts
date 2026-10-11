@@ -16,6 +16,14 @@ import { dirname, join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { afterAll, expect, test } from 'bun:test';
 
+import {
+  certifyIntegrationCandidate,
+  type IntegrationEvidence,
+  type IntegrationEvidenceVerifier,
+  type IntegrationPolicy,
+  type SubmittedCandidate,
+  type UncheckedIntegrationCandidate,
+} from '../admission-judge/integration-candidate';
 import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
 import {
   MemoryAuthorityStore,
@@ -24,16 +32,8 @@ import {
 } from './authority-store';
 import { acquireClaims } from './claims';
 import { rejectGeneration } from './generations';
-import {
-  certifyIntegrationCandidate,
-  composeIntegrationCandidate,
-  type IntegrationEvidence,
-  type IntegrationEvidenceVerifier,
-  type IntegrationPolicy,
-  type SubmittedCandidate,
-  type UncheckedIntegrationCandidate,
-} from './integrate';
-import { createAdmissionPacket } from './packet';
+import { composeIntegrationCandidate } from './integration-compose';
+import { createAdmissionPacket } from './packet-binding';
 import {
   createIntegrationCommit,
   enqueueIntegration,

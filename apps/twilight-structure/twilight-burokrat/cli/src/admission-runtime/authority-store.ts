@@ -9,7 +9,12 @@ import {
   assertAuthorityPathAccess,
   assertAuthoritySessionId,
   assertAuthorityWorktreePath,
+  type AuthorityClaim,
+  type GroupClaim,
+  type PathAccess,
+  type PathClaim,
 } from '../admission-judge/authority-identities';
+import type { SubmissionIdentity } from '../admission-judge/integration-candidate';
 import { decodeAdmissionPacketBody } from '../admission-judge/packet-codec';
 
 export {
@@ -30,29 +35,12 @@ export {
  */
 export const AUTHORITY_SCHEMA_VERSION = 'module-wiki-authority.v5' as const;
 
-export type PathAccess = 'read' | 'write';
-
-export interface PathClaim {
-  readonly kind: 'path';
-  readonly identity: string;
-  readonly access: PathAccess;
-}
-
-export interface GroupClaim {
-  readonly kind: 'group';
-  readonly identity: string;
-}
-
-export type AuthorityClaim = PathClaim | GroupClaim;
+export type { AuthorityClaim, GroupClaim, PathAccess, PathClaim };
 
 export type GenerationStatus =
   'working' | 'investigating' | 'submitted' | 'integrated' | 'rejected' | 'abandoned' | 'released';
 
-export interface SubmissionIdentity {
-  readonly patchIdentity: string;
-  readonly candidateDiffIdentity: string;
-  readonly contentIdentity: string;
-}
+export type { SubmissionIdentity };
 
 export interface AuthorityPacketBinding {
   readonly packetIdentity: string;

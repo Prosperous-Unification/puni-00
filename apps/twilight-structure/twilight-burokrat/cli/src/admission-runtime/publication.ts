@@ -1,5 +1,11 @@
 import { realpathSync } from 'node:fs';
 
+import {
+  assertCheckedIntegrationCandidate,
+  type CheckedIntegrationCandidate,
+  type IntegrationRequest,
+  type UncheckedIntegrationCandidate,
+} from '../admission-judge/integration-candidate';
 import { compareCanonicalText, hashBytes, hashCanonical } from '../evidence/content-manifest';
 import type {
   AuthorityGeneration,
@@ -12,14 +18,10 @@ import type {
 } from './authority-store';
 import { assertAuthorityTimestamp } from './authority-store';
 import {
-  assertCheckedIntegrationCandidate,
-  type CheckedIntegrationCandidate,
   composeIntegrationCandidate,
   IntegrationPatchConflictError,
-  type IntegrationRequest,
   recomposeIntegrationCandidate,
-  type UncheckedIntegrationCandidate,
-} from './integrate';
+} from './integration-compose';
 
 export const MAX_INTEGRATION_BATCH_SIZE = 4;
 export const MAX_INTEGRATION_QUEUE_WAIT_MS = 5 * 60 * 1_000;

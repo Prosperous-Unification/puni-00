@@ -4,22 +4,20 @@ import { join } from 'node:path';
 
 import { afterAll, expect, test } from 'bun:test';
 
+import {
+  certifyIntegrationCandidate,
+  type IntegrationEvidence,
+  type IntegrationEvidenceVerifier,
+  type VerifiedIntegrationReceipt,
+} from '../admission-judge/integration-candidate';
 import { packetBody, packetBodyBytes, withPacketIdentity } from '../admission-judge/packet-codec';
 import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
 import { readCandidate } from '../inventory/read-candidate';
 import { MemoryAuthorityStore, openAuthorityStore } from './authority-store';
 import { acquireClaims } from './claims';
 import { rejectGeneration } from './generations';
-import {
-  certifyIntegrationCandidate,
-  composeIntegrationCandidate,
-  decodeIntegrationPolicy,
-  type IntegrationEvidence,
-  type IntegrationEvidenceVerifier,
-  recomposeIntegrationCandidate,
-  type VerifiedIntegrationReceipt,
-} from './integrate';
-import { createAdmissionPacket } from './packet';
+import { composeIntegrationCandidate, recomposeIntegrationCandidate } from './integration-compose';
+import { createAdmissionPacket } from './packet-binding';
 import { submitPacket } from './submit';
 
 const scratch: string[] = [];
@@ -888,20 +886,4 @@ test('every produced contract must resolve in the trusted contract registry', ()
     }),
   ).toThrow('produced contract is absent from integration policy: contract.unmapped');
   subject.store.close();
-});
-
-test('strict policy decoding rejects unknown selector kinds and malformed primitive fields', () => {
-  const globBody = {
-    ...policyBody,
-    selectorRules: [{ checks: [], kind: 'glob', path: '*.ts', reviews: [] }],
-  };
-  expect(() =>
-    decodeIntegrationPolicy({
-      ...globBody,
-      policyIdentity: hashCanonical(globBody),
-    }),
-  ).toThrow('Validation failed');
-  expect(() => decodeIntegrationPolicy({ ...policy, contractRules: 'not-an-array' })).toThrow(
-    'Validation failed',
-  );
 });

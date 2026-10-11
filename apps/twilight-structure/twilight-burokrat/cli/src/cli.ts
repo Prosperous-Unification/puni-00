@@ -304,7 +304,7 @@ async function writeAdmissionSubmission(argv: string[]): Promise<void> {
   }
   const [{ openAuthorityStore }, { decodeAdmissionPacket }, { submitPacket }] = await Promise.all([
     import('./admission-runtime/authority-store'),
-    import('./admission-runtime/packet'),
+    import('./admission-judge/packet-codec'),
     import('./admission-runtime/submit'),
   ]);
   try {

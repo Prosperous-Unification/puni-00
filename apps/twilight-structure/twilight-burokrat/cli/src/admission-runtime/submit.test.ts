@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { afterAll, expect, test } from 'bun:test';
 
+import { decodeAdmissionPacket } from '../admission-judge/packet-codec';
 import { hashCanonical, serializeCanonical } from '../evidence/content-manifest';
 import {
   MemoryAuthorityStore,
@@ -21,7 +22,7 @@ import {
 } from './authority-store';
 import { acquireClaims, expandClaims } from './claims';
 import { abandonGeneration } from './generations';
-import { createAdmissionPacket, decodeAdmissionPacket, expandPacketReads } from './packet';
+import { createAdmissionPacket, expandPacketReads } from './packet-binding';
 import { submitPacket } from './submit';
 
 const scratch: string[] = [];
