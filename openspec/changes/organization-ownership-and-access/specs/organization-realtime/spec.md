@@ -22,6 +22,18 @@ gw-01 SHALL derive user and active organization from verified credentials and cu
 - **WHEN** the socket subscribes to P or names P in a resume point
 - **THEN** the subscribe is refused as `unknown_subscription`, the resume point is denied with reason `forbidden`, and the two causes are indistinguishable
 
+#### Scenario: Gateway proves the socket's principal by its browser credential
+
+- **GIVEN** a socket authenticated by browser cookies
+- **WHEN** gw-01 checks a project or asks be-01 to replay
+- **THEN** it sends its own secret and those cookies as sent, be-01 proves the principal through its ordinary browser authentication and current membership, a request without the secret or carrying a Bearer is refused 401, and a credential that proves nobody closes the socket with code 1008
+
+#### Scenario: be-01 replays only readable projects
+
+- **GIVEN** a resume reaching be-01 that names a project in another organization, or a name that is no project
+- **WHEN** be-01 serves `/internal/resume` for the forwarded principal
+- **THEN** that subscription is denied `forbidden` and nothing of it is read from the log
+
 #### Scenario: Unanswered access check fails closed
 
 - **GIVEN** be-01 cannot answer a project access check within its deadline

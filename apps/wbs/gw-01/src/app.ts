@@ -6,6 +6,10 @@ import { Elysia } from 'elysia';
 import { internalController, type SocketLike } from './controller/internal.controller';
 import { createUnexpectedBackendFailureReporter } from './controller/unexpected-backend-failure';
 import { handleWsMessage, projectIdOf } from './controller/ws.controller';
+import {
+  type ForwardedBrowserCredential,
+  forwardedCookieHeader,
+} from './service/browser-access-client';
 import { ConnectionAccess } from './service/connection-access';
 import { type FetchLike, ForwardClient } from './service/forward-client';
 import { GatewayMetrics } from './service/gateway-metrics';
@@ -21,12 +25,12 @@ import { decodeWireFrame, gatewayAdapter } from './ws-wire';
 const HEALTH_PROBE_TIMEOUT_MS = 2_000;
 const LOCAL_IDENTITY = Symbol('local websocket identity');
 const VERIFIED_TOKEN = Symbol('verified websocket token');
-const ORGANIZATION_COOKIE = Symbol('websocket organization binding cookie');
+const FORWARDED_CREDENTIAL = Symbol('websocket browser credential as sent');
 
 interface WsAuthCarrier {
   [LOCAL_IDENTITY]?: string;
   [VERIFIED_TOKEN]?: string;
-  [ORGANIZATION_COOKIE]?: string | null;
+  [FORWARDED_CREDENTIAL]?: ForwardedBrowserCredential;
 }
 
 /**
@@ -34,12 +38,19 @@ interface WsAuthCarrier {
  * can prove that principal to be-01. Never a name the client chose.
  */
 export type SocketCredential =
-  | {
-      readonly kind: 'cookie';
-      readonly accessToken: string;
-      readonly organizationCookie: string | null;
-    }
+  | { readonly kind: 'cookie'; readonly forwarded: ForwardedBrowserCredential }
   | { readonly kind: 'local'; readonly identity: string };
+
+/** A cookie's value exactly as sent, still percent-encoded, or null when absent. */
+function rawCookieValue(raw: string | null, name: string): string | null {
+  for (const part of (raw ?? '').split(';')) {
+    const separator = part.indexOf('=');
+    if (separator > 0 && part.slice(0, separator).trim() === name) {
+      return part.slice(separator + 1).trim();
+    }
+  }
+  return null;
+}
 
 function cookieValue(raw: string | null, name: string): string | null {
   for (const part of (raw ?? '').split(';')) {
@@ -85,6 +96,8 @@ interface WsConnection {
   joined: Promise<void>;
   /** This socket's project authorization, created before `open`'s first await. */
   access: ConnectionAccess;
+  /** The forwarded browser cookies for `/internal/resume`; absent in local mode. */
+  forwardedCookie?: string;
   query?: WsAuthCarrier;
 }
 
@@ -252,10 +265,14 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             return { error: 'invalid token' };
           }
           auth[VERIFIED_TOKEN] = token;
-          auth[ORGANIZATION_COOKIE] = cookieValue(
-            request.headers.get('cookie'),
-            '__Host-wbs_organization',
-          );
+          const cookies = request.headers.get('cookie');
+          const accessCookie = rawCookieValue(cookies, '__Host-wbs_access');
+          // cookieValue found and decoded it above, so the raw value is present.
+          if (accessCookie === null) throw new Error('verified access cookie vanished');
+          auth[FORWARDED_CREDENTIAL] = {
+            accessCookie,
+            organizationCookie: rawCookieValue(cookies, '__Host-wbs_organization'),
+          };
           return undefined;
         },
         async open(ws) {
@@ -276,17 +293,16 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           conn.socket = { send: (payload) => void writer.send(payload) };
           const localIdentity = conn.query?.[LOCAL_IDENTITY];
           const accessToken = conn.query?.[VERIFIED_TOKEN];
+          const forwarded = conn.query?.[FORWARDED_CREDENTIAL];
+          conn.forwardedCookie =
+            forwarded === undefined ? undefined : forwardedCookieHeader(forwarded);
           let username: string | null = null;
           conn.access = new ConnectionAccess({
             check:
               localIdentity !== undefined
                 ? opts.projectAccess({ kind: 'local', identity: localIdentity })
-                : accessToken !== undefined
-                  ? opts.projectAccess({
-                      kind: 'cookie',
-                      accessToken,
-                      organizationCookie: conn.query?.[ORGANIZATION_COOKIE] ?? null,
-                    })
+                : forwarded !== undefined
+                  ? opts.projectAccess({ kind: 'cookie', forwarded })
                   : // No credential: `open` closes this socket below, before any
                     // frame is served, so nothing can reach this check.
                     () => Promise.resolve('unauthenticated'),
@@ -389,6 +405,11 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
                   clientId,
                   connectionId: conn.connectionId,
                   traceId: crypto.randomUUID(),
+                  // be-01 rechecks every replayed project for this principal.
+                  // Proof: omitting the forwarded cookie made `resumes for the
+                  // socket's own principal through be-01`
+                  // (composition.integration.test.ts) send none (2026-10-11).
+                  ...(conn.forwardedCookie === undefined ? {} : { cookie: conn.forwardedCookie }),
                 },
                 conn.cancellation.signal,
               ),

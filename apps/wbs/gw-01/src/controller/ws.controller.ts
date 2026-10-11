@@ -15,7 +15,7 @@ import type { UnexpectedBackendFailureReporter } from './unexpected-backend-fail
 
 export type ResumeStatus =
   | { status: 'replaying'; events: { seq: number; message: unknown }[] }
-  | { status: 'denied'; reason: 'out_of_range' };
+  | { status: 'denied'; reason: 'out_of_range' | 'forbidden' };
 
 export interface WsSocket {
   send(s: string): void;
@@ -186,7 +186,7 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
         continue;
       }
       if (outcome.status === 'denied') {
-        args.socket.send(wsResumeDenied(subscription, 'out_of_range'));
+        args.socket.send(wsResumeDenied(subscription, outcome.reason));
         continue;
       }
       // To `args.socket`, never to `subs.socketsFor(subscription)`. The other

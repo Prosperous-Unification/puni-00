@@ -34,9 +34,9 @@ export const LEASE_RENEW_MS = 3_000;
 export const ACCESS_CHECK_DEADLINE_MS = 1_500;
 
 /**
- * INTERIM, pending the be-01 adapter decision (lane realtime-auth, DECISION
- * NEEDED): grants every project, which is exactly gw-01's behaviour before
- * project authorization and matches be-01's pre-activation legacy reads. It
- * must be replaced by a be-01-backed check before organization activation.
+ * Local mode only: grants every project. A local-mode socket carries no
+ * credential to forward, and local be-01 authenticates every request as its
+ * one fixed identity with legacy access, so there is nothing to ask. Only
+ * {@link projectAccessFor} may select it, and only for a `local` credential.
  */
-export const LEGACY_PROJECT_ACCESS = (): CheckProjectAccess => () => Promise.resolve('granted');
+export const LOCAL_PROJECT_ACCESS: CheckProjectAccess = () => Promise.resolve('granted');

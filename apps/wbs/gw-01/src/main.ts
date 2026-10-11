@@ -1,15 +1,7 @@
-import { buildApp } from './app';
+import { buildGateway } from './composition';
 import { loadConfig } from './config';
-import { LEGACY_PROJECT_ACCESS } from './service/project-access';
 
 const cfg = loadConfig();
-const app = buildApp({
-  beUrl: cfg.BE_URL,
-  internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
-  jwtKey: cfg.JWT_SIGNING_KEY_CURRENT,
-  previousJwtKey: cfg.JWT_SIGNING_KEY_PREVIOUS,
-  ...cfg.wsAuth,
-  projectAccess: LEGACY_PROJECT_ACCESS,
-});
+const app = buildGateway(cfg);
 app.listen(cfg.PORT);
 console.log(`gw-01 listening on ${String(cfg.PORT)}`);

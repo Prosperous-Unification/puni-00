@@ -1537,19 +1537,32 @@ Observed on `4f3a35a32` under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`: `nx
 
 Omission negatives, each restored after: deleting the lifecycle entry from `project.db.test.ts`'s inventory failed that file 33 pass / 1 fail; deleting the `browser_auth_lifecycle` exclusion from the calendar-marker filter failed 2 pass / 1 fail; deleting `project_rank` from `ALSO_ROLLED_BACK` failed 17 pass / 1 fail; putting `shared_people` back ahead of the lifecycle in a `migrate-down` inventory failed 18 pass / 1 fail; removing the lifecycle migration folder made the mounted process and OIDC files fail 37 pass / 41 fail with `no such table: browser_auth_lifecycle`. Restored, those four store files passed 74/74 and the two mounted files 78/78, 460 assertions. The exact-SHA canonical gate (B2.6) has not run.
 
-## Slice realtime-auth — gateway project authorization (6.1–6.3 gateway side), batch 10, 2026-10-11
+## Slice realtime-auth — gateway project authorization (6.1–6.3), batch 10, 2026-10-11
 
-Commands: `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test` in `apps/wbs/gw-01`, `libs/wbs/domain/contracts`; `bunx nx run-many -t lint:fast,typecheck -p wbs-gw-01 wbs-contracts`. Each fault below was injected into the production path, the named test watched fail, and the code restored.
+Commands: `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test` in `apps/wbs/gw-01`, `libs/wbs/domain/contracts`, `tools/tool-smoke`, and `bun test --timeout=10000 src/controller/gateway-browser.controller.db.test.ts` in `apps/wbs/be-01`; `bunx nx run-many -t lint:fast,typecheck` for the touched projects. Each fault below was injected into the production path, the named test watched fail, and the code restored.
 
-| Fault                                                | Test failure                                                                                                               |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Treat every subscribe admission as `granted`         | `refuses a project the principal cannot read` timed out waiting for the refusal (6 pass, 1 fail).                          |
-| Forward `msg.resume_points` unfiltered to be-01      | `refuses resume points for a project the socket may not read` saw the foreign point reach be-01 (6 pass, 1 fail).          |
-| Skip the post-replay recheck                         | `withholds replay when access is lost while be-01 reads it` delivered the queued event (6 pass, 1 fail).                   |
-| Lease renewal returns at once                        | `drops a removed member's live subscription when its lease is renewed` and the 1008 close case timed out (5 pass, 2 fail). |
-| Unanswered check answers `granted`                   | `closes the socket when be-01 cannot answer, and grants nothing` kept the socket open (6 pass, 1 fail).                    |
-| Renew every 6000 ms instead of `LEASE_RENEW_MS`      | `revokes within the lease bound when access is lost just after a renewal` observed 6000 ms (10 pass, 2 fail).              |
-| Start subscription changes at once instead of queued | `applies a subscription change only after the one queued before it` saw the unsubscribe first (11 pass, 1 fail).           |
-| Drop the connection-abort listener                   | `stops leasing once the connection closes` found a lease round still scheduled (11 pass, 1 fail).                          |
+| Fault                                                                         | Test failure                                                                                                               |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| gw-01: treat every subscribe admission as `granted`                           | `refuses a project the principal cannot read` timed out waiting for the refusal (6 pass, 1 fail).                          |
+| gw-01: forward `msg.resume_points` unfiltered to be-01                        | `refuses resume points for a project the socket may not read` saw the foreign point reach be-01 (6 pass, 1 fail).          |
+| gw-01: skip the post-replay recheck                                           | `withholds replay when access is lost while be-01 reads it` delivered the queued event (6 pass, 1 fail).                   |
+| gw-01: lease renewal returns at once                                          | `drops a removed member's live subscription when its lease is renewed` and the 1008 close case timed out (5 pass, 2 fail). |
+| gw-01: unanswered check answers `granted`                                     | `closes the socket when be-01 cannot answer, and grants nothing` kept the socket open (6 pass, 1 fail).                    |
+| gw-01: renew every 6000 ms instead of `LEASE_RENEW_MS`                        | `revokes within the lease bound when access is lost just after a renewal` observed 6000 ms (10 pass, 2 fail).              |
+| gw-01: start subscription changes at once instead of queued                   | `applies a subscription change only after the one queued before it` saw the unsubscribe first (11 pass, 1 fail).           |
+| gw-01: drop the connection-abort listener                                     | `stops leasing once the connection closes` found a lease round still scheduled (11 pass, 1 fail).                          |
+| gw-01: production composition selects `LOCAL_PROJECT_ACCESS` for every socket | `the production gateway composition > asks be-01 and refuses a foreign project` timed out on the refusal (1 pass, 1 fail). |
+| gw-01: resume sends no forwarded cookie                                       | `resumes for the socket's own principal through be-01` saw no cookie (1 pass, 1 fail).                                     |
+| gw-01: map 401 `unauthorized` and unknown refusals to `denied`                | `throws on a refused gateway secret` and `throws on a success-shaped body under any other status` (2 pass, 2 fail).        |
+| be-01: skip the gateway secret check in `gateway-browser`                     | `refuses a forwarded browser credential without the gateway secret` and the resume variant (7 pass, 2 fail).               |
+| be-01: accept an `Authorization` header in `gateway-browser`                  | `refuses a Bearer in place of the forwarded browser cookie` answered 204 (8 pass, 1 fail).                                 |
+| be-01: answer 204 when membership resolution refuses                          | `refuses a removed member` (8 pass, 1 fail).                                                                               |
+| be-01: read the project with legacy access in `browser-access`                | `refuses a foreign project as not found, exactly like an absent one` answered 204 (8 pass, 1 fail).                        |
+| be-01: admit every resume subscription                                        | `refuses a resume naming a foreign project` and `replays nothing to a removed member` (7 pass, 2 fail).                    |
+| be-01: read with legacy access after a refused membership in resume           | `replays nothing to a removed member` (8 pass, 1 fail).                                                                    |
+| contracts: drop `forbidden` from `ResumeDeniedFrame`                          | `are control frames the parser accepts` (5 pass, 1 fail).                                                                  |
+| smoke: treat every close as failure                                           | `succeeds when be-01 refuses the smoke principal` (13 pass, 1 fail).                                                       |
+| smoke: treat a 1013 close as success                                          | `fails when gw-01 closes because the access check went unanswered` (13 pass, 1 fail).                                      |
+| smoke: drop close-frame parsing                                               | `consumeFrame > reports a close frame's code and reason` (13 pass, 1 fail).                                                |
 
-Not done in this slice: the be-01-backed `CheckProjectAccess` adapter and be-01's `/internal/resume` principal recheck (decision pending), forwarded-command authorization, and membership-change notification fan-out (the lease alone meets the bound).
+Not done in this slice: forwarded-command authorization and membership-change notification fan-out (the lease alone meets the bound).

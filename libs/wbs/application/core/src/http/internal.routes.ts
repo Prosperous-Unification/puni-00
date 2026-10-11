@@ -1,13 +1,16 @@
 import {
+  type AuthenticatedUser,
   forwardInternal,
+  gatewayBrowserProjectAccess,
   gatewayProjectAccess,
   type InternalResumeResponse,
   resumeInternal,
 } from '@wbs/contracts';
 
 import type { ProjectService } from '../module/project/project.resource';
-import { replay } from '../module/realtime/realtime.feature';
+import { replayReadable } from '../module/realtime/realtime.feature';
 import type { OrganizationAccess } from '../ports/organization-access';
+import { projectIdOfSubscription } from '../ports/project-event';
 import { EMPTY } from './endpoint';
 import { bind, type RequestMetadata } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
@@ -27,6 +30,9 @@ export interface InternalDeps {
     resumePoints: Record<string, number>,
     ctx: InternalCallContext,
   ) => Promise<InternalResumeResponse>;
+  /** Projects and membership, for the resume principal's per-subscription check. */
+  projects: ProjectService;
+  organizations: OrganizationAccess;
 }
 
 /**
@@ -53,23 +59,58 @@ export function internalRoutes(deps: InternalDeps) {
     }),
     bind(resumeInternal, async ({ body, request, principal }) => {
       const context = contextFrom(request, body.trace_id);
-      const outcome = await replay(
+      const readable = await readableProjects(deps.projects, deps.organizations, principal);
+      // Proof: admitting every named subscription made `refuses a resume
+      // naming a foreign project` and `replays nothing to a removed member`
+      // (gateway-browser.controller.db.test.ts) replay them (2026-10-11).
+      const outcome = await replayReadable(
         { replay: (points) => deps.onResume(points, context) },
-        {
-          resumePoints: Object.fromEntries(Object.entries(body.resume_points)),
-          principal,
+        Object.fromEntries(Object.entries(body.resume_points)),
+        async (subscription) => {
+          const projectId = projectIdOfSubscription(subscription);
+          return projectId !== null && (await readable(projectId));
         },
       );
-      if ('status' in outcome)
-        throw new Error('internal endpoint admitted a noninternal principal');
       return { ok: true, status: 200, body: outcome };
     }),
   ] as const;
 }
 
+/**
+ * Whether `principal` may read each project now: one membership resolution,
+ * then an organization-scoped lookup per project. A refused membership reads
+ * nothing; a foreign project is false exactly like an absent one.
+ */
+async function readableProjects(
+  projects: ProjectService,
+  organizations: OrganizationAccess,
+  principal: AuthenticatedUser,
+): Promise<(projectId: string) => Promise<boolean>> {
+  const resolved = await organizations.resolve(principal);
+  // Proof: reading with legacy access after a refused resolution made
+  // `replays nothing to a removed member` (gateway-browser.controller.db.test.ts)
+  // replay the project (2026-10-11).
+  if (!resolved.ok) return () => Promise.resolve(false);
+  return async (projectId) => (await projects.readWithin(projectId, resolved.access)) !== null;
+}
+
 /** Checks current membership and an organization-scoped project for one gateway request. */
 export function gatewayAccessRoutes(projects: ProjectService, organizations: OrganizationAccess) {
   return [
+    // The forwarded-browser variant gw-01 calls today; the delegation variant
+    // below is the post-activation path.
+    bind(gatewayBrowserProjectAccess, async ({ principal, params }) => {
+      const resolved = await organizations.resolve(principal);
+      // Proof: bypassing this membership resolution admitted a removed member
+      // in `refuses a removed member` (gateway-browser.controller.db.test.ts).
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      // Proof: replacing readWithin with an unscoped lookup answered 204 for a
+      // foreign project in `refuses a foreign project as not found`
+      // (gateway-browser.controller.db.test.ts).
+      const found = await projects.readWithin(params.projectId, resolved.access);
+      if (found === null) return { ok: false, status: 404, body: { error: 'not_found' } } as const;
+      return { ok: true, status: 204, body: EMPTY } as const;
+    }),
     bind(gatewayProjectAccess, async ({ principal, params }) => {
       // Proof: selecting the organization from x-wbs-organization made the
       // mounted foreign-project test answer 204 instead of 404 (2026-09-28).

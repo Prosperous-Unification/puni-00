@@ -1,9 +1,16 @@
 import { SignJWT } from 'jose';
 
+/** A message (`data`) or, on `close`, the close frame's code and reason. */
+export interface SocketEvent {
+  data: string;
+  code?: number;
+  reason?: string;
+}
+
 export interface SocketLike {
   send: (data: string) => void;
   close: () => void;
-  addEventListener: (ev: string, cb: (e: { data: string }) => void) => void;
+  addEventListener: (ev: string, cb: (e: SocketEvent) => void) => void;
 }
 
 export interface PingOptions {
@@ -106,25 +113,29 @@ const frames = (seen: readonly string[]): string =>
  *    is the only way to exercise gw-01's `ForwardClient` from outside gw-01. A
  *    forward that throws answers `{"type":"error","code":"backend_unavailable"}`;
  *    a forward that works answers nothing at all.
- * 2. `{"type":"resume"}` on {@link PROBE_SUBSCRIPTION}. gw-01 posts that to
- *    be-01's `/internal/resume` carrying the same secret, and the two outcomes
- *    are distinguishable at the client: `out_of_range` is be-01's answer and can
- *    only come from a call that arrived; `unavailable` is gw-01's own catch,
- *    which is what an unreachable or rejecting be-01 produces.
+ * 2. `{"type":"resume"}` on {@link PROBE_SUBSCRIPTION}, sent once the forward
+ *    has drained. gw-01 first asks be-01 whether the socket's principal may
+ *    read that project, forwarding the smoke cookie behind the same secret.
+ *    The outcomes are distinguishable at the client: be-01 refusing the smoke
+ *    principal closes the socket 1008 `unauthenticated` (gw-01 verified the
+ *    token at the upgrade, so only be-01 can refuse it now), and an
+ *    `out_of_range` denial is be-01's replay answer; a 1013 close or an
+ *    `unavailable` denial is gw-01's own fail-closed path, which is what an
+ *    unreachable or rejecting be-01 produces.
  *
  * What this does NOT prove: that a *successful* forward did anything. be-01's
  * `onForward` is a no-op and nothing is echoed back, so the forward half is the
- * absence of an error frame, drained for {@link FORWARD_DRAIN_MS} after the
- * resume settles rather than awaited — the two calls are independent HTTP
- * requests and gw-01 does not serialise them. A forward failure slower than that
- * drain is missed. The resume half has no such hole: `resume_ack` ends the
- * exchange, and the reason on the denial before it is what is asserted.
+ * absence of an error frame, drained for {@link FORWARD_DRAIN_MS} before the
+ * resume is sent (a refused resume closes the socket) and again after
+ * `resume_ack`. A forward failure slower than that is missed. The resume half
+ * has no such hole: `resume_ack` or the close ends the exchange.
  */
 export async function runBackendHopSmoke(opts: PingOptions): Promise<PingResult> {
   const sock = opts.connect();
   const seen: string[] = [];
   return await new Promise<PingResult>((resolve) => {
     let settled = false;
+    let resumeSent = false;
     const finish = (ok: boolean, detail: string): void => {
       if (settled) return;
       settled = true;
@@ -145,7 +156,35 @@ export async function runBackendHopSmoke(opts: PingOptions): Promise<PingResult>
       // answer` failed — the resume half alone still passed, which is precisely
       // the gap that let `ForwardClient` go unexercised in the first place.
       sock.send(JSON.stringify({ subscription: PROBE_SUBSCRIPTION, message: { type: 'smoke' } }));
-      sock.send(JSON.stringify({ type: 'resume', resume_points: { [PROBE_SUBSCRIPTION]: 0 } }));
+      // After the forward drain: a resume be-01 refuses closes the socket, and a
+      // forward error behind that close could never arrive.
+      setTimeout(() => {
+        if (settled) return;
+        resumeSent = true;
+        sock.send(JSON.stringify({ type: 'resume', resume_points: { [PROBE_SUBSCRIPTION]: 0 } }));
+      }, FORWARD_DRAIN_MS);
+    });
+
+    sock.addEventListener('close', (e) => {
+      // Proof: treating every close as a failure made `succeeds when be-01
+      // refuses the smoke principal` (ws-ping.test.ts) report a healthy hop as
+      // FAIL; treating 1013 as success made `fails when gw-01 closes because the
+      // access check went unanswered` pass a broken hop (2026-10-11).
+      if (resumeSent && e.code === 1008 && e.reason === 'unauthenticated') {
+        stop(
+          true,
+          `be-01 refused the smoke principal, so gw-01 reached it — frames: ${frames(seen)}`,
+        );
+        return;
+      }
+      if (e.code === 1013) {
+        stop(false, `gw-01 could not reach be-01 to check project access (1013 ${e.reason ?? ''})`);
+        return;
+      }
+      stop(
+        false,
+        `gw-01 closed the socket ${String(e.code)} ${e.reason ?? ''} — frames: ${frames(seen)}`,
+      );
     });
 
     sock.addEventListener('message', (e) => {
@@ -268,15 +307,19 @@ function encodeTextFrame(payload: string): Uint8Array {
 
 /**
  * Consumes one WS frame off the front of `buf` if a complete one is
- * present. Text/binary frames (opcode 1/2) are reported as a message;
- * control frames (WS-protocol-level close/ping/pong, distinct from this
- * check's own JSON-level `{"type":"ping"}`) are silently consumed and
- * skipped. Returns `null` when `buf` doesn't yet hold a whole frame — the
+ * present. Text/binary frames (opcode 1/2) are reported as a message and a
+ * close frame as its code and reason; other control frames (WS-protocol-level
+ * ping/pong, distinct from this check's own JSON-level `{"type":"ping"}`) are
+ * silently consumed and skipped. Returns `null` when `buf` doesn't yet hold a whole frame — the
  * caller should wait for more bytes. Only handles payloads up to 65535
  * bytes (the 16-bit extended-length form): plenty for this protocol's small
  * JSON messages, not a general-purpose WS parser.
  */
-function consumeFrame(buf: Uint8Array): { message: string | null; rest: Uint8Array } | null {
+export function consumeFrame(buf: Uint8Array): {
+  message: string | null;
+  close: { code: number; reason: string } | null;
+  rest: Uint8Array;
+} | null {
   if (buf.length < 2) return null;
   const opcode = buf[0] & 0x0f;
   const masked = (buf[1] & 0x80) !== 0;
@@ -295,7 +338,15 @@ function consumeFrame(buf: Uint8Array): { message: string | null; rest: Uint8Arr
   const payload = buf.subarray(offset, offset + len);
   const rest = buf.subarray(offset + len);
   const isData = opcode === 0x1 || opcode === 0x2;
-  return { message: isData ? new TextDecoder().decode(payload) : null, rest };
+  // A close frame's payload is a 16-bit status code and a UTF-8 reason.
+  const close =
+    opcode === 0x8 && payload.length >= 2
+      ? {
+          code: (payload[0] << 8) | payload[1],
+          reason: new TextDecoder().decode(payload.subarray(2)),
+        }
+      : null;
+  return { message: isData ? new TextDecoder().decode(payload) : null, close, rest };
 }
 
 export interface CaddyWsTarget {
@@ -323,9 +374,10 @@ export function caddyUpgradeRequest(target: CaddyWsTarget, key: string): string 
 
 function connectThroughCaddy(target: CaddyWsTarget): SocketLike {
   const listeners: {
-    open: ((e: { data: string }) => void)[];
-    message: ((e: { data: string }) => void)[];
-  } = { open: [], message: [] };
+    open: ((e: SocketEvent) => void)[];
+    message: ((e: SocketEvent) => void)[];
+    close: ((e: SocketEvent) => void)[];
+  } = { open: [], message: [], close: [] };
   let pending: Uint8Array = new Uint8Array(0);
   let upgraded = false;
   let sock: Bun.Socket | null = null;
@@ -372,6 +424,10 @@ function connectThroughCaddy(target: CaddyWsTarget): SocketLike {
           if (decoded.message !== null) {
             for (const cb of listeners.message) cb({ data: decoded.message });
           }
+          const closed = decoded.close;
+          if (closed !== null) {
+            for (const cb of listeners.close) cb({ data: '', ...closed });
+          }
         }
       },
       error(_s, err) {
@@ -397,6 +453,7 @@ function connectThroughCaddy(target: CaddyWsTarget): SocketLike {
     addEventListener: (ev, cb) => {
       if (ev === 'open') listeners.open.push(cb);
       if (ev === 'message') listeners.message.push(cb);
+      if (ev === 'close') listeners.close.push(cb);
     },
   };
 }

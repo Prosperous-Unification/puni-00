@@ -47,10 +47,12 @@ class AccessTable {
     if (credential.kind !== 'cookie') throw new Error('test sockets authenticate by cookie');
     return (projectId: string): Promise<ProjectAccessVerdict> => {
       if (this.outage !== null) return Promise.reject(this.outage);
-      if (this.unauthenticated.has(credential.accessToken))
+      if (this.unauthenticated.has(credential.forwarded.accessCookie))
         return Promise.resolve('unauthenticated');
       return Promise.resolve(
-        this.readable.get(credential.accessToken)?.has(projectId) === true ? 'granted' : 'denied',
+        this.readable.get(credential.forwarded.accessCookie)?.has(projectId) === true
+          ? 'granted'
+          : 'denied',
       );
     };
   };
@@ -179,12 +181,16 @@ describe('gw-01 authorizes project subscriptions against be-01', () => {
     const { port } = start(table);
     const ada = await tokenFor('ada');
     table.grant(ada, OWN);
-    const client = await connect(port, ada, 'org-a-binding');
+    // Percent-encoded on purpose: the cookies are forwarded exactly as sent.
+    const client = await connect(port, ada, 'org%2Da.binding');
     client.send({ type: 'subscribe', subscription: own });
     await settle();
 
     expect(table.credentials).toEqual([
-      { kind: 'cookie', accessToken: ada, organizationCookie: 'org-a-binding' },
+      {
+        kind: 'cookie',
+        forwarded: { accessCookie: ada, organizationCookie: 'org%2Da.binding' },
+      },
     ]);
     expect(await push(port, own)).toBe(1);
   });
