@@ -1669,6 +1669,7 @@ async function settleShared(world: SharedWorld): Promise<void> {
     );
     if (!starting && !exiting) return;
   }
+  throw new Error('shared world did not settle');
 }
 
 function captureDisplay(world: SharedWorld) {
@@ -1853,6 +1854,9 @@ class SharedExitChild implements SharedCommand {
               },
         now: Date.now(),
       };
+      // ExitChild covers the installed outcome owner and trackCommittedDelivery; solver-response
+      // parsing and the child-exit callback are proven by services.db.test.ts "releases the exact
+      // terminal child while only its installed outcome transport holds stop".
       const installed = world.optimizer as unknown as {
         storeOutcome(write: OptimizationOutcomeWrite): Promise<string>;
       };
