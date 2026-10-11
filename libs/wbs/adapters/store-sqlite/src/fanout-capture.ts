@@ -10,6 +10,7 @@ import type {
   DirectoryWriteResolution,
   LifecycleOwnership,
 } from '@wbs/core/ports/fanout-capture-store';
+import { roleMaySwitchCapacityMode } from '@wbs/core/service/capacity-mode.resource';
 import { scheduleInputOfCaptured } from '@wbs/core/service/saved-plan-schedule';
 import {
   canEditProjectInOrganization,
@@ -188,7 +189,7 @@ export function authorizeModeSwitchIn(db: Drizzle): BeforeModeSwitch {
     if (membership === undefined) return Promise.resolve({ ok: false, reason: 'forbidden' });
     const role = validateStoredRole(membership.role, organizationId);
     return Promise.resolve(
-      role === 'super_admin' ? { ok: true } : { ok: false, reason: 'forbidden' },
+      roleMaySwitchCapacityMode(role) ? { ok: true } : { ok: false, reason: 'forbidden' },
     );
   };
 }

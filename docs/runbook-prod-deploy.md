@@ -351,11 +351,12 @@ remains is to switch every shared organization back to isolated through the rout
 super-admins (each switch is audited and tells every project; each project's own dates return).
 There is no operator CLI or maintenance identity for this: the switch is an organization act, so
 it must be made by a super-admin of that organization signed in in person (a delegated session is
-refused). Every organization keeps at least one super-admin (`last_super_admin`), so ask one of
-them to send `PATCH /api/organization {"sharedPeople": false}` from the organization page's Shared
-people panel; an operator who must act instead first joins the organization by invitation and is then
-granted the role by that super-admin
-through `PATCH /api/organization/members/<userId> {"role": "super_admin"}`. Then roll back code
+refused). The last-super-admin guard keeps a super-admin membership row in every organization, but
+that row is not proof of a person who can still sign in. If one can, they switch the organization
+back themselves from the organization page's Shared people panel (`PATCH /api/organization
+{"sharedPeople": false}`); promoting an operator instead needs that same super-admin, so it is
+never a shortcut. If no super-admin can sign in, recovery starts by restoring one super-admin's
+sign-in; WBS has no operator path around it. Then roll back code
 only: with no organization shared, the swap's capacity-modes guard admits an
 older image, and the extra column and table are inert to it.
 

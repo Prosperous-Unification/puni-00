@@ -215,6 +215,20 @@ describe('the capacity mode', () => {
 });
 
 describe('who may switch', () => {
+  it('reads canSwitch exactly as the switch admits', async () => {
+    // Proof: 2026-10-11, re-splitting the switch's rule from the read's (the
+    // switch admitting admins in place of super-admins) failed this case: sam
+    // read canSwitch: true and was refused.
+    for (const username of ['sam', 'ada', 'mel', 'vic']) {
+      const read = (await h.call(username, 'GET', MODE)).body as { canSwitch: boolean };
+      const patch = await h.call(username, 'PATCH', MODE, { sharedPeople: false });
+      expect({ username, canSwitch: read.canSwitch }).toEqual({
+        username,
+        canSwitch: patch.status === 200,
+      });
+    }
+  });
+
   it('tells only a super-admin acting in person that they may switch', async () => {
     const canSwitch: Record<string, unknown> = {};
     for (const username of ['sam', 'ada', 'mel', 'vic'])

@@ -5,7 +5,34 @@ import type { ResourceAccess } from '../ports/organization-access';
 import type { CapacityModeSwitch } from '../ports/project-rank-store';
 
 export type CapacityModeRefusal =
-  'organization_required' | 'forbidden' | 'capacity_mode_unsupported';
+  'organization_required' | 'forbidden' | 'insufficient_scope' | 'capacity_mode_unsupported';
+
+/**
+ * Whether `access` may switch its organization's capacity mode: a super-admin
+ * acting in person, never through a delegation. The one rule both the read's
+ * `canSwitch` and the switch's admission use, so they cannot disagree.
+ *
+ * Proof: 2026-10-11, the role widened to admins failed four cases of
+ * `capacity-mode.controller.db.test.ts` (admin refusals, demotion, `tells only
+ * a super-admin …`); the delegation clause dropped failed the delegated read
+ * and switch in `delegation.controller.db.test.ts`.
+ */
+export function maySwitchCapacityMode(
+  access: Extract<ResourceAccess, { kind: 'scoped' }>,
+  delegated: boolean,
+): boolean {
+  return !delegated && roleMaySwitchCapacityMode(access.scope.role);
+}
+
+/**
+ * The role half of {@link maySwitchCapacityMode}, which the write turn
+ * re-checks on the writer (`authorizeModeSwitchIn`) with no delegation to see.
+ */
+export function roleMaySwitchCapacityMode(
+  role: Extract<ResourceAccess, { kind: 'scoped' }>['scope']['role'],
+): boolean {
+  return role === 'super_admin';
+}
 
 export type CapacityModeOutcome<R extends CapacityModeRefusal = CapacityModeRefusal> =
   | { ok: true; sharedPeople: boolean; sharingAvailable: boolean; canSwitch: boolean }
@@ -48,12 +75,7 @@ export class CapacityModeResource {
       ok: true,
       sharedPeople: mode === 'shared',
       sharingAvailable: this.sharingAvailable(),
-      // Proof: the role clause widened to every in-person member failed `tells
-      // only a super-admin acting in person that they may switch`
-      // (`capacity-mode.controller.db.test.ts`); dropping the delegation clause
-      // failed the delegated read in `delegation.controller.db.test.ts`;
-      // watched 2026-10-11.
-      canSwitch: !delegated && access.scope.role === 'super_admin',
+      canSwitch: maySwitchCapacityMode(access, delegated),
     };
   }
 
@@ -61,12 +83,13 @@ export class CapacityModeResource {
     actorId: string,
     access: ResourceAccess,
     sharedPeople: boolean,
+    delegated: boolean,
   ): Promise<CapacityModeOutcome> {
     if (access.kind === 'legacy') return { ok: false, refusal: 'organization_required' };
-    // Proof: this check widened to admins made `refuses an admin the switch,
-    // keeping the organization isolated` (`capacity-mode.controller.db.test.ts`)
-    // fail; watched 2026-10-11.
-    if (access.scope.role !== 'super_admin') return { ok: false, refusal: 'forbidden' };
+    // An organization act that moves every project's dates is a person's,
+    // never a delegation's, as member administration is.
+    if (!maySwitchCapacityMode(access, delegated))
+      return { ok: false, refusal: delegated ? 'insufficient_scope' : 'forbidden' };
     const mode: CapacityMode = sharedPeople ? 'shared' : 'isolated';
     // Proof: this check removed made `refuses shared people this release cannot
     // run` (`capacity-mode.controller.db.test.ts`) fail; watched 2026-10-11.

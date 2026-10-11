@@ -8,6 +8,7 @@ import { organizationRefusal } from './organization-refusal';
 const REFUSED = {
   organization_required: { ok: false, status: 409, body: { error: 'organization_required' } },
   forbidden: { ok: false, status: 403, body: { error: 'forbidden' } },
+  insufficient_scope: { ok: false, status: 403, body: { error: 'insufficient_scope' } },
   capacity_mode_unsupported: {
     ok: false,
     status: 409,
@@ -41,16 +42,14 @@ export function capacityModeRoutes(modes: CapacityModeResource, organizations: O
         : refused(outcome.refusal);
     }),
     bind(switchCapacityMode, async ({ body, principal }) => {
-      // An organization act that moves every project's dates is a person's,
-      // never a delegation's, as member administration is.
-      // Proof: this guard removed made `refuses a delegated switch of the capacity
-      // mode, even a super-admin’s` (`delegation.controller.db.test.ts`) reach the switch
-      // owner (500 from the uncomposed harness) instead of 403; watched 2026-10-11.
-      if (principal.delegation !== undefined)
-        return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
-      const outcome = await modes.switch(principal.id, resolved.access, body.sharedPeople);
+      const outcome = await modes.switch(
+        principal.id,
+        resolved.access,
+        body.sharedPeople,
+        principal.delegation !== undefined,
+      );
       return outcome.ok
         ? {
             ok: true,

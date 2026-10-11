@@ -297,6 +297,12 @@ describe('after activation', () => {
       status: 200,
       body: { canSwitch: false },
     });
+    // The same super-admin in person may switch (the composed case in
+    // `capacity-mode.controller.db.test.ts` checks the switch agrees).
+    expect(await h.call('ada', 'GET', '/api/organization')).toMatchObject({
+      status: 200,
+      body: { canSwitch: true },
+    });
   });
 
   it('lists only the delegated organization’s projects', async () => {
