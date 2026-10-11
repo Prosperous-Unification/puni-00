@@ -35,7 +35,7 @@
 
   Fault: route by a suspended claim and observe the suspended-email test fail. Then accept two hints and observe the ambiguity test fail. Restore and add `Proof:`.
 
-- [ ] 2.3 Prove a connection through the routed explicit link, recording the mismatch time and `sso_prefix_mismatch`.
+- [x] 2.3 Prove a connection through the routed explicit link, recording the mismatch time and `sso_prefix_mismatch`.
 
   Red: the fixture subject `samlp|acme-saml|alice@acme.test` proves the connection. `samlp|other|…`, `samlp|acme-saml-2|…`, `samlp|alice@acme.test` and `google-oauth2|1` do not. A non-super-admin cannot prove. Two organizations proving the same name end with one winner and `sso_connection_taken`.
 

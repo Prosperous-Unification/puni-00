@@ -1,3 +1,5 @@
+import { isCanonicalDomain } from '@wbs/domain';
+
 import type { AuditedAct } from './organization-audit';
 import type { SessionPolicy } from './session-policies';
 
@@ -46,6 +48,7 @@ export type ConnectionAuthorityRefusal = 'inactive' | 'forbidden' | 'not_found';
 
 /** Where login routing sends a browser. */
 export interface EnterpriseRoute {
+  readonly connectionId: string;
   readonly organizationId: string;
   readonly auth0Connection: string;
   /** The routed organization's session policy; null when it has none. */
@@ -83,6 +86,69 @@ export function carriesSubjectPrefix(
 ): boolean {
   return subject.startsWith(subjectPrefixOf(connection));
 }
+
+/** The strategies whose subjects an enterprise connection's IdP issues. */
+const ENTERPRISE_SUBJECT = /^(?:samlp|oidc)\|/;
+
+/** Whether `subject` was issued through an enterprise strategy (`samlp|` or `oidc|`). */
+export function isEnterpriseSubject(subject: string): boolean {
+  return ENTERPRISE_SUBJECT.test(subject);
+}
+
+/**
+ * The canonical lowercase ASCII IDNA domain of `email`, by the claim rules,
+ * or null when it has none.
+ */
+export function canonicalEmailDomain(email: string | null): string | null {
+  if (email === null) return null;
+  const separator = email.lastIndexOf('@');
+  if (separator <= 0) return null;
+  const domain = email.slice(separator + 1).toLowerCase();
+  if (!/^[\p{L}\p{M}\p{N}.-]+$/u.test(domain)) return null;
+  try {
+    const host = new URL(`http://${domain}`).hostname;
+    return isCanonicalDomain(host) ? host : null;
+  } catch {
+    // A domain the URL parser refuses is no domain: the modeled null.
+    return null;
+  }
+}
+
+/**
+ * Whether an enterprise identity's `email` is attested (`organization-sso`
+ * requirement 3, D4): its subject carries a proven connection's prefix
+ * (`proven`, from {@link EnterpriseConnections.provenFor}) and the email's
+ * canonical domain is that connection's verified domain.
+ */
+export function isAttestedEmail(email: string | null, proven: ProvenConnection | null): boolean {
+  return proven !== null && canonicalEmailDomain(email) === proven.domain;
+}
+
+/** A verified upstream identity a routed link returned. */
+export interface RoutedIdentity {
+  readonly issuer: string;
+  readonly subject: string;
+  readonly email: string | null;
+  readonly emailVerified: boolean;
+}
+
+/**
+ * What a link routed through a connection's slug did (D5). `linked` added the
+ * pair, and proved the connection when its actor could; the refusals added
+ * nothing.
+ */
+export type RoutedLink =
+  | { readonly kind: 'linked' }
+  | {
+      readonly kind:
+        | 'not_found'
+        | 'inactive'
+        | 'sso_prefix_mismatch'
+        | 'sso_connection_taken'
+        | 'identity_collision'
+        | 'email_collision'
+        | 'invalid_account';
+    };
 
 /**
  * Enterprise connection records. Every write rechecks activation and the
@@ -161,4 +227,20 @@ export interface EnterpriseConnections {
   routeByDomain(domain: string): Promise<EnterpriseRoute | null>;
   /** The proven connection whose whole prefix `subject` carries, if any. */
   provenFor(subject: string): Promise<ProvenConnection | null>;
+  /**
+   * Completes a link routed through `connectionId` for `userId`, in one
+   * immediate transaction (D5). A subject without the connection's whole
+   * prefix records the mismatch time and links nothing. Otherwise the pair is
+   * linked, and, when the email is on the connection's domain and `userId` is
+   * a current super-admin of its organization, the connection is proven with
+   * one audit row. The email is verified only when attested afterwards
+   * ({@link isAttestedEmail}). A second organization's proof of an already
+   * proven Auth0 connection is `sso_connection_taken` and links nothing.
+   */
+  linkThroughConnection(
+    userId: string,
+    connectionId: string,
+    identity: RoutedIdentity,
+    act: AuditedAct,
+  ): Promise<RoutedLink>;
 }

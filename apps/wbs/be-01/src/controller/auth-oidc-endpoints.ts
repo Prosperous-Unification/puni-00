@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import {
   browserBindingCookieName,
@@ -354,7 +354,15 @@ const clearLink = (): Header => cookie(LINK_COOKIE, '', 0);
  * The fixed outcomes a link callback reports to fe-01 as `?auth_link=`.
  * Nothing from the request (state, error, error_description) is echoed.
  */
-type LinkOutcome = 'linked' | 'refused' | 'inactive' | 'collision' | 'unavailable' | 'failed';
+type LinkOutcome =
+  | 'linked'
+  | 'refused'
+  | 'inactive'
+  | 'collision'
+  | 'unavailable'
+  | 'failed'
+  | 'sso_prefix_mismatch'
+  | 'sso_connection_taken';
 const LINK_OUTCOME_FOR_OIDC_FAILURE: Record<OidcFailureKind, LinkOutcome> = {
   defect: 'failed',
   indeterminate: 'unavailable',
@@ -428,7 +436,10 @@ export function authOidcEndpoints(
   auth: AuthService,
   options: OidcRouteOptions,
   passwordThrottle: LoginThrottle,
-  enterprise: Pick<EnterpriseConnections, 'routeBySlug' | 'routeByDomain'>,
+  enterprise: Pick<
+    EnterpriseConnections,
+    'routeBySlug' | 'routeByDomain' | 'linkThroughConnection'
+  >,
   browserSession?: BrowserSessionAuthority,
 ) {
   const now = options.now ?? Date.now;
@@ -940,9 +951,17 @@ export function authOidcEndpoints(
       if (current === null || session === null)
         return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
       const choice = methodChoice(options.methods, body.method);
-      // A disabled method is refused before any binding or provider address exists.
-      if (choice.kind === 'disabled')
+      // A disabled method, or a method beside a slug, is refused before any
+      // binding or provider address exists.
+      if (
+        choice.kind === 'disabled' ||
+        (body.method !== undefined && body.organization !== undefined)
+      )
         return { ok: false, status: 400, body: { error: 'invalid_body' } };
+      const routed =
+        body.organization === undefined ? null : await enterprise.routeBySlug(body.organization);
+      if (body.organization !== undefined && routed === null)
+        return { ok: false, status: 404, body: { error: 'sso_connection_not_found' } };
       let user;
       if (current.kind === 'oidc') {
         // No password exists to prove; one sent anyway is a confused client.
@@ -983,14 +1002,21 @@ export function authOidcEndpoints(
       const state = random();
       const nonce = random();
       const verifier = random();
-      links.save(binding, { userId: user.id, session, state, nonce, verifier });
+      links.save(binding, {
+        userId: user.id,
+        session,
+        state,
+        nonce,
+        verifier,
+        ...(routed === null ? {} : { connectionId: routed.connectionId }),
+      });
       const location = await options.client.authorizationUrl({
         nonce,
         state,
         verifier,
         redirectUri: linkRedirectUri,
         prompt: 'login',
-        ...connectionParameter(choice),
+        ...(routed === null ? connectionParameter(choice) : { connection: routed.auth0Connection }),
       });
       return {
         ok: true,
@@ -1060,6 +1086,28 @@ export function authOidcEndpoints(
           });
         } catch {
           return linkOutcome('refused');
+        }
+        if (proof.connectionId !== undefined) {
+          const at = now();
+          const routed = await enterprise.linkThroughConnection(
+            user.id,
+            proof.connectionId,
+            identity,
+            { stamp: { at, by: user.id }, actor: user.id, auditId: randomUUID() },
+          );
+          switch (routed.kind) {
+            case 'linked':
+            case 'inactive':
+            case 'sso_prefix_mismatch':
+            case 'sso_connection_taken':
+              return linkOutcome(routed.kind);
+            case 'identity_collision':
+            case 'email_collision':
+              return linkOutcome('collision');
+            case 'not_found':
+            case 'invalid_account':
+              return linkOutcome('refused');
+          }
         }
         const linked = await auth.linkOidcIdentity(user.id, identity);
         if (linked.kind === 'inactive') return linkOutcome('inactive');

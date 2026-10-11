@@ -145,6 +145,11 @@ interface TestMail {
 export class OrganizationHarness {
   private readonly tokens = new Map<string, string>();
   private readonly ids = new Map<string, string>();
+  /**
+   * Set when the browser OIDC routes are mounted: registration then needs an
+   * edge client address and answers its session as the access cookie.
+   */
+  private federated = false;
 
   private constructor(
     private readonly dir: string,
@@ -466,7 +471,9 @@ export class OrganizationHarness {
       writes: testWrites(undefined, writing),
       migrationsApplied: true,
     });
-    return new OrganizationHarness(dir, app, openDatabase(path), bound, domains, mail);
+    const harness = new OrganizationHarness(dir, app, openDatabase(path), bound, domains, mail);
+    harness.federated = provider !== undefined;
+    return harness;
   }
 
   /**
@@ -698,15 +705,25 @@ export class OrganizationHarness {
     const res = await this.app.handle(
       new Request('http://localhost/api/auth/register', {
         method: 'POST',
-        headers: { origin: 'http://localhost', 'content-type': 'application/json' },
+        headers: {
+          origin: 'http://localhost',
+          'content-type': 'application/json',
+          // One address per account, so the registration throttle never joins them.
+          ...(this.federated
+            ? { 'x-forwarded-for': `203.0.113.${String(this.ids.size + 1)}` }
+            : {}),
+        },
         body: JSON.stringify({ username, password: 'correct-horse' }),
       }),
     );
     const body = (await res.json()) as { token?: unknown; user?: { id?: unknown } };
-    if (typeof body.token !== 'string' || typeof body.user?.id !== 'string') {
+    const token = this.federated
+      ? /__Host-wbs_access=([^;]+)/.exec(res.headers.get('set-cookie') ?? '')?.[1]
+      : body.token;
+    if (typeof token !== 'string' || token === '' || typeof body.user?.id !== 'string') {
       throw new Error(`register did not answer with a token and user: ${JSON.stringify(body)}`);
     }
-    this.tokens.set(username, body.token);
+    this.tokens.set(username, decodeURIComponent(token));
     this.ids.set(username, body.user.id);
   }
 

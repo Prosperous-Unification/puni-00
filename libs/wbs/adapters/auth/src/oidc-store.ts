@@ -19,6 +19,8 @@ export class InMemoryOidcLinkStore {
       readonly state: string;
       readonly nonce: string;
       readonly verifier: string;
+      /** The enterprise connection a routed link was sent through. */
+      readonly connectionId?: string;
       readonly expiresAt: number;
     }
   >();
@@ -35,7 +37,14 @@ export class InMemoryOidcLinkStore {
   /** A new start replaces the same browser binding; expired proofs are discarded. */
   save(
     binding: string,
-    proof: { userId: string; session: string; state: string; nonce: string; verifier: string },
+    proof: {
+      userId: string;
+      session: string;
+      state: string;
+      nonce: string;
+      verifier: string;
+      connectionId?: string;
+    },
   ): void {
     for (const [key, link] of this.links) if (link.expiresAt <= this.now()) this.links.delete(key);
     // Proof: 2026-09-28, removing eviction made `expires proofs and bounds the retained starts` consume `first` after the third save.
@@ -50,6 +59,7 @@ export class InMemoryOidcLinkStore {
       state: proof.state,
       nonce: proof.nonce,
       verifier: proof.verifier,
+      ...(proof.connectionId === undefined ? {} : { connectionId: proof.connectionId }),
       expiresAt: this.now() + 300_000,
     });
   }
@@ -74,7 +84,12 @@ export class InMemoryOidcLinkStore {
     )
       return null;
     this.links.delete(key);
-    return { userId: link.userId, nonce: link.nonce, verifier: link.verifier };
+    return {
+      userId: link.userId,
+      nonce: link.nonce,
+      verifier: link.verifier,
+      ...(link.connectionId === undefined ? {} : { connectionId: link.connectionId }),
+    };
   }
 }
 

@@ -277,11 +277,13 @@ describe('the enterprise SSO stores', () => {
     it('routes by slug whatever the claim status, and by domain only when verified', async () => {
       await connections().create('org-a', 'ada', draft, 'conn-a', act('ada'));
       expect(await connections().routeBySlug('acme')).toEqual({
+        connectionId: 'conn-a',
         organizationId: 'org-a',
         auth0Connection: 'acme-saml',
         policy: null,
       });
       expect(await connections().routeByDomain('acme.test')).toEqual({
+        connectionId: 'conn-a',
         organizationId: 'org-a',
         auth0Connection: 'acme-saml',
         policy: null,

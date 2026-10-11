@@ -92,15 +92,19 @@ export const listAuthMethods = defineEndpointShape({
 
 /**
  * Starts a separate Auth0 proof for the already signed-in account. A password
- * session must send its fresh `password`; an OIDC session must not. `method`
- * selects the connection of the identity being added.
+ * session must send its fresh `password`; an OIDC session must not. At most
+ * one of `method` and `organization` selects the connection of the identity
+ * being added; a slug routes through its enterprise connection, and that link
+ * is what proves the connection (`organization-sso`).
  */
 export const startAuth0Link = defineEndpointShape({
   method: 'POST',
   path: '/api/auth/link/auth0',
   operationId: 'postApiAuthLinkAuth0',
   policies: [{ kind: 'origin', when: 'always-unsafe-with-session-cookie' }],
-  body: requestSchema(type({ 'password?': 'string', 'method?': methodId })),
+  body: requestSchema(
+    type({ 'password?': 'string', 'method?': methodId, 'organization?': enterpriseLoginSlug }),
+  ),
   // A JSON location rather than a 302: fe-01's fetch transport cannot follow
   // or read a cross-origin redirect, so the page navigates itself.
   responses: [{ kind: 'json', status: 200, schema: responseSchema(type({ location: 'string' })) }],
@@ -111,6 +115,7 @@ export const startAuth0Link = defineEndpointShape({
     { status: 401, schema: responseSchema(type({ error: "'invalid_credentials'" })) },
     { status: 429, schema: responseSchema(type({ error: "'invalid_credentials'" })) },
     { status: 403, schema: responseSchema(type({ error: "'onboarding_inactive'" })) },
+    { status: 404, schema: responseSchema(type({ error: "'sso_connection_not_found'" })) },
   ],
   document: { summary: 'Prove the current session and answer the Auth0 link location.' },
 });
@@ -118,8 +123,10 @@ export const startAuth0Link = defineEndpointShape({
 /**
  * Consumes the bound Auth0 proof without entering normal login resolution.
  * Every outcome the handler reaches is a 302 to the fixed relative
- * `/?auth_link=<linked|refused|inactive|collision|unavailable|failed>`; only
- * a polluted query or a non-GET method is refused before it.
+ * `/?auth_link=<linked|refused|inactive|collision|unavailable|failed>`, or,
+ * for a link routed through an enterprise connection,
+ * `sso_prefix_mismatch|sso_connection_taken`; only a polluted query or a
+ * non-GET method is refused before it.
  */
 export const completeAuth0Link = defineEndpointShape({
   method: 'GET',
