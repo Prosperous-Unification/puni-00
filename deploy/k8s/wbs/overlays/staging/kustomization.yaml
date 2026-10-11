@@ -13,6 +13,7 @@ configMapGenerator:
     namespace: wbs-solver
     literals:
       - AUTH_MODE=oidc
+      - BROWSER_SESSION_AUTHORITY=disabled
       - AUTH_REDIRECT_URI=https://wbs-staging.bulletpoints.club/api/auth/okta/callback
   - name: wbs-gateway-config
     namespace: wbs

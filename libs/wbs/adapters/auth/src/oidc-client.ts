@@ -28,7 +28,8 @@ export interface BrowserOidcClient {
     checks: { nonce: string; state: string; verifier: string },
   ): Promise<BrowserOidcTokenSet>;
   refresh(refreshToken: string): Promise<BrowserOidcTokenSet>;
-  revoke(refreshToken: string): Promise<void>;
+  /** A detached function: the browser session authority holds it apart from this client. */
+  revoke: (refreshToken: string) => Promise<void>;
 }
 
 /**

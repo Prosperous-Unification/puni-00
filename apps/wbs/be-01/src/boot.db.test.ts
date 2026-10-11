@@ -97,6 +97,7 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
       jwtKey: 'k'.repeat(32),
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
+      browserSessionAuthority: 'disabled' as const,
       localIdentity: { id: 'ada', username: 'ada', scopes: ['read', 'write'] },
     },
     {
@@ -215,6 +216,7 @@ async function boot(
     jwtKey: 'k'.repeat(32),
     gwUrl: 'http://gw.invalid',
     internalAuthSecret: 's'.repeat(32),
+    browserSessionAuthority: 'disabled' as const,
     oidc,
     localIdentity,
     commitDir,
@@ -298,6 +300,7 @@ function bootOptions(dbPath: string, port: number) {
     jwtKey: 'k'.repeat(32),
     gwUrl: 'http://gw.invalid',
     internalAuthSecret: 's'.repeat(32),
+    browserSessionAuthority: 'disabled' as const,
   };
 }
 
@@ -437,6 +440,7 @@ describe('bootBe01', () => {
       jwtKey: 'k'.repeat(32),
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
+      browserSessionAuthority: 'disabled' as const,
       optimizer: {
         solverVersion: '0.2.0',
         budgetMs: 60_000,
@@ -472,6 +476,7 @@ describe('bootBe01', () => {
       jwtKey: 'k'.repeat(32),
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
+      browserSessionAuthority: 'disabled' as const,
       localIdentity: { id: 'local-dev', username: 'local-dev', scopes: ['read', 'write'] },
       migrateOnStartup: true,
       migrationsFolder: FOLDER,
@@ -509,6 +514,7 @@ describe('bootBe01', () => {
       jwtKey: 'k'.repeat(32),
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
+      browserSessionAuthority: 'disabled' as const,
       localIdentity: { id: 'local-dev', username: 'local-dev', scopes: ['read', 'write'] },
       migrateOnStartup: true,
       migrationsFolder: FOLDER,
@@ -539,6 +545,7 @@ describe('bootBe01', () => {
         jwtKey: 'k'.repeat(32),
         gwUrl: 'http://gw.invalid',
         internalAuthSecret: 's'.repeat(32),
+        browserSessionAuthority: 'disabled' as const,
         localIdentity: { id: 'local-dev', username: 'local-dev', scopes: ['read', 'write'] },
         migrateOnStartup: true,
         migrationsFolder: FOLDER,
@@ -626,6 +633,7 @@ describe('bootBe01', () => {
       jwtKey: 'k'.repeat(32),
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
+      browserSessionAuthority: 'disabled' as const,
       migrateOnStartup: true,
       migrationsFolder: FOLDER,
     });
@@ -687,6 +695,7 @@ describe('bootBe01', () => {
         jwtKey: 'k'.repeat(32),
         gwUrl: 'http://gw.invalid',
         internalAuthSecret: 's'.repeat(32),
+        browserSessionAuthority: 'disabled' as const,
         optimizer: {
           solverVersion: '0.2.0',
           budgetMs: 60_000,

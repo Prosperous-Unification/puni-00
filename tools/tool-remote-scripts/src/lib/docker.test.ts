@@ -720,6 +720,7 @@ describe('deriveTierSecrets', () => {
         GW_URL: 'http://gw-01:3200',
         DB_PATH: '/data/wbs.db',
         AUTH_MODE: 'oidc',
+        BROWSER_SESSION_AUTHORITY: 'disabled',
         ...derived,
       }),
     ).not.toHaveProperty('summary');
@@ -753,7 +754,7 @@ describe('assertTierEnvAllowed', () => {
     expect(() => {
       assertTierEnvAllowed(
         'be',
-        'PORT=3100\nLOG_LEVEL=info\nGW_URL=x\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nSOLVER_BUDGET_MS=120000\nSOLVER_SEARCH_WORKERS=2\nSOLVER_MEMORY_LIMIT_MB=512\n',
+        'PORT=3100\nLOG_LEVEL=info\nGW_URL=x\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nBROWSER_SESSION_AUTHORITY=enabled\nSOLVER_BUDGET_MS=120000\nSOLVER_SEARCH_WORKERS=2\nSOLVER_MEMORY_LIMIT_MB=512\n',
       );
     }).not.toThrow();
   });
@@ -844,7 +845,13 @@ describe('assertOidcEnvAllowed', () => {
  */
 describe('assertTierEnvComplete against the release configuration', () => {
   const APP = {
-    be: { PORT: '3100', LOG_LEVEL: 'error', GW_URL: 'http://gw', DB_PATH: '/data/wbs.db' },
+    be: {
+      PORT: '3100',
+      LOG_LEVEL: 'error',
+      GW_URL: 'http://gw',
+      DB_PATH: '/data/wbs.db',
+      BROWSER_SESSION_AUTHORITY: 'disabled',
+    },
     gw: { PORT: '3200', LOG_LEVEL: 'error', BE_URL: 'http://be-01.internal:3100' },
   } as const;
   const SHARED = {
@@ -954,6 +961,7 @@ describe('assertTierEnvComplete against the release configuration', () => {
           ? ([
               ['AUTH_REDIRECT_URI', 'https://wbs.example.test/other'],
               ['SOLVER_BUDGET_MS', '007'],
+              ['BROWSER_SESSION_AUTHORITY', 'on'],
               ['SOLVER_BUDGET_MS', ''],
               ['SOLVER_SEARCH_WORKERS', '0'],
               ['SOLVER_MEMORY_LIMIT_MB', 'lots'],
@@ -1225,6 +1233,7 @@ it('boots local backend configuration from the rendered environment and keeps OI
       INTERNAL_AUTH_SECRET: 's'.repeat(32),
       JWT_SIGNING_KEY_CURRENT: 'k'.repeat(32),
       AUTH_MODE: mode,
+      BROWSER_SESSION_AUTHORITY: 'disabled',
       NODE_ENV: 'development',
       ...service.environment,
       AUTH_REDIRECT_URI: 'https://oidc.example.test/api/auth/okta/callback',

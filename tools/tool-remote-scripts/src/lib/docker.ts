@@ -227,6 +227,7 @@ const APP_ENV_ALLOWED_KEYS: Record<Tier, readonly string[]> = {
     'DB_PATH',
     'AUTH_MODE',
     'APP_ORIGIN',
+    'BROWSER_SESSION_AUTHORITY',
     // Proof: deleting these three entries made the production startGreen test
     // fail before Docker: outside the allowlist were SOLVER_BUDGET_MS,
     // SOLVER_SEARCH_WORKERS, SOLVER_MEMORY_LIMIT_MB; 0 passed, 1 failed.
@@ -307,7 +308,11 @@ const APP_ENV_REQUIRED_KEYS: Record<Tier, readonly string[]> = {
   // Proof: dropping GW_URL here made `refuses a be env file without GW_URL`
   // and `demands only keys the be release refuses to boot without` fail
   // (164 pass, 2 fail, 2026-09-29).
-  be: ['PORT', 'LOG_LEVEL', 'GW_URL', 'DB_PATH', 'AUTH_MODE'],
+  // be-01 has no default for BROWSER_SESSION_AUTHORITY: whether logout
+  // durably revokes is the operator's explicit choice in this file.
+  // Proof: dropping it here made `demands only keys the be release refuses to
+  // boot without` fail (98 pass, 1 fail, 2026-10-11).
+  be: ['PORT', 'LOG_LEVEL', 'GW_URL', 'DB_PATH', 'AUTH_MODE', 'BROWSER_SESSION_AUTHORITY'],
   gw: ['PORT', 'LOG_LEVEL', 'BE_URL', 'AUTH_MODE'],
   fe: [],
 };
@@ -387,6 +392,10 @@ const VALUE_RULES: Readonly<Partial<Record<string, (value: string) => string | n
   PORT: (value) => (INTEGER.test(value) ? null : 'must be an integer without leading zeros'),
   LOG_LEVEL: (value) =>
     LOG_LEVELS.has(value) ? null : `must be one of ${[...LOG_LEVELS].join('|')}`,
+  // Proof: accepting any value made `refuses only value shapes the be release
+  // also refuses` fail on `on` (98 pass, 1 fail, 2026-10-11).
+  BROWSER_SESSION_AUTHORITY: (value) =>
+    value === 'enabled' || value === 'disabled' ? null : 'must be enabled|disabled',
   INTERNAL_AUTH_SECRET: atLeast32,
   JWT_SIGNING_KEY_CURRENT: atLeast32,
   JWT_SIGNING_KEY_PREVIOUS: atLeast32,
