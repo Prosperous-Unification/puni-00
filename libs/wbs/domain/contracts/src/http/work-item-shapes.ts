@@ -645,7 +645,7 @@ export const getWorkItems = defineEndpointShape({
   document: {
     summary: 'Read the whole project work-item tree, every field included.',
     description:
-      'Answers every work item with notes, schedule and slices, plus the project’s steps and settings: hundreds of KB on a large project. full=true answers the same dump. For a page of work items use getApiProjectsByIdWork-item-rows; for one work item in full use getApiProjectsByIdWork-itemsByWorkItemId.',
+      'Answers every work item with notes, schedule and slices, plus the project’s steps and settings: hundreds of KB on a large project. full=true answers the same dump. Use list work-item rows (getApiProjectsByIdWork-item-rows) for paged reads; this tool is for export only. For a page of work items use getApiProjectsByIdWork-item-rows; for one work item in full use getApiProjectsByIdWork-itemsByWorkItemId.',
   },
 });
 
@@ -703,7 +703,7 @@ export const getWorkItemRows = defineEndpointShape({
   document: {
     summary: 'Read a page of a project’s work items in tree order, outline fields by default.',
     description:
-      'Each row has id, projectId, parentId, number, name, status, dates, revision and updatedAt. fields adds comma-separated groups: notes, schedule, slices, estimates, constraints, labels. Filters: q (name contains, case-insensitive), status (comma-separated statuses), parentId (rows below that work item) with depth (levels below it, or below the top), updatedSince (epoch ms, inclusive). limit is 1-200, default 25; pass nextCursor back as cursor until it is null.',
+      'Each row has id, projectId, parentId, number, name, status, dates, revision and updatedAt. fields adds comma-separated groups: notes, schedule, slices, estimates, constraints, labels. Filters: q (name contains, case-insensitive), status (comma-separated statuses), parentId (rows below that work item) with depth (levels below it, or below the top), updatedSince (epoch ms, inclusive; filters the row’s own last write (its stamp also moves when siblings are respaced), not re-derived number, status or dates). limit is 1-200, default 25; pass nextCursor back as cursor until it is null.',
   },
 });
 

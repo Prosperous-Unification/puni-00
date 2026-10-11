@@ -2,7 +2,12 @@ import type { WorkItemTree } from '@wbs/contracts';
 import { describe, expect, test } from 'bun:test';
 
 import { decodeCursor, encodeCursor, pageQueryOf } from './list-query';
-import { pageWorkItems, type WorkItemPageQuery, workItemPageQueryOf } from './work-item-page';
+import {
+  depthIn,
+  pageWorkItems,
+  type WorkItemPageQuery,
+  workItemPageQueryOf,
+} from './work-item-page';
 
 type TreeWorkItem = WorkItemTree['workItems'][number];
 type TreeSlice = WorkItemTree['slices'][number];
@@ -226,4 +231,11 @@ describe('workItemPageQueryOf', () => {
     ])
       expect({ search, query: queryOf(search) }).toEqual({ search, query: null });
   });
+});
+
+test('depthIn throws for an id its tree does not hold', () => {
+  expect(depthIn(new Map([['a', 1]]), 'a')).toBe(1);
+  expect(() => depthIn(new Map([['a', 1]]), 'gone')).toThrow(
+    'work item "gone" has no depth in its project\'s tree',
+  );
 });

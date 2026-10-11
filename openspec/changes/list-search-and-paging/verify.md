@@ -108,3 +108,17 @@ parameterless list's `nextCursor: null`.
 | `full` undeclared on `getWorkItems` (before the change)        | `answers full=true byte for byte as the parameterless whole-tree read`    | 400 `invalid_query`                     |
 | repeated-key check removed from the whole-tree route           | `refuses any other query with 400`                                        | 200 for `full=true&full=true`           |
 | offset cursor (rows already answered) instead of the cursor id | `keeps every row once across a page boundary while siblings are inserted` | `Expected: 9, Received: 8` distinct ids |
+
+### How "the whole-tree read is unchanged" is proved
+
+No fixture captured before this change pins the old body. The scenario rests on two things:
+
+- **The diff.** `getWorkItems`' route changed only by reindentation and the added `hasRepeatedKey` refusal. Its 200 schema in `work-item-shapes.ts` is untouched; the shape gained only the optional `full` query and document text.
+- **The mounted test.** `answers full=true byte for byte as the parameterless whole-tree read` compares the two serialized replies.
+
+### Fable review fixes (2026-10-11, decision A17: keep `/work-item-rows`)
+
+- The `updatedSince` description in the shape and the `list-reads` filter bullet now say it filters the row's own last write, which also moves when siblings are respaced, and not re-derived number, status or dates.
+- The whole-tree read's description steers paged reads to `getApiProjectsByIdWork-item-rows`. Its default is still the whole dump; steering is by description only.
+- `depthIn` throws on an id its tree does not hold instead of defaulting to depth 0. Proof: answering 0 failed `depthIn throws for an id its tree does not hold` with "Received function did not throw, Received value: 0".
+- R2: `result` renamed to `outcome` in `work-item-rows.controller.db.test.ts`.

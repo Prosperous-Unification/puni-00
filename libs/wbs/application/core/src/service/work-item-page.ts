@@ -159,6 +159,22 @@ function depthsOf(workItems: readonly TreeWorkItem[]): ReadonlyMap<string, numbe
   return depths;
 }
 
+/**
+ * The depth {@link depthsOf} computed for `id`. It covers every id of the
+ * tree it was given and {@link pageWorkItems} asks only for ids of that tree,
+ * so a miss means a broken tree read: it throws rather than defaulting to the
+ * top level, which would silently widen a `depth` filter.
+ *
+ * Proof, observed 2026-10-11: answering 0 on a miss made `depthIn throws for
+ * an id its tree does not hold` in `work-item-page.test.ts` fail with "Received
+ * function did not throw, Received value: 0".
+ */
+export function depthIn(depths: ReadonlyMap<string, number>, id: string): number {
+  const depth = depths.get(id);
+  if (depth === undefined) throw new Error(`work item "${id}" has no depth in its project's tree`);
+  return depth;
+}
+
 /** Whether `id` sits below `ancestorId`, never counting `id` itself. */
 function isBelow(
   id: string,
@@ -213,11 +229,11 @@ export function pageWorkItems(
   const { parentId } = query;
   if (parentId !== null && !parents.has(parentId)) return { ok: false, refusal: 'unknown_parent' };
   const depths = depthsOf(workItems);
-  const floor = parentId === null ? 0 : (depths.get(parentId) ?? 0);
+  const floor = parentId === null ? 0 : depthIn(depths, parentId);
   const matching = workItems.slice(start).filter((workItem) => {
     const updatedAt = instants.get(workItem.id);
     if (updatedAt === undefined) return false;
-    const depth = depths.get(workItem.id) ?? 0;
+    const depth = depthIn(depths, workItem.id);
     return (
       (parentId === null || isBelow(workItem.id, parentId, parents)) &&
       (query.depth === null || depth - floor <= query.depth) &&

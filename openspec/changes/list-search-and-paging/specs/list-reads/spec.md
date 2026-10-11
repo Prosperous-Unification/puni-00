@@ -137,7 +137,8 @@ ones the whole-tree read answers at the same `projectRevision`.
 Filters, all combined with AND:
 
 - `q` and `updatedSince` as in the grammar, against the work item's name and its own
-  `updated_at`.
+  `updated_at`. `updatedSince` filters the row's own last write (its stamp also moves when siblings
+  are respaced), not re-derived number, status or dates.
 - `status`: a comma-separated list of work-item status names; a row matches when its
   derived status is one of them. An unknown name SHALL answer 400.
 - `parentId`: only rows below that work item, never the work item itself. A `parentId`

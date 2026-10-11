@@ -82,8 +82,8 @@ beforeEach(async () => {
     child('c1', 'c', null),
   ]);
   refs = Object.fromEntries(
-    applied.results.flatMap((result) =>
-      result.ref === undefined || result.id === undefined ? [] : [[result.ref, result.id]],
+    applied.results.flatMap((outcome) =>
+      outcome.ref === undefined || outcome.id === undefined ? [] : [[outcome.ref, outcome.id]],
     ),
   );
   const theirs = (await batch('grace', foreign, [child('x', null, null)])).results[0]?.id;
