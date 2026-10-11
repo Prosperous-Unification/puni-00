@@ -121,27 +121,65 @@ function readBaseline(root: string): Fields {
   }
   return { version: 1, packageManager, pins, semantics, compiler, files };
 }
-const remoteCacheKeys = ['nxCloudId', 'nxCloudAccessToken', 'nxCloudUrl', 'nxCloudEncryptionKey'];
-/** Throws when `nx.json` names Nx Cloud or a task runner holding an access token.
- * Transferred caches would carry task outputs out of either repository; both stay local-only.
+const remoteCacheKeys = [
+  'nxCloudId',
+  'nxCloudAccessToken',
+  'nxCloudUrl',
+  'nxCloudEncryptionKey',
+  's3',
+  'gcs',
+  'azure',
+  'sharedFs',
+];
+const remoteCacheVariables = [
+  'NX_CLOUD_ACCESS_TOKEN',
+  'NX_CLOUD_AUTH_TOKEN',
+  'NX_SELF_HOSTED_REMOTE_CACHE_SERVER',
+  'NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN',
+];
+const remoteCacheModule = /nx-cloud|-cache$/;
+/** Throws when this process carries a remote Nx cache credential or server, or when `nx.json`
+ * names Nx Cloud, a self-hosted cache block, a cache plugin, or a runner that is a cache module
+ * or holds an access token. Transferred caches would carry task outputs out of either repository.
+ * Detection covers these named settings only; other remote-cache configurations are not detected.
  */
 function refuseRemoteCache(root: string): void {
+  // Proof: removing this check let check pass and copy write apps/fixture/client in the environment test.
+  const variables = remoteCacheVariables.filter((name) => process.env[name] !== undefined);
+  if (variables.length > 0)
+    throw new Error(`Remote Nx cache is refused: unset ${variables.join(', ')}`);
   const nx = readRecord(root, 'nx.json');
   const runners =
     nx['tasksRunnerOptions'] === undefined
       ? {}
       : requireRecord(nx['tasksRunnerOptions'], 'tasksRunnerOptions');
-  const tokenRunners = Object.entries(runners).filter(([name, runner]) => {
-    const options = requireRecord(runner, `tasksRunnerOptions.${name}`)['options'];
-    return (
-      options !== undefined &&
+  const runnerSettings = Object.entries(runners).flatMap(([name, runner]) => {
+    const configuration = requireRecord(runner, `tasksRunnerOptions.${name}`);
+    const options = configuration['options'];
+    const module = configuration['runner'];
+    return [
+      ...(options !== undefined &&
       requireRecord(options, `${name} options`)['accessToken'] !== undefined
-    );
+        ? [`tasksRunnerOptions.${name}.options.accessToken`]
+        : []),
+      ...(typeof module === 'string' && remoteCacheModule.test(module)
+        ? [`tasksRunnerOptions.${name}.runner ${module}`]
+        : []),
+    ];
+  });
+  const plugins = nx['plugins'] === undefined ? [] : nx['plugins'];
+  if (!Array.isArray(plugins)) throw new Error('Invalid plugins: expected array');
+  const pluginSettings = plugins.flatMap((plugin: unknown) => {
+    const module = typeof plugin === 'string' ? plugin : requireRecord(plugin, 'plugin')['plugin'];
+    if (typeof module !== 'string') throw new Error('Invalid plugin: expected module name');
+    return remoteCacheModule.test(module) ? [`plugin ${module}`] : [];
   });
   const settings = [
     ...remoteCacheKeys.filter((key) => nx[key] !== undefined),
-    ...tokenRunners.map(([name]) => `tasksRunnerOptions.${name}.options.accessToken`),
+    ...runnerSettings,
+    ...pluginSettings,
   ];
+  // Proof: removing the runner-module and plugin checks failed the nx-cloud runner and cache plugin cases.
   if (settings.length > 0)
     throw new Error(`Remote Nx cache is refused in ${root}/nx.json: remove ${settings.join(', ')}`);
 }

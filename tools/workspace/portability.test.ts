@@ -379,7 +379,7 @@ test('an incompatible declared spec is refused naming the repair', () => {
   expect(existsSync(join(destination, 'apps'))).toBe(false);
 });
 
-test('a workspace with nxCloudId or a tasks-runner accessToken is refused by check and copy', () => {
+test('a workspace configuring Nx Cloud, a cache runner or plugin, or a self-hosted cache is refused by check and copy', () => {
   for (const [side, setting] of [
     ['destination', { nxCloudId: 'abc123' }],
     ['source', { nxCloudAccessToken: 'token' }],
@@ -391,6 +391,10 @@ test('a workspace with nxCloudId or a tasks-runner accessToken is refused by che
         },
       },
     ],
+    ['destination', { tasksRunnerOptions: { default: { runner: 'nx-cloud' } } }],
+    ['source', { plugins: ['@nx/s3-cache'] }],
+    ['destination', { plugins: [{ plugin: '@nx/gcs-cache', options: {} }] }],
+    ['source', { s3: { bucket: 'outputs' } }],
   ] as const) {
     const { source, destination } = pair();
     project(source, 'apps/fixture/client');
@@ -404,6 +408,24 @@ test('a workspace with nxCloudId or a tasks-runner accessToken is refused by che
     expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow(
       'Remote Nx cache is refused',
     );
+    expect(existsSync(join(destination, 'apps'))).toBe(false);
+  }
+});
+
+test('a remote Nx cache credential in the environment is refused by check and copy', () => {
+  for (const variable of ['NX_CLOUD_ACCESS_TOKEN', 'NX_SELF_HOSTED_REMOTE_CACHE_SERVER']) {
+    const { source, destination } = pair();
+    project(source, 'apps/fixture/client');
+    process.env[variable] = 'remote';
+    try {
+      // Proof: removing the environment check let check pass and copy write apps/fixture/client.
+      expect(() => {
+        verifyBaseline(source, destination);
+      }).toThrow(`Remote Nx cache is refused: unset ${variable}`);
+      expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow(variable);
+    } finally {
+      Reflect.deleteProperty(process.env, variable);
+    }
     expect(existsSync(join(destination, 'apps'))).toBe(false);
   }
 });
