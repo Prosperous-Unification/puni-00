@@ -469,11 +469,14 @@ describe('work item routes', () => {
     const number = body.workItems.find((row) => row.id === leafId)?.number;
     if (number === undefined) throw new Error('leaf absent from the tree');
     expect(body.stepNodes).toEqual(
-      body.steps.map((step) => ({
+      body.steps.map((step, stepAt) => ({
         id: `sn1.${leafId}.${step.id}`,
         workItemId: leafId,
         stepId: step.id,
-        reference: step.code === null ? null : `${number}.${step.code}`,
+        reference:
+          step.code === null
+            ? null
+            : `${number}.s${String(stepAt + 1).padStart(String(body.steps.length).length, '0')}-${step.code}`,
       })),
     );
   });
