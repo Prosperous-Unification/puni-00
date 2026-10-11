@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterAll, expect, test } from 'bun:test';
 
+import { packetBody, packetBodyBytes, withPacketIdentity } from '../admission-judge/packet-codec';
 import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
 import { readCandidate } from '../inventory/read-candidate';
 import { MemoryAuthorityStore, openAuthorityStore } from './authority-store';
@@ -19,7 +20,6 @@ import {
   type VerifiedIntegrationReceipt,
 } from './integrate';
 import { createAdmissionPacket } from './packet';
-import { packetBody, packetBodyBytes, withPacketIdentity } from './packet-codec';
 import { submitPacket } from './submit';
 
 const scratch: string[] = [];

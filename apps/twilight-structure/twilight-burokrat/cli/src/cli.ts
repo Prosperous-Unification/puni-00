@@ -303,9 +303,9 @@ async function writeAdmissionSubmission(argv: string[]): Promise<void> {
     );
   }
   const [{ openAuthorityStore }, { decodeAdmissionPacket }, { submitPacket }] = await Promise.all([
-    import('./admission/authority-store'),
-    import('./admission/packet'),
-    import('./admission/submit'),
+    import('./admission-runtime/authority-store'),
+    import('./admission-runtime/packet'),
+    import('./admission-runtime/submit'),
   ]);
   try {
     const packet = decodeAdmissionPacket(readJson(packetPath));

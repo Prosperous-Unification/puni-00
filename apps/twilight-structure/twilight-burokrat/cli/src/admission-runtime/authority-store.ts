@@ -9,8 +9,8 @@ import {
   assertAuthorityPathAccess,
   assertAuthoritySessionId,
   assertAuthorityWorktreePath,
-} from './authority-identities';
-import { decodeAdmissionPacketBody } from './packet-codec';
+} from '../admission-judge/authority-identities';
+import { decodeAdmissionPacketBody } from '../admission-judge/packet-codec';
 
 export {
   assertAuthorityClaimPath,
@@ -18,7 +18,7 @@ export {
   assertAuthorityPathAccess,
   assertAuthoritySessionId,
   assertAuthorityWorktreePath,
-} from './authority-identities';
+} from '../admission-judge/authority-identities';
 
 /**
  * v4 added durable integration/recovery history; v5 renames the on-disk authority from

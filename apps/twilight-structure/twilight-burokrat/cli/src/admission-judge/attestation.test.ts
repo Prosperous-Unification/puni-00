@@ -12,17 +12,17 @@ import { join } from 'node:path';
 
 import { afterAll, expect, test } from 'bun:test';
 
+import type {
+  CheckedIntegrationCandidate,
+  IntegrationEvidenceVerifier,
+  VerifiedIntegrationReceipt,
+} from '../admission-runtime/integrate';
 import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
 import {
   emitIntegrationBinding,
   type IntegrationBindingActivation,
   verifyIntegrationBinding,
 } from './attestation';
-import type {
-  CheckedIntegrationCandidate,
-  IntegrationEvidenceVerifier,
-  VerifiedIntegrationReceipt,
-} from './integrate';
 
 const scratch: string[] = [];
 

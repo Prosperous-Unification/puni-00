@@ -1,11 +1,10 @@
 import { realpathSync } from 'node:fs';
 import { isAbsolute, normalize } from 'node:path';
 
-import { compareCanonicalText } from '../evidence/content-manifest';
-import { type CandidateEntry, readCandidate } from '../inventory/read-candidate';
-import { assertAuthoritySessionId, assertAuthorityWorktreePath } from './authority-identities';
-import type { AuthorityClaim, AuthorityPacketBinding, AuthorityStore } from './authority-store';
-import { bindAdmissionPacket, type ClaimToken, expandBoundPacketClaims } from './claims';
+import {
+  assertAuthoritySessionId,
+  assertAuthorityWorktreePath,
+} from '../admission-judge/authority-identities';
 import {
   type AdmissionBase,
   type AdmissionPacket,
@@ -17,15 +16,19 @@ import {
   packetBodyBytes,
   uniqueSorted,
   withPacketIdentity,
-} from './packet-codec';
+} from '../admission-judge/packet-codec';
+import { compareCanonicalText } from '../evidence/content-manifest';
+import { type CandidateEntry, readCandidate } from '../inventory/read-candidate';
+import type { AuthorityClaim, AuthorityPacketBinding, AuthorityStore } from './authority-store';
+import { bindAdmissionPacket, type ClaimToken, expandBoundPacketClaims } from './claims';
 
 export type {
   AdmissionBase,
   AdmissionPacket,
   AdmissionPacketIntent,
   AdmissionReadDependency,
-} from './packet-codec';
-export { assertAdmissionPacket, decodeAdmissionPacket } from './packet-codec';
+} from '../admission-judge/packet-codec';
+export { assertAdmissionPacket, decodeAdmissionPacket } from '../admission-judge/packet-codec';
 
 const Sha256Identity = /^[0-9a-f]{64}$/;
 

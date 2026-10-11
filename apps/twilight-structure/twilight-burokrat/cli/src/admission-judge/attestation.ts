@@ -3,13 +3,6 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
-import { OpaqueId } from '../contracts/records';
-import {
-  compareCanonicalText,
-  hashBytes,
-  hashCanonical,
-  serializeCanonical,
-} from '../evidence/content-manifest';
 import {
   assertCheckedIntegrationCandidate,
   certifyIntegrationCandidate,
@@ -17,7 +10,14 @@ import {
   type IntegrationEvidence,
   type IntegrationEvidenceVerifier,
   type UncheckedIntegrationCandidate,
-} from './integrate';
+} from '../admission-runtime/integrate';
+import { OpaqueId } from '../contracts/records';
+import {
+  compareCanonicalText,
+  hashBytes,
+  hashCanonical,
+  serializeCanonical,
+} from '../evidence/content-manifest';
 
 const Sha256 = /^[0-9a-f]{64}$/;
 const GitObject = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;

@@ -4,6 +4,7 @@ import { isAbsolute, join, normalize } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
+import { type AdmissionPacket, decodeAdmissionPacketBody } from '../admission-judge/packet-codec';
 import {
   CheckReceipt,
   type CheckReceipt as CheckReceiptValue,
@@ -21,7 +22,6 @@ import {
 import type { CandidateEntry } from '../inventory/read-candidate';
 import type { AuthorityGeneration, AuthorityStore } from './authority-store';
 import { assertAdmissionPacket } from './packet';
-import { type AdmissionPacket, decodeAdmissionPacketBody } from './packet-codec';
 import type { AdmissionSubmissionReport } from './submit';
 
 const Sha256 = /^[0-9a-f]{64}$/;
