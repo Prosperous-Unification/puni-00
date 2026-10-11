@@ -2738,3 +2738,23 @@ and Prettier over every touched file clean; the affected suites (42 files, 414 t
 5-second timeouts under a host load average of 56 passing when rerun alone. The full
 `wbs-fe-01:test`, e2e, the host gate and CI are recorded in the pull request. The trusted-wiki lint
 of the new module's registration needs an external activation root this host does not have.
+
+## WBS 72b7ad20 (batch 10) — a graph check for every frontend module, and task 12 closed
+
+Observed 2026-10-11 on branch `batch-10/050-graph-checks-runtime-modules`, from
+`origin/batch-10/integration-4` at `9a9d5677f`. `tools/tool-devsync/src/frontend-module-graph.test.ts`
+compares, per directory under `apps/wbs/fe-01/src/modules`, the production files outside it that
+import it (static, type-only, re-export and dynamic imports, resolved through
+`apps/wbs/fe-01/tsconfig.app.json`) with the `externalConsumers` its README index declares.
+
+Faults, each injected by hand, its test run, the file restored and the test rerun green:
+
+| Fault | Injected                                                                  | Named test                                                        | Observed                                                                   |
+| ----- | ------------------------------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `g1`  | `runtime/project-runtime.ts` deleted from calendar-markers' declared list | `calendar-markers is imported only by its declared consumers`     | `+ "apps/wbs/fe-01/src/runtime/project-runtime.ts"` received, not declared |
+| `g2`  | none: the dispatch base as found                                          | `directory-management is imported only by its declared consumers` | `+ "apps/wbs/fe-01/src/components/people/people-load-summary.tsx"`         |
+| `g3`  | `readCompilerOptions` answers `{}`                                        | all nine module cases                                             | 1 pass, 9 fail: `@/…` imports no longer resolve                            |
+| `g4`  | every directory filtered out of `modules`                                 | `has modules to check`                                            | `Expected: > 0, Received: 0`                                               |
+
+`g2` was fixed by declaring the importer in the module's README and in
+`docs/wiki-policy/modules.json`, whose row the trusted index check compares the README against.

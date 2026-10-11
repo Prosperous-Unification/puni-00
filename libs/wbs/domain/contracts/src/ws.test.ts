@@ -70,6 +70,8 @@ describe('the frames a builder writes', () => {
       wsResumeAck({ 'project:a': 3 }),
       wsResumeDenied('project:a', 'out_of_range'),
       wsResumeDenied('project:a', 'unavailable'),
+      wsResumeDenied('project:a', 'forbidden'),
+      wsError('subscription_revoked', { subscription: 'project:a' }),
       wsError('invalid_payload'),
       wsError('unknown_subscription', { subscription: 'nope' }),
       wsError('backend_unavailable', { retry_after: 5 }),
@@ -81,7 +83,7 @@ describe('the frames a builder writes', () => {
 
     for (const frame of built) parseOrThrow(WsControlFrame, parsed(frame));
     // The precondition: an empty list would pass the loop above.
-    expect(built).toHaveLength(12);
+    expect(built).toHaveLength(14);
   });
 
   it('are data frames the parser accepts', () => {

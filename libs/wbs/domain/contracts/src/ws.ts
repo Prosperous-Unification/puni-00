@@ -63,13 +63,16 @@ const ResumeAckFrame = type({
  *
  * `out_of_range` is a range be-01 no longer holds — retention pruned it.
  * `unavailable` is be-01 not answering at all, so **nothing** is known about
- * the range; the client's only honest move for either is to read the whole
- * project again.
+ * the range. `forbidden` is a name that is not a project the socket's
+ * principal may read now, including one that does not exist. The client's only
+ * honest move for any of them is to read the whole project again.
  */
+// Proof: dropping `forbidden` here failed `are control frames the parser
+// accepts` with `reason must be "out_of_range" or "unavailable"` (2026-10-11).
 const ResumeDeniedFrame = type({
   type: "'resume_denied'",
   subscription: 'string',
-  reason: "'out_of_range' | 'unavailable'",
+  reason: "'out_of_range' | 'unavailable' | 'forbidden'",
 });
 
 const PingFrame = type({ type: "'ping'" });
@@ -102,8 +105,10 @@ const WhoFrame = type({ type: "'who'" });
 /**
  * Something was refused, by the gateway's own word for it.
  *
- * `subscription` is present on `unknown_subscription` and absent on the others,
- * because that is the only refusal about a name the client sent.
+ * `subscription` is present on `unknown_subscription` and
+ * `subscription_revoked` and absent on the others, because those are the only
+ * refusals about a name the client sent. `subscription_revoked` means a held
+ * project subscription lost access and the socket no longer receives it.
  */
 const ErrorFrame = type({
   type: "'error'",

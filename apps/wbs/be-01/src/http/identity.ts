@@ -61,6 +61,22 @@ export function identityResolver(
         return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
       return { ok: true, principal: judged.principal };
     }
+    if (requirement === 'gateway-browser') {
+      // The gateway's own identity first: a browser cookie reaching this route
+      // from anywhere but gw-01 proves nothing.
+      // Proof: bypassing this comparison let a forwarded browser cookie without
+      // x-internal-auth reach the check in `refuses a forwarded browser
+      // credential without the gateway secret` (gateway-browser.controller.db.test.ts).
+      if (request.headers.get('x-internal-auth') !== internalAuthSecret)
+        return { ok: false, status: 401, body: { error: 'unauthorized' } };
+      // Only the forwarded browser cookies may prove the principal; a Bearer
+      // beside them would make the request's identity ambiguous.
+      // Proof: dropping this refusal answered 204 for a gateway request
+      // carrying a Bearer instead of the cookie in `refuses a Bearer in place
+      // of the forwarded browser cookie` (gateway-browser.controller.db.test.ts).
+      if (request.headers.get('authorization') !== null)
+        return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+    }
     // Proof: Bearer-only resolution selected grace instead of cookie account
     // ada; a second call failed expected 1/received 2; catch(() => null) changed
     // both account-store outage tests from 500 to 401 (elysia/identity.test.ts).
@@ -90,7 +106,8 @@ export function identityResolver(
     // Proof: independently removing either scope check returned 200 instead
     // of 403 in the mounted scoped-token matrix (elysia/identity.test.ts).
     if (
-      (requirement === 'read-scope' && !principal.scopes.includes('read')) ||
+      ((requirement === 'read-scope' || requirement === 'gateway-browser') &&
+        !principal.scopes.includes('read')) ||
       (requirement === 'write-scope' && !principal.scopes.includes('write'))
     ) {
       return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
