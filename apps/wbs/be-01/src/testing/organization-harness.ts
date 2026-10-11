@@ -79,6 +79,7 @@ import { recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from './capacity-fixture';
 import { testClock } from './clock-fixture';
 import { sqliteDependencyGraph } from './dependency-graph-fixture';
+import type { FakeOidcProvider } from './fake-oidc-provider';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from './priority-band-fixture';
@@ -112,6 +113,11 @@ export interface OrganizationHarnessOptions {
   readonly policyDirectory?: string;
   readonly resolver?: DomainResolver;
   readonly sessionBinding?: boolean;
+  /**
+   * Mounts the browser OIDC routes over this fake provider, with password
+   * sign-in and registration still on; excludes `upstreamCredential`.
+   */
+  readonly provider?: FakeOidcProvider;
   readonly upstreamCredential?: {
     readonly verifier: TokenVerifier;
     readonly groupPrefix: string;
@@ -280,8 +286,11 @@ export class OrganizationHarness {
     policyDirectory,
     resolver,
     sessionBinding,
+    provider,
     upstreamCredential,
   }: OrganizationHarnessOptions = {}): OrganizationHarness {
+    if (provider !== undefined && upstreamCredential !== undefined)
+      throw new Error('a harness takes a fake provider or an upstream credential, not both');
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
@@ -315,6 +324,15 @@ export class OrganizationHarness {
         ? {}
         : {
             oidc: buildOidcVerifier(upstreamCredential.verifier, upstreamCredential),
+            passwordSessions: true,
+          }),
+      ...(provider === undefined
+        ? {}
+        : {
+            oidc: buildOidcVerifier(provider.verifier, {
+              groupPrefix: 'dev',
+              groupsClaim: 'wbs_groups',
+            }),
             passwordSessions: true,
           }),
     });
@@ -371,6 +389,7 @@ export class OrganizationHarness {
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       appOrigin: 'http://localhost',
+      ...(provider === undefined ? {} : { oidc: provider.routeOptions('http://localhost') }),
       savedPlans: testSavedPlanService(),
       ...writing,
       organizations,
@@ -730,6 +749,11 @@ export class OrganizationHarness {
     this.sqlite.run(
       "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
     );
+  }
+
+  /** One raw request to the app at `http://localhost`, for redirects and cookies. */
+  request(path: string, init: RequestInit = {}): Promise<Response> {
+    return Promise.resolve(this.app.handle(new Request(`http://localhost${path}`, init)));
   }
 
   async call(username: string, method: string, path: string, body?: unknown): Promise<Answer> {

@@ -1,4 +1,5 @@
 import type { AuditedAct } from './organization-audit';
+import type { SessionPolicy } from './session-policies';
 
 /** The Auth0 strategies an enterprise connection may use. */
 export type EnterpriseStrategy = 'samlp' | 'oidc';
@@ -47,6 +48,8 @@ export type ConnectionAuthorityRefusal = 'inactive' | 'forbidden' | 'not_found';
 export interface EnterpriseRoute {
   readonly organizationId: string;
   readonly auth0Connection: string;
+  /** The routed organization's session policy; null when it has none. */
+  readonly policy: SessionPolicy | null;
 }
 
 /** A proven connection whose prefix a subject carries. */

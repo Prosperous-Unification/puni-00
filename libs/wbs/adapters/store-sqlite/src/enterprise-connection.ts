@@ -24,6 +24,7 @@ import {
   organizationScimToken,
   organizationSsoConnection,
 } from './schema';
+import { readSessionPolicy } from './session-policy';
 
 type Transaction = ImmediateTransaction;
 type Reader = Pick<SQLiteBunDatabase, 'select'>;
@@ -361,13 +362,14 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
       .where(eq(organizationSsoConnection.loginSlug, slug))
       .get();
     if (row === undefined) return null;
-    const connection = checkedConnection(row);
-    return {
-      organizationId: connection.organizationId,
-      auth0Connection: connection.auth0Connection,
-    };
+    return routeOf(this.db, checkedConnection(row));
   }
 
+  /**
+   * Proof: 2026-10-12, dropping the `verified` predicate made mounted `sends
+   * no connection for an unrouted domain or a suspended claim` in
+   * `enterprise-login.controller.db.test.ts` route `bob@susp.test`.
+   */
   async routeByDomain(domain: string): Promise<EnterpriseRoute | null> {
     await Promise.resolve();
     const row = selectConnections(this.db)
@@ -379,11 +381,7 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
       )
       .get();
     if (row === undefined) return null;
-    const connection = checkedConnection(row);
-    return {
-      organizationId: connection.organizationId,
-      auth0Connection: connection.auth0Connection,
-    };
+    return routeOf(this.db, checkedConnection(row));
   }
 
   /**
@@ -398,6 +396,15 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
   private write<T>(work: (tx: Transaction) => T): Promise<T> {
     return writeImmediately(this.db, this.gate, work);
   }
+}
+
+/** Where `connection` sends a login, with its organization's session policy. */
+function routeOf(db: Reader, connection: EnterpriseConnection): EnterpriseRoute {
+  return {
+    organizationId: connection.organizationId,
+    auth0Connection: connection.auth0Connection,
+    policy: readSessionPolicy(db, connection.organizationId),
+  };
 }
 
 /** The connection holding `slug`, if any. */

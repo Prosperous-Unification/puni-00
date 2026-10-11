@@ -2,6 +2,7 @@ import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
 import { requestSchema, responseSchema } from './schema-shape';
+import { enterpriseLoginSlug } from './sso-connection-shapes';
 
 const malformed = {
   status: 400,
@@ -24,17 +25,24 @@ const invalidOrigin = {
 
 /**
  * Starts an OIDC transaction for one browser and redirects to its provider.
- * `method` names an enabled `AUTH_METHODS` catalogue entry whose connection is
- * sent to the provider; without it the provider's own chooser is shown.
+ * At most one hint chooses the connection sent to the provider: `method`, an
+ * enabled `AUTH_METHODS` catalogue entry; `organization`, an enterprise
+ * connection's login slug; or `email`, routed when its domain is a verified
+ * claim with a connection. Without one the provider's own chooser is shown.
  */
 export const startOidcLogin = defineEndpointShape({
   method: 'GET',
   path: '/api/auth/login',
   operationId: 'getApiAuthLogin',
   policies: [],
-  query: requestSchema(type({ 'method?': methodId })),
+  query: requestSchema(
+    type({ 'method?': methodId, 'organization?': enterpriseLoginSlug, 'email?': 'string' }),
+  ),
   responses: [{ kind: 'empty', status: 302 }],
-  refusals: [malformed],
+  refusals: [
+    malformed,
+    { status: 404, schema: responseSchema(type({ error: "'sso_connection_not_found'" })) },
+  ],
   document: { summary: 'Start a browser OIDC login.' },
 });
 /** Provider callback parameters remain open; each raw key may occur only once. */

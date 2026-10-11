@@ -24,6 +24,8 @@ export interface BrowserOidcClient {
     prompt?: 'login';
     /** The provider connection to sign in with (Auth0 `connection`); absent shows the provider's chooser. */
     connection?: string;
+    /** Seconds since the last interactive sign-in the provider may accept (`max_age`). */
+    maxAge?: number;
   }): Promise<URL>;
   exchange(
     request: Request,
@@ -162,6 +164,9 @@ export function browserOidcClientFromEnv(
       if (audience !== undefined && audience !== '') parameters['audience'] = audience;
       if (input.prompt !== undefined) parameters['prompt'] = input.prompt;
       if (input.connection !== undefined) parameters['connection'] = input.connection;
+      // Proof: 2026-10-12, dropping this line made `passes max_age and prompt
+      // through to /authorize` in `oidc-client.test.ts` read null.
+      if (input.maxAge !== undefined) parameters['max_age'] = String(input.maxAge);
       return buildAuthorizationUrl(await config(), parameters);
     },
     async exchange(request, checks) {

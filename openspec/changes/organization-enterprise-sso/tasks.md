@@ -29,7 +29,7 @@
 
   Fault: drop the claim-status recheck inside the transaction, and observe the suspended-claim test fail. Restore and add `Proof:`.
 
-- [ ] 2.2 `GET /api/auth/login` takes exactly one of `organization`, `email` and `method`. A slug or a verified-domain email routes with `connection=`, and a session policy adds `prompt=login` and `max_age`.
+- [x] 2.2 `GET /api/auth/login` takes exactly one of `organization`, `email` and `method`. A slug or a verified-domain email routes with `connection=`, and a session policy adds `prompt=login` and `max_age`.
 
   Red: slug, email, unrouted, suspended, ambiguous, malformed and unknown cases; no transaction is saved on refusal.
 

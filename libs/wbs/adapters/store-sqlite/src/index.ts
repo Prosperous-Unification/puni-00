@@ -4,6 +4,7 @@ export * from './browser-auth-lifecycle';
 export * from './browser-credential-revocations';
 export * from './build-stores';
 export * from './calendar-marker';
+export { canonicalOidcEmail } from './canonical-oidc-email';
 export * from './capacity';
 export * from './captured-optimization-reader';
 export * from './chain-snapshot';

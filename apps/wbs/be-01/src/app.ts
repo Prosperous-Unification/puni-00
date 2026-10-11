@@ -388,7 +388,13 @@ export function mountedEndpoints(
             ? []
             : nativeBrowserLogoutEndpoints(opts.appOrigin, opts.browserSession)),
         ]
-      : authOidcEndpoints(opts.auth, opts.oidc, passwordThrottle, opts.browserSession)),
+      : authOidcEndpoints(
+          opts.auth,
+          opts.oidc,
+          passwordThrottle,
+          opts.enterpriseConnections,
+          opts.browserSession,
+        )),
     // Proof: omitting this binding made “binds each shared HTTP shape once”
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
