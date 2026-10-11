@@ -52,8 +52,10 @@ export function createNameColumn({ live }: { live: PlanLive }) {
       // eslint-disable-next-line react-hooks/rules-of-hooks -- as above.
       const editingRef = useRef(false);
       const hovered = cardOpen;
+      const hasNotes = row.original.notes.trim() !== '';
       return (
         <span
+          data-has-notes={hasNotes ? '' : undefined}
           // `block`, not `inline-block`: a shrink-to-fit wrapper and a
           // `width: 100%` textarea inside it define each other in a circle.
           // It is also the positioned ancestor the preview below is placed
@@ -219,7 +221,7 @@ export function createNameColumn({ live }: { live: PlanLive }) {
               live.current.onArrowKey(e, row.original.id, 'name');
             }}
           />
-          {row.original.notes.trim() !== '' && (
+          {hasNotes && (
             // The notes marker: the mark that says this row has notes, and
             // the only thing that opens the preview.
             //
@@ -311,7 +313,7 @@ export function createNameColumn({ live }: { live: PlanLive }) {
                 hover. It hangs off the Name cell because that is where the note
                 is written; the Notes column it used to hang off does not exist.
               */}
-          {hovered && row.original.notes.trim() !== '' && (
+          {hovered && hasNotes && (
             <HoverPreview
               name={row.original.name}
               notes={row.original.notes}

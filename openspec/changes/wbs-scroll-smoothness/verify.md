@@ -1,5 +1,18 @@
 # Scroll smoothness verification
 
+## 2026-10-11 row-window trial
+
+At the trial head, the publication step changes from 640px to 320px while the
+trailing overscan remains 768px. From those constants, the mounted-row reserve
+at a bucket's far edge grows from 128px to 448px. The existing production row
+window path in `use-plan-viewport.ts` reads both constants. This is a static
+calculation, not evidence that a blank frame has been reproduced or eliminated.
+
+No manual tests or browser traces were run for this trial; Dany will check the
+large-plan FE after merge. Existing 50/500/2,000-row probe results below belong
+to earlier heads and do not verify this change. CI results belong to the PR and
+are recorded there. Task 3.1 remains open pending a fresh measured comparison.
+
 ## Reproduction setup
 
 Head `38abe44532409854ae4a5e252a59aede50c274a5` was exercised on h2puni in
