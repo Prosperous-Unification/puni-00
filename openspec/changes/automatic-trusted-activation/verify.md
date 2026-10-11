@@ -3739,6 +3739,15 @@ worker-isolation and observation-unit tests passed 14/14. `tsc --noEmit -p` on
 Nx typecheck target. Pinned OpenSpec `validate --all --json` passed 171/171. No R5 omission
 was rerun for this integration: no guard was added or changed. Tasks stay unchecked.
 
+The first full `twilight-burokrat:test` run on these bytes failed 29 of 2426 tests. The
+pilot-policy and root-migration CLIs refused the candidate before their asserted messages. The
+observation unit templates used an unclassified `.template` suffix
+(`ordinary content … matched 0 classification rules`). A recurrence note added inside the
+pinned catalogue block 004 also produced `mapped destination block mismatch`. The CI
+`gate tool wiki` job on PR #328 failed the same way. The templates are now `.service.tmpl`/
+`.timer.tmpl`, which the existing config rule classifies, and the catalogue block is restored.
+After that fix the two suites passed 55/55.
+
 ### 1.1 acceptance-named installed current-request tests (2026-10-11)
 
 The five 1.1 subject/target acceptance names had equivalent coverage under combined names
