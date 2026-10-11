@@ -81,9 +81,31 @@ A connection SHALL become proven only when a current super-admin of its organiza
 - **WHEN** a super-admin sets it enforced
 - **THEN** WBS answers `409 sso_connection_unproven` and nothing changes
 
+### Requirement: Enterprise identities have their email trusted only on their connection's verified domain
+
+For an identity whose upstream subject starts with an enterprise strategy (`samlp|` or `oidc|`), WBS SHALL honour the identity's `email_verified` only when two conditions hold: the subject starts with the prefix of a proven enterprise connection, and the email's canonical domain equals that connection's verified domain. Canonical means a lowercase local part and a lowercase ASCII IDNA domain. Any other email from such an identity SHALL be treated as unverified. WBS SHALL NOT create or update a user holding that address as verified, and identity resolution SHALL NOT answer `account_exists` for it. Comparisons of such emails, including pending-membership activation, SHALL use the canonical form.
+
+#### Scenario: Foreign-domain email from an enterprise connection
+
+- **GIVEN** B's proven connection `b-saml` on `b.test`, and an existing WBS user holding verified `alice@a.test`
+- **WHEN** a sign-in returns `samlp|b-saml|x` with email `alice@a.test` and `email_verified` true
+- **THEN** no `account_exists` is answered, no user holds `alice@a.test` as verified because of this identity, and the identity's email is unverified
+
+#### Scenario: Unproven connection email is unverified
+
+- **GIVEN** A's connection `acme-saml` on `acme.test` is unproven
+- **WHEN** a sign-in returns `samlp|acme-saml|bob@acme.test` with `email_verified` true
+- **THEN** the identity's email is treated as unverified
+
+#### Scenario: Canonical comparison
+
+- **GIVEN** A's proven connection on `acme.test`, and a pending membership for `carol@acme.test`
+- **WHEN** a sign-in returns `samlp|acme-saml|c` with email `Carol@ACME.test`
+- **THEN** the email is trusted, and the pending membership activates
+
 ### Requirement: Login is routed to the enterprise connection
 
-`GET /api/auth/login` SHALL accept at most one of `organization=<slug>`, `email=<address>` and `method=<id>`. A known slug SHALL send `connection=<auth0 connection>` to the provider. An email whose canonical domain is a verified claim with a connection SHALL route the same way. Any other email SHALL continue as the ordinary login without `connection`. If the organization has a session policy, a routed login SHALL also send `prompt=login`. A suspended claim SHALL NOT route by email. The routed connection SHALL NOT grant authority on its own.
+`GET /api/auth/login` SHALL accept at most one of `organization=<slug>`, `email=<address>` and `method=<id>`. A known slug SHALL send `connection=<auth0 connection>` to the provider. An email whose canonical domain is a verified claim with a connection SHALL route the same way. Any other email SHALL continue as the ordinary login without `connection`. If the organization has a session policy, a routed login SHALL also send `prompt=login` and, when `reauthenticate_after_seconds` is set, `max_age=<reauthenticate_after_seconds>`. A suspended claim SHALL NOT route by email. The routed connection SHALL NOT grant authority on its own.
 
 #### Scenario: Slug routes to the connection
 

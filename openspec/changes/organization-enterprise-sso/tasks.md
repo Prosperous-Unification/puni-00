@@ -11,7 +11,7 @@
 
   Each stamp must sort after every stamp on `main` and in the batch queue.
 
-  Red: an up/down round trip on a production-shaped copy; a partial unique proven `auth0_connection`; one connection per claim; a unique token digest; a unique `user_name` per organization; the binding columns set all together or not at all; rollback refused over any row; an old-release `restricted_project_recovery` insert during the swap.
+  Red: an up/down round trip on a production-shaped copy; a partial unique proven `auth0_connection`; one connection per claim; a unique token digest; a unique `user_name` per organization; the binding columns set all together or not at all; rollback refused over any row; an old-release `restricted_project_recovery` insert during the swap; the append-only triggers refuse UPDATE and DELETE; a search proves that no current writer updates or deletes `organization_audit` rows.
 
   Fault: drop the partial unique index and observe the concurrent-proof test fail. Separately, drop the audit rebuild's `CHECK (violations = 0)` guard and observe migration lint fail. Restore both and add `Proof:` comments.
 
@@ -29,7 +29,7 @@
 
   Fault: drop the claim-status recheck inside the transaction, and observe the suspended-claim test fail. Restore and add `Proof:`.
 
-- [ ] 2.2 `GET /api/auth/login` takes exactly one of `organization`, `email` and `method`. A slug or a verified-domain email routes with `connection=`, and a session policy adds `prompt=login`.
+- [ ] 2.2 `GET /api/auth/login` takes exactly one of `organization`, `email` and `method`. A slug or a verified-domain email routes with `connection=`, and a session policy adds `prompt=login` and `max_age`.
 
   Red: slug, email, unrouted, suspended, ambiguous, malformed and unknown cases; no transaction is saved on refusal.
 
@@ -40,6 +40,12 @@
   Red: the fixture subject `samlp|acme-saml|alice@acme.test` proves the connection. `samlp|other|…`, `samlp|acme-saml-2|…`, `samlp|alice@acme.test` and `google-oauth2|1` do not. A non-super-admin cannot prove. Two organizations proving the same name end with one winner and `sso_connection_taken`.
 
   Fault: compare the prefix without its trailing `|`, and observe the `acme-saml-2` test fail. Restore and add `Proof:`.
+
+- [ ] 2.4 Enterprise email trust: honour `email_verified` only for a proven prefix on the connection's canonical domain.
+
+  Red: the `organization-sso` email-trust scenarios. A foreign-domain email gives no `account_exists` and holds no verified address; an unproven connection's email is unverified; the canonical comparison activates.
+
+  Fault: honour `email_verified` for every enterprise identity, and observe the foreign-domain test fail. Restore and add `Proof:`.
 
 ## 3. Enforcement
 
@@ -91,15 +97,15 @@
 
 ## 5. Session policy and audit completion
 
-- [ ] 5.1 Add the policy routes for super-admins with validation, plus the lifecycle `opened_at` and `reauthenticated_at` writes (the latter only when the transaction sent `prompt=login`). Refresh preserves `opened_at`.
+- [ ] 5.1 Add the policy routes for super-admins with validation, plus the lifecycle `opened_at` and `reauthenticated_at` writes, all in ms. `reauthenticated_at` comes from a verified `auth_time` under `max_age`, or else the narrow same-pair callback-time fallback; never from a link callback or from `prompt=login` alone. Refresh preserves `opened_at`.
 
   Red: the `organization-session-policy` setting scenarios; refresh keeping `opened_at`.
 
-  Fault: reset `opened_at` on refresh and observe the session-bound test fail. Restore and add `Proof:`.
+  Fault: reset `opened_at` on refresh and observe the session-bound test fail. Then set `reauthenticated_at` on a link callback, and observe the link-callback test fail. Restore and add `Proof:`.
 
 - [ ] 5.2 Add one `SessionPolicy` rule at selection, resolution, direct context and delegation verification, with typed `reauthentication_required`. An unknown time is refused, and a delegation is refused until it carries `authenticated_at`. fe-01 renders the refusal as a state.
 
-  Red: both bounds; the prompted sign-in admitted; an unknown time refused; a delegation refused; another organization unaffected; the cleared policy.
+  Red: a fake injected `now()` pins equality admitted and +1 ms refused for both bounds; the policy is read in the existing lifecycle and revocation query (query count unchanged); a link callback does not reauthenticate; a different connection does not reauthenticate; the prompted sign-in is admitted; an unknown time refused; a delegation refused; another organization unaffected; the cleared policy.
 
   Fault: treat a null `opened_at` as now, and observe the unknown-time test fail. Restore and add `Proof:`.
 

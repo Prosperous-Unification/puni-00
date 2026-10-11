@@ -19,7 +19,7 @@ All pages were fetched on 2026-10-11 from Auth0's own documentation, as the `.md
 
 - **Whether an enterprise `sub` carries the connection name.** Auth0's product docs show `{provider}|{id}`, and their enterprise examples have no connection segment. Auth0 community and support answers (search on 2026-10-11) describe SAML ids as `samlp|<CONNECTION_NAME>|<id>`, but no product doc page states it, and nothing at all was found for `oidc`. A strategy-only prefix such as `samlp|` cannot tell two customers' connections apart, so it cannot enforce anything. **The design therefore never derives enforcement from the strategy alone** (see "Subject prefix and proof").
 - **Which SCIM operations Okta and Entra require.** For example, whether Okta needs `PUT`, `/ServiceProviderConfig` or `/Schemas`. This was not checked against either vendor. Task 4.6 exercises the first customer's IdP against the subset before that connection is enforced.
-- **OIDC `auth_time` from Auth0.** Not checked. Session policy uses only times WBS observes itself.
+- **OIDC `auth_time` from Auth0.** Not checked. Session policy uses a verified `auth_time` when it is present, and otherwise the narrow callback-time fallback in "Session policy".
 
 ## Options and reversal cost
 
@@ -53,7 +53,7 @@ The record's subject prefix is `{strategy}|{auth0_connection}|`. A record become
 
 ### Login routing
 
-- `GET /api/auth/login?organization=<slug>` looks up the record and sends `connection=<auth0_connection>`. If the organization has a session policy, it also sends `prompt=login`.
+- `GET /api/auth/login?organization=<slug>` looks up the record and sends `connection=<auth0_connection>`. If the organization has a session policy, it also sends `prompt=login`, plus `max_age` when `reauthenticate_after_seconds` is set.
 - `GET /api/auth/login?email=<address>` canonicalizes the domain with the claim rules. A `verified` claim with a record routes the same way. Any other domain falls through to the ordinary login without `connection`.
 - The query takes exactly one of `organization`, `email` and `method` (from `social-sign-in`). Two of them, a malformed email or a malformed slug answer `400 invalid_query` before any transaction is saved. An unknown slug answers `404 sso_connection_not_found`.
 - A suspended claim stops email routing. Slug routing and enforcement continue, so suspension never weakens enforcement.
@@ -68,7 +68,7 @@ The record's subject prefix is `{strategy}|{auth0_connection}|`. A record become
 - direct context issue (`POST /api/auth/context`)
 - delegation verification
 
-Refusal is `403 sso_required` with `{ organizationId, login: "/api/auth/login?organization=<slug>", link: true }`. It is typed in contracts, and fe-01 renders it as a state offering "sign in with your company" and "add your company sign-in". `GET /api/organization/memberships` marks enforced organizations the credential cannot enter, so the switcher shows them as locked instead of failing on click. Other organizations, onboarding and logout are unaffected. Enabling enforcement requires that the acting super-admin's current credential already passes the rule (`409 enforcement_would_lock_out_actor`). Because resolution runs on every request, enabling it takes effect on the next request without a revocation sweep. Gateway sockets close within the existing lease bound.
+Refusal is `403 sso_required` with `{ organizationId, login: "/api/auth/login?organization=<slug>", link: true }`. It is typed in contracts. `link: true` means the person's next step is "link your company sign-in, then sign in via SSO", and fe-01 renders that wording as a state, beside a direct "sign in with your company" action. `GET /api/organization/memberships` marks enforced organizations the credential cannot enter, so the switcher shows them as locked instead of failing on click. Other organizations, onboarding and logout are unaffected. Enabling enforcement requires that the acting super-admin's current credential already passes the rule (`409 enforcement_would_lock_out_actor`). Because resolution runs on every request, enabling it takes effect on the next request without a revocation sweep. Gateway sockets close within the existing lease bound.
 
 ### Pending membership and activation
 
@@ -86,6 +86,8 @@ A record that is active and unbound is a **pending membership**.
 
 Activation runs after identity resolution in the login callback and in the link callback. It applies when the authenticating pair starts with the prefix of a proven record in that organization and the identity's email equals `user_name` on that record's domain. It creates a `member` membership, or binds to an existing one without changing its role, binds the pair and writes an audit row in one transaction.
 
+Email trust from enterprise identities (review fix 2) is a separate rule. An identity whose subject starts with an enterprise strategy has its `email_verified` honoured only when its prefix belongs to a proven connection **and** the canonicalized email domain equals that connection's verified domain. Canonicalization is the claim rules': lowercase local part and lowercase ASCII IDNA domain. Any other email from such an identity is treated as unverified. WBS never creates or updates a user holding that address as verified, and identity resolution never answers `account_exists` for it. So connection B's IdP cannot claim `@a.test` addresses, or probe whether they exist. This tightens `social-sign-in`'s resolution for enterprise strategies only. Activation compares the canonicalized email with the canonicalized `user_name`.
+
 The email here is **connection-attested**: the sub prefix proves the organization's own IdP issued it, on a domain the organization verified. So `email_verified` is not required for this one decision; the ADFS example above shows it can be false. It does not verify the email for onboarding or anything else. An email held by another WBS account still yields `account_exists` from `social-sign-in`, and the person links instead; the link callback activates in the same way. A pending membership grants nothing.
 
 ### SCIM service
@@ -94,9 +96,9 @@ The email here is **connection-attested**: the sub prefix proves the organizatio
 - **Authentication.** `Authorization: Bearer wbs_scim_<43 base64url chars>`, a 256-bit random value. Only its SHA-256 is stored in `organization_scim_token` (`id`, `organization_id`, `digest` unique, `created_at`, `created_by`, `expires_at` nullable, `revoked_at` nullable). A missing, malformed, unknown, expired or revoked token gets an identical `401` body that names no organization.
 - **Token lifecycle.** At most two live tokens per organization, matching Auth0's rotation model. A super-admin issues one (`409 token_limit` when two are live), rotates (a new token is issued and the old one's `expires_at` becomes now plus 24 hours) and revokes (immediate). The secret is shown once in the issue response and never again. Issuing requires a proven connection.
 - **Admission.** After authentication, each token is limited to 300 requests per rolling 60 seconds; beyond that the answer is `429` with `Retry-After`. Counters are per process, so two colours mid-swap admit at most twice the limit.
-- **POST** requires `userName` on a domain that has a record in the token's organization (`400 invalid_value` otherwise). A duplicate answers `409 uniqueness`. When `active` is absent, it is treated as true. That is an assumption here, not checked against RFC 7643. An inactive POST creates a record with no pending membership.
+- **POST** requires `userName` on a domain that has a record in the token's organization (`400 invalid_value` otherwise). A duplicate answers `409 uniqueness`. RFC 7643 §8.7.1 declares `active` `"required" : false`, and §4.1.1 says its "definitive meaning … is determined by the service provider". So WBS treats an absent `active` as true. An inactive POST creates a record with no pending membership.
 - **PATCH** supports `replace` of `active`, `externalId` and `userName`. `userName` may change only while the record is unbound. Anything else answers `400 invalid_path`.
-- **Deprovisioning.** PATCH `active=false` keeps the record. DELETE removes it, and a later GET answers 404. On a bound record, either one deletes that user's membership in this organization only, revokes that user's browser bindings for this organization, and writes the audit row, all in one transaction. Removing the membership is sufficient because every resolution, delegation verification and gateway lease rechecks it. `active=true` on an inactive bound record creates a pending membership again, which re-activates at the next SSO login. It never restores the old role silently.
+- **Deprovisioning.** PATCH `active=false` keeps the record. DELETE removes it, and a later GET answers 404. On a bound record, either one deletes that user's membership in this organization only, revokes that user's browser bindings for this organization, and writes the audit row, all in one transaction. Removing the membership is sufficient because every resolution, delegation verification and gateway lease rechecks it. `active=true` on an inactive bound record creates a pending membership again, which re-activates at the next SSO login. It never restores the old role silently. Deleting the membership has exactly the side effects of a super-admin removing that member: the same store operation, the same binding revocation, gateway lease and MCP refusal paths, and the same final-owner guard. SCIM adds only its own audit row.
 - **Last super-admin.** Deprovisioning the organization's last super-admin is refused with `409` (`scimType: mutability`, detail `last_super_admin`) and changes nothing. The detail names the ownerless-organization recovery path in `organization-ownership-and-access/design.md` ("Ownership and roles"). SCIM never creates an ownerless organization.
 - **Isolation.** An id belonging to another organization answers 404, the same as an absent one.
 
@@ -107,9 +109,15 @@ The email here is **connection-attested**: the sub prefix proves the organizatio
 Two times are needed per credential:
 
 - **`opened_at`**: when this sign-in began.
-- **`reauthenticated_at`**: the last callback whose transaction sent `prompt=login`.
+- **`reauthenticated_at`**: when the person last authenticated interactively. It is never set merely because WBS sent `prompt=login`, since Auth0 need not force the upstream IdP to prompt, and a link callback through a social connection also returns. A login callback sets it:
+  1. from the verified ID token's `auth_time`, in seconds and converted to ms, when the transaction sent `max_age=<reauthenticate_after_seconds>` and the claim is present;
+  2. failing that, to the callback time, only when the transaction sent `prompt=login` and the returned pair's `{strategy}|{connection}|` equals the authenticating pair of the credential it replaces (or it opens a new lifecycle with no predecessor).
 
-For OIDC credentials they are new nullable columns on `browser_auth_lifecycle`. For native credentials both are the verified `iat`, because typing a password is interactive.
+  A link callback never changes it. Whether Auth0 returns `auth_time` is unverified (see "Not verified"). The stated limitation is that `reauthenticated_at` proves an interactive authentication at Auth0, not necessarily a fresh credential entry at the customer's IdP.
+
+For OIDC credentials both times are new nullable columns on `browser_auth_lifecycle`. For native credentials both are the verified `iat`, because typing a password is interactive.
+
+**Clock and units.** Lifecycle times are integer milliseconds since the epoch. The JWT `iat` and `auth_time` are seconds and are multiplied by 1000. Policy values are seconds. The evaluating service uses its injected `now()` ([ADR 0012](../../../docs/adr/0012-a-write-carries-its-actor-as-an-argument.md): the clock is injected per service, never read in a repository). It refuses when `now() - opened_at > max_session_seconds * 1000`, or when `now() - reauthenticated_at > reauthenticate_after_seconds * 1000`; equality is admitted. A fake-clock test pins both edges (5.2). The policy row is read in the same query that resolution already makes for the lifecycle and revocation state, which is one joined read per resolution, so the policy adds no extra query.
 
 The rule runs at the same points as enforcement and refuses with `403 reauthentication_required` and `{ reason: "max_session" | "reauthenticate_after", login }`, where `login` sends `prompt=login` through the organization's route. A null time in an organization with a policy refuses; a lifecycle opened before the migration therefore reauthenticates once. Refresh never resets `opened_at`.
 
@@ -131,6 +139,8 @@ New actions:
 
 New subject kinds: `sso_connection`, `provisioning_token`, `scim_user`, `session_policy`.
 
+The table is append-only. The rebuild adds `BEFORE UPDATE` and `BEFORE DELETE` triggers that `RAISE(ABORT)`, and `down.sql` drops them. Task 1.1 proves that no current writer updates or deletes rows. Rows are retained indefinitely: there is no cleanup job, and deleting organizations is out of scope.
+
 `actor_id` is the super-admin's user id, or `scim:<token id>` for SCIM acts. `detail` is JSON that never holds a token, a digest or a full subject; it names the prefix only. Each row is written in its act's transaction, and if it cannot be written the act fails.
 
 ## Migration plan
@@ -148,6 +158,8 @@ None of this activates anything. The routes are inert until organization activat
 - **Lockout.** If the IdP fails while enforcement is on, the organization cannot get a context. Super-admins cannot switch enforcement off without a context, so recovery is the operator path from `organization-ownership-and-access`. The lockout guard prevents the self-inflicted case only.
 - **Connection-attested email** trusts the customer IdP for its own verified domain. A misconfigured IdP could activate a pending membership for the wrong person on that domain. The customer's directory is the authority it chose.
 - **Per-process SCIM admission** is approximate across colours. The bound is documented, not hidden.
+- **Load-bearing invariant V6: never Auth0 account linking** (`social-sign-in`). If a tenant admin enables Auth0 account linking (an Action or extension), an enterprise sign-in returns the primary identity's `sub`, for example `google-oauth2|…`. Enforcement then fails closed: every linked member of an enforced organization receives `sso_required`. Tenant configuration is Dany-only, and enabling linking requires a new decision.
+- **mcp-01 consent UX gap.** mcp-01's consent completes the upstream login through Universal Login without WBS's `organization=`/`email=` routing. A member of an enforced organization must therefore pick the company connection in Auth0's chooser, or be routed there by Auth0's own home realm discovery if Dany enables it. Otherwise the delegation is refused with `sso_required`. Routing consent is left to the MCP cutover.
 - **Unverified prefix format.** The proof login turns the unverified prefix format into a per-connection observation instead of an assumption. If no proof can succeed, enforcement stays off and the Action-claim fallback becomes a new decision.
 
 ## Open questions

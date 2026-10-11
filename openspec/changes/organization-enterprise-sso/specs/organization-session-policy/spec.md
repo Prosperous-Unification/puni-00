@@ -27,9 +27,16 @@ Only a current super-admin of an activated organization SHALL set or clear its s
 In an organization with a session policy, WBS SHALL refuse the organization context with typed `403 reauthentication_required` in two cases:
 
 - **Session bound.** The time since the credential's sign-in opened exceeds `max_session_seconds`. The refusal's reason SHALL be `max_session`.
-- **Reauthentication bound.** The time since the credential's last sign-in that sent `prompt=login` exceeds `reauthenticate_after_seconds`. The refusal's reason SHALL be `reauthenticate_after`.
+- **Reauthentication bound.** The time since the credential's last interactive authentication (`reauthenticated_at`) exceeds `reauthenticate_after_seconds`. The refusal's reason SHALL be `reauthenticate_after`.
 
-The refusal SHALL carry a login path that sends `prompt=login`. The rule SHALL be evaluated at browser selection, at every resolution of an existing browser binding, at direct context issue, and at delegation verification. Refresh SHALL NOT reset the sign-in opening time. For a native password credential, both times SHALL be its verified issue time. A credential whose required time is unknown SHALL be refused. A delegation SHALL be refused in an organization with a policy until the delegation carries its grant's authentication time. The refusal SHALL apply only to that organization's context.
+The refusal SHALL carry a login path that sends `prompt=login` and `max_age=<reauthenticate_after_seconds>`. A login callback SHALL set `reauthenticated_at` in one of two ways:
+
+1. from the verified ID token's `auth_time` when it is present;
+2. otherwise to the callback time, only when the transaction sent `prompt=login` and the returned pair's `{strategy}|{connection}|` equals the authenticating pair of the credential it replaces, or when it opens a lifecycle with no predecessor.
+
+Sending `prompt=login` alone SHALL NOT set it, and a link callback SHALL NOT change it. Limitation: `reauthenticated_at` proves an interactive authentication at Auth0, not necessarily a fresh credential entry at the customer's IdP, because Auth0 need not force the upstream IdP to prompt.
+
+Times SHALL be compared in milliseconds using the evaluating service's injected `now()`. A bound is exceeded when the elapsed time is greater than the policy value times 1000; equality is admitted. The policy SHALL be read in the same query as the lifecycle and revocation lookup that resolution already performs. The rule SHALL be evaluated at browser selection, at every resolution of an existing browser binding, at direct context issue, and at delegation verification. Refresh SHALL NOT reset the sign-in opening time. For a native password credential, both times SHALL be its verified issue time. A credential whose required time is unknown SHALL be refused. A delegation SHALL be refused in an organization with a policy until the delegation carries its grant's authentication time. The refusal SHALL apply only to that organization's context.
 
 #### Scenario: Session bound exceeded
 
@@ -47,8 +54,26 @@ The refusal SHALL carry a login path that sends `prompt=login`. The rule SHALL b
 #### Scenario: Fresh prompted sign-in admitted
 
 - **GIVEN** the same policy
-- **WHEN** M completes the refusal's login path (which sends `prompt=login`) and selects A
+- **WHEN** M completes the refusal's login path (which sends `prompt=login` and `max_age`), the callback carries a verified `auth_time` from now, and M selects A
 - **THEN** selection succeeds
+
+#### Scenario: Link callback does not reauthenticate
+
+- **GIVEN** A has `reauthenticate_after_seconds` 3600, and M's `reauthenticated_at` is 3601 seconds old
+- **WHEN** M completes a link callback through `google-oauth2` whose transaction sent `prompt=login`, then selects A
+- **THEN** selection answers `403 reauthentication_required`
+
+#### Scenario: Different connection does not reauthenticate the replaced credential
+
+- **GIVEN** M's credential was authenticated by `samlp|acme-saml|m`, and the callback carries no `auth_time`
+- **WHEN** a login callback with `prompt=login` returns `google-oauth2|7` and replaces it
+- **THEN** the new lifecycle's `reauthenticated_at` is not set from the callback time
+
+#### Scenario: Exact bound under a fake clock
+
+- **GIVEN** A has `max_session_seconds` 28800, and the service clock is fixed at `opened_at + 28800000` ms
+- **WHEN** M's binding resolves, and resolves again with the clock advanced by 1 ms
+- **THEN** the first resolution is admitted, and the second answers `403 reauthentication_required` with reason `max_session`
 
 #### Scenario: Unknown time refused
 

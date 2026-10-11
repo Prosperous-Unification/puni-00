@@ -9,7 +9,7 @@ Each of the following acts SHALL write exactly one `organization_audit` row in t
 - provisioning, updating or deprovisioning a SCIM user, and activating a pending membership;
 - changing the session policy.
 
-The row SHALL name the organization, the actor (the super-admin's user id, or `scim:<token id>` for a SCIM act), the action, the subject kind and the subject id. Its detail SHALL never contain a token, a token digest or a full upstream subject. If the audit row cannot be written, the act SHALL be rolled back and its outcome SHALL NOT be reported as success. A refused act SHALL write no row. Existing `restricted_project_recovery` rows and writers SHALL keep working unchanged.
+The row SHALL name the organization, the actor (the super-admin's user id, or `scim:<token id>` for a SCIM act), the action, the subject kind and the subject id. Its detail SHALL never contain a token, a token digest or a full upstream subject. If the audit row cannot be written, the act SHALL be rolled back and its outcome SHALL NOT be reported as success. A refused act SHALL write no row. Existing `restricted_project_recovery` rows and writers SHALL keep working unchanged. Audit rows SHALL be append-only: the store SHALL refuse any update or delete of a row. They SHALL be retained with no cleanup.
 
 #### Scenario: Connection change audited
 
@@ -28,6 +28,12 @@ The row SHALL name the organization, the actor (the super-admin's user id, or `s
 - **GIVEN** an audit write that fails
 - **WHEN** a super-admin creates a connection, issues a token or sets a policy, or a SCIM client deprovisions a user
 - **THEN** the act is rolled back, the caller receives a server error, and storage is unchanged
+
+#### Scenario: Audit rows cannot be changed
+
+- **GIVEN** an `sso_connection_created` row
+- **WHEN** a writer updates its detail or deletes it
+- **THEN** the store refuses, and the row is unchanged
 
 #### Scenario: Refused act leaves no audit
 
