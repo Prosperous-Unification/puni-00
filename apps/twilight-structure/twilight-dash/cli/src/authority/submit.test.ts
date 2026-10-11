@@ -10,19 +10,19 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { decodeAdmissionPacket, hashCanonical, serializeCanonical } from '@twilight-burokrat/judge';
 import { Database } from 'bun:sqlite';
 import { afterAll, expect, test } from 'bun:test';
 
-import { hashCanonical, serializeCanonical } from '../evidence/content-manifest';
-import {
-  MemoryAuthorityStore,
-  openAuthorityStore,
-  resolveAuthorityDatabasePath,
-} from './authority-store';
+import { MemoryAuthorityStore, resolveAuthorityDatabasePath } from './authority-store';
 import { acquireClaims, expandClaims } from './claims';
 import { abandonGeneration } from './generations';
-import { createAdmissionPacket, decodeAdmissionPacket, expandPacketReads } from './packet';
+import { createAdmissionPacket, expandPacketReads } from './packet-binding';
 import { submitPacket } from './submit';
+import { openOrBootstrapAuthority } from './testing/open-or-bootstrap';
+
+/** Fixed authority time for cases that do not exercise the clock. */
+const FIXED_CLOCK = { read: () => 1_000_000 };
 
 const scratch: string[] = [];
 
@@ -58,7 +58,7 @@ function fixture() {
   const root = realpathSync(repository);
   const baseCommit = git(root, ['rev-parse', 'HEAD']);
   const baseTree = git(root, ['rev-parse', 'HEAD^{tree}']);
-  const store = openAuthorityStore(root);
+  const store = openOrBootstrapAuthority(root, { clock: FIXED_CLOCK });
   const token = acquireClaims(store, {
     owner: { sessionId: 'session-a', worktreePath: root },
     paths: [
@@ -411,7 +411,7 @@ test('persisted packet binding is strictly decoded before authority use', () => 
     .query('UPDATE authority_generation SET packet_identity = ?, packet_bytes = ?')
     .run(hashCanonical({ ...body, extraWrites: ['outside.ts'] }), packetBytes);
   database.close();
-  expect(() => openAuthorityStore(subject.repository)).toThrow(
+  expect(() => openOrBootstrapAuthority(subject.repository, { clock: FIXED_CLOCK })).toThrow(
     'undeclared admission packet field: extraWrites',
   );
 
@@ -425,7 +425,7 @@ test('persisted packet binding is strictly decoded before authority use', () => 
     .query('UPDATE authority_generation SET packet_identity = ?, packet_bytes = ?')
     .run(hashCanonical(changedOwner), ownerBytes);
   ownerDatabase.close();
-  expect(() => openAuthorityStore(wrongOwner.repository)).toThrow(
+  expect(() => openOrBootstrapAuthority(wrongOwner.repository, { clock: FIXED_CLOCK })).toThrow(
     'authority packet binding has a different owner',
   );
 });
@@ -480,7 +480,7 @@ test('production CLI reports submission detection scope and rejects undeclared p
   const packetPath = join(subject.repository, '.git', 'packet.json');
   writeFileSync(packetPath, `${JSON.stringify(subject.packet)}\n`);
   subject.store.close();
-  const cli = join(import.meta.dir, '..', 'cli.ts');
+  const cli = join(import.meta.dir, '..', 'entrypoint.ts');
   const accepted = Bun.spawnSync(
     [
       process.execPath,
@@ -527,7 +527,7 @@ test('production CLI reports submission detection scope and rejects undeclared p
 });
 
 test('production CLI independently refuses hash-valid symlink and Gitlink descendants', () => {
-  const cli = join(import.meta.dir, '..', 'cli.ts');
+  const cli = join(import.meta.dir, '..', 'entrypoint.ts');
   for (const kind of ['symlink', 'gitlink'] as const) {
     const subject = fixture();
     let revision = subject.baseCommit;
@@ -568,7 +568,7 @@ test('production CLI independently refuses hash-valid symlink and Gitlink descen
     );
     expect(refusal.exitCode, kind).toBe(1);
     expect(refusal.stderr.toString('utf8'), kind).toContain(`packet path traverses ${kind}`);
-    const state = openAuthorityStore(subject.repository);
+    const state = openOrBootstrapAuthority(subject.repository, { clock: FIXED_CLOCK });
     expect(state.inspect().generations[0]?.status, kind).toBe('working');
     state.close();
   }
@@ -700,7 +700,7 @@ test('refuses an unrelated committed candidate and an index race before authorit
   const racedCli = Bun.spawnSync(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'cli.ts'),
+      join(import.meta.dir, '..', 'entrypoint.ts'),
       'submit-admission',
       raced.repository,
       packetPath,
@@ -722,7 +722,7 @@ test('refuses an unrelated committed candidate and an index race before authorit
   expect(racedCli.stderr.toString('utf8')).toContain(
     'candidate changed while submission was frozen',
   );
-  const racedState = openAuthorityStore(raced.repository);
+  const racedState = openOrBootstrapAuthority(raced.repository, { clock: FIXED_CLOCK });
   expect(racedState.inspect().generations[0]?.status).toBe('working');
   racedState.close();
 });
@@ -816,7 +816,7 @@ test.each([
 ] as const)(
   'CLI rejects independently rehashed malformed packet: %s',
   (label, expected, mutate) => {
-    const cli = join(import.meta.dir, '..', 'cli.ts');
+    const cli = join(import.meta.dir, '..', 'entrypoint.ts');
     const subject = fixture();
     const candidate = JSON.parse(JSON.stringify(subject.packet)) as Record<string, unknown>;
     mutate(candidate);
@@ -843,7 +843,7 @@ test.each([
 );
 
 test('CLI rejects a packet whose bytes changed without a new packet identity', () => {
-  const cli = join(import.meta.dir, '..', 'cli.ts');
+  const cli = join(import.meta.dir, '..', 'entrypoint.ts');
   const changedIdentity = fixture();
   const identityPath = join(changedIdentity.repository, '.git', 'changed-identity.json');
   writeFileSync(

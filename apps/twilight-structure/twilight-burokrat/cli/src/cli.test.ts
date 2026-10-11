@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import {
   chmodSync,
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   rmSync,
@@ -476,4 +477,35 @@ describe('read-candidate production CLI', () => {
     // Proof: PR run 34694906449 timed this production path out at 5022.71ms under
     // Bun's 5-second default, after its child was still running (`Received: null`).
   }, 20_000);
+});
+
+test('submit-admission is an unknown command', () => {
+  const repository = createRepository();
+  write(repository, 'source.ts', 'export const source = 1;\n');
+  const base = commitAll(repository, 'base');
+  write(repository, 'packet.json', '{}\n');
+  // Proof: restoring the route in cli.ts (importing Dash's moved store) made the cli.ts entry
+  // print `admission packet base must be an object` instead of `unknown command`; restoring only
+  // the bin.ts `validatorCommands` entry made the bin.ts entry dispatch to the validator and
+  // exit `null` instead of 1 (2026-10-11).
+  for (const entry of [cliPath, join(import.meta.dir, 'bin.ts')]) {
+    const invocation = Bun.spawnSync(
+      [
+        process.execPath,
+        entry,
+        'submit-admission',
+        repository,
+        join(repository, 'packet.json'),
+        'staged',
+        base,
+      ],
+      { stderr: 'pipe', stdout: 'pipe' },
+    );
+    expect(invocation.exitCode, entry).toBe(1);
+    expect(invocation.stderr.toString('utf8'), entry).toContain(
+      'unknown command: submit-admission',
+    );
+    expect(invocation.stdout.toString('utf8'), entry).toBe('');
+  }
+  expect(existsSync(join(repository, '.git', 'module-wiki'))).toBe(false);
 });

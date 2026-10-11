@@ -21,9 +21,11 @@
       Follow-up, not done here (recorded 2026-10-11 from the WBS 9a25268b review): only
       `inspect-manual` stopped reading the wall clock. Clock reads remain in
       `review/invoker.ts` (lines 619, 632, 852, 864, 882, 982, 997, 1011, 1062, 1079),
-      `policy/prepare-activation-cli.ts` (249, 281), `policy/prepare-relocation-activation-cli.ts`
-      (188, 220) and `admission/authority-store.ts` (488, 744); each instant should come from its
-      caller, as `--now` does for `inspect-manual`.
+      `policy/prepare-activation-cli.ts` (249, 281) and `policy/prepare-relocation-activation-cli.ts`
+      (188, 220); each instant should come from its caller, as `--now` does for `inspect-manual`.
+      The two `admission/authority-store.ts` reads (488, 744) left Burokrat with the authority
+      relocation (`dash-authority-relocation`, slice S2): the store moved to Twilight Dash and its
+      clock became a required dependency.
       Resolved by WBS 080.36 (2026-10-11): none of the remaining reads is an evaluation instant;
       each measures an event the process performs (harness runs, check runs, lock waits, lease
       instants), which is Twilight Dash work, so none takes `--now`. Each is documented as

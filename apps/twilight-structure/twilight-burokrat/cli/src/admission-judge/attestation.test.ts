@@ -22,7 +22,7 @@ import type {
   CheckedIntegrationCandidate,
   IntegrationEvidenceVerifier,
   VerifiedIntegrationReceipt,
-} from './integrate';
+} from './integration-candidate';
 
 const scratch: string[] = [];
 

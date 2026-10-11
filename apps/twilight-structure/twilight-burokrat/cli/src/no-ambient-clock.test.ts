@@ -35,12 +35,6 @@ const dashOwnedClockReads: readonly { readonly paths: readonly string[]; readonl
     // Candidate check runs: each check's measured start and end.
     { paths: ['policy/prepare-activation-cli.ts'], most: 2 },
     { paths: ['policy/prepare-relocation-activation-cli.ts'], most: 2 },
-    // The lease authority's default clock; WBS 080.19 splits `admission/` into
-    // `admission-runtime/` and then moves it to Dash with the clock required.
-    {
-      paths: ['admission/authority-store.ts', 'admission-runtime/authority-store.ts'],
-      most: 2,
-    },
   ];
 
 const sourceRoot = import.meta.dir;

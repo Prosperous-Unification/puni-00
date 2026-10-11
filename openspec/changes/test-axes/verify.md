@@ -2018,9 +2018,10 @@ Faults, each injected by hand, its tests run, the file restored and the tests re
 | `c3`  | `readEvaluationInstant` keeps only the finiteness test | `inspect-manual refuses a malformed evaluation instant`; `readEvaluationInstant refuses the malformed instant …`        | `2026-02-30…` and `2026-10-11` accepted              |
 
 Scope: only `inspect-manual` stopped reading the clock. The review of this change found clock
-reads remaining in `review/invoker.ts`, `policy/prepare-activation-cli.ts`,
-`policy/prepare-relocation-activation-cli.ts` and `admission/authority-store.ts`, recorded as a
-follow-up under task 2.1 in `tasks.md`.
+reads remaining in `review/invoker.ts`, `policy/prepare-activation-cli.ts` and
+`policy/prepare-relocation-activation-cli.ts`, recorded as a follow-up under task 2.1 in
+`tasks.md`. The fourth, `admission/authority-store.ts`, left Burokrat with the authority
+relocation (`dash-authority-relocation`, slice S2), which made the clock a required dependency.
 
 ## WBS 080.36 (batch 10) — the remaining Burokrat clock reads are Twilight Dash's
 
@@ -2030,8 +2031,8 @@ in Twilight Dash:
 
 - the review harness journal and its lock wait (`review/invoker.ts`, 10 reads);
 - the candidate check runs of both activation CLIs (2 reads each);
-- the lease authority's default clock (`admission/authority-store.ts`, 2 reads, removed by WBS
-  080.19).
+- the lease authority's default clock (`admission/authority-store.ts`, 2 reads), since moved to
+  Twilight Dash with a required clock by WBS 080.19 and no longer listed.
 
 So none takes `--now`. Some recorded instants are compared later: the provenance check refuses a
 receipt that starts before `registeredAt`. That comparison is between two recorded instants, and

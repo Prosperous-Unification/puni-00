@@ -66,13 +66,16 @@ const ALLOWED_INFRA_TO_PRODUCT_EDGES = [
 
 // Proof: omitting the fleet pair made the real graph oracle report
 // `twilight-dash -> tool-fleet`; omitting the scratch pair reported
-// `twilight-dash -> tool-test-scratch` (2026-10-11). This graph oracle sees project pairs,
-// not source files or import specifiers. The product-local effective ESLint tests pin
-// @tools/fleet-plan to cli.ts and its tests, @tools/test-scratch to tests, and refuse a
-// sibling infra alias from both.
-const ALLOWED_DASH_TO_INFRA_EDGES = [
+// `twilight-dash -> tool-test-scratch` (2026-10-11). Omitting the Burokrat pair, after the
+// runtime authority moved to Dash, reported `twilight-dash -> twilight-burokrat` (2026-10-11).
+// This graph oracle sees project pairs, not source files or import specifiers. The
+// product-local effective ESLint tests pin @tools/fleet-plan to cli.ts and its tests,
+// @tools/test-scratch to tests and @twilight-burokrat/judge to cli.ts, `authority/` and tests,
+// and refuse a sibling alias and a relative path into Burokrat.
+const ALLOWED_DASH_EDGES = [
   ['twilight-dash', 'tool-fleet'],
   ['twilight-dash', 'tool-test-scratch'],
+  ['twilight-dash', 'twilight-burokrat'],
 ] as const;
 
 // Navigator exchanges records, not calls: it reads Burokrat's record contracts and WBS's plan
@@ -457,7 +460,7 @@ describe('productConstraints', () => {
           continue;
         }
         if (
-          [...ALLOWED_DASH_TO_INFRA_EDGES, ...ALLOWED_NAVIGATOR_RECORD_EDGES].some(
+          [...ALLOWED_DASH_EDGES, ...ALLOWED_NAVIGATOR_RECORD_EDGES].some(
             ([source, reached]) => project.name === source && target.name === reached,
           )
         ) {

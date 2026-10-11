@@ -295,39 +295,6 @@ async function writeExhaustiveCoverage(argv: string[]): Promise<void> {
   );
 }
 
-async function writeAdmissionSubmission(argv: string[]): Promise<void> {
-  const [repository, packetPath, kind, revision] = argv.slice(1);
-  if (kind !== 'staged' && kind !== 'committed') {
-    throw new Error(
-      'usage: tool-wiki submit-admission <repository> <packet-json> <staged|committed> <revision-or-base>',
-    );
-  }
-  const [{ openAuthorityStore }, { decodeAdmissionPacket }, { submitPacket }] = await Promise.all([
-    import('./admission/authority-store'),
-    import('./admission/packet'),
-    import('./admission/submit'),
-  ]);
-  try {
-    const packet = decodeAdmissionPacket(readJson(packetPath));
-    const store = openAuthorityStore(repository);
-    try {
-      const selection =
-        kind === 'staged' ? ({ base: revision, kind } as const) : ({ kind, revision } as const);
-      process.stdout.write(
-        `${JSON.stringify(submitPacket(store, packet, repository, selection))}\n`,
-      );
-    } finally {
-      store.close();
-    }
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    throw new Error(
-      `${message}; violation was detected and publication refused at submission; editing-time writes were not prevented`,
-      { cause },
-    );
-  }
-}
-
 declare const __TOOL_WIKI_BUNDLED_ARTIFACTS__: string;
 
 function validatorEntryPaths(): string[] | { artifactManifest: string } {
@@ -383,9 +350,6 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   }
   if (args.length === 17 && args[0] === 'evaluate-exhaustive-coverage') {
     return writeExhaustiveCoverage(args);
-  }
-  if (args.length === 5 && args[0] === 'submit-admission') {
-    return writeAdmissionSubmission(args);
   }
   if (args.length === 7 && args[0] === 'lint-local') {
     return import('./policy/trust').then(({ writeLocalLintCommand }) => {
@@ -496,8 +460,11 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   }
   // Proof: replacing this refusal with a successful return made the external package test
   // accept `not-a-command` with exit 0 instead of rejecting the unknown command.
+  // Burokrat ships no authority writer: `submit-admission` moved to Twilight Dash. Proof:
+  // re-adding its route above failed `submit-admission is an unknown command` (cli.test.ts) and
+  // `the validator bundle carries no authority store` (packaging/bundle.test.ts) (2026-10-11).
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-manual|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|submit-admission|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-manual|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 

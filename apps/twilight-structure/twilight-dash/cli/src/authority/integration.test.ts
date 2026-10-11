@@ -2,25 +2,31 @@ import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterAll, expect, test } from 'bun:test';
-
-import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
-import { readCandidate } from '../inventory/read-candidate';
-import { MemoryAuthorityStore, openAuthorityStore } from './authority-store';
-import { acquireClaims } from './claims';
-import { rejectGeneration } from './generations';
 import {
   certifyIntegrationCandidate,
-  composeIntegrationCandidate,
-  decodeIntegrationPolicy,
+  hashBytes,
+  hashCanonical,
   type IntegrationEvidence,
   type IntegrationEvidenceVerifier,
-  recomposeIntegrationCandidate,
+  packetBody,
+  packetBodyBytes,
+  readCandidate,
+  serializeCanonical,
   type VerifiedIntegrationReceipt,
-} from './integrate';
-import { createAdmissionPacket } from './packet';
-import { packetBody, packetBodyBytes, withPacketIdentity } from './packet-codec';
+  withPacketIdentity,
+} from '@twilight-burokrat/judge';
+import { afterAll, expect, test } from 'bun:test';
+
+import { MemoryAuthorityStore } from './authority-store';
+import { acquireClaims } from './claims';
+import { rejectGeneration } from './generations';
+import { composeIntegrationCandidate, recomposeIntegrationCandidate } from './integration-compose';
+import { createAdmissionPacket } from './packet-binding';
 import { submitPacket } from './submit';
+import { openOrBootstrapAuthority } from './testing/open-or-bootstrap';
+
+/** Fixed authority time for cases that do not exercise the clock. */
+const FIXED_CLOCK = { read: () => 1_000_000 };
 
 const scratch: string[] = [];
 
@@ -55,7 +61,7 @@ function integrationFixture() {
     commit: git(root, ['rev-parse', 'HEAD']),
     tree: git(root, ['rev-parse', 'HEAD^{tree}']),
   };
-  const store = openAuthorityStore(root);
+  const store = openOrBootstrapAuthority(root, { clock: FIXED_CLOCK });
 
   function submission(
     sessionId: string,
@@ -436,7 +442,7 @@ test('refuses a stale read in the actual combined candidate', () => {
         : generation,
     ),
   };
-  const reboundStore = new MemoryAuthorityStore(reboundState);
+  const reboundStore = new MemoryAuthorityStore(reboundState, FIXED_CLOCK);
   expect(() =>
     composeIntegrationCandidate(reboundStore, subject.repository, {
       policy,
@@ -573,7 +579,7 @@ test('refuses authenticated patch application failure and frozen report mismatch
           : { ...generation.submission, patchIdentity: malformedIdentity },
     })),
   };
-  const malformedStore = new MemoryAuthorityStore(malformedState);
+  const malformedStore = new MemoryAuthorityStore(malformedState, FIXED_CLOCK);
   const temporaryIndexesBefore = readdirSync(tmpdir())
     .filter((name) => name.startsWith('wiki-integration-index-'))
     .sort();
@@ -888,20 +894,4 @@ test('every produced contract must resolve in the trusted contract registry', ()
     }),
   ).toThrow('produced contract is absent from integration policy: contract.unmapped');
   subject.store.close();
-});
-
-test('strict policy decoding rejects unknown selector kinds and malformed primitive fields', () => {
-  const globBody = {
-    ...policyBody,
-    selectorRules: [{ checks: [], kind: 'glob', path: '*.ts', reviews: [] }],
-  };
-  expect(() =>
-    decodeIntegrationPolicy({
-      ...globBody,
-      policyIdentity: hashCanonical(globBody),
-    }),
-  ).toThrow('Validation failed');
-  expect(() => decodeIntegrationPolicy({ ...policy, contractRules: 'not-an-array' })).toThrow(
-    'Validation failed',
-  );
 });

@@ -1,4 +1,12 @@
-import { compareCanonicalText } from '../evidence/content-manifest';
+import {
+  assertAuthorityClaimPath,
+  assertAuthorityConflictGroup,
+  assertAuthorityPathAccess,
+  assertAuthoritySessionId,
+  assertAuthorityWorktreePath,
+  compareCanonicalText,
+} from '@twilight-burokrat/judge';
+
 import type {
   AuthorityClaim,
   AuthorityGeneration,
@@ -8,14 +16,7 @@ import type {
   PathAccess,
   PathClaim,
 } from './authority-store';
-import {
-  assertAuthorityClaimPath,
-  assertAuthorityConflictGroup,
-  assertAuthorityPathAccess,
-  assertAuthoritySessionId,
-  assertAuthorityTimestamp,
-  assertAuthorityWorktreePath,
-} from './authority-store';
+import { assertAuthorityTimestamp } from './authority-store';
 
 export interface ClaimIdentity {
   readonly path: string;

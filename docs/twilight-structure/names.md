@@ -74,17 +74,14 @@ act as the trusted gate. Twilight Dash holds the secrets and performs the effect
 ### Clock reads
 
 Twilight Burokrat takes the instant it evaluates from its caller: `inspect-manual` requires
-`--now`, and Twilight Dash supplies it. The exception lasts until WBS 080.19 relocates the lease
-authority, whose lease expiry still reads the store's clock inside the Burokrat package. The other
-clock reads still in the package measure events that the process itself performs, which is
-Twilight Dash's work, and they move with it:
+`--now`, and Twilight Dash supplies it. The clock reads still in the package measure events that
+the process itself performs, which is Twilight Dash's work, and they move with it:
 
-| Site                                                      | What it measures                                      | Moves with                   |
-| --------------------------------------------------------- | ----------------------------------------------------- | ---------------------------- |
-| `review/invoker.ts`                                       | review harness journal timestamps and its lock's wait | the review invoker           |
-| `policy/prepare-activation-cli.ts`                        | start and end of each candidate check it runs         | the check runner             |
-| `policy/prepare-relocation-activation-cli.ts`             | start and end of each candidate check it runs         | the check runner             |
-| `admission/authority-store.ts` (default `AuthorityClock`) | lease and claim instants                              | the lease authority (080.19) |
+| Site                                          | What it measures                                      | Moves with         |
+| --------------------------------------------- | ----------------------------------------------------- | ------------------ |
+| `review/invoker.ts`                           | review harness journal timestamps and its lock's wait | the review invoker |
+| `policy/prepare-activation-cli.ts`            | start and end of each candidate check it runs         | the check runner   |
+| `policy/prepare-relocation-activation-cli.ts` | start and end of each candidate check it runs         | the check runner   |
 
 `no-ambient-clock.test.ts` in the Burokrat package fails on a reference to the JavaScript or Bun
 clock APIs outside these files, or on more references in them than they hold today. Its JSDoc

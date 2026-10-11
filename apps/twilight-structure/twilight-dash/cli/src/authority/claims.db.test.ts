@@ -14,20 +14,20 @@ import { pathToFileURL } from 'node:url';
 import { Database } from 'bun:sqlite';
 import { afterAll, expect, test } from 'bun:test';
 
-import {
-  AuthorityContentionError,
-  openAuthorityStore,
-  resolveAuthorityDatabasePath,
-} from './authority-store';
+import { AuthorityContentionError, resolveAuthorityDatabasePath } from './authority-store';
 import { acquireClaims } from './claims';
+import { openOrBootstrapAuthority } from './testing/open-or-bootstrap';
+
+/** Fixed authority time for cases that do not exercise the clock. */
+const FIXED_CLOCK = { read: () => 1_000_000 };
 
 const WORKER_SOURCE = `
-const [{ openAuthorityStore }, { acquireClaims, expandClaims }] = await Promise.all([
+const [{ openOrBootstrapAuthority }, { acquireClaims, expandClaims }] = await Promise.all([
   import(process.argv[2]),
   import(process.argv[3]),
 ]);
 const input = JSON.parse(process.argv[4]);
-const store = openAuthorityStore(input.worktreePath, input.options);
+const store = openOrBootstrapAuthority(input.worktreePath, { clock: { read: () => 1_000_000 }, ...input.options });
 try {
   if (input.readyPath) await Bun.write(input.readyPath, 'ready');
   if (input.startPath) {
@@ -97,7 +97,7 @@ interface WorkerInput {
 }
 
 function spawnWorker(fixture: FixtureRepository, input: WorkerInput) {
-  const storeModule = pathToFileURL(join(import.meta.dir, 'authority-store.ts')).href;
+  const storeModule = pathToFileURL(join(import.meta.dir, 'testing', 'open-or-bootstrap.ts')).href;
   const claimsModule = pathToFileURL(join(import.meta.dir, 'claims.ts')).href;
   return Bun.spawn(
     [process.execPath, fixture.worker, storeModule, claimsModule, JSON.stringify(input)],
@@ -170,13 +170,13 @@ test('resolves linked and symlinked worktrees to one canonical common-Git author
   expect(new Set(paths).size).toBe(1);
   expect(paths[0]).toEndWith('/.git/module-wiki/authority.sqlite');
 
-  const first = openAuthorityStore(fixture.worktreeA);
+  const first = openOrBootstrapAuthority(fixture.worktreeA, { clock: FIXED_CLOCK });
   expect(acquireClaims(first, claim('session-a', fixture.worktreeA, 'libs/contracts'))).toEqual({
     generation: 1,
     sessionId: 'session-a',
   });
   first.close();
-  const second = openAuthorityStore(fixture.worktreeB);
+  const second = openOrBootstrapAuthority(fixture.worktreeB, { clock: FIXED_CLOCK });
   expect(() =>
     acquireClaims(second, claim('session-b', fixture.worktreeB, 'libs/contracts/src')),
   ).toThrow('path claim overlaps session session-a');
@@ -248,11 +248,15 @@ test('refuses a legacy authority store the process cannot read, and one that dan
 test('refuses an existing authority database symlink', () => {
   const fixture = fixtureRepository();
   const databasePath = resolveAuthorityDatabasePath(fixture.root);
+  // Resolution creates nothing, so the fixture makes the directory the link sits in.
+  mkdirSync(join(databasePath, '..'));
   const external = join(fixture.root, '..', 'external-authority.sqlite');
   new Database(external, { create: true }).close();
   symlinkSync(external, databasePath);
 
-  expect(() => openAuthorityStore(fixture.root)).toThrow('authority database is not canonical');
+  expect(() => openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK })).toThrow(
+    'authority database is not canonical',
+  );
 });
 
 test('two Bun processes atomically refuse overlap and both admit disjoint work', async () => {
@@ -295,7 +299,7 @@ test('two Bun processes atomically refuse overlap and both admit disjoint work',
   const overlap = await Promise.all(overlapping.map(observation));
   expect(overlap.filter(({ ok }) => ok)).toHaveLength(1);
   expect(overlap.find(({ ok }) => !ok)?.message).toContain('path claim overlaps session');
-  const afterOverlap = openAuthorityStore(fixture.root);
+  const afterOverlap = openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK });
   const overlapState = afterOverlap.inspect();
   afterOverlap.close();
   expect(overlapState.generations).toHaveLength(1);
@@ -406,7 +410,7 @@ test('two process expansions preserve the refused owner and commit the disjoint 
   expect(refused.message).toContain('overlaps');
   expect(admitted).toMatchObject({ ok: true });
 
-  const store = openAuthorityStore(fixture.root);
+  const store = openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK });
   const state = store.inspect();
   store.close();
   expect(state.generations.find(({ sessionId }) => sessionId === 'session-a')?.claims).toEqual([
@@ -433,7 +437,7 @@ test('fails closed for corrupt, incompatible and unreadable existing state', () 
       chmodSync(databasePath, 0o000);
     }
     try {
-      expect(() => openAuthorityStore(fixture.root)).toThrow(
+      expect(() => openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK })).toThrow(
         fault === 'incompatible'
           ? 'authority database schema is incompatible'
           : fault === 'unreadable'
@@ -449,7 +453,7 @@ test('fails closed for corrupt, incompatible and unreadable existing state', () 
 test('refuses an added schema object and an unknown state version', () => {
   for (const fault of ['extra-table', 'extra-index', 'extra-view', 'unknown-version'] as const) {
     const fixture = fixtureRepository();
-    const store = openAuthorityStore(fixture.root);
+    const store = openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK });
     store.close();
     const databasePath = resolveAuthorityDatabasePath(fixture.root);
     const database = new Database(databasePath);
@@ -461,7 +465,7 @@ test('refuses an added schema object and an unknown state version', () => {
     else database.run("UPDATE authority_meta SET schema_version = 'unknown.v99'");
     database.close();
 
-    expect(() => openAuthorityStore(fixture.worktreeA)).toThrow(
+    expect(() => openOrBootstrapAuthority(fixture.worktreeA, { clock: FIXED_CLOCK })).toThrow(
       fault === 'unknown-version'
         ? 'authority database version is incompatible'
         : 'authority database schema is incompatible',
@@ -471,7 +475,7 @@ test('refuses an added schema object and an unknown state version', () => {
 
 test('refuses a sqliteX-prefixed trigger before it can erase authority claims', () => {
   const fixture = fixtureRepository();
-  const store = openAuthorityStore(fixture.root);
+  const store = openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK });
   acquireClaims(store, claim('session-a', fixture.worktreeA, 'libs/contracts'));
   store.close();
   const databasePath = resolveAuthorityDatabasePath(fixture.root);
@@ -482,7 +486,7 @@ test('refuses a sqliteX-prefixed trigger before it can erase authority claims', 
 
   let refusal: unknown;
   try {
-    const reopened = openAuthorityStore(fixture.worktreeA);
+    const reopened = openOrBootstrapAuthority(fixture.worktreeA, { clock: FIXED_CLOCK });
     acquireClaims(reopened, claim('session-b', fixture.worktreeB, 'apps/fe-01'));
     reopened.close();
   } catch (error) {
@@ -505,7 +509,7 @@ test('refuses a sqliteX-prefixed trigger before it can erase authority claims', 
 
 test('refuses relational corruption before treating an orphan claim as unowned', () => {
   const fixture = fixtureRepository();
-  const store = openAuthorityStore(fixture.root);
+  const store = openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK });
   store.close();
   const databasePath = resolveAuthorityDatabasePath(fixture.root);
   const database = new Database(databasePath);
@@ -515,7 +519,7 @@ test('refuses relational corruption before treating an orphan claim as unowned',
   );
   database.close();
 
-  expect(() => openAuthorityStore(fixture.worktreeA)).toThrow(
+  expect(() => openOrBootstrapAuthority(fixture.worktreeA, { clock: FIXED_CLOCK })).toThrow(
     'authority database corrupt: foreign-key check failed',
   );
 });
@@ -552,7 +556,7 @@ test('refuses malformed persisted owner and claim identities before overlap deci
 
   for (const fault of faults) {
     const fixture = fixtureRepository();
-    const store = openAuthorityStore(fixture.root);
+    const store = openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK });
     acquireClaims(store, {
       ...claim('session-a', fixture.worktreeA, 'libs/contracts'),
       conflictGroups: ['root-schema'],
@@ -564,13 +568,15 @@ test('refuses malformed persisted owner and claim identities before overlap deci
     for (const mutation of fault.mutations) database.run(mutation);
     database.close();
 
-    expect(() => openAuthorityStore(fixture.worktreeB)).toThrow(fault.message);
+    expect(() => openOrBootstrapAuthority(fixture.worktreeB, { clock: FIXED_CLOCK })).toThrow(
+      fault.message,
+    );
   }
 });
 
 test('opens one valid snapshot while another store commits between state queries', async () => {
   const fixture = fixtureRepository();
-  const initial = openAuthorityStore(fixture.root);
+  const initial = openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK });
   initial.close();
   const databasePath = resolveAuthorityDatabasePath(fixture.root);
   const writerStart = join(fixture.root, 'snapshot-writer-start');
@@ -619,10 +625,10 @@ test('opens one valid snapshot while another store commits between state queries
   };
   Object.defineProperty(Database.prototype, 'query', queryFault);
 
-  let opened: ReturnType<typeof openAuthorityStore> | undefined;
+  let opened: ReturnType<typeof openOrBootstrapAuthority> | undefined;
   let failure: unknown;
   try {
-    opened = openAuthorityStore(fixture.worktreeA);
+    opened = openOrBootstrapAuthority(fixture.worktreeA, { clock: FIXED_CLOCK });
   } catch (error) {
     failure = error;
   } finally {
@@ -641,7 +647,7 @@ test('opens one valid snapshot while another store commits between state queries
   expect(writerExit).toBe(0);
   expect(writerStderr).toBe('');
   expect(interleaved).toBeTrue();
-  const final = openAuthorityStore(fixture.root);
+  const final = openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK });
   expect(final.inspect().generations).toContainEqual({
     claims: [{ access: 'write', identity: 'apps/snapshot', kind: 'path' }],
     generation: 1,
@@ -657,7 +663,8 @@ test('opens one valid snapshot while another store commits between state queries
 
 test('bounds terminal lock contention and retries until a held write commits', async () => {
   const fixture = fixtureRepository();
-  const store = openAuthorityStore(fixture.root, {
+  const store = openOrBootstrapAuthority(fixture.root, {
+    clock: FIXED_CLOCK,
     maxBusyAttempts: 2,
     busyDelayMilliseconds: 0,
   });
@@ -711,7 +718,8 @@ test('bounds terminal lock contention and retries until a held write commits', a
 
 test('retries the complete transaction until a rollback-journal reader releases commit', async () => {
   const fixture = fixtureRepository();
-  const store = openAuthorityStore(fixture.root, {
+  const store = openOrBootstrapAuthority(fixture.root, {
+    clock: FIXED_CLOCK,
     maxBusyAttempts: 100,
     busyDelayMilliseconds: 5,
   });
@@ -740,7 +748,8 @@ test('retries the complete transaction until a rollback-journal reader releases 
 
 test('bounds commit contention by attempts and delay without retaining a partial write', () => {
   const fixture = fixtureRepository();
-  const store = openAuthorityStore(fixture.root, {
+  const store = openOrBootstrapAuthority(fixture.root, {
+    clock: FIXED_CLOCK,
     maxBusyAttempts: 3,
     busyDelayMilliseconds: 10,
   });
@@ -772,7 +781,8 @@ test('bounds commit contention by attempts and delay without retaining a partial
 
 test('reports both failures and does not retry after rollback leaves transaction state unknown', () => {
   const fixture = fixtureRepository();
-  const store = openAuthorityStore(fixture.root, {
+  const store = openOrBootstrapAuthority(fixture.root, {
+    clock: FIXED_CLOCK,
     maxBusyAttempts: 3,
     busyDelayMilliseconds: 0,
   });
@@ -824,13 +834,15 @@ test('reports both failures and does not retry after rollback leaves transaction
 test('rejects contention settings outside the finite authority budget', () => {
   const fixture = fixtureRepository();
   expect(() =>
-    openAuthorityStore(fixture.root, {
+    openOrBootstrapAuthority(fixture.root, {
+      clock: FIXED_CLOCK,
       maxBusyAttempts: 1001,
       busyDelayMilliseconds: 1,
     }),
   ).toThrow('invalid authority busy attempt bound: 1001');
   expect(() =>
-    openAuthorityStore(fixture.root, {
+    openOrBootstrapAuthority(fixture.root, {
+      clock: FIXED_CLOCK,
       maxBusyAttempts: 1,
       busyDelayMilliseconds: 1001,
     }),

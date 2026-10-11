@@ -1,6 +1,15 @@
 import { realpathSync } from 'node:fs';
 
-import { compareCanonicalText, hashBytes, hashCanonical } from '../evidence/content-manifest';
+import {
+  assertCheckedIntegrationCandidate,
+  type CheckedIntegrationCandidate,
+  compareCanonicalText,
+  hashBytes,
+  hashCanonical,
+  type IntegrationRequest,
+  type UncheckedIntegrationCandidate,
+} from '@twilight-burokrat/judge';
+
 import type {
   AuthorityGeneration,
   AuthorityState,
@@ -12,14 +21,10 @@ import type {
 } from './authority-store';
 import { assertAuthorityTimestamp } from './authority-store';
 import {
-  assertCheckedIntegrationCandidate,
-  type CheckedIntegrationCandidate,
   composeIntegrationCandidate,
   IntegrationPatchConflictError,
-  type IntegrationRequest,
   recomposeIntegrationCandidate,
-  type UncheckedIntegrationCandidate,
-} from './integrate';
+} from './integration-compose';
 
 export const MAX_INTEGRATION_BATCH_SIZE = 4;
 export const MAX_INTEGRATION_QUEUE_WAIT_MS = 5 * 60 * 1_000;

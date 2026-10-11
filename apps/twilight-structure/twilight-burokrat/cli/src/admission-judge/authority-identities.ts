@@ -1,5 +1,22 @@
 import { isAbsolute, normalize } from 'node:path';
 
+export type PathAccess = 'read' | 'write';
+
+/** One path an authority generation reads or writes. */
+export interface PathClaim {
+  readonly kind: 'path';
+  readonly identity: string;
+  readonly access: PathAccess;
+}
+
+/** One named conflict group an authority generation holds exclusively. */
+export interface GroupClaim {
+  readonly kind: 'group';
+  readonly identity: string;
+}
+
+export type AuthorityClaim = PathClaim | GroupClaim;
+
 const Session = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const Group = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
