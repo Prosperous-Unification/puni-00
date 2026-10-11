@@ -58,7 +58,8 @@ function seedSubjects(database: Database): void {
     INSERT INTO proposal_submission (id, draft_id, email, brief, receipt, status, created_at, updated_at) VALUES
       ('sub-m', 'draft-m', 'manual@example.test', 'manual brief', 'receipt-m', 'submitted', 20, 20);
     INSERT INTO chat_turn (id, account_id, role, content, created_at, request_id) VALUES
-      ('turn-a', 'acct', 'user', 'hello', 20, 'req-a');
+      ('turn-a', 'acct', 'user', 'hello', 20, 'req-a'),
+      ('turn-legacy', 'acct', 'user', 'legacy hello', 5, NULL);
     INSERT INTO chat_operation (id, account_id, request_id, idempotency_key, body_hash, message, initial, state, created_at) VALUES
       ('op-a', 'acct', 'req-a', 'key-a', 'hash', 'hello', 1, 'inflight', 20);
     INSERT INTO request_concept_preview (request_id, body, created_at) VALUES ('req-a', 'concept', 20);
@@ -127,6 +128,13 @@ const fenceCases: FenceCase[] = [
       "INSERT INTO chat_turn (id, account_id, role, content, created_at, request_id) VALUES ('turn-x', 'acct', 'assistant', 'late reply', 30, 'req-a')",
     update: "UPDATE chat_turn SET content = 'edited' WHERE id = 'turn-a'",
     blank: "UPDATE chat_turn SET content = '' WHERE id = 'turn-a'",
+  },
+  {
+    table: 'chat_turn without request',
+    insert:
+      "INSERT INTO chat_turn (id, account_id, role, content, created_at) VALUES ('turn-legacy-x', 'acct', 'user', 'pre-004 text', 30)",
+    update: "UPDATE chat_turn SET content = 'edited' WHERE id = 'turn-legacy'",
+    blank: "UPDATE chat_turn SET content = '' WHERE id = 'turn-legacy'",
   },
   {
     table: 'chat_operation',

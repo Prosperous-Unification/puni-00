@@ -7,6 +7,7 @@ import {
   fenceSubject,
   initJournal,
   MemoryJournalRemote,
+  openRetentionJournal,
   RetentionJournalError,
   WebsiteStore,
 } from '@website/store-sqlite';
@@ -52,13 +53,15 @@ function baseConfig(): WebsiteApiConfig {
 }
 
 /** An API whose database is attached to an initialised in-memory journal, opened as `main.ts` does. */
-async function journaledApi(overrides: Partial<WebsiteApiConfig> = {}) {
+async function journaledApi(
+  overrides: Partial<WebsiteApiConfig> = {},
+  remote = new MemoryJournalRemote(),
+) {
   const config = { ...baseConfig(), ...overrides };
   new WebsiteStore(config.databasePath).close();
   const database = new Database(config.databasePath);
   attachJournal(database, journalId);
   database.close();
-  const remote = new MemoryJournalRemote();
   await initJournal(remote, { journalId, environment: 'website-test', writer, now: 1 });
   const api = createWebsiteApi({
     ...config,
@@ -321,6 +324,69 @@ test('a remote failure answers 503 and changes nothing', async () => {
       body: { code: 'retention_journal_unavailable' },
     });
     expect(classification(config.databasePath, subjectId)?.classification).toBe('non_client');
+    expect(appliedSequence(config.databasePath)).toBe(0);
+  } finally {
+    api.close();
+  }
+});
+
+/** Delegates to a memory remote; `failGenesisReadsFrom(n)` makes the n-th later genesis read fail. */
+class CountingRemote extends MemoryJournalRemote {
+  private genesisReads = 0;
+  private failingRead: number | null = null;
+
+  failGenesisReadsFrom(read: number): void {
+    this.genesisReads = 0;
+    this.failingRead = read;
+  }
+
+  override get(key: string) {
+    if (key === 'genesis.json' && this.failingRead !== null) {
+      this.genesisReads += 1;
+      if (this.genesisReads >= this.failingRead) this.failGetOnce(key);
+    }
+    return super.get(key);
+  }
+}
+
+test('a failed replay after a remote-ahead refusal answers 503', async () => {
+  const remote = new CountingRemote();
+  const { api, config } = await journaledApi({}, remote);
+  try {
+    const subjectId = await manualProposal(api, config.databasePath);
+    const operator = await operatorLogin(api);
+    // Another copy of the database appends first, so the API's database is one event behind.
+    const otherPath = `${config.databasePath}.other`;
+    const live = new Database(config.databasePath);
+    live.run(`VACUUM INTO '${otherPath}'`);
+    live.close();
+    const other = new Database(otherPath);
+    const otherSession = await openRetentionJournal(other, remote, {
+      journalId,
+      writer,
+      now: Date.now,
+    });
+    await otherSession.append(
+      { kind: 'proposal_submission', id: subjectId },
+      { type: 'place_hold', evidenceReference: 'ops-ticket:9', actor: 'operator' },
+    );
+    other.close();
+    // The append's own read passes and refuses `behind`; the replay's read fails.
+    remote.failGenesisReadsFrom(2);
+    const refused = await api.fetch(
+      request(
+        '/operator/retention/events',
+        'POST',
+        designation(subjectId),
+        operator.cookie,
+        operator.csrf,
+      ),
+      '127.0.0.1',
+    );
+    expect({ status: refused.status, body: (await refused.json()) as unknown }).toEqual({
+      status: 503,
+      body: { code: 'retention_journal_unavailable' },
+    });
     expect(appliedSequence(config.databasePath)).toBe(0);
   } finally {
     api.close();

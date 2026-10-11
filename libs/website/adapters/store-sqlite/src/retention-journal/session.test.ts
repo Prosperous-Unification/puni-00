@@ -586,3 +586,20 @@ test('journal-replay never writes the remote', async () => {
     scratch.close();
   }
 });
+
+test('a forked orphan settlement marks the database forked', async () => {
+  const { databasePath, remote } = await fixture();
+  const database = open(databasePath);
+  try {
+    const session = await openRetentionJournal(database, remote, options());
+    remote.failPutOnce(headKey);
+    expect((await refusal(session.append(subject('req-1'), designate))).reason).toBe('unavailable');
+    const rivalHead = remote.current(headKey);
+    if (!rivalHead) throw new Error('no head');
+    remote.swapBytesAfterPut(headKey, rivalHead);
+    expect((await refusal(session.synchronise())).reason).toBe('forked');
+    expect(position(database)?.state).toBe('forked');
+  } finally {
+    database.close();
+  }
+});

@@ -2357,7 +2357,17 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
             origin,
           );
         if (error instanceof RetentionJournalError && error.reason === 'behind') {
-          await retentionSession.synchronise();
+          try {
+            await retentionSession.synchronise();
+          } catch (replayError) {
+            // Proof: letting this escape made `a failed replay after a remote-ahead refusal answers 503` see a thrown refusal.
+            if (
+              replayError instanceof RetentionJournalError ||
+              replayError instanceof RetentionPolicyBusyError
+            )
+              return attachCors(failure('retention_journal_unavailable', 503), origin);
+            throw replayError;
+          }
           return attachCors(failure('retention_journal_replayed', 503), origin);
         }
         // Proof: rethrowing here made `a remote failure answers 503 and changes nothing` fail with the raw refusal.

@@ -244,8 +244,8 @@ function eraseSubmissionContent(database: Database, submission: SubmissionLineag
 }
 
 /**
- * Removes the account's email, OIDC links and sessions unless another of its requests still
- * holds content and is not erased (design D§7 step 4). The email becomes `erased:<id>` because
+ * Removes the account's email, OIDC links, sessions and request-less legacy chat turns unless
+ * another of its requests still holds content and is not erased (design D§7 step 4). The email becomes `erased:<id>` because
  * the column is `NOT NULL UNIQUE`; the account id stays for provider accounting.
  *
  * @returns whether the identity was erased by this call.
@@ -268,6 +268,12 @@ export function eraseAccountIdentityIfUnneeded(
   );
   // Proof: skipping this check erased the shared email in `two due requests sharing an account keep the email while one is held`.
   if (others.some(({ id }) => retains.get(id)?.retains === 1)) return false;
+  // Legacy turns without a request belong to the account, not to any subject; they go with the
+  // last content-bearing request, as the identity does.
+  // Proof: skipping this update left `chat_turn.content` in `a due account request is blanked in every current and legacy table`.
+  database
+    .query("UPDATE chat_turn SET content = '' WHERE request_id IS NULL AND account_id = ?")
+    .run(accountId);
   const account = database
     .query<{ email: string }, [string]>('SELECT email FROM prospect_account WHERE id = ?')
     .get(accountId);
