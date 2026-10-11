@@ -57,7 +57,8 @@ function seedAccountRequest(database: Database): void {
     INSERT INTO provider_call (id, account_id, utc_day, reserved_micro_usd, settled_micro_usd, created_at, request_id) VALUES
       ('call-a', 'acct', '1970-01-01', 900, 700, 20, 'req-a');
     INSERT INTO chat_turn (id, account_id, role, content, created_at, request_id) VALUES
-      ('turn-a', 'acct', 'user', '${sentinel} hello', 20, 'req-a');
+      ('turn-a', 'acct', 'user', '${sentinel} hello', 20, 'req-a'),
+      ('turn-legacy', 'acct', 'user', '${sentinel} pre-004 hello', 5, NULL);
     INSERT INTO chat_operation (id, account_id, request_id, idempotency_key, body_hash, message, initial, state, provider_call_id, reply, created_at) VALUES
       ('op-a', 'acct', 'req-a', 'key-a', 'hash', '${sentinel} hello', 1, 'completed', 'call-a', '${sentinel} reply', 20);
     INSERT INTO request_concept_preview (request_id, body, created_at) VALUES ('req-a', '${sentinel} concept', 25);
@@ -188,6 +189,7 @@ function seedSharedAccount(database: Database, second: 'hold' | 'blank'): void {
       ('req-1', 'acct', '${sentinel} one', '', 10, 20),
       ('req-2', 'acct', '${second === 'hold' ? 'kept text' : ''}', '', 30, NULL);
     INSERT INTO oidc_identity (issuer, subject, account_id) VALUES ('https://issuer.example.test', 'subject-1', 'acct');
+    INSERT INTO chat_turn (id, account_id, role, content, created_at) VALUES ('turn-legacy', 'acct', 'user', 'legacy kept', 5);
     INSERT INTO retention_subject (subject_kind, subject_id, resolution, anchor_at, deadline_at, anchor_source, classification) VALUES
       ('software_request', 'req-1', 'anchored', 10, 1000, 'first_write', 'non_client'),
       ('software_request', 'req-2', ${second === 'hold' ? "'anchored', 10, 1000, 'first_write', 'hold'" : "'pending_content', NULL, NULL, NULL, 'non_client'"});
@@ -207,6 +209,9 @@ test('two due requests sharing an account keep the email while one is held', () 
     });
     expect(database.query('SELECT count(*) AS links FROM oidc_identity').get()).toEqual({
       links: 1,
+    });
+    expect(database.query("SELECT content FROM chat_turn WHERE id = 'turn-legacy'").get()).toEqual({
+      content: 'legacy kept',
     });
     expect(() => {
       fenceSubject(database, { kind: 'software_request', id: 'req-2' });
