@@ -258,7 +258,11 @@ type Job =
   | { readonly op: 'bootstrap' }
   | { readonly op: 'acquire'; readonly session: string; readonly path: string };
 
-/** Starts each job as a child, lets the scheduler order the launches, then releases them all. */
+/**
+ * Starts each job as a child process in an order the scheduler picks, then releases them all at
+ * once through a barrier file. The scheduler orders only the spawns: the operating system
+ * interleaves the children's transactions, so callers check every linearizable outcome.
+ */
 async function runConcurrently(
   real: Real,
   scheduler: fc.Scheduler,

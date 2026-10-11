@@ -1450,8 +1450,12 @@ export class PublicationNeedsCertifierError extends Error {
  * Finishes a publication from its durable record alone, for a coordinator that died after
  * reserving it. `publishing` resumes through {@link publishReservedIntegration}: refs that never
  * moved are published, and a marker that already proves the commit is finalized without a second
- * ref transaction. `published` and `terminal` are reported from the record and move no ref, so a
- * repeated call after a lost response returns the same report. Every other status, and a
+ * ref transaction. If Git's ref lock is contended while the target is unchanged, the result is a
+ * `waiting` report with reason `publication-contended`: the command exits 0, the record stays
+ * `publishing`, and a later call retries. A record older than the queue deadline with no marker
+ * ends `terminal` (`starvation`). `published` and `terminal` are reported from the record and
+ * move no ref, so a repeated call after a lost response returns the same report. Every other
+ * status, and a
  * reservation whose target moved before any marker existed, needs a certifier.
  *
  * @throws PublicationNeedsCertifierError for `queued`, `checking` and `rework` records.
