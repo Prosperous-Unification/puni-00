@@ -119,6 +119,49 @@ export const ManualAcceptanceApproval = type({
   acceptedAt: Instant,
 }).onUndeclaredKey('reject');
 
+/** Why an `inspect-manual` evaluation instant was refused. */
+export type EvaluationInstantFailure = 'absent' | 'malformed';
+
+/**
+ * A refused `--now` argument. Burokrat reads no clock (docs/twilight-structure/names.md), so the
+ * instant a Manual observation is judged at is supplied by its caller, Twilight Dash, and a
+ * missing one is a refusal rather than a default.
+ */
+export class EvaluationInstantError extends Error {
+  constructor(
+    readonly failure: EvaluationInstantFailure,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'EvaluationInstantError';
+  }
+}
+
+/**
+ * Decodes the caller's `--now` value: a canonical UTC instant, `Z`-suffixed, with or without
+ * milliseconds, naming a real calendar time.
+ *
+ * @throws {EvaluationInstantError} `absent` when no value was given, `malformed` otherwise.
+ */
+export function readEvaluationInstant(value: string | undefined): Date {
+  if (value === undefined)
+    throw new EvaluationInstantError(
+      'absent',
+      'inspect-manual requires --now <UTC instant>; Twilight Dash supplies the evaluation instant',
+    );
+  const millis = Date.parse(value);
+  const canonical = value.includes('.') ? value : value.replace('Z', '.000Z');
+  // Proof (2026-10-11): keeping only the finiteness test let `2026-02-30T00:00:00.000Z` and
+  // `2026-10-11` through; `inspect-manual refuses a malformed evaluation instant` and the typed
+  // malformed case failed.
+  if (!Number.isFinite(millis) || new Date(millis).toISOString() !== canonical)
+    throw new EvaluationInstantError(
+      'malformed',
+      `inspect-manual --now is not a UTC instant: ${value}`,
+    );
+  return new Date(millis);
+}
+
 function utcInstant(value: string, subject: string, capturedNow: Date): number {
   const millis = Date.parse(value);
   const canonical = value.includes('.') ? value : value.replace('Z', '.000Z');
@@ -259,6 +302,8 @@ function evaluateManualChain(
   }
   // Proof: removing this comparison made the overdue CLI verdict become current and let
   // a stale failed run outrank the expired review in the combined production case.
+  // Proof (2026-10-11): `>=` made `inspect-manual evaluated at the last instant of the deadline
+  // date` overdue; the deadline date itself is still within review.
   return { outcome, overdue: capturedNow.toISOString().slice(0, 10) > review.reviewBy };
 }
 
