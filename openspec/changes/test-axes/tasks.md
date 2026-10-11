@@ -13,6 +13,17 @@
 - [x] 2.1f Add and allocate one real WBS rendering Performance case with an evidence-backed mounted-cell threshold; specify real stack startup, readiness, shifted-port and process-group cleanup before implementation.
 - [x] 2.1g Implement and prove the Performance case and runner lifecycle with production-path negatives: threshold breach retains failing diagnostics but no success pointer; missing readiness and occupied shifted port refuse safely; verified Linux child-subreaper/pidfd ownership kills and reaps orphaned separate-session descendants without signaling unrelated processes; two sequential runs publish fresh reports and release owned listeners.
 - [x] 2.1h Run the Performance target uncached twice on the exact committed candidate, inspect fresh discovery/run/JUnit/binding outputs and actual mounted-cell count, and record its noncertifying status. Keep Task 2.1 open until trusted evidence/admission and remaining level obligations are complete.
+      Follow-up, not done here (recorded 2026-10-11 from the 080.34 review): level target names
+      have drifted — `test:api` and `test:unit` beside `test:conformance:level` and
+      `test:unit:level`, and three Browser level targets in fe-01
+      (`test:browser:{ordinary,packaged}:level` and `test:browser:portable:level` in wbs-core).
+      Normalize them in one naming rule when non-pilot projects get level targets.
+      Follow-up, not done here (recorded 2026-10-11 from the WBS 9a25268b review): only
+      `inspect-manual` stopped reading the wall clock. Clock reads remain in
+      `review/invoker.ts` (lines 619, 632, 852, 864, 882, 982, 997, 1011, 1062, 1079),
+      `policy/prepare-activation-cli.ts` (249, 281), `policy/prepare-relocation-activation-cli.ts`
+      (188, 220) and `admission/authority-store.ts` (488, 744); each instant should come from its
+      caller, as `--now` does for `inspect-manual`.
 - [ ] 2.2 Deliver the scenario identifier allocator with predecessor support, then allocate the identifiers of one capability end to end, cite them in its existing tests and produce the first coverage table by hand; implements the identifier requirements — test: the join from the JUnit reports to that capability's scenarios; negative: remove one citation and watch the scenario show as uncovered (needs slice B3 of the rules design, which also imports and reserves the identifiers this change already wrote by hand)
 - [ ] 2.2a Reconcile the active whole-tree source lineage before closing 2.2: inventory each unresolved operation with capability, exact title, path, kind and digest; classify genuine new requirements, accepted unsynced predecessors and active dependencies; sync only reviewed canonical lineage, correct proven ADDED/MODIFIED mistakes, and resolve overlaps explicitly without a path-order winner or archived runtime input. Preserve source holds. Test: the production committed `SPEC-SCENARIOS` selector evaluates the full active tree; negative: an unresolved competing operation still refuses. Record each source correction and any remaining refusal in `verify.md`.
 - [x] 2.2a.1 Prove pointed-row behavior before source reconciliation: retain G2/G3/G4 negatives and the reachable linked-pane no-navigation/no-scroll G1 oracle; separately reconcile the archived offscreen-table/visible-bar precondition with linked scrolling before sync/archive.

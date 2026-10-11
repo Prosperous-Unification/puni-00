@@ -37,7 +37,7 @@ const help = `usage: twilight-burokrat <command> ...
 commands:
   twilight-burokrat validate-record <kind> <json>
   twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]
-  twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path>
+  twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>
   twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]
   twilight-burokrat scenario <import|allocate|validate> <repository> <openspec-spec-path> [--predecessor <id>]
   twilight-burokrat template <list|show <id>|verify <id> <committed|staged|working> <repository> <revision-or-base> <subject>>

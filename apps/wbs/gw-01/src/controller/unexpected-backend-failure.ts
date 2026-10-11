@@ -3,7 +3,7 @@ import type { Logger } from '@wbs/contracts';
 import { registerReportedFailure } from '@wbs/observability';
 
 /** The gateway backend request that rejected at the owning WebSocket boundary. */
-export type GatewayBackendOperation = 'forward' | 'resume';
+export type GatewayBackendOperation = 'forward' | 'resume' | 'project_access';
 
 /** One unexpected live backend rejection and its established connection correlation. */
 export interface UnexpectedBackendFailure {

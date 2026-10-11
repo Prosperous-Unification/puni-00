@@ -419,13 +419,16 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   }
   if (args[0] === 'inspect-manual') {
     // Proof: disabling this arity refusal made the production CLI usage assertion fail.
-    if (args.length !== 5)
+    if (!(args.length === 5 || (args.length === 7 && args[5] === '--now')))
       throw new Error(
-        'usage: twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path>',
+        'usage: twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>',
       );
-    return import('./evidence/manual').then(({ inspectManual }) => {
-      const capturedNow = new Date();
-      const observation = inspectManual(args[1], args[2], args[3], args[4], capturedNow);
+    return import('./evidence/manual').then(({ inspectManual, readEvaluationInstant }) => {
+      // Proof (2026-10-11): sampling `new Date()` here instead made `inspect-manual evaluated at
+      // the last instant of the deadline date` exit 1 (overdue), and the missing and malformed
+      // evaluation instant cases exit 0.
+      const evaluatedAt = readEvaluationInstant(args[6]);
+      const observation = inspectManual(args[1], args[2], args[3], args[4], evaluatedAt);
       process.stdout.write(`${JSON.stringify(observation)}\n`);
       // Proof: disabling this exit mapping made stale, failed and overdue production CLI
       // cases return exit 0 despite their structured nonpassing verdicts.

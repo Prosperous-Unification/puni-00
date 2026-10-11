@@ -5,7 +5,13 @@ export type RequestPolicy =
   | { kind: 'origin'; when: 'always-unsafe-with-session-cookie' | 'always' }
   | {
       kind: 'identity';
-      require: 'signed-in' | 'read-scope' | 'write-scope' | 'internal' | 'gateway-delegation';
+      require:
+        | 'signed-in'
+        | 'read-scope'
+        | 'write-scope'
+        | 'internal'
+        | 'gateway-delegation'
+        | 'gateway-browser';
     };
 
 /** Parameter names come from the declared path, including every nested segment. */
@@ -119,7 +125,8 @@ type CompatibleIdentity<S extends EndpointShape> =
           S['policies'][number],
           {
             kind: 'identity';
-            require: 'signed-in' | 'read-scope' | 'write-scope' | 'gateway-delegation';
+            require:
+              'signed-in' | 'read-scope' | 'write-scope' | 'gateway-delegation' | 'gateway-browser';
           }
         > extends never
       ? unknown

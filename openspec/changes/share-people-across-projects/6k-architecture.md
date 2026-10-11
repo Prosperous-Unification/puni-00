@@ -124,7 +124,8 @@ before holding only transport, so child lifetime cannot mask omitted delivery tr
 Factor the existing observation union into a precise internal type and return it through
 `CommittedDecision` from `observeForAdmission`. The source-bound observation owner captures
 before, runs the original allocation/pair/request collection synchronously, captures after and
-records any actual display change before commit. The direct adapter returns empty downstream
+records any actual display change before commit. An enabled read whose input hash equals the
+stored generation's is a pure read, so the owner skips both captures and returns no envelopes. The direct adapter returns empty downstream
 envelopes. The coordinator registers delivery before consuming idle/observed outcomes.
 
 Keep the observation callback-free. Return the original pair/requests even if a later reservation

@@ -16,6 +16,12 @@ export interface RequestIdentity {
   clientId: string;
   connectionId: string;
   traceId: string;
+  /**
+   * The socket's forwarded browser cookies, for a route that proves the
+   * principal from them (`/internal/resume`). Absent in local mode, where
+   * be-01 authenticates its fixed local identity without a credential.
+   */
+  cookie?: string;
 }
 
 /**
@@ -48,6 +54,7 @@ export async function requestBackend<T>(
           'x-internal-auth': opts.secret,
           'x-client-id': identity.clientId,
           'x-connection-id': identity.connectionId,
+          ...(identity.cookie === undefined ? {} : { cookie: identity.cookie }),
         },
         body: JSON.stringify(body),
         // Proof: omitting signal left cancellation false in four deterministic cases;

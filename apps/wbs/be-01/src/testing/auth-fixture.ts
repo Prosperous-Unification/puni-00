@@ -1,5 +1,5 @@
 import { buildOidcVerifier, type OidcIdentityOptions, type TokenVerifier } from '@wbs/auth';
-import { AuthService } from '@wbs/core/service/auth.service';
+import { type AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
 import { inMemoryUsers } from '@wbs/store-memory/auth-fixture';
 
 import type { OidcIdentityStore, UserStore } from '../repository';
@@ -31,3 +31,15 @@ export function testAuthService(
 }
 
 export { inMemoryUsers } from '@wbs/store-memory/auth-fixture';
+
+/** Local-mode authentication: every request is `identity`, with or without a credential. */
+export function testLocalAuthService(identity: AuthenticatedUser): AuthService {
+  return new AuthService({
+    clock: testClock,
+    users: inMemoryUsers(),
+    identities: inMemoryUsers(),
+    tokens: joseTokenCodec(TEST_JWT_KEY),
+    passwords: bunPasswordHasher,
+    localIdentity: identity,
+  });
+}

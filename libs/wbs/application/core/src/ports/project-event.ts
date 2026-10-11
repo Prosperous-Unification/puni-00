@@ -206,6 +206,13 @@ export function subscriptionFor(projectId: string): string {
   return `project:${projectId}`;
 }
 
+/** The project {@link subscriptionFor} named, or null when `subscription` names none. */
+export function projectIdOfSubscription(subscription: string): string | null {
+  return subscription.startsWith('project:') && subscription.length > 'project:'.length
+    ? subscription.slice('project:'.length)
+    : null;
+}
+
 /**
  * Where a published project event goes.
  *
