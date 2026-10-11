@@ -317,7 +317,7 @@ type BareRefusalCode =
   // Work-item pages (`list-search-and-paging`): a cursor whose work item has
   // left the project; a `parentId` naming no work item of the project.
   | 'stale_cursor'
-  | 'unknown_parent';
+  | 'unknown_parent'
   // Capacity mode (`share-people-across-projects` 8.1): a mode this release
   // does not list in `SUPPORTED_CAPACITY_MODES`.
   | 'capacity_mode_unsupported';
