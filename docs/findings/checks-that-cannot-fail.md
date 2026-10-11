@@ -127,11 +127,6 @@ re-exporting a module that does not exist. Its target now runs `tsc --build --fo
 lib project too, watched failing on a deliberate `const deliberatelyWrong: number = 'not a
 number'` and green with it removed; the dead file is deleted. Its spec project's two
 errors (`forward-client.test.ts`) are gone with the rest: 0 on 2026-09-07.
-It recurred as evidence rather than as a target on 2026-10-11: the automatic-activation ledger
-recorded direct `tsc --noEmit --project` on Burokrat's solution config as passing across several
-checkpoints, while the declared `twilight-burokrat:typecheck` (`tsc --build --force`) reported 22
-errors in the same review-selection slice. Cite the declared target's output, never a direct
-`--project` run against a solution config.
 
 <a id="r5-catalogue-005"></a>
 <!-- root-source:r5.catalogue.005 -->

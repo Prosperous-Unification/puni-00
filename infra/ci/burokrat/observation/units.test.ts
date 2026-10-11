@@ -36,7 +36,7 @@ function layout(): ObservationUnitInput {
 }
 
 test('observation service template requires protected execution and bounded shutdown', () => {
-  const path = join(root, 'observation.service.template');
+  const path = join(root, 'observation.service.tmpl');
   expect(existsSync(path)).toBe(true);
   const service = readFileSync(path, 'utf8');
   for (const directive of [
@@ -62,7 +62,7 @@ test('observation service template requires protected execution and bounded shut
 });
 
 test('timer artifact cannot grant execution authority', () => {
-  const path = join(root, 'observation.timer.template');
+  const path = join(root, 'observation.timer.tmpl');
   expect(existsSync(path)).toBe(true);
   const timer = readFileSync(path, 'utf8');
   expect(timer).toContain('Persistent=true');

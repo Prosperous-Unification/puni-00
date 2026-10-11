@@ -122,11 +122,8 @@ export function renderObservationUnits(raw: unknown): RenderedObservationUnits {
     input.stopTimeoutSec > 600
   )
     throw new Error('observation unit timeout malformed');
-  const serviceTemplate = readFileSync(
-    join(import.meta.dir, 'observation.service.template'),
-    'utf8',
-  );
-  const timer = readFileSync(join(import.meta.dir, 'observation.timer.template'), 'utf8');
+  const serviceTemplate = readFileSync(join(import.meta.dir, 'observation.service.tmpl'), 'utf8');
+  const timer = readFileSync(join(import.meta.dir, 'observation.timer.tmpl'), 'utf8');
   const readOnly = [
     input.runtimeDirectory,
     input.trustDirectory,
