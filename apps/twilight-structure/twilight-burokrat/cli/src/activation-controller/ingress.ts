@@ -35,7 +35,8 @@ export function assertObservedRequestCurrent(
   pin: TrustedBootstrapPin,
   observed: ObservedActivationCandidate,
 ): void {
-  // Proof: reconstructing auditGeneration from bootstrap authorityGeneration rejected a valid reopened subject.
+  // Proof: reconstructing auditGeneration from bootstrap authorityGeneration rejected a valid
+  // reopened subject; `current request separates authority and audit generation` failed.
   readBootstrapConfiguration(bootstrapPath, pin);
   const current = createActivationRequest({
     ...observed,

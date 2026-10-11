@@ -262,3 +262,26 @@ test('old request schema cannot acquire default authority', () => {
     }).toThrow();
   }
 });
+
+test('current request separates authority and audit generation', () => {
+  const fixture = mounted();
+  const first = prepareObservedRequest(fixture.path, fixture.pin, fixture.observed);
+  const { requestIdentity: _identity, schemaVersion: _version, ...fields } = first.request;
+  const advanced = createActivationRequest({ ...fields, auditGeneration: 9 }).request;
+  expect(() => {
+    assertObservedRequestCurrent(advanced, fixture.path, fixture.pin, fixture.observed);
+  }).not.toThrow();
+  const rotated = serializeCanonical({
+    ...fixture.configuration,
+    publisher: { ...fixture.configuration.publisher, endpoint: 'https://other.example.invalid' },
+  });
+  writeFileSync(fixture.path, rotated);
+  expect(() => {
+    assertObservedRequestCurrent(
+      advanced,
+      fixture.path,
+      { ...fixture.pin, identity: hashBytes(rotated) },
+      fixture.observed,
+    );
+  }).toThrow('activation request identity changed');
+});
