@@ -12,7 +12,7 @@ Step-node IDs, step codes, step order, work-item numbering, copied node-ID links
 
 ## Constraints
 
-The `accept-padded-step-reference-aliases` parser release must be deployed to production and all older be-01 instances drained before this change merges. Blue and green share the public API during deployment. The address-revision refusal continues to protect callers from a reference that could now mean another node. No arbitrary step-count maximum is introduced.
+The `accept-padded-step-reference-aliases` parser change must be active on dev before this change merges. Dev deploys `main` through a source checkout and watchers, so verify its synced SHA and be-01 response after the parser PR merges. Production currently runs pre-product `0afc7775`, whose tree has no WBS app or step-reference routes; recheck that fact before a product release. A future product blue/green swap shares the public API. The address-revision refusal continues to protect callers from a reference that could now mean another node. No arbitrary step-count maximum is introduced.
 
 ## Capabilities
 

@@ -8,4 +8,4 @@
 
 ## 3. Record and gate the release
 
-- [ ] 3.1 Update Step reference in `CONTEXT.md`, related JSDoc and OpenSpec; validate the change and record actual CI output in `verify.md`. Do not merge until the padded-alias parser release is deployed to production and older be-01 instances have drained. Evidence: OpenSpec validation and PR checks; the production prerequisite requires an external deployment observation.
+- [ ] 3.1 Update Step reference in `CONTEXT.md`, related JSDoc and OpenSpec; validate the change and record actual CI output in `verify.md`. Do not merge until the padded-alias parser release is active on dev, as shown by its synced SHA and a be-01 response. Evidence: OpenSpec validation, PR checks and dev deployment observation. Recheck the pre-product production state before any product release.
