@@ -309,3 +309,18 @@ describe('the role -> step rename waiver', () => {
     expect(lintMigration(file, '.')).rejects.toThrow(/workspace root must be an absolute/);
   });
 });
+
+describe('the enterprise SSO audit rebuild', () => {
+  // The real forward script, linted where it lives: its single DROP TABLE is
+  // admitted only because the rebuild ships the foreign-key guard.
+  // Proof: replacing `CHECK (violations = 0)` in that script with `CHECK (1)` made this report
+  // `contains destructive statement: DROP TABLE`; watched 2026-10-12.
+  it('accepts the enterprise SSO audit rebuild', async () => {
+    const root = new URL('.', WORKSPACE).pathname.replace(/\/$/, '');
+    const file = join(
+      root,
+      'apps/wbs/be-01/drizzle/20261012090200_widen_organization_audit/migration.sql',
+    );
+    expect(await lintMigration(file, root)).toBeNull();
+  });
+});
