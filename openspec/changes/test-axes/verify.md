@@ -1992,5 +1992,32 @@ The Fable review of `c09aa1d9a` returned MERGE. It asked for three changes in th
 
 **Deferred to WBS follow-ups by the reviewer.**
 
-- Burokrat `inspect-manual` reads the wall clock (`cli.ts:427`). The evaluation instant should become an explicit CLI argument supplied by Dash.
+- Burokrat `inspect-manual` reads the wall clock (`cli.ts:427`). The evaluation instant should become an explicit CLI argument supplied by Dash. Done by WBS 9a25268b (see the last section).
 - Level target names have drifted: `test:api`/`test:unit` versus `test:conformance:level`/`test:unit:level`, and there are three Browser level targets in fe-01. These should be normalized when non-pilot projects get level targets.
+
+## WBS 9a25268b (batch 10) — `inspect-manual` reads no clock
+
+Observed 2026-10-11 on branch `batch-10/080-burokrat-no-clock`, from
+`origin/batch-10/integration-4` at `9a9d5677f`. `inspect-manual` now takes a required
+`--now <UTC instant>`; `readEvaluationInstant` in `evidence/manual.ts` decodes it once and refuses
+an absent or malformed value with `EvaluationInstantError` (`failure: 'absent' | 'malformed'`).
+The test harness passes a fixed `2026-10-11T00:00:00.000Z`, after every fixture timestamp, so no
+Manual case reads a clock. Twilight Dash, which owns time (`docs/twilight-structure/names.md`),
+supplies the instant; no Dash caller of `inspect-manual` exists yet.
+
+The exact on-date deadline boundary that Task 3.1.3 could not exercise is now a production CLI
+case: with `reviewBy` `2026-10-09`, `--now 2026-10-09T23:59:59.999Z` is `current` (exit 0) and
+`--now 2026-10-10T00:00:00.000Z` is `overdue` (exit 1).
+
+Faults, each injected by hand, its tests run, the file restored and the tests rerun green:
+
+| Fault | Injected                                               | Named test                                                                                                              | Observed                                             |
+| ----- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `c1`  | `cli.ts` samples `new Date()` again instead of `--now` | `inspect-manual evaluated at the last instant of the deadline date`; `… without an evaluation instant`; `… malformed …` | exit 1 for the boundary case; 0 for the two refusals |
+| `c2`  | the overdue comparison is `>=`                         | `inspect-manual evaluated at the last instant of the deadline date`                                                     | `Expected: 0, Received: 1`                           |
+| `c3`  | `readEvaluationInstant` keeps only the finiteness test | `inspect-manual refuses a malformed evaluation instant`; `readEvaluationInstant refuses the malformed instant …`        | `2026-02-30…` and `2026-10-11` accepted              |
+
+Scope: only `inspect-manual` stopped reading the clock. The review of this change found clock
+reads remaining in `review/invoker.ts`, `policy/prepare-activation-cli.ts`,
+`policy/prepare-relocation-activation-cli.ts` and `admission/authority-store.ts`, recorded as a
+follow-up under task 2.1 in `tasks.md`.
