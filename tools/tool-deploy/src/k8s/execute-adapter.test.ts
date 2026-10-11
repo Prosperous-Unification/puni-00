@@ -220,7 +220,7 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
     mkdirSync(candidateFolder);
     const fixture = resolve(
       import.meta.dir,
-      '../../../../deploy/k8s/wbs/lab/fault-migrations',
+      '../../../../deploy/k8s/wbs/lab/rollback-fault/migrations',
       FAULT_MIGRATION,
     );
     copyFileSync(join(fixture, 'migration.sql'), join(candidateFolder, 'migration.sql'));

@@ -38,14 +38,16 @@ it('stamps the separate older candidate below the newer pre-applied shared-peopl
 
 it('keeps the blocked-down migration isolated in the final-scenario image', () => {
   const name = '29991231010000_lab_rollback_failure';
-  expect(readdirSync(resolve(ROOT, 'deploy/k8s/wbs/lab/fault-migrations'))).toEqual([name]);
+  expect(readdirSync(resolve(ROOT, 'deploy/k8s/wbs/lab/rollback-fault/migrations'))).toEqual([
+    name,
+  ]);
   const dockerfile = readFileSync(
     resolve(ROOT, 'deploy/k8s/wbs/lab/backend-rollback-fault.Dockerfile'),
     'utf8',
   );
-  expect(dockerfile).toContain(`COPY fault-migrations/${name} `);
+  expect(dockerfile).toContain(`COPY rollback-fault/migrations/${name} `);
   const down = readFileSync(
-    resolve(ROOT, 'deploy/k8s/wbs/lab/fault-migrations', name, 'down.sql'),
+    resolve(ROOT, 'deploy/k8s/wbs/lab/rollback-fault/migrations', name, 'down.sql'),
     'utf8',
   );
   expect(down).toContain('CHECK (`allowed` = 1)');
