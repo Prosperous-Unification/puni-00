@@ -32,6 +32,10 @@ import { useSnapshotChanges } from './use-snapshot-changes';
 import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
+  /** Page-owned view selectors, kept beside the existing Plan controls. */
+  viewControls?: ReactNode;
+  /** False while its owning page shows Board; isolated Plan readers stay active. */
+  planActive?: boolean;
   /**
    * The selected project's runtime, opened and left by its owner above the
    * table — never the client, a port or the feed's refresh owner (rule K2).

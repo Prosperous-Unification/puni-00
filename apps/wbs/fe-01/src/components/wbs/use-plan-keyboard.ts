@@ -30,6 +30,8 @@ import { expandBranch } from './use-plan-structure';
 import { type TreeRow } from './wbs-rows';
 import { rowWords } from './work-item-words';
 
+const planIsActive = (): boolean => true;
+
 /**
  * The keyboard's two standing listeners: the cheat sheet's chord, and the
  * countdown that disarms a half-pressed delete.
@@ -46,6 +48,7 @@ export function usePlanKeyboardEffects({
   setArmedDelete,
   dismissToast,
   dReleased,
+  isPlanActive = planIsActive,
 }: {
   setCheatSheetOpen: React.Dispatch<React.SetStateAction<boolean>>;
   stepStack: (direction: 'undo' | 'redo') => Promise<void>;
@@ -54,6 +57,7 @@ export function usePlanKeyboardEffects({
   setArmedDelete: React.Dispatch<React.SetStateAction<{ rowId: string; number: string } | null>>;
   dismissToast: (key: string) => void;
   dReleased: React.RefObject<boolean>;
+  isPlanActive?: () => boolean;
 }) {
   /**
    * `?` anywhere on the page opens the cheat sheet.
@@ -70,6 +74,10 @@ export function usePlanKeyboardEffects({
    */
   useEffect(() => {
     const openOnQuestionMark = (event: KeyboardEvent) => {
+      // Proof: removing this and the undo/redo guard below made `keeps the
+      // hidden Plan window shortcuts inactive on Board` issue undo for p2.
+      // Watched 2026-10-06.
+      if (!isPlanActive()) return;
       if (!opensCheatSheet(event, event.target)) return;
       setCheatSheetOpen(true);
     };
@@ -77,7 +85,7 @@ export function usePlanKeyboardEffects({
     return () => {
       window.removeEventListener('keydown', openOnQuestionMark);
     };
-  }, [setCheatSheetOpen]);
+  }, [setCheatSheetOpen, isPlanActive]);
 
   /**
    * Cmd/Ctrl+Z anywhere on the page, and Shift with it to go the other way.
@@ -94,6 +102,7 @@ export function usePlanKeyboardEffects({
    */
   useEffect(() => {
     const walk = (event: KeyboardEvent) => {
+      if (!isPlanActive()) return;
       const direction = undoChord(event, event.target);
       if (direction === null) return;
       event.preventDefault();
@@ -103,7 +112,7 @@ export function usePlanKeyboardEffects({
     return () => {
       window.removeEventListener('keydown', walk);
     };
-  }, [stepStack]);
+  }, [stepStack, isPlanActive]);
 
   /**
    * Everything that takes a pending Ctrl+D off, other than another keystroke.
