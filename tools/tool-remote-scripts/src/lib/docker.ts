@@ -937,6 +937,53 @@ export function storedReadinessesCommand(container: string): string[] {
   return storedStatementsCommand(container, 'readiness');
 }
 
+/**
+ * The attempt outcomes the incoming release reads (`step-node-attempts` design
+ * D6). A release older than attempts ships no `attempt-outcomes-cli.ts`, and
+ * only that absence under a readable source directory reads as `[]`, so any
+ * ended attempt refuses the swap to it and no attempt passes. A missing or
+ * unreadable `src` exits 74 and a nonregular CLI path 73, as
+ * {@link statementKindsCommand} does.
+ *
+ * Proof: the directory check replaced by an unconditional `[]` made `does not
+ * treat a missing source directory as an older release` (attempt outcome
+ * commands) fail on `Expected: 74, Received: 0`; watched 2026-10-12.
+ */
+export function attemptOutcomesCommand(container: string): string[] {
+  const cli = 'src/attempt-outcomes-cli.ts';
+  return [
+    'exec',
+    container,
+    'sh',
+    '-c',
+    `if test -f ${cli}; then bun run ${cli}; elif test -e ${cli}; then exit 73; elif test -d src && test -r src && test -x src; then printf '[]\\n'; else exit 74; fi`,
+  ];
+}
+
+/**
+ * Every stored attempt outcome and its count, read through the shared DB_PATH
+ * without importing release code. Empty before `step_node_attempt` exists; a
+ * running attempt stores no outcome and is not counted, since an older release
+ * that cannot read outcomes has nothing to misread in one.
+ */
+export function storedAttemptOutcomesCommand(container: string): string[] {
+  return [
+    'exec',
+    container,
+    'bun',
+    '-e',
+    `import { Database } from 'bun:sqlite';
+const path = process.env.DB_PATH;
+if (!path) throw new Error('DB_PATH must be set');
+const db = new Database(path, { readonly: true });
+try {
+  const exists = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='step_node_attempt'").get();
+  const rows = exists === null ? [] : db.query('SELECT outcome, count(*) AS count FROM step_node_attempt WHERE outcome IS NOT NULL GROUP BY outcome ORDER BY outcome').all();
+  console.log(JSON.stringify(rows));
+} finally { db.close(); }`,
+  ];
+}
+
 /** Applies pending migrations through the path shipped in the backend image. */
 export function migrateCommand(container: string): string[] {
   return ['exec', container, 'bun', 'run', 'src/migrate-cli.ts'];

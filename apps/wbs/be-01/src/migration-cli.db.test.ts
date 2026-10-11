@@ -1058,6 +1058,10 @@ describe('migration deploy entrypoints', () => {
         'project-rank-rollback-cli.ts',
         ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/project-rank-rollback'"],
       ],
+      [
+        'step-node-attempt-rollback-cli.ts',
+        ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/step-node-attempt-rollback'"],
+      ],
     ]);
     for (const [file, imports] of expectedImports) {
       const source = readFileSync(join(APP_ROOT, 'src', file), 'utf8');
@@ -1267,6 +1271,33 @@ describe('migration deploy entrypoints', () => {
     expect(invalid.exitCode).not.toBe(0);
     expect(invalid.stderr).toContain('usage:');
     const missingArgument = await runCli('project-rank-rollback-cli.ts', dbPath, 'restore');
+    expect(missingArgument.exitCode).not.toBe(0);
+    expect(missingArgument.stderr).toContain('usage:');
+  }, 60_000);
+
+  it('guards the attempt rollback CLI usage and refuses a database without attempts', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-attempt-cli-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const savedPath = join(root, 'attempts.json');
+    // Every migration before the attempts table, so `save` meets a database
+    // that has never held one.
+    const unmigrated = join(root, 'migrations');
+    mkdirSync(unmigrated);
+    for (const name of readdirSync(MIGRATIONS).filter(
+      (entry) => !entry.endsWith('_add_step_node_attempts'),
+    )) {
+      cpSync(join(MIGRATIONS, name), join(unmigrated, name), { recursive: true });
+    }
+    runMigrations(dbPath, unmigrated);
+    const refused = await runCli('step-node-attempt-rollback-cli.ts', dbPath, 'save', savedPath);
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toContain('step_node_attempt does not exist');
+    expect(existsSync(savedPath)).toBe(false);
+    const invalid = await runCli('step-node-attempt-rollback-cli.ts', dbPath, 'erase', savedPath);
+    expect(invalid.exitCode).not.toBe(0);
+    expect(invalid.stderr).toContain('usage:');
+    const missingArgument = await runCli('step-node-attempt-rollback-cli.ts', dbPath, 'restore');
     expect(missingArgument.exitCode).not.toBe(0);
     expect(missingArgument.stderr).toContain('usage:');
   }, 60_000);

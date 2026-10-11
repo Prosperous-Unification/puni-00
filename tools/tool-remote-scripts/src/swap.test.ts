@@ -7,10 +7,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { assembleCaddyfile } from './lib/caddy';
 import {
+  attemptOutcomesCommand,
   capacityModesCommand,
   holdKindsCommand,
   readinessKindsCommand,
   relationshipTypesCommand,
+  storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
@@ -945,9 +947,14 @@ describe('execute, stored vocabulary rollback guard', () => {
     failure?: 'reader' | 'store' | 'hold-reader' | 'hold-store',
     holds: { supported: string; stored: string } = { supported: '[]', stored: '[]' },
     readiness: { supported: string; stored: string } = { supported: '[]', stored: '[]' },
+    outcomes: { supported: string; stored: (read: number) => string } = {
+      supported: '[]',
+      stored: () => '[]',
+    },
   ) {
     const ran: string[][] = [];
     const phases: string[] = [];
+    let outcomeReads = 0;
     const io: SwapExecutionIo = {
       sh: (args) => {
         ran.push(args);
@@ -955,6 +962,10 @@ describe('execute, stored vocabulary rollback guard', () => {
           return Promise.resolve('["isolated"]');
         if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
           return Promise.resolve('[]');
+        if (JSON.stringify(args) === JSON.stringify(attemptOutcomesCommand('be-01-green')))
+          return Promise.resolve(outcomes.supported);
+        if (JSON.stringify(args) === JSON.stringify(storedAttemptOutcomesCommand('be-01-green')))
+          return Promise.resolve(outcomes.stored(++outcomeReads));
         if (JSON.stringify(args) === JSON.stringify(relationshipTypesCommand('be-01-green'))) {
           return failure === 'reader'
             ? Promise.reject(new Error('reader failed'))
@@ -1101,6 +1112,40 @@ describe('execute, stored vocabulary rollback guard', () => {
     expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
   });
 
+  it('refuses an image that reads no outcomes while attempts are stored, and stops green', async () => {
+    const attempt = await runGuard('["FS"]', '[]', undefined, undefined, undefined, {
+      supported: '[]',
+      stored: () => '[{"outcome":"failed","count":2}]',
+    });
+    expect(attempt.caught).toHaveProperty('message', expect.stringContaining('failed (2)'));
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('step-node-attempt-rollback-cli.ts save'),
+    );
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('docs/runbook-prod-deploy.md#step-node-attempt-rollback'),
+    );
+    expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+    expect(attempt.phases).toEqual(['committed']);
+  });
+
+  it('passes an image without the outcomes CLI over no attempts', async () => {
+    const attempt = await runGuard('["FS"]', '[]', undefined, undefined, undefined, {
+      supported: '[]',
+      stored: () => '[]',
+    });
+    expect(attempt.caught).toBeUndefined();
+    expect(
+      attempt.ran.some(
+        (args) =>
+          JSON.stringify(args) === JSON.stringify(storedAttemptOutcomesCommand('be-01-green')),
+      ),
+    ).toBe(true);
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(true);
+  });
+
   it('allows stored readiness when the incoming image reads it', async () => {
     const attempt = await runGuard('["FS"]', '[]', undefined, undefined, {
       supported: '["draft","ready"]',
@@ -1167,6 +1212,11 @@ describe('execute, pre-migration backup', () => {
         if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
           return Promise.resolve('["isolated"]');
         if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
+        if (
+          JSON.stringify(args) === JSON.stringify(attemptOutcomesCommand('be-01-green')) ||
+          JSON.stringify(args) === JSON.stringify(storedAttemptOutcomesCommand('be-01-green'))
+        )
           return Promise.resolve('[]');
         if (args.includes('src/backup-db-cli.ts')) return backup(args.at(-1) ?? '');
         if (args[0] === 'stop') return Promise.resolve('');
@@ -1425,6 +1475,11 @@ describe('execute, after routing has moved', () => {
           return Promise.resolve('["isolated"]');
         if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
           return Promise.resolve('[]');
+        if (
+          JSON.stringify(args) === JSON.stringify(attemptOutcomesCommand('be-01-green')) ||
+          JSON.stringify(args) === JSON.stringify(storedAttemptOutcomesCommand('be-01-green'))
+        )
+          return Promise.resolve('[]');
         const is = (command: string[]) => JSON.stringify(args) === JSON.stringify(command);
         if (is(relationshipTypesCommand('be-01-green'))) return Promise.resolve('["FS"]');
         if (is(storedRelationshipTypesCommand('be-01-green'))) return Promise.resolve('[]');
@@ -1483,6 +1538,80 @@ describe('execute, after routing has moved', () => {
     expect(written).toEqual(['phase old-stopped']);
   });
 
+  it('refuses an outcome written after the first check once blue stops', async () => {
+    const ran: string[][] = [];
+    const written: string[] = [];
+    let outcomeReads = 0;
+    const io: SwapExecutionIo = {
+      sh: (args) => {
+        ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
+          return Promise.resolve('["isolated"]');
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
+        if (JSON.stringify(args) === JSON.stringify(attemptOutcomesCommand('be-01-green')))
+          return Promise.resolve('[]');
+        if (JSON.stringify(args) === JSON.stringify(storedAttemptOutcomesCommand('be-01-green'))) {
+          outcomeReads++;
+          return Promise.resolve(outcomeReads === 1 ? '[]' : '[{"outcome":"cancelled","count":1}]');
+        }
+        const is = (command: string[]) => JSON.stringify(args) === JSON.stringify(command);
+        if (is(relationshipTypesCommand('be-01-green'))) return Promise.resolve('["FS"]');
+        if (is(storedRelationshipTypesCommand('be-01-green'))) return Promise.resolve('[]');
+        if (is(holdKindsCommand('be-01-green'))) return Promise.resolve('[]');
+        if (is(readinessKindsCommand('be-01-green'))) return Promise.resolve('[]');
+        if (is(storedReadinessesCommand('be-01-green'))) return Promise.resolve('[]');
+        if (is(storedHoldsCommand('be-01-green'))) return Promise.resolve('[]');
+        if (args.includes('src/migrate-status-cli.ts')) return Promise.resolve('none');
+        if (args.includes('src/migrate-cli.ts')) return Promise.resolve('migrated');
+        if (args[0] === 'stop') return Promise.resolve('');
+        throw new Error(`unexpected Docker command: ${args.join(' ')}`);
+      },
+      readPhase: () => Promise.resolve('committed'),
+      writePhase: (_path, phase) => {
+        written.push(`phase ${phase}`);
+        return Promise.resolve();
+      },
+      writeAtomic: (path) => {
+        written.push(`file ${path}`);
+        return Promise.resolve();
+      },
+    };
+
+    let caught: unknown;
+    try {
+      await execute(
+        {
+          tier: 'be',
+          from: 'blue',
+          to: 'green',
+          steps: [
+            'stored-vocabularies',
+            'migrate',
+            'stop-blue',
+            'stored-vocabularies-after-stop',
+            'backfill-step-codes',
+            'commit',
+          ],
+        },
+        'registry/be-01@sha256:abc',
+        'deadbeef',
+        withCapturedMigrationIo(io),
+      );
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toHaveProperty(
+      'message',
+      expect.stringMatching(
+        /cancelled \(1\).*redeploy.*docs\/runbook-prod-deploy\.md#step-node-attempt-rollback/is,
+      ),
+    );
+    expect(outcomeReads).toBe(2);
+    expect(ran.some((args) => args.includes('src/backfill-step-codes-cli.ts'))).toBe(false);
+    expect(written).toEqual(['phase old-stopped']);
+  });
+
   it('refuses FF inserted after the first check once blue stops, without committing', async () => {
     const ran: string[][] = [];
     const written: string[] = [];
@@ -1493,6 +1622,11 @@ describe('execute, after routing has moved', () => {
         if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
           return Promise.resolve('["isolated"]');
         if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
+        if (
+          JSON.stringify(args) === JSON.stringify(attemptOutcomesCommand('be-01-green')) ||
+          JSON.stringify(args) === JSON.stringify(storedAttemptOutcomesCommand('be-01-green'))
+        )
           return Promise.resolve('[]');
         if (JSON.stringify(args) === JSON.stringify(relationshipTypesCommand('be-01-green')))
           return Promise.resolve('["FS"]');
@@ -1576,6 +1710,11 @@ describe('execute, after routing has moved', () => {
           return Promise.resolve('["isolated"]');
         if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
           return Promise.resolve('[]');
+        if (
+          JSON.stringify(args) === JSON.stringify(attemptOutcomesCommand('be-01-green')) ||
+          JSON.stringify(args) === JSON.stringify(storedAttemptOutcomesCommand('be-01-green'))
+        )
+          return Promise.resolve('[]');
         return Promise.reject(new Error(`docker ${args.join(' ')} failed: no such table: step`));
       },
       readPhase: () => Promise.resolve('old-stopped'),
@@ -1640,7 +1779,9 @@ describe('execute, capacity mode guard', () => {
           is(readinessKindsCommand('be-01-green')) ||
           is(storedRelationshipTypesCommand('be-01-green')) ||
           is(storedHoldsCommand('be-01-green')) ||
-          is(storedReadinessesCommand('be-01-green'))
+          is(storedReadinessesCommand('be-01-green')) ||
+          is(attemptOutcomesCommand('be-01-green')) ||
+          is(storedAttemptOutcomesCommand('be-01-green'))
         )
           return Promise.resolve('[]');
         if (args.includes('src/migrate-status-cli.ts')) return Promise.resolve('none');

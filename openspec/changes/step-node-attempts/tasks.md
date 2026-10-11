@@ -23,16 +23,16 @@
 
 ## 2. Swap vocabulary and rollback CLI (before storage can hold attempts)
 
-- [ ] 2.1 Red: `swap.test.ts` "refuses an image that reads no outcomes while attempts are
+- [x] 2.1 Red: `swap.test.ts` "refuses an image that reads no outcomes while attempts are
       stored, and stops green", "passes an image without the outcomes CLI over no attempts",
       "refuses an outcome written after the first check once blue stops"; `lib/docker.test.ts`
       outcome commands (present, absent, missing `src`, stored outcomes before and after the
       table exists); `migration-cli.db.test.ts` the rollback CLI's usage guard and its refusal on
       an unmigrated file (the round trip needs the table: slice 3).
-- [ ] 2.2 Green: `ATTEMPT_OUTCOMES_VOCABULARY` in `swap.ts`; `attempt-outcomes-cli.ts`;
+- [x] 2.2 Green: `ATTEMPT_OUTCOMES_VOCABULARY` in `swap.ts`; `attempt-outcomes-cli.ts`;
       `store-sqlite/step-node-attempt-rollback.ts`; `step-node-attempt-rollback-cli.ts`;
       runbook anchor `#step-node-attempt-rollback`.
-- [ ] 2.3 Negatives: the vocabulary left out of `STORED_VOCABULARIES` → the three swap cases;
+- [x] 2.3 Negatives: the vocabulary left out of `STORED_VOCABULARIES` → the three swap cases;
       the directory check replaced by an unconditional `[]` → the missing-`src` case; the
       usage guard bypassed → the usage case.
 
