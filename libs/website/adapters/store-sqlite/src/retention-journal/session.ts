@@ -366,10 +366,11 @@ export class RetentionJournalSession {
         'stale',
         `retention journal head sequence ${String(read.head.sequence)} is behind applied or seen sequence ${String(seen)}`,
       );
-    const tip = await this.settleOrphan(read);
     try {
+      const tip = await this.settleOrphan(read);
       return { tip, events: await verifyChain(position, tip.head, this.remote) };
     } catch (error) {
+      // Proof: catching only verifyChain left `a forked orphan settlement marks the database forked` attached.
       if (error instanceof RetentionJournalError && error.reason === 'forked')
         markForked(this.database);
       throw error;
@@ -476,7 +477,10 @@ export class RetentionJournalSession {
 
 /**
  * Binds `database` to journal `options.journalId` and synchronises it (design D§4 startup):
- * the API calls this before serving and every mutating CLI command before acting.
+ * the API calls this before serving and every mutating CLI command before acting. Replaying an
+ * `erase` event turns `PRAGMA secure_delete` ON for the rest of this connection's life and runs
+ * `VACUUM` on it once the replay is complete, so a startup that replays an erasure rewrites the
+ * live database file before the API listens.
  *
  * @throws RetentionJournalError when the database is detached, forked or foreign, or the remote
  *   is uninitialised, missing, unreadable, malformed, truncated, gapped, stale or forked.

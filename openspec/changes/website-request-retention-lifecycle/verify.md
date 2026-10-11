@@ -234,6 +234,8 @@ Task 2.1 is ticked. Its "local fsync followed by remote failure" case is `remote
 | `journal-init` over an existing journal | refusal skipped                          | `(fail) journal-init refuses an existing genesis`                              |
 | `journal-attach` only at sequence 0     | applied condition dropped                | `(fail) journal-attach refuses applied_sequence > 0`                           |
 
+Review fix (Fable, 2026-10-11): orphan settlement now runs inside the same catch as `verifyChain`, so a head read-back that forks during settlement marks the database `forked`. Fault: settlement moved outside the catch. Observed: `(fail) a forked orphan settlement marks the database forked`, `Expected: "forked"`, `Received: "attached"`. The JSDoc of `openRetentionJournal` now states that an erase replay runs `secure_delete` and `VACUUM` on the live connection.
+
 The lock test uses a 300 ms wait against a child holding the lock for 3 s and asserts the 30 000 ms production constant. It does not wait out 30 s.
 
 - `bun test libs/website/adapters/store-sqlite/src`: `161 pass`, `0 fail` (`session.test.ts`: 19). `bun test apps/website/be-01/src`: `153 pass`, `0 fail`.
