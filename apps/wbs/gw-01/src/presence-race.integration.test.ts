@@ -3,6 +3,7 @@ import { SignJWT } from 'jose';
 
 import { buildApp } from './app';
 import { type JwtClaims, JwtVerifier, type TokenVerifier } from './service/jwt-auth';
+import { GRANT_EVERY_PROJECT } from './testing/project-access';
 
 const JWT_KEY = 'k'.repeat(32);
 const INTERNAL_SECRET = 's'.repeat(32);
@@ -35,6 +36,7 @@ let stop: () => void;
 beforeAll(() => {
   const app = buildApp({
     beUrl: 'http://be.invalid',
+    projectAccess: GRANT_EVERY_PROJECT,
     internalAuthSecret: INTERNAL_SECRET,
     jwtKey: JWT_KEY,
     appOrigin: APP_ORIGIN,

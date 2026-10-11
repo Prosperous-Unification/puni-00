@@ -305,8 +305,12 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
 ] as const;
-const INTERNAL_OPERATIONS = ['postInternalForward', 'postInternalResume'] as const;
+const INTERNAL_OPERATIONS = ['postInternalForward'] as const;
 const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
+const GATEWAY_BROWSER_OPERATIONS = [
+  'postInternalGatewayProjectBrowserAccess',
+  'postInternalResume',
+] as const;
 const ALWAYS_ORIGIN_OPERATIONS = [
   'deleteApiOrganizationInvitationsById',
   'postApiAuthLogin',
@@ -361,6 +365,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiSpacesByIdProjectsByProjectIdMove',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
+  'postInternalGatewayProjectBrowserAccess',
   'getApiAuthLinkAuth0Callback',
   'getApiAuthLogin',
   'getApiAuthMe',
@@ -557,6 +562,8 @@ function expectedPolicies(operationId: string): RequestPolicy[] {
     policies.push({ kind: 'identity', require: 'internal' });
   if (includesOperation(GATEWAY_OPERATIONS, operationId))
     policies.push({ kind: 'identity', require: 'gateway-delegation' });
+  if (includesOperation(GATEWAY_BROWSER_OPERATIONS, operationId))
+    policies.push({ kind: 'identity', require: 'gateway-browser' });
   return policies;
 }
 
@@ -621,6 +628,7 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
     ...WRITE_SCOPE_OPERATIONS,
     ...INTERNAL_OPERATIONS,
     ...GATEWAY_OPERATIONS,
+    ...GATEWAY_BROWSER_OPERATIONS,
   ]) {
     const shape = httpShapes.find((candidate) => candidate.operationId === operationId);
     if (shape === undefined) throw new Error(`missing policy fixture: ${operationId}`);
@@ -652,6 +660,7 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
   expect(policyOperations('identity', 'write-scope')).toEqual([...WRITE_SCOPE_OPERATIONS]);
   expect(policyOperations('identity', 'internal')).toEqual([...INTERNAL_OPERATIONS]);
   expect(policyOperations('identity', 'gateway-delegation')).toEqual([...GATEWAY_OPERATIONS]);
+  expect(policyOperations('identity', 'gateway-browser')).toEqual([...GATEWAY_BROWSER_OPERATIONS]);
   expect(policyOperations('origin', 'always')).toEqual([...ALWAYS_ORIGIN_OPERATIONS]);
   expect(policyOperations('origin', 'always-unsafe-with-session-cookie')).toEqual([
     ...COOKIE_ORIGIN_OPERATIONS,
@@ -665,6 +674,7 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
       ...WRITE_SCOPE_OPERATIONS,
       ...INTERNAL_OPERATIONS,
       ...GATEWAY_OPERATIONS,
+      ...GATEWAY_BROWSER_OPERATIONS,
     ].sort(),
   ).toEqual(everyOperation);
   expect(

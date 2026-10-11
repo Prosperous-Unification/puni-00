@@ -1297,6 +1297,46 @@ describe('buildServices', () => {
     expect(launches).toBe(0);
   });
 
+  it('skips whole-organization fan-out captures on a pure equal-hash cache hit', async () => {
+    let captures = 0;
+    const { db, path, services } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('cache-hit observation reached launcher')),
+      },
+      () => {
+        captures += 1;
+      },
+    );
+    seedSharedLifecycle(path);
+    const selected = await seedReadyRetirement(db, services, 3);
+    const captured = await services.workItems.optimizationInput('A');
+    if (captured.kind !== 'scheduled') throw new Error('cache-hit input unavailable');
+    expect(scheduleInputHash(captured.input)).toBe(selected.inputHash);
+    const pri = db
+      .select()
+      .from(optimizedScheduleCache)
+      .where(sql`project_id = 'A' AND objective = 'pri'`)
+      .get();
+    if (pri === undefined) throw new Error('cache-hit PRI row absent');
+    db.insert(optimizedScheduleCache)
+      .values({ ...pri, objective: 'time' })
+      .run();
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    captures = 0;
+    const observed = await optimizer.readPlan({
+      projectId: 'A',
+      objective: 'pri',
+      input: captured.input,
+      enabled: true,
+    });
+    await optimizer.drain();
+    expect(observed.generation).toBe(selected.generation);
+    expect(captures).toBe(0);
+  });
+
   it('keeps an old unselected cache removal silent during installed generation observation', async () => {
     const { db, path, services } = bootstrap({
       solverVersion: '0.2.0',

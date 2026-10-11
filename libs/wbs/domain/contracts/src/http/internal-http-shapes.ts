@@ -33,6 +33,12 @@ const resumePoints = type
 // Proof: removing identity reached malformed JSON parsing,400 instead of401
 // in internal.integration.test.ts's pre-parse identity case.
 const policies = [{ kind: 'identity', require: 'internal' }] as const;
+/**
+ * The gateway's own secret, then the socket's forwarded browser credential
+ * (`__Host-wbs_access` and `__Host-wbs_organization` cookies, as sent), proved
+ * through be-01's ordinary browser authentication with read scope.
+ */
+const gatewayBrowserPolicies = [{ kind: 'identity', require: 'gateway-browser' }] as const;
 // Proof: removing form media returned422 instead of200 in the mounted
 // duplicate-payload forms case (http/elysia/internal.test.ts).
 const bodyMedia = [
@@ -79,11 +85,18 @@ export const resumeInternal = defineEndpointShape({
   method: 'POST',
   path: '/internal/resume',
   operationId: 'postInternalResume',
-  policies,
+  // Replay is a read for the socket's own principal: the gateway forwards that
+  // browser credential and be-01 checks every named project before replaying.
+  policies: gatewayBrowserPolicies,
   body: requestSchema(type({ resume_points: resumePoints, trace_id: 'string' })),
   bodyMedia,
   responses: [{ kind: 'json', status: 200, schema: responseSchema(InternalResumeResponse) }],
-  refusals,
+  refusals: [
+    refusals[0],
+    { status: 401, schema: responseSchema(type({ error: "'unauthorized' | 'unauthenticated'" })) },
+    { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
+    refusals[2],
+  ],
   document: { summary: 'Replay recorded events to one reconnecting gateway socket.' },
 });
 
@@ -107,4 +120,30 @@ export const gatewayProjectAccess = defineEndpointShape({
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   ],
   document: { summary: 'Check a gateway delegation against current project access.' },
+});
+
+/**
+ * Checks one project for the browser principal behind one gateway socket:
+ * current membership and an organization-scoped project, as `gatewayProjectAccess`,
+ * but proved by the forwarded browser credential rather than a signed delegation.
+ */
+export const gatewayBrowserProjectAccess = defineEndpointShape({
+  method: 'POST',
+  path: '/internal/gateway/projects/:projectId/browser-access',
+  operationId: 'postInternalGatewayProjectBrowserAccess',
+  policies: gatewayBrowserPolicies,
+  params: requestSchema(type({ projectId: 'string' })),
+  responses: [{ kind: 'empty', status: 204 }],
+  refusals: [
+    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_body'" })) },
+    { status: 401, schema: responseSchema(type({ error: "'unauthorized' | 'unauthenticated'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({ error: "'insufficient_scope' | 'no_active_organization' | 'not_a_member'" }),
+      ),
+    },
+    { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+  ],
+  document: { summary: 'Check a gateway socket principal against current project access.' },
 });

@@ -50,3 +50,8 @@ the `test` target of the same project.
 Its isolated type check is the `typecheck:module` target of the same project, which `typecheck`
 depends on, recorded in the index above as `check.fe-01.typecheck-module`: `tsconfig.json` here
 extends `../tsconfig.module.json` and names what this module reaches beyond the shared list there.
+
+Its graph check is `tools/tool-devsync/src/frontend-module-graph.test.ts`, run by the `test`
+target of `tool-devsync`: the production files outside this directory that import it must equal
+`externalConsumers` in the index above, so a new importer or a dropped one fails under this
+module's name.
