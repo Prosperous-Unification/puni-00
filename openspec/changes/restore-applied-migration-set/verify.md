@@ -743,3 +743,25 @@ Each file rerun alone passed (99/99 and
 exited 0: 325, 373, 1288 and 1918 tests, 0 fail.
 
 The exact-SHA `bin/h2puni-gate.sh` run and CI remain open, so 3.2 stays unchecked.
+
+### CI follow-up on PR #306
+
+The first CI run on `b977f4f10` failed in three places. The `k3s-rehearsal` job passed.
+
+- `gate tool wiki`: Burokrat's pilot lint refused
+  `deploy/k8s/wbs/lab/fault-migrations/…/down.sql matched 0 classification rules`, because migrations
+  are classified by a `migrations` path segment. The fixture moved to
+  `deploy/k8s/wbs/lab/rollback-fault/migrations/` (`fb548469e`).
+- `gate workspace`: `tool-devsync` pins the legacy-source Dockerfile coverage list, and
+  `backend-rollback-fault.Dockerfile` was missing from it. It is now pinned and the counts are unchanged.
+- The CI `Migration lint` command then refused the moved fixture with
+  `does not own migration deploy/k8s/wbs/lab/rollback-fault/migrations/29991231010000_lab_rollback_failure/down.sql`,
+  exit 1. That was observed locally with the root absent. `MIGRATION_ROOTS` now includes that exact root.
+  - The new test `lints the rollback-fault lab migration under its own root only` was RED first.
+  - Widening the root to `lab/rollback-fault` made it accept a sibling `fixtures` migration and fail.
+  - After restoring, `tool-git-hooks:test` passed and the exact CI command
+    (`bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $(git ls-files '*.sql')`) exited 0.
+
+The live lab run above used the `fault-migrations` path. The rename only changes the Dockerfile
+`COPY` source, and lab-migration/execute-adapter passed 43/43 after it. CI `k3s-rehearsal`
+reruns the lab on the new SHA.
