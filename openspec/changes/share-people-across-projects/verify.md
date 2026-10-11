@@ -4047,13 +4047,13 @@ of 6k.b–e that the slice sections above left pending. Its findings:
    below names each actual test.
 5. The five re-injected faults, each RED at its named test:
 
-| Re-injected fault                                     | Observed RED assertion                                |
-| ----------------------------------------------------- | ----------------------------------------------------- |
-| F1 observation `after` capture reused (eviction)      | the B eviction row was absent                         |
-| F2 outcome delivery awaited before commit             | `stored outcome waited for recipient transport`       |
-| F2b observation delivery awaited before commit        | `observation decision waited for recipient transport` |
-| F3 observation/outcome borrowed-capture guard removed | a `TypeError` instead of the modeled refusal message  |
-| F4 observation moved outside the source gate          | the staged generation 2 of a held writer was returned |
+| Re-injected fault                                 | Observed RED assertion                                |
+| ------------------------------------------------- | ----------------------------------------------------- |
+| F1 observation addressed cause omitted (eviction) | the B eviction row was absent                         |
+| F2 outcome delivery awaited before commit         | `stored outcome waited for recipient transport`       |
+| F2b observation delivery awaited before commit    | `observation decision waited for recipient transport` |
+| F3 observation borrowed-capture guard removed     | a `TypeError` instead of the modeled refusal message  |
+| F4 observation moved outside the source gate      | the staged generation 2 of a held writer was returned |
 
 Planned RED names mapped to the actual tests:
 
