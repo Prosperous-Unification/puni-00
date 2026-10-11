@@ -11,6 +11,9 @@ import { createLogger } from './logger';
 const repositoryRoot = join(import.meta.dir, '../../../../..');
 const collectorPath = 'infra/platform/observability/otel/collector.yaml';
 const mappingPath = 'infra/platform/observability/elastic/settings/failure-fields.json';
+const objectsPath = 'infra/platform/observability/kibana/objects/objects.ndjson';
+/** The bounded identifier shape the collector requires before lifting an id into a keyword. */
+const identifierMatch = 'matches "^[A-Za-z0-9_.:-]{1,128}$"';
 
 interface Operator {
   type: string;
@@ -174,5 +177,72 @@ describe('failure fields lifted into Elasticsearch', () => {
       return typeof value !== 'string' && typeof value !== 'number';
     });
     expect(missing).toEqual([]);
+  });
+
+  it('bounds the lifted identifiers to a shape the real logger satisfies', async () => {
+    const operators = await readCollectorOperators();
+    const lines: string[] = [];
+    const logger = createLogger({
+      service: 'be-01',
+      destination: { write: (chunk) => void lines.push(chunk) },
+    });
+    logger.error({ err: new Error('bounded') }, 'request failed');
+    const { err } = JSON.parse(lines[0] ?? '') as { err: Record<string, string> };
+    // Proof: deleting the fingerprint operator's shape match failed this assertion with
+    // `failure-fingerprint` listed on 2026-10-12.
+    expect(
+      ['failure-occurrence-id', 'failure-fingerprint'].filter(
+        (id) => !(requireOperator(operators, id).if ?? '').includes(identifierMatch),
+      ),
+    ).toEqual([]);
+    for (const value of [err['occurrence_id'], err['fingerprint']]) {
+      expect(value).toMatch(/^[A-Za-z0-9_.:-]{1,128}$/);
+    }
+  });
+
+  it('builds the Kibana objects only on mapped fields of the stream the collector writes', async () => {
+    const release = parse(await readFile(join(repositoryRoot, collectorPath), 'utf8')) as {
+      spec: {
+        values: {
+          alternateConfig: {
+            processors: { 'resource/stream': { attributes: { key: string; value: string }[] } };
+          };
+        };
+      };
+    };
+    const dataset = release.spec.values.alternateConfig.processors[
+      'resource/stream'
+    ].attributes.find(({ key }) => key === 'data_stream.dataset')?.value;
+    const mapped = await readMappedFields();
+    const objects = (await readFile(join(repositoryRoot, objectsPath), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as { type: string; attributes: Record<string, unknown> });
+
+    const titles = objects
+      .filter(({ type }) => type === 'index-pattern')
+      .map(({ attributes }) => attributes['title']);
+    // Proof: titling the data view `logs-*` failed this assertion on 2026-10-12.
+    expect(titles).toEqual([`logs-${String(dataset)}.otel-*`]);
+
+    const sourceFields = new Set<string>();
+    const collect = (value: unknown): void => {
+      if (Array.isArray(value)) value.forEach(collect);
+      else if (typeof value === 'object' && value !== null) {
+        for (const [key, nested] of Object.entries(value)) {
+          if (key === 'sourceField' && typeof nested === 'string') sourceFields.add(nested);
+          else collect(nested);
+        }
+      }
+    };
+    for (const { type, attributes } of objects) if (type === 'lens') collect(attributes);
+    // Proof: renaming `attributes.failure.fingerprint` in objects.ndjson failed this assertion
+    // with the renamed field listed on 2026-10-12.
+    expect(
+      [...sourceFields].filter(
+        (field) => field !== '@timestamp' && field !== '___records___' && !(field in mapped),
+      ),
+    ).toEqual([]);
+    expect(sourceFields.has('attributes.failure.fingerprint')).toBe(true);
   });
 });

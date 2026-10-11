@@ -67,12 +67,19 @@ The platform SHALL provide a Kibana dashboard over the last 7 days that shows on
 - **WHEN** the import Job runs
 - **THEN** the Job's pod exits non-zero
 
-### Requirement: An Elasticsearch outage loses no failure line
+### Requirement: Loss during an Elasticsearch outage is bounded and counted
 
-A failure line written while Elasticsearch is unavailable for 60 seconds SHALL be stored once Elasticsearch returns.
+While Elasticsearch refuses connections, failure lines SHALL wait in the collector's persistent sending queue and SHALL all be stored once it returns, until that queue's 5000 requests fill. A request whose connection hangs SHALL be abandoned after the exporter's 90 second request timeout; its batch is then dropped without retry, and the dropped records SHALL be counted in `otelcol_exporter_send_failed_log_records`. Making the hanging case lossless is open (task 2.6).
 
-#### Scenario: Elasticsearch stops for 60 seconds
+#### Scenario: Elasticsearch refuses connections
 
-- **GIVEN** a WBS service writing failure lines continuously
-- **WHEN** Elasticsearch is unavailable for 60 seconds and then returns
+- **GIVEN** a service writing failure lines continuously
+- **WHEN** Elasticsearch refuses connections and returns before the persistent queue fills
 - **THEN** every line written is stored exactly once
+
+#### Scenario: A connection to Elasticsearch hangs
+
+- **GIVEN** an export request whose connection to Elasticsearch hangs
+- **WHEN** 90 seconds pass without an answer
+- **THEN** that request's batch is dropped and not retried
+- **AND** `otelcol_exporter_send_failed_log_records` grows by the batch's record count
