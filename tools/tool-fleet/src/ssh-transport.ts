@@ -249,26 +249,62 @@ function strictHostKeyOptions(transport: SshTransport): readonly string[] {
   ];
 }
 
+/** The jump's ProxyCommand value, carrying the same strict options as the outer ssh. */
+function renderProxyCommand(transport: SshTransport): string | undefined {
+  if (transport.jump === undefined) return undefined;
+  // Proof: rendering the hop without its own strict options failed `pins the jump host`; the
+  // command-line options of the outer ssh do not reach a ProxyCommand's ssh.
+  return `ProxyCommand=ssh ${strictHostKeyOptions(transport).join(' ')} -l ${transport.jump.user} -W %h:%p ${transport.jump.address}`;
+}
+
 /** Ansible connection variables for `discover.yml`, in the shape the playbook procedure uses. */
 export function renderSshDiscoveryVariables(transport: SshTransport): {
   readonly ansible_user: string;
   readonly ansible_ssh_common_args: string;
 } {
-  const options = strictHostKeyOptions(transport);
+  const proxyCommand = renderProxyCommand(transport);
   // Ansible shlex-splits these arguments; the quotes keep the ProxyCommand one ssh option.
-  // Proof: rendering the hop without its own strict options failed `pins the jump host`; the
-  // command-line options of the outer ssh do not reach a ProxyCommand's ssh.
-  const proxy =
-    transport.jump === undefined
-      ? []
-      : [
-          '-o',
-          `'ProxyCommand=ssh ${options.join(' ')} -l ${transport.jump.user} -W %h:%p ${transport.jump.address}'`,
-        ];
   return {
     ansible_user: transport.user,
-    ansible_ssh_common_args: [...options, ...proxy].join(' '),
+    ansible_ssh_common_args: [
+      ...strictHostKeyOptions(transport),
+      ...(proxyCommand === undefined ? [] : ['-o', `'${proxyCommand}'`]),
+    ].join(' '),
   };
+}
+
+/**
+ * `ssh` arguments for a local forward from controller loopback `localPort` to `remotePort` on
+ * the loopback of `host`, pinned exactly like the SSH facts. The local side binds only
+ * 127.0.0.1; `ExitOnForwardFailure` makes a refused or occupied forward end ssh.
+ * @throws SshTransportRefusal `host-unpinned` when `host` could be read as an ssh option.
+ */
+export function renderApiForwardArguments(
+  transport: SshTransport,
+  host: string,
+  localPort: number,
+  remotePort: number,
+): readonly string[] {
+  if (!ADDRESS_PATTERN.test(host)) {
+    // Proof: removing this refusal made the `-oProxyCommand=sh` forward-host negative render it
+    // as ssh's final argument.
+    throw new SshTransportRefusal('host-unpinned', `API forward host ${host} is not an address`);
+  }
+  const proxyCommand = renderProxyCommand(transport);
+  // Proof: removing ExitOnForwardFailure, -N or the 127.0.0.1 bind in turn failed `renders a
+  // loopback-only pinned forward`.
+  return [
+    '-N',
+    ...strictHostKeyOptions(transport),
+    ...(proxyCommand === undefined ? [] : ['-o', proxyCommand]),
+    '-o',
+    'ExitOnForwardFailure=yes',
+    '-l',
+    transport.user,
+    '-L',
+    `127.0.0.1:${String(localPort)}:127.0.0.1:${String(remotePort)}`,
+    host,
+  ];
 }
 
 /** `docker run` arguments that give the controller exactly this transport. */

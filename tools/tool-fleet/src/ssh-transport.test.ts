@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 
 import {
   readSshTransport,
+  renderApiForwardArguments,
   renderControllerTransport,
   renderSshDiscoveryVariables,
   type SshTransport,
@@ -331,5 +332,43 @@ describe('renderControllerTransport', () => {
       '--env',
       'ANSIBLE_HOST_KEY_CHECKING=True',
     ]);
+  });
+});
+
+describe('renderApiForwardArguments', () => {
+  it('renders a loopback-only pinned forward that exits when the forward fails', () => {
+    expect(
+      renderApiForwardArguments(
+        { ...transport, jump: { user: 'puni1', address: '10.1.0.3' } },
+        '10.1.0.4',
+        40123,
+        6443,
+      ),
+    ).toEqual([
+      '-N',
+      '-o',
+      'UserKnownHostsFile=/home/puni1/.puni/fleet/ops/known_hosts',
+      '-o',
+      'GlobalKnownHostsFile=/dev/null',
+      '-o',
+      'StrictHostKeyChecking=yes',
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ProxyCommand=ssh -o UserKnownHostsFile=/home/puni1/.puni/fleet/ops/known_hosts -o GlobalKnownHostsFile=/dev/null -o StrictHostKeyChecking=yes -o BatchMode=yes -l puni1 -W %h:%p 10.1.0.3',
+      '-o',
+      'ExitOnForwardFailure=yes',
+      '-l',
+      'puni-fleet',
+      '-L',
+      '127.0.0.1:40123:127.0.0.1:6443',
+      '10.1.0.4',
+    ]);
+  });
+
+  it('refuses a forward host that ssh could read as an option', () => {
+    expect(() => renderApiForwardArguments(transport, '-oProxyCommand=sh', 40123, 6443)).toThrow(
+      SshTransportRefusal,
+    );
   });
 });

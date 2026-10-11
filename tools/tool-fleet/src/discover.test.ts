@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
 
-import { decodeFleet, decodeObservation, type Fleet } from './contracts';
+import { decodeFleet, decodeFleetObservation, decodeObservation, type Fleet } from './contracts';
 import { type DiscoveryCommand, type DiscoveryResponse, observeFleet } from './discover';
 import {
   digestObservation,
@@ -16,6 +16,16 @@ import {
   type SshTransport,
   SshTransportRefusal,
 } from './ssh-transport';
+
+/** The message a promise rejected with; a resolution fails the calling test. */
+async function rejection(attempt: Promise<unknown>): Promise<string> {
+  try {
+    await attempt;
+  } catch (cause) {
+    return cause instanceof Error ? cause.message : String(cause);
+  }
+  throw new Error('expected a rejection');
+}
 
 const now = new Date('2026-09-17T12:00:00.000Z');
 
@@ -531,6 +541,189 @@ PLAY RECAP *********************************************************************
       '--extra-vars',
       JSON.stringify({ puni_display_name: 'platform-a', ...renderSshDiscoveryVariables(jumped) }),
     ]);
+  });
+
+  it('reports a reserved .invalid cluster as not bootstrapped without dialling it', async () => {
+    const workers = {
+      id: 'workers',
+      purpose: 'workers',
+      apiEndpoint: 'https://workers.example.invalid:6443',
+      controlPlane: 'single',
+      bootstrap: 'required',
+      requiredCapabilities: { execution: 1 },
+    };
+    const withWorkers = (cluster: object, nodes: readonly object[] = []): Fleet => {
+      const fleet = fleetOf();
+      return decodeFleet({
+        ...fleet,
+        clusters: [...fleet.clusters, cluster],
+        nodes: [...fleet.nodes, ...nodes],
+      });
+    };
+    const issued: string[] = [];
+    const run = (command: DiscoveryCommand): Promise<DiscoveryResponse> => {
+      issued.push(command.source);
+      if (command.source === 'provider:workers')
+        return Promise.resolve(response({ _meta: { hostvars: {} } }));
+      if (command.source === 'kubernetes-nodes:workers') {
+        return Promise.resolve({
+          exitCode: 1,
+          stdout: '',
+          stderr: 'error: context "workers" does not exist',
+          observedAt: now.toISOString(),
+        });
+      }
+      return successfulRunner()(command);
+    };
+    const observation = await observeFleet(withWorkers(workers), {
+      now: () => now,
+      run,
+      root: '/repo',
+    });
+    // No provider, Kubernetes or SSH read was attempted for the reserved endpoint.
+    expect(issued.filter((source) => source.includes(':workers'))).toEqual([]);
+    expect(observation.clusters).toContainEqual({ id: 'workers', state: 'not-bootstrapped' });
+    expect(observation.sources).toContainEqual({
+      name: 'unprovisioned:workers',
+      observedAt: now.toISOString(),
+    });
+    expect(observation.storage).toContainEqual({
+      clusterId: 'workers',
+      claims: [],
+      volumes: [],
+      attachments: [],
+    });
+    expect(() => decodeFleetObservation(observation)).not.toThrow();
+
+    for (const [fleet, diagnostic] of [
+      [
+        withWorkers(workers, [
+          {
+            id: 'worker-server',
+            cluster: 'workers',
+            capabilities: ['control-plane'],
+            lifecycle: 'present',
+            provider: { kind: 'hcloud', instanceId: '2001' },
+          },
+          {
+            id: 'worker-a',
+            cluster: 'workers',
+            capabilities: ['execution'],
+            lifecycle: 'present',
+            provider: { kind: 'hcloud', instanceId: '2002' },
+          },
+        ]),
+        /workers.*\.invalid.*declares nodes/,
+      ],
+      [
+        withWorkers({ ...workers, apiEndpoint: 'https://workers.example.test:6443' }),
+        /kubernetes-nodes:workers.*context "workers" does not exist/,
+      ],
+    ] as const) {
+      expect(await rejection(observeFleet(fleet, { now: () => now, run, root: '/repo' }))).toMatch(
+        diagnostic,
+      );
+    }
+  });
+
+  it('reaches an SSH cluster API only through a pinned forward to its server', async () => {
+    const base = fleetOf('complete', 'ssh');
+    const fleet = decodeFleet({
+      ...base,
+      clusters: base.clusters.map((cluster) => ({
+        ...cluster,
+        apiEndpoint: 'https://10.0.0.11:6443',
+      })),
+    });
+    const events: string[] = [];
+    const commands: DiscoveryCommand[] = [];
+    const run = (command: DiscoveryCommand): Promise<DiscoveryResponse> => {
+      events.push(command.source);
+      commands.push(command);
+      if (command.source === 'provider:platform')
+        return Promise.resolve(response({ _meta: { hostvars: {} } }));
+      if (command.source.startsWith('ssh-facts:')) {
+        return Promise.resolve(
+          response({
+            hosts: [{ name: 'platform-a', machineId: 'machine-platform-a', address: '10.0.0.11' }],
+          }),
+        );
+      }
+      return Promise.resolve(response({ items: [] }));
+    };
+    const requests: unknown[] = [];
+    const openApiForward = (request: unknown) => {
+      requests.push(request);
+      events.push('forward-open');
+      return Promise.resolve({
+        localPort: 40123,
+        close: () => {
+          events.push('forward-close');
+          return Promise.resolve();
+        },
+      });
+    };
+    await observeFleet(fleet, { now: () => now, run, root: '/repo', sshTransport, openApiForward });
+    expect(requests).toEqual([
+      { clusterId: 'platform', host: '10.0.0.11', remotePort: 6443, transport: sshTransport },
+    ]);
+    expect(events).toEqual([
+      'provider:platform',
+      'forward-open',
+      'kubernetes-nodes:platform',
+      'kubernetes-pvcs:platform',
+      'kubernetes-pvs:platform',
+      'kubernetes-volumeattachments:platform',
+      'forward-close',
+      'ssh-facts:platform/platform-a',
+    ]);
+    for (const command of commands.filter(({ executable }) => executable === 'kubectl')) {
+      expect(command.arguments.slice(0, 6)).toEqual([
+        '--context',
+        'platform',
+        '--server',
+        'https://127.0.0.1:40123',
+        '--tls-server-name',
+        '10.0.0.11',
+      ]);
+    }
+
+    events.length = 0;
+    expect(
+      await rejection(
+        observeFleet(fleet, {
+          now: () => now,
+          run: (command) =>
+            command.source === 'kubernetes-nodes:platform'
+              ? Promise.resolve({
+                  exitCode: 1,
+                  stdout: '',
+                  stderr: 'x509: certificate is valid for 10.0.0.12, not 10.0.0.11',
+                  observedAt: now.toISOString(),
+                })
+              : run(command),
+          root: '/repo',
+          sshTransport,
+          openApiForward,
+        }),
+      ),
+    ).toMatch(/kubernetes-nodes:platform.*x509/);
+    expect(events.at(-1)).toBe('forward-close');
+
+    events.length = 0;
+    expect(
+      await rejection(
+        observeFleet(fleet, {
+          now: () => now,
+          run,
+          root: '/repo',
+          sshTransport,
+          openApiForward: () =>
+            Promise.reject(new Error('SSH API forward to 10.0.0.11 exited 255: Host key')),
+        }),
+      ),
+    ).toMatch(/exited 255: Host key/);
+    expect(events).toEqual(['provider:platform']);
   });
 
   it('round-trips replaced and unenrolled SSH identities with their actual source', async () => {

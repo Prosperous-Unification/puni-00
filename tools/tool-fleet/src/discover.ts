@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 
 import { parse } from 'yaml';
 
+import { type ApiForward, openSshApiForward } from './api-forward';
 import {
   type Capability,
   type Cluster,
@@ -109,6 +110,47 @@ interface ObserveOptions {
   readonly observeLab?: (source: LabProviderSource) => Promise<LabProviderInventory>;
   /** How production discovery reaches SSH nodes; required when the fleet has any. */
   readonly sshTransport?: SshTransport;
+  /** Opens the forward to an SSH-served cluster API; tests replace the controller container. */
+  readonly openApiForward?: (request: ApiForwardTarget) => Promise<ApiForward>;
+}
+
+/** Which cluster API to forward, through which pinned SSH node. */
+export interface ApiForwardTarget {
+  readonly clusterId: string;
+  readonly host: string;
+  readonly remotePort: number;
+  readonly transport: SshTransport;
+}
+
+/**
+ * RFC 2606 reserves `.invalid`: such an endpoint declares an intended cluster that has no
+ * infrastructure yet, so discovery reads nothing for it.
+ */
+function isUnprovisioned(cluster: Cluster): boolean {
+  const host = new URL(cluster.apiEndpoint).hostname;
+  return host === 'invalid' || host.endsWith('.invalid');
+}
+
+/**
+ * A cluster whose API endpoint host is the address of one of its SSH nodes is served by that
+ * node, whose firewall admits the API only from enrolled addresses and loopback; discovery
+ * reaches it through a forward to that node's loopback (decision A28).
+ */
+function findApiForwardHost(
+  fleet: Fleet,
+  cluster: Cluster,
+): { readonly host: string; readonly port: number } | undefined {
+  const endpoint = new URL(cluster.apiEndpoint);
+  const served = fleet.nodes.some(
+    (node) =>
+      node.cluster === cluster.id &&
+      node.provider.kind === 'ssh' &&
+      node.provider.address === endpoint.hostname,
+  );
+  // Proof: never forwarding made `reaches an SSH cluster API only through a pinned forward` see
+  // kubectl dial the endpoint directly.
+  if (!served) return undefined;
+  return { host: endpoint.hostname, port: endpoint.port === '' ? 443 : Number(endpoint.port) };
 }
 
 function buildControllerCommand(
@@ -605,6 +647,7 @@ function buildDiscoveryCommand(
   cluster: Cluster,
   kind: 'provider' | 'nodes' | 'pvcs' | 'pvs' | 'volumeattachments',
   timeoutMs: number,
+  api?: { readonly server: string; readonly serverName: string },
 ): DiscoveryCommand {
   const inventory = join(root, `infra/ansible/inventory/${cluster.purpose}.hcloud.yml`);
   if (kind === 'provider') {
@@ -627,9 +670,13 @@ function buildDiscoveryCommand(
   return {
     source: `kubernetes-${kind}:${cluster.id}`,
     executable: 'kubectl',
+    // Through a forward, kubectl dials loopback but verifies the certificate for the desired API
+    // host. Proof: dropping `--tls-server-name` failed `reaches an SSH cluster API only through a
+    // pinned forward`; without it a certificate valid only for 127.0.0.1 would be accepted.
     arguments: [
       '--context',
       cluster.id,
+      ...(api === undefined ? [] : ['--server', api.server, '--tls-server-name', api.serverName]),
       'get',
       resource,
       ...(kind === 'pvcs' ? ['-A'] : []),
@@ -750,6 +797,21 @@ export async function observeFleet(
   const now = options.now ?? (() => new Date());
   const maxSourceAgeMs = options.maxSourceAgeMs ?? 30_000;
   const timeoutMs = options.timeoutMs ?? 30_000;
+  const openApiForward =
+    options.openApiForward ??
+    (async (target: ApiForwardTarget) => {
+      const toolchain = await readToolchain(join(options.root, 'infra/versions/toolchain.json'));
+      // Nodes, then three parallel storage reads, each bounded by timeoutMs.
+      return openSshApiForward({
+        image: toolchain.controller.image,
+        digest: toolchain.controller.digest,
+        transport: target.transport,
+        host: target.host,
+        remotePort: target.remotePort,
+        timeoutMs,
+        lifetimeMs: 3 * timeoutMs,
+      });
+    });
   const sources: { name: DiscoverySource; observedAt: string }[] = [];
   const observedNodes: ObservedNode[] = [];
   const observedClusters: { id: string; state: 'ready' | 'not-bootstrapped' }[] = [];
@@ -763,6 +825,23 @@ export async function observeFleet(
   const kubernetesOwners = new Map<string, string>();
 
   for (const cluster of fleet.clusters) {
+    if (isUnprovisioned(cluster)) {
+      const declared = fleet.nodes.filter((node) => node.cluster === cluster.id);
+      // decodeFleet already refuses a completed bootstrap with no servers.
+      if (declared.length > 0) {
+        // Proof: dropping this refusal made the `.invalid` negative with declared worker nodes
+        // report them as an unread, not-bootstrapped cluster.
+        throw new Error(
+          `${cluster.id} has the reserved .invalid endpoint ${cluster.apiEndpoint} but declares nodes ${declared.map(({ id }) => id).join(', ')}`,
+        );
+      }
+      // Proof: removing this branch made the `.invalid` test issue provider and Kubernetes reads
+      // for workers.example.invalid.
+      sources.push({ name: `unprovisioned:${cluster.id}`, observedAt: now().toISOString() });
+      observedClusters.push({ id: cluster.id, state: 'not-bootstrapped' });
+      observedStorage.push({ clusterId: cluster.id, claims: [], volumes: [], attachments: [] });
+      continue;
+    }
     const providerCommand = buildDiscoveryCommand(options.root, cluster, 'provider', timeoutMs);
     const labProvider = options.labProvider;
     let labRunning: ReadonlySet<string> | undefined;
@@ -800,73 +879,108 @@ export async function observeFleet(
       providerOwners.set(identity, `${cluster.id}/${host.displayName}`);
     }
 
-    const nodeCommand = buildDiscoveryCommand(options.root, cluster, 'nodes', timeoutMs);
-    let kubernetesNodes: readonly KubernetesNode[];
-    try {
-      const nodeResponse = await readSource(nodeCommand, run, now, maxSourceAgeMs);
-      const nodeSource = {
-        input: parseJson(nodeResponse, nodeCommand.source),
-        observedAt: nodeResponse.observedAt,
-      };
-      sources.push({ name: nodeCommand.source, observedAt: nodeSource.observedAt });
-      kubernetesNodes = parseKubernetesNodes(nodeSource.input, nodeCommand.source);
-    } catch (cause) {
-      const desiredNodes = fleet.nodes.filter(({ cluster: clusterId }) => clusterId === cluster.id);
-      if (
-        cluster.bootstrap === 'required' &&
-        desiredNodes.length === 0 &&
-        providerHosts.length === 0 &&
-        cause instanceof DiscoveryCommandFailure &&
-        /(?:connection refused|no such host|i\/o timeout|context deadline exceeded)/i.test(
-          cause.stderr,
-        )
-      ) {
-        // Proof: widening this recovery to every nonzero command made Kubernetes Forbidden become
-        // complete/not-bootstrapped; recovery requires an explicit reachability absence plus all
-        // three empty-bootstrap facts.
-        observedClusters.push({ id: cluster.id, state: 'not-bootstrapped' });
-        observedStorage.push({ clusterId: cluster.id, claims: [], volumes: [], attachments: [] });
-        continue;
+    const forwardHost = labProvider === undefined ? findApiForwardHost(fleet, cluster) : undefined;
+    const forward =
+      forwardHost === undefined
+        ? undefined
+        : await openApiForward({
+            clusterId: cluster.id,
+            host: forwardHost.host,
+            remotePort: forwardHost.port,
+            transport: requireTransport(sshTransport),
+          });
+    const api =
+      forward === undefined || forwardHost === undefined
+        ? undefined
+        : {
+            server: `https://127.0.0.1:${String(forward.localPort)}`,
+            serverName: forwardHost.host,
+          };
+    const readKubernetes = async () => {
+      const nodeCommand = buildDiscoveryCommand(options.root, cluster, 'nodes', timeoutMs, api);
+      let kubernetesNodes: readonly KubernetesNode[];
+      try {
+        const nodeResponse = await readSource(nodeCommand, run, now, maxSourceAgeMs);
+        const nodeSource = {
+          input: parseJson(nodeResponse, nodeCommand.source),
+          observedAt: nodeResponse.observedAt,
+        };
+        sources.push({ name: nodeCommand.source, observedAt: nodeSource.observedAt });
+        kubernetesNodes = parseKubernetesNodes(nodeSource.input, nodeCommand.source);
+      } catch (cause) {
+        const desiredNodes = fleet.nodes.filter(
+          ({ cluster: clusterId }) => clusterId === cluster.id,
+        );
+        if (
+          cluster.bootstrap === 'required' &&
+          desiredNodes.length === 0 &&
+          providerHosts.length === 0 &&
+          cause instanceof DiscoveryCommandFailure &&
+          /(?:connection refused|no such host|i\/o timeout|context deadline exceeded)/i.test(
+            cause.stderr,
+          )
+        ) {
+          // Proof: widening this recovery to every nonzero command made Kubernetes Forbidden become
+          // complete/not-bootstrapped; recovery requires an explicit reachability absence plus all
+          // three empty-bootstrap facts.
+          return undefined;
+        }
+        throw cause;
       }
-      throw cause;
-    }
 
-    const pvcCommand = buildDiscoveryCommand(options.root, cluster, 'pvcs', timeoutMs);
-    const pvCommand = buildDiscoveryCommand(options.root, cluster, 'pvs', timeoutMs);
-    const attachmentCommand = buildDiscoveryCommand(
-      options.root,
-      cluster,
-      'volumeattachments',
-      timeoutMs,
-    );
-    const [pvcSource, pvSource, attachmentSource] = await Promise.all([
-      readJsonSource(pvcCommand, run, now, maxSourceAgeMs),
-      readJsonSource(pvCommand, run, now, maxSourceAgeMs),
-      readJsonSource(attachmentCommand, run, now, maxSourceAgeMs),
-    ]);
-    sources.push(
-      { name: pvcCommand.source, observedAt: pvcSource.observedAt },
-      { name: pvCommand.source, observedAt: pvSource.observedAt },
-      { name: attachmentCommand.source, observedAt: attachmentSource.observedAt },
-    );
-    const claims = parseClaims(pvcSource.input, pvcCommand.source);
-    const volumes = parseVolumes(pvSource.input, pvCommand.source);
-    const attachments = parseAttachments(
-      attachmentSource.input,
-      attachmentCommand.source,
-      volumes,
-      claims,
-    );
-    observedStorage.push({
-      clusterId: cluster.id,
-      claims: [...claims.values()]
-        .map(({ key, volumeName }) => `${key}->${volumeName ?? 'unbound'}`)
-        .sort(),
-      volumes: [...volumes.values()]
-        .map(({ name, claimKey }) => `${name}->${claimKey ?? 'unclaimed'}`)
-        .sort(),
-      attachments: [...attachments.values()].flat().sort(),
-    });
+      const pvcCommand = buildDiscoveryCommand(options.root, cluster, 'pvcs', timeoutMs, api);
+      const pvCommand = buildDiscoveryCommand(options.root, cluster, 'pvs', timeoutMs, api);
+      const attachmentCommand = buildDiscoveryCommand(
+        options.root,
+        cluster,
+        'volumeattachments',
+        timeoutMs,
+        api,
+      );
+      const [pvcSource, pvSource, attachmentSource] = await Promise.all([
+        readJsonSource(pvcCommand, run, now, maxSourceAgeMs),
+        readJsonSource(pvCommand, run, now, maxSourceAgeMs),
+        readJsonSource(attachmentCommand, run, now, maxSourceAgeMs),
+      ]);
+      sources.push(
+        { name: pvcCommand.source, observedAt: pvcSource.observedAt },
+        { name: pvCommand.source, observedAt: pvSource.observedAt },
+        { name: attachmentCommand.source, observedAt: attachmentSource.observedAt },
+      );
+      const claims = parseClaims(pvcSource.input, pvcCommand.source);
+      const volumes = parseVolumes(pvSource.input, pvCommand.source);
+      const attachments = parseAttachments(
+        attachmentSource.input,
+        attachmentCommand.source,
+        volumes,
+        claims,
+      );
+      observedStorage.push({
+        clusterId: cluster.id,
+        claims: [...claims.values()]
+          .map(({ key, volumeName }) => `${key}->${volumeName ?? 'unbound'}`)
+          .sort(),
+        volumes: [...volumes.values()]
+          .map(({ name, claimKey }) => `${name}->${claimKey ?? 'unclaimed'}`)
+          .sort(),
+        attachments: [...attachments.values()].flat().sort(),
+      });
+      return { nodeCommand, kubernetesNodes, attachments };
+    };
+    let kubernetes: Awaited<ReturnType<typeof readKubernetes>>;
+    try {
+      kubernetes = await readKubernetes();
+    } finally {
+      // Proof: closing only on success made the x509 negative in `reaches an SSH cluster API only
+      // through a pinned forward` leave the forward open.
+      await forward?.close();
+    }
+    if (kubernetes === undefined) {
+      observedClusters.push({ id: cluster.id, state: 'not-bootstrapped' });
+      observedStorage.push({ clusterId: cluster.id, claims: [], volumes: [], attachments: [] });
+      continue;
+    }
+    const { nodeCommand, kubernetesNodes, attachments } = kubernetes;
     const sshHosts: SshHost[] = [];
     for (const node of fleet.nodes) {
       if (node.cluster !== cluster.id || node.provider.kind !== 'ssh') continue;

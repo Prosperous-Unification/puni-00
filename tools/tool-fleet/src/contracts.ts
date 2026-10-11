@@ -389,7 +389,7 @@ const ObservationSchema = type({
 });
 
 const DiscoverySourceSchema = type(
-  /^(?:provider|lab-provider|kubernetes-nodes|kubernetes-pvcs|kubernetes-pvs|kubernetes-volumeattachments):[^/\s]+$|^ssh-facts:[^/\s]+\/[^/\s]+$/,
+  /^(?:provider|lab-provider|unprovisioned|kubernetes-nodes|kubernetes-pvcs|kubernetes-pvs|kubernetes-volumeattachments):[^/\s]+$|^ssh-facts:[^/\s]+\/[^/\s]+$/,
 );
 const ObservedNodeStateSchema = type(
   "'enrolled' | 'discovered-unenrolled' | 'missing' | 'ready' | 'not-ready' | 'retiring'",
@@ -503,9 +503,14 @@ export function decodeObservation(input: unknown): Observation {
     for (const cluster of detailed.clusters) {
       // A lab observation names its provider source `lab-provider:` so no plan can mistake it
       // for cloud inventory (see requireLabObservation).
+      // An `unprovisioned:` cluster was never read (see observeFleet); it can only be
+      // not-bootstrapped. Proof: dropping this alternative made the `.invalid` discovery
+      // observation fail decoding as incomplete.
       const providerSource = sourceNames.has(`lab-provider:${cluster.id}`)
         ? `lab-provider:${cluster.id}`
-        : `provider:${cluster.id}`;
+        : cluster.state === 'not-bootstrapped' && sourceNames.has(`unprovisioned:${cluster.id}`)
+          ? `unprovisioned:${cluster.id}`
+          : `provider:${cluster.id}`;
       const requiredSources =
         cluster.state === 'not-bootstrapped'
           ? [providerSource]
@@ -618,6 +623,7 @@ export function decodeFleetObservation(input: unknown): FleetObservation {
     for (const prefix of [
       'provider:',
       'lab-provider:',
+      'unprovisioned:',
       'kubernetes-nodes:',
       'kubernetes-pvcs:',
       'kubernetes-pvs:',
