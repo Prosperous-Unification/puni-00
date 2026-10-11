@@ -3,8 +3,10 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -177,4 +179,47 @@ test('open creates no directory', () => {
   expect(existsSync(directory)).toBe(false);
   expect(failureOf(() => openAuthority(root, { clock: FIXED_CLOCK })).failure).toBe('absent');
   expect(existsSync(directory)).toBe(false);
+});
+
+function fileIdentity(path: string): { readonly sha256: string; readonly mtimeMs: number } {
+  return {
+    mtimeMs: statSync(path).mtimeMs,
+    sha256: new Bun.CryptoHasher('sha256').update(readFileSync(path)).digest('hex'),
+  };
+}
+
+test('inspect writes nothing and works on a read-only authority', () => {
+  assertNotRoot();
+  const root = repository();
+  const store = bootstrapAuthority(root, { clock: FIXED_CLOCK });
+  acquireClaims(store, {
+    conflictGroups: [],
+    owner: { sessionId: 'session-a', worktreePath: realpathSync(root) },
+    paths: [{ access: 'write', path: 'src' }],
+  });
+  const expected = store.inspect();
+  store.close();
+  const databasePath = resolveAuthorityDatabasePath(root);
+  const before = fileIdentity(databasePath);
+  Bun.sleepSync(20);
+  const reader = openAuthority(root, { clock: FIXED_CLOCK });
+  expect(reader.inspect()).toEqual(expected);
+  reader.close();
+  // Proof: inspecting through `transact` (BEGIN IMMEDIATE, rewrite every row, COMMIT) changed
+  // this file's bytes and mtime, and failed the read-only half with `attempt to write a readonly
+  // database` (2026-10-11).
+  expect(fileIdentity(databasePath)).toEqual(before);
+
+  const directory = join(databasePath, '..');
+  chmodSync(databasePath, 0o444);
+  chmodSync(directory, 0o555);
+  try {
+    const readOnly = openAuthority(root, { clock: FIXED_CLOCK });
+    expect(readOnly.inspect()).toEqual(expected);
+    readOnly.close();
+  } finally {
+    chmodSync(directory, 0o755);
+    chmodSync(databasePath, 0o644);
+  }
+  expect(fileIdentity(databasePath)).toEqual(before);
 });

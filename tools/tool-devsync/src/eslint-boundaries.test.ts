@@ -134,6 +134,32 @@ describe('the effective production and test boundaries', () => {
     ).toContain('@nx/enforce-module-boundaries');
   }, 30_000);
 
+  it('keeps Dash authority test helpers out of production modules', async () => {
+    const helperImport = "import { openOrBootstrapAuthority } from './testing/open-or-bootstrap';";
+    // Proof: removing Dash's production `@typescript-eslint/no-restricted-imports` override let
+    // claims.ts import the fixture helper without a diagnostic (2026-10-11).
+    for (const path of [
+      'apps/twilight-structure/twilight-dash/cli/src/authority/claims.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/authority/testing/open-or-bootstrap.ts',
+    ]) {
+      expect(await ruleIds(path, helperImport), path).toContain(
+        '@typescript-eslint/no-restricted-imports',
+      );
+    }
+    expect(
+      await ruleIds(
+        'apps/twilight-structure/twilight-dash/cli/src/cli.ts',
+        "import { openOrBootstrapAuthority } from './authority/testing/open-or-bootstrap';",
+      ),
+    ).toContain('@typescript-eslint/no-restricted-imports');
+    expect(
+      await ruleIds(
+        'apps/twilight-structure/twilight-dash/cli/src/authority/claims.db.test.ts',
+        helperImport,
+      ),
+    ).not.toContain('@typescript-eslint/no-restricted-imports');
+  }, 30_000);
+
   it('rejects runtime packages and drivers from core and domain production', async () => {
     // Proof: before the core/domain production override existed, the Elysia
     // probe returned no `no-restricted-imports` diagnostic. Real uncached lint

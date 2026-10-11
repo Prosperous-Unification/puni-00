@@ -278,3 +278,19 @@ test('unknown commands and flags refuse before any store open', async () => {
     expect(existsSync(join(root, '.git', 'module-wiki')), argv.join(' ')).toBe(false);
   }
 });
+
+test('a refused command prints one line on stderr and exits 1', () => {
+  const root = scratchRepository();
+  const execution = Bun.spawnSync({
+    cmd: [process.execPath, join(import.meta.dir, 'entrypoint.ts'), 'inspect-authority', root],
+    stderr: 'pipe',
+    stdout: 'pipe',
+  });
+  // Proof: letting the rejection escape the entrypoint printed Bun's source excerpt and stack
+  // frames, failing the exact one-line assertion (2026-10-11).
+  expect(execution.exitCode).toBe(1);
+  expect(execution.stdout.toString('utf8')).toBe('');
+  expect(execution.stderr.toString('utf8')).toBe(
+    `error: authority absent: ${join(root, '.git', 'module-wiki')}; run \`twilight-dash bootstrap-authority <repository>\` to create it [ENOENT]\n`,
+  );
+});

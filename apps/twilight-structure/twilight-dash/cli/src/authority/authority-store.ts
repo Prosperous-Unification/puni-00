@@ -16,14 +16,6 @@ import {
 } from '@twilight-burokrat/judge';
 import { Database } from 'bun:sqlite';
 
-export {
-  assertAuthorityClaimPath,
-  assertAuthorityConflictGroup,
-  assertAuthorityPathAccess,
-  assertAuthoritySessionId,
-  assertAuthorityWorktreePath,
-} from '@twilight-burokrat/judge';
-
 /**
  * v4 added durable integration/recovery history; v5 renames the on-disk authority from
  * `.git/wbs-wiki` to `.git/module-wiki`, which is a schema change because the file the version
@@ -1571,8 +1563,28 @@ class SqliteAuthorityStore implements AuthorityStore {
     throw new AuthorityContentionError(this.#options.maxBusyAttempts);
   }
 
+  /**
+   * A read-only snapshot: a deferred transaction that reads and never writes, so it takes no
+   * write lock and works on a store this process may only read. Busy readers retry within the
+   * configured budget, then throw {@link AuthorityContentionError}.
+   */
   inspect(): AuthorityState {
-    return this.transact((transaction) => transaction.readState());
+    for (let attempt = 1; attempt <= this.#options.maxBusyAttempts; attempt += 1) {
+      try {
+        this.#database.run('BEGIN');
+        const state = readSqliteState(this.#database);
+        this.#database.run('COMMIT');
+        return state;
+      } catch (cause) {
+        rollbackTransaction(this.#database, cause);
+        if (!isBusy(cause)) throw cause;
+        if (attempt === this.#options.maxBusyAttempts) {
+          throw new AuthorityContentionError(this.#options.maxBusyAttempts, cause);
+        }
+        Bun.sleepSync(this.#options.busyDelayMilliseconds);
+      }
+    }
+    throw new AuthorityContentionError(this.#options.maxBusyAttempts);
   }
 
   close(): void {

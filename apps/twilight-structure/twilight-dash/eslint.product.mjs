@@ -39,6 +39,27 @@ export default ({
   });
   return [
     {
+      files: ['apps/twilight-structure/twilight-dash/cli/src/**/*.ts'],
+      ignores: ['apps/twilight-structure/twilight-dash/cli/src/**/*.test.ts'],
+      // Fixture helpers bootstrap on absence, which production must never do. A separate rule
+      // from `no-restricted-imports`, so the root TypeBox fence stays in force.
+      // Proof: removing this override let claims.ts import `./testing/open-or-bootstrap`; `keeps
+      // Dash authority test helpers out of production modules` failed (2026-10-11).
+      rules: {
+        '@typescript-eslint/no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: ['**/testing/**', './testing/**'],
+                message: 'Test helpers bootstrap on absence; only *.test.ts may import them.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
       files: ['apps/twilight-structure/twilight-dash/cli/src/cli.ts'],
       // Proof: omitting this exact entry made the real Dash CLI lint fail on its fixed
       // fleet planner import; a sibling infra import still fails with this entry present.

@@ -101,6 +101,18 @@ GOLDEN_OUTPUT=<out> bun test src/admission-runtime/integration-races.test.ts -t 
 `fixtures/authority/module-wiki-authority.v5.sql` is that `.schema` plus a fresh store's meta row;
 `burokrat-written-v5.sql` and `.state.json` are the dump and `inspect()` output.
 
+## Fable review fixes (S1, S3)
+
+| Finding                                                                             | Fix                                                                                           | Observed negative                                                                                                      |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `inspect()` ran `transact` (BEGIN IMMEDIATE, rewrite, COMMIT)                       | deferred read-only snapshot with bounded busy retry                                           | old path: file sha256 and mtime changed; on a `0444` file in a `0555` directory `attempt to write a readonly database` |
+| spec said the bundle omits `bun:sqlite`                                             | spec names the authority markers and allows the judge's in-memory parser                      | — (contract text)                                                                                                      |
+| refusals printed Bun stack traces                                                   | entrypoint prints one `error: <message> [codes]` line; cause codes only, never cause messages | entrypoint without the catch failed `a refused command prints one line on stderr and exits 1`                          |
+| fixture helper importable from production                                           | `@typescript-eslint/no-restricted-imports` on Dash production files                           | without the override `keeps Dash authority test helpers out of production modules` failed                              |
+| clock scan missed `Date()`, `Bun.nanoseconds`, `performance.timeOrigin`, entrypoint | widened pattern, entrypoint scanned                                                           | each of the three appended to entrypoint.ts named `entrypoint.ts`                                                      |
+
+Dash suite 202/0; devsync oracles 129/0; uncached `twilight-dash:lint` exit 0.
+
 ## S4–S6
 
 Recorded by each slice as it lands.

@@ -1,3 +1,5 @@
+import { assertAuthoritySessionId } from '@twilight-burokrat/judge';
+
 import type {
   AuthorityClaim,
   AuthorityGeneration,
@@ -6,11 +8,7 @@ import type {
   GenerationStatus,
   SubmissionIdentity,
 } from './authority-store';
-import {
-  assertAuthoritySessionId,
-  assertAuthorityTimestamp,
-  assertSubmissionIdentity,
-} from './authority-store';
+import { assertAuthorityTimestamp, assertSubmissionIdentity } from './authority-store';
 import { authorityClaimsMatch, type ClaimToken } from './claims';
 
 export type { SubmissionIdentity } from './authority-store';
