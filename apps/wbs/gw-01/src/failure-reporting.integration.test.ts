@@ -5,6 +5,7 @@ import { parseOrThrow } from '@wbs/validation';
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from './app';
+import { GRANT_EVERY_PROJECT } from './testing/project-access';
 
 const INTERNAL_SECRET = 'internal-secret-for-gateway-reporting';
 const CURRENT_KEY = 'current-jwt-key-for-gateway-reporting';
@@ -115,9 +116,9 @@ const failures = [
     operation: 'resume' as const,
     route: '/internal/resume',
     request:
-      '{"type":"resume","resume_points":{"presence":3,"project:00000000-0000-4000-8000-000000000001":8}}',
+      '{"type":"resume","resume_points":{"project:00000000-0000-4000-8000-0000000000aa":3,"project:00000000-0000-4000-8000-000000000001":8}}',
     expectedRaw: [
-      '{"type":"resume_denied","subscription":"presence","reason":"unavailable"}',
+      '{"type":"resume_denied","subscription":"project:00000000-0000-4000-8000-0000000000aa","reason":"unavailable"}',
       '{"type":"resume_denied","subscription":"project:00000000-0000-4000-8000-000000000001","reason":"unavailable"}',
       '{"type":"resume_ack","replayed":{}}',
     ],
@@ -140,6 +141,7 @@ describe('unexpected backend failure reporting through the production gateway', 
       const app = buildApp(
         {
           beUrl: 'http://be.invalid',
+          projectAccess: GRANT_EVERY_PROJECT,
           internalAuthSecret: INTERNAL_SECRET,
           jwtKey: CURRENT_KEY,
           previousJwtKey: PREVIOUS_KEY,
@@ -239,6 +241,7 @@ describe('unexpected backend failure reporting through the production gateway', 
     const app = buildApp(
       {
         beUrl: 'http://be.invalid',
+        projectAccess: GRANT_EVERY_PROJECT,
         internalAuthSecret: INTERNAL_SECRET,
         jwtKey: CURRENT_KEY,
         previousJwtKey: PREVIOUS_KEY,

@@ -1,21 +1,36 @@
+import type { ProjectService } from '@wbs/core/module/project/project.resource';
 import { ValidationError } from '@wbs/validation';
 import { expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 
 import { type InternalDeps, internalRoutes } from '../../controller/internal.routes';
 import { REFUSE_DELEGATIONS } from '../../runtime/delegation';
-import { testAuthService } from '../../testing/auth-fixture';
+import { testLocalAuthService } from '../../testing/auth-fixture';
+import { legacyOrganizationAccess } from '../../testing/organization-access-fixture';
 import { identityResolver } from '../identity';
 import { mountEndpoints } from './mount';
 
 const secret = 'internal-test-secret';
-function appFor(deps: InternalDeps) {
+// Test double: every project exists, so these cases exercise parsing and
+// callbacks rather than the per-subscription access check.
+const everyProject = {
+  readWithin: () => Promise.resolve({ project: {}, steps: [] }),
+} as unknown as ProjectService;
+
+function appFor(deps: Pick<InternalDeps, 'onForward' | 'onResume'>) {
   return new Elysia().use(
-    mountEndpoints(internalRoutes(deps), {
-      appOrigin: 'https://app.example',
-      reportUnexpectedFailure: () => undefined,
-      resolveIdentity: identityResolver(testAuthService(), secret, REFUSE_DELEGATIONS),
-    }),
+    mountEndpoints(
+      internalRoutes({ ...deps, projects: everyProject, organizations: legacyOrganizationAccess }),
+      {
+        appOrigin: 'https://app.example',
+        reportUnexpectedFailure: () => undefined,
+        resolveIdentity: identityResolver(
+          testLocalAuthService({ id: 'ada', username: 'ada', scopes: ['read', 'write'] }),
+          secret,
+          REFUSE_DELEGATIONS,
+        ),
+      },
+    ),
   );
 }
 function request(route: string, body: unknown, headers: Record<string, string> = {}) {
@@ -71,11 +86,12 @@ test('mounted resume admits legacy arrays and fractional cursors with unchanged 
       return Promise.resolve({});
     },
   });
-  for (const resume_points of [[], [-1, 0.5], { p: -1, q: 0.5 }]) {
+  for (const resume_points of [[], [-1, 0.5], { 'project:p': -1, 'project:q': 0.5 }]) {
     const response = await app.handle(request('resume', { resume_points, trace_id: 't' }));
     expect(response.status).toBe(200);
   }
-  expect(calls).toEqual([{}, { '0': -1, '1': 0.5 }, { p: -1, q: 0.5 }]);
+  // Array indices name no project, so they are parsed and then denied.
+  expect(calls).toEqual([{}, {}, { 'project:p': -1, 'project:q': 0.5 }]);
 });
 
 test('mounted internal callbacks keep unknown validation failures as server failures', async () => {

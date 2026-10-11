@@ -459,6 +459,8 @@ export function mountedEndpoints(
       // client socket message has no write authority.
       onForward: () => Promise.resolve({ push_responses: [] }),
       onResume: (points) => opts.replay.replay(points),
+      projects: opts.projects,
+      organizations: opts.organizations,
     }),
     ...gatewayAccessRoutes(opts.projects, opts.organizations),
   ] as const;

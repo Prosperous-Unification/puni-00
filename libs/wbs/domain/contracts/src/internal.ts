@@ -40,12 +40,14 @@ export type ReplayedEvent = typeof ReplayedEvent.infer;
  * asked, because `/internal/push` fans out to every socket on the subscription —
  * one client reconnecting would make every other client refetch. A count would
  * also be a second statement of `events.length`, free to disagree with it.
+ * `forbidden` is a subscription the forwarded browser principal may not read
+ * now, including one that names no project; nothing of it is replayed.
  */
 export const InternalResumeResponse = type({
   '[string]': [
     { status: "'replaying'", events: ReplayedEvent.array() },
     '|',
-    { status: "'denied'", reason: "'out_of_range'" },
+    { status: "'denied'", reason: "'out_of_range' | 'forbidden'" },
   ],
 });
 export type InternalResumeResponse = typeof InternalResumeResponse.infer;

@@ -7,8 +7,15 @@ import type { SqliteSource } from '@wbs/store-sqlite';
 
 import type { OptimizationRepository } from '../module/optimization/contract';
 import { observeForAdmissionIn } from '../repository/optimization';
+import { reusesEnabledGeneration } from '../repository/optimization-generation';
 
-/** Owns generation allocation, its cache eviction and addressed fan-out in one source turn. */
+/**
+ * Owns generation allocation, its cache eviction and addressed fan-out in one source turn.
+ *
+ * An enabled equal-hash read reuses the generation without writing, so it skips both
+ * whole-organization captures; the turn's write lock keeps that answer true until
+ * observation runs.
+ */
 export function createOptimizationObservationOwner(
   db: SqliteSource['db'],
   uow: UnitOfWork,
@@ -21,6 +28,14 @@ export function createOptimizationObservationOwner(
       // refusal into an incidental property error before any generation write.
       if (capture?.resolveLifecycleOwner === undefined)
         throw new Error('optimization observation lacks borrowed ownership and capture');
+      // Proof: skipping captures unconditionally lost B's A-cause event in
+      // `records selected-display eviction when an installed stale observation
+      // advances generation`; removing this branch made the cache-hit test count 2.
+      if (reusesEnabledGeneration(db, key.projectId, key.contractVersion, key.inputHash))
+        return {
+          commit: true,
+          value: { decision: observeForAdmissionIn(db, key, now), envelopes: [] },
+        };
       const owner = await capture.resolveLifecycleOwner(key.projectId);
       const organizationId = owner.kind === 'scoped' ? owner.organizationId : null;
       const before = organizationId === null ? null : await capture.capture(organizationId);
