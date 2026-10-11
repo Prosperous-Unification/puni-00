@@ -167,7 +167,7 @@
       shelf's watch is not the runtime's yet and stays task 10's. Page hide's own
       session retirement, which the application's retirement does not yet await, is
       task 14's.
-- [ ] 12. Each module has its own isolated type check and its graph check, and every
+- [x] 12. Each module has its own isolated type check and its graph check, and every
       module directory carries a validated wiki index and a `contract.ts`. The
       preferences module's public `preferences` resource — kept only for
       `src/lib/remembered.ts`'s per-project layout stores — moves behind a feature of
@@ -188,6 +188,15 @@
       `plan-feed`, `plan-writer` and `project` have no `module.ts`, so no graph to verify
       but the runtime that installs them; `preferences` and `directory-management` verify
       theirs in `module.test.ts`.
+      Closed by WBS 72b7ad20, observed 2026-10-11: the import graph is the graph those six
+      — and `saved-plans`, sealed no more than they are — are installed by, so
+      `tools/tool-devsync/src/frontend-module-graph.test.ts` resolves every production import
+      under `apps/wbs/fe-01/src` through the application's own `tsconfig.app.json` and requires,
+      per module directory, the importers outside it to equal its index's `externalConsumers`.
+      All nine modules are held to it, the two sealed ones beside their `module.test.ts`. It found
+      `components/people/people-load-summary.tsx` importing directory-management undeclared,
+      now declared in the README and `docs/wiki-policy/modules.json`. Removing calendar-markers'
+      declared `runtime/project-runtime.ts` failed that module's case naming the file.
 - [x] 13. No infrastructure escapes a context: the architecture checks refuse a
       bag, credential, broad client, repository or resource in delivery.
       Moved by 050-7-l, observed 2026-09-25: `apps/wbs/fe-01/src/delivery-boundaries.test.ts`

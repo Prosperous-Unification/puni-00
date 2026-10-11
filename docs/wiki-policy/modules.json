@@ -624,6 +624,10 @@
         "kind": "declared",
         "memberships": [
           { "kind": "path", "path": "apps/wbs/fe-01/src/components/directory/directory-page.tsx" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/people/people-load-summary.tsx"
+          },
           { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/session-runtime.ts" }
         ]
       }
