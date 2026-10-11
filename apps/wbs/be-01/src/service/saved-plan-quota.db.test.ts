@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { SavedPlanHoldingRow, SavedPlanStore } from '@wbs/core';
 import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
-import type { SavedPlanQuota } from '@wbs/core/service/saved-plan-quota';
+import type { SavedPlanQuota } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from '../repository/capacity';

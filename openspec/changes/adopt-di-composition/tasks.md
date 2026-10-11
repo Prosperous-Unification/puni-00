@@ -280,8 +280,23 @@
       `command-normalizers.ts`, `compensating.ts`, `dependency.ts`, `directory-usage.ts`,
       `numbered-work-item.ts`, `plan-command.ts`, `roll-up.ts`, `saved-plan-default-name.ts`,
       `saved-plan-input.ts`, `saved-plan-quota.ts`, `saved-plan-schedule-body.ts`,
-      `smoke.service.ts`.
-- [ ] 6.2 The two backend domain moves: `solver-exit-outcome.ts`, `solver-request-pair.ts`.
+      `smoke.service.ts`. **2026-10-11, five of fourteen:** `clean-name.ts`,
+      `saved-plan-default-name.ts`, `saved-plan-quota.ts` and `saved-plan-schedule-body.ts` moved
+      to `libs/wbs/domain/domain/src/` with their tests, and `smoke.service.ts` became the pure
+      `echoSmokeText` there; importers name `@wbs/domain` and the `@wbs/core` barrel keeps the
+      moved symbols as compatibility exports. The other nine (`assumed-assignee.ts`,
+      `command-normalizers.ts`, `compensating.ts`, `dependency.ts`, `directory-usage.ts`,
+      `numbered-work-item.ts`, `plan-command.ts`, `roll-up.ts`, `saved-plan-input.ts`) read
+      application-ring repository record types (`WorkItem`, `StoredDependency`, `Assignment`,
+      the stored estimate, actual, measure and progress records, `PlanInputReads`) or core
+      `http/` body parsers, which the `ring:domain` boundary forbids the domain library to import.
+      Their destination is an open architecture decision recorded in `verify.md`.
+- [x] 6.2 The two backend domain moves: `solver-exit-outcome.ts`, `solver-request-pair.ts`.
+      Landed 2026-10-11 in the domain-ring solver contracts,
+      `libs/wbs/domain/contracts/solver/src/`, beside the request builder and revalidation they
+      compose, with their tests and the aliases `@wbs/contracts/solver/solver-exit-outcome` and
+      `@wbs/contracts/solver/solver-request-pair`. `OptimizationOutcome` moved with them; the
+      Optimization contract re-exports it. Their `kinds.json` rows are removed (28 to 26).
 - [ ] 6.3 Delete `push-client.ts` once callers import `@wbs/runtime-portable` directly.
 
 ## 7. Ledger and closure

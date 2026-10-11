@@ -1,8 +1,8 @@
+import { buildSolverRequestPair } from '@wbs/contracts/solver/solver-request-pair';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
-import { buildSolverRequestPair } from '../../service/solver-request-pair';
 import type { ReservedSpawnRequest } from '../optimization/contract';
 import { installSolverSupervisor } from './check';
 import { SOLVER_SUPERVISOR_LABEL } from './contract';

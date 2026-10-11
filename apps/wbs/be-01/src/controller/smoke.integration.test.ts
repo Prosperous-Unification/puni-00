@@ -1,4 +1,4 @@
-import { SmokeService } from '@wbs/core/service/smoke.service';
+import * as domain from '@wbs/domain';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { testApp } from '../testing/app-fixture';
@@ -76,8 +76,8 @@ describe('POST /api/smoke/echo', () => {
   });
 });
 
-it('refuses an invalid service representation at the actual smoke response boundary', async () => {
-  const echo = spyOn(SmokeService.prototype, 'echo').mockReturnValue(42 as unknown as string);
+it('refuses an invalid domain representation at the actual smoke response boundary', async () => {
+  const echo = spyOn(domain, 'echoSmokeText').mockReturnValue(42 as unknown as string);
   try {
     const response = await testApp().handle(echoRequest(JSON.stringify({ text: 'hello' })));
     expect(response.status).toBe(500);

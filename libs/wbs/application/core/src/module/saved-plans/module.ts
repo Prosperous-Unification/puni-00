@@ -1,10 +1,10 @@
+import type { SavedPlanQuota } from '@wbs/domain';
 import { DiBag } from 'di-bag';
 
 import type { Digest } from '../../ports/runtime';
 import type { SavedPlanCaptureStore } from '../../ports/saved-plan-capture-store';
 import type { SavedPlanStore } from '../../ports/saved-plan-store';
 import type { Scheduler } from '../../ports/scheduler';
-import type { SavedPlanQuota } from '../../service/saved-plan-quota';
 import { SAVED_PLANS_LABEL } from './contract';
 import { SavedPlanResource } from './saved-plan.resource';
 import { SavedPlanService, type SavedPlanServiceOptions } from './saved-plans.feature';

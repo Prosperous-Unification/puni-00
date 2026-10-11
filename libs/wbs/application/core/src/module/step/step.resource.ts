@@ -1,4 +1,10 @@
-import { type AllowancePercent, isReservedStepCode, isStepCode, stepIsInUse } from '@wbs/domain';
+import {
+  type AllowancePercent,
+  cleanName,
+  isReservedStepCode,
+  isStepCode,
+  stepIsInUse,
+} from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
 import type { EditAdmission } from '../../ports/edit-admission';
@@ -13,7 +19,6 @@ import type { Broadcaster } from '../../ports/project-event';
 import type { Project, ProjectStore } from '../../ports/project-store';
 import type { Step, StepStore, StepUsageRows } from '../../ports/step-store';
 import { type AssumedAssigneeFlip, assumedAssigneeFlips } from '../../service/assumed-assignee';
-import { cleanName } from '../../service/clean-name';
 import type { DependencyGraphGuard } from '../../service/dependency-graph';
 
 export interface StepServiceOptions {

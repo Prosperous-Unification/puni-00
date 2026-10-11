@@ -10,10 +10,10 @@ import type { StepService, StepServiceOptions } from './step.resource';
  *
  * **No K6 debt; K4 support and K2 debt disclosed.** Step is a resource: it
  * imports the domain library, repository ports and no other resource. It
- * still imports two support files from `service/`, `assumed-assignee.ts` and
- * `clean-name.ts`, which the backend module map moves to the domain library
- * (task 6.1); until then that is a resource reading application-ring support
- * rather than the domain. Delivery's side is not closed either:
+ * still imports one support file from `service/`, `assumed-assignee.ts`, which
+ * the backend module map moves to the domain library (task 6.1); until then
+ * that is a resource reading application-ring support rather than the domain.
+ * `cleanName` already moved to `@wbs/domain`. Delivery's side is not closed either:
  * `http/step.routes.ts` still accepts `StepService` directly, the direct
  * resource dependency of delivery (K2) the map lists under its composition
  * hazards. Tracked under task 7.4 of

@@ -8,7 +8,6 @@ const root = fileURLToPath(new URL('../../../../../..', import.meta.url));
 const services = [
   'assumed-assignee',
   'auth.service',
-  'clean-name',
   'command-normalizers',
   'compensating',
   'dependency',
@@ -17,10 +16,7 @@ const services = [
   'optimizer-trigger-broadcaster',
   'plan-command',
   'roll-up',
-  'saved-plan-default-name',
   'saved-plan-input',
-  'saved-plan-quota',
-  'saved-plan-schedule-body',
   'saved-plan-schedule',
   'saved-plan.service',
 ];
