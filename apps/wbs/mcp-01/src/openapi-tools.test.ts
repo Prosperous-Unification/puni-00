@@ -249,6 +249,11 @@ describe('toolsFromDocument, on the generated document', () => {
     expect(EXCLUDED_PATHS).toHaveLength(5);
   });
 
+  it('never offers the sign-in method list as a tool', () => {
+    expect(tools.map((tool) => tool.name)).not.toContain('getApiAuthMethods');
+    expect(tools.filter((tool) => tool.path.startsWith('/api/auth/'))).toHaveLength(0);
+  });
+
   it('offers batches, not single writes (plan-commands)', () => {
     // Proof: `/api/work-items/*` dropped from `EXCLUDED_PATHS`, this failed on
     // `expected [] to have a length of 0` with sixteen names in it. Watched,

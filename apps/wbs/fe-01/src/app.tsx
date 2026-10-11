@@ -8,7 +8,8 @@ import {
 } from 'react';
 
 import { AppRouter } from '@/app-router';
-import { AuthForm } from '@/components/auth/auth-form';
+import { useAddSignInMethod } from '@/components/account/add-sign-in-method';
+import { SignInCard } from '@/components/auth/auth-form';
 import { AccountMenu } from '@/components/chrome/account-menu';
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { LifetimeFault } from '@/components/chrome/lifetime-fault';
@@ -89,12 +90,14 @@ function ThemedAccountMenu({
   onSignOut: () => void;
 }): React.JSX.Element {
   const { choice, chooseTheme } = useThemeChoice();
+  const adding = useAddSignInMethod();
   return (
     <AccountMenu
       username={username}
       theme={choice}
       onChooseTheme={chooseTheme}
       onSignOut={onSignOut}
+      {...adding}
     />
   );
 }
@@ -289,7 +292,7 @@ function AppContent({
          */}
         <h1 className="mb-6 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
         {sessionError !== '' && <p role="alert">{sessionError}</p>}
-        <AuthForm onSignedIn={acceptSession} />
+        <SignInCard onSignedIn={acceptSession} />
       </main>
     );
 

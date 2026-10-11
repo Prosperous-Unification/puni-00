@@ -152,6 +152,7 @@ function fixture(
     groupPrefix: 'dev',
     groupsClaim: 'wbs_groups',
     logger: { info: record('info'), warn: record('warn'), error: record('error') },
+    methods: [] as const,
     mode: 'oidc' as const,
     now: tick,
     random: () => random.shift() ?? 'extra-random',
@@ -315,6 +316,7 @@ describe('OIDC browser routes', () => {
         id: 'password-user',
         username: 'claire-qa',
         scopes: ['read', 'write', 'editor'],
+        linkedMethods: [],
       },
     });
   });
@@ -1686,7 +1688,7 @@ describe('OIDC browser routes', () => {
     expect(res.headers.get('set-cookie')).not.toContain('__Host-wbs_access=');
   });
 
-  it('refuses an OIDC identity conflict without a response body', async () => {
+  it('redirects an OIDC identity conflict to account_exists without a response body', async () => {
     const f = fixture();
     f.users.resolveOidcIdentity = () => Promise.resolve(null);
     f.transactions.save({
@@ -1702,7 +1704,9 @@ describe('OIDC browser routes', () => {
       }),
     );
 
-    expect(res.status).toBe(409);
+    // A collision is the rendered `account_exists` refusal, not the former empty 409.
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/?auth_error=account_exists');
     // Proof: restoring oidc_identity_conflict made this receive its JSON envelope.
     expect(await res.text()).toBe('');
   });
@@ -1800,6 +1804,7 @@ describe('OIDC startup configuration', () => {
       AUTH_AUDIENCE: 'wbs-api',
       AUTH_ISSUER_DISCOVERY_URL: 'https://idp.test',
       AUTH_REDIRECT_URI: 'https://dev.wbs.test/api/auth/okta/callback',
+      AUTH_METHODS: 'none',
     };
 
     expect(() => factory({ ...base, AUTH_PASSWORD_LOGIN: 'TRUE' })).toThrow(
@@ -1824,6 +1829,7 @@ describe('OIDC startup configuration', () => {
         AUTH_AUDIENCE: 'wbs-api',
         AUTH_ISSUER_DISCOVERY_URL: 'https://idp.test',
         AUTH_REDIRECT_URI: 'https://dev.wbs.test/api/auth/okta/callback',
+        AUTH_METHODS: 'none',
         AUTH_PASSWORD_LOGIN: 'false',
         AUTH_PASSWORD_REGISTER: 'true',
       }),
@@ -1843,6 +1849,7 @@ describe('OIDC startup configuration', () => {
         AUTH_AUDIENCE: 'wbs-api',
         AUTH_ISSUER_DISCOVERY_URL: 'https://idp.test',
         AUTH_REDIRECT_URI: 'https://dev.wbs.test/auth/callback',
+        AUTH_METHODS: 'none',
       }),
     ).toThrow('/api/auth/okta/callback');
   });
@@ -1865,6 +1872,7 @@ describe('OIDC startup configuration', () => {
         AUTH_AUDIENCE: 'wbs-api',
         AUTH_ISSUER_DISCOVERY_URL: 'https://idp.test',
         AUTH_REDIRECT_URI: 'https://dev.wbs.test/api/auth/okta/callback',
+        AUTH_METHODS: 'none',
         AUTH_GROUPS_CLAIM: 'custom_groups',
         NODE_ENV: 'production',
       }),
@@ -1874,6 +1882,46 @@ describe('OIDC startup configuration', () => {
       groupsClaim: 'custom_groups',
       mode: 'oidc',
     });
+  });
+
+  it('oidc mode refuses a missing AUTH_METHODS', () => {
+    const factory = (
+      oidcOptionsModule as unknown as {
+        oidcRouteOptionsFromEnv: (env: Record<string, string>) => { methods: readonly string[] };
+      }
+    ).oidcRouteOptionsFromEnv;
+    const env = {
+      AUTH_CLIENT_ID: 'client',
+      AUTH_CLIENT_SECRET: 'secret',
+      AUTH_AUDIENCE: 'wbs-api',
+      AUTH_ISSUER_DISCOVERY_URL: 'https://idp.test',
+      AUTH_REDIRECT_URI: 'https://dev.wbs.test/api/auth/okta/callback',
+    };
+    // Proof: 2026-10-11, defaulting a missing AUTH_METHODS to [] made this
+    // case build options instead of throwing.
+    expect(() => factory(env)).toThrow(/AUTH_METHODS/);
+    expect(() => factory({ ...env, AUTH_METHODS: '' })).toThrow(/AUTH_METHODS/);
+    expect(() => factory({ ...env, AUTH_METHODS: 'google,google' })).toThrow(/AUTH_METHODS/);
+    expect(() => factory({ ...env, AUTH_METHODS: 'facebook' })).toThrow(/AUTH_METHODS/);
+    expect(factory({ ...env, AUTH_METHODS: 'email,google' }).methods).toEqual(['google', 'email']);
+  });
+
+  it('none yields an empty list', () => {
+    const factory = (
+      oidcOptionsModule as unknown as {
+        oidcRouteOptionsFromEnv: (env: Record<string, string>) => { methods: readonly string[] };
+      }
+    ).oidcRouteOptionsFromEnv;
+    expect(
+      factory({
+        AUTH_CLIENT_ID: 'client',
+        AUTH_CLIENT_SECRET: 'secret',
+        AUTH_AUDIENCE: 'wbs-api',
+        AUTH_ISSUER_DISCOVERY_URL: 'https://idp.test',
+        AUTH_REDIRECT_URI: 'https://dev.wbs.test/api/auth/okta/callback',
+        AUTH_METHODS: 'none',
+      }).methods,
+    ).toEqual([]);
   });
 });
 

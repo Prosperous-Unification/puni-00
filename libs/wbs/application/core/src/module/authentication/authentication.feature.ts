@@ -1,4 +1,10 @@
-import type { AuthenticatedUser, OidcIdentity } from '@wbs/contracts';
+import {
+  AUTH_METHODS,
+  type AuthenticatedUser,
+  type AuthMethodId,
+  authMethodOfSubject,
+  type OidcIdentity,
+} from '@wbs/contracts';
 
 import type { User } from '../../ports/account-values';
 import type { OidcVerifier } from '../../ports/oidc-verifier';
@@ -16,6 +22,12 @@ export type RegisterOutcome =
   { ok: true; value: SignedIn } | { ok: false; reason: 'taken' | 'invalid' };
 
 export type LoginOutcome = { ok: true; value: SignedIn } | { ok: false; reason: 'invalid' };
+
+/**
+ * The account behind a browser session, by how it was proved: a first-party
+ * password session, or a verified OIDC access token of an existing mapping.
+ */
+export type SessionAccount = { kind: 'password'; user: User } | { kind: 'oidc'; user: User };
 
 export interface AuthServiceOptions {
   account: AccountResource;
@@ -87,6 +99,36 @@ export class AuthService {
     return user?.passwordHash === null || user === null ? null : user;
   }
 
+  /**
+   * The account a browser session proves. A first-party password session wins
+   * (its token cannot be an OIDC one); otherwise the token is verified with the
+   * configured OIDC verifier and resolved through existing mappings only, so a
+   * session can never create or merge an account here. Verifier and store
+   * faults propagate.
+   */
+  async sessionUser(token: string | null): Promise<SessionAccount | null> {
+    const password = await this.passwordSessionUser(token);
+    if (password !== null) return { kind: 'password', user: password };
+    if (token === null || this.opts.oidc === undefined) return null;
+    const identity = await this.opts.oidc.verify(token);
+    if (identity === null) return null;
+    const user = await this.readExistingOidcIdentity(identity);
+    return user === null ? null : { kind: 'oidc', user };
+  }
+
+  /**
+   * The catalogue methods an account can sign in with, from its mapped pairs
+   * (never from token claims), in catalogue order.
+   */
+  async linkedMethods(userId: string): Promise<AuthMethodId[]> {
+    const linked = new Set(
+      (await this.opts.account.listIdentities(userId)).map(({ subject }) =>
+        authMethodOfSubject(subject),
+      ),
+    );
+    return AUTH_METHODS.map(({ id }) => id).filter((id) => linked.has(id));
+  }
+
   /** Requires a fresh password as well as the initiating signed password session. */
   async provePasswordSession(token: string | null, password: string): Promise<User | null> {
     const user = await this.passwordSessionUser(token);
@@ -103,7 +145,7 @@ export class AuthService {
 
   /** Commit an explicit verified link without calling normal OIDC login resolution. */
   linkOidcIdentity(userId: string, identity: OidcIdentity) {
-    return this.opts.account.linkPasswordIdentity(userId, identity);
+    return this.opts.account.linkIdentity(userId, identity);
   }
 
   async register(username: string, password: string): Promise<RegisterOutcome> {

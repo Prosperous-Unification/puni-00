@@ -126,7 +126,7 @@ test('mounted local register, login and me preserve JSON status and content type
   );
   expect(me.status).toBe(200);
   expect(await me.json()).toEqual({
-    user: { ...session.user, scopes: ['read', 'write', 'editor'] },
+    user: { ...session.user, scopes: ['read', 'write', 'editor'], linkedMethods: [] },
   });
   const missing = await app.handle(new Request('https://backend.example/api/auth/me'));
   expect(missing.status).toBe(200);

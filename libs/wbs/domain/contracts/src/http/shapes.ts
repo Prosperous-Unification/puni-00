@@ -1,6 +1,7 @@
 import {
   completeAuth0Link,
   completeOidcLogin,
+  listAuthMethods,
   logoutOidcSession,
   refreshOidcSession,
   startAuth0Link,
@@ -116,6 +117,7 @@ export const httpShapes = [
   loginPassword,
   readPasswordSession,
   issueBearerContext,
+  listAuthMethods,
   startOidcLogin,
   completeOidcLogin,
   startAuth0Link,

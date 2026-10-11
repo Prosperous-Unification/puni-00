@@ -14,9 +14,10 @@ test('direct OIDC login binds the exact transaction to the provider and emits an
   const transactions = new InMemoryOidcTransactionStore({ ttlMs: 300000 });
   const random = ['browser', 'state', 'nonce', 'verifier'];
   const provider: unknown[] = [];
-  const [start] = authOidcEndpoints(
+  const [, start] = authOidcEndpoints(
     testAuthService(),
     {
+      methods: [] as const,
       mode: 'oidc',
       appOrigin: 'https://app.test',
       redirectUri: 'https://app.test/api/auth/okta/callback',
@@ -54,7 +55,7 @@ test('direct OIDC login binds the exact transaction to the provider and emits an
   );
   const reply = await start.handle({
     params: {},
-    query: undefined,
+    query: {},
     body: undefined,
     request: {
       method: 'GET',

@@ -158,6 +158,7 @@ const oidc = {
   client,
   groupPrefix: 'dev',
   groupsClaim: 'wbs_groups',
+  methods: [] as const,
   mode: 'oidc' as const,
   now: Date.now,
   random: () => 'unused-correlation',

@@ -86,11 +86,12 @@ AUTH_AUDIENCE=wbs-api
 AUTH_GROUPS_CLAIM=wbs_groups
 ```
 
-be-01 and gw-01 additionally use:
+be-01 and gw-01 additionally use (be-01 also requires `AUTH_METHODS`, `none` here):
 
 ```dotenv
 AUTH_MODE=oidc
 AUTH_REDIRECT_URI=https://localhost:3443/api/auth/okta/callback
+AUTH_METHODS=none
 ```
 
 Standalone mcp-01 uses:
@@ -142,8 +143,10 @@ AUTH_REDIRECT_URI=https://dev.wbs.bulletpoints.club/api/auth/okta/callback
 AUTH_SCOPE=openid profile email offline_access
 AUTH_AUDIENCE=https://wbs.bulletpoints.club/api
 AUTH_GROUPS_CLAIM=wbs_groups
+AUTH_METHODS=google,github,email
 ```
 
+`AUTH_METHODS` is required by be-01 in this mode; see [Sign-in methods](#sign-in-methods).
 `AUTH_SCOPE` and `AUTH_GROUPS_CLAIM` are optional — the code defaults to
 exactly the values shown, and the deployed dev env omits both. Set them only to
 override, and never to a different groups claim than the Action emits.
@@ -266,6 +269,43 @@ Cut over in this order:
 7. If validation, reload, or any probe fails, restore the Caddy backup, reload,
    move the marker out of the state path, verify the original app/API/WS routes,
    and remove the added Auth0 callback.
+
+## Sign-in methods
+
+WBS offers named sign-in buttons for a closed catalogue (`AUTH_METHODS` in
+`libs/wbs/domain/contracts/src/auth-methods.ts`): `google` (Auth0 connection
+`google-oauth2`), `github` (`github`), `email` (`email`, the passwordless email
+one-time code; Auth0 does not support magic links in Universal Login) and
+`apple` (`apple`). The connection names are the Auth0 tenant defaults.
+
+- be-01 requires `AUTH_METHODS` in `AUTH_MODE=oidc`: a comma list of method ids,
+  or the literal `none` for the Auth0 chooser only. A missing, empty, unknown or
+  repeated id fails boot. Local mode ignores it. The prod swap preflight requires
+  it in `be-01.env` and checks the same shape.
+- `GET /api/auth/methods` (public, no cookie) lists the enabled methods with
+  their labels; fe-01 renders one button per entry and keeps
+  **Continue with SSO** (the chooser) last.
+- `GET /api/auth/login?method=<id>` sends the method's connection to Auth0 as
+  the `/authorize` `connection` parameter. A method that is not enabled answers
+  `400 invalid_query` before any transaction is saved.
+- Every enabled connection must be enabled on the WBS Auth0 application. The
+  mcp-01 consent uses the same application, so the connector sees the same
+  connections in Universal Login without an mcp-01 setting.
+- Apple is deferred: its connection needs a paid Apple Developer Program
+  membership, Team ID, Services ID and signing key. Adding `apple` to
+  `AUTH_METHODS` once the connection exists needs no release.
+- The post-login Action must emit `<env>:wbs:read` and `<env>:wbs:write` for
+  every user of the WBS application regardless of connection; `editor` stays an
+  explicit grant. A user without groups has no scopes and is refused at every
+  mutating route and at MCP consent.
+
+Auth0 mints a distinct `sub` per connection (`google-oauth2|…`, `github|…`,
+`email|…`), and WBS never uses Auth0 account linking. A first sign-in whose
+verified email another WBS account already holds is refused with
+`/?auth_error=account_exists`; the person signs in the way they did before and
+adds the new method from that session (`POST /api/auth/link/auth0` with a
+`method`). One WBS user may hold several verified `(issuer, subject)` pairs; the
+rules are in `openspec/changes/social-sign-in/design.md`.
 
 ## Historical Okta mapping
 

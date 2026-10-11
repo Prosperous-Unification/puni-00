@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Session } from '@/lib/api';
 
 import { AuthForm } from './auth-form';
+import type { AuthMethodsState } from './auth-methods';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -72,12 +73,15 @@ const watchConsole = () => {
   };
 };
 
+/** The `AUTH_METHODS=none` card: the chooser link alone, as before named buttons existed. */
+const NO_METHODS: AuthMethodsState = { kind: 'ready', methods: [] };
+
 const response = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 describe('the signed-out screen', () => {
   itDom('offers password credentials beside the server-side SSO flow', () => {
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
     const link = screen.getByRole('link', { name: 'Continue with SSO' });
     expect(link.getAttribute('href')).toBe('/api/auth/login');
@@ -95,7 +99,7 @@ describe('the signed-out screen', () => {
   });
 
   itDom('reveals and re-hides the password it was given, keeping what was typed', () => {
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
     const password = screen.getByLabelText<HTMLInputElement>('Password');
     fireEvent.change(password, { target: { value: 'lovelace99' } });
     expect(password.type).toBe('password');
@@ -112,7 +116,7 @@ describe('the signed-out screen', () => {
   itDom('does not sign in when the password is merely revealed', () => {
     const fetched = vi.fn(() => Promise.resolve(response(200, {})));
     vi.stubGlobal('fetch', fetched);
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'lovel' } });
 
@@ -128,7 +132,7 @@ describe('the signed-out screen', () => {
       vi.fn(() => Promise.resolve(response(200, session))),
     );
     const onSignedIn = vi.fn();
-    render(<AuthForm onSignedIn={onSignedIn} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={onSignedIn} />);
 
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'lovelace99' } });
@@ -146,7 +150,7 @@ describe('the signed-out screen', () => {
       'fetch',
       vi.fn(() => Promise.resolve(response(401, { error: 'invalid_credentials' }))),
     );
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
     const error = screen.getByRole('status');
     expect(error.className).toContain('min-h-5');
@@ -168,7 +172,7 @@ describe('the signed-out screen', () => {
         'fetch',
         vi.fn(() => Promise.resolve(response(401, { error: 'unauthenticated' }))),
       );
-      render(<AuthForm onSignedIn={() => undefined} />);
+      render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
       fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
       fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'lovelace99' } });
       fireEvent.submit(
@@ -187,7 +191,7 @@ describe('the signed-out screen', () => {
       'fetch',
       vi.fn(() => Promise.resolve(response(200, { token: '', user: { id: 'u' } }))),
     );
-    render(<AuthForm onSignedIn={signedIn} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={signedIn} />);
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password' } });
     fireEvent.submit(
@@ -207,7 +211,7 @@ describe('the signed-out screen', () => {
       vi.fn(() => Promise.reject(new Error('offline'))),
     );
     const signedIn = vi.fn();
-    render(<AuthForm onSignedIn={signedIn} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={signedIn} />);
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password' } });
     fireEvent.submit(
@@ -231,7 +235,7 @@ describe('the signed-out screen', () => {
         ),
       ),
     );
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password' } });
     fireEvent.submit(
@@ -256,7 +260,7 @@ describe('the signed-out screen', () => {
 describe('a refused SSO sign-in', () => {
   itDom('names the refusal for access_denied without saying the reader cancelled', () => {
     arriveWith('?auth_error=access_denied');
-    const { container } = render(<AuthForm onSignedIn={() => undefined} />);
+    const { container } = render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
     expect(
       screen.getByText(
@@ -271,7 +275,7 @@ describe('a refused SSO sign-in', () => {
 
   itDom('names the account choice SSO still needs', () => {
     arriveWith('?auth_error=account_selection_required');
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
     expect(
       screen.getByText(
@@ -282,7 +286,7 @@ describe('a refused SSO sign-in', () => {
 
   itDom('names the permission SSO still needs', () => {
     arriveWith('?auth_error=consent_required');
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
     expect(
       screen.getByText(
@@ -293,7 +297,7 @@ describe('a refused SSO sign-in', () => {
 
   itDom('names the step SSO could not complete on its own', () => {
     arriveWith('?auth_error=interaction_required');
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
     expect(
       screen.getByText(
@@ -304,7 +308,7 @@ describe('a refused SSO sign-in', () => {
 
   itDom('names the sign-in SSO asks for again', () => {
     arriveWith('?auth_error=login_required');
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
     expect(
       screen.getByText('SSO needs you to sign in again. Try again to continue.'),
@@ -313,7 +317,7 @@ describe('a refused SSO sign-in', () => {
 
   itDom('offers the password form while SSO is temporarily unavailable', () => {
     arriveWith('?auth_error=temporarily_unavailable');
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
     expect(
       screen.getByText(
@@ -333,7 +337,7 @@ describe('a refused SSO sign-in', () => {
      */
     const providerText = 'AADSTS50105: the signed-in user is not assigned to a role';
     arriveWith(`?auth_error=provider_error&error_description=${encodeURIComponent(providerText)}`);
-    const { container } = render(<AuthForm onSignedIn={() => undefined} />);
+    const { container } = render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
     expect(
       screen.getByText('SSO sign-in did not complete. Try again, or sign in with a password.'),
@@ -359,7 +363,7 @@ describe('a refused SSO sign-in', () => {
     // card renders nothing for it, and says nothing about it in the console.
     const consoleWatch = watchConsole();
     arriveWith('?auth_error=okta_policy_evaluation_failure');
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
     const slots = screen.getAllByRole('status');
     expect(slots).toHaveLength(1);
@@ -393,7 +397,7 @@ describe('a refused SSO sign-in', () => {
     itDom(`renders no SSO message for the prototype property ${code}`, () => {
       const consoleWatch = watchConsole();
       arriveWith(`?auth_error=${code}`);
-      const { container } = render(<AuthForm onSignedIn={() => undefined} />);
+      const { container } = render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
       // One slot, the password form's own reserved line — the SSO paragraph is
       // conditional, so a second `role="status"` means something rendered.
@@ -417,7 +421,7 @@ describe('a refused SSO sign-in', () => {
   }
 
   itDom('renders the card exactly as before when there is no auth_error', () => {
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
     const slots = screen.getAllByRole('status');
     expect(slots).toHaveLength(1);
@@ -452,7 +456,7 @@ describe('a refused SSO sign-in', () => {
     window.history.replaceState(routerState, '', '/?tab=plan&auth_error=access_denied#risks');
     render(
       <StrictMode>
-        <AuthForm onSignedIn={() => undefined} />
+        <AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />
       </StrictMode>,
     );
 
@@ -470,13 +474,79 @@ describe('a refused SSO sign-in', () => {
     const refused =
       'SSO sign-in was refused. If you did not cancel it, your account may not have access to this app.';
     arriveWith('?auth_error=access_denied');
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
     expect(screen.getByText(refused)).toBeDefined();
     expect(window.location.search).not.toContain('auth_error');
 
     cleanup();
-    render(<AuthForm onSignedIn={() => undefined} />);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
     expect(screen.queryByText(refused)).toBeNull();
+  });
+});
+
+describe('the sign-in method buttons', () => {
+  itDom('renders one button per enabled method in order, with SSO last', () => {
+    render(
+      <AuthForm
+        methods={{ kind: 'ready', methods: ['google', 'github', 'email'] }}
+        onSignedIn={() => undefined}
+      />,
+    );
+    const links = screen.getAllByRole('link');
+    expect(links.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
+      ['Continue with Google', '/api/auth/login?method=google'],
+      ['Continue with GitHub', '/api/auth/login?method=github'],
+      ['Continue with an email code', '/api/auth/login?method=email'],
+      ['Continue with SSO', '/api/auth/login'],
+    ]);
+    for (const link of links) expect(link.className).toContain('w-full');
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+  });
+
+  itDom('shows the SSO link alone when no method is enabled', () => {
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
+    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'Continue with SSO',
+    ]);
+  });
+
+  itDom('keeps the SSO link and says so quietly when the methods cannot be read', () => {
+    render(<AuthForm methods={{ kind: 'failed' }} onSignedIn={() => undefined} />);
+    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'Continue with SSO',
+    ]);
+    const notice = screen.getByText(
+      'Other sign-in options could not be loaded. Continue with SSO, or reload to try again.',
+    );
+    expect(notice.getAttribute('role')).toBe('status');
+    expect(notice.className).toContain('text-muted-foreground');
+  });
+
+  itDom('holds one button row of space while the methods load', () => {
+    const { container } = render(
+      <AuthForm methods={{ kind: 'loading' }} onSignedIn={() => undefined} />,
+    );
+    const placeholder = container.querySelector('[data-auth-methods="loading"]');
+    expect(placeholder?.className).toContain('h-11');
+    expect(placeholder?.getAttribute('aria-hidden')).toBe('true');
+    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'Continue with SSO',
+    ]);
+  });
+});
+
+describe('an existing account with another sign-in method', () => {
+  itDom('says to sign in the way the reader did before, naming no provider', () => {
+    const consoleWatch = watchConsole();
+    arriveWith('?auth_error=account_exists');
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
+    expect(
+      screen.getByText(
+        'An account already uses this email address with a different sign-in method. Sign in the way you did before, then add this method under Account.',
+      ),
+    ).toBeDefined();
+    expect(window.location.search).not.toContain('auth_error');
+    consoleWatch.expectSilent();
   });
 });

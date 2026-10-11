@@ -15,14 +15,16 @@ const claims = {
   email_verified: true,
   wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
 };
-function fixture() {
+function fixture(methods: OidcRouteOptions['methods'] = []) {
   let clock = 1000;
+  const authorizations: Parameters<OidcRouteOptions['client']['authorizationUrl']>[0][] = [];
   let counter = 0;
   const logs: { level: string; fields: Record<string, unknown> }[] = [];
   const exchanges: Request[] = [];
   const refreshed: string[] = [];
   const revoked: string[] = [];
   const options: OidcRouteOptions = {
+    methods,
     mode: 'oidc',
     appOrigin: origin,
     redirectUri: `${origin}/api/auth/okta/callback`,
@@ -45,7 +47,12 @@ function fixture() {
       },
     },
     client: {
-      authorizationUrl: () => Promise.resolve(new URL('https://provider.test/authorize')),
+      authorizationUrl: (input) => {
+        authorizations.push(input);
+        const url = new URL('https://provider.test/authorize');
+        if (input.connection !== undefined) url.searchParams.set('connection', input.connection);
+        return Promise.resolve(url);
+      },
       exchange: (request) => {
         exchanges.push(request);
         return Promise.resolve({
@@ -98,6 +105,7 @@ function fixture() {
     start,
     callback,
     exchanges,
+    authorizations,
     logs,
     refreshed,
     revoked,
@@ -263,22 +271,20 @@ test('refresh and logout require cookie Origin before reading state and retain e
   expect(missing.headers.getSetCookie()).toHaveLength(3);
 });
 
-test.each(['missing', 'malformed', 'conflict'] as const)(
+test.each(['missing', 'malformed'] as const)(
   '%s callback retains its distinct status and cleared binding',
   async (mode) => {
     const f = fixture();
     const cookie = await f.start();
-    if (mode === 'conflict') f.resolve.mockResolvedValueOnce(null);
-    else
-      spyOn(f.options.client, 'exchange').mockResolvedValueOnce({
-        accessToken: 'access',
-        expiresIn: 1,
-        ...(mode === 'malformed' ? { idTokenClaims: { sub: 'broken' } } : {}),
-      });
+    spyOn(f.options.client, 'exchange').mockResolvedValueOnce({
+      accessToken: 'access',
+      expiresIn: 1,
+      ...(mode === 'malformed' ? { idTokenClaims: { sub: 'broken' } } : {}),
+    });
     const response = await f.callback(cookie);
-    expect(response.status).toBe(mode === 'conflict' ? 409 : 401);
+    expect(response.status).toBe(401);
     // Proof: serializing declared bodyless refusals as `{"error":"restored-envelope"}`
-    // failed both mounted 401 cases and the mounted 409 case on Expected: "", Received: that envelope.
+    // failed both mounted 401 cases (and the since-removed 409 case) on Expected: "", Received: that envelope.
     expect(await response.text()).toBe('');
     expect(response.headers.getSetCookie()).toHaveLength(1);
   },
@@ -325,4 +331,71 @@ test('exchange uses configured HTTPS callback behind HTTP and forwards arrived h
   expect(f.exchanges[0]?.url).toBe(`${origin}/api/auth/okta/callback?state=random-2&code=ok`);
   expect(f.exchanges[0]?.method).toBe('GET');
   expect(f.exchanges[0]?.headers.get('x-request-id')).toBe('request-1');
+});
+
+test('lists the enabled sign-in methods in catalogue order without a cookie', async () => {
+  const f = fixture(['google', 'github', 'email']);
+  const response = await f.send('/api/auth/methods');
+  expect(response.status).toBe(200);
+  expect(response.headers.getSetCookie()).toEqual([]);
+  expect(await response.json()).toEqual({
+    methods: [
+      { id: 'google', label: 'Continue with Google' },
+      { id: 'github', label: 'Continue with GitHub' },
+      { id: 'email', label: 'Continue with an email code' },
+    ],
+  });
+  const none = await fixture([]).send('/api/auth/methods');
+  expect(await none.json()).toEqual({ methods: [] });
+});
+
+test('sends the enabled method connection with the login it starts', async () => {
+  const f = fixture(['google']);
+  const response = await f.send('/api/auth/login?method=google');
+  expect(response.status).toBe(302);
+  // Proof: 2026-10-11, dropping `connection` from the authorization input made
+  // this location assertion fail (no connection parameter).
+  expect(new URL(response.headers.get('location') ?? '').searchParams.get('connection')).toBe(
+    'google-oauth2',
+  );
+  expect(f.authorizations.map(({ connection }) => connection)).toEqual(['google-oauth2']);
+  expect(f.options.transactions.expiresAt('random-1')).not.toBeNull();
+});
+
+test('refuses a disabled method without saving a transaction', async () => {
+  const f = fixture(['google']);
+  const save = spyOn(f.options.transactions, 'save');
+  for (const path of ['/api/auth/login?method=apple', '/api/auth/login?method=facebook']) {
+    const response = await f.send(path);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid_query' });
+    expect(response.headers.getSetCookie()).toEqual([]);
+  }
+  // Proof: 2026-10-11, moving the enablement check after `transactions.save`
+  // made this count one saved transaction.
+  expect(save).not.toHaveBeenCalled();
+  expect(f.authorizations).toEqual([]);
+});
+
+test('keeps the chooser login when no method is named', async () => {
+  const f = fixture(['google']);
+  await f.start();
+  expect(f.authorizations.map(({ connection }) => connection)).toEqual([undefined]);
+});
+
+test('redirects a sign-in whose verified email another account holds to account_exists', async () => {
+  const f = fixture();
+  const cookie = await f.start();
+  f.resolve.mockResolvedValueOnce(null);
+  const response = await f.callback(cookie);
+  // Proof: 2026-10-11, restoring the empty 409 made this status assertion
+  // fail (500, because the contract no longer declares 409, instead of 302).
+  expect(response.status).toBe(302);
+  expect(response.headers.get('location')).toBe('/?auth_error=account_exists');
+  expect(await response.text()).toBe('');
+  const cookies = response.headers.getSetCookie();
+  expect(cookies.some((line) => line.startsWith('__Host-wbs_access='))).toBe(false);
+  expect(cookies.some((line) => line.startsWith('__Host-wbs_session='))).toBe(false);
+  expect(cookies.every((line) => line.includes('Max-Age=0'))).toBe(true);
+  expect(cookies).toHaveLength(1);
 });

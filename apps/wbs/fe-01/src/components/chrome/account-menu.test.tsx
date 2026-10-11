@@ -369,3 +369,77 @@ describe('the theme control, wired to the hook that owns it', () => {
     }
   });
 });
+
+/**
+ * social-sign-in 6.3b: one "Add <method>" item per enabled method the account
+ * has not linked, between the palette and `Log out`. Taking one keeps the menu
+ * open, because the start may answer a message rather than leave the page.
+ */
+describe('adding a sign-in method, in the account menu', () => {
+  const nothing = () => {
+    // Not the subject of these tests.
+  };
+  const palette = { theme: 'system' as const, onChooseTheme: nothing };
+
+  itDom('offers one item per addable method, before Log out', () => {
+    render(
+      <AccountMenu
+        username="kat"
+        onSignOut={nothing}
+        {...palette}
+        addMethods={['github', 'email']}
+        onAddMethod={nothing}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'kat' }));
+    const names = screen.getAllByRole('menuitem').map((item) => item.textContent);
+    expect(names.slice(-3)).toEqual(['Add GitHub', 'Add an email code sign-in', 'Log out']);
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Log out' }));
+  });
+
+  itDom('reaches every item by keyboard and wraps', () => {
+    render(
+      <AccountMenu
+        username="kat"
+        onSignOut={nothing}
+        {...palette}
+        addMethods={['google']}
+        onAddMethod={nothing}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'kat' }));
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Log out' }), { key: 'ArrowUp' });
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Add Google' }));
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Add Google' }), { key: 'ArrowDown' });
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Log out' }), { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(screen.getAllByRole('menuitemradio')[0]);
+  });
+
+  itDom('starts the link for the item taken and stays open for its answer', () => {
+    const add = vi.fn();
+    render(
+      <AccountMenu
+        username="kat"
+        onSignOut={nothing}
+        {...palette}
+        addMethods={['google']}
+        onAddMethod={add}
+        addMessage="Adding sign-in methods is not available yet."
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'kat' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add Google' }));
+    expect(add).toHaveBeenCalledWith('google');
+    expect(screen.getByRole('menu')).toBeDefined();
+    expect(screen.getByRole('status').textContent).toBe(
+      'Adding sign-in methods is not available yet.',
+    );
+  });
+
+  itDom('shows no add items and no message slot when nothing can be added', () => {
+    render(<AccountMenu username="kat" onSignOut={nothing} {...palette} />);
+    fireEvent.click(screen.getByRole('button', { name: 'kat' }));
+    expect(screen.queryByRole('menuitem', { name: /^Add / })).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+});
