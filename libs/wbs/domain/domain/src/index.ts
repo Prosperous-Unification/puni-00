@@ -57,6 +57,7 @@ export * from './marker-color';
 // module rather than a member of the colour one: the composer imports both and
 // they share nothing but the object they describe.
 export * from './marker-name';
+export * from './node-reading';
 export * from './not-before';
 export * from './on-time';
 // A person's bookings across projects on one workday axis: overlaps and weekly load.

@@ -2,18 +2,18 @@
 
 - [x] 0.1 Intent, delta spec and design; OpenSpec validation green (020.11, 2026-10-11).
       Glossary entries are task 0.2. Depends on `step-node-attempts` slices 1–5.
-- [ ] 0.2 Apply glossary entries (Node reading, Waiting) to `CONTEXT.md` verbatim from
+- [x] 0.2 Apply glossary entries (Node reading, Waiting) to `CONTEXT.md` verbatim from
       `puni-plan/batch-10/interviews/glossary-delta.md`, in the first green commit of slice 1.
 
 ## 1. The reading in `@wbs/domain`
 
-- [ ] 1.1 Red: `node-reading.test.ts` one case per clause in order (skipped, done, hold over
+- [x] 1.1 Red: `node-reading.test.ts` one case per clause in order (skipped, done, hold over
       in progress, running attempt as in progress, proxy, waiting with one and two done
       predecessors, first node unknown, a predecessor not done → unknown), "skipped is never
       produced with participation null" (fast-check over every other input),
       "NODE_READINGS has eight words". Files: `libs/wbs/domain/domain/src/node-reading.ts`.
-- [ ] 1.2 Green: `NODE_READINGS`, `NodeReading`, `isNodeReading`, `nodeReadingOf`.
-- [ ] 1.3 Negatives: the `predecessors.length >= 1` clause dropped → "first node unknown"
+- [x] 1.2 Green: `NODE_READINGS`, `NodeReading`, `isNodeReading`, `nodeReadingOf`.
+- [x] 1.3 Negatives: the `predecessors.length >= 1` clause dropped → "first node unknown"
       reads `waiting`; the hold clause moved below in progress → "hold over in progress".
 
 ## 2. The fold's attempt extension and the wire

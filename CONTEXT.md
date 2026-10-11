@@ -579,6 +579,18 @@ working window. One per project, `UTC` unless the project says otherwise, never 
 viewer's.
 _Avoid_: viewer's zone, browser zone, local time
 
+**Node reading**:
+What a step node reads as, derived on every read and never stored: skipped, done, on hold,
+blocked, in progress, blocked by proxy, waiting or unknown — from its participation,
+statement, its row's hold and proxy, its attempts and its predecessor nodes.
+_Avoid_: step status, node state, node status
+
+**Waiting**:
+A node reading: a node with no statement and no running attempt whose every predecessor
+node in the step graph reads done, and which has at least one. Work handed to it and not
+yet taken up; a leaf's first node is never waiting.
+_Avoid_: awaiting input, pending, ready (which is the row's readiness), gate
+
 **Status**:
 What a work item reads as — unknown, draft, ready, in progress, blocked by proxy, on hold,
 blocked or done — folded on every read from a leaf's progress, readiness, hold and
