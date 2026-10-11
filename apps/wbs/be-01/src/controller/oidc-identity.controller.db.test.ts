@@ -155,6 +155,7 @@ describe('the OIDC callback after activation', () => {
     logLines?: string[],
     mode: 'oidc' | 'native' = 'oidc',
     authorityLifecycle?: BrowserAuthLifecycle | null,
+    omitBrowserSession = false,
   ) {
     const users = new UserRepository(openDrizzle(path), OPEN);
     const transactions = new InMemoryOidcTransactionStore({ now: () => now, ttlMs: 300_000 });
@@ -273,7 +274,8 @@ describe('the OIDC callback after activation', () => {
         writes: testWrites(),
         migrationsApplied: true,
         ...(mode === 'oidc' ? { oidc } : {}),
-        ...(browserLifecycle !== undefined || mode === 'native' || authorityLifecycle !== undefined
+        ...(!omitBrowserSession &&
+        (browserLifecycle !== undefined || mode === 'native' || authorityLifecycle !== undefined)
           ? {
               browserSession: {
                 revocations: new SqliteBrowserCredentialRevocations(openDrizzle(path), OPEN),
@@ -2451,6 +2453,17 @@ describe('the OIDC callback after activation', () => {
       'browser lifecycle composition disagrees',
     );
     expect(() => mounted(claims, first, undefined, 'oidc', second)).toThrow(
+      'browser lifecycle composition disagrees',
+    );
+  });
+
+  // Proof: dropping the lifecycle-without-browserSession clause from the
+  // composition guard let this OIDC lifecycle mount with no browser-session
+  // authority, so logout took the legacy branch and never closed the
+  // lifecycle (this negative 0/1, 2026-10-11).
+  it('refuses an OIDC browser lifecycle mounted without a browser-session authority', () => {
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    expect(() => mounted(claims, lifecycle, undefined, 'oidc', undefined, true)).toThrow(
       'browser lifecycle composition disagrees',
     );
   });

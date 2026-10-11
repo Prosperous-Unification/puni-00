@@ -291,16 +291,21 @@ export function mountedEndpoints(
   },
 ): readonly BoundEndpoint[] {
   if (
-    opts.browserSession !== undefined &&
-    opts.oidc !== undefined &&
-    // Proof: removing the defined-lifecycle requirement let mounted OIDC and
-    // browserSession share undefined while callback/refresh stayed unfenced
-    // (composition negative 0/1, 2026-10-01).
-    (opts.oidc.browserLifecycle === undefined ||
-      opts.browserSession.lifecycle === undefined ||
-      opts.oidc.browserLifecycle !== opts.browserSession.lifecycle ||
-      opts.oidc.tokens !== opts.browserSession.tokens ||
-      opts.oidc.client.revoke !== opts.browserSession.revokeProvider)
+    // Proof: removing this clause let an OIDC lifecycle mount without a
+    // browser-session authority, so logout took the legacy branch and never
+    // closed it (oidc-identity `refuses an OIDC browser lifecycle mounted
+    // without a browser-session authority` 0/1, 2026-10-11).
+    (opts.oidc?.browserLifecycle !== undefined && opts.browserSession === undefined) ||
+    (opts.browserSession !== undefined &&
+      opts.oidc !== undefined &&
+      // Proof: removing the defined-lifecycle requirement let mounted OIDC and
+      // browserSession share undefined while callback/refresh stayed unfenced
+      // (composition negative 0/1, 2026-10-01).
+      (opts.oidc.browserLifecycle === undefined ||
+        opts.browserSession.lifecycle === undefined ||
+        opts.oidc.browserLifecycle !== opts.browserSession.lifecycle ||
+        opts.oidc.tokens !== opts.browserSession.tokens ||
+        opts.oidc.client.revoke !== opts.browserSession.revokeProvider))
   )
     throw new Error('browser lifecycle composition disagrees with OIDC routes');
   const passwordThrottle = opts.loginThrottle;
