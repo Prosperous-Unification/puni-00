@@ -161,3 +161,4 @@ The fault proofs below were run by the slice's helper agent and are carried by t
 | fork at the same sequence                   | the message lost "head and database disagree" (the closing check still refuses) |
 
 - `bun test libs/website/adapters/store-sqlite/src/retention-journal` (this slice): `25 pass`, `0 fail`.
+- Review fix (Fable, 2026-10-11): `verifyChain` now checks that the head's `eventVersionId` equals the current version of its event object. Fault: comparison replaced by `if (false)`. Observed: `(fail) a head naming another event version is refused as forked`, `expected a RetentionJournalError`.

@@ -77,13 +77,14 @@ function journalOf(length: number): { remote: MemoryJournalRemote; events: Journ
   );
   const events: JournalEvent[] = [];
   let previousHash = zeroHash;
+  let versionId = 'event-version';
   for (let sequence = 1; sequence <= length; sequence += 1) {
     const event = buildEvent(sequence, previousHash);
-    remote.overwrite(eventKey(sequence), encodeEvent(event));
+    versionId = remote.overwrite(eventKey(sequence), encodeEvent(event));
     events.push(event);
     previousHash = event.hash;
   }
-  remote.overwrite(headKey, encodeHead(headAt(length, previousHash)));
+  remote.overwrite(headKey, encodeHead(headAt(length, previousHash, versionId)));
   return { remote, events };
 }
 
@@ -273,4 +274,15 @@ test('a foreign journal is refused', async () => {
   );
   expect(eventError.reason).toBe('foreign');
   expect(eventError.message).toContain(eventKey(2));
+});
+
+test('a head naming another event version is refused as forked', async () => {
+  const { remote, events } = journalOf(2);
+  remote.overwrite(eventKey(2), encodeEvent(events[1]));
+  const error = await refusal(() => verifyFromTip(remote, positionAt(events, 0)));
+  expect({ reason: error.reason, message: error.message }).toEqual({
+    reason: 'forked',
+    message: expect.stringContaining('different version of events/000000000002.json') as string,
+  });
+  expect(await verifyFromTip(remote, positionAt(events, 2))).toEqual([]);
 });

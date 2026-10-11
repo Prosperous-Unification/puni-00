@@ -89,9 +89,9 @@ export class MemoryJournalRemote implements RetentionJournalRemote {
     this.versions.delete(key);
   }
 
-  /** Stores `bytes` as a new current version without any fault handling. */
-  overwrite(key: string, bytes: Uint8Array): void {
-    this.store(key, bytes);
+  /** Stores `bytes` as a new current version without any fault handling; returns its version id. */
+  overwrite(key: string, bytes: Uint8Array): string {
+    return this.store(key, bytes);
   }
 
   current(key: string): Uint8Array | null {
