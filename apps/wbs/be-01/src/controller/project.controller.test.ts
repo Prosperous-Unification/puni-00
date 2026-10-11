@@ -1627,7 +1627,7 @@ it('validates list owner metadata while retaining additive project response fiel
     list.mockResolvedValueOnce(enriched);
     const response = await h.send('/api/projects', token);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ projects: enriched });
+    expect(await response.json()).toEqual({ projects: enriched, nextCursor: null });
   } finally {
     list.mockRestore();
   }

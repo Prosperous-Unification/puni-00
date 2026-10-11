@@ -530,7 +530,7 @@ describe('OIDC browser routes', () => {
     expect(write.status).toBe(403);
     expect(await write.json()).toEqual({ error: 'insufficient_scope' });
     expect(read.status).toBe(200);
-    expect(await read.json()).toEqual({ projects: [] });
+    expect(await read.json()).toEqual({ projects: [], nextCursor: null });
   });
 
   it('guards every registered user-facing mutation with write scope', async () => {
