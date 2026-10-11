@@ -568,6 +568,9 @@ export interface SwapExecutionIo {
   removeCapture?: (path: string) => Promise<void>;
 }
 
+/** Where swap copies the retained capture inside green before exact-set rollback. */
+const CAPTURE_CONTAINER_DIR = '/tmp';
+
 const PRODUCTION_SWAP_IO: SwapExecutionIo = { sh, readPhase, writePhase, writeAtomic };
 
 /**
@@ -846,7 +849,9 @@ export async function execute(
         await io.sh(copyMigrationCaptureCommand(greenName, path, containerPath));
         const expectedDigest = createHash('sha256').update(serialized).digest('hex');
         const copiedDigest = (
-          await io.sh(migrationCaptureDigestCommand(greenName, containerPath))
+          await io.sh(
+            migrationCaptureDigestCommand(greenName, CAPTURE_CONTAINER_DIR, containerPath),
+          )
         ).trim();
         // Proof: removing copied-byte comparison made `refuses changed copied bytes`
         // run exact-set down with a transport-altered capture.
@@ -1057,7 +1062,7 @@ export async function execute(
           parseMigrationSetCapture(JSON.parse(readback), identity);
           migrationCapture = {
             path,
-            containerPath: `/tmp/migration-${identity.attempt}.json`,
+            containerPath: `${CAPTURE_CONTAINER_DIR}/migration-${identity.attempt}.json`,
             identity,
             captured,
             serialized,
