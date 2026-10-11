@@ -2022,3 +2022,54 @@ reads remaining in `review/invoker.ts`, `policy/prepare-activation-cli.ts` and
 `policy/prepare-relocation-activation-cli.ts`, recorded as a follow-up under task 2.1 in
 `tasks.md`. The fourth, `admission/authority-store.ts`, left Burokrat with the authority
 relocation (`dash-authority-relocation`, slice S2), which made the clock a required dependency.
+
+## WBS 080.36 (batch 10) — the remaining Burokrat clock reads are Twilight Dash's
+
+Observed 2026-10-11 on branch `batch-10/080-36-burokrat-clocks`. None of the remaining reads is an
+evaluation instant. Each measures an event that the process itself performs, which names.md places
+in Twilight Dash:
+
+- the review harness journal and its lock wait (`review/invoker.ts`, 10 reads);
+- the candidate check runs of both activation CLIs (2 reads each);
+- the lease authority's default clock (`admission/authority-store.ts`, 2 reads), since moved to
+  Twilight Dash with a required clock by WBS 080.19 and no longer listed.
+
+So none takes `--now`. Some recorded instants are compared later: the provenance check refuses a
+receipt that starts before `registeredAt`. That comparison is between two recorded instants, and
+neither of them is a reading taken at judgment time. Each site is documented as Dash-owned and
+moves with its owner. No CLI contract changed.
+
+`src/no-ambient-clock.test.ts` parses every non-test source in the package with the TypeScript
+compiler and counts clock references. A reference is any of the following:
+
+- any value use of `Date` other than `new Date(x)` with a defined argument, `Date.parse`,
+  `Date.UTC` or `instanceof Date`;
+- any value use of `performance`, `Temporal` or a global object;
+- any use of `process` or `Bun` other than a literal non-clock member;
+- any member, key, binding or named import called `hrtime`, `uptime`, `nanoseconds` or
+  `timeOrigin`, `randomUUIDv7` or `DateTimeFormat`;
+- any load of `perf_hooks` or of a computed module specifier.
+
+Each listed file may keep at most its current count, and an entry whose file no longer exists
+fails. A swap inside a listed file that keeps the count unchanged is not caught. Clocks outside the
+runtime, computed keys on other objects, `new Date(arg)` whose argument is undefined only at
+runtime, and `eval` are not seen. The test's JSDoc says both.
+
+Faults injected by hand, each restored and rerun green:
+
+| Fault                                                              | Observed                                                                                                    |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `const { now: sampleNow } = Date` appended to `evidence/manual.ts` | scan failed listing `evidence/manual.ts` `Date`                                                             |
+| `globalThis.Date.now()` appended to `contracts/records.ts`         | scan failed listing `globalThis`                                                                            |
+| `process['uptime']()` appended to `rules/check.ts`                 | scan failed listing `process['uptime']` and `process`                                                       |
+| an eleventh `Date.now()` in `review/invoker.ts`                    | scan failed listing the invoker's eleven reads                                                              |
+| the activation entry renamed to a missing path                     | stale-entry check failed listing the missing path                                                           |
+| the glob changed to `**/*.tsx`                                     | anchor failed: `Expected to contain: "cli.ts"`                                                              |
+| Date rule off                                                      | detector test lost 15 lines (`Date.now()` … `extends Date`)                                                 |
+| clock-globals rule off                                             | detector test lost `globalThis`, `performance`, `Temporal` lines                                            |
+| clock-holders rule off                                             | detector test lost `process[key]`, `const P = process`                                                      |
+| clock-member rule off                                              | detector test lost `os.uptime()`, `Bun.randomUUIDv7()`, `Intl.DateTimeFormat`, `import { hrtime as clock }` |
+| module-load rule off                                               | detector test lost the four `perf_hooks` and computed-specifier lines                                       |
+| `undefined` argument test off                                      | detector test lost `new Date(undefined)`                                                                    |
+| every `new Date(x)` treated as a read                              | detector flagged pure lines 2 and 3; scan flagged six pure uses                                             |
+| type-position skip off                                             | detector flagged `let typed: Date`; scan flagged four type uses                                             |
