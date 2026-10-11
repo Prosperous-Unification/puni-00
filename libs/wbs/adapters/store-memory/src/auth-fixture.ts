@@ -27,7 +27,11 @@ export function inMemoryUsers(
     isLinkActive() {
       return Promise.resolve(false);
     },
-    linkPasswordIdentity() {
+    /** This fixture keeps no identity mapping. */
+    listIdentities() {
+      return Promise.resolve([]);
+    },
+    linkIdentity() {
       return Promise.resolve<{ kind: 'inactive' }>({ kind: 'inactive' });
     },
     create(user, _stamp) {

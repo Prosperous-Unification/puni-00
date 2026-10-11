@@ -22,6 +22,7 @@ export interface GuardrailOverviewView {
   accountLockedUntil: number | null;
   lockedSources: number;
   ceilingSettledToday: { count: number; microUsd: number };
+  inflightToday: { count: number; reservedMicroUsd: number };
   alerts: GuardrailAlertView[];
 }
 
@@ -65,6 +66,7 @@ export function parseGuardrailOverview(value: unknown): GuardrailOverviewView {
     };
   });
   const settled = readRecord(body['ceilingSettledToday'], 'ceilingSettledToday');
+  const inflight = readRecord(body['inflightToday'], 'inflightToday');
   return {
     pause,
     siteSpendMicroUsd: readCount(body['siteSpendMicroUsd'], 'siteSpendMicroUsd'),
@@ -79,6 +81,10 @@ export function parseGuardrailOverview(value: unknown): GuardrailOverviewView {
     ceilingSettledToday: {
       count: readCount(settled['count'], 'ceilingSettledToday.count'),
       microUsd: readCount(settled['microUsd'], 'ceilingSettledToday.microUsd'),
+    },
+    inflightToday: {
+      count: readCount(inflight['count'], 'inflightToday.count'),
+      reservedMicroUsd: readCount(inflight['reservedMicroUsd'], 'inflightToday.reservedMicroUsd'),
     },
     alerts,
   };
@@ -97,6 +103,16 @@ export function describeCeilingSettled(settled: GuardrailOverviewView['ceilingSe
   if (settled.count === 0) return 'None';
   const noun = settled.count === 1 ? 'operation' : 'operations';
   return `${String(settled.count)} ${noun} · ${formatUsd(settled.microUsd, 3)} recorded at the full reservation`;
+}
+
+/**
+ * The in-flight line: paid calls admitted and not yet settled, and the reservations they hold.
+ * Today's spend already includes them; a restart settles any left over at that reservation.
+ */
+export function describeInflight(inflight: GuardrailOverviewView['inflightToday']) {
+  if (inflight.count === 0) return 'None';
+  const noun = inflight.count === 1 ? 'call' : 'calls';
+  return `${String(inflight.count)} ${noun} · ${formatUsd(inflight.reservedMicroUsd, 3)} reserved, not settled`;
 }
 
 /** The pause line: paused by whom and since when, or running. */
@@ -212,6 +228,8 @@ export function GuardrailsPanel({ csrf }: { csrf: string }) {
                 ? `${formatUsd(overview.siteSpendMicroUsd)} of ${formatUsd(overview.siteCeilingMicroUsd)}`
                 : pending}
             </dd>
+            <dt>In flight now</dt>
+            <dd>{overview ? describeInflight(overview.inflightToday) : pending}</dd>
             <dt>Ceiling-settled today</dt>
             <dd>{overview ? describeCeilingSettled(overview.ceilingSettledToday) : pending}</dd>
             <dt>Drafts today</dt>

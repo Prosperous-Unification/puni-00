@@ -140,10 +140,34 @@
       "rationale": "SharedPeopleReader reads the authorized influencer closure through ChainSnapshotStore, selecting displayed schedules and projecting bookings within one coherent read snapshot."
     },
     {
+      "path": "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
+      "kind": "feature",
+      "capability": "Organization capacity mode write",
+      "rationale": "The standalone capacity-mode facade acquires one write unit, rechecks current super-admin authority on the writer, sets and audits the mode, records one elsewhere_changed per organization project atomically, then delivers after release"
+    },
+    {
       "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
       "kind": "feature",
       "capability": "Organization project rank write",
       "rationale": "The standalone rank facade acquires one write unit, rechecks current rank authority, captures before and after scheduling observations, records fan-out events atomically, then delivers after release"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/list-query.ts",
+      "kind": "support",
+      "disposition": "application support shared by the project and work-item list routes; stays in the core's service/ while two modules read it",
+      "rationale": "parses the closed list query grammar (limit, cursor, q, updatedSince, repeated keys) and encodes and decodes the opaque base64url cursor for both paged reads, with no store or clock access"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/project-page.ts",
+      "kind": "support",
+      "disposition": "application support; move into module/project",
+      "rationale": "orders, filters and cuts the already access-filtered project list into one page newest update first, keyed by [updatedAt, id], with no store access"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/work-item-page.ts",
+      "kind": "support",
+      "disposition": "application support; move into module/work-item",
+      "rationale": "cuts the whole-tree read into one tree-order page with filters and field groups after the work-item resource has applied access, with no store access"
     }
   ]
 }

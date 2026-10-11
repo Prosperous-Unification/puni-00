@@ -19,6 +19,7 @@ import {
   assertOidcEnvAllowed,
   assertTierEnvAllowed,
   assertTierEnvComplete,
+  AUTH_METHOD_IDS,
   capacityModesCommand,
   composeUpArgs,
   containerName,
@@ -842,9 +843,43 @@ describe('assertOidcEnvAllowed', () => {
  * must boot be-01 and gw-01 under the image's NODE_ENV=production, and every
  * key it demands must be one the release refuses to boot without.
  */
+/**
+ * Each case below boots the release config in a fresh Bun process, one boot per
+ * key or value shape, at about a second each; `AUTH_METHODS` (social-sign-in)
+ * added five boots and pushed the be cases past the project's 10 s default.
+ */
+const BOOT_CASES_TIMEOUT_MS = 120_000;
+
+// The preflight cannot import a product library at run time on the host, so
+// it spells the catalogue out; this keeps the two from drifting.
+// Proof: 2026-10-11, dropping 'apple' from AUTH_METHOD_IDS failed this case.
+// A subprocess, like `bootRelease` below: a tool may not import the product
+// library, but the test may ask the real catalogue for its ids.
+it('names exactly the AUTH_METHODS catalogue ids in the preflight rule', () => {
+  const probe = Bun.spawnSync(
+    [
+      process.execPath,
+      '--no-env-file',
+      '--eval',
+      `import { AUTH_METHODS } from './libs/wbs/domain/contracts/src/auth-methods.ts';
+       console.log(JSON.stringify(AUTH_METHODS.map(({ id }) => id)));`,
+    ],
+    { cwd: new URL('../../../../', import.meta.url).pathname },
+  );
+  expect(probe.exitCode).toBe(0);
+  const catalogue = JSON.parse(new TextDecoder().decode(probe.stdout)) as string[];
+  expect([...AUTH_METHOD_IDS].sort()).toEqual(catalogue.sort());
+});
+
 describe('assertTierEnvComplete against the release configuration', () => {
   const APP = {
-    be: { PORT: '3100', LOG_LEVEL: 'error', GW_URL: 'http://gw', DB_PATH: '/data/wbs.db' },
+    be: {
+      PORT: '3100',
+      LOG_LEVEL: 'error',
+      GW_URL: 'http://gw',
+      DB_PATH: '/data/wbs.db',
+      AUTH_METHODS: 'google,email',
+    },
     gw: { PORT: '3200', LOG_LEVEL: 'error', BE_URL: 'http://be-01.internal:3100' },
   } as const;
   const SHARED = {
@@ -923,61 +958,73 @@ describe('assertTierEnvComplete against the release configuration', () => {
       expect(bootRelease(tier, complete(tier)).exitCode).toBe(0);
     });
 
-    it(`demands only keys the ${tier} release refuses to boot without`, () => {
-      const demanded = [
-        ...Object.keys(APP[tier]),
-        'AUTH_MODE',
-        ...Object.keys(SHARED),
-        ...Object.keys(OIDC),
-      ];
-      for (const key of demanded) {
-        const env = complete(tier);
-        const { [key]: _removed, ...rest } = env;
-        expect(preflightMessage(tier, rest)).toContain(key);
-        expect({ key, exitCode: bootRelease(tier, rest).exitCode }).not.toEqual({
-          key,
-          exitCode: 0,
-        });
-      }
-    });
+    it(
+      `demands only keys the ${tier} release refuses to boot without`,
+      () => {
+        const demanded = [
+          ...Object.keys(APP[tier]),
+          'AUTH_MODE',
+          ...Object.keys(SHARED),
+          ...Object.keys(OIDC),
+        ];
+        for (const key of demanded) {
+          const env = complete(tier);
+          const { [key]: _removed, ...rest } = env;
+          expect(preflightMessage(tier, rest)).toContain(key);
+          expect({ key, exitCode: bootRelease(tier, rest).exitCode }).not.toEqual({
+            key,
+            exitCode: 0,
+          });
+        }
+      },
+      BOOT_CASES_TIMEOUT_MS,
+    );
 
-    it(`refuses only value shapes the ${tier} release also refuses`, () => {
-      const cases: [string, string][] = [
-        ['PORT', '32o0'],
-        ['PORT', '0100'],
-        ['LOG_LEVEL', 'verbose'],
-        ['INTERNAL_AUTH_SECRET', 's'.repeat(31)],
-        ['JWT_SIGNING_KEY_CURRENT', 'k'.repeat(20)],
-        // gw reads only the callback's origin, but the carrier it shares with
-        // be must hold be's mounted callback route, so only be is asked here.
-        ...(tier === 'be'
-          ? ([
-              ['AUTH_REDIRECT_URI', 'https://wbs.example.test/other'],
-              ['SOLVER_BUDGET_MS', '007'],
-              ['SOLVER_BUDGET_MS', ''],
-              ['SOLVER_SEARCH_WORKERS', '0'],
-              ['SOLVER_MEMORY_LIMIT_MB', 'lots'],
-            ] as [string, string][])
-          : // Only gw derives JWT_SIGNING_KEY_PREVIOUS (SECRET_KEYS).
-            ([
-              ['JWT_SIGNING_KEY_PREVIOUS', ''],
-              ['JWT_SIGNING_KEY_PREVIOUS', 'p'.repeat(20)],
-            ] as [string, string][])),
-      ];
-      for (const [key, value] of cases) {
-        const env = { ...complete(tier), [key]: value };
-        expect({ key, value, message: preflightMessage(tier, env) }).toEqual({
-          key,
-          value,
-          message: expect.stringContaining(`${key} (`) as string,
-        });
-        expect({ key, value, exitCode: bootRelease(tier, env).exitCode }).not.toEqual({
-          key,
-          value,
-          exitCode: 0,
-        });
-      }
-    });
+    it(
+      `refuses only value shapes the ${tier} release also refuses`,
+      () => {
+        const cases: [string, string][] = [
+          ['PORT', '32o0'],
+          ['PORT', '0100'],
+          ['LOG_LEVEL', 'verbose'],
+          ['INTERNAL_AUTH_SECRET', 's'.repeat(31)],
+          ['JWT_SIGNING_KEY_CURRENT', 'k'.repeat(20)],
+          // gw reads only the callback's origin, but the carrier it shares with
+          // be must hold be's mounted callback route, so only be is asked here.
+          ...(tier === 'be'
+            ? ([
+                ['AUTH_REDIRECT_URI', 'https://wbs.example.test/other'],
+                ['AUTH_METHODS', ''],
+                ['AUTH_METHODS', 'facebook'],
+                ['AUTH_METHODS', 'google,google'],
+                ['AUTH_METHODS', 'none,google'],
+                ['SOLVER_BUDGET_MS', '007'],
+                ['SOLVER_BUDGET_MS', ''],
+                ['SOLVER_SEARCH_WORKERS', '0'],
+                ['SOLVER_MEMORY_LIMIT_MB', 'lots'],
+              ] as [string, string][])
+            : // Only gw derives JWT_SIGNING_KEY_PREVIOUS (SECRET_KEYS).
+              ([
+                ['JWT_SIGNING_KEY_PREVIOUS', ''],
+                ['JWT_SIGNING_KEY_PREVIOUS', 'p'.repeat(20)],
+              ] as [string, string][])),
+        ];
+        for (const [key, value] of cases) {
+          const env = { ...complete(tier), [key]: value };
+          expect({ key, value, message: preflightMessage(tier, env) }).toEqual({
+            key,
+            value,
+            message: expect.stringContaining(`${key} (`) as string,
+          });
+          expect({ key, value, exitCode: bootRelease(tier, env).exitCode }).not.toEqual({
+            key,
+            value,
+            exitCode: 0,
+          });
+        }
+      },
+      BOOT_CASES_TIMEOUT_MS,
+    );
 
     it(`refuses AUTH_MODE=local, which the ${tier} release refuses under NODE_ENV=production`, () => {
       const env = { ...complete(tier), AUTH_MODE: 'local' };

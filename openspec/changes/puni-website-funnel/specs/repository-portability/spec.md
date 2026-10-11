@@ -14,9 +14,14 @@ Public `puni-00` and private `puni-pr-00` SHALL consume a versioned pinned commo
 - **WHEN** a repository has a missing or incompatible pinned baseline component
 - **THEN** its conformance check names the divergence and blocks project transfer
 
+#### Scenario: Remote task cache
+
+- **WHEN** either repository's `nx.json` configures Nx Cloud or a task runner holding an access token
+- **THEN** the conformance check and project transfer refuse before any write and name the setting to remove
+
 ### Requirement: Bidirectional project transfer
 
-A transferable project SHALL declare its local dependency closure and retain unchanged relative source paths when copied between repositories. The transfer MUST detect missing dependencies and destination collisions before writing; clean-copy fixtures in both permitted directions SHALL run the same Nx test, lint, typecheck and build targets. A project classified private, including Novaform source and dependents, MUST be refused for public promotion.
+A transferable project SHALL declare its local dependency closure and the exact specifications of the packages it needs, and retain unchanged relative source paths when copied between repositories. The transfer MUST detect missing dependencies and destination collisions before writing; clean-copy fixtures in both permitted directions SHALL run the same Nx test, lint, typecheck and build targets. A project classified private, including Novaform source and dependents, MUST be refused for public promotion.
 
 #### Scenario: Public to private and eligible private to public
 
@@ -27,6 +32,16 @@ A transferable project SHALL declare its local dependency closure and retain unc
 
 - **WHEN** a dependency is omitted or a destination path collides
 - **THEN** transfer stops before destination mutation and reports the exact path and dependency
+
+#### Scenario: Alias imported outside the declared closure
+
+- **WHEN** a project imports a workspace alias whose mapping lies outside the project and its declared dependencies
+- **THEN** transfer stops before destination mutation with an invalid dependency closure naming the project and alias
+
+#### Scenario: Declared package missing or incompatible
+
+- **WHEN** a project in the closure declares a package whose exact specification string is absent from the destination `package.json`
+- **THEN** transfer stops before destination mutation and names the package, specification and repair command
 
 #### Scenario: Restricted source
 

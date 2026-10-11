@@ -1,3 +1,4 @@
+import { authMethod } from '@wbs/contracts';
 import { type SubmitEvent, useEffect, useState } from 'react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -6,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { login, type Session } from '@/lib/api';
 import { failureMessage, unreachable } from '@/lib/http';
+
+import { type AuthMethodsState, useAuthMethods } from './auth-methods';
 
 /** Every declared login refusal has user-facing words; transport failures are separate. */
 function refusalMessage(
@@ -31,6 +34,8 @@ function refusalMessage(
 }
 
 export interface AuthFormProps {
+  /** The enabled sign-in buttons; see {@link useAuthMethods}. */
+  methods: AuthMethodsState;
   onSignedIn: (session: Session) => void;
 }
 
@@ -70,6 +75,10 @@ const SSO_ERROR_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   temporarily_unavailable:
     'SSO is temporarily unavailable. Try again in a few minutes, or sign in with a password.',
   provider_error: 'SSO sign-in did not complete. Try again, or sign in with a password.',
+  // The reader just proved this address at a provider, so admitting that an
+  // account holds it discloses nothing; no provider or method is named.
+  account_exists:
+    'An account already uses this email address with a different sign-in method. Sign in the way you did before, then add this method under Account.',
 });
 
 /**
@@ -101,8 +110,55 @@ function clearAuthError(): void {
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
+/*
+ * `text-foreground no-underline` because these are anchors: the scoped reset
+ * leaves `<a>` its user-agent blue underline, which made four stacked sign-in
+ * choices read as body links rather than as the buttons beside the form.
+ */
+const methodButton = buttonVariants({
+  variant: 'outline',
+  className: 'text-foreground h-11 w-full no-underline',
+});
+
+/**
+ * One full-width outline link per enabled method, in catalogue order. Loading
+ * holds one button row so the card does not jump; a failed read says so
+ * quietly and leaves the chooser link below as the way in.
+ */
+function MethodButtons({ methods }: { methods: AuthMethodsState }) {
+  switch (methods.kind) {
+    case 'loading':
+      return (
+        <div
+          aria-hidden="true"
+          className="bg-muted h-11 w-full animate-pulse rounded-md"
+          data-auth-methods="loading"
+        />
+      );
+    case 'failed':
+      return (
+        <p className="text-muted-foreground text-center text-sm" role="status">
+          Other sign-in options could not be loaded. Continue with SSO, or reload to try again.
+        </p>
+      );
+    case 'ready':
+      return methods.methods.map((id) => (
+        <a key={id} className={methodButton} href={`/api/auth/login?method=${id}`}>
+          {authMethod(id).label}
+        </a>
+      ));
+    default:
+      return unreachable(methods);
+  }
+}
+
+/** The signed-out card with the deployment's enabled sign-in methods read once. */
+export function SignInCard({ onSignedIn }: Pick<AuthFormProps, 'onSignedIn'>) {
+  return <AuthForm methods={useAuthMethods()} onSignedIn={onSignedIn} />;
+}
+
 /** Offers the local password session beside the server-side Authorization Code flow. */
-export function AuthForm({ onSignedIn }: AuthFormProps) {
+export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [passwordShown, setPasswordShown] = useState(false);
@@ -230,10 +286,8 @@ export function AuthForm({ onSignedIn }: AuthFormProps) {
               {ssoError}
             </p>
           )}
-          <a
-            className={buttonVariants({ variant: 'outline', className: 'h-11 w-full' })}
-            href="/api/auth/login"
-          >
+          <MethodButtons methods={methods} />
+          <a className={methodButton} href="/api/auth/login">
             Continue with SSO
           </a>
         </div>

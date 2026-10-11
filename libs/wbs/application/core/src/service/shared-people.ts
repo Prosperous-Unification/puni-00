@@ -1,6 +1,7 @@
 import {
   addWorkdays,
   CalendarRangeError,
+  deriveNumbers,
   type Elsewhere,
   lastWorkdayOf,
   type Schedule,
@@ -12,7 +13,11 @@ import type { ChainSnapshot, ChainSnapshotStore } from '../ports/chain-snapshot-
 import type { OrganizationPrincipal } from '../ports/organization-access';
 import type { PlanInputReads } from '../ports/saved-plan-capture-values';
 import type { CapturedScheduler, EngineUnavailable, ScheduleRead } from '../ports/scheduler';
-import type { InfluencerRead, SharedPeopleRead } from '../ports/shared-people-values';
+import type {
+  ElsewhereHolderLabel,
+  InfluencerRead,
+  SharedPeopleRead,
+} from '../ports/shared-people-values';
 import { scheduleInputOfCaptured } from './saved-plan-schedule';
 
 /** Reads the closure inside the adapter's snapshot and returns detached evidence by value. */
@@ -61,6 +66,7 @@ export function readSharedPeople(
     { start: number; end: number; projectId: string; workItemId: string }[]
   >();
   const influencers: InfluencerRead[] = [];
+  const labels: HolderLabels = new Map();
   const target = selected.find((each) => each.project.id === projectId);
   if (target === undefined) return { kind: 'not_found' };
   for (const reads of selected) {
@@ -104,7 +110,21 @@ export function readSharedPeople(
       const selected = displaySchedule(reads.project, scheduled);
       const placed = projectBookings(reads, selected.planned);
       if (reads.project.id === projectId)
-        return { kind: 'scheduled', reads, input, scheduled, influencers };
+        return {
+          kind: 'scheduled',
+          reads,
+          input,
+          scheduled,
+          influencers,
+          holders: holdersOf(scheduled.fast, labels),
+        };
+      const numbers = deriveNumbers(reads.workItems);
+      labels.set(reads.project.id, {
+        projectName: reads.project.name,
+        rows: new Map(
+          reads.workItems.map((row) => [row.id, { number: numbers.get(row.id), name: row.name }]),
+        ),
+      });
       influencers.push({
         projectId: reads.project.id,
         name: reads.project.name,
@@ -135,6 +155,52 @@ export function readSharedPeople(
     }
   }
   throw new Error('required chain did not schedule its target');
+}
+
+/** Each scheduled influencer's name and its rows' numbers and names, by project id. */
+type HolderLabels = Map<
+  string,
+  {
+    readonly projectName: string;
+    readonly rows: ReadonlyMap<
+      string,
+      { readonly number: string | undefined; readonly name: string }
+    >;
+  }
+>;
+
+/**
+ * One label per holder a target slice names, in the order the slices name them.
+ *
+ * @throws when a slice names a project or row the chain read no label for: the holder and the
+ * labels come from the one observation, so a miss is a broken chain, never a booking to leave
+ * unnamed.
+ */
+function holdersOf(planned: Schedule, labels: HolderLabels): ElsewhereHolderLabel[] {
+  const holders = new Map<string, ElsewhereHolderLabel>();
+  for (const slice of planned.slices.values()) {
+    const holder = slice.elsewhereHolder;
+    if (holder === undefined) continue;
+    const key = `${holder.projectId}\u0000${holder.workItemId}`;
+    if (holders.has(key)) continue;
+    const project = labels.get(holder.projectId);
+    const row = project?.rows.get(holder.workItemId);
+    // Proof: this refusal replaced by `continue` made `throws when a target slice
+    // names a holder the chain read no label for` (`shared-people.test.ts`) not
+    // throw; watched 2026-10-11.
+    if (project === undefined || row?.number === undefined)
+      throw new Error(
+        `booking elsewhere held by ${holder.projectId}/${holder.workItemId} has no label`,
+      );
+    holders.set(key, {
+      projectId: holder.projectId,
+      projectName: project.projectName,
+      workItemId: holder.workItemId,
+      number: row.number,
+      name: row.name,
+    });
+  }
+  return [...holders.values()];
 }
 
 /** Chooses the schedule a project actually displays from one captured engine observation. */

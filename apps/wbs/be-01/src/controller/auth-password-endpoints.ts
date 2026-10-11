@@ -202,7 +202,13 @@ export function authPasswordEndpoints(
         return {
           ok: true,
           status: 200,
-          body: { user: { ...user, scopes: [...user.scopes] } },
+          body: {
+            user: {
+              ...user,
+              scopes: [...user.scopes],
+              linkedMethods: await auth.linkedMethods(user.id),
+            },
+          },
           headers: sessionResponseHeaders,
         };
       /*

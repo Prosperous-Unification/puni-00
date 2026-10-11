@@ -106,6 +106,7 @@ describe('namespace layout validation', () => {
     expect(findStaleLayoutExceptions(VALID_PROJECTS)).toEqual([
       'apps/twilight-structure/twilight-burokrat/cli: name exception names no project; remove it',
       'apps/twilight-structure/twilight-dash/cli: name exception names no project; remove it',
+      'apps/twilight-structure/twilight-navigator/cli: name exception names no project; remove it',
     ]);
   });
 

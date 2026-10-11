@@ -20,6 +20,7 @@ const EXPECTED_PRODUCT_PROJECTS = [
   // product-axis case below on its `product:twilight-burokrat` companion (2026-09-25).
   ['apps/twilight-structure/twilight-burokrat/cli', 'twilight-burokrat'],
   ['apps/twilight-structure/twilight-dash/cli', 'twilight-dash'],
+  ['apps/twilight-structure/twilight-navigator/cli', 'twilight-navigator'],
   ['apps/wbs/be-01', 'wbs-be-01'],
   ['apps/wbs/fe-01', 'wbs-fe-01'],
   ['apps/wbs/gw-01', 'wbs-gw-01'],
@@ -75,6 +76,16 @@ const ALLOWED_DASH_EDGES = [
   ['twilight-dash', 'tool-fleet'],
   ['twilight-dash', 'tool-test-scratch'],
   ['twilight-dash', 'twilight-burokrat'],
+] as const;
+
+// Navigator exchanges records, not calls: it reads Burokrat's record contracts and WBS's plan
+// export and command batch contracts. Proof: omitting the Burokrat pair made the real graph
+// oracle report `twilight-navigator -> twilight-burokrat`; omitting the WBS pair reported
+// `twilight-navigator -> wbs-contracts` (2026-10-11). The product-local effective ESLint test
+// pins the two exact aliases and refuses a sibling alias.
+const ALLOWED_NAVIGATOR_RECORD_EDGES = [
+  ['twilight-navigator', 'twilight-burokrat'],
+  ['twilight-navigator', 'wbs-contracts'],
 ] as const;
 
 /** Every `from '…';` specifier under `root`, skipping comment lines that merely name one. */
@@ -449,7 +460,7 @@ describe('productConstraints', () => {
           continue;
         }
         if (
-          ALLOWED_DASH_EDGES.some(
+          [...ALLOWED_DASH_EDGES, ...ALLOWED_NAVIGATOR_RECORD_EDGES].some(
             ([source, reached]) => project.name === source && target.name === reached,
           )
         ) {

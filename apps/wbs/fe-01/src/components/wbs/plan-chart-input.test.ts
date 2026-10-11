@@ -1,14 +1,19 @@
 import { addWorkdays } from '@wbs/domain/workday';
 import { describe, expect, it } from 'vitest';
 
-import { GanttDataError } from './gantt-geometry';
+import type { PlanRead } from '@/lib/wbs-api';
+
+import { planOf, rowAt, sliceAt } from './gantt-fixtures';
+import { GanttDataError, layOutGantt } from './gantt-geometry';
 import {
   chartTypedDependencies,
+  elsewhereHoldersOf,
   factEndStopOf,
   heldLeafIdsOf,
   isHeld,
   notBeforeOffsetOf,
 } from './plan-chart-input';
+import { chartReadOf } from './use-plan-read';
 
 it('refuses an unknown typed chart relationship', () => {
   expect(() =>
@@ -107,5 +112,49 @@ describe('isHeld (add-work-item-statuses)', () => {
     });
     expect(isHeld(parent([leaf('on_hold', 'on_hold'), leaf('done', 'on_hold')]))).toBe(true);
     expect(isHeld(parent([leaf('on_hold', 'on_hold'), leaf('unknown', null)]))).toBe(false);
+  });
+});
+
+describe('the holders a plan read labels, on the chart', () => {
+  // Only what `chartReadOf` reads; the rest of a plan read is not this test's.
+  const read = {
+    slices: [],
+    steps: [],
+    assignedPeople: [],
+    depReach: 'whole-item',
+    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    estimateRounding: 'ceil',
+    elsewhereHolders: [
+      {
+        projectId: 'platform',
+        projectName: 'Platform',
+        workItemId: 'w-9',
+        number: '010.3',
+        name: 'Rewire',
+      },
+    ],
+  } as unknown as PlanRead;
+
+  it('carries each label from the read to the bar that waits for it', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 2, 5)],
+        slices: [
+          sliceAt('strip-dev', 'strip', 2, 5, {
+            personId: 'kat',
+            boundBy: 'elsewhere',
+            elsewhereHolder: { projectId: 'platform', workItemId: 'w-9' },
+          }),
+        ],
+        personNames: new Map([['kat', 'Kat']]),
+        elsewhereHolders: elsewhereHoldersOf(chartReadOf(read, 1).elsewhereHolders),
+      }),
+    );
+    expect(chart.bars[0].floorWords).toBe('Waits for Kat to finish 010.3 Rewire in Platform');
+  });
+
+  it('reads no holders from a plan nothing outranks', () => {
+    const outranked = { ...read, elsewhereHolders: undefined } as unknown as PlanRead;
+    expect(chartReadOf(outranked, 1).elsewhereHolders).toEqual([]);
   });
 });

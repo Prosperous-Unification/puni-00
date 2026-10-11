@@ -4210,3 +4210,116 @@ input hash) inside its `BEGIN IMMEDIATE` turn and then observes with no captures
 | Same test after the fix                                                                    | pass                                                                                                                       |
 | Skip made unconditional (`true \|\|`)                                                      | `records selected-display eviction when an installed stale observation advances generation` failed: B's A-cause event lost |
 | services, coordinator, coordinator model and optimization repository db tests              | 232 pass, 0 fail                                                                                                           |
+
+## UI 7 port (batch 10)
+
+Lane `capacity-ui-mode`, branch `batch-10/010-4-16-capacity-ui-mode`, based on
+`batch-10/integration-4` 9a9d5677f. The batch-9 slice 7 commits (`fce82cbb0`, `908939385`) were
+ported, not merged: their chain (`chainAbove`, `elsewhere-chain.ts`) no longer exists, so the
+holder labels are computed in `readSharedPeople` from the influencers' captured `workItems` and
+reach the tree through `projectSharedTree`. Labels cover the holders a target Fast slice names
+(not every booking in the input), and are present exactly with the displayed `waitingElsewhere`.
+
+Proofs, each fault injected into production code, observed, then restored and rerun green
+(`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`; fe through `TZ=UTC bunx vitest run`), 2026-10-11:
+
+| Fault                                                         | Observed                                                                                                                      |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `holdersOf` refusal replaced by `continue`                    | `shared-people.test.ts` 15/16: `throws when a target slice names a holder the chain read no label for` failed                 |
+| tree projection without `elsewhereHolders`                    | `schedule-organization.controller.db.test.ts -t 'names whom'` 0/1: `names whom a slice waits for in the project above` failed |
+| gantt holder lookup given an "another project" fallback label | `gantt-geometry.test.ts` 171/172: `throws when a bar held elsewhere names no holder the read labels` failed                   |
+| `elsewhere_changed` line removed from `resourcesFor`          | `plan-refresh.test.ts` 15/16: `refetches only the tree when bookings above move` failed                                       |
+| `chartReadOf` holders forced to `[]`                          | `plan-chart-input.test.ts` 12/13: `carries each label from the read to the bar that waits for it` failed                      |
+
+Restored: `shared-people.test.ts` 16/16; `schedule-organization.controller.db.test.ts` 67/67;
+the three fe files 201/201; `nx run-many -t test -p wbs-core wbs-contracts` 457 and 774 pass, 0 fail; mcp-01 331/331;
+typecheck and lint:fast for wbs-core, wbs-be-01, wbs-contracts and wbs-fe-01 succeeded.
+
+## Mode route 8 port (batch 10)
+
+Ported from batch-9 `1d8ab64d6`/`dfd7782a9` onto the current runtime. The old migration
+`20260929200000_add_shared_people` is dropped (main's `20261005110000_add_shared_people`
+supersedes it); the audit table is restamped `20261011200000_add_shared_people_audit`, after
+every stamp on origin/main and in `batch-10/integration-4` (newest `20261011120000`). Every
+store-sqlite rollback inventory lists it first; the be-01 migration CLI baseline names it.
+
+The route admits only the release's `SUPPORTED_CAPACITY_MODES`; this release lists `isolated`
+only, so on the production composition `PATCH {"sharedPeople": true}` answers 409 and changes
+nothing. The cases that switch build the same composition with the release seam widened
+(`supportedCapacityModes`), as a release that supports shared people will be built.
+
+Proofs, each fault injected into production code or migration SQL, observed, then restored
+(`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test`), 2026-10-11:
+
+| Fault                                                        | Observed                                                                                                                                                       |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| role check widened to admins                                 | `capacity-mode.controller.db.test.ts` 7/8: `refuses an admin the switch, keeping the organization isolated` failed                                             |
+| supported-mode check disabled                                | 7/8: `refuses shared people this release cannot run` failed                                                                                                    |
+| delegation guard disabled                                    | `delegation.controller.db.test.ts -t 'capacity mode'` 0/1: the delegated request reached the switch owner (500 from the uncomposed harness) instead of 403     |
+| writer authority ignored                                     | 7/8: `refuses a super-admin demoted after route admission, storing nothing` failed                                                                             |
+| services bind the raw repository setter instead of the owner | 6/8: the demoted case and `tells every project when the organization switches, and nothing for no switch` failed                                               |
+| owner's event loop emptied                                   | 7/8: `tells every project …` failed                                                                                                                            |
+| audit insert skipped                                         | `shared-people-audit.db.test.ts` 2/5: `records each switch …`, `refuses to roll back over a recorded switch …` and `refuses the shared-people remove …` failed |
+| migration `CHECK (shared_people IN (0, 1))` dropped          | 4/5: `refuses a record of a third mode or of no organization` failed                                                                                           |
+| `down.sql` count replaced by `1`                             | 4/5: `refuses to roll back over a recorded switch, keeping schema and ledger` failed                                                                           |
+| remove refusal disabled                                      | 4/5: `refuses the shared-people remove once a switch is recorded, changing nothing` failed (also RED before the refusal existed)                               |
+
+TDD order slipped for the route, resource and owner: they were written before
+`capacity-mode.controller.db.test.ts` first ran, and every check was then proved by the faults
+above. The remove refusal was RED first.
+
+Restored: `capacity-mode.controller.db.test.ts` 8/8; `wbs-store-sqlite` test 1311/1311;
+app.routes, migration-cli, capacity-mode, delegation and project-rank controllers 93/93; mcp-01
+331/331; typecheck and lint:fast for wbs-contracts, wbs-core, wbs-store-sqlite, wbs-be-01 and
+wbs-mcp-01 succeeded; CI's migration lint over `git ls-files '*.sql'` exited 0.
+
+### Settings switch (7.1) on the organization page
+
+`GET`/`PATCH /api/organization` answer `{sharedPeople, sharingAvailable}`; `sharingAvailable` is
+whether the release lists `shared`, so fe-01's `SharingPanel` says "Sharing people across
+projects is not available in this release yet." instead of offering a switch the route refuses.
+Proofs (`TZ=UTC bunx vitest run`, 2026-10-11):
+
+| Fault                               | Observed                                                                                        |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------- |
+| confirm sends the mode already held | `sharing-panel.test.tsx` 8/9: `shares people after a confirmation and re-reads the mode` failed |
+| availability gate disabled          | 8/9: `offers no switch a release without shared people would refuse` failed                     |
+| panel left off the page             | `organization-page.test.tsx` 15/16: `shows whether the organization shares its people` failed   |
+
+Restored: `src/components/organization/` 62/62 (the page gained one case).
+
+### Review fixes (Fable, #324 @1762acf6)
+
+- `canSwitch` on the mode reply: true only for a super-admin acting in person (the rule the
+  switch refuses on). `SharingPanel` renders "Only a super-admin can change whether people are
+  shared." without a button when it is false; the confirm line adds "Switching back restores
+  them."
+- `OrganizationHarness.openComposedWith(options)` replaces the eleventh positional parameter.
+- Spec: `causeProjectId: string | null`; "no route or CLI SHALL store `shared` while the release
+  does not list it". Runbook: the recovery switch is made by an in-person super-admin of the
+  organization, with how an operator is granted that role.
+
+| Fault                                                     | Observed                                                                                                   |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `canSwitch` role clause widened to every in-person member | `capacity-mode.controller.db.test.ts -t 'acting in person'` 0/1                                            |
+| `canSwitch` delegation clause dropped                     | `delegation.controller.db.test.ts -t 'capacity mode'` 0/1 (delegated read answered `canSwitch: true`)      |
+| panel ignores `canSwitch`                                 | `sharing-panel.test.tsx` 10/11: `explains, without a switch, that only a super-admin may change it` failed |
+
+Restored: organization fe tests 64/64; capacity-mode and delegation controllers 28/28.
+
+### Confirm-review fix and eye review (batch 10)
+
+- `maySwitchCapacityMode` (super-admin, not delegated) answers the read's `canSwitch` and admits
+  the switch; its role half `roleMaySwitchCapacityMode` is what the writer re-checks. Proofs:
+  the switch's rule re-split (admins in place of super-admins) failed `reads canSwitch exactly as
+the switch admits`; the role widened to admins failed four capacity-mode cases; the delegation
+  clause dropped failed the delegated read and switch.
+- `/organization` was captured on a local Vite server with every `/api` call stubbed by
+  Playwright: super-admin (offer, confirm, shared), member, this release, and a refused switch;
+  light and dark; 1280 and 375 px. No horizontal overflow at either width. From the captures, the
+  panel gained spacing between the description, the confirm line and the buttons; the "only a
+  super-admin" and "not available" sentences are muted; the confirm sentence is its own line
+  above the buttons; and a refused switch re-reads the mode so the refused switch is not offered
+  again (proof: the re-read removed failed `stops offering a switch the server refused`).
+  The e2e pixel suite was not extended: `/organization` needs an activated organization with a
+  bound super-admin, which the browser gate's fixtures do not seed.

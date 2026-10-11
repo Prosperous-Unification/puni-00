@@ -7,7 +7,8 @@ import { planCommandsBody } from './plan-command-shapes';
 import type { ParserRefusalCode } from './refusal';
 import { engineUnavailableRefusal } from './scheduler-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
-import { workItemTree } from './work-item-response';
+import { WORK_ITEM_OUTLINE } from './work-item-fields';
+import { numberedWorkItem, workItemSlice, workItemTree } from './work-item-response';
 
 const commandKindsType = type.enumerated(...PLAN_COMMAND_KINDS);
 const parserArms = {
@@ -612,6 +613,10 @@ export const getWorkItems = defineEndpointShape({
   operationId: 'getApiProjectsByIdWork-items',
   policies: readPolicies,
   params,
+  // `full=true` names today's whole dump explicitly and answers it byte for
+  // byte; the paged read is getWorkItemRows. Callers that must also reach a
+  // be-01 older than this query keep sending nothing: that be-01 refuses it.
+  query: requestSchema(type({ 'full?': "'true'" })),
   responses: [
     {
       kind: 'json',
@@ -637,7 +642,100 @@ export const getWorkItems = defineEndpointShape({
     organizationRefusal,
     engineUnavailableRefusal,
   ],
-  document: { summary: 'Read the project work-item tree.' },
+  document: {
+    summary: 'Read the whole project work-item tree, every field included.',
+    description:
+      'Answers every work item with notes, schedule and slices, plus the project’s steps and settings: hundreds of KB on a large project. full=true answers the same dump. Use list work-item rows (getApiProjectsByIdWork-item-rows) for paged reads; this tool is for export only. For a page of work items use getApiProjectsByIdWork-item-rows; for one work item in full use getApiProjectsByIdWork-itemsByWorkItemId.',
+  },
+});
+
+/**
+ * A work-item page row: the outline always, every other tree field only when
+ * its field group was named, and `slices` only for the `slices` group.
+ */
+export const workItemRow = numberedWorkItem
+  .pick(...WORK_ITEM_OUTLINE)
+  .and({ updatedAt: 'number | null', 'slices?': workItemSlice.array() })
+  .and(numberedWorkItem.omit(...WORK_ITEM_OUTLINE).partial());
+
+/**
+ * One page of a project's work items in tree order (spec `list-reads`). Tree
+ * order and every derived field are computed over the whole project before any
+ * filter; the cursor names the last row answered. A cursor whose work item has
+ * left the project answers 409 `stale_cursor`; a `parentId` naming no work item
+ * of the project answers 404 `unknown_parent`.
+ */
+export const getWorkItemRows = defineEndpointShape({
+  method: 'GET',
+  path: '/api/projects/:id/work-item-rows',
+  operationId: 'getApiProjectsByIdWork-item-rows',
+  policies: readPolicies,
+  params,
+  query: requestSchema(
+    type({
+      'q?': 'string',
+      'status?': 'string',
+      'parentId?': 'string',
+      'depth?': 'string',
+      'updatedSince?': 'string',
+      'fields?': 'string',
+      'limit?': 'string',
+      'cursor?': 'string',
+    }),
+  ),
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(
+        type({ rows: workItemRow.array(), nextCursor: 'string | null', projectRevision: 'number' }),
+      ),
+    },
+  ],
+  refusals: [
+    ...genericRefusals,
+    { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+    { status: 404, schema: responseSchema(type({ error: "'unknown_parent'" })) },
+    organizationRefusal,
+    engineUnavailableRefusal,
+    { status: 409, schema: responseSchema(type({ error: "'stale_cursor'" })) },
+  ],
+  document: {
+    summary: 'Read a page of a project’s work items in tree order, outline fields by default.',
+    description:
+      'Each row has id, projectId, parentId, number, name, status, dates, revision and updatedAt. fields adds comma-separated groups: notes, schedule, slices, estimates, constraints, labels. Filters: q (name contains, case-insensitive), status (comma-separated statuses), parentId (rows below that work item) with depth (levels below it, or below the top), updatedSince (epoch ms, inclusive; filters the row’s own last write (its stamp also moves when siblings are respaced), not re-derived number, status or dates). limit is 1-200, default 25; pass nextCursor back as cursor until it is null.',
+  },
+});
+
+/** One work item with every whole-tree field, its own slices and its update instant. */
+export const getWorkItem = defineEndpointShape({
+  method: 'GET',
+  path: '/api/projects/:id/work-items/:workItemId',
+  operationId: 'getApiProjectsByIdWork-itemsByWorkItemId',
+  policies: readPolicies,
+  params: requestSchema(type({ id: 'string', workItemId: 'string' })),
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(
+        type({
+          workItem: numberedWorkItem.and({
+            updatedAt: 'number | null',
+            slices: workItemSlice.array(),
+          }),
+          projectRevision: 'number',
+        }),
+      ),
+    },
+  ],
+  refusals: [
+    ...genericRefusals,
+    { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+    organizationRefusal,
+    engineUnavailableRefusal,
+  ],
+  document: { summary: 'Read one work item in full, with its own slices.' },
 });
 
 /** Resolves a readable step address against the revision returned by the work-item read. */

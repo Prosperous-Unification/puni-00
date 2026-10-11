@@ -714,8 +714,9 @@ export function qemuSshArguments(
  * Ansible reaches the machine by its private address (the enrolled node identity) while the TCP
  * connection goes to the loopback forward. `HostKeyAlias` keeps strict host-key lookup on the
  * private address, so known-hosts evidence has the same shape as for a directly routed host.
- * `IdentitiesOnly` matters because the controller forwards `SSH_AUTH_SOCK`: the live lab
- * discovery exhausted sshd's authentication attempts on agent keys before the lab key.
+ * `IdentitiesOnly` matters wherever the controller holds an agent (production apply forwards
+ * `SSH_AUTH_SOCK`; discovery only inside an `SshTransport`, `ssh-transport.ts`): the live lab discovery once
+ * exhausted sshd's authentication attempts on agent keys before the lab key.
  */
 export function qemuAnsibleSshExtraArguments(machine: QemuMachinePlan): string {
   return `-o HostName=${machine.sshHost} -o Port=${String(machine.sshPort)} -o HostKeyAlias=${machine.privateAddress} -o IdentitiesOnly=yes`;

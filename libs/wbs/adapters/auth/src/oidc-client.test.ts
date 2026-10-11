@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import type { Configuration } from 'openid-client';
+import { Configuration } from 'openid-client';
 
 import {
   browserOidcClientFromEnv,
@@ -415,5 +415,46 @@ describe('browserOidcClientFromEnv issuer wiring', () => {
 
     expect(thrown).toBe(down);
     expect(isOidcCallbackRefused(thrown)).toBe(false);
+  });
+});
+
+describe('browserOidcClientFromEnv authorization URL', () => {
+  const client = browserOidcClientFromEnv(
+    {
+      AUTH_CLIENT_ID: 'client-1',
+      AUTH_CLIENT_SECRET: 'secret-1',
+      AUTH_ISSUER_DISCOVERY_URL: 'https://tenant.test/.well-known/openid-configuration',
+    },
+    {
+      discover: () =>
+        Promise.resolve(
+          new Configuration(
+            {
+              issuer: 'https://tenant.test/',
+              authorization_endpoint: 'https://tenant.test/authorize',
+            },
+            'client-1',
+            'secret-1',
+          ),
+        ),
+    },
+  );
+  const input = {
+    nonce: 'nonce-1',
+    redirectUri: 'https://app.test/api/auth/okta/callback',
+    state: 'state-1',
+    verifier: 'verifier-1',
+  };
+
+  it('passes connection through to /authorize', async () => {
+    const url = await client.authorizationUrl({ ...input, connection: 'google-oauth2' });
+    expect(url.searchParams.get('connection')).toBe('google-oauth2');
+    expect(url.searchParams.get('state')).toBe('state-1');
+  });
+
+  it('omits connection when absent', async () => {
+    const url = await client.authorizationUrl(input);
+    expect(url.searchParams.has('connection')).toBe(false);
+    expect(url.origin + url.pathname).toBe('https://tenant.test/authorize');
   });
 });

@@ -40,6 +40,7 @@ import {
   optimizationGeneration,
   organizationAudit,
   organizationMembership,
+  planEvent,
   project,
   projectAccess,
   projectOrganization,
@@ -50,6 +51,7 @@ import {
   solverSlot,
   step,
   users,
+  workItem,
 } from './schema';
 import { STEP_COLUMNS } from './step';
 
@@ -328,6 +330,18 @@ function toProject<T extends ProjectColumns>(
  * `listFor` resolved with `["Orphan", ""]` beside `["Rewire the shed",
  * "owner"]`. Watched, 2026-08-09.
  */
+/**
+ * An update instant as SQLite stored it: an integer, or NULL for a project
+ * whose rows all predate the audit columns.
+ *
+ * @throws when the column holds anything else; it is trusted state, and a
+ * text or real instant would sort among the integers wrongly.
+ */
+function storedInstant(value: unknown, projectName: string): number | null {
+  if (value === null || (typeof value === 'number' && Number.isSafeInteger(value))) return value;
+  throw new Error(`project "${projectName}" has an unreadable update instant`);
+}
+
 function withOwnerName<T extends { name: string; ownerName: string | null }>(
   row: T,
 ): Omit<T, 'ownerName'> & { ownerName: string } {
@@ -749,6 +763,18 @@ export class ProjectRepository implements ProjectStore {
         createdAt: project.createdAt,
         lastOpenedAt: projectAccess.lastOpenedAt,
         ownerName: users.username,
+        // The project's update instant (`ProjectWithAccess.updatedAt`): the
+        // aggregate `max` ignores NULLs and answers NULL when all are NULL.
+        // Proof, observed 2026-09-29: without the work-item term `answers the
+        // update instant as the newest of its row, its work items and its plan
+        // events` in `project.db.test.ts` received 10 instead of 20; without
+        // the plan-event term it received 20 instead of 30.
+        updateInstant: sql<unknown>`(SELECT max(instant) FROM (
+          SELECT ${project.updatedAt} AS instant
+          UNION ALL SELECT max(${workItem.updatedAt}) FROM ${workItem}
+            WHERE ${workItem.projectId} = ${project.id}
+          UNION ALL SELECT max(${planEvent.createdAt}) FROM ${planEvent}
+            WHERE ${planEvent.projectId} = ${project.id}))`,
       })
       .from(project)
       .leftJoin(
@@ -769,9 +795,10 @@ export class ProjectRepository implements ProjectStore {
             ),
       )
       .orderBy(desc(projectAccess.lastOpenedAt), desc(project.createdAt));
-    return rows.map(({ scopedSlug, scopedUrl, ...row }) =>
-      toProject(withOwnerName(row), scopedSolution(scopedSlug, scopedUrl)),
-    );
+    return rows.map(({ scopedSlug, scopedUrl, updateInstant, ...row }) => ({
+      ...toProject(withOwnerName(row), scopedSolution(scopedSlug, scopedUrl)),
+      updatedAt: storedInstant(updateInstant, row.name),
+    }));
   }
 
   /**

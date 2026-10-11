@@ -29,7 +29,7 @@ and the iptables script aborts on a failed save or restore instead of reporting 
 ## Why the playbooks, not `tool-fleet:apply`
 
 `tool-fleet:apply` enrolls through `join.yml` only and requires a running cluster's Lease; the
-first server of an SSH-only cluster has neither. Production SSH discovery also cannot yet pass a
-user or known-hosts file to the controller. The runbook therefore runs the playbooks through the
+first server of an SSH-only cluster has neither. Production SSH discovery could not pass a user or
+known-hosts file to the controller until `discovery-ssh-transport`. The runbook therefore runs the playbooks through the
 locked controller, with preflight's reviewed machine ID and validation's SSH-versus-Kubernetes
 identity comparison as the identity gates. The planner guards still protect later enrollments.

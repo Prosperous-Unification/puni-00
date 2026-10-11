@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 
 import {
   describeCeilingSettled,
+  describeInflight,
   describePause,
   InvalidGuardrailOverview,
   parseGuardrailOverview,
@@ -21,6 +22,7 @@ const overview = {
   accountLockedUntil: null,
   lockedSources: 1,
   ceilingSettledToday: { count: 2, microUsd: 5_000 },
+  inflightToday: { count: 1, reservedMicroUsd: 2_400 },
   alerts: [
     {
       kind: 'inference_paused',
@@ -68,6 +70,19 @@ test('the ceiling-settled line counts operations and the amount they may over-co
   expect(describeCeilingSettled({ count: 0, microUsd: 0 })).toBe('None');
   // Proof: defaulting a missing field to zero let this overview parse.
   expect(() => parseGuardrailOverview({ ...overview, ceilingSettledToday: undefined })).toThrow(
+    InvalidGuardrailOverview,
+  );
+});
+
+test('the in-flight line names the calls running now and the reservations they hold', () => {
+  const parsed = parseGuardrailOverview(overview);
+  expect(describeInflight(parsed.inflightToday)).toBe('1 call · $0.002 reserved, not settled');
+  expect(describeInflight({ count: 3, reservedMicroUsd: 12_000 })).toBe(
+    '3 calls · $0.012 reserved, not settled',
+  );
+  expect(describeInflight({ count: 0, reservedMicroUsd: 0 })).toBe('None');
+  // Proof: defaulting a missing inflightToday to zeros let this overview parse.
+  expect(() => parseGuardrailOverview({ ...overview, inflightToday: undefined })).toThrow(
     InvalidGuardrailOverview,
   );
 });

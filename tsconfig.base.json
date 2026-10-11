@@ -25,6 +25,9 @@
     "paths": {
       "@tools/fleet-operation-plan-schema": ["./infra/fleet/schemas/operation-plan.json"],
       "@tools/fleet-plan": ["./tools/tool-fleet/src/plan-facade.ts"],
+      "@twilight-burokrat/contracts": [
+        "./apps/twilight-structure/twilight-burokrat/cli/src/contracts/index.ts"
+      ],
       "@twilight-burokrat/judge": [
         "./apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.ts"
       ],

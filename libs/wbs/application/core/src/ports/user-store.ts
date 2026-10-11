@@ -18,7 +18,7 @@ export interface OidcIdentityStore {
   ): Promise<User | null>;
   /** Explicit linking is absent in older in-memory fixtures, which cannot activate. */
   isLinkActive?(): Promise<boolean>;
-  linkPasswordIdentity?(
+  linkIdentity?(
     userId: string,
     identity: Pick<OidcIdentity, 'issuer' | 'subject' | 'email' | 'emailVerified'>,
     stamp: WriteStamp,
@@ -31,6 +31,8 @@ export interface OidcIdentityStore {
       | 'email_collision'
       | 'invalid_account';
   }>;
+  /** Every `(issuer, subject)` pair mapped to the user; empty for a password-only account. */
+  listIdentities(userId: string): Promise<readonly { issuer: string; subject: string }[]>;
   /** Returns null when an existing email belongs to a different federated identity. */
   /**
    * `create` carries the id a first login would mint and **not** its instant:

@@ -25,6 +25,7 @@ function funnelDay(index: number) {
     },
     proposals: { manual: index === 0 ? 1 : 0, fromChat: index === 0 || index === 3 ? 1 : 0 },
     ceilingSettled: { count: index === 0 ? 2 : 0, microUsd: index === 0 ? 5_000 : 0 },
+    spendMicroUsd: index === 0 ? 1_234_000 : index === 1 ? 40_000 : 0,
   };
 }
 
@@ -37,6 +38,9 @@ test('renders thirty UTC days and the chat share', () => {
   expect(markup).toContain('<th scope="row">2026-10-07</th>');
   expect(markup).toContain('<th scope="row">2026-09-08</th>');
   expect(markup).toContain('turns 1');
+  // Proof: dropping the Spend cell left neither amount in the markup.
+  expect(markup).toContain('<td>$1.23</td>');
+  expect(markup).toContain('<td>$0.04</td>');
   expect(describeChatShare(days)).toBe('2 of 3 proposal requests came from the AI chat (67%).');
   expect(markup).toContain('2 of 3 proposal requests came from the AI chat (67%).');
   expect(describeChatShare([])).toBe('No proposal requests in this window.');
@@ -54,6 +58,10 @@ test('loading and a failed read keep the region and show the state instead of ro
 });
 
 test('a malformed funnel body throws instead of rendering defaults', () => {
+  // Proof: defaulting a missing spendMicroUsd to 0 let this body parse.
+  expect(() =>
+    parseFunnelCounts({ days: [{ ...funnelDay(0), spendMicroUsd: undefined }] }),
+  ).toThrow(InvalidFunnelCounts);
   expect(() => parseFunnelCounts({ days: [{ ...funnelDay(0), drafts: -1 }] })).toThrow(
     InvalidFunnelCounts,
   );

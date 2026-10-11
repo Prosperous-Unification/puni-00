@@ -15,6 +15,7 @@
 - [x] 2.2 Isolate the complete Gantt subtree from table-window commits with the dedicated Profiler proof and stable props or window state localized below the panel. Removing the boundary must restore the measured fan-out, while changing a real chart input must still commit and redraw it. The scoped trace measured one Gantt commit per WBS commit and 93.4% of React commit time in the Gantt subtree.
 - [x] 2.3 Give the table and Gantt matching reachable terminal row/fraction positions despite the table frame's 13rem picker allowance. A deterministic 50-row test must drive each face in both directions through both clamped ends without driver rollback and expose zero mismatched samples; removing the matched terminal extent must restore the measured divergence.
 - [x] 2.4 Keep the current linear `placeRows` and immediate height readings: each measured below 5% of 2,000-row task time. Reconsider them only with new traces above the cutoff. Keep complete Gantt rendering but isolate it per 2.2; windowing remains out of scope.
+- [x] 2.5 Trial a 320px row publication step with the existing 768px trailing overscan so a bucket retains at least 448px of mounted rows beyond its far edge. Record that visual blanking and commit-cost effects await the large-plan FE check.
 
 ## 3. Close
 

@@ -9,7 +9,7 @@ import {
   type SavedProjectRank,
   saveProjectRanks,
 } from './project-rank-rollback';
-import { organization, projectRank } from './schema';
+import { organization, projectRank, sharedPeopleAudit } from './schema';
 import { decodeSharedPeople } from './shared-people-mode';
 
 type Reader = Pick<Drizzle, 'select'>;
@@ -107,12 +107,27 @@ export function saveSharedPeople(dbPath: string): SavedSharedPeople {
 /**
  * Clears both facts atomically only when the complete backup still matches; stale input throws before writes.
  * Partial organization updates stamp the supplied instant; all audit fields roll back on failure.
+ *
+ * @throws once any capacity-mode switch is recorded in `shared_people_audit`: that table's rollback
+ * refuses then, so the migrate-down this prepares is closed and clearing the modes would only lose
+ * them (docs/runbook-prod-deploy.md#shared-people-rollback).
  */
 export function removeSharedPeople(db: Drizzle, backup: unknown, at: number) {
   const saved = readSaved(backup);
   // Proof: removing this transaction leaves partial state after the late remove-write failure.
   return db.transaction(
     (tx) => {
+      const switches = tx
+        .select({ id: sharedPeopleAudit.id })
+        .from(sharedPeopleAudit)
+        .limit(1)
+        .all();
+      // Proof: removing this refusal made `refuses the shared-people remove once a switch is
+      // recorded, changing nothing` (`shared-people-audit.db.test.ts`) fail; watched 2026-10-11.
+      if (switches.length > 0)
+        throw new Error(
+          'shared people switches are recorded: the schema rollback is closed; see docs/runbook-prod-deploy.md#shared-people-rollback',
+        );
       const current = currentState(tx);
       // Proof: bypassing equality makes each stale mode/rank/organization test mutate state.
       if (JSON.stringify(current) !== JSON.stringify(saved))

@@ -22,6 +22,20 @@ export interface InfluencerRead {
   readonly unavailable: 'cycle' | 'calendar_range' | null;
 }
 
+/**
+ * A work item in another project that holds a booking a target slice waited for, named as that
+ * project's own plan names it (CONTEXT "Elsewhere"), so a reader is told whom a bar waits for
+ * without reading the holding project.
+ */
+export interface ElsewhereHolderLabel {
+  readonly projectId: string;
+  readonly projectName: string;
+  readonly workItemId: string;
+  /** The work item's derived number in its own project, as its plan prints it. */
+  readonly number: string;
+  readonly name: string;
+}
+
 /** Organization-only read authority; background scheduling carries no human write role. */
 export type ChainAccess =
   | { readonly kind: 'legacy' }
@@ -47,6 +61,8 @@ export type SharedPeopleRead =
       readonly input: ScheduleInput;
       readonly scheduled: ScheduleRead;
       readonly influencers: readonly InfluencerRead[];
+      /** One label per holder a target Fast slice names, in first-named order. */
+      readonly holders: readonly ElsewhereHolderLabel[];
     };
 
 /** Live metadata stays separate from saved-input values and shares their captured observation. */
