@@ -3737,7 +3737,8 @@ worker-isolation and observation-unit tests passed 14/14. `tsc --noEmit -p` on
 `infra/ci/burokrat/observation/tsconfig.json` and `tools/worker-isolation/tsconfig.json`
 (non-solution configs, `include: ["*.ts"]`) reported zero errors; neither is in a declared
 Nx typecheck target. Pinned OpenSpec `validate --all --json` passed 171/171. No R5 omission
-was rerun for this integration: no guard was added or changed. Tasks stay unchecked.
+was rerun for this integration: no guard was added or changed. This lane checks no new box.
+The impl branch already carried four `[x]` boxes, 1.2e–1.2h, and they land with this merge.
 
 The first full `twilight-burokrat:test` run on these bytes failed 29 of 2426 tests. The
 pilot-policy and root-migration CLIs refused the candidate before their asserted messages. The
@@ -3807,3 +3808,48 @@ later-generation test. Omitting the `requireCurrentRequest` authority join made 
 with the existing recheck test (both exit 1). The restored file passed 10/10. Parent 1.2 also
 still requires webhook verification, merge-group and protected-revision observation, live timer
 installation, and the guarded later-stage refusal contract. Those are not covered here.
+
+### Review fixes after Fable review of `7d5f726c` (2026-10-11)
+
+**Verify-time issuer join.** `controller.ts` compares `authenticated.issuerId` with the pinned
+journal issuer when a later receipt rereads retained evidence. Before this fix nothing could
+break that comparison: omitting it left `controller.db.test.ts` green. The new test
+`receipt join refuses retained check authentication with a foreign journal issuer` acknowledges
+a check, then rewrites only the retained `authentication_bytes` issuer. A later audit receipt must
+refuse with `selected receipt evidence differs` and leave complete rows unchanged. With the
+comparison omitted, the test went fulfilled instead of rejected (exit 1). The restored code
+passes, and an adjacent `Proof:` comment records this.
+
+**No defaulted transport or clock.** `createGitHubRestReader` now requires injected `fetcher` and
+`clock`, and `retrieveReviewJournal` requires an injected `fetcher`. Each refuses a missing
+dependency with a named error before any read. `runObservationService` takes both as required
+options. Its CLI composition root (`observation-service-cli.ts`) is now the only place that
+supplies global `fetch` and `Date.now`. Restoring the old `?? fetch`/`?? Date.now` defaults failed
+`reader refuses absent injected transport or clock` and `retrieval refuses an absent injected
+transport` (exit 1 each). Both tests also spy on global `fetch` and assert zero calls. The
+service relies on the reader's guard and has no separate runtime guard: a service-level guard
+would be masked by the reader's guard, so it could never be watched failing.
+
+**Remaining ambient monotonic reads.** These are `performance.now()` sites in this change's
+non-test source. Each bounds elapsed time for a deadline or cancellation decision. None is
+persisted, hashed, or compared with a recorded value. Totals: 28 sites in 7 files.
+
+| File (`apps/twilight-structure/twilight-burokrat/cli/src/activation-controller/`) | Lines                                  | Count |
+| --------------------------------------------------------------------------------- | -------------------------------------- | ----- |
+| `controller.ts`                                                                   | 647                                    | 1     |
+| `github-source.ts`                                                                | 117, 174, 223                          | 3     |
+| `observation-close-process.ts` (test child process)                               | 24, 25                                 | 2     |
+| `observation-tick.ts`                                                             | 39, 42, 47, 56, 127                    | 5     |
+| `review-retrieval.ts`                                                             | 298, 301, 334, 337, 372, 427, 437, 534 | 8     |
+| `review-selection-objects.ts`                                                     | 572, 574, 605, 648, 655, 790           | 6     |
+| `review-selection-preparation.ts`                                                 | 99, 101, 214                           | 3     |
+
+The one wall-clock read is `observation-service-cli.ts` (`Date.now`, composition root), which
+also holds the one global `fetch`. `github-reader.ts` builds `new Date(parsed)` from a
+provider-supplied `Retry-After` value; that is parsing, not a clock read. Routing the 28
+monotonic reads through an injected monotonic source is open. PR #331's
+`no-ambient-clock.test.ts` allowlist needs these sites.
+
+**Audit rule.** spec.md's independent-bootstrap requirement now names the 2026-10-01 audit rule in
+a scenario: no historical operator capture is replayed as trusted evidence, and
+`local-cooperative` is refused under `require-external`.

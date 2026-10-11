@@ -5652,6 +5652,42 @@ test('receipt join refuses a selected obligation whose retained authentication b
   }
 });
 
+test('receipt join refuses retained check authentication with a foreign journal issuer', async () => {
+  const evidence = await evidenceHarness();
+  const database = new Database(evidence.source.databasePath);
+  try {
+    await submitReceipt(evidence.controller, evidence.lease, evidence.receipt('check'));
+    const raw: unknown = database
+      .query(
+        'SELECT authentication_bytes FROM activation_attempt WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .get(evidence.request.requestIdentity, 'a'.repeat(64));
+    if (raw === null || typeof raw !== 'object' || !('authentication_bytes' in raw)) {
+      throw new Error('retained check authentication absent');
+    }
+    const authentication = JSON.parse(String(raw.authentication_bytes)) as Record<string, unknown>;
+    expect(authentication['issuerId']).toBe(evidence.source.pin.journalIssuerId);
+    database
+      .query(
+        'UPDATE activation_attempt SET authentication_bytes = ? WHERE request_identity = ? AND obligation_identity = ?',
+      )
+      .run(
+        serializeCanonical({ ...authentication, issuerId: 'foreign.issuer' }),
+        evidence.request.requestIdentity,
+        'a'.repeat(64),
+      );
+    const before = evidenceRows(evidence.source.databasePath);
+    await rejectedWith(
+      submitReceipt(evidence.controller, evidence.lease, evidence.receipt('audit')),
+      'selected receipt evidence differs',
+    );
+    expect(evidenceRows(evidence.source.databasePath)).toEqual(before);
+  } finally {
+    database.close();
+    evidence.controller.close();
+  }
+});
+
 test('receipt join refuses malformed retained authentication bytes', async () => {
   const evidence = await evidenceHarness();
   const database = new Database(evidence.source.databasePath);

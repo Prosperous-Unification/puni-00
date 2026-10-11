@@ -77,7 +77,8 @@ export interface ReviewRetrievalOptions {
   readonly artifactCacheRoot?: string;
   readonly githubToken?: string;
   readonly journalToken?: string;
-  readonly fetcher?: ReviewResourceFetch;
+  /** Supplied by the production composition; Burokrat never reaches for global fetch. */
+  readonly fetcher: ReviewResourceFetch;
   readonly signal?: AbortSignal;
   /** Must record redacted cleanup failures reported after the caller's refusal has settled. */
   readonly observeLateFailure: (failure: ReviewRetrievalFailure) => void;
@@ -318,7 +319,11 @@ export async function retrieveReviewJournal(
   assertPrivateDirectory(options.stageRoot);
   // Proof: without this check, a symlinked cache root was read and returned.
   if (options.artifactCacheRoot !== undefined) assertPrivateDirectory(options.artifactCacheRoot);
-  const fetcher = options.fetcher ?? fetch;
+  // Proof: restoring the old `?? fetch` default let an untyped caller omitting the transport
+  // reach global fetch; `retrieval refuses an absent injected transport` failed.
+  if (typeof options.fetcher !== 'function')
+    throw refusal('invalid-response', 'review retrieval requires an injected transport');
+  const { fetcher } = options;
   let aggregateBytes = 0;
   const getBytes = async (
     url: string,

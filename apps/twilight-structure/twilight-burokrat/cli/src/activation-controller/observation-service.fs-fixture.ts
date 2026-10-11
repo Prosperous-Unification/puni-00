@@ -37,6 +37,7 @@ const { runObservationService } = await import('./observation-service');
 let fetches = 0;
 const diagnostics: unknown[] = [];
 const code = await runObservationService(configurationPath, {
+  clock: Date.now,
   fetcher: () => {
     fetches += 1;
     return Promise.resolve(new Response('[]'));

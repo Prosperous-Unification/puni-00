@@ -9,4 +9,9 @@ if (configurationPath === undefined || process.argv.length !== 3) {
   });
   process.exit(64);
 }
-process.exit(await runObservationService(configurationPath));
+process.exit(
+  await runObservationService(configurationPath, {
+    fetcher: (url, init) => fetch(url, init),
+    clock: Date.now,
+  }),
+);

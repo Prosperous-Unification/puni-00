@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
 import { openActivationController } from './controller';
@@ -81,7 +81,10 @@ function mountedReader(source: ReturnType<typeof fixture>, fetcher: GitHubFetch,
     bootstrapPath: source.bootstrapPath,
     pin: source.pin,
     clock: () => 1000,
-    ...createGitHubPullRequestSource(source.binding, createGitHubRestReader({ fetcher, token })),
+    ...createGitHubPullRequestSource(
+      source.binding,
+      createGitHubRestReader({ clock: Date.now, fetcher, token }),
+    ),
     selectObligations: () => {
       throw new Error('no evaluation in reader test');
     },
@@ -594,6 +597,7 @@ test('non-array list JSON refuses before source admission', async () => {
 test('reader refuses page beyond bounded scan without a transport call', async () => {
   let calls = 0;
   const reader = createGitHubRestReader({
+    clock: Date.now,
     fetcher: () => {
       calls += 1;
       return Promise.resolve(Response.json([]));
@@ -615,6 +619,7 @@ test('reader refuses page beyond bounded scan without a transport call', async (
 test('reader refuses malformed current number without a transport call', async () => {
   let calls = 0;
   const reader = createGitHubRestReader({
+    clock: Date.now,
     fetcher: () => {
       calls += 1;
       return Promise.resolve(Response.json({}));
@@ -650,6 +655,7 @@ test('empty trusted token refuses before a provider call', () => {
   let calls = 0;
   expect(() =>
     createGitHubRestReader({
+      clock: Date.now,
       token: '',
       fetcher: () => {
         calls += 1;
@@ -703,6 +709,7 @@ test('reader aborts a body that completes only after its signal was cancelled', 
     { highWaterMark: 0 },
   );
   const reader = createGitHubRestReader({
+    clock: Date.now,
     fetcher: () => Promise.resolve(new Response(body, { status: 200 })),
   });
   const pending = reader.listOpenPullRequests(
@@ -765,6 +772,7 @@ for (const [name, status, length] of [
       },
     });
     const reader = createGitHubRestReader({
+      clock: Date.now,
       fetcher: () =>
         Promise.resolve(
           new Response(body, {
@@ -822,6 +830,7 @@ test('aborting a pending body read cancels the response stream', async () => {
     { highWaterMark: 0 },
   );
   const reader = createGitHubRestReader({
+    clock: Date.now,
     fetcher: () => Promise.resolve(new Response(body, { status: 200 })),
   });
   const pending = reader.listOpenPullRequests(
@@ -845,6 +854,7 @@ test('fetch response arriving after abort cancels its unopened body', async () =
     },
   });
   const reader = createGitHubRestReader({
+    clock: Date.now,
     fetcher: () => {
       aborter.abort();
       return Promise.resolve(new Response(body, { status: 200 }));
@@ -865,6 +875,7 @@ test('body cleanup failure cannot disclose a trusted credential', async () => {
     },
   });
   const reader = createGitHubRestReader({
+    clock: Date.now,
     token,
     fetcher: () => Promise.resolve(new Response(body, { status: 503 })),
   });
@@ -887,6 +898,7 @@ test('pagination refuses a last page behind the current page', async () => {
   const link =
     '<https://api.github.com/repos/Prosperous-Unification/puni-00/pulls?state=open&per_page=100&page=1>; rel="last"';
   const reader = createGitHubRestReader({
+    clock: Date.now,
     fetcher: () => Promise.resolve(new Response('[]', { status: 200, headers: { Link: link } })),
   });
   await expectRefusal(
@@ -906,6 +918,7 @@ test('pagination accepts consistent first, previous and last page metadata', asy
     'https://api.github.com/repos/Prosperous-Unification/puni-00/pulls?state=open&per_page=100&page=';
   const link = `<${path}1>; rel="first", <${path}1>; rel="prev", <${path}2>; rel="last"`;
   const reader = createGitHubRestReader({
+    clock: Date.now,
     fetcher: () => Promise.resolve(new Response('[]', { status: 200, headers: { Link: link } })),
   });
   expect(
@@ -919,4 +932,20 @@ test('pagination accepts consistent first, previous and last page metadata', asy
     pulls: [],
     nextPage: null,
   });
+});
+
+test('reader refuses absent injected transport or clock', () => {
+  const ambient = spyOn(globalThis, 'fetch').mockImplementation((() =>
+    Promise.reject(new Error('ambient fetch reached'))) as unknown as typeof fetch);
+  try {
+    const fetcher: GitHubFetch = () => Promise.reject(new Error('unexpected provider call'));
+    for (const options of [{ clock: Date.now }, { fetcher }, {}]) {
+      expect(() =>
+        createGitHubRestReader(options as unknown as Parameters<typeof createGitHubRestReader>[0]),
+      ).toThrow('GitHub reader requires an injected transport and clock');
+    }
+    expect(ambient).not.toHaveBeenCalled();
+  } finally {
+    ambient.mockRestore();
+  }
 });

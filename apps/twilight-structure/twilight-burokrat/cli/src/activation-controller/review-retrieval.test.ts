@@ -140,7 +140,6 @@ function replaceResponse(
   select: (url: string, init: RequestInit) => Response | undefined,
 ): ReviewResourceFetch {
   const original = options.fetcher;
-  if (original === undefined) throw new Error('fixture fetcher absent');
   return async (url, init) => {
     const replacement = select(url, init);
     return replacement ?? original(url, init);
@@ -1441,7 +1440,6 @@ test('retrieval refuses a request whose fetch settles after its monotonic ten-se
   const clock = spyOn(performance, 'now').mockImplementation(() => observedNow);
   try {
     const original = options.fetcher;
-    if (original === undefined) throw new Error('fixture fetcher absent');
     const fetcher: ReviewResourceFetch = async (url, init) => {
       const response = await original(url, init);
       if (url.includes('/v1/manifests/')) observedNow = startedAt + 10_001;
@@ -1591,7 +1589,6 @@ test('retrieval redacts a signed bundle query even when the transport throws it'
   const { stageRoot, options } = fixture();
   try {
     const original = options.fetcher;
-    if (original === undefined) throw new Error('fixture fetcher absent');
     const fetcher: ReviewResourceFetch = async (url, init) => {
       if (url.startsWith('https://bundles.example/'))
         throw new Error('transport failed at https://bundles.example/one?sig=secret-sentinel');
@@ -1880,7 +1877,6 @@ test('retrieval refuses when the whole monotonic deadline elapses between reques
   const clock = spyOn(performance, 'now').mockImplementation(() => observedNow);
   try {
     const original = options.fetcher;
-    if (original === undefined) throw new Error('fixture fetcher absent');
     const fetcher: ReviewResourceFetch = async (url, init) => {
       const response = await original(url, init);
       if (url.startsWith('https://api.github.com/')) observedNow = originalNow + 30_001;
@@ -1914,6 +1910,25 @@ test('retrieval refuses when final bundle staging consumes the whole deadline', 
   } finally {
     write.mockRestore();
     clock.mockRestore();
+    rmSync(stageRoot, { recursive: true, force: true });
+  }
+});
+
+test('retrieval refuses an absent injected transport', async () => {
+  const { stageRoot, options, calls } = fixture();
+  const ambient = spyOn(globalThis, 'fetch').mockImplementation((() =>
+    Promise.reject(new Error('ambient fetch reached'))) as unknown as typeof fetch);
+  try {
+    const { fetcher: _fetcher, ...withoutTransport } = options;
+    expect(
+      await rejectionMessage(
+        retrieveReviewJournal(withoutTransport as unknown as ReviewRetrievalOptions),
+      ),
+    ).toBe('review retrieval requires an injected transport');
+    expect(ambient).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(0);
+  } finally {
+    ambient.mockRestore();
     rmSync(stageRoot, { recursive: true, force: true });
   }
 });

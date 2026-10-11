@@ -153,16 +153,17 @@ function credential(path: string | null): string | undefined {
 }
 
 export interface ObservationServiceOptions {
-  /** Fake HTTP is test-only; production uses fixed-origin global fetch. */
-  readonly fetcher?: GitHubFetch;
+  /** The CLI composition supplies global fetch; tests supply fake HTTP. */
+  readonly fetcher: GitHubFetch;
   readonly reportDiagnostic?: typeof reportObservationServiceDiagnostic;
-  readonly clock?: () => number;
+  /** The CLI composition supplies `Date.now`; Burokrat never reads an ambient clock. */
+  readonly clock: () => number;
 }
 
 /** Executes one configured observation tick; it never initializes or migrates state. */
 export async function runObservationService(
   configurationPath: string,
-  options: ObservationServiceOptions = {},
+  options: ObservationServiceOptions,
 ): Promise<number> {
   const reportDiagnostic = options.reportDiagnostic ?? reportObservationServiceDiagnostic;
   try {
@@ -175,7 +176,8 @@ export async function runObservationService(
     const bootstrapBytes = protectedBytes(configuration.bootstrapPath, 16 * 1024);
     decodeBootstrapConfiguration(bootstrapBytes, configuration.pin);
     const token = credential(configuration.credentialPath);
-    const clock = options.clock ?? Date.now;
+    // The reader refuses an absent transport or clock before any GET; see its Proof.
+    const { clock } = options;
     const state: ObservationStateConfig = {
       stateDirectory: configuration.stateDirectory,
       bootstrapPath: configuration.bootstrapPath,

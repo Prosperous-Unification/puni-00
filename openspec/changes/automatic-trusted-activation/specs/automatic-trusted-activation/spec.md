@@ -19,6 +19,14 @@ required workflow, or silently accept missing, unreadable or malformed trusted s
   provenance
 - **THEN** the independently selected verifier rejects it before publication
 
+#### Scenario: A historical operator capture is offered as trusted evidence
+
+- **WHEN** a previously captured operator review, journal entry or receipt (2026-10-01 audit
+  rule: no historical operator capture is replayed as trusted evidence) is resubmitted, or the
+  built-in invoker's `local-cooperative` record is presented under a `require-external` policy
+- **THEN** it is refused as trusted evidence: only an informed request that consumes an
+  acknowledged cold judgment from the independently selected provider can complete a review
+
 ### Requirement: Automatic candidate lifecycle
 
 After bootstrap, the system SHALL start or reconcile work for ready pull requests when opened,

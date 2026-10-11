@@ -3718,6 +3718,9 @@ export class ActivationController {
         // let schema-valid foreign cold authentication verify; omitting the registration
         // join and trusting its claimed invocation let a deleted registration verify.
         // Earlier, a schema-valid wrong executor verified when that binding was removed.
+        // Proof: omitting the verify-time issuer comparison let retained check authentication
+        // rewritten to a foreign issuer after acknowledgement complete the join; the named
+        // `foreign journal issuer` test went fulfilled instead of rejected.
         if (
           entry.receipt_identity === null ||
           saved.receipt_identity !== entry.receipt_identity ||

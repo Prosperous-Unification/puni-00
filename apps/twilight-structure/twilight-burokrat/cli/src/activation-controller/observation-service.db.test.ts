@@ -158,6 +158,7 @@ test('service refuses absent, overly permissive, and malformed protected configu
   let fetches = 0;
   const diagnostics: unknown[] = [];
   const options = {
+    clock: Date.now,
     fetcher: () => {
       fetches += 1;
       return Promise.resolve(new Response('[]'));
@@ -197,6 +198,8 @@ test('service distinguishes actual EACCES on protected configuration', async () 
   const diagnostics: unknown[] = [];
   expect(
     await runObservationService(source.configurationPath, {
+      fetcher: () => Promise.reject(new Error('unexpected provider call')),
+      clock: Date.now,
       reportDiagnostic: (diagnostic) => {
         diagnostics.push(diagnostic);
       },
@@ -217,6 +220,8 @@ test('service refuses a replaceable trusted ancestor before controller work', as
   const diagnostics: unknown[] = [];
   expect(
     await runObservationService(source.configurationPath, {
+      fetcher: () => Promise.reject(new Error('unexpected provider call')),
+      clock: Date.now,
       reportDiagnostic: (diagnostic) => {
         diagnostics.push(diagnostic);
       },
@@ -293,6 +298,8 @@ test('service refuses multiply linked protected config leaf', async () => {
   const diagnostics: unknown[] = [];
   expect(
     await runObservationService(source.configurationPath, {
+      fetcher: () => Promise.reject(new Error('unexpected provider call')),
+      clock: Date.now,
       reportDiagnostic: (diagnostic) => {
         diagnostics.push(diagnostic);
       },
@@ -320,6 +327,7 @@ test('service refuses oversized protected configuration before provider work', a
   const diagnostics: unknown[] = [];
   expect(
     await runObservationService(source.configurationPath, {
+      clock: Date.now,
       fetcher: () => {
         fetches += 1;
         return Promise.resolve(new Response('[]'));
@@ -344,6 +352,7 @@ test('service rejects valid noncanonical configuration and changed bootstrap pin
   let fetches = 0;
   const diagnostics: unknown[] = [];
   const options = {
+    clock: Date.now,
     fetcher: () => {
       fetches += 1;
       return Promise.resolve(new Response('[]'));
@@ -378,6 +387,7 @@ test('service never creates or migrates an absent administrator-owned state data
   const diagnostics: unknown[] = [];
   expect(
     await runObservationService(source.configurationPath, {
+      clock: Date.now,
       fetcher: () => {
         fetches += 1;
         return Promise.resolve(new Response('[]'));
@@ -407,13 +417,17 @@ test('service accepts only explicit credential file and ignores ambient token', 
   const original = process.env['GITHUB_TOKEN'];
   process.env['GITHUB_TOKEN'] = 'harmless-ambient-sentinel';
   try {
-    expect(await runObservationService(source.configurationPath, { fetcher })).toBe(0);
+    expect(
+      await runObservationService(source.configurationPath, { clock: Date.now, fetcher }),
+    ).toBe(0);
     expect(headers.at(-1)?.has('authorization')).toBe(false);
     const credentialPath = join(dirname(source.configurationPath), 'github-token');
     writeFileSync(credentialPath, 'github_pat_explicit_sentinel', { mode: 0o600 });
     source.service['credentialPath'] = credentialPath;
     saveConfiguration(source);
-    expect(await runObservationService(source.configurationPath, { fetcher })).toBe(0);
+    expect(
+      await runObservationService(source.configurationPath, { clock: Date.now, fetcher }),
+    ).toBe(0);
     expect(headers.at(-1)?.get('authorization')).toBe('Bearer github_pat_explicit_sentinel');
     expect(headers.at(-1)?.get('authorization')).not.toContain('ambient');
   } finally {
@@ -439,6 +453,7 @@ test('service rejects symlinked credential without provider read or token diagno
   const diagnostics: unknown[] = [];
   expect(
     await runObservationService(source.configurationPath, {
+      clock: Date.now,
       fetcher: () => {
         fetches += 1;
         return Promise.resolve(new Response('[]'));
@@ -474,6 +489,7 @@ test('service refuses malformed explicit token before any provider read', async 
   const diagnostics: unknown[] = [];
   expect(
     await runObservationService(source.configurationPath, {
+      clock: Date.now,
       fetcher: () => {
         fetches += 1;
         return Promise.resolve(new Response('[]'));

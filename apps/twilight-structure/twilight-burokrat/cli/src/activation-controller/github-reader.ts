@@ -6,9 +6,10 @@ const apiVersion = '2026-03-10';
 const maxBodyBytes = 8 * 1024 * 1024;
 
 export interface GitHubRestReaderOptions {
-  readonly fetcher?: GitHubFetch;
-  /** Trusted wall clock for validating provider absolute retry time. */
-  readonly clock?: () => number;
+  /** Supplied by the production composition; Burokrat never reaches for global fetch. */
+  readonly fetcher: GitHubFetch;
+  /** Trusted wall clock for validating provider absolute retry time, injected by the composition. */
+  readonly clock: () => number;
   /** Supplied only by the independently trusted runtime; omitted for public reads. */
   readonly token?: string;
 }
@@ -245,8 +246,12 @@ async function boundedJson(response: Response, signal: AbortSignal): Promise<unk
 
 /** Creates a GET-only reader for a fixed GitHub API origin. No request URL comes from a PR. */
 export function createGitHubRestReader(options: GitHubRestReaderOptions): GitHubPullRequestReader {
-  const fetcher: GitHubFetch = options.fetcher ?? ((url, init) => fetch(url, init));
-  const clock = options.clock ?? Date.now;
+  // Proof: restoring the old `?? fetch` / `?? Date.now` defaults let an untyped caller
+  // omitting both build a reader; `reader refuses absent injected transport or clock` failed.
+  if (typeof options.fetcher !== 'function' || typeof options.clock !== 'function') {
+    throw new Error('GitHub reader requires an injected transport and clock');
+  }
+  const { fetcher, clock } = options;
   // Proof: omitting the empty-token guard constructed a credentialed reader from an
   // absent trusted value in the mounted no-provider-call test.
   if (options.token !== undefined && (options.token.length === 0 || /[\r\n]/.test(options.token))) {
