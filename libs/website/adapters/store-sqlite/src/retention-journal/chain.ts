@@ -169,6 +169,7 @@ export async function verifyChain(
     );
   const events: JournalEvent[] = [];
   let runningHash = position.appliedHash;
+  let lastVersionId: string | null = null;
   for (let sequence = position.appliedSequence + 1; sequence <= head.sequence; sequence += 1) {
     const key = eventKey(sequence);
     const stored = await readRecord(remote, key, parseEvent);
@@ -195,6 +196,7 @@ export async function verifyChain(
         `retention journal ${key} does not chain to the previous hash`,
       );
     runningHash = event.hash;
+    lastVersionId = stored.versionId;
     events.push(event);
   }
   // Proof: removing this comparison made `a forked journal is refused` resolve for the unclosed head.
@@ -202,6 +204,14 @@ export async function verifyChain(
     throw new RetentionJournalError(
       'forked',
       `retention journal ${headKey} hash does not close the chain at sequence ${String(head.sequence)}`,
+    );
+  // The head names the provider version of its event; a current version that differs means the
+  // event object was rewritten after the head was written.
+  // Proof: removing this comparison made `a head naming another event version is refused as forked` resolve.
+  if (lastVersionId !== null && head.eventVersionId !== lastVersionId)
+    throw new RetentionJournalError(
+      'forked',
+      `retention journal ${headKey} names a different version of ${eventKey(head.sequence)} than the bucket holds`,
     );
   return events;
 }

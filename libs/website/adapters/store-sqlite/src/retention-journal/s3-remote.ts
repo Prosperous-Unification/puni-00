@@ -125,8 +125,22 @@ export class S3JournalRemote implements RetentionJournalRemote {
   async get(key: string): Promise<JournalObject | null> {
     const response = await this.send(key, 'GET');
     if (response.status === notFound) {
-      await response.body?.cancel();
-      return null;
+      let code: string | undefined;
+      try {
+        code = /<Code>([^<]*)<\/Code>/.exec(await response.text())?.[1];
+      } catch (error) {
+        throw new JournalRemoteError('unreadable', key, 'the 404 body did not arrive', {
+          cause: error,
+        });
+      }
+      // Only a missing key is absence; a missing bucket or an unexplained 404 is a misconfiguration.
+      // Proof: returning null for every 404 made `a missing bucket is unreadable, not absent` resolve null.
+      if (code === 'NoSuchKey') return null;
+      throw new JournalRemoteError(
+        'unreadable',
+        key,
+        `the bucket answered HTTP 404 ${code ?? 'without an S3 error code'}`,
+      );
     }
     await this.requireSuccess(key, response);
     const versionId = await this.requireVersionId(key, response);

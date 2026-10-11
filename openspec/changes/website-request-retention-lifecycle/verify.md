@@ -129,6 +129,7 @@ Each fault below was applied to `migration.sql` by a scratch runner. The runner 
 
 - `bun test libs/website/adapters/store-sqlite/src`: `98 pass`, `0 fail`.
 - `bun test apps/website/be-01/src --timeout=30000`: `153 pass`, `0 fail`.
+- Review fix (Fable, 2026-10-11): a legacy `chat_turn` with no `request_id` is now fenced through its account, the same way the legacy account copies are. Fault: fence keyed on `request_id` only. Observed: `(fail) a fenced subject refuses an older binary's content write: chat_turn without request`, `Received function did not throw`.
 - `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $(git ls-files '*.sql') <010 files>` (the CI step plus the new files): exit 0.
 - `nx run-many -t lint,typecheck -p website-store-sqlite,website-be-01`: success.
 
@@ -160,6 +161,7 @@ The fault proofs below were run by the slice's helper agent and are carried by t
 | fork at the same sequence                   | the message lost "head and database disagree" (the closing check still refuses) |
 
 - `bun test libs/website/adapters/store-sqlite/src/retention-journal` (this slice): `25 pass`, `0 fail`.
+- Review fix (Fable, 2026-10-11): `verifyChain` now checks that the head's `eventVersionId` equals the current version of its event object. Fault: comparison replaced by `if (false)`. Observed: `(fail) a head naming another event version is refused as forked`, `expected a RetentionJournalError`.
 
 ### Slice 3: S3 journal adapter against a local stand-in (2026-10-11)
 
@@ -175,7 +177,10 @@ The fault proofs below were run by the slice's helper agent and are carried by t
 | endpoint loopback rule       | config test accepted `http://storage.example.test`                     |
 | prefix segments              | config test accepted `retention-journal/../website/`                   |
 
-- `bun test libs/website/adapters/store-sqlite/src/retention-journal/s3-remote.test.ts`: `10 pass`, `0 fail`.
+- Review fixes (Fable, 2026-10-11):
+  - A 404 is absence only when its S3 error code is `NoSuchKey`. `NoSuchBucket`, or a 404 with no code, is `unreadable`. Fault: every 404 returned `null`. Observed: `(fail) a missing bucket is unreadable, not absent`.
+  - The stand-in now ignores `If-None-Match` by default, as a Hetzner versioned bucket does. Fault: default `true`. Observed: `(fail) an if-none-match put on an existing key is accepted when the bucket ignores it`.
+- `bun test libs/website/adapters/store-sqlite/src/retention-journal/s3-remote.test.ts`: `12 pass`, `0 fail`.
 
 ### Slice 4: the eraser, without the journal (2026-10-11)
 
@@ -201,6 +206,7 @@ The fault proofs below were run by the slice's helper agent and are carried by t
 | Fence ABORT mapped at admission | mapping removed                              | same test failed (the SQLite fence error escaped)                                           |
 | `secure_delete` plus `VACUUM`   | both removed                                 | `(fail) erased text is absent …`: `"file": true`. Either one alone cleared this fixture.    |
 
+- Review fix (Fable, 2026-10-11): legacy `chat_turn` rows with no `request_id` are blanked together with the account identity, once no other content-bearing request of the account remains. Fault: the update made a no-op. Observed: `(fail) a due account request is blanked in every current and legacy table`.
 - `bun test libs/website/adapters/store-sqlite/src`: `142 pass`, `0 fail`. `bun test apps/website/be-01/src`: `153 pass`, `0 fail`.
 - `nx run-many -t lint,typecheck -p website-store-sqlite,website-be-01`: success.
 
