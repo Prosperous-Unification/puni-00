@@ -536,6 +536,34 @@ test('an expired operator session is refused on every operator route and writes 
   api.close();
 });
 
+test('a live operator cookie is refused from any Origin but the app', async () => {
+  const { api, config } = fixture();
+  const login = await api.fetch(
+    request('/operator/session', 'POST', config.appOrigin, { password: config.operatorPassword }),
+  );
+  const cookie = login.headers.get('set-cookie')?.split(';')[0];
+  const { csrfToken } = (await login.json()) as { csrfToken: string };
+  const origins = [config.publicOrigin, 'https://foreign.example', ''];
+  const answers: string[] = [];
+  for (const origin of origins)
+    for (const [method, path] of [
+      ['GET', '/operator/guardrails'],
+      ['POST', '/operator/inference/pause'],
+    ] as const) {
+      const response = await api.fetch(request(path, method, origin, undefined, cookie, csrfToken));
+      answers.push(`${origin} ${method} ${path} ${String(response.status)}`);
+    }
+  // Proof: deleting the app-Origin guard before the operator routes answered 200, 201 and 409 here.
+  expect(answers).toEqual(
+    origins.flatMap((origin) => [
+      `${origin} GET /operator/guardrails 403`,
+      `${origin} POST /operator/inference/pause 403`,
+    ]),
+  );
+  expect(countRows(config.databasePath, 'inference_pause')).toBe(0);
+  api.close();
+});
+
 test('sign-out invalidates the operator token for later reads', async () => {
   const { api, config } = fixture();
   const login = await api.fetch(
