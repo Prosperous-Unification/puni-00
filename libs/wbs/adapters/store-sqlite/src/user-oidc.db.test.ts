@@ -291,7 +291,16 @@ describe('UserRepository.resolveOidcIdentity after activation', () => {
     );
     const onboarding = new OnboardingRepository(openDrizzle(join(dir, 'test.db')), OPEN);
     expect((await onboarding.discover('existing')).ok).toBe(true);
-    expect(await resolve({ email: 'held@else.org', emailVerified: false })).toBeNull();
+    // An unverified colliding address is dropped (no enumeration), which still
+    // takes the old verified domain away from onboarding.
+    expect(await resolve({ email: 'held@else.org', emailVerified: false })).toMatchObject({
+      id: 'existing',
+    });
+    expect(rows("SELECT email, email_verified FROM users WHERE id = 'existing'")).toEqual([
+      { email: null, email_verified: 0 },
+    ]);
+    raw("UPDATE users SET email = 'old@victim.org', email_verified = 1 WHERE id = 'existing'");
+    expect(await resolve({ email: 'held@else.org', emailVerified: true })).toBeNull();
     expect(rows("SELECT email, email_verified FROM users WHERE id = 'existing'")).toEqual([
       { email: 'old@victim.org', email_verified: 0 },
     ]);
@@ -299,6 +308,40 @@ describe('UserRepository.resolveOidcIdentity after activation', () => {
       ok: false,
       refusal: 'email_verification_required',
     });
+  });
+
+  it('unverified held email creates a user without an address', async () => {
+    await users.create(
+      { id: 'legacy', username: 'dany@puni.show', passwordHash: 'local-hash', createdAt: 1 },
+      selfMade('legacy', 1),
+    );
+    activate();
+
+    // Proof: 2026-10-11, refusing regardless of verification made this answer
+    // null, which told an unproven caller the address is registered.
+    expect(await resolve({ subject: 'github|attacker', emailVerified: false })).toMatchObject({
+      id: 'new',
+      email: null,
+    });
+    expect(rows("SELECT email, email_verified FROM users WHERE id = 'new'")).toEqual([
+      { email: null, email_verified: 0 },
+    ]);
+  });
+
+  it('drops an unverified held address on a mapped login instead of refusing', async () => {
+    await federated('existing', 'old@puni.show');
+    map('existing');
+    await users.create(
+      { id: 'legacy', username: 'dany@puni.show', passwordHash: 'local-hash', createdAt: 1 },
+      selfMade('legacy', 1),
+    );
+    activate();
+
+    // Proof: 2026-10-11, refusing regardless of verification made this answer null.
+    expect(await resolve({ emailVerified: false })).toMatchObject({ id: 'existing', email: null });
+    expect(rows("SELECT email, email_verified FROM users WHERE id = 'existing'")).toEqual([
+      { email: null, email_verified: 0 },
+    ]);
   });
 
   it('refuses an unmapped identity whose verified email an account holds, changing nothing', async () => {

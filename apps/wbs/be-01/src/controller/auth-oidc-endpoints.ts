@@ -196,17 +196,28 @@ async function logoutBrowser(
 }
 
 /**
- * The provider connection for a requested method, `undefined` for no method,
- * or `null` when the method is not enabled here. Callers refuse `null` before
- * any transaction or binding is saved.
+ * What a requested sign-in method means for the provider request: no method
+ * (the provider's chooser), an enabled method's connection, or a method this
+ * deployment does not enable, which callers refuse before saving any state.
  */
-function connectionFor(
+type MethodChoice =
+  | { readonly kind: 'chooser' }
+  | { readonly kind: 'connection'; readonly connection: string }
+  | { readonly kind: 'disabled' };
+
+function methodChoice(
   enabled: readonly AuthMethodId[],
   requested: AuthMethodId | undefined,
-): string | undefined | null {
-  if (requested === undefined) return undefined;
-  return enabled.includes(requested) ? authMethod(requested).connection : null;
+): MethodChoice {
+  if (requested === undefined) return { kind: 'chooser' };
+  return enabled.includes(requested)
+    ? { kind: 'connection', connection: authMethod(requested).connection }
+    : { kind: 'disabled' };
 }
+
+/** The `/authorize` parameters a choice adds. */
+const connectionParameter = (choice: MethodChoice) =>
+  choice.kind === 'connection' ? { connection: choice.connection } : {};
 
 /** The enabled methods as the public list reply. */
 function methodList(enabled: readonly AuthMethodId[]) {
@@ -364,10 +375,11 @@ export function authOidcEndpoints(
       } as const),
     ),
     bind(startOidcLogin, async ({ query, request }) => {
-      const connection = connectionFor(options.methods, query.method);
+      const choice = methodChoice(options.methods, query.method);
       // Proof: 2026-10-11, moving this refusal after `transactions.save` made
       // `refuses a disabled method without saving a transaction` count one save.
-      if (connection === null) return { ok: false, status: 400, body: { error: 'invalid_query' } };
+      if (choice.kind === 'disabled')
+        return { ok: false, status: 400, body: { error: 'invalid_query' } };
       const browserBinding = random();
       const state = random();
       const nonce = random();
@@ -378,7 +390,7 @@ export function authOidcEndpoints(
         state,
         verifier,
         redirectUri: options.redirectUri,
-        ...(connection === undefined ? {} : { connection }),
+        ...connectionParameter(choice),
       });
       const held = selectBrowserBindings(options.transactions, browserBindingsOf(request), now());
       const evicted = [
@@ -851,9 +863,10 @@ export function authOidcEndpoints(
       // Proof: 2026-09-28, removing this refusal made `refuses a link start without a password session before throttle admission` receive 500 instead of 401.
       if (current === null || session === null)
         return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
-      const connection = connectionFor(options.methods, body.method);
+      const choice = methodChoice(options.methods, body.method);
       // A disabled method is refused before any binding or provider address exists.
-      if (connection === null) return { ok: false, status: 400, body: { error: 'invalid_body' } };
+      if (choice.kind === 'disabled')
+        return { ok: false, status: 400, body: { error: 'invalid_body' } };
       let user;
       if (current.kind === 'oidc') {
         // No password exists to prove; one sent anyway is a confused client.
@@ -901,7 +914,7 @@ export function authOidcEndpoints(
         verifier,
         redirectUri: linkRedirectUri,
         prompt: 'login',
-        ...(connection === undefined ? {} : { connection }),
+        ...connectionParameter(choice),
       });
       return {
         ok: true,

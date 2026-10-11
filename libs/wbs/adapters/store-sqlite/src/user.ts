@@ -366,27 +366,33 @@ function resolveMappedIdentity(
     // 2026-09-28.
     if (legacyOwners.some(({ id }) => id !== owner.id))
       throw new Error(`external identity ${issuer} ${subject} is another user's legacy pair`);
-    const email = canonicalOidcEmail(identity.email);
-    if (email !== null) {
-      const holder = tx
+    const claimed = canonicalOidcEmail(identity.email);
+    const heldElsewhere =
+      claimed !== null &&
+      tx
         .select({ id: users.id })
         .from(users)
         .where(
-          sql`(lower(${users.email}) = ${email} OR lower(${users.username}) = ${email}) AND ${users.id} <> ${owner.id}`,
+          sql`(lower(${users.email}) = ${claimed} OR lower(${users.username}) = ${claimed}) AND ${users.id} <> ${owner.id}`,
         )
-        .get();
-      // Proof: 2026-09-28, bypassing this check made `refuses a mapped email
-      // collision without changing the old address or identity` return a user.
-      if (holder !== undefined) {
-        // Proof: 2026-09-28, skipping this update made `revokes a verified
-        // mapped address after a colliding callback for an existing session`
-        // leave the old claimed domain available to onboarding.
-        tx.update(users)
-          .set({ emailVerified: false, ...auditOnUpdate(stamp) })
-          .where(eq(users.id, owner.id))
-          .run();
-        return null;
-      }
+        .get() !== undefined;
+    // Only a verified address may collide: an unverified one held elsewhere
+    // is dropped rather than refused, so the answer cannot reveal that some
+    // account holds an address the caller never proved (enumeration).
+    // Proof: 2026-10-11, refusing regardless of verification made `drops an
+    // unverified held address on a mapped login instead of refusing` answer null.
+    const email = heldElsewhere ? null : claimed;
+    // Proof: 2026-09-28, bypassing this check made `refuses a mapped email
+    // collision without changing the old address or identity` return a user.
+    if (heldElsewhere && identity.emailVerified) {
+      // Proof: 2026-09-28, skipping this update made `revokes a verified
+      // mapped address after a colliding callback for an existing session`
+      // leave the old claimed domain available to onboarding.
+      tx.update(users)
+        .set({ emailVerified: false, ...auditOnUpdate(stamp) })
+        .where(eq(users.id, owner.id))
+        .run();
+      return null;
     }
     // Proof: 2026-09-28, omitting this update failed `answers the mapped user
     // whatever email the token now carries` and `clears verification when a
@@ -407,20 +413,26 @@ function resolveMappedIdentity(
   // 2026-09-28.
   if (legacyOwners.length > 0)
     throw new Error(`legacy identity ${issuer} ${subject} was never mapped at activation`);
-  const normalizedEmail = canonicalOidcEmail(identity.email);
-  if (normalizedEmail !== null) {
-    const holder = tx
+  const claimedEmail = canonicalOidcEmail(identity.email);
+  const heldElsewhere =
+    claimedEmail !== null &&
+    tx
       .select({ id: users.id })
       .from(users)
       .where(
-        sql`lower(${users.email}) = ${normalizedEmail} OR lower(${users.username}) = ${normalizedEmail}`,
+        sql`lower(${users.email}) = ${claimedEmail} OR lower(${users.username}) = ${claimedEmail}`,
       )
-      .get();
-    // Proof: skipping this made `refuses an unmapped identity whose verified
-    // email an account holds, changing nothing` in `user-oidc.db.test.ts`
-    // create an account; watched 2026-09-28.
-    if (holder !== undefined) return null;
-  }
+      .get() !== undefined;
+  // Proof: skipping this made `refuses an unmapped identity whose verified
+  // email an account holds, changing nothing` in `user-oidc.db.test.ts`
+  // create an account; watched 2026-09-28.
+  if (heldElsewhere && identity.emailVerified) return null;
+  // An unverified address held elsewhere is dropped, never refused: the
+  // `users_email_normalized` index forbids storing it, and a refusal would
+  // tell an unproven caller that the address is registered.
+  // Proof: 2026-10-11, refusing regardless of verification made `unverified
+  // held email creates a user without an address` answer null.
+  const normalizedEmail = heldElsewhere ? null : claimedEmail;
   const created: User = {
     id: create.id,
     username: availableOidcUsername(tx, identity),

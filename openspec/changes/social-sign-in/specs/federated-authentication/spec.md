@@ -52,6 +52,11 @@ redirect to `/?auth_error=account_exists`, write nothing, issue no session and n
 - **WHEN** user A holds `a@x.test` through `google-oauth2|1` and a callback arrives for `github|2` with verified `a@x.test`
 - **THEN** the reply is `302 /?auth_error=account_exists`, no user or mapping is written and the consumed binding is cleared
 
+#### Scenario: an unverified address never reveals a registration
+
+- **WHEN** a callback for an unmapped `github|9` carries `a@x.test` without `email_verified` and another account holds `a@x.test`
+- **THEN** a new user is created with no address and `email_verified` false, the browser is signed in, and no `account_exists` refusal is answered
+
 ### Requirement: One user may hold several verified identities
 
 The identity store SHALL let one user hold several mapped `(issuer, subject)` pairs, MUST keep each

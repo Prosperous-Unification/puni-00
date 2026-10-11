@@ -19,6 +19,7 @@ import {
   assertOidcEnvAllowed,
   assertTierEnvAllowed,
   assertTierEnvComplete,
+  AUTH_METHOD_IDS,
   capacityModesCommand,
   composeUpArgs,
   containerName,
@@ -848,6 +849,27 @@ describe('assertOidcEnvAllowed', () => {
  * added five boots and pushed the be cases past the project's 10 s default.
  */
 const BOOT_CASES_TIMEOUT_MS = 120_000;
+
+// The preflight cannot import a product library at run time on the host, so
+// it spells the catalogue out; this keeps the two from drifting.
+// Proof: 2026-10-11, dropping 'apple' from AUTH_METHOD_IDS failed this case.
+// A subprocess, like `bootRelease` below: a tool may not import the product
+// library, but the test may ask the real catalogue for its ids.
+it('names exactly the AUTH_METHODS catalogue ids in the preflight rule', () => {
+  const probe = Bun.spawnSync(
+    [
+      process.execPath,
+      '--no-env-file',
+      '--eval',
+      `import { AUTH_METHODS } from './libs/wbs/domain/contracts/src/auth-methods.ts';
+       console.log(JSON.stringify(AUTH_METHODS.map(({ id }) => id)));`,
+    ],
+    { cwd: new URL('../../../../', import.meta.url).pathname },
+  );
+  expect(probe.exitCode).toBe(0);
+  const catalogue = JSON.parse(new TextDecoder().decode(probe.stdout)) as string[];
+  expect([...AUTH_METHOD_IDS].sort()).toEqual(catalogue.sort());
+});
 
 describe('assertTierEnvComplete against the release configuration', () => {
   const APP = {

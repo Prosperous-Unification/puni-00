@@ -27,7 +27,9 @@ preflight requires `AUTH_METHODS` in `be-01.env` and mirrors the value rule; the
 location names no provider or method. fe-01 says: "An account already uses this email address with
 a different sign-in method. Sign in the way you did before, then add this method under Account."
 The person has just proven the address at the provider, so admitting that an account exists for it
-discloses nothing they could not learn by trying the other method.
+discloses nothing they could not learn by trying the other method. Only a **verified** address
+collides: an unverified one held elsewhere is dropped (the user is created or updated with no
+address and `email_verified` false), so an unproven caller learns nothing about registrations.
 
 ## D6. One user, several verified pairs
 

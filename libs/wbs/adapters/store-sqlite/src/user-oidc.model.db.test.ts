@@ -117,16 +117,25 @@ class Login implements fc.AsyncCommand<Model, World> {
     if (owner !== undefined) {
       const user = model.users.get(owner);
       if (user === undefined) throw new Error(`model owner ${owner} has no user`);
-      if (heldByOther(model, this.email, owner)) {
+      if (heldByOther(model, this.email, owner) && this.verified) {
         user.verified = false;
         expect(answer).toBeNull();
+      } else if (heldByOther(model, this.email, owner)) {
+        // An unproven address held elsewhere is dropped, never refused.
+        user.email = null;
+        user.verified = false;
+        expect(answer?.id).toBe(owner);
       } else {
         user.email = this.email;
         user.verified = this.verified;
         expect(answer?.id).toBe(owner);
       }
-    } else if (heldByOther(model, this.email, null)) {
+    } else if (heldByOther(model, this.email, null) && this.verified) {
       expect(answer).toBeNull();
+    } else if (heldByOther(model, this.email, null)) {
+      model.owners.set(this.pair, id);
+      model.users.set(id, { email: null, verified: false });
+      expect(answer?.id).toBe(id);
     } else {
       model.owners.set(this.pair, id);
       model.users.set(id, { email: this.email, verified: this.verified });

@@ -372,7 +372,7 @@ const LOG_LEVELS: ReadonlySet<string> = new Set([
  * Proof: 2026-10-11, admitting every value made `refuses only value shapes the
  * be release also refuses` fail on AUTH_METHODS=facebook.
  */
-const AUTH_METHOD_IDS: ReadonlySet<string> = new Set(['google', 'github', 'email', 'apple']);
+export const AUTH_METHOD_IDS: ReadonlySet<string> = new Set(['google', 'github', 'email', 'apple']);
 const authMethods = (value: string): string | null => {
   const named = value.split(',').map((part) => part.trim());
   const known = named.every((name) => AUTH_METHOD_IDS.has(name));
