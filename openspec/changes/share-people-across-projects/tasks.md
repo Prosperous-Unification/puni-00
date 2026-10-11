@@ -229,7 +229,7 @@ silent`, and `isolated and foreign projects receive no shared fan-out`. Include 
       `cold command fan-out needs no previous read`, `one batch coalesces each cause pair` and
       `capture does not admit optimization`. R5: move recording after commit, move push before
       commit, omit composition binding, call live admission and omit post-commit trigger.
-- [ ] 6i. **Rank/settings/directory transactions.** Follow the normative
+- [x] 6i. **Rank/settings/directory transactions.** Follow the normative
       [6i architecture checkpoint](6i-architecture.md) before implementation. Use explicit
       source-owned standalone async UoW wrappers and raw OPEN stores inside already-owned
       command/import/repair scopes; never install a second observer beneath a batch. Bind `ProjectRankRepository.moveAfter`,
@@ -250,10 +250,10 @@ compares both directions`, `directory edit has causes without project-row edits`
       observers beneath borrowed stores, record after commit, and deliver before writer
       release. Prove rank and standalone directory refusal/event/sequence atomicity and
       delivery separately; retain command/Working-plan directory single-owner proofs.
-- [ ] 6i.a. **Preserve standalone mutation boundaries.** RED `standalone rename survives later link after-capture failure` through the public facade for person/team. Introduce the invocation-scoped
+- [x] 6i.a. **Preserve standalone mutation boundaries.** RED `standalone rename survives later link after-capture failure` through the public facade for person/team. Introduce the invocation-scoped
       DirectoryStore facade and one UoW per raw mutator. A links-only zero-pair case must emit nothing. Watch whole-service wrapping lose the
       retained rename, restore GREEN, then review this boundary before 6i.b.
-- [ ] 6i.b. **Observe each actual mutation.** RED `each raw mutation observes its own before state`
+- [x] 6i.b. **Observe each actual mutation.** RED `each raw mutation observes its own before state`
       and `invalid standalone service input never captures`. Bind exact-address before/after
       capture and typed outcomes per mutator. Watch reused before-state, inner helper wrapping
       and capture-before-service-validation fail independently. Separately prove
@@ -261,15 +261,16 @@ compares both directions`, `directory edit has causes without project-row edits`
       comparison-derived pairs, fail the second insert, and assert full owner rollback with no
       delivery. Move recording after commit to watch RED. Observe name-idempotent membership
       additions without assuming they produce pairs; restore GREEN before 6i.c.
-- [ ] 6i.c. **Keep invocation context and announcements separate.** RED `standalone contexts cannot cross` and `ordinary announcements retain one publisher`. Prove immutable invocation
+- [x] 6i.c. **Keep invocation context and announcements separate.** RED `standalone contexts cannot cross` and `ordinary announcements retain one publisher`. Prove immutable invocation
       ResourceAccess and original service announcement ownership. Watch shared mutable context
       and facade republishing/whole-service collection fail; restore GREEN before 6i.d.
-- [ ] 6i.d. **Preserve borrowed ownership.** RED/refine mounted `borrowed directory emits once`.
+- [x] 6i.d. **Preserve borrowed ownership.** RED/refine mounted `borrowed directory emits once`.
       Prove command/import/repair graphs keep raw OPEN stores and unchanged Working plan refresh.
       Watch facade installation under the existing owner fail through deterministic owner/event
       witnesses, then restore GREEN. Each checkpoint preserves earlier typed refusal/current-rank
-      proofs; 6i remains open until its complete rank/settings/directory matrix is reviewed.
-- [ ] 6j. **Import and final deletion.** Before drain integration, resolve and test synchronous
+      proofs. The reviewed matrix and exact post-merge gate are recorded in
+      [the 6i integration checkpoint](verify.md#6i-reviewed-integration-checkpoint).
+- [x] 6j. **Import and final deletion.** Before drain integration, resolve and test synchronous
       transaction ownership for borrowed projection reads (design.md); do not pass async
       callbacks to Drizzle transactions. Bind `module/plan-import/composition.ts` and final
       `optimization-drain.ts::finishDrainIn`, including release/reconcile callers and contract
@@ -368,7 +369,7 @@ compares both directions`, `directory edit has causes without project-row edits`
       capability stays isolated-only; shared restore refuses before write; space membership
       removal is not deletion. Record exact commands/fault logs and independent review before
       checking 6j complete. Outcome/admission fan-out and full replay closure remain 6k/6l.
-- [ ] 6k. **Optimized display atomicity.** Follow the resolved
+- [x] 6k. **Optimized display atomicity.** Follow the resolved
       [transaction/projection architecture](6k-architecture.md) before modifying
       `optimized-outcome.ts`, repository/coordinator or display-changing
       admission/Retry/retirement paths. RED real outcome/event and mounted tests:
@@ -385,24 +386,24 @@ does not fan out twice`. R5: fan out on any insertion, compare only input hash, 
       Watch independent await-before-handoff, rejection propagation, tracking/error-reporting,
       dropped-envelope and republish faults (K9/K10/K13). Direct empty-envelope tests establish
       only the consumer; keep the installed owner work open.
-- [ ] 6k.b. **Installed outcome owner.** Add the source-bound borrowed comparison around the
+- [x] 6k.b. **Installed outcome owner.** Add the source-bound borrowed comparison around the
       existing synchronous outcome/event savepoint. RED selected current outcome, eligible
       H1-under-H2, nonselected silence, equal-hash modeled availability, already-recorded and
       superseded silence, isolated/legacy behavior, second-event rollback and post-capture
       failure. Watch K1/K2/K4–K8 independently; the split-commit fault must reach a full-state
       assertion. Preserve admitted-result validation and existing fences; do not fabricate a
       mounted availability proof from a mocked projection. Close installed K9/K10/K13 here.
-- [ ] 6k.c. **Replacement and eviction.** RED admitted Retry replacing older failed/corrupt
+- [x] 6k.c. **Replacement and eviction.** RED admitted Retry replacing older failed/corrupt
       markers, selected-budget eviction, other-contract/budget isolation and unchanged-display
       silence. Compare the complete outcome mutation; watch Fast substitution and addressed-cause
       omission separately (K3). Retain multi-input blue/green proofs and rollback of eviction.
-- [ ] 6k.d. **Generation observation owner.** Preserve callback-free generation/pair/request
+- [x] 6k.d. **Generation observation owner.** Preserve callback-free generation/pair/request
       coherence while surrounding cache/queue removal with the borrowed source comparison.
       RED selected-display eviction, original observation identity, idle/refusal silence and
       held-writer serialization. Watch observation binding/recording/cause omissions (K11) and
       retain split-generation/pair and preflight-reread negatives. Return committed envelopes
       without merging observation, reservation and enqueue transactions.
-- [ ] 6k.e. **Own-display inventory closure.** Reconcile every operation in the packet against
+- [x] 6k.e. **Own-display inventory closure.** Reconcile every operation in the packet against
       installed initial/enqueue/Retry/FIFO/release/retirement/reconciliation witnesses. Prove
       status-only transitions and unrelated retirement silent; compare any genuine own-display
       transition inside its existing owner alongside 6j victim effects. Preserve Retry refusal
@@ -410,6 +411,8 @@ does not fan out twice`. R5: fan out on any insertion, compare only input hash, 
       admission fan-out (K12) and each added dependency's omission. Rerun affected regressions,
       reconcile K1–K13 with exact evidence and obtain independent review before closing 6k;
       6l, UI, mode route and deferred activation remain separate.
+      Reconciled on the merged integration branch in
+      [the 6j/6k reconciliation](verify.md#6j-and-6k-reconciliation-on-current-main-batch-10).
 - [ ] 6l. **Replay and release closure.** RED real event-log/realtime and mounted tests:
       `crash after commit before push replays from a cold process`, `pushRecorded preserves
 sequence`, `push failure retains durable event`, `expired replay requires snapshot` and

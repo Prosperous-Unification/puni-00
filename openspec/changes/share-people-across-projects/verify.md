@@ -1853,11 +1853,11 @@ second link mutation and preserves the earlier rename. Separately, a cascade mus
 at least two real recipient/cause pairs before faulting the second event insert. Name-idempotent
 membership additions are observed normally; zero derived pairs means zero fan-out writes.
 
-| Fault                                | Required distinct witness                                                                            | Result  |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------- | ------- |
-| Whole-service owner                  | Rename remains after second link mutation's after-capture fails; no invented event in zero-pair case | Pending |
-| Record after cascade commit          | Second real insert failure rolls back cascade, first event and sequences; no delivery                | Pending |
-| Emit on any membership/link mutation | Normal zero-pair comparison must stay silent                                                         | Pending |
+| Fault                                | Required distinct witness                                                                            | Result                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Whole-service owner                  | Rename remains after second link mutation's after-capture fails; no invented event in zero-pair case | Closed by the mounted partial-commit and after-capture proofs below |
+| Record after cascade commit          | Second real insert failure rolls back cascade, first event and sequences; no delivery                | Closed by the three-pair control and second-insert fault below      |
+| Emit on any membership/link mutation | Normal zero-pair comparison must stay silent                                                         | Closed by the idempotent-add and spurious-event fault below         |
 
 No product code or proof execution in this amendment. Planning validation uses pinned strict
 OpenSpec, four-file Prettier, diff and normal commit hooks; implementation proofs remain pending.
@@ -2029,6 +2029,50 @@ passed after the ledger reconciliation
 `/tmp/shared-people-6i-review-final-ledger-all.json`,
 `/tmp/shared-people-6i-review-final-ledger-diff.log`). The historical first format/type/lint
 failures above are retained; no blanket pass is inferred from their failed runs.
+
+### 6i reviewed integration checkpoint
+
+Astra's independent scoped rereview cleared implementation candidate
+`0cdd9d55b65abcdf421264328f69660db7b97019` with no remaining findings. Its first
+canonical h2puni gate ran on that exact SHA and exited 1: five stale closed-inventory and
+direct-route test expectations failed in `wbs-conformance`, `wbs-core` and `tool-devsync`
+(`/tmp/shared-people-6i-h2puni-gate.log`). This was not a passing gate. The six-file
+expectation/catalog repair introduced no production behavior change. Focused conformance
+4/4, core route 2/2 and devsync 32/32 then passed; affected Nx test/lint/typecheck passed
+10/10, declared core and tool-devsync builds passed, and format, pinned strict/all OpenSpec,
+diff and normal commit hooks passed. The initial sandboxed devsync `EROFS` run remains
+unavailable evidence; its exact unsandboxed rerun passed
+(`/tmp/shared-people-6i-gatefix-conformance-final.log`,
+`/tmp/shared-people-6i-gatefix-core.log`,
+`/tmp/shared-people-6i-gatefix-devsync-escalated.log`,
+`/tmp/shared-people-6i-gatefix-affected-nx.log`).
+
+Astra's scoped rereview cleared the repaired `b4834769747f131938857ece8e9f3860444619f6`
+with no findings. The canonical host gate printed
+`h2puni gate: running on b4834769747f131938857ece8e9f3860444619f6` and exited 0:
+OpenSpec 148/148, the full 35-project Nx test/lint/typecheck/build set plus five
+dependencies, separate Twilight Burokrat test/typecheck/build and source lint, and the
+solver-image smoke target passed (`/tmp/shared-people-6i-h2puni-gate-b483476.log`). PR
+[#275](https://github.com/Prosperous-Unification/puni-00/pull/275) checked the same head
+against unchanged base `f49cef02a5de5a5ba1284e64b9b0590615d47d07`: workspace and tool
+wiki gates, pixels and all four shards, and CodeQL passed. Only `trusted-wiki/lint` failed
+because the explicitly deferred immutable activation marker is not provisioned. The CI watch
+is `/tmp/shared-people-6i-pr275-checks-watch.log`; this exception does not imply activation.
+PR #275 merged normally at 2026-10-06T12:37:38Z as
+`d1d7399ee71a1d3efa9829352ab75f03f1ee237d`, verified as `origin/main`. The
+post-merge canonical command
+`bin/h2puni-gate.sh d1d7399ee71a1d3efa9829352ab75f03f1ee237d`
+(session `41399`) printed
+`h2puni gate: running on d1d7399ee71a1d3efa9829352ab75f03f1ee237d` and exited 0.
+It passed OpenSpec 148/148, the 35-project Nx target set, separate Twilight Burokrat
+test/typecheck/build and source lint, and solver-image smoke, including real Docker
+orphan cleanup tests (`/tmp/shared-people-6i-merged-main-h2puni-gate-final.log`).
+An earlier invocation exited 64
+before gate execution because the gate checkout's legacy `origin` did not contain this SHA;
+the exact puni-00 merge commit was fetched without checkout before the passing run
+(`/tmp/shared-people-6i-merged-main-h2puni-gate.log`). The 6j–6l fan-out slices, umbrella
+integration, trusted activation, and later solver-image publication/deployment remain open;
+the 6i source branch itself has already been pushed and merged.
 
 ## 6j architecture amendment at merged main d1d7399e
 
@@ -3515,3 +3559,520 @@ After this ledger append, the final documentation bytes passed pinned strict Ope
 all OpenSpec 149/149, changed-path Prettier and `git diff --check`; outputs are
 `/tmp/shared-people-6ka-final-{strict,all}.json` and
 `/tmp/shared-people-6ka-final-{format,diff}.log`.
+
+### 6k.b installed outcome owner (local candidate)
+
+The installed `buildServices` override now runs the existing synchronous
+`storeOptimizedOutcomeAndRecord` savepoint within the source's borrowed
+`BEGIN IMMEDIATE` owner. It captures the scoped organization's old display,
+stores the admitted outcome, captures the staged display, records only the
+addressed project cause, and returns the decision plus downstream envelopes
+after commit for 6k.a's tracked delivery. The direct repository continues to
+return empty downstream envelopes. This slice does not implement 6k.c–e.
+
+The first mounted selected-outcome test failed with `stored` but no B row
+(`/tmp/shared-people-6kb-first-red.log`, 0/1), then passed with the installed
+owner (`/tmp/shared-people-6kb-first-green.log`, 1/3). The current two-file
+command was exactly:
+
+```sh
+bun test apps/wbs/be-01/src/services.db.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts
+```
+
+It passed 123/123, 759 assertions, exit 0
+(`/tmp/shared-people-6kb-final-two-file.log`). Mounted cases establish selected
+B/C fan-out and no duplicate after repeated write; eligible H1 under current
+H2, nonselected PRI under TIME, stale token, isolated and legacy silence;
+malformed active ownership refusal; full cache/slot/event/sequencer rollback
+after a real second-recipient insert and a thrown borrowed after-capture;
+committed B seq0 and second-writer progress while B transport is held; and
+replay equality after HTTP 400. The held case compares the persisted A slot's
+attempt token to the original write claim, lets the recipient reaction settle,
+then proves `stop` remains pending solely for held B delivery.
+
+K4 uses real SQLite input, solver request/evaluation, admitted slot, borrowed
+captured schedules and installed outcome write. A retains the canonical
+input hash while its selected display changes from `available` to
+`calendar_range`; both booking lists are empty and B receives seq0.
+The test passed 1/7 (`/tmp/shared-people-6kb-k4-capture-green.log`).
+Forcing the production comparator's `availabilityChanged` to false made that
+same installed B-row assertion receive `[]`; restored code passed 1/7
+(`/tmp/shared-people-6kb-k4-availability-{omission-red,restored-green}.log`).
+The first K4 trial read an unavailable optimization input after storing and
+was a test-fixture error, not a product negative
+(`/tmp/shared-people-6kb-k4-trial.log`).
+
+Accepted independent R5 faults and same-assertion restorations:
+
+| Boundary                       | Injected fault and observed failure                                                                                                                                                            | RED / restored GREEN logs                                                                                                                    |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| K1 installer, recording, cause | Omit the installed override, transactional recording, or addressed cause separately; B's expected durable row is missing each time.                                                            | `/tmp/shared-people-6kb-{installer,record,cause}-omission-red.log` and matching `-restored-green.log`                                        |
+| K2 no invention                | Force outgoing fan-out on every stored insertion; the nonselected outcome gains an unexpected B event.                                                                                         | `/tmp/shared-people-6kb-force-event-on-insert-{red,restored-green}.log`                                                                      |
+| K4 availability                | Suppress the modeled availability difference; mounted B event disappears despite unchanged H and empty bookings.                                                                               | `/tmp/shared-people-6kb-k4-availability-{omission-red,restored-green}.log`                                                                   |
+| K5 borrowed capture            | Read the staged capture from a separate read-only connection; A stores, but B's required event is absent.                                                                                      | `/tmp/shared-people-6kb-detached-capture-{red,restored-green}.log`                                                                           |
+| K5 source turn                 | Bypass `sqliteUnitOfWork`'s gate; the installed write settles before the held writer releases.                                                                                                 | `/tmp/shared-people-6kb-serialization-{omission-red,restored-green}.log`                                                                     |
+| K6 one commit                  | Split `COMMIT`/`BEGIN` after raw outcome mutation; the second real event-insert failure leaves committed cache/outcome/event/seq residue, failing full `lifecycleTables` equality.             | `/tmp/shared-people-6kb-split-commit-{red,restored-green}.log`                                                                               |
+| K7 post-write capture          | Reuse old capture; selected B event vanishes. The independent thrown after-capture case restores the full snapshot and sends nothing.                                                          | `/tmp/shared-people-6kb-after-capture-{omission-red,restored-green}.log`, `/tmp/shared-people-6kb-postcapture-green.log`                     |
+| K8 no-op and capability        | Bypass stored-only guard; already-recorded capture count rises from three to four. Omit borrowed-capability refusal; malformed access becomes a TypeError instead of the named prewrite error. | `/tmp/shared-people-6kb-noop-guard-{omission-red,restored-green}.log`, `/tmp/shared-people-6kb-capability-{omission-red,restored-green}.log` |
+| K9 decision before transport   | Await real B delivery before returning `stored`; bounded acceptance times out while transport is held.                                                                                         | `/tmp/shared-people-6kb-installed-await-delivery-{red,restored-green}.log`                                                                   |
+| K10 tracked stop               | Omit outcome delivery registration after unrelated recipient reaction has finished; stop settles while B transport remains held.                                                               | `/tmp/shared-people-6kb-installed-tracking-omission-red-try3.log`, `/tmp/shared-people-6kb-installed-tracking-restored-green.log`            |
+| K13 downstream handoff         | Drop actual B envelope from outcome batch; bounded B-delivery registration times out while its durable row exists.                                                                             | `/tmp/shared-people-6kb-installed-envelope-drop-{red,restored-green}.log`                                                                    |
+
+The first two K10 omission trials stayed green because another coordinator
+recipient-reaction task independently held stop; they are disqualified
+(`/tmp/shared-people-6kb-installed-tracking-omission-red.log` and
+`-red-try2.log`). The accepted third trial waits for that task while retaining
+only B transport. The first malformed-owner setup hit the immutable owner
+trigger before exercising the owner; the corrected test deliberately removes
+that trigger to model trusted corruption, then verifies refusal
+(`/tmp/shared-people-6kb-modes-owner{,-green}.log`). Every temporary
+production fault above was restored; the source/capture/UoW/coordinator
+files used for K4/K5/K9/K10/K13 match their saved SHA-256 byte hashes.
+
+Direct BE TypeScript initially found an un-narrowed absent ownership union
+(`/tmp/shared-people-6kb-tsc-initial.log`); a precise `organizationId`
+discriminant fixed it and direct `tsc --build --force` passed
+(`/tmp/shared-people-6kb-tsc-fixed.log`). Direct ESLint initially found only
+two import-order errors, then passed after inspected import autofix
+(`/tmp/shared-people-6kb-be-eslint{,-fixed}.log`). The declared Nx BE lint,
+typecheck (including module), and build targets have explicit success
+summaries with `--skip-nx-cache`
+(`/tmp/shared-people-6kb-nx-{lint,typecheck,build}.log`). An earlier Nx lint
+exit 0 without a task summary is excluded (`/tmp/shared-people-6kb-be-lint.log`).
+The service-kind inventory first failed because Git did not yet track the
+new service file; after `git add -N` the exact test passed 17/17, 19 assertions
+(`/tmp/shared-people-6kb-service-kinds{,-restored}.log`).
+
+Pinned strict OpenSpec passed 1/1 and `--all` passed 149/149
+(`/tmp/shared-people-6kb-final-doc-{strict,all}.json`). The first final
+Prettier check found only this appended ledger unformatted
+(`/tmp/shared-people-6kb-format-check.log`); the formatted changed-path
+Prettier check and `git diff --check` both exited 0
+(`/tmp/shared-people-6kb-final-doc-{format,diff}.log`).
+6k.c–e, 6k parent, activation, host gate and CI remain open at this local
+checkpoint.
+
+Independent review of local candidate `8438eb7f1eeb2b0141670c997de37f93177e5890`
+reopened 6k.b. Its held B-transport fixture invoked private `storeOutcome`
+with a seeded slot, so it did not prove the installed child callback, exact
+terminal slot release, or a held **outcome** push. URL counts and an HTTP 400
+through the gateway's modeled log path also did not prove coordinator
+`onChildError`, original recorded sequence/order, recipient reactions, or
+republish prevention. The 6k.b checkbox is open pending mounted child-path
+tests and watched K9/K10/K13 faults. The earlier owner, rollback, K4 and K5
+proofs remain valid for their stated boundaries; no publication occurred.
+
+### 6k.b installed child-path correction (review pending) (resolved: [batch-10 Fable review](#6kbe-independent-review-fable-batch-10))
+
+The earlier 123/759 two-file run and B-held fixture above are historical owner
+evidence, not closure of installed K9/K10/K13. The corrected fixture enters
+the actual `buildServices` FIFO pump with one PRI request and a solver response
+accepted by `revalidateSolverResult`. The child traverses reservation, bind,
+exit evaluation, installed `recordOutcome`, and exact-slot release. Only A's
+`schedule_optimized` transport is held; B's durable `elsewhere_changed` row
+and recipient reaction finish, the terminal A slot is absent, a second SQLite
+writer progresses, and `stop` stays pending solely for the held outcome
+delivery. Releasing it pushes the original A seq 0 then B seq 0 without a
+new row or sequence. The reporting fixture injects synchronous throw and
+rejected `deliverCommitted` at the composed coordinator callback, then checks
+the logged `optimizer child failed` boundary, committed A/B rows, absent slot,
+and modeled delivery counts. Its rejected promise is held until `drain` has
+begun observing it; this separates rejection propagation from teardown.
+
+The mounted tests use `bun test apps/wbs/be-01/src/services.db.test.ts
+--test-name-pattern '<case name>'`. Accepted independent R5 faults below
+failed the stated installed assertion and then passed again after exact-byte
+source restoration:
+
+| Boundary                  | Observed RED                                                                                                                                                     | Restored GREEN                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| K9 child handoff          | Awaiting the whole composed delivery batch before returning outcome left the terminal A slot counted: `/tmp/shared-people-6kb-child-await-handoff-red-try2.log`. | `/tmp/shared-people-6kb-child-await-handoff-restored-green.log` |
+| K10 tracked stop          | Omitting `inFlight.add` let stop settle during the held A push: `/tmp/shared-people-6kb-child-tracking-omission-red.log`.                                        | `/tmp/shared-people-6kb-child-tracking-restored-green.log`      |
+| K13 downstream envelope   | Dropping outcome downstream envelopes prevented B reaction: `/tmp/shared-people-6kb-child-downstream-omission-red.log`.                                          | `/tmp/shared-people-6kb-child-downstream-restored-green.log`    |
+| K13 recipient reaction    | Omitting `reactToProjectEvent` kept B's edit epoch absent: `/tmp/shared-people-6kb-child-reaction-omission-red.log`.                                             | `/tmp/shared-people-6kb-child-reaction-restored-green.log`      |
+| K13 original republish    | Replacing `pushRecorded` with `publish` added an A seq 1 row, violating the original seq 0 assertion: `/tmp/shared-people-6kb-child-republish-red.log`.          | `/tmp/shared-people-6kb-child-republish-restored-green.log`     |
+| K10 error report          | Omitting `onChildError` left the installed child-error log absent: `/tmp/shared-people-6kb-child-report-omission-red.log`.                                       | `/tmp/shared-people-6kb-child-report-restored-green.log`        |
+| K10 rejection containment | Rethrowing after `onChildError` made the held-rejection `drain` settle `rejected` instead of `fulfilled`: `/tmp/shared-people-6kb-child-rethrow-gated-red.log`.  | `/tmp/shared-people-6kb-child-rethrow-gated-restored-green.log` |
+
+The first K9 mutation also triggered a duplicate B reaction before the slot
+assertion, so its log is disqualified (`/tmp/shared-people-6kb-child-await-handoff-red.log`).
+The first rethrow trial failed through a closed-DB teardown race and is also
+disqualified (`/tmp/shared-people-6kb-child-rethrow-red-try2.log`). An invalid
+solver response trial did not reach the installed outcome and is excluded.
+The malformed-envelope guard retains its previously observed 1-versus-0
+cache-row Proof beside the extracted repository helper. These tests and
+ledger have not yet received independent exact-SHA review; 6k.b stays open.
+
+After the test-only response literal was narrowed to the required wire version,
+the final `bun test apps/wbs/be-01/src/services.db.test.ts
+apps/wbs/be-01/src/repository/optimization.db.test.ts --timeout=30000` passed
+125/125, 792 assertions (`/tmp/shared-people-6kb-followup-two-file-final.log`).
+The nine-file regression command recorded in the 6k.a section passed 139/139,
+19,124 assertions outside the sandbox
+(`/tmp/shared-people-6kb-followup-nine-file-unsandboxed.log`). Its sandbox
+run failed only the child-process marker handshake at 138/139; that process
+fixture's Bun child stdin pipe is sandbox-restricted here, so the sandbox
+run is unavailable evidence for that case
+(`/tmp/shared-people-6kb-followup-nine-file.log`). The initial full BE lint
+found three test callback return-type errors, fixed by asserting event
+sequence and message separately. A subsequent BE typecheck found the fixture
+wire version widened from literal 3 to `number`, fixed with `3 as const`.
+Both failure logs remain
+(`/tmp/shared-people-6kb-followup-nx-{lint,typecheck}.log`). The corrected
+declared `wbs-be-01:{lint,typecheck,build} --skip-nx-cache` targets each have
+an explicit Nx success summary
+(`/tmp/shared-people-6kb-followup-nx-{lint-fixed,typecheck-fixed,build}.log`).
+Pinned OpenSpec strict validation passed 1/1 and `--all` passed 149/149 on
+this ledger (`/tmp/shared-people-6kb-followup-final-{strict,all}.json`).
+Changed-path Prettier and `git diff --check` passed
+(`/tmp/shared-people-6kb-followup-{format-check,diff-check}.log`). Normal
+commit hooks remain the final local check.
+
+### 6k.c replacement and eviction (local evidence, review pending) (resolved: [batch-10 Fable review](#6kbe-independent-review-fable-batch-10))
+
+The reviewed 6k.b outcome owner already encloses the complete synchronous
+`storeOptimizedOutcomeIn` mutation, including admitted failed/corrupt
+replacement and `enforceLiveBudgetBound`, before its after-capture. This
+checkpoint adds installed tests and watched faults; it changes no production
+algorithm. The test fixture exercises real `buildServices`, current source
+UoW, SQLite cache, borrowed capture, event log and the actual Retry child.
+The 6k.c task remains open pending independent exact-SHA review and any
+remaining boundary obligations.
+
+Installed Retry replaces an older failed marker and a genuinely malformed
+`ok` payload read as corrupt; the final row is ready `ok`, B receives its
+addressed seq 0, and the failed case's borrowed before/after comparison
+shows A's displayed bookings changed. Excluding `corrupt` from raw replacement
+eligibility retained `{malformed` instead (RED), then restoration passed
+(`/tmp/shared-people-6kc-retry-corrupt-eligibility-{red,restored-green}.log`).
+The first Fast-substitution mutation stayed green against an event-only
+assertion because B's incoming basis also changed; it is disqualified
+(`/tmp/shared-people-6kc-retry-fast-substitution-red.log`). After adding A's
+display projection assertion, the same fault changed `bookingsChanged` from
+true to false for both Retry replacement and selected-budget eviction; each
+restored GREEN (`/tmp/shared-people-6kc-{retry,eviction}-fast-substitution-{red-try2,restored-green}.log`).
+Separately dropping the addressed A cause removed both mounted B rows
+(`/tmp/shared-people-6kc-cause-{omission-red,restored-green}.log`).
+
+The selected-budget witness captures budget 1000, then stores a third same-key
+budget 3000 with all three cache rows tied at `createdAt=3`. The correct
+retained pair is 2000/3000; evicting 1000 changes A's displayed bookings and
+records B seq 0. Omitting `enforceLiveBudgetBound` lost that B event
+(`/tmp/shared-people-6kc-eviction-{omission-red,restored-green}.log`).
+Time, other-contract, other-input and other-project rows at higher budgets
+are counted only in their own dimensions; same-budget mirrors survive the
+target deletion. Independently removing each project/objective/contractVersion/
+inputHash count predicate incorrectly evicted 2000, then each restored GREEN
+(`/tmp/shared-people-6kc-dimension-{project,objective,contract,input}-{red,restored-green}.log`).
+Independently removing each full-key delete predicate erased a foreign mirror,
+while removing the budget predicate erased all target budgets; each restored
+GREEN (`/tmp/shared-people-6kc-delete-{project,objective,contract,input,budget}-{red,restored-green}.log`).
+Changing the live bound from two to three or dropping descending-budget
+tie-break left A's selected display unchanged instead of evicted; both faults
+failed the mounted projection and restored GREEN
+(`/tmp/shared-people-6kc-eviction-{bound,tiebreak}-{red,restored-green}.log`).
+
+Unselected PRI eviction and selected Fast-equivalent eviction leave B silent
+while still storing A's original outcome event and retaining 2000/3000. A
+forced `outgoingChanged=true` invented B seq 0 and failed the no-event
+assertion, then restored GREEN
+(`/tmp/shared-people-6kc-silence-force-fanout-{red,restored-green}.log`).
+An injected second C recipient insert failure during selected eviction
+restored the full `lifecycleTables` snapshot, including cache, slots, outcome
+event and sequencer, with zero push; removing the trigger allowed B/C seq 0.
+Splitting COMMIT after raw outcome/eviction instead left the 3000 failed row
+and A outcome row committed, failing that complete snapshot; restoration
+passed (`/tmp/shared-people-6kc-eviction-split-commit-{red,restored-green}.log`).
+A separate restricted-project Retry by org super-admin Bob commits its
+recovery audit in admission before the real child, then a B insert failure
+rolls back only the later replacement/outcome/fan-out: the older failed
+marker and timestamp remain, A/B logs and sequencer stay empty, the terminal
+slot is released, and the modeled error is reported. Splitting the later
+outcome owner commit overwrote the marker despite that insert failure;
+restoration passed (`/tmp/shared-people-6kc-retry-split-commit-{red,restored-green}.log`).
+An earlier ordinary-actor fixture expected an audit it could not produce and
+is disqualified, not recovery proof.
+
+Final current-byte commands and results for this local checkpoint:
+
+```sh
+bun test apps/wbs/be-01/src/services.db.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts --timeout=30000
+bun test apps/wbs/be-01/src/module/optimization/module.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/service/optimization-events.db.test.ts apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-restart.db.test.ts apps/wbs/be-01/src/service/optimization-spawn-handshake.proc.db.test.ts libs/wbs/application/core/src/compose.test.ts --timeout=30000
+NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6kc-nx bunx nx run wbs-be-01:lint --skip-nx-cache
+NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6kc-nx bunx nx run wbs-be-01:typecheck --skip-nx-cache
+NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6kc-nx bunx nx run wbs-be-01:build --skip-nx-cache
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json
+```
+
+The two-file suite passed 131/131, 849 assertions
+(`/tmp/shared-people-6kc-final-two-file.log`); the nine-file suite passed
+139/139, 19,124 assertions outside the sandbox to permit its real child
+stdin pipe (`/tmp/shared-people-6kc-nine-file-unsandboxed.log`). All three
+declared Nx targets printed explicit success summaries
+(`/tmp/shared-people-6kc-nx-{lint,typecheck,build}.log`). Pinned OpenSpec
+passed strict 1/1 and all 149/149 (`/tmp/shared-people-6kc-{strict,all}.json`);
+changed-path Prettier and `git diff --check` exited 0
+(`/tmp/shared-people-6kc-{format-check,diff-check}.log`). The normal commit
+hooks and independent exact-SHA review remain pending; no host gate, CI,
+push, merge or trusted activation occurred for 6k.c.
+
+### 6k.d generation observation owner (local evidence, review pending) (resolved: [batch-10 Fable review](#6kbe-independent-review-fable-batch-10))
+
+The installed `buildServices` observation now owns one source writer turn: borrowed
+before-capture, synchronous generation allocation plus pair/request read, borrowed
+after-capture, addressed event recording, then commit. `readPlan` registers those
+committed envelopes before consuming the returned original observation. The
+direct `createOptimizationRepository` path keeps its gated immediate transaction
+and returns `envelopes: []`; it does not perform shared fan-out. Observation,
+reservation and enqueue retain separate owners. The 6k.d checkbox remains open
+until final-byte verification and independent exact-SHA review.
+
+The mounted stale-input fixture persists selected H1/g1, captures H2, restores
+persisted H1 before the H2 observation, then observes H2 through the installed
+coordinator. It asserts selected A's booking displacement, generation g2,
+removal of H1 cache and queue, retained old-slot token with cancellation
+requested, no launch, and B's addressed `elsewhere_changed` row at seq 0.
+The equal-hash fixture preserves generation, ready pair, cache, queue and slots;
+an unselected old row removes silently. Disabled, absent, empty and zero-duration
+asks remain idle with an unchanged full snapshot and no push/launch. A held
+source writer's uncommitted generation is invisible until rollback, after which
+the composed read returns the coherent original generation/pair/objectives.
+A postcommit failed-marker write does not change that read's returned idle pair.
+Second-recipient insert and post-write-capture failures restore the full
+`lifecycleTables` snapshot with no delivery; retry records the original B seq 0.
+
+Held B transport leaves the committed observation readable and a second SQLite
+writer usable; `stop` waits for tracked delivery, then original B seq 0 remains
+replayable after the modeled HTTP 400. That HTTP 400 uses the broadcaster's
+modeled failure boundary. A separate mounted `deliverCommitted` injection proves
+both synchronous throw and rejected Promise reach coordinator `onChildError`
+without changing the committed observation or B row; rejected transport keeps
+`drain` pending until released, then it settles. The older initial-reservation
+missing-capture proof remains independently installed: the test-only
+`afterOptimizerTurn` observer arms capability omission only after the valid
+observation returns `kind: 'observed'`, so reservation itself refuses before
+reclaim. Its original error and full-state assertion pass.
+
+| Watched production fault                                    | RED log and actual failed assertion                                                                                                | Restored GREEN log                                           |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Omit installed observation binding                          | `/tmp/shared-people-6kd-installer-red.log`: B event absent                                                                         | `/tmp/shared-people-6kd-installer-restored-green.log`        |
+| Omit addressed A cause                                      | `/tmp/shared-people-6kd-cause-red.log`: B event absent                                                                             | `/tmp/shared-people-6kd-cause-restored-green.log`            |
+| Omit transactional event recording                          | `/tmp/shared-people-6kd-record-red.log`: B event absent                                                                            | `/tmp/shared-people-6kd-record-restored-green.log`           |
+| Omit observation capability refusal                         | `/tmp/shared-people-6kd-capability-guard-red.log`: modeled refusal becomes incidental property error                               | `/tmp/shared-people-6kd-capability-guard-restored-green.log` |
+| Omit reservation capability refusal after valid observation | `/tmp/shared-people-6kd-reserve-guard-red.log`: modeled reservation refusal becomes `capture.resolveLifecycleOwner` property error | `/tmp/shared-people-6kd-reserve-guard-restored-green.log`    |
+| Move raw observation before source serialization            | `/tmp/shared-people-6kd-serialization-red.log`: returned staged g2 after writer rollback to g1                                     | `/tmp/shared-people-6kd-serialization-restored-green.log`    |
+| Reuse before-capture as after                               | `/tmp/shared-people-6kd-reused-capture-red.log`: B event absent despite committed eviction                                         | `/tmp/shared-people-6kd-reused-capture-restored-green.log`   |
+| Detach after-capture to a read-only connection              | `/tmp/shared-people-6kd-detached-capture-red.log`: B event absent despite committed eviction                                       | `/tmp/shared-people-6kd-detached-capture-restored-green.log` |
+| Substitute Fast projection for selected                     | `/tmp/shared-people-6kd-fast-red.log`: A booking displacement false rather than true                                               | `/tmp/shared-people-6kd-fast-restored-green.log`             |
+| Split commit after allocation before event insertion        | `/tmp/shared-people-6kd-split-commit-red.log`: full graph/generation/cache/queue/slot snapshot differs after second insert failure | `/tmp/shared-people-6kd-split-commit-restored-green.log`     |
+| Drop committed observation envelopes at readPlan            | `/tmp/shared-people-6kd-envelope-red.log`: durable B row remains, B push absent                                                    | `/tmp/shared-people-6kd-envelope-restored-green.log`         |
+| Await transport before consuming decision                   | `/tmp/shared-people-6kd-await-transport-red.log`: bounded readPlan timeout under held B push                                       | `/tmp/shared-people-6kd-await-transport-restored-green.log`  |
+| Reread pair after preflight                                 | `/tmp/shared-people-6kd-reread-red.log`: returned failed marker instead of the original idle pair                                  | `/tmp/shared-people-6kd-reread-restored-green.log`           |
+| Omit coordinator delivery error report                      | `/tmp/shared-people-6kd-observation-report-red.log`: modeled sync/rejected error absent from sink                                  | `/tmp/shared-people-6kd-composed-error-restored-green.log`   |
+| Rethrow reported delivery failure                           | `/tmp/shared-people-6kd-observation-rethrow-red.log`: previously committed observation produces rejected/unhandled drain           | `/tmp/shared-people-6kd-composed-error-restored-green.log`   |
+
+The earlier source-turn-count fixture was replaced by the observation-completion
+hook; it was test isolation, not a production state. The initial equal-hash
+fixture without both ready objectives is disqualified because it legitimately
+scheduled missing TIME. The first three-file run's one stale reservation error
+expectation is a historical failed checkpoint, not a product failure. Blue/green
+contract scoping, older-generation eviction and retained counted slots are
+regressed by `libs/wbs/adapters/store-sqlite/src/optimization-generation.db.test.ts`
+(`two releases against one file` and `one allocation`); the direct callback-free
+generation/pair/request tuple and empty envelopes by
+`apps/wbs/be-01/src/repository/optimization.db.test.ts`'s competing-turn and
+held-writer cases. No 6k.e or activation behavior is claimed here.
+
+Final formatted-byte regression commands for this local candidate:
+
+```sh
+bun test apps/wbs/be-01/src/services.db.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts apps/wbs/be-01/src/module/optimization/module.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/service/optimization-events.db.test.ts apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-restart.db.test.ts libs/wbs/application/core/src/compose.test.ts libs/wbs/adapters/store-sqlite/src/optimization-generation.db.test.ts libs/wbs/adapters/store-sqlite/src/optimized-cache.db.test.ts --timeout=30000
+bun test apps/wbs/be-01/src/service/optimization-spawn-handshake.proc.db.test.ts --timeout=30000
+NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6kd-nx bunx nx run wbs-be-01:lint --skip-nx-cache
+NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6kd-nx bunx nx run wbs-be-01:typecheck --skip-nx-cache
+NX_DAEMON=false NX_SOCKET_DIR=/tmp/shared-people-6kd-nx bunx nx run wbs-be-01:build --skip-nx-cache
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json
+```
+
+The eleven-file regression passed 340/340, 20,262 assertions, exit 0
+(`/tmp/shared-people-6kd-eleven-file-final.log`). The separate real-child
+spawn-handshake case passed 1/1, 13 assertions with approved process access
+(`/tmp/shared-people-6kd-spawn-proc-unsandboxed.log`). Its in-sandbox attempt
+timed out waiting for the child marker (`...spawn-proc-sandbox.log`), consistent
+with the previously diagnosed sandbox child-stdin pipe denial; it is not counted
+as passing. Direct changed-file ESLint initially found an unsafe `expect.any`
+assignment and import ordering; both were corrected, and the direct rerun exited 0. An earlier Nx lint run was failed and is excluded. Final declared
+`wbs-be-01:lint`, `wbs-be-01:typecheck` (including its module dependency),
+and `wbs-be-01:build` (including its dependency) each printed explicit Nx
+success (`/tmp/shared-people-6kd-nx-{lint,typecheck,build}-final.log`). The
+pinned OpenSpec commands passed strict 1/1 and all 149/149
+(`/tmp/shared-people-6kd-{strict,all}-final.json`). Changed-path Prettier
+passed and `git diff --check` exited 0
+(`/tmp/shared-people-6kd-{format-check,diff-check}-final.log`). No host gate,
+CI, push, merge or trusted activation was run for this local candidate.
+
+The first exact-SHA review of 6k.d found one test-inventory omission: its new
+`service/optimization-observation.ts` was absent from the closed
+`docs/code-organization/kinds.json` classification. The real
+`service-kinds.test.ts` candidate-inventory assertion failed 0/1 naming that
+exact path (`/tmp/shared-people-6kd-kinds-red.log`). Classifying this installed
+source-owned generation observation as a feature, with its capability and
+caller-based rationale, restored the full file to 17/17, 19 assertions
+(`/tmp/shared-people-6kd-kinds-green.log`). The adjacent test `Proof:` records
+the watched omission. This is a policy/test/evidence correction only; the
+observation implementation and its 340/340 runtime regression are unchanged.
+
+### 6k.e own-display operation inventory (local candidate, review pending) (resolved: [batch-10 Fable review](#6kbe-independent-review-fable-batch-10))
+
+This slice adds test assertions only. The installed observation, reservation,
+Retry, FIFO, release, retirement and reconciliation owners remain the reviewed
+6j/6k implementations. An optimization status may change while displayed
+bookings and modeled availability remain equal; that alone warrants no
+shared-person event. The new mounted controls compare borrowed A/B captures
+and inspect B's event range, sequencer and pushes. They do not treat an
+outcome's own `schedule_optimized` row as a downstream event.
+
+| Operation                                        | Installed/store witness and observed boundary                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Initial observation → reserve                    | `services.db.test.ts` `keeps installed initial observation and reservation status-only while both children are held`: PRI/TIME pending with two held coordinator launches, A/B display projections equal, B range/sequencer/push empty. Existing 6k.d selected H1 eviction and equal-hash cases are the changing/no-op controls.                                                                                                                                                                                        |
+| Capacity enqueue                                 | `keeps capacity enqueue status-only for the installed shared display`: four future counted seats, one actual PRI queue row and no launch, A/B projections equal, B range/sequencer/push empty. Store `optimization-queue.db.test.ts` retains coalescing and blocked-head order.                                                                                                                                                                                                                                         |
+| Accepted Retry                                   | `keeps accepted Retry status-only for the shared display while its child is held`: real failed A marker becomes accepted, A/B display equal, B range/sequencer/push empty. `captures all Retry victim organizations across the adjusted failure-marker cutoff` separately proves B/D victim causes, future E untouched and no invented requester event; accepted/queued recovery cases prove one audit and late-event rollback preserves independent admission.                                                         |
+| Refused Retry                                    | `refuses unauthorized and ineligible Retry before source capture` retains authority → hash → retryability → liveness order, zero capture/token/audit/launch and full-state equality; direct repository `checks Retry eligibility before creating a token` supplies the token-mint counter.                                                                                                                                                                                                                              |
+| Valid FIFO and invalid head                      | `keeps valid installed FIFO dequeue status-only while its child is held`: queue consumed, one seat reserved, A/B display equal, B range/sequencer/push empty. `consumes an invalid FIFO head without changing the installed shared display`: generation 99 consumed without slot, same display/event silence. Existing later-entry cutoff, capacity-blocked and closed-empty cases retain whole-loop and committed-victim effects; store `optimization-queue.db.test.ts` retains ordering and stale/closed consumption. |
+| Bind, heartbeat and ordinary exact-token release | Store `optimization-admission.db.test.ts` `binds exactly one launcher PID` and `heartbeats exactly its running attempt` pin token/process bookkeeping; mounted terminal-child test pins release caller binding. New mounted `keeps ordinary exact-slot release silent for the installed shared display` rejects stale token, releases exact open slot, retains A, compares A/B displays and finds no B range/sequencer/push. It does not claim a child outcome is status-only.                                          |
+| Begin-drain, waiting finish, selected retirement | Strengthened `retains the old shared bridge while an admitted child still holds the drain` compares A/B displays and B range/sequencer while begin returns one and finish waits. Existing populated deletion, selected-contract and equal-hash retirement cases prove B's addressed event; unranked, nonselected, legacy and isolated cases retain silence. Store `optimization-drain.db.test.ts` pins markers, counted seats, cutoffs and tokens.                                                                      |
+| Reconciliation                                   | Installed startup/periodic cases record populated final-drain events. `observes selected retirement before project deletion in separate startup sweeps` pins generation before project; `retains an earlier committed sweep when a later recipient event insert rolls back` pins per-target atomicity. Future-deadline, stale-recheck, held delivery, coalescing and stop cases retain their boundaries. Two distinct committed display transitions may yield two addressed events; status alone does not.              |
+
+K12's watched installed fault inserted a synthetic B `elsewhere_changed` row
+inside `createOptimizationObservationOwner` after the ordinary comparison
+returned no recipients. The actual initial-admission test failed at B's empty
+durable range, receiving seq 0 (`/tmp/shared-people-6ke-k12-forced-event-red.log`,
+0/1, 9 assertions). Restoring the source SHA-256
+`fe05845d1a072f553911a1bf582afb05197deba74ea1cad7cdd033e9e101e5bb`
+restored the same test (`/tmp/shared-people-6ke-k12-restored-green.log`,
+1/1, 12 assertions). An initial helper calibrated for another slice logged
+invalid child responses after the held phase; that fixture was discarded. An
+attempted post-release comparison of the entire observation was discarded:
+a modeled failed child legitimately changes A's optimization status and writes
+A's own event. The separate ordinary-release test isolates release before an
+outcome.
+
+K1/K2/K4–K8's installed owner/rollback witnesses remain in 6k.b's publication,
+H1, availability, second-insert and postcapture rows above (reviewed local
+`13f446cb`). K3's replacement/eviction, cache-dimension and split-commit
+matrix is in 6k.c (reviewed local `d5edbfd`). K9/K10/K13's actual-child
+reaction, tracked stop, original sequence and rejection/reporting faults are
+in the 6k.b child-path correction. K11's observation/serialization fault
+matrix is in 6k.d (reviewed local `b4ba7e9`). K12's new forced status-event
+RED/GREEN is above. These local reviews do not establish remote integration,
+host gate, CI, trusted activation or 6l replay closure. The 6k.e and parent
+6k task boxes remain unchecked pending final validation and independent review. Resolution:
+the [batch-10 Fable review](#6kbe-independent-review-fable-batch-10) is that independent
+review, and the boxes were checked on its basis.
+
+The seven focused mounted status/display controls passed 7/7, 64 assertions
+(`/tmp/shared-people-6ke-status-controls-green.log`). The final formatted-byte
+fourteen-file command was:
+
+```sh
+bun test apps/wbs/be-01/src/services.db.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts apps/wbs/be-01/src/module/optimization/module.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/service/optimization-events.db.test.ts apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-restart.db.test.ts libs/wbs/application/core/src/compose.test.ts libs/wbs/adapters/store-sqlite/src/optimization-generation.db.test.ts libs/wbs/adapters/store-sqlite/src/optimized-cache.db.test.ts libs/wbs/adapters/store-sqlite/src/optimization-admission.db.test.ts libs/wbs/adapters/store-sqlite/src/optimization-queue.db.test.ts libs/wbs/adapters/store-sqlite/src/optimization-drain.db.test.ts --timeout=30000
+```
+
+It passed 411/411, 20,553 assertions, exit 0
+(`/tmp/shared-people-6ke-fourteen-file-final.log`). The mounted services file
+alone passed 129/129, 905 assertions before the last ordinary-release
+addition; the fourteen-file command includes that final case. The real child
+process test was not rerun because this slice changes only mounted DB tests and
+the verification ledger; its reviewed 6k.d unsandboxed result remains
+historical evidence, not a claim for this candidate. Declared
+`wbs-be-01:lint`, `wbs-be-01:typecheck` with its module dependency, and
+`wbs-be-01:build` with its protocol dependency each printed explicit Nx
+success (`/tmp/shared-people-6ke-nx-{lint,typecheck,build}-final.log`); Nx
+also warned that its sandbox socket was unavailable, but executed the listed
+tasks. Pinned OpenSpec passed strict 1/1 and all 149/149
+(`/tmp/shared-people-6ke-openspec-{strict,all}.json`). Changed-path Prettier
+passed and `git diff --check` exited 0. No host gate, CI, push, merge or
+trusted activation ran for this local test/evidence candidate.
+
+## 6j and 6k reconciliation on current main (batch 10)
+
+Branch `batch-10/010-4-16-capacity-6k` starts at the reviewed `feat/shared-people-fanout-6ke`
+stack (`13f446cb3` 6k.b, `d5edbfd31` 6k.c, `b4ba7e9c7` 6k.d, `02bc6f8ac` 6k.e), merges
+`origin/main` at `a3b1526bd` without conflicts (merge `825a2a833`), then merges the docs-only
+`docs/shared-people-6i-closure` (`a78793f68`) as `c04d726c5`. The only conflict was this
+file's two appended sections; both were kept, the 6i checkpoint first. No production byte
+changed in either merge.
+
+Already on main and therefore not re-reviewed here: PRs #262, #264–#267, #269 (6.0, wire,
+chain/storage/runtime 6.1a–f), #275 (6g–6i, `d1d7399ee`), #282 (6j.a–f, `ae7c1ff11`) and
+#284 (6k.a, `7166e91f3`). The 6i boxes follow the merged closure evidence above. The 6j parent
+is checked because its six reviewed sub-slices are merged in #282 and their installed suites
+pass on this head. The 6k.b–e boxes and the 6k parent are checked because their reviewed
+commits are in this branch and their suites pass on the merged head; their K1–K13 fault logs
+remain the 6k.b–e sections above and were not re-injected.
+
+Commands on the merged head, each under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`:
+
+```sh
+NX_DAEMON=false bunx nx run-many -t test,lint:fast,typecheck -p wbs-be-01,tool-devsync --skip-nx-cache
+NX_DAEMON=false bunx nx run-many -t test -p wbs-conformance wbs-core wbs-store-sqlite wbs-store-memory wbs-domain wbs-contracts --skip-nx-cache --output-style=static
+bunx @fission-ai/openspec@1.12.0 validate --all --json
+```
+
+The first printed Nx success for all seven tasks (`wbs-be-01` test, lint:fast, typecheck and
+its module typecheck; `tool-devsync` test, lint:fast, typecheck). The second passed store-memory
+146/146, domain 872 pass, 1 pre-existing skip and 0 fail of 873, contracts 447/447, conformance 35/35, core 846/846
+and store-sqlite 1287/1287, exit 0. OpenSpec passed 158/158.
+
+The 6k.e fourteen-file command recorded above, rerun unchanged on the merged head, passed
+411/411 with 20,553 assertions, exit 0. This is local evidence only: no host gate or CI is
+claimed here, and 6l, 6.1/6.2, UI 7, mode route 8 and trusted activation stay open.
+
+### 6k.b–e independent review (Fable, batch 10)
+
+Fable reviewed PR #297 at `e8f86b94428fde61501f75ed1f031f7e38e76a02` and returned "MERGE
+AFTER FIXES". It found the production code sound, and this review is the independent review
+of 6k.b–e that the slice sections above left pending. Its findings:
+
+1. This ledger misstated the review state. This section, the amended headings and the 6k.e
+   resolution sentence fix that.
+2. A model-based test was required for the new owners. It is delivered on the stacked
+   `batch-10/010-4-16-capacity-6k-model`.
+3. Every shared-mode `readPlan` takes two whole-organization captures under the writer gate,
+   even on a cache hit (`optimization-observation.ts`). This is inert while `pre_activation`.
+   It is a WBS follow-up, not fixed here.
+4. Twelve checked boxes named RED tests that do not exist under those names. The mapping
+   below names each actual test.
+5. The five re-injected faults, each RED at its named test:
+
+| Re-injected fault                                 | Observed RED assertion                                |
+| ------------------------------------------------- | ----------------------------------------------------- |
+| F1 observation addressed cause omitted (eviction) | the B eviction row was absent                         |
+| F2 outcome delivery awaited before commit         | `stored outcome waited for recipient transport`       |
+| F2b observation delivery awaited before commit    | `observation decision waited for recipient transport` |
+| F3 observation borrowed-capture guard removed     | a `TypeError` instead of the modeled refusal message  |
+| F4 observation moved outside the source gate      | the staged generation 2 of a held writer was returned |
+
+Planned RED names mapped to the actual tests:
+
+| Box  | Planned name                                                  | Actual `it(...)`                                                                                         | File                                                                                 |
+| ---- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 6k   | `current selected outcome and fan-out commit together`        | `returns a committed selected outcome before held recipient delivery and replays its row after refusal`  | `apps/wbs/be-01/src/services.db.test.ts`                                             |
+| 6k   | `old H1 publication under H2 emits no fan-out`                | `stores an eligible H1 outcome silently while current shared input is H2`                                | `apps/wbs/be-01/src/services.db.test.ts`                                             |
+| 6k   | `nonselected outcome is silent`                               | `keeps a nonselected objective and repeated or stale outcomes silent for B`                              | `apps/wbs/be-01/src/services.db.test.ts`                                             |
+| 6k   | `availability changes despite equal input hash`               | `records empty-booking availability loss from an admitted selected outcome at unchanged canonical input` | `apps/wbs/be-01/src/services.db.test.ts`                                             |
+| 6k   | `event failure rolls back cache and fan-out`                  | `rolls back a selected outcome, all recipients and sequences when the second event insert fails`         | `apps/wbs/be-01/src/services.db.test.ts`                                             |
+| 6k   | `already-recorded outcome does not fan out twice`             | `keeps a nonselected objective and repeated or stale outcomes silent for B` (repeated arm)               | `apps/wbs/be-01/src/services.db.test.ts`                                             |
+| 6i.a | `standalone rename survives later link after-capture failure` | `retains the first rename when the second raw owner fails after capture`                                 | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+| 6i.b | `each raw mutation observes its own before state`             | `opens one owner for each successful raw mutation in compound person and team patches`                   | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+| 6i.b | `invalid standalone service input never captures`             | `returns invalid standalone service input before any owner or capture`                                   | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+| 6i.b | `standalone cascade rolls back a later real event insert`     | `rolls back a standalone cascade and first recipient when a later event insert fails`                    | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+| 6i.c | `standalone contexts cannot cross`                            | `keeps concurrent standalone directory invocation access bound to its own organization`                  | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+| 6i.c | `ordinary announcements retain one publisher`                 | `retains a team rename and one announcement when its second owner fails after capture`                   | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+| 6i.d | `borrowed directory emits once`                               | `records one final fan-out for a project-null directory batch with two used people`                      | `apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts` |
+
+`6i.b`'s planned names appear three times because that box names three REDs. The mapping
+was produced by reading the listed test titles; each file ran green in the merged-head be-01
+suite above.
