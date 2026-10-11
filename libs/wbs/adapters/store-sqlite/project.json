@@ -44,7 +44,7 @@
         "{workspaceRoot}/apps/wbs/be-01/src/shared-people-rollback-cli.ts"
       ],
       "options": {
-        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src -name '*.db.test.ts' ! -name 'source-conformance.db.test.ts' | tr '\\n' ' ') --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.api.xml --timeout=30000",
+        "command": "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-store-sqlite.api.xml && files=$(find src -name '*.db.test.ts' ! -name 'source-conformance.db.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: wbs-store-sqlite:test:api' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.api.xml --timeout=30000",
         "cwd": "libs/wbs/adapters/store-sqlite",
         "forwardAllArgs": false
       }
@@ -59,11 +59,22 @@
         "forwardAllArgs": false
       }
     },
+    "test:conformance:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^production", "{workspaceRoot}/apps/wbs/be-01/drizzle"],
+      "options": {
+        "command": "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-store-sqlite.conformance.xml && files=$(find src/testing -name 'source-conformance.db.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: wbs-store-sqlite:test:conformance:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.conformance.xml --timeout=30000",
+        "cwd": "libs/wbs/adapters/store-sqlite",
+        "env": { "CLAUDECODE": "0", "AGENT": "0" },
+        "forwardAllArgs": false
+      }
+    },
     "test:unit": {
       "executor": "nx:run-commands",
       "inputs": ["default", "^production", "{workspaceRoot}/apps/wbs/be-01/drizzle"],
       "options": {
-        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src -name '*.test.ts' ! -name '*.db.test.ts' | tr '\\n' ' ') --coverage --coverage-reporter=lcov --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.unit.xml --timeout=30000",
+        "command": "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-store-sqlite.unit.xml && files=$(find src -name '*.test.ts' ! -name '*.db.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: wbs-store-sqlite:test:unit' >&2; exit 1; fi && bun test $files --coverage --coverage-reporter=lcov --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.unit.xml --timeout=30000",
         "cwd": "libs/wbs/adapters/store-sqlite"
       },
       "outputs": ["{projectRoot}/coverage"]

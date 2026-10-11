@@ -100,6 +100,25 @@ describe('the browser gate’s port shift', () => {
     ]);
   });
 
+  it('writes a JUnit report for the ordinary Browser suite', async () => {
+    const previousCi = process.env['CI'];
+    try {
+      for (const ci of [false, true]) {
+        if (ci) process.env['CI'] = '1';
+        else delete process.env['CI'];
+        // Proof: removing the ordinary JUnit reporter from each branch separately made this
+        // case fail on the local and CI configurations, respectively (2026-10-09).
+        expect((await loadConfig()).reporter).toContainEqual([
+          'junit',
+          { outputFile: join(repoRoot, 'tmp', 'junit', 'wbs-fe-01.browser.ordinary.xml') },
+        ]);
+      }
+    } finally {
+      if (previousCi === undefined) delete process.env['CI'];
+      else process.env['CI'] = previousCi;
+    }
+  });
+
   it('starts every tier from its namespaced application root', async () => {
     const servers = serversOf(await loadConfig());
     // Proof: removing the `wbs` segment from the production server helper
@@ -136,6 +155,33 @@ describe('the browser gate’s port shift', () => {
     expect(frontend.env?.['VITE_BE_URL']).toBe('http://localhost:3600');
     expect(frontend.env?.['VITE_GW_URL']).toBe('http://localhost:3700');
     expect(frontend.env?.['VITE_WS_URL']).toBe('ws://localhost:3700/ws');
+  });
+
+  it('uses the ordinary server descriptors shared with the Performance runner', async () => {
+    const { ordinaryServerDescriptors } = await import('./playwright.ordinary-servers');
+    const config = await loadConfig('500');
+    const descriptors = ordinaryServerDescriptors(
+      repoRoot,
+      500,
+      true,
+      join(repoRoot, 'tmp', 'proof.db'),
+    );
+    const configured = serversOf(config);
+    expect(
+      configured.map(({ command, cwd, url, env }) => ({
+        command,
+        cwd,
+        url,
+        env: { ...env, DB_PATH: 'proof.db' },
+      })),
+    ).toEqual(
+      descriptors.map(({ command, cwd, url, env }) => ({
+        command,
+        cwd,
+        url,
+        env: { ...env, DB_PATH: 'proof.db' },
+      })),
+    );
   });
 
   it('points the browser at the frontend it actually started', async () => {
@@ -279,6 +325,21 @@ describe('the browser gate’s port shift', () => {
   });
 });
 
+describe('the Performance browser selection', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env['E2E_PORT_SHIFT'];
+  });
+
+  it('points its real fixture at the shifted ordinary frontend', async () => {
+    vi.resetModules();
+    process.env['E2E_PORT_SHIFT'] = '6000';
+    const { default: config } = await import('./playwright.performance.config');
+    expect(config.use?.baseURL).toBe('http://localhost:10200');
+    expect(config.use?.viewport).toEqual({ width: 1400, height: 900 });
+  });
+});
+
 describe('the chromium-regular project gate', () => {
   beforeEach(() => {
     vi.spyOn(process, 'cwd').mockReturnValue(repoRoot);
@@ -364,6 +425,12 @@ describe('the packaged browser gate', () => {
     // (`.../dist/apps/fe-01 holds no index.html`, 2026-09-14).
     expect(config.testDir).toBe(join(appRoot, 'e2e-packaged'));
     expect(config.outputDir).toBe(join(appRoot, 'test-results-packaged'));
+    // Proof: removing this reporter made the packaged config case fail with reporter [["list"]]
+    // instead of the expected JUnit path (2026-10-09).
+    expect(config.reporter).toContainEqual([
+      'junit',
+      { outputFile: join(root, 'tmp', 'junit', 'wbs-fe-01.browser.packaged.xml') },
+    ]);
     expect(servers).toHaveLength(1);
     expect(servers[0]?.command).toContain(`-v ${site}:/srv/www:ro`);
     expect(servers[0]?.command).toContain(

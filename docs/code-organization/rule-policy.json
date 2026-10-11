@@ -47,12 +47,32 @@
       "mode": "observe"
     },
     {
+      "ruleId": "PERF-THRESHOLD",
+      "mode": "observe"
+    },
+    {
       "ruleId": "REL-EXTRACT",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
       "mode": "observe"
     }
   ],
   "kindInventory": {
     "path": "docs/code-organization/kinds.json"
+  },
+  "performance": {
+    "acceptedDeclarationSchema": 1,
+    "declarationPath": "apps/wbs/fe-01/playwright.performance.cases.json",
+    "config": "apps/wbs/fe-01/playwright.performance.config.ts",
+    "configDigest": "718a6078b785047f0f315fbb247ff724b261bae9f8ccad0a5eda16eba0f15ae4",
+    "project": "chromium",
+    "runnerVersion": "1.63.0",
+    "reviewedCases": []
+  },
+  "scenarios": {
+    "baseRevision": "53a87a60dd7a7da80ad929c44f36a9739e75e5bf"
   },
   "classificationPolicy": {
     "schemaVersion": 1,

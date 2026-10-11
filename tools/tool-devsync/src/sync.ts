@@ -544,6 +544,10 @@ export const RESTART_PATHS: readonly string[] = [
   // Proof: omitting the failures manifest failed `names every library project.json that exists
   // on disk` with `Expected to contain: "libs/shared/domain/failures/project.json"` (2026-09-20).
   'libs/shared/domain/failures/project.json',
+  // Proof: the library-manifest coverage test failed on this exact missing path
+  // when the test-evidence project entered the candidate tree.
+  'libs/shared/domain/test-evidence/project.json',
+  'libs/shared/domain/test-levels/project.json',
   // Proof: CI run 36312821466 failed RESTART_PATHS coverage when the new portable
   // project manifests were omitted from the supervisor's startup fingerprint.
   'libs/shared/domain/portability-format/project.json',

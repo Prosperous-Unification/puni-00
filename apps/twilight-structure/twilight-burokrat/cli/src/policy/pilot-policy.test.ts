@@ -1077,6 +1077,36 @@ interface CreationBoundary {
  * `trusted-wiki` job.
  */
 describe('on-disk bootstrap policy, mapping and relationship files', () => {
+  test('shared test contract README checks have executable target facts', () => {
+    const declaration = JSON.parse(
+      readFileSync(join(repositoryRoot, 'docs/wiki-policy/relationships.json'), 'utf8'),
+    ) as { facts: { factId: string; kind: string; project: string; target: string }[] };
+    const actual: [string, string | undefined][] = [];
+    const expected: [string, string][] = [];
+    for (const [modulePath, project, prefix] of [
+      ['libs/shared/domain/test-evidence', 'shared-test-evidence', 'check.test-evidence'],
+      ['libs/shared/domain/test-levels', 'shared-test-levels', 'check.test-levels'],
+    ] as const) {
+      const source = readFileSync(join(repositoryRoot, modulePath, 'README.md'), 'utf8');
+      const metadata = /^<!-- module-index (\{.*\}) -->$/m.exec(source);
+      if (metadata === null) throw new Error(`module index metadata missing: ${modulePath}`);
+      const index = JSON.parse(metadata[1]) as { applicableChecks: string[] };
+      for (const target of ['test', 'lint', 'typecheck'] as const) {
+        const checkId = `${prefix}.${target}`;
+        const fact = declaration.facts.find(({ factId }) => factId === checkId);
+        actual.push([
+          checkId,
+          fact?.kind === 'nx-target' ? `${fact.project}:${fact.target}` : undefined,
+        ]);
+        expected.push([checkId, `${project}:${target}`]);
+        expect(index.applicableChecks).toContain(checkId);
+      }
+    }
+    // Proof: omitting one shared target fact from relationships.json fails this
+    // pilot oracle while the README still names the applicable check.
+    expect(actual).toEqual(expected);
+  });
+
   test('the bootstrap policy and mapping select the moved pilot boundaries at HEAD', () => {
     const bootstrapPolicy = JSON.parse(
       readFileSync(join(repositoryRoot, 'docs/wiki-policy/bootstrap-policy.json'), 'utf8'),

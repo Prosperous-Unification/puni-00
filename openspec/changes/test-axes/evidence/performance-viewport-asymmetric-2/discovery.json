@@ -1,0 +1,100 @@
+{
+  "config": {
+    "argv": [
+      "/home/df/.volta/tools/image/node/24.20.0/bin/node",
+      "/tmp/puni-test-axes-performance-21f/node_modules/playwright/cli.js",
+      "test",
+      "--config",
+      "apps/wbs/fe-01/playwright.performance.config.ts",
+      "--project",
+      "chromium",
+      "--list",
+      "--reporter=json"
+    ],
+    "configFile": "/tmp/puni-performance-NBKcok/candidate/apps/wbs/fe-01/playwright.performance.config.ts",
+    "rootDir": "/tmp/puni-performance-NBKcok/candidate/apps/wbs/fe-01/e2e-performance",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {},
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/tmp/puni-performance-NBKcok/candidate/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/tmp/puni-performance-NBKcok/candidate/apps/wbs/fe-01/e2e-performance",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.perf\\.spec\\.ts/"
+        ],
+        "timeout": 120000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.63.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "mounted-cells.perf.spec.ts",
+      "file": "mounted-cells.perf.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "[TEST-AXES-038] a 100-row folded plan stays within its mounted-cell budget",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "49a637554dca7c0542fe-fba09171946227c58cc4",
+          "file": "mounted-cells.perf.spec.ts",
+          "line": 5,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-09T17:31:59.676Z",
+    "duration": 2073.154,
+    "expected": 0,
+    "skipped": 1,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

@@ -35,6 +35,9 @@ function readBlob(repository: string, path: string, blob: string): Uint8Array {
   // Proof: reading `${repository}/${path}` instead made the immutable-candidate test parse the
   // dirty host README and refuse its version 99 metadata; the selected committed blob is stable.
   const invocation = Bun.spawnSync(['git', '-C', repository, 'cat-file', 'blob', blob], {
+    // Proof: removing this setting made inspect-manual's replacement-index CLI case refuse
+    // a forged index in place of the selected immutable blob (expected current).
+    env: { ...process.env, GIT_NO_REPLACE_OBJECTS: '1' },
     stderr: 'pipe',
     stdout: 'pipe',
   });

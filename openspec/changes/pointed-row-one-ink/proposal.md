@@ -33,7 +33,8 @@ the end of its bar, leaves every face dark.
   bar keeps its own hover — the surface it opens is a bar's, not a row's — and
   the row beneath it stays pointed while the pointer is anywhere on that line.
 - Nothing else about the light moves: still at most one row, still immediate on
-  both faces, still cleared by the pointer leaving, still scrolling nothing.
+  both faces and still scrolling nothing. Leaving all pointable rows clears the
+  pointer's contribution; a focused bar remains the fallback.
 
 ## Non-goals
 

@@ -626,7 +626,9 @@ test('every legacy source occurrence and relevant text family is pinned', async 
   // the classified occurrence count and categories remain unchanged (2026-09-19).
   expect(await legacySourceOccurrences()).toEqual({
     categories: {
-      'current recursive selector': 34,
+      // Proof: two shared lint facts added five legitimate recursive selectors
+      // each; the old 34/311 pin failed on the observed 44/321 corpus.
+      'current recursive selector': 44,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
       'historical policy selector or baseline': 89,
@@ -883,8 +885,10 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // occurrences 308 to 309, none unclassified (2026-09-27).
     // Integration round 5 carries both entries above: 308 + 2 + 1 = 311, categories unchanged; the
     // placeholder pin failed with this digest and 311 occurrences, none unclassified (2026-09-27).
-    digest: 'e02259ffac1411deca83387d2e47576378c0bc6a37aa191da40d725021af4851',
-    occurrences: 311,
+    // Proof: one injected legacy source occurrence changed this count/digest
+    // and failed the named corpus test; restoring it passed again.
+    digest: 'c35b2d7d8bbec7e6ea72fe432c94aa3a738a22124482219e0c2339b9b7d56daf',
+    occurrences: 321,
     unclassified: [],
   });
 });

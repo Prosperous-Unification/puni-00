@@ -1,3 +1,7 @@
+import { decodePerformanceCases } from '@shared/test-evidence';
+
+import { hashBytes } from '../evidence/content-manifest';
+import { evaluatePerformanceRun } from '../evidence/performance';
 import { classifyEntries } from '../inventory/classify-entries';
 import { readCandidateBlob } from '../inventory/read-blob';
 import {
@@ -153,6 +157,121 @@ const sizeRatchetRule: RegisteredRule = {
   },
 };
 
+const performanceRule: RegisteredRule = {
+  id: 'PERF-THRESHOLD',
+  family: 'test-evidence',
+  statement:
+    'Every declared Performance case has reviewed thresholds and current measured evidence.',
+  source: 'openspec/changes/test-axes/specs/test-axes/spec.md',
+  inputs: ['candidate.entries', 'policy.performance'],
+  evaluate: (context) => {
+    const authority = context.performance;
+    if (authority === undefined) {
+      return { kind: 'not-evaluated', reason: 'the rule policy carries no Performance authority' };
+    }
+    const declared = context.candidate.entries.find(
+      (entry) => entry.path === authority.declarationPath,
+    );
+    // Proof: the absent-declaration production CLI test expects an unevaluated rule even when
+    // the reviewed case set is empty; returning observed made that test exit 0.
+    if (declared === undefined) {
+      return { kind: 'not-evaluated', reason: 'the Performance declaration is absent' };
+    }
+    return evaluateWrapped(() => {
+      const bytes = readCandidateBlob(context.repository, declared.blob, declared.path);
+      const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      const input: unknown = JSON.parse(source);
+      const declaration = decodePerformanceCases(input);
+      // Proof: disabling this check made the changed candidate declaration test lose its
+      // named config/project refusal and fail on a later authority check instead.
+      if (declaration.config !== authority.config || declaration.project !== authority.project) {
+        throw new Error(
+          'Performance declaration config or project differs from reviewed authority',
+        );
+      }
+      const config = context.candidate.entries.find((entry) => entry.path === authority.config);
+      // Proof: disabling this guard made the removed-config production test fail with a
+      // TypeError instead of the named absent-config refusal.
+      if (config === undefined) throw new Error('Performance config is absent from candidate');
+      const configBytes = readCandidateBlob(context.repository, config.blob, config.path);
+      // Proof: disabling this check made the changed-config production test reach the later
+      // candidate-identity refusal instead of naming changed reviewed config content.
+      if (hashBytes(configBytes) !== authority.configDigest) {
+        throw new Error('Performance config content differs from reviewed authority');
+      }
+      if (declaration.cases.length === 0 && authority.reviewedCases.length === 0) {
+        // Proof: replacing this refusal with an empty observation list made the production
+        // no-cases test fail because check exited 0 with an apparently evaluated rule.
+        throw new Error('no-cases: Performance declaration has no reviewed cases');
+      }
+      const evidence = context.performanceEvidence;
+      // Proof: disabling this guard made the missing-evidence production test fail with a
+      // TypeError instead of the named missing-run refusal.
+      if (evidence === undefined)
+        throw new Error('Performance run evidence is not supplied to the rule context');
+      // Proof: disabling this check made the changed-candidate production test fail: its
+      // mismatched run evidence was accepted instead of leaving PERF-THRESHOLD unevaluated.
+      if (evidence.candidate !== context.candidateDigest)
+        throw new Error('Performance evidence candidate identity mismatch');
+      // Proof: disabling this check made the changed-policy production test fail: its
+      // mismatched run evidence was accepted instead of leaving PERF-THRESHOLD unevaluated.
+      if (evidence.policyDigest !== context.performancePolicyDigest)
+        throw new Error('Performance evidence policy identity mismatch');
+      const verdict = evaluatePerformanceRun(
+        input,
+        evidence.run,
+        {
+          policy: { performance: authority },
+          policyDigest: context.performancePolicyDigest,
+        },
+        evidence.selection,
+      );
+      // The candidate config bytes match the reviewed digest above, and the judge requires
+      // evidence.selection.configDigest to equal that same reviewed digest. A third comparison
+      // between evidence and candidate here was redundant and its removal did not break a test.
+      // Proof: disabling this check made the changed-declaration-digest production test fail;
+      // stale run evidence was accepted for the current candidate declaration.
+      if (evidence.declarationDigest !== verdict.declarationDigest) {
+        throw new Error('Performance evidence declaration identity mismatch');
+      }
+      // Proof: replacing this filter with an empty selection made the production threshold
+      // breach test lose its finding under enforce, observe and ratchet modes.
+      return verdict.cases
+        .filter((performanceCase) => !performanceCase.passed)
+        .map((performanceCase) => ({
+          // Proof: replacing the fixture with the declaration path made the ratchet
+          // adopted/outside production test fail and changed the finding subject.
+          path: performanceCase.fixture,
+          message: `Performance case ${performanceCase.caseId} did not meet its reviewed threshold`,
+        }));
+    });
+  },
+};
+
+const scenarioRule: RegisteredRule = {
+  id: 'SPEC-SCENARIOS',
+  family: 'specifications',
+  statement:
+    'Scenario identifiers retain an append-only reviewed lineage across the selected candidate and its pinned base.',
+  source: 'openspec/changes/test-axes/specs/test-axes/spec.md',
+  inputs: ['candidate.entries', 'policy.scenarios'],
+  evaluate: (context) => {
+    if (context.scenarios === undefined) {
+      return { kind: 'not-evaluated', reason: 'the rule policy carries no scenario authority' };
+    }
+    const outcome = context.scenariosReport();
+    return outcome.ok
+      ? {
+          kind: 'observed',
+          observations: outcome.report.unidentified.map(({ path, title }) => ({
+            path,
+            message: `scenario heading lacks identifier: ${title}`,
+          })),
+        }
+      : { kind: 'not-evaluated', reason: outcome.reason };
+  },
+};
+
 function graphRule(
   id: string,
   family: string,
@@ -281,6 +400,8 @@ const rules: readonly RegisteredRule[] = [
   relationshipsRule,
   sizeRatchetRule,
   plainTypeScriptRule,
+  performanceRule,
+  scenarioRule,
   ...kindDirectionRules,
 ];
 

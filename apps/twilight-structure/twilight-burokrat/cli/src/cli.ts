@@ -402,9 +402,83 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       writeExplainCommand(args);
     });
   }
-  if ((args.length === 5 || args.length === 7) && args[0] === 'check') {
+  if (args[0] === 'scenario') {
+    return import('./rules/scenario-command').then(({ writeScenarioCommand }) => {
+      writeScenarioCommand(args);
+    });
+  }
+  if ((args.length === 5 || args.length === 7 || args.length === 9) && args[0] === 'check') {
     return import('./rules/check').then(({ writeCheckCommand }) => {
       writeCheckCommand(args);
+    });
+  }
+  if (args.length === 4 && args[0] === 'candidate-identity') {
+    return import('./rules/check').then(({ writeCandidateIdentityCommand }) => {
+      writeCandidateIdentityCommand(args);
+    });
+  }
+  if (args[0] === 'inspect-manual') {
+    // Proof: disabling this arity refusal made the production CLI usage assertion fail.
+    if (args.length !== 5)
+      throw new Error(
+        'usage: twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path>',
+      );
+    return import('./evidence/manual').then(({ inspectManual }) => {
+      const capturedNow = new Date();
+      const observation = inspectManual(args[1], args[2], args[3], args[4], capturedNow);
+      process.stdout.write(`${JSON.stringify(observation)}\n`);
+      // Proof: disabling this exit mapping made stale, failed and overdue production CLI
+      // cases return exit 0 despite their structured nonpassing verdicts.
+      if (observation.state !== 'current') process.exitCode = 1;
+    });
+  }
+  if (args[0] === 'inspect-browser') {
+    if (args.length !== 5 || !['ordinary', 'packaged', 'portable'].includes(args[4] ?? ''))
+      throw new Error(
+        'usage: twilight-burokrat inspect-browser <repository> <committed-revision> <external-rule-policy> <ordinary|packaged|portable>',
+      );
+    return import('./evidence/browser').then(({ inspectBrowserBundle }) => {
+      const mode = args[4];
+      if (mode !== 'ordinary' && mode !== 'packaged' && mode !== 'portable')
+        throw new Error('Browser mode is malformed');
+      process.stdout.write(
+        `${JSON.stringify(inspectBrowserBundle(args[1], args[2], args[3], mode))}\n`,
+      );
+    });
+  }
+  if (args[0] === 'inspect-test-reports') {
+    // Proof: removing this arity refusal made the production extra-argument CLI call exit 0
+    // instead of refusing the named command usage.
+    if (args.length !== 5)
+      throw new Error(
+        'usage: twilight-burokrat inspect-test-reports <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable>',
+      );
+    const mode = args[4];
+    // Proof: removing this mode refusal made the production unsupported-mode CLI assertion fail
+    // with a later Browser policy diagnostic instead of the named command usage.
+    if (mode !== 'ordinary' && mode !== 'packaged' && mode !== 'portable')
+      throw new Error(
+        'usage: twilight-burokrat inspect-test-reports <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable>',
+      );
+    return import('./evidence/test-reports').then(({ inspectTestReports }) => {
+      process.stdout.write(
+        `${JSON.stringify(inspectTestReports(args[1], args[2], args[3], mode))}\n`,
+      );
+    });
+  }
+  if (args[0] === 'inspect-test-sources') {
+    const usage =
+      'usage: twilight-burokrat inspect-test-sources <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable>';
+    // Proof: removing this guard let the extra-operand production CLI call return success.
+    if (args.length !== 5) throw new Error(usage);
+    const mode = args[4];
+    // Proof: removing this guard changed the unsupported Performance CLI refusal into a later
+    // Browser policy error, failing the command's named usage assertion.
+    if (mode !== 'ordinary' && mode !== 'packaged' && mode !== 'portable') throw new Error(usage);
+    return import('./evidence/test-sources').then(({ inspectTestSources }) => {
+      process.stdout.write(
+        `${JSON.stringify(inspectTestSources(args[1], args[2], args[3], mode))}\n`,
+      );
     });
   }
   if ((args.length === 2 || args.length === 3 || args.length === 7) && args[0] === 'template') {
@@ -420,13 +494,15 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // Proof: replacing this refusal with a successful return made the external package test
   // accept `not-a-command` with exit 0 instead of rejecting the unknown command.
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|submit-admission|lint-local|lint-ci|check|explain|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-manual|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|submit-admission|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 
 function fail(cause: unknown): void {
   const message = cause instanceof Error ? cause.message : String(cause);
   process.stderr.write(`${message}\n`);
+  // Proof: changing this to exit zero made the inconsistent Manual report production CLI
+  // assertion accept a refused inspection despite its named stderr and empty stdout.
   process.exitCode = 1;
 }
 

@@ -69,7 +69,9 @@ function invokeGit(
   let invocation: ReturnType<typeof Bun.spawnSync>;
   try {
     invocation = Bun.spawnSync(['git', '-C', repository, ...argv], {
-      env: env === undefined ? process.env : { ...process.env, ...env },
+      // Proof: a replacement object for the pinned base changed the selected tree in the
+      // production scenario-rule negative; disabling this environment setting accepted it.
+      env: { ...process.env, ...env, GIT_NO_REPLACE_OBJECTS: '1' },
       stderr: 'pipe',
       stdout: 'pipe',
     });

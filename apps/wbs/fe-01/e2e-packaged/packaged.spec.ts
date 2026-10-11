@@ -16,7 +16,7 @@ import { expect, type Page, test } from '@playwright/test';
  * repository can see the fault.
  */
 
-/** A session that never reached be-01, and the two reads the page makes. */
+/** A session that never reached be-01, with the page's required API reads modeled. */
 async function signedIn(page: Page): Promise<void> {
   await page.route('**/api/auth/me', (route) =>
     route.fulfill({
@@ -25,6 +25,16 @@ async function signedIn(page: Page): Promise<void> {
       body: JSON.stringify({
         user: { id: 'u1', username: 'kat', scopes: ['read', 'write', 'editor'] },
       }),
+    }),
+  );
+  // Proof: with this route absent, the uncached packaged target's signed-in
+  // case failed on the People heading: Caddy served index.html as a 200 HTML
+  // response to /api/onboarding, and OnboardingScreen hid its children.
+  await page.route('**/api/onboarding', (route) =>
+    route.fulfill({
+      status: 403,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'onboarding_inactive' }),
     }),
   );
   await page.route('**/api/people', (route) =>
