@@ -13,6 +13,7 @@ import { type Factable, type Hintable } from '@/components/wbs/hint';
 import type { CellElement } from './editable-grid';
 import { LiveField, type SendEdit } from './live-editing';
 import { splitNameCell } from './name-notes';
+import { usePlanInteractionScope } from './plan-interaction-scope';
 
 type PassedThrough = Omit<
   ComponentProps<'input'>,
@@ -201,13 +202,14 @@ export function CellInput({
   renderFirstLine,
   ...rest
 }: CellInputProps) {
+  const interaction = usePlanInteractionScope();
   /**
-   * This face's field. Constructed once per mount, which is what re-derives
-   * everything but the held refusal from the server value — see
-   * {@link LiveField} for what a new face inherits and what it does not.
+   * This face's field, selected once per mount. The Plan interaction scope
+   * reuses a suspended identity's field across face remounts; otherwise a new
+   * {@link LiveField} derives its state from the server value and held refusal.
    */
   const held = useRef<LiveField>(undefined);
-  held.current ??= new LiveField(cellKey, value);
+  held.current ??= interaction?.fieldFor(cellKey, value) ?? new LiveField(cellKey, value);
   const field = held.current;
 
   /**
@@ -413,13 +415,20 @@ export function CellInput({
   }, [autoSize, restShowsFirstLineOnly, resize]);
 
   const takeNode = (node: CellElement | null): void => {
+    if (box.current !== null) interaction?.detach(box.current);
     box.current = node;
     field.takeNode(node);
+    if (node !== null) interaction?.attach(node, field);
     if (node !== null) onAttach?.(node);
   };
 
   /** One keystroke: the field's own bookkeeping, then the caller's. */
   const tookAKeystroke = (node: CellElement): void => {
+    // A cancelled selector pointer can leave this same box focused after its
+    // draft was suspended; no new focus event follows before typing resumes.
+    // Proof: omitting this resume made the mounted pointer-cancel test restore
+    // Draft one over Draft two on the next peer tree.
+    if (interaction?.isPlanActive()) interaction.resume(field);
     field.tookAKeystroke();
     onTyped?.(node);
   };
@@ -458,6 +467,7 @@ export function CellInput({
           resize(event.currentTarget);
         }}
         onFocus={(event) => {
+          interaction?.resume(field);
           // The cap comes off while the cell is being written in and goes back
           // on when it is left: `resize` reads `document.activeElement` for
           // which of the two this is.
@@ -469,6 +479,10 @@ export function CellInput({
           // goes out: the rendered box shows the edit at once rather than the
           // name the server still has.
           showsAtRest(event.currentTarget);
+          // Proof: removing this handoff (and the input face's below) made
+          // `suspends on keyboard focus of Board without activating it` send
+          // Keyboard draft on blur. Watched 2026-10-06.
+          interaction?.suspendBeforeLeave(field, event.relatedTarget);
           void field.leave();
         }}
       />
@@ -519,7 +533,12 @@ export function CellInput({
       {...rest}
       ref={takeNode}
       {...shared}
-      onBlur={() => {
+      onFocus={(event) => {
+        interaction?.resume(field);
+        rest.onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        interaction?.suspendBeforeLeave(field, event.relatedTarget);
         void field.leave();
       }}
     />

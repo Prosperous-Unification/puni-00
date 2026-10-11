@@ -1,5 +1,21 @@
 # Tool Wiki trusted activation
 
+## Temporary repository CI pause
+
+The repository's `trusted-wiki` pull-request job and Tool Wiki steps in `ci.yml` are
+temporarily skipped while no external activation archive is configured. The
+consumer workflow template remains active. The local launcher and pre-commit hook
+remain available:
+
+```sh
+bash bin/tool-wiki-lint.sh working . HEAD
+```
+
+Without `TOOL_WIKI_ACTIVATION_ROOT`, this command reports `status: inactive` and
+`certified: false`; that is not a Tool Wiki certification. To restore CI admission,
+provision the archive below, remove the temporary `if: false` conditions from the
+repository workflows, and rerun the affected PR checks.
+
 The bootstrap policy is `policy.tool-wiki-bootstrap.v1` in
 `docs/wiki-policy/bootstrap-policy.json`. It enforces only
 `boundary.infra.tool-wiki`; the six modules in the historical pilot remain named, non-selected

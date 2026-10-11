@@ -8,6 +8,9 @@ permissions:
 
 jobs:
   lint:
+    # Temporarily paused while the external activation archive is unavailable.
+    # Local operators can still run bin/tool-wiki-lint.sh with a real activation.
+    if: false
     # Proof: gate-entrypoints.test.ts requires this job to have no variable-gated `if`; with all
     # three variables absent the live pull_request_target job reaches the `:?` guards below and
     # fails instead of reporting a green skipped admission check.

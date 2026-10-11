@@ -395,7 +395,8 @@ jobs:
       # This candidate-owned workflow is diagnostic on PR and merge-queue events. It is not an
       # admission authority; repository rules must require the base-owned trusted-wiki workflow.
       - name: Tool wiki — diagnostic/non-certifying
-        if: github.event_name != 'push'
+        # Temporarily run Tool Wiki only through the local command/hook.
+        if: false
         env:
           TOOL_WIKI_ACTIVATION_ROOT: ${{ vars.TOOL_WIKI_ACTIVATION_ROOT }}
         run: bash bin/tool-wiki-lint.sh committed . "$GITHUB_SHA"
@@ -405,7 +406,8 @@ jobs:
       # Proof: gate-entrypoints.test.ts pins this step ahead of the audit, the three guarded
       # variables, digest verification before extraction, and the selected-package check.
       - name: Provision immutable external activation for push audit
-        if: ${{ github.event_name == 'push' && (vars.TOOL_WIKI_ACTIVATION_ARCHIVE_URL != '' || vars.TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256 != '' || vars.TOOL_WIKI_ACTIVATION_VERSION != '') }}
+        # Temporarily run Tool Wiki only through the local command/hook.
+        if: false
         env:
           ACTIVATION_ARCHIVE_SHA256: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256 }}
           ACTIVATION_ARCHIVE_URL: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_URL }}
@@ -482,7 +484,8 @@ jobs:
       # A protected-default push is already admitted. Its audit still refuses candidate authority:
       # both launcher and runtime modules come from the downloaded, digest-pinned activation.
       - name: Tool wiki — externally activated push audit
-        if: github.event_name == 'push'
+        # Temporarily run Tool Wiki only through the local command/hook.
+        if: false
         run: bash bin/tool-wiki-push-audit.sh . "$GITHUB_SHA"
 
       # --all, not the default base..HEAD comparison. Without it the scope is

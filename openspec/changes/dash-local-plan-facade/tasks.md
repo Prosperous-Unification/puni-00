@@ -6,7 +6,7 @@
 
 ## 2. Acceptance and follow-up boundary
 
-- [x] 2.1 Add CLI README usage and ownership links: plan creation alone authorizes no apply; existing fleet apply/runbook remains separate. Run `bunx nx run-many -t test lint typecheck build -p twilight-dash --skip-nx-cache`, relevant tool-fleet plan/CLI regressions, scoped Prettier and OpenSpec validation. Confirm the Nx project is discovered and its tests run; no vacuous target. Astra reviews exact wrapper scope, byte equivalence, runtime mutation canaries and R5 fault evidence. Record actual commands and proof table in verify.md after apply, without marking later authority relocation complete.
+- [x] 2.1 Add CLI README usage and ownership links: plan creation alone authorizes no apply; existing fleet apply/runbook remains separate. Run `bunx nx run-many -t test lint typecheck -p twilight-dash --skip-nx-cache`, relevant tool-fleet plan/CLI regressions, scoped Prettier and OpenSpec validation. Confirm the Nx project is discovered and its tests run; no vacuous target. The CLI intentionally has no build target: bundling changes the fleet planner’s import.meta.dir-based production root. Astra reviews exact wrapper scope, byte equivalence, runtime mutation canaries and R5 fault evidence. Record actual commands and proof table in verify.md after apply, without marking later authority relocation complete.
 - [ ] 2.2 Commit the reviewed implementation, run `bin/h2puni-gate.sh <exact-sha>` under the canonical heavy lock, and require exact-head CI before coordinator integration. No host operation, authority bootstrap or cutover is part of these checks.
 
 The first execution packet is 1.1–1.3 plus its acceptance, owned by Sol medium;

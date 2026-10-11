@@ -107,5 +107,16 @@
 
 ## 6. fe in progress now and Gantt
 
-- [ ] 6.1 Implement.
-- [ ] 6.2 Negative: null-dates filter removed → a bar for an undated row.
+- [x] 6.1 On `/spaces/$spaceId`: a read-only timeline, one bar per project over its roll-up's
+      dates and a blank saying why for every other project (no dates, loading, schedule
+      unavailable, figures not loaded), and "In progress now" (project, number, name, step, end,
+      lateness, people; the cut and the unavailable schedules said), read in the page's own
+      refresh so a poll, a focus and every write refresh it with the rows.
+- [x] 6.2 Negatives: the dated filter in `spaceGanttLanesOf` removed → the lanes crash with
+      `not an ISO date: undefined` instead of drawing blanks; the in-progress read made
+      mount-only → `refreshes in progress now after a remove` never sees the empty list.
+
+- [x] 6.3 Restore the approved narrow-screen Timeline layout: blank labels grow lanes in
+      normal flow; tracks shrink and long tokens wrap. Authenticated built-preview
+      browser regression checks text containment, lane separation and track overflow at 320 px.
+      Absolute labels, wrapping removal and minimum-width removal each fail the regression.

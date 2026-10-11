@@ -39,14 +39,16 @@ import {
   applicationServicesStateFor,
 } from '@/runtime/application-services-context';
 import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
+import { createProjectOwner } from '@/runtime/project-runtime';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { ProjectPageOverOwner } from '@/testing/project-page-over-owner';
+import { pageWiring, ProjectPageOverOwner } from '@/testing/project-page-over-owner';
 import { recordCalls } from '@/testing/record-calls';
 import { refusingApi } from '@/testing/refusing-api';
 import { planRead } from '@/testing/views';
 
-import { recallLastProject, rememberLastProject } from './project-page';
+import { forgetRefusedDrafts } from './live-editing';
+import { ProjectPage, recallLastProject, rememberLastProject } from './project-page';
 import { INFO_TOAST_MS } from './toasts';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -376,6 +378,28 @@ const fakeSavedPlanRoutes = (
 
 const pageWith = (api: ProjectApi, savedPlanRoutes: SavedPlanRoutes = fakeSavedPlanRoutes()) =>
   render(<ProjectPageOverOwner api={api} savedPlanRoutes={savedPlanRoutes} />);
+
+async function pageWithEditableBoardRow(streamDeps?: ProjectStreamDeps) {
+  const model = fakeProjectApi();
+  await model.createWorkItem('p2', { parentId: null, afterId: null, name: 'Build' });
+  const api = fakeProjects(TWO);
+  api.tree = (projectId) => model.tree(projectId);
+  api.steps = (projectId) => model.steps(projectId);
+  api.patchWorkItem = (workItemId, patch) => model.patchWorkItem(workItemId, patch);
+  api.setStatus = (workItemId, status, on, factStart) =>
+    model.setStatus(workItemId, status, on, factStart);
+  api.setEstimate = (workItemId, stepId, days) => model.setEstimate(workItemId, stepId, days);
+  const writes = recordCalls(api, 'patchWorkItem');
+  const undos = recordCalls(api, 'undo');
+  const redos = recordCalls(api, 'redo');
+  const statuses = recordCalls(api, 'setStatus');
+  const estimates = recordCalls(api, 'setEstimate');
+  const owner = createProjectOwner();
+  render(<ProjectPage {...pageWiring(owner, api, streamDeps, fakeSavedPlanRoutes())} />);
+  await selectProject('p2');
+  const field = await screen.findByLabelText<HTMLInputElement>('Name of 010');
+  return { field, writes, undos, redos, statuses, estimates, model, owner, api };
+}
 
 const picker = () => screen.getByLabelText<HTMLInputElement>('Project');
 
@@ -929,6 +953,553 @@ describe('opening an imported project', () => {
  * assertions, written by the change that moved them, per `F
  * shadcn-foundation`'s rule.
  */
+describe('the selected runtime Plan and Board views', () => {
+  beforeEach(() => {
+    forgetRefusedDrafts(() => true);
+  });
+  afterEach(() => {
+    forgetRefusedDrafts(() => true);
+  });
+  itDom(
+    'keeps one Plan table, runtime and project feed across repeated view switches',
+    async () => {
+      const sockets: SocketHandlers[] = [];
+      const streamDeps: ProjectStreamDeps = {
+        openSocket: (handlers) => {
+          sockets.push(handlers);
+          return { send: () => undefined, close: () => undefined };
+        },
+        schedule: () => 0,
+        cancel: () => undefined,
+        random: () => 0,
+      };
+      const { owner } = await pageWithEditableBoardRow(streamDeps);
+      const first = owner.snapshot();
+      if (first.status !== 'live') throw new Error('missing selected runtime');
+      const table = document.querySelector('table[data-grid]');
+      expect(table).not.toBeNull();
+      expect(sockets).toHaveLength(1);
+      const plan = screen.getByRole('button', { name: 'Plan' });
+      const board = screen.getByRole('button', { name: 'Board' });
+      expect(plan.getAttribute('aria-pressed')).toBe('true');
+      expect(board.getAttribute('aria-pressed')).toBe('false');
+      for (let turn = 0; turn < 3; turn += 1) {
+        fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+        expect(screen.getByRole('button', { name: 'Board' }).getAttribute('aria-pressed')).toBe(
+          'true',
+        );
+        expect(table?.closest('[hidden]')).not.toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+        expect(screen.getByRole('button', { name: 'Plan' }).getAttribute('aria-pressed')).toBe(
+          'true',
+        );
+        expect(document.querySelector('table[data-grid]')).toBe(table);
+      }
+      const last = owner.snapshot();
+      if (last.status !== 'live') throw new Error('selected runtime withdrew on a view switch');
+      expect(last.services).toBe(first.services);
+      expect(sockets).toHaveLength(1);
+    },
+  );
+
+  itDom('takes the desktop saved-plan shelf out of the header on Board', async () => {
+    await pageWithEditableBoardRow();
+    expect(await screen.findByText('Saved plans', { selector: 'summary' })).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+    expect(screen.queryByText('Saved plans', { selector: 'summary' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+    expect(await screen.findByText('Saved plans', { selector: 'summary' })).toBeDefined();
+  });
+
+  itDom('closes an open Plan keyboard dialog before Board is active', async () => {
+    await pageWithEditableBoardRow();
+    fireEvent.keyDown(window, { key: '?' });
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  itDom('closes the phone Plan actions portal while Board is active', async () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true });
+    try {
+      await pageWithEditableBoardRow();
+      fireEvent.click(screen.getByRole('button', { name: 'Plan actions' }));
+      expect(document.querySelector('[data-modal-surface]')).not.toBeNull();
+      const selectors = document.querySelectorAll<HTMLButtonElement>(
+        '[data-project-view-selector]',
+      );
+      expect(selectors).toHaveLength(2);
+      const plan = selectors.item(0);
+      const board = selectors.item(1);
+      // Radix marks the page aria-hidden while its modal is open. This forces
+      // the page-level switch boundary that a runtime/view transition can take.
+      fireEvent.click(board);
+      expect(document.querySelector('[data-modal-surface]')).toBeNull();
+      fireEvent.click(plan);
+      expect(document.querySelector('[data-modal-surface]')).toBeNull();
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { value: originalWidth, configurable: true });
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+    }
+  });
+
+  itDom('keeps the hidden Plan window shortcuts inactive on Board', async () => {
+    const { writes, undos, redos } = await pageWithEditableBoardRow();
+    fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true, shiftKey: true });
+    fireEvent.keyDown(window, { key: '?' });
+    expect(undos).toEqual([]);
+    expect(redos).toEqual([]);
+    expect(writes).toEqual([]);
+    expect(screen.queryByRole('dialog', { name: /keyboard/i })).toBeNull();
+  });
+
+  itDom('sends no Plan commands from Board pointer, keyboard, drag or view changes', async () => {
+    const { writes, undos, redos, statuses, estimates } = await pageWithEditableBoardRow();
+    const boardButton = screen.getByRole('button', { name: 'Board' });
+    fireEvent.pointerDown(boardButton);
+    fireEvent.click(boardButton);
+    const board = screen.getByRole('region', { name: 'Step board' });
+    fireEvent.pointerDown(board);
+    fireEvent.click(board);
+    fireEvent.keyDown(board, { key: 'Enter' });
+    fireEvent.dragStart(board);
+    fireEvent.drop(board);
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true, shiftKey: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+    expect({ writes, undos, redos, statuses, estimates }).toEqual({
+      writes: [],
+      undos: [],
+      redos: [],
+      statuses: [],
+      estimates: [],
+    });
+  });
+
+  itDom(
+    'suspends a dirty Name before pointer focus reaches Board, without submitting',
+    async () => {
+      const { field, writes } = await pageWithEditableBoardRow();
+      act(() => {
+        field.focus();
+      });
+      expect(document.activeElement).toBe(field);
+      fireEvent.change(field, { target: { value: 'Draft build' } });
+
+      const board = screen.getByRole('button', { name: 'Board' });
+      fireEvent.pointerDown(board);
+      act(() => {
+        board.focus();
+      });
+      expect(document.activeElement).toBe(board);
+      expect(writes).toEqual([]);
+      expect(field).toHaveProperty('value', 'Draft build');
+
+      fireEvent.click(board);
+      expect(screen.getByRole('button', { name: 'Board' }).getAttribute('aria-pressed')).toBe(
+        'true',
+      );
+      expect(writes).toEqual([]);
+    },
+  );
+
+  itDom('keeps typing after a cancelled Board pointer and commits the newest draft', async () => {
+    const { field, writes, model, owner } = await pageWithEditableBoardRow();
+    act(() => {
+      field.focus();
+    });
+    fireEvent.change(field, { target: { value: 'Draft one' } });
+    const board = screen.getByRole('button', { name: 'Board' });
+    fireEvent.pointerDown(board);
+    fireEvent.pointerCancel(board);
+    expect(document.activeElement).toBe(field);
+    fireEvent.change(field, { target: { value: 'Draft two' } });
+
+    model.rows[0].name = 'Peer change';
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error('missing selected runtime');
+    await act(async () => {
+      await opened.services.reread(['tree']);
+    });
+    expect(field.value).toBe('Draft two');
+    expect(writes).toEqual([]);
+    act(() => {
+      field.blur();
+    });
+    expect(writes).toEqual([['w1', { name: 'Draft two' }]]);
+  });
+
+  itDom('suspends on keyboard focus of Board without activating it', async () => {
+    const { field, writes } = await pageWithEditableBoardRow();
+    act(() => {
+      field.focus();
+    });
+    fireEvent.change(field, { target: { value: 'Keyboard draft' } });
+
+    const board = screen.getByRole('button', { name: 'Board' });
+    const blurTargets: EventTarget[] = [];
+    field.addEventListener('blur', (event) => {
+      if (event.relatedTarget !== null) blurTargets.push(event.relatedTarget);
+    });
+    act(() => {
+      board.focus();
+    });
+    expect(document.activeElement).toBe(board);
+    expect(blurTargets).toEqual([board]);
+    expect(board.getAttribute('aria-pressed')).toBe('false');
+    expect(writes).toEqual([]);
+    expect(field).toHaveProperty('value', 'Keyboard draft');
+  });
+
+  itDom(
+    'keeps an unfocused draft through Board and later peer trees until deliberate leave',
+    async () => {
+      const { field, writes, model, owner } = await pageWithEditableBoardRow();
+      act(() => {
+        field.focus();
+      });
+      fireEvent.change(field, { target: { value: 'Draft build' } });
+      const board = screen.getByRole('button', { name: 'Board' });
+      fireEvent.pointerDown(board);
+      act(() => {
+        board.focus();
+      });
+      fireEvent.click(board);
+      expect(writes).toEqual([]);
+
+      const row = model.rows[0];
+      row.name = 'Peer one';
+      const opened = owner.snapshot();
+      if (opened.status !== 'live') throw new Error('missing selected runtime');
+      await act(async () => {
+        await opened.services.reread(['tree']);
+      });
+      expect(field).toHaveProperty('value', 'Draft build');
+      expect(
+        within(screen.getByRole('region', { name: 'Step board' })).getAllByText('Peer one').length,
+      ).toBeGreaterThan(0);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+      expect(field).toHaveProperty('value', 'Draft build');
+      row.name = 'Peer two';
+      await act(async () => {
+        await opened.services.reread(['tree']);
+      });
+      expect(field).toHaveProperty('value', 'Draft build');
+      expect(writes).toEqual([]);
+
+      act(() => {
+        field.focus();
+      });
+      act(() => {
+        field.blur();
+      });
+      expect(writes).toEqual([['w1', { name: 'Draft build' }]]);
+    },
+  );
+
+  itDom('restores a suspended draft after a new step rebuilds the field face', async () => {
+    const { field, writes, model, owner } = await pageWithEditableBoardRow();
+    act(() => {
+      field.focus();
+    });
+    fireEvent.change(field, { target: { value: 'Draft through step change' } });
+    const board = screen.getByRole('button', { name: 'Board' });
+    fireEvent.pointerDown(board);
+    act(() => {
+      board.focus();
+    });
+    fireEvent.click(board);
+
+    await model.addStep('p2', 'Review');
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error('missing selected runtime');
+    await act(async () => {
+      await opened.services.reread(['tree', 'steps']);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+    const remounted = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    expect(remounted).not.toBe(field);
+    expect(remounted.value).toBe('Draft through step change');
+    expect(writes).toEqual([]);
+  });
+
+  itDom('restores a suspended draft across the responsive Plan renderer', async () => {
+    const { field, writes } = await pageWithEditableBoardRow();
+    const originalWidth = window.innerWidth;
+    act(() => {
+      field.focus();
+    });
+    fireEvent.change(field, { target: { value: 'Draft through rotation' } });
+    const board = screen.getByRole('button', { name: 'Board' });
+    fireEvent.pointerDown(board);
+    act(() => {
+      board.focus();
+    });
+    fireEvent.click(board);
+    try {
+      Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true });
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+      const remounted = screen.getByLabelText<HTMLInputElement>('Name of 010');
+      expect(remounted).not.toBe(field);
+      expect(remounted.value).toBe('Draft through rotation');
+      expect(writes).toEqual([]);
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { value: originalWidth, configurable: true });
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+    }
+  });
+
+  itDom('preserves notes with the name and suspends a separate priority edit', async () => {
+    const { field, writes } = await pageWithEditableBoardRow();
+    act(() => {
+      field.focus();
+    });
+    fireEvent.change(field, { target: { value: 'Build\nDraft note' } });
+    const board = screen.getByRole('button', { name: 'Board' });
+    fireEvent.pointerDown(board);
+    act(() => {
+      board.focus();
+    });
+    fireEvent.click(board);
+    fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+    expect(field.value).toBe('Build\nDraft note');
+    expect(writes).toEqual([]);
+    act(() => {
+      field.focus();
+    });
+    act(() => {
+      field.blur();
+    });
+    expect(writes).toEqual([['w1', { notes: 'Draft note' }]]);
+
+    const priority = screen.getByLabelText<HTMLInputElement>('Priority for 010');
+    act(() => {
+      priority.focus();
+    });
+    fireEvent.change(priority, { target: { value: '3' } });
+    fireEvent.pointerDown(board);
+    act(() => {
+      board.focus();
+    });
+    fireEvent.click(board);
+    expect(priority.value).toBe('3');
+    expect(writes).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+    act(() => {
+      priority.focus();
+    });
+    act(() => {
+      priority.blur();
+    });
+    expect(writes).toHaveLength(2);
+  });
+
+  itDom('discards a suspended draft when its selected runtime is withdrawn', async () => {
+    const { field, writes } = await pageWithEditableBoardRow();
+    act(() => {
+      field.focus();
+    });
+    fireEvent.change(field, { target: { value: 'Only p2 draft' } });
+    const board = screen.getByRole('button', { name: 'Board' });
+    fireEvent.pointerDown(board);
+    act(() => {
+      board.focus();
+    });
+    fireEvent.click(board);
+
+    await selectProject('p1');
+    const firstPlan = await screen.findByRole('button', { name: 'Plan' });
+    expect(firstPlan.getAttribute('aria-pressed')).toBe('true');
+    await selectProject('p2');
+    const nextField = await screen.findByLabelText<HTMLInputElement>('Name of 010');
+    expect(nextField).not.toBe(field);
+    expect(nextField.value).toBe('Build');
+    expect(writes).toEqual([]);
+  });
+
+  itDom('prunes a held field when its row is deleted from the delivered tree', async () => {
+    const { field, writes, model, owner } = await pageWithEditableBoardRow();
+    const original = model.rows[0];
+    const restored = { ...original, name: 'Restored server' };
+    act(() => {
+      field.focus();
+    });
+    fireEvent.change(field, { target: { value: 'Deleted draft' } });
+    const board = screen.getByRole('button', { name: 'Board' });
+    fireEvent.pointerDown(board);
+    act(() => {
+      board.focus();
+    });
+    fireEvent.click(board);
+
+    await model.removeWorkItem('w1');
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error('missing selected runtime');
+    await act(async () => {
+      await opened.services.reread(['tree']);
+    });
+    // Model an undo restoring this identity after the authoritative deletion.
+    model.rows.push(restored);
+    await act(async () => {
+      await opened.services.reread(['tree']);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+    expect(screen.queryByDisplayValue('Deleted draft')).toBeNull();
+    expect(screen.getByLabelText<HTMLInputElement>('Name of 010').value).toBe('Restored server');
+    expect(writes).toEqual([]);
+  });
+
+  itDom('drops a held estimate when its step disappears from the delivered tree', async () => {
+    const { model, owner, writes, estimates } = await pageWithEditableBoardRow();
+    const estimate = screen.getByLabelText<HTMLInputElement>('Dev estimate for 010');
+    act(() => {
+      estimate.focus();
+    });
+    fireEvent.change(estimate, { target: { value: '9' } });
+    const board = screen.getByRole('button', { name: 'Board' });
+    fireEvent.pointerDown(board);
+    act(() => {
+      board.focus();
+    });
+    fireEvent.click(board);
+    await model.removeStep('p2', 'step-dev', true);
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error('missing selected runtime');
+    await act(async () => {
+      await opened.services.reread(['tree', 'steps']);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+    expect(screen.queryByLabelText('Dev estimate for 010')).toBeNull();
+    expect(writes).toEqual([]);
+    expect(estimates).toEqual([]);
+  });
+
+  itDom('keeps an issued edit in flight across Board and shows its acknowledged tree', async () => {
+    const { field, writes, api, owner } = await pageWithEditableBoardRow();
+    const perform = api.patchWorkItem.bind(api);
+    const asked: Parameters<ProjectApi['patchWorkItem']>[] = [];
+    const held: { answer?: () => Promise<void> } = {};
+    api.patchWorkItem = (...args) =>
+      new Promise<void>((resolve, reject) => {
+        asked.push(args);
+        held.answer = () => perform(...args).then(resolve, reject);
+      });
+    act(() => {
+      field.focus();
+    });
+    fireEvent.change(field, { target: { value: 'Issued before Board' } });
+    act(() => {
+      field.blur();
+    });
+    expect(asked).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+    const settle = held.answer;
+    if (settle === undefined) throw new Error('no edit was issued');
+    await act(async () => {
+      await settle();
+    });
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error('missing selected runtime');
+    await act(async () => {
+      await opened.services.reread(['tree']);
+    });
+    expect(
+      within(screen.getByRole('region', { name: 'Step board' })).getAllByText('Issued before Board')
+        .length,
+    ).toBeGreaterThan(0);
+    expect(writes).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+    expect(field.value).toBe('Issued before Board');
+    expect(asked).toHaveLength(1);
+  });
+
+  itDom('keeps an issued refusal as the existing held draft after Board', async () => {
+    const { field, api } = await pageWithEditableBoardRow();
+    const asked: Parameters<ProjectApi['patchWorkItem']>[] = [];
+    const held: { refuse?: (error: Error) => void } = {};
+    api.patchWorkItem = (...args) =>
+      new Promise<void>((_resolve, reject) => {
+        asked.push(args);
+        held.refuse = reject;
+      });
+    act(() => {
+      field.focus();
+    });
+    fireEvent.change(field, { target: { value: 'Refused before Board' } });
+    act(() => {
+      field.blur();
+    });
+    expect(asked).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+    const rejectEdit = held.refuse;
+    if (rejectEdit === undefined) throw new Error('no edit was issued');
+    await act(async () => {
+      rejectEdit(new Error('forbidden'));
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+    expect(field.value).toBe('Refused before Board');
+    expect(asked).toHaveLength(1);
+  });
+
+  itDom('never draws an old project tree on the next project Board', async () => {
+    const oldPlan = fakeProjectApi();
+    const newPlan = fakeProjectApi();
+    await oldPlan.createWorkItem('p1', { parentId: null, afterId: null, name: 'Old only' });
+    await newPlan.createWorkItem('p2', { parentId: null, afterId: null, name: 'New only' });
+    const api = fakeProjects(TWO);
+    let oldReads = 0;
+    const held: { answerOld?: (tree: Awaited<ReturnType<ProjectApi['tree']>>) => void } = {};
+    api.tree = (projectId) => {
+      if (projectId === 'p2') return newPlan.tree(projectId);
+      oldReads += 1;
+      if (oldReads === 1) return oldPlan.tree(projectId);
+      return new Promise((answer) => {
+        held.answerOld = answer;
+      });
+    };
+    api.steps = (projectId) =>
+      projectId === 'p2' ? newPlan.steps(projectId) : oldPlan.steps(projectId);
+    const owner = createProjectOwner();
+    render(<ProjectPage {...pageWiring(owner, api, undefined, fakeSavedPlanRoutes())} />);
+    await selectProject('p1');
+    expect(await screen.findByLabelText('Name of 010')).toHaveProperty('value', 'Old only');
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error('missing first runtime');
+    const pending = opened.services.reread(['tree']);
+    await waitFor(() => {
+      expect(held.answerOld).toBeDefined();
+    });
+
+    await selectProject('p2');
+    await screen.findByLabelText('Name of 010');
+    fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+    const board = screen.getByRole('region', { name: 'Step board' });
+    expect(within(board).queryAllByText('New only').length).toBeGreaterThan(0);
+    const release = held.answerOld;
+    if (release === undefined) throw new Error('old read was not held');
+    await act(async () => {
+      release(await oldPlan.tree('p1'));
+      await pending;
+    });
+    expect(within(board).queryByText('Old only')).toBeNull();
+    expect(within(board).queryAllByText('New only').length).toBeGreaterThan(0);
+  });
+});
+
 describe('the header bar', () => {
   itDom('puts the project controls in a banner', async () => {
     pageWith(fakeProjects(TWO));
