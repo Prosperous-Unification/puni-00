@@ -3,6 +3,7 @@
 export type * from './assignment';
 export * from './assumed-assignee';
 export * from './assumed-duration';
+export * from './attempt';
 // One press of `Arrange by schedule`: every sibling group put in the order its
 // bars start. Here because it is a question about a plan's shape answered from
 // a `Schedule` this package already produces, and because be-01 and any later

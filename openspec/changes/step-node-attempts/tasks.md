@@ -2,22 +2,22 @@
 
 - [x] 0.1 Intent, delta specs, design and ADR 0045; OpenSpec validation green (020.11,
       2026-10-11). Glossary entries are task 0.2. Depends on nothing in flight.
-- [ ] 0.2 Apply glossary entries (Progress, Hours fact, Fact start, Fact end rewritten; Attempt,
+- [x] 0.2 Apply glossary entries (Progress, Hours fact, Fact start, Fact end rewritten; Attempt,
       Attempt outcome, Project timezone) to `CONTEXT.md` verbatim from
       `puni-plan/batch-10/interviews/glossary-delta.md`, in the first green commit of slice 1.
 
 ## 1. Vocabulary, spans and the zoned day in `@wbs/domain`
 
-- [ ] 1.1 Red: `stored-vocabularies.test.ts` "admits exactly the three attempt outcomes";
+- [x] 1.1 Red: `stored-vocabularies.test.ts` "admits exactly the three attempt outcomes";
       `attempt.test.ts` "spanOfAttempts is first start to last end, open while one runs, absent
       with none", "a running attempt has no outcome and no end"; `workday.test.ts`
       "isoDateOfInstantIn('UTC') equals isoDateOfInstant for every corpus stamp",
       "isoDateOfInstantIn('Europe/Kyiv', 2026-10-11T23:30Z) is 2026-10-12", "refuses a
       non-finite instant", "isTimezone admits UTC and Europe/Kyiv and refuses Kyiv". Files:
       `libs/wbs/domain/domain/src/{stored-vocabularies,attempt,workday}.ts`.
-- [ ] 1.2 Green: `ATTEMPT_OUTCOMES`, `isAttemptOutcome`, `Attempt`, `spanOfAttempts`,
+- [x] 1.2 Green: `ATTEMPT_OUTCOMES`, `isAttemptOutcome`, `Attempt`, `spanOfAttempts`,
       `isoDateOfInstantIn`, `isTimezone` (over `Intl.supportedValuesOf('timeZone')` plus `UTC`).
-- [ ] 1.3 Negatives: the open-span branch returning the last end → "open while one runs";
+- [x] 1.3 Negatives: the open-span branch returning the last end → "open while one runs";
       `isTimezone` reduced to `typeof === 'string'` → "refuses Kyiv"; `timeZone` dropped from the
       formatter → the Kyiv day case reads `2026-10-11`.
 

@@ -549,14 +549,35 @@ work is finished — completion is the step's **progress**, recorded separately.
 _Avoid_: actual tokens, token spend, usage
 
 **Hours fact**:
-The hours a step's work on one work item actually took. Recorded, never derived: no
-conversion from tokens or from days exists, because neither is one.
-_Avoid_: actual hours, time spent, effort
+The hours a person's work on one step node actually took. Recorded, never derived: no
+conversion from tokens or from days exists. An agent's time is not typed here; it is the
+span of its **attempts**.
+_Avoid_: actual hours, time spent, effort, agent hours
 
 **Progress**:
-What one step has said about its own work on one work item — `in_progress` or `done` — with
-the moment it was said. Unknown is the absence of a statement, never a stored value.
-_Avoid_: step status, completion, state
+What one step node has said about its own work — `in_progress` or `done` — with the
+moment it was said. Unknown is the absence of a statement, never a stored value. An
+**attempt** is not a statement.
+_Avoid_: step status, completion, state, node reading (which is derived)
+
+**Attempt**:
+One run at a step node's work: a start instant, an end instant once it ended, an
+**attempt outcome**, the directory person or agent that ran it and one reference to its
+evidence. A review round is an attempt of the review node; a retried agent run is an
+attempt of its node. Attempts are history and are never pruned; one is running per node at
+most. Not to be confused with **Attempt token**, the solver slot's fence.
+_Avoid_: run, try, execution, round (as a stored thing), retry
+
+**Attempt outcome**:
+How an attempt ended — `succeeded`, `failed` or `cancelled`; absent while it runs. Says
+nothing about the node's progress, which is said separately.
+_Avoid_: result, status (which is the node's), verdict
+
+**Project timezone**:
+The IANA zone a project's instants are read as days in — attempts, fact fills and the
+working window. One per project, `UTC` unless the project says otherwise, never the
+viewer's.
+_Avoid_: viewer's zone, browser zone, local time
 
 **Status**:
 What a work item reads as — unknown, draft, ready, in progress, blocked by proxy, on hold,
@@ -587,14 +608,16 @@ by proxy. Derived from the full dependency graph, never said by anyone and never
 _Avoid_: transitively blocked, waiting, indirectly blocked
 
 **Fact start**:
-The day work on a work item actually began, date-only, typed by the planner. A record of the
-world beside the schedule's forecast, read by no engine; absent means nobody has said.
+The day work on a work item actually began, date-only in the project timezone, typed by the
+planner or filled from the first attempt's start day when a leaf with attempts is started or
+finished holding none. Read by no engine; absent means nobody has said.
 _Avoid_: actual start, real start, started at, start date
 
 **Fact end**:
-The day work on a work item actually finished, date-only. Filled with the day of the act when a
-work item is marked done holding none; otherwise typed. Where a done work item's bar stops,
-whatever the estimate says.
+The day work on a work item actually finished, date-only in the project timezone. Filled
+when a work item is marked done holding none: from the last attempt's end day when one
+exists, else the day of the act. Where a done work item's bar stops, whatever the estimate
+says.
 _Avoid_: actual end, finished at, completion date, done at
 
 **Status strip**:
