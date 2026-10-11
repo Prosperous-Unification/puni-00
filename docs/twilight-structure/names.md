@@ -77,11 +77,12 @@ Twilight Burokrat takes the instant it evaluates from its caller: `inspect-manua
 `--now`, and Twilight Dash supplies it. The clock reads still in the package measure events that
 the process itself performs, which is Twilight Dash's work, and they move with it:
 
-| Site                                          | What it measures                                      | Moves with         |
-| --------------------------------------------- | ----------------------------------------------------- | ------------------ |
-| `review/invoker.ts`                           | review harness journal timestamps and its lock's wait | the review invoker |
-| `policy/prepare-activation-cli.ts`            | start and end of each candidate check it runs         | the check runner   |
-| `policy/prepare-relocation-activation-cli.ts` | start and end of each candidate check it runs         | the check runner   |
+| Site                                          | What it measures                                                                                                    | Moves with                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `review/invoker.ts`                           | review harness journal timestamps and its lock's wait                                                               | the review invoker                                |
+| `policy/prepare-activation-cli.ts`            | start and end of each candidate check it runs                                                                       | the check runner                                  |
+| `policy/prepare-relocation-activation-cli.ts` | start and end of each candidate check it runs                                                                       | the check runner                                  |
+| `activation-controller/*` (ten files)         | deadline and cancellation bounds while it polls GitHub and retrieves reviews; the composition root's injected clock | the activation controller and observation service |
 
 `no-ambient-clock.test.ts` in the Burokrat package fails on a reference to the JavaScript or Bun
 clock APIs outside these files, or on more references in them than they hold today. Its JSDoc

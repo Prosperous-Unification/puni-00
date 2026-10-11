@@ -35,6 +35,20 @@ const dashOwnedClockReads: readonly { readonly paths: readonly string[]; readonl
     // Candidate check runs: each check's measured start and end.
     { paths: ['policy/prepare-activation-cli.ts'], most: 2 },
     { paths: ['policy/prepare-relocation-activation-cli.ts'], most: 2 },
+    // The activation controller (WBS 030.6, PR #328): deadline and cancellation bounds measured
+    // with `performance.now()` while it polls GitHub and runs review retrieval, plus the
+    // composition root's injected clock. None is stored or hashed; the controller is the
+    // dynamic half of activation and relocates to Twilight Dash with the observation service.
+    { paths: ['activation-controller/controller.ts'], most: 1 },
+    { paths: ['activation-controller/github-source.ts'], most: 3 },
+    { paths: ['activation-controller/observation-close-process.ts'], most: 2 },
+    { paths: ['activation-controller/observation-service-cli.ts'], most: 1 },
+    { paths: ['activation-controller/observation-service.fs-fixture.ts'], most: 1 },
+    { paths: ['activation-controller/observation-tick.ts'], most: 5 },
+    { paths: ['activation-controller/review-attestation.ts'], most: 8 },
+    { paths: ['activation-controller/review-retrieval.ts'], most: 8 },
+    { paths: ['activation-controller/review-selection-objects.ts'], most: 6 },
+    { paths: ['activation-controller/review-selection-preparation.ts'], most: 3 },
   ];
 
 const sourceRoot = import.meta.dir;
