@@ -243,14 +243,15 @@ or puts them back together.
 - **THEN** every fact start and fact end in scope is `null` after the act and back after the
   undo, from one journal entry
 
-### Requirement: The table shows Status, Fact start and Fact end, and strikes a done row
+### Requirement: The table shows Status, Fact start and Fact end, and marks a done row
 
 The table SHALL offer three columns — `Status`, `Fact start`, `Fact end` — hidden by default
 and offered in the Columns control in table order after `Deadline`. The Status cell SHALL show
 the row's status in words and offer `Unknown` and `Done` to choose, on a parent as on a leaf;
 `In progress` SHALL be shown but not offered. The two fact cells SHALL be date cells with the
-deadline cell's rest and edit states. A row whose status is `done` SHALL carry `data-row-done`
-and its name SHALL read struck through, on every stripe and under every row light.
+deadline cell's rest and edit states. A row whose status is `done` SHALL carry `data-row-done`,
+and its number SHALL read struck through. DONE status SHALL add no strike or muted ink to its
+name, which retains its own Markdown formatting, on every stripe and under every row light.
 
 #### Scenario: the Columns control offers the three in order
 
@@ -263,7 +264,8 @@ and its name SHALL read struck through, on every stripe and under every row ligh
 
 - **GIVEN** a leaf reading `Unknown` with the three columns shown
 - **WHEN** `Done` is chosen in its Status cell
-- **THEN** the row reads `Done`, its name is struck through, and its Fact end cell reads today
+- **THEN** the row reads `Done`, its number is struck through, DONE status adds no strike to its
+  name, and its Fact end cell reads today
 
 #### Scenario: a partly done row reads In progress and can still be finished
 
