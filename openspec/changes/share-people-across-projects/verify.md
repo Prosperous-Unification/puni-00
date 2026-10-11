@@ -4076,3 +4076,54 @@ Planned RED names mapped to the actual tests:
 `6i.b`'s planned names appear three times because that box names three REDs. The mapping
 was produced by reading the listed test titles; each file ran green in the merged-head be-01
 suite above.
+
+### 6k.b–e model-based owner test (batch 10)
+
+`apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts` adds a second world
+built through `buildServices`. It is an activated shared organization in which A and B share
+one person, A is optimization-enabled, and children are held and controlled by the test. The
+first world's commands target a bare repository coordinator. The new commands are their
+counterparts against the installed owners:
+
+- `ReadPlan` (live or shifted input);
+- `ExitChild` (an `ok`/`failed` outcome stored for the current selected-objective seat, then
+  the child is killed, or a plain kill);
+- `Retry` and `Pump`;
+- `HoldPush`, `ReleasePush` and `SecondWriter`;
+- `HeldWriterRead`, where a same-source owner stages generation + 100 and rolls back;
+- `DropCaptureRead`, which runs the installed missing-capability path.
+
+Invariants checked after every command:
+
+- (I-a) When a committed generation advance evicts a displayed selected A row, B gains exactly
+  one `elsewhere_changed {causeProjectId: 'A'}` at the next sequence. So does a stored live
+  `ok` outcome.
+- (I-b) No B row is added unless A's display changes, and an independent borrowed capture
+  comparison must agree with the model.
+- (I-c) B sequences are contiguous from 0, and each is pushed at most once.
+- (I-d) The source connection is never left `inTransaction`. No `readPlan` answers a
+  generation later than the committed row.
+
+Four pinned traces run alongside a `fc.commands` exploration (seed 20261011, 60 runs, at most
+12 commands). The exploration asserts that it reached a selected store, a selected eviction
+and a held writer. On the restored source, the whole model file passed 11/11 with 19,850
+assertions.
+
+Each fault was injected into production source, observed, then restored with `git checkout`:
+
+| Fault                                                         | Failing traces and shrunk counterexample                                                                                                                                    |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1 observation `after` replaced by `before`                   | eviction and held-transport traces fail at `ReadPlan(shifted): durable B rows`; counterexample `[ReadPlan(live),ExitChild(0, ok),ReadPlan(shifted)]`                        |
+| F2 outcome owner awaits `deliverCommitted` before commit      | `stored outcome waited for recipient transport`; eviction trace `ExitChild(0, ok): a B sequence pushed twice`; counterexample `[ReadPlan(live),ExitChild(0, ok)]`           |
+| F2b observation owner awaits `deliverCommitted` before commit | `observation decision waited for recipient transport`; `ReadPlan(shifted): a B sequence pushed twice`; counterexample `[ReadPlan(live),ExitChild(0, ok),ReadPlan(shifted)]` |
+| F3 observation capability guard removed                       | missing-capture trace received `undefined is not an object (evaluating 'capture.resolveLifecycleOwner')` instead of the modeled refusal; counterexample `[DropCaptureRead]` |
+| F4 observation read before the owner's source turn            | held-writer trace `read answered generation 101 over committed 1`; eviction trace lost B's row; counterexample `[ReadPlan(live),ExitChild(0, ok),ReadPlan(shifted)]`        |
+
+`.local/model-<fault>-red.log` in the lane worktree holds the logs. The model reuses the
+first world's helpers (`deferred`, `note`/`reached`), but not its command classes, because
+those are typed to the repository world. This is recorded as an assumption in the lane record.
+
+After the lint fixes, all five faults were re-injected on the final test bytes and gave the same
+counterexamples. The restored three-file command passed 159/159 with 20,847 assertions:
+`bun test apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/services.db.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts --timeout=300000`.
+`wbs-be-01` lint:fast and typecheck printed Nx success, and OpenSpec all passed 158/158.
