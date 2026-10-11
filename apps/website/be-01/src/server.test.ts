@@ -494,6 +494,74 @@ test('operator session reload and ordered status changes require operator CSRF',
   api.close();
 });
 
+test('an expired operator session is refused on every operator route and writes nothing', async () => {
+  const { config } = fixture();
+  const now = Date.UTC(2026, 9, 11, 12);
+  const api = mountApi({ ...config, clock: () => now });
+  const token = 'e'.repeat(64);
+  const csrfToken = createHash('sha256').update(`operator-csrf:${token}`).digest('hex');
+  const store = new WebsiteStore(config.databasePath);
+  store.createOperatorSession(
+    createHash('sha256').update(token).digest('hex'),
+    createHash('sha256').update(csrfToken).digest('hex'),
+    now - 1,
+  );
+  store.close();
+  const cookie = `puni_operator=${token}`;
+  // Any request first mints the day's source salt; this cookieless one keeps that row out of the comparison.
+  await api.fetch(request('/operator/guardrails', 'GET', config.appOrigin));
+  const before = countEveryTable(config.databasePath);
+  const routes = [
+    ['GET', '/operator/session'],
+    ['GET', '/operator/guardrails'],
+    ['GET', '/operator/funnel'],
+    ['GET', '/operator/submissions'],
+    ['GET', '/operator/retention/status'],
+    ['POST', '/operator/inference/pause'],
+    ['DELETE', '/operator/session'],
+  ] as const;
+  const answers: string[] = [];
+  for (const [method, path] of routes) {
+    const response = await api.fetch(
+      request(path, method, config.appOrigin, undefined, cookie, csrfToken),
+    );
+    answers.push(`${method} ${path} ${String(response.status)} ${await response.text()}`);
+  }
+  // Proof: dropping `AND expires_at > ?` from findOperatorSession answered 200, 201 or 204 on all seven routes here.
+  expect(answers).toEqual(
+    routes.map(([method, path]) => `${method} ${path} 401 {"code":"operator_unauthorized"}`),
+  );
+  expect(countEveryTable(config.databasePath)).toEqual(before);
+  expect(before['operator_session']).toBe(1);
+  api.close();
+});
+
+test('sign-out invalidates the operator token for later reads', async () => {
+  const { api, config } = fixture();
+  const login = await api.fetch(
+    request('/operator/session', 'POST', config.appOrigin, { password: config.operatorPassword }),
+  );
+  expect(login.status).toBe(201);
+  const cookie = login.headers.get('set-cookie')?.split(';')[0];
+  const { csrfToken } = (await login.json()) as { csrfToken: string };
+  expect(
+    (await api.fetch(request('/operator/guardrails', 'GET', config.appOrigin, undefined, cookie)))
+      .status,
+  ).toBe(200);
+  const signOut = await api.fetch(
+    request('/operator/session', 'DELETE', config.appOrigin, undefined, cookie, csrfToken),
+  );
+  expect(signOut.status).toBe(204);
+  // Proof: skipping deleteOperatorSession in DELETE /operator/session answered 200 to this replayed cookie.
+  const replayed = await api.fetch(
+    request('/operator/guardrails', 'GET', config.appOrigin, undefined, cookie),
+  );
+  expect(replayed.status).toBe(401);
+  expect(await replayed.json()).toEqual({ code: 'operator_unauthorized' });
+  expect(countRows(config.databasePath, 'operator_session')).toBe(0);
+  api.close();
+});
+
 test('demo auth refuses a non-loopback server bind even when Host says localhost', () => {
   const { config } = fixture();
   expect(() => mountApi({ ...config, demoAuth: true, apiBindHost: '0.0.0.0' })).toThrow(
