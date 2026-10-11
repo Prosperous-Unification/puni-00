@@ -4,89 +4,43 @@ import { ApiFailure } from './api';
 import {
   describeFailure,
   describeOperatorFailure,
-  InvalidSessionStatus,
-  loadAiExploration,
-  offersAiExploration,
-  parseSessionStatus,
-  signInRoute,
+  offersAi,
+  offersBuild,
   unreachableMessage,
 } from './app-flow';
 
-async function rejectionOf(pending: Promise<unknown>): Promise<unknown> {
-  try {
-    await pending;
-  } catch (error) {
-    return error;
-  }
-  throw new Error('Expected a rejection');
-}
+describe('manual brief route to Build', () => {
+  const now = Date.UTC(2026, 9, 11, 12);
 
-describe('AI exploration routing', () => {
-  test('Build offers Google only when OIDC is configured, and demo sign-in only in demo mode', () => {
-    expect(signInRoute({ mode: 'oidc', configured: true, signedIn: false })).toBe('google');
-    expect(signInRoute({ mode: 'demo', configured: true, signedIn: false })).toBe('demo');
-    expect(signInRoute({ mode: 'oidc', configured: false, signedIn: false })).toBe('unavailable');
+  test('the manual brief offers Build whenever the claim is live', () => {
+    // Proof: returning false for a live claim failed this case and the `manual` capture in
+    // browser/screens.mjs ("manual brief does not link to Build").
+    expect(offersBuild({ expiresAt: '2026-10-11T12:00:01.000Z' }, now)).toBe(true);
+    expect(offersBuild({ expiresAt: '2026-10-12T11:59:00.000Z' }, now)).toBe(true);
+    expect(offersBuild({ expiresAt: '2026-10-11T12:00:00.000Z' }, now)).toBe(false);
+    expect(offersBuild({ expiresAt: '2026-10-10T12:00:00.000Z' }, now)).toBe(false);
   });
 
-  test('the manual brief never links back to a Build that would only send the visitor here again', () => {
-    expect(offersAiExploration({ mode: 'oidc', configured: false, signedIn: false })).toBe(false);
-    expect(offersAiExploration({ mode: 'oidc', configured: true, signedIn: false })).toBe(true);
-    expect(offersAiExploration({ mode: 'demo', configured: true, signedIn: false })).toBe(true);
-    expect(offersAiExploration({ mode: 'oidc', configured: false, signedIn: true })).toBe(true);
+  test('the manual brief offers AI only while the claim is live and AI is enabled', () => {
+    const live = '2026-10-11T13:00:00.000Z';
+    const expired = '2026-10-11T11:00:00.000Z';
+    // Proof: returning offersBuild alone made the disabled and paused rows offer AI, the dead
+    // "AI chat isn't switched on yet" loop of veto V14.
+    for (const [provider, expiresAt, expected] of [
+      ['openrouter', live, true],
+      ['demo', live, true],
+      ['disabled', live, false],
+      ['paused', live, false],
+      ['openrouter', expired, false],
+      ['demo', expired, false],
+      ['disabled', expired, false],
+      ['paused', expired, false],
+    ] as const)
+      expect(offersAi({ provider, expiresAt }, now)).toBe(expected);
   });
 
-  test('validates the session status at the API boundary', () => {
-    expect(parseSessionStatus({ mode: 'oidc', configured: false, account: null })).toEqual({
-      mode: 'oidc',
-      configured: false,
-      signedIn: false,
-    });
-    expect(
-      parseSessionStatus({ mode: 'demo', configured: true, account: { email: 'a@b.test' } }),
-    ).toEqual({ mode: 'demo', configured: true, signedIn: true });
-    expect(() => parseSessionStatus({ mode: 'saml', configured: true, account: null })).toThrow(
-      'session status',
-    );
-    expect(() => parseSessionStatus({ mode: 'oidc', account: null })).toThrow('session status');
-    expect(() => parseSessionStatus(null)).toThrow('session status');
-  });
-
-  test('offers or hides the AI card from a readable session status', async () => {
-    expect(
-      await loadAiExploration(() =>
-        Promise.resolve({ mode: 'oidc', configured: false, account: null }),
-      ),
-    ).toEqual({ kind: 'hidden' });
-    expect(
-      await loadAiExploration(() =>
-        Promise.resolve({ mode: 'oidc', configured: true, account: null }),
-      ),
-    ).toEqual({ kind: 'offered' });
-  });
-
-  test('reports modelled session failures as unavailable, carrying the error', async () => {
-    const network = new TypeError('Failed to fetch');
-    expect(await loadAiExploration(() => Promise.reject(network))).toEqual({
-      kind: 'unavailable',
-      error: network,
-    });
-    const api = new ApiFailure(500, 'internal_error');
-    expect(await loadAiExploration(() => Promise.reject(api))).toEqual({
-      kind: 'unavailable',
-      error: api,
-    });
-    const malformed = await loadAiExploration(() => Promise.resolve({ mode: 'other' }));
-    expect(malformed.kind).toBe('unavailable');
-    expect(malformed.kind === 'unavailable' && malformed.error).toBeInstanceOf(
-      InvalidSessionStatus,
-    );
-  });
-
-  test('rethrows failures it does not model', async () => {
-    const bug = new TypeError('Cannot read properties of undefined');
-    expect(await rejectionOf(loadAiExploration(() => Promise.reject(bug)))).toBe(bug);
-    const unexpected = new Error('unexpected');
-    expect(await rejectionOf(loadAiExploration(() => Promise.reject(unexpected)))).toBe(unexpected);
+  test('a malformed claim expiry is an error, not a hidden card', () => {
+    expect(() => offersBuild({ expiresAt: 'tomorrow' }, now)).toThrow('claim expiry');
   });
 });
 

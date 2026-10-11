@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+experiments/r6b-timeline/model.test.ts:
+91 |       slice: 'same',
+92 |       start: '2026-09-20T00:00:00Z',
+93 |       end: '2026-09-20T00:00:01Z',
+94 |     },
+95 |   ]);
+96 |   expect(attempts).toHaveLength(3);
+                        ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 3
+Received length: 1
+
+      at <anonymous> (<experiment>/model.test.ts:96:20)
+(fail) repeated slices and identical starts remain separate; hit expansion exposes every candidate [1.17ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [10.00ms]

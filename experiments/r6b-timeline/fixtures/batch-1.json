@@ -1,0 +1,219 @@
+[
+  {
+    "id": "010-5-short-command.whole.20260919T212224Z",
+    "packet": "010-5-short-command",
+    "slice": "whole",
+    "start": "2026-09-19T21:22:27Z",
+    "end": "2026-09-19T21:34:38Z"
+  },
+  {
+    "id": "020-1-pin-and-install.whole.20260919T214528Z",
+    "packet": "020-1-pin-and-install",
+    "slice": "whole",
+    "start": "2026-09-19T21:45:32Z",
+    "end": "2026-09-19T21:59:12Z"
+  },
+  {
+    "id": "010-3-record-the-decision.whole.20260919T220515Z",
+    "packet": "010-3-record-the-decision",
+    "slice": "whole",
+    "start": "2026-09-19T22:05:19Z",
+    "end": "2026-09-19T22:11:50Z"
+  },
+  {
+    "id": "010-3-record-the-decision.whole.20260919T221212Z",
+    "packet": "010-3-record-the-decision",
+    "slice": "whole",
+    "start": "2026-09-19T22:12:15Z",
+    "end": "2026-09-19T22:29:03Z"
+  },
+  {
+    "id": "040-3-plan-writer.checkpoint-1.20260919T224006Z",
+    "packet": "040-3-plan-writer",
+    "slice": "checkpoint-1",
+    "start": "2026-09-19T22:40:10Z",
+    "end": "2026-09-19T22:42:02Z"
+  },
+  {
+    "id": "040-3-plan-writer.checkpoint-1.20260919T224547Z",
+    "packet": "040-3-plan-writer",
+    "slice": "checkpoint-1",
+    "start": "2026-09-19T22:45:51Z",
+    "end": "2026-09-19T22:51:55Z"
+  },
+  {
+    "id": "040-3-plan-writer.checkpoint-2.20260919T225538Z",
+    "packet": "040-3-plan-writer",
+    "slice": "checkpoint-2",
+    "start": "2026-09-19T22:55:40Z",
+    "end": "2026-09-19T23:02:40Z"
+  },
+  {
+    "id": "040-3-plan-writer.checkpoint-2b.20260919T230453Z",
+    "packet": "040-3-plan-writer",
+    "slice": "checkpoint-2b",
+    "start": "2026-09-19T23:04:55Z",
+    "end": "2026-09-19T23:27:49Z"
+  },
+  {
+    "id": "040-3-plan-writer.checkpoint-3.20260919T232937Z",
+    "packet": "040-3-plan-writer",
+    "slice": "checkpoint-3",
+    "start": "2026-09-19T23:29:41Z",
+    "end": "2026-09-19T23:32:31Z"
+  },
+  {
+    "id": "010-4-rule-model.part-1.20260919T233932Z",
+    "packet": "010-4-rule-model",
+    "slice": "part-1",
+    "start": "2026-09-19T23:39:37Z",
+    "end": "2026-09-19T23:42:19Z"
+  },
+  {
+    "id": "010-4-rule-model.part-1.20260919T234349Z",
+    "packet": "010-4-rule-model",
+    "slice": "part-1",
+    "start": "2026-09-19T23:43:52Z",
+    "end": "2026-09-19T23:54:41Z"
+  },
+  {
+    "id": "110-5-reword-current-documents.checkpoint-A.20260920T000527Z",
+    "packet": "110-5-reword-current-documents",
+    "slice": "checkpoint-A",
+    "start": "2026-09-20T00:05:30Z",
+    "end": "2026-09-20T00:16:16Z"
+  },
+  {
+    "id": "110-5-reword-current-documents.checkpoint-B.20260920T001911Z",
+    "packet": "110-5-reword-current-documents",
+    "slice": "checkpoint-B",
+    "start": "2026-09-20T00:19:13Z",
+    "end": "2026-09-20T00:29:33Z"
+  },
+  {
+    "id": "110-5-reword-current-documents.checkpoint-C.20260920T003141Z",
+    "packet": "110-5-reword-current-documents",
+    "slice": "checkpoint-C",
+    "start": "2026-09-20T00:31:42Z",
+    "end": "2026-09-20T00:37:50Z"
+  },
+  {
+    "id": "110-5-reword-current-documents.checkpoint-D.20260920T004009Z",
+    "packet": "110-5-reword-current-documents",
+    "slice": "checkpoint-D",
+    "start": "2026-09-20T00:40:10Z",
+    "end": "2026-09-20T00:46:48Z"
+  },
+  {
+    "id": "020-8-classify-backend-services.slice-A.20260920T005048Z",
+    "packet": "020-8-classify-backend-services",
+    "slice": "slice-A",
+    "start": "2026-09-20T00:50:52Z",
+    "end": "2026-09-20T01:03:11Z"
+  },
+  {
+    "id": "020-8-classify-backend-services.slice-B.20260920T010743Z",
+    "packet": "020-8-classify-backend-services",
+    "slice": "slice-B",
+    "start": "2026-09-20T01:07:45Z",
+    "end": "2026-09-20T01:16:33Z"
+  },
+  {
+    "id": "020-8-classify-backend-services.slice-CD.20260920T011839Z",
+    "packet": "020-8-classify-backend-services",
+    "slice": "slice-CD",
+    "start": "2026-09-20T01:18:41Z",
+    "end": "2026-09-20T01:26:40Z"
+  },
+  {
+    "id": "020-8-classify-backend-services.slice-E1.20260920T012912Z",
+    "packet": "020-8-classify-backend-services",
+    "slice": "slice-E1",
+    "start": "2026-09-20T01:29:14Z",
+    "end": "2026-09-20T01:33:13Z"
+  },
+  {
+    "id": "020-8-classify-backend-services.slice-E1.20260920T013341Z",
+    "packet": "020-8-classify-backend-services",
+    "slice": "slice-E1",
+    "start": "2026-09-20T01:33:41Z",
+    "end": "2026-09-20T01:41:38Z"
+  },
+  {
+    "id": "020-8-classify-backend-services.slice-E2.20260920T014408Z",
+    "packet": "020-8-classify-backend-services",
+    "slice": "slice-E2",
+    "start": "2026-09-20T01:44:10Z",
+    "end": "2026-09-20T01:53:50Z"
+  },
+  {
+    "id": "020-8-classify-backend-services.slice-F.20260920T015607Z",
+    "packet": "020-8-classify-backend-services",
+    "slice": "slice-F",
+    "start": "2026-09-20T01:56:08Z",
+    "end": "2026-09-20T02:11:08Z"
+  },
+  {
+    "id": "010-4-rule-model.part-2.20260920T021748Z",
+    "packet": "010-4-rule-model",
+    "slice": "part-2",
+    "start": "2026-09-20T02:17:50Z",
+    "end": "2026-09-20T02:42:41Z"
+  },
+  {
+    "id": "040-6-directory-and-preferences.slice-1.20260920T024323Z",
+    "packet": "040-6-directory-and-preferences",
+    "slice": "slice-1",
+    "start": "2026-09-20T02:43:28Z",
+    "end": "2026-09-20T02:53:01Z"
+  },
+  {
+    "id": "010-4-rule-model.part-3.20260920T030521Z",
+    "packet": "010-4-rule-model",
+    "slice": "part-3",
+    "start": "2026-09-20T03:05:22Z",
+    "end": "2026-09-20T03:22:03Z"
+  },
+  {
+    "id": "040-6-directory-and-preferences.slice-2.20260920T032231Z",
+    "packet": "040-6-directory-and-preferences",
+    "slice": "slice-2",
+    "start": "2026-09-20T03:22:34Z",
+    "end": "2026-09-20T03:35:35Z"
+  },
+  {
+    "id": "010-4-rule-model.part-4.20260920T034740Z",
+    "packet": "010-4-rule-model",
+    "slice": "part-4",
+    "start": "2026-09-20T03:47:42Z",
+    "end": "2026-09-20T03:57:29Z"
+  },
+  {
+    "id": "040-6b-preferences.slice-1.20260920T035746Z",
+    "packet": "040-6b-preferences",
+    "slice": "slice-1",
+    "start": "2026-09-20T03:57:51Z",
+    "end": "2026-09-20T04:07:14Z"
+  },
+  {
+    "id": "040-6b-preferences.slice-2.20260920T041318Z",
+    "packet": "040-6b-preferences",
+    "slice": "slice-2",
+    "start": "2026-09-20T04:13:20Z",
+    "end": "2026-09-20T04:23:27Z"
+  },
+  {
+    "id": "040-6b-preferences.slice-2b.20260920T042459Z",
+    "packet": "040-6b-preferences",
+    "slice": "slice-2b",
+    "start": "2026-09-20T04:25:01Z",
+    "end": "2026-09-20T04:40:07Z"
+  },
+  {
+    "id": "060-1-evaluate-emdash.prepare.20260920T074736Z",
+    "packet": "060-1-evaluate-emdash",
+    "slice": "prepare",
+    "start": "2026-09-20T07:47:39Z",
+    "end": "2026-09-20T08:04:59Z"
+  }
+]

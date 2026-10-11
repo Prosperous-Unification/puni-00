@@ -21,7 +21,7 @@ The operator SHALL be able to deploy the private static site from `puni-pr-00/ap
 
 ### Requirement: Privacy lifecycle and aggregate observation
 
-The system SHALL apply the approved 12-month retention period to request descriptions, chat and one contact email unless the person becomes a client, expire anonymous drafts after 24 hours, and restrict deletion/backup handling by a documented operator policy. Analytics and logs SHALL contain aggregate funnel events without raw request content or credentials. The app SHALL disclose provider processing before chat is enabled.
+The system SHALL apply the approved 12-month retention period to request descriptions, chat and one contact email unless the person becomes a client, expire anonymous drafts after 24 hours, and restrict deletion/backup handling by a documented operator policy. Funnel observation SHALL be derived from stored rows as per-UTC-day counts on the operator overview; no analytics script or event beacon SHALL run in the browser. The site's privacy page SHALL name the routing processor and the model host before chat is enabled, SHALL describe the salted daily address code, and SHALL name no sign-in provider while none exists.
 
 #### Scenario: Retention and transition
 

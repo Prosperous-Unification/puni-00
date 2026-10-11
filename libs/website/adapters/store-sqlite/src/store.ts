@@ -27,6 +27,7 @@ import {
   recordConversationGeneration,
   recoverConversationOperations,
 } from './conversation-store';
+import { type FunnelCounts, readFunnelCounts } from './funnel-store';
 import {
   countDeclinedCompletions,
   countDraft,
@@ -69,7 +70,9 @@ export type {
 export { conversationAllowance } from './conversation-store';
 export type { DraftCleanupOutcome, DraftCleanupPlan } from './draft-retention';
 export { inspectExpiredDrafts, purgeExpiredDrafts } from './draft-retention';
+export type { FunnelCounts, FunnelDay } from './funnel-store';
 export type {
+  CeilingSettled,
   DraftCapRefusal,
   GuardrailAlert,
   GuardrailOverview,
@@ -496,6 +499,11 @@ export class WebsiteStore {
   /** See {@link readGuardrailOverview}; the ceiling is `conversationAllowance.siteDayMicroUsd`. */
   readGuardrailOverview(now: number): GuardrailOverview {
     return readGuardrailOverview(this.database, now, conversationAllowance.siteDayMicroUsd);
+  }
+
+  /** See {@link readFunnelCounts}; the thirty UTC days ending with the day of `now`. */
+  readFunnelCounts(now: number): FunnelCounts {
+    return readFunnelCounts(this.database, now);
   }
 
   /** See {@link recordGuardrailAlert}. */

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>R6b elapsed timeline experiment</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <small>THROWAWAY · READ ONLY · R6b / 020.07</small>
+      <h1>Executor attempts, days to minutes</h1>
+      <p>
+        Elapsed time, not workdays. “Returned” means executor return, not success or review
+        approval.
+      </p>
+      <nav aria-label="Experiment controls">
+        <label
+          >Interaction
+          <select id="variant">
+            <option value="discrete">Discrete ladder</option>
+            <option value="continuous">Continuous zoom</option>
+          </select></label
+        >
+        <label
+          >Fixture
+          <select id="fixture">
+            <option value="batch">Real batch · 31 attempts</option>
+            <option value="ambiguity">SYNTHETIC ambiguity/endpoints</option>
+            <option value="load">SYNTHETIC load</option>
+          </select></label
+        >
+        <label
+          >Rows
+          <select id="rows">
+            <option>50</option>
+            <option>500</option>
+            <option>2000</option>
+          </select></label
+        >
+        <label
+          >Attempts/row
+          <select id="attempts">
+            <option>1</option>
+            <option>5</option>
+          </select></label
+        >
+        <label
+          >Zone
+          <select id="zone">
+            <option>UTC</option>
+            <option>Europe/Kyiv</option>
+            <option>Pacific/Auckland</option>
+          </select></label
+        >
+        <label id="discrete-control"
+          >Visible span
+          <select id="span">
+            <option value="604800000">7 days</option>
+            <option value="86400000">24 hours</option>
+            <option value="21600000">6 hours</option>
+            <option value="3600000">1 hour</option>
+            <option value="900000">15 minutes</option>
+            <option value="300000">5 minutes</option>
+          </select></label
+        >
+        <label id="continuous-control" hidden
+          >Visible span
+          <input
+            id="zoom"
+            aria-label="Continuous visible span"
+            type="range"
+            min="0"
+            max="1000"
+            step="1"
+        /></label>
+        <button id="pan-left">← Pan</button><button id="pan-right">Pan →</button>
+        <button id="fit-all">Fit all</button><button id="fit-selected">Fit selected</button>
+      </nav>
+    </header>
+    <main>
+      <section id="timeline" aria-label="Elapsed attempts timeline">
+        <div class="ruler-row">
+          <div class="packet-label">Packet / attempt</div>
+          <div id="ruler"></div>
+        </div>
+        <div id="lanes"></div>
+      </section>
+      <aside>
+        <h2>Selected attempt</h2>
+        <p>
+          Tab to an attempt, Enter for details. Arrow keys pan the chart when it has focus. Click a
+          crowded hit surface for an explicit selection list.
+        </p>
+        <div id="ambiguity" aria-live="polite"></div>
+        <pre id="details">Select an attempt</pre>
+        <h2>Day precision</h2>
+        <p id="date-fact">
+          SYNTHETIC date-only fact: 2026-09-20 · day precision; no fabricated midnight timestamp.
+        </p>
+        <h2>Experiment state</h2>
+        <pre id="state"></pre>
+      </aside>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

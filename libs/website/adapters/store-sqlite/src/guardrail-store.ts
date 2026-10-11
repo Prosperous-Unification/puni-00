@@ -401,7 +401,30 @@ export interface GuardrailOverview {
   proposalsToday: number;
   accountLockedUntil: number | null;
   lockedSources: number;
+  /** See {@link readCeilingSettled}: how far today's recorded spend may over-count. */
+  ceilingSettledToday: CeilingSettled;
   alerts: GuardrailAlert[];
+}
+
+/** Operations settled at their full reservation, and the micro-USD that settlement recorded. */
+export interface CeilingSettled {
+  count: number;
+  microUsd: number;
+}
+
+/**
+ * The `unknown` conversation operations of one UTC day: usage never arrived (stop, disconnect,
+ * timeout, stream error, restart), so each was settled at its full reservation. Recorded spend
+ * may over-count by up to this amount and never under-counts.
+ */
+export function readCeilingSettled(database: Database, utcDay: string): CeilingSettled {
+  const row = database
+    .query<{ count: number; micro_usd: number }, [string]>(
+      "SELECT count(*) AS count, COALESCE(SUM(settled_micro_usd), 0) AS micro_usd FROM conversation_operation WHERE state = 'unknown' AND utc_day = ?",
+    )
+    .get(utcDay);
+  if (!row) throw new Error('Ceiling-settled count query returned no row');
+  return { count: row.count, microUsd: row.micro_usd };
 }
 
 /** Settled and reserved spend of one UTC day across conversations and account calls. */
@@ -467,6 +490,7 @@ export function readGuardrailOverview(
     proposalsToday: readSiteCount(database, 'proposal:site', utcDay),
     accountLockedUntil: locks.accountLockedUntil,
     lockedSources: locks.lockedSources,
+    ceilingSettledToday: readCeilingSettled(database, utcDay),
     alerts: listRecentAlerts(database, 50),
   };
 }

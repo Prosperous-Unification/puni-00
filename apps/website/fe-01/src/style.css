@@ -899,9 +899,13 @@ textarea {
 .operator-page {
   background: var(--paper-2);
 }
+/* The footer starts below the first viewport: the signed-in panels replace the short login form
+   after the Argon2id check, often more than 500 ms after the click, and would otherwise push a
+   visible footer out of view as a layout shift (operator-inbox-390 measured CLS 0.073). */
 .operator-layout {
   width: 100%;
   max-width: 1200px;
+  min-height: 100vh;
   padding: var(--space-8) var(--gutter);
   flex: 1;
 }
@@ -961,6 +965,69 @@ textarea {
 .guardrails-alerts {
   margin: var(--space-2) 0 0;
   padding-left: var(--space-4);
+}
+.funnel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+  margin-top: var(--space-5);
+  line-height: 1.6;
+}
+.funnel h2 {
+  font-size: var(--text-h3);
+  margin: 0 0 var(--space-3);
+}
+.funnel-share {
+  min-height: 3.2em;
+  margin: 0 0 var(--space-2);
+}
+/* A fixed height in every state: the counts arrive after the page renders and must not shift it. */
+.funnel-scroll {
+  height: 18rem;
+  overflow: auto;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-field);
+}
+.funnel-scroll > p {
+  margin: var(--space-3);
+}
+.funnel-scroll:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.funnel-table {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.funnel-table :is(th, td) {
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+}
+.funnel-table :is(th:first-child, tbody th) {
+  text-align: left;
+}
+.funnel-table tbody th {
+  font-weight: 500;
+}
+.funnel-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+}
+/* The UTC day stays in view while the table scrolls sideways at narrow widths. */
+.funnel-table tbody th,
+.funnel-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--paper);
+}
+.funnel-table thead th:first-child {
+  z-index: 1;
 }
 .inbox {
   display: grid;
@@ -1418,26 +1485,6 @@ body:has(.night-shell) {
   flex-wrap: wrap;
   gap: var(--space-3);
 }
-.harness-signin {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding-top: var(--space-5);
-  border-top: 1px solid rgb(255 255 255 / 0.14);
-}
-.harness-signin h2 {
-  margin: 0;
-}
-.harness-signin p {
-  margin: 0;
-  font-size: var(--text-small);
-  color: var(--on-night-muted);
-}
-.harness-signin label {
-  display: block;
-  margin-bottom: var(--space-2);
-  font-size: var(--text-small);
-}
 /* Live harness: typing indicator, streaming caret, stopped replies and the closed line. */
 .harness-simulated {
   display: flex;
@@ -1888,11 +1935,6 @@ body:has(.night-shell) {
   border-color: #fff;
   background: #f4f2f7;
   color: var(--ink);
-}
-.harness-signin-panel .harness-signin {
-  padding-block: var(--space-3) var(--space-4);
-  border-top: 0;
-  border-bottom: 1px solid rgb(255 255 255 / 0.14);
 }
 .glass-field textarea[readonly] {
   max-height: calc(4 * 24px + 30px);

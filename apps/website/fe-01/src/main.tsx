@@ -4,13 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { ApiFailure, requestJson } from './api';
-import {
-  type AiExploration,
-  describeFailure,
-  describeOperatorFailure,
-  loadAiExploration,
-} from './app-flow';
-import { BuildErrorBoundary, BuildPage } from './build-page';
+import { describeFailure, describeOperatorFailure, offersAi } from './app-flow';
+import { type Draft, parseDraft } from './build-contract';
+import { AppErrorBoundary, BuildPage } from './build-page';
 import {
   HeroMedia,
   OperatorFooter,
@@ -20,14 +16,9 @@ import {
   useHeadingFocus,
   usePageTitle,
 } from './chrome';
+import { FunnelPanel } from './funnel-panel';
 import { GuardrailsPanel } from './guardrails-panel';
 
-interface Draft {
-  description: string;
-  brief: string;
-  csrfToken: string;
-  expiresAt: string;
-}
 interface Submission {
   id: string;
   description: string;
@@ -101,9 +92,6 @@ function ManualPage() {
   );
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState('');
-  const [aiExploration, setAiExploration] = useState<AiExploration | { kind: 'loading' }>({
-    kind: 'loading',
-  });
   const [requestKey, setRequestKey] = useState(() => {
     const saved = sessionStorage.getItem('puni_proposal_key');
     if (saved) return saved;
@@ -113,27 +101,10 @@ function ManualPage() {
   });
 
   useEffect(() => {
-    loadAiExploration(() => requestJson<unknown>('/session'))
-      .then((exploration) => {
-        // Proof: removing this report made the screens.mjs manual-session-down check fail with
-        // "unavailable not reported" at all four widths.
-        if (exploration.kind === 'unavailable')
-          console.error(
-            'Manual brief hid the AI card: session status unavailable',
-            exploration.error,
-          );
-        setAiExploration(exploration);
-      })
-      .catch((error: unknown) => {
-        // An unmodelled failure is a defect: report it and stop instead of hiding the card.
-        console.error('Manual brief session status failed unexpectedly', error);
-        setLoad({ kind: 'error', message: describeFailure(error) });
-      });
-  }, []);
-
-  useEffect(() => {
-    requestJson<Draft>('/draft')
-      .then((draft) => {
+    requestJson<unknown>('/draft')
+      .then((value) => {
+        // A malformed draft throws InvalidDraft into the catch below: the load-error state.
+        const draft = parseDraft(value);
         if (pendingProposal) {
           const nextKey = crypto.randomUUID();
           sessionStorage.setItem('puni_proposal_key', nextKey);
@@ -246,13 +217,7 @@ function ManualPage() {
     }
   }
 
-  // The draft waits for the AI decision so the optional card never pops in above the form.
-  const view =
-    receipt !== null
-      ? 'receipt'
-      : load.kind === 'ready' && aiExploration.kind === 'loading'
-        ? 'loading'
-        : load.kind;
+  const view = receipt !== null ? 'receipt' : load.kind;
   usePageTitle(
     view === 'receipt'
       ? 'Request received'
@@ -391,15 +356,11 @@ function ManualPage() {
                     Previous reference: <strong>{previousReceipt}</strong>
                   </p>
                 )}
-                {/* Proof: rendering this card unconditionally failed the oidc-off `manual`
-                    capture in browser/screens.mjs ("manual brief links back to Build"). */}
-                {aiExploration.kind === 'offered' && (
+                {offersAi(load.draft, Date.now()) && (
                   <div className="route-choice">
                     <div>
                       <p className="route-choice-title">Prefer to think it through first?</p>
-                      <p>
-                        Sign in to explore your request with PUNI. Your description comes with you.
-                      </p>
+                      <p>Explore your request with PUNI's AI. Your description comes with you.</p>
                     </div>
                     <a className="button secondary" href="/">
                       Explore with AI <span aria-hidden="true">→</span>
@@ -592,6 +553,7 @@ function OperatorPage() {
         ) : (
           <>
             <GuardrailsPanel csrf={csrf} />
+            <FunnelPanel />
             <div className="actions">
               <button className="button secondary compact" onClick={() => void loadInbox()}>
                 Refresh inbox
@@ -647,10 +609,12 @@ createRoot(root).render(
   window.location.pathname.startsWith('/operator') ? (
     <OperatorPage />
   ) : window.location.pathname.startsWith('/manual') ? (
-    <ManualPage />
+    <AppErrorBoundary>
+      <ManualPage />
+    </AppErrorBoundary>
   ) : (
-    <BuildErrorBoundary>
+    <AppErrorBoundary>
       <BuildPage />
-    </BuildErrorBoundary>
+    </AppErrorBoundary>
   ),
 );

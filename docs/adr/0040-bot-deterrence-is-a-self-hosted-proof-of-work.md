@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Bot deterrence is a self-hosted proof of work

@@ -1,0 +1,82 @@
+bun test v1.4.2 (744846f84)
+
+experiments/r6b-timeline/model.test.ts:
+ 6 |
+ 7 | test('sanitized batch retains every separate attempt and pinned bytes', async () => {
+ 8 |   const bytes = await Bun.file(new URL('./fixtures/batch-1.json', import.meta.url)).arrayBuffer();
+ 9 |   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(provenance.sanitizedSha256);
+10 |   const attempts = parseAttempts(batch);
+11 |   expect(attempts).toHaveLength(31);
+                        ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 31
+Received length: 0
+
+      at <anonymous> (<experiment-root>/experiments/r6b-timeline/model.test.ts:11:20)
+(fail) sanitized batch retains every separate attempt and pinned bytes [0.60ms]
+16 | });
+17 |
+18 | test('elapsed geometry and selected instant survive all scales within one CSS pixel', () => {
+19 |   const shortest = parseAttempts(batch).sort((a, b) => (a.end - a.start) - (b.end - b.start))[0];
+20 |   for (const width of [192, 1240]) {
+21 |     let viewport = { start: shortest.start - 200000, span: 86400000, width };
+                                 ^
+TypeError: undefined is not an object (evaluating 'shortest.start')
+      at <anonymous> (<experiment-root>/experiments/r6b-timeline/model.test.ts:21:29)
+(fail) elapsed geometry and selected instant survive all scales within one CSS pixel [0.18ms]
+29 |   }
+30 | });
+31 |
+32 | test('explicit timezone offsets preserve instants; unzoned local times refuse', () => {
+33 |   const attempts = parseAttempts([{ id: 'offset', packet: 'synthetic', slice: 'one', start: '2026-09-20T00:22:27+03:00', end: '2026-09-20T00:24:19+03:00' }]);
+34 |   expect(attempts[0].start).toBe(Date.parse('2026-09-19T21:22:27Z'));
+                       ^
+TypeError: undefined is not an object (evaluating 'attempts[0].start')
+      at <anonymous> (<experiment-root>/experiments/r6b-timeline/model.test.ts:34:19)
+(fail) explicit timezone offsets preserve instants; unzoned local times refuse [0.08ms]
+42 |   const attempts = parseAttempts([
+43 |     { id: 'first', packet: 'synthetic', slice: 'same', start: '2026-09-19T23:59:59Z', end: '2026-09-20T00:00:00Z' },
+44 |     { id: 'second', packet: 'synthetic', slice: 'same', start: '2026-09-19T23:59:59Z', end: '2026-09-20T00:00:00Z' },
+45 |     { id: 'touch', packet: 'synthetic', slice: 'same', start: '2026-09-20T00:00:00Z', end: '2026-09-20T00:00:01Z' },
+46 |   ]);
+47 |   expect(attempts).toHaveLength(3);
+                        ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 3
+Received length: 0
+
+      at <anonymous> (<experiment-root>/experiments/r6b-timeline/model.test.ts:47:20)
+(fail) repeated slices and identical starts remain separate; hit expansion exposes every candidate [0.05ms]
+52 | test('zero duration and missing end stay distinct without an invented endpoint', () => {
+53 |   const attempts = parseAttempts([
+54 |     { id: 'zero', packet: 'synthetic', slice: 'zero', start: '2026-09-20T00:00:00Z', end: '2026-09-20T00:00:00Z' },
+55 |     { id: 'open', packet: 'synthetic', slice: 'open', start: '2026-09-20T00:00:00Z', end: null },
+56 |   ]);
+57 |   expect(attempts[0].end).toBe(attempts[0].start);
+                       ^
+TypeError: undefined is not an object (evaluating 'attempts[0].end')
+      at <anonymous> (<experiment-root>/experiments/r6b-timeline/model.test.ts:57:19)
+(fail) zero duration and missing end stay distinct without an invented endpoint [0.05ms]
+59 |   expect(placeAttempt(attempts[1], { start: attempts[0].start, span: 900000, width: 1000 }).width).toBeNull();
+60 | });
+61 |
+62 | test('invalid, duplicate and reversed records refuse', () => {
+63 |   const valid = { id: 'one', packet: 'synthetic', slice: 'one', start: '2026-09-20T00:00:00Z', end: '2026-09-20T00:01:00Z' };
+64 |   expect(() => parseAttempts([valid, valid])).toThrow('duplicate');
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "duplicate"
+
+Received function did not throw
+Received value: []
+
+      at <anonymous> (<experiment-root>/experiments/r6b-timeline/model.test.ts:64:47)
+(fail) invalid, duplicate and reversed records refuse [0.07ms]
+
+ 0 pass
+ 6 fail
+ 4 expect() calls
+Ran 6 tests across 1 file. [12.00ms]
