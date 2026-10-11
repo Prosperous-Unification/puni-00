@@ -38,5 +38,5 @@
 
 ## 7. Rollback proof and documents (S6)
 
-- [x] 7.1 `rollback-compatibility.test.ts` against the pinned pre-relocation commit.
+- [x] 7.1 Rollback proof: `integration-races.test.ts` case `the pre-relocation authority opens a Dash-written store with identical state and continues its generations`, against the vendored `fixtures/authority/pre-relocation-burokrat.tar` (pinned SHA-256; source `e57278139`).
 - [x] 7.2 ADR 0050 (0048 and 0049 were taken), ADR 0021 pointer, `names.md`, `LLM_README.md`, `CONTEXT.md`, READMEs, `verify.md`.
