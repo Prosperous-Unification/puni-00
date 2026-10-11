@@ -19,6 +19,7 @@
 export const NODE_SUITES: readonly string[] = [
   'playwright-config.test.ts',
   'src/components/board/step-board.test.ts',
+  'src/components/spaces/space-gantt.test.ts',
   'src/components/wbs/cell-card-store.test.ts',
   'src/components/wbs/column-hints.test.ts',
   'src/components/wbs/dep-graph.test.ts',
