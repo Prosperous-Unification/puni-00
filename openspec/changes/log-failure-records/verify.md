@@ -101,3 +101,58 @@ The mutation patches are `proof-1-provenance.patch`, `proof-2-dependency.patch`,
 | `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json` with the strict JSON contract | 0      | `109` items, `109` passed, `0` failed; `log-failure-records` valid |
 
 The command logs are `c5-prettier.log`, `c5-observability-lint.log`, `c5-observability-typecheck.log`, `c5-observability-test.log` and `c5-format-check.log`. The strict validation report is `openspec-validation-c5.1UwUAT.json` in this attempt's evidence directory.
+
+## Slice D — Failure report search (WBS 080.23)
+
+**Verifier**: Claude Opus 5.5 lane `failure-reports-elastic`, 2026-10-11, branch `batch-10/080-23-failure-reports-elastic`. The platform-side record is the Failure reports part of [docs/infra/platform.md](../../../docs/infra/platform.md#failure-reports).
+
+`bin/with-heavy-lock.sh` refused on this workstation (`heavy lock: /home/puni1/.cache does not exist`), so the labs ran directly. No real host was touched.
+
+### Unit and graph checks
+
+| Command                                                                 | Status | Decisive output                                                                     |
+| ----------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------- |
+| `NX_DAEMON=false bunx nx run wbs-observability:test --skip-nx-cache`    | 0      | `Ran 34 tests across 4 files`, including the five `failure-mapping.test.ts` tests   |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:check` | 0      | `Ran 391 tests across 32 files`; `schema: toolchain and 11 platform releases valid` |
+| `bunx nx show projects --affected --files=<failure-fields.json>`        | 0      | lists `wbs-observability`, so a mapping change reruns the mapping test              |
+
+Watched negatives (each restored and rerun green):
+
+| Fault                                                              | Observed                                                                                                         |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| delete `attributes.failure.fingerprint` from `failure-fields.json` | two mapping tests fail; `+ "attributes.failure.fingerprint"` and `"type": undefined`                             |
+| map the fingerprint as `text`                                      | `lifts the grouping and correlation fields as keywords` fails with `"type": "text"`                              |
+| drop `mcp-01` from the collector's `pino-foreign` list             | `admits exactly the services and level labels the log schema declares` fails, `- "mcp-01"`                       |
+| parser `on_error: drop`                                            | `parses only object bodies and ships a body that does not parse` fails                                           |
+| no generator comparison in `requireNativeResources`                | `rejects a generated ConfigMap outside the locked graph` resolves                                                |
+| generator schema `'+': 'delete'`                                   | `rejects a generator that disables the content hash a Job rerun depends on` resolves                             |
+| `kibana-kb-http-certs-public` not declared as ECK-produced         | `platform-local consumes Secret observability/kibana-kb-http-certs-public, which is neither listed nor declared` |
+
+### Collector harness (locked `opentelemetry-collector-contrib:0.160.0` image, committed operators, file exporter)
+
+Twelve CRI lines through the committed filelog operators and `transform/redact`: the real logger's failure line lifted `level`, `service`, `msg`, `time`, `failure.occurrence_id`, `failure.fingerprint` (`fp1_5f60…`) and `failure.v`; the plain line, `{`, and foreign JSON (no WBS `service`, or `service: 7`) lifted nothing; `level: "loud"` and `level: 50` were not lifted; a fingerprint `bad fingerprint!` was not lifted; `err` as a string or an array lifted no failure field; `msg` `password=hunter2` arrived as `password=[REDACTED]`. Only the `{` line logged an operator error (`pino-parser`, action `send`). A first draft errored on a numeric `level` (`reflect.Value.MapIndex: value of type float64…`), which is why every condition checks the type first.
+
+Mutations of `collector.yaml`, each run against the same lines: without the `msg` redaction statements `attributes.msg` was `case7 password=hunter2 here`; without `pino-foreign` a foreign line lifted `failure.fingerprint: fpX`; with the level condition reduced to `!= nil` `level: loud` was lifted; without the fingerprint shape match `failure.fingerprint: bad fingerprint!` was lifted.
+
+### k3d lab `fre` (app profile, locked k3d v5.9.0, kubectl v1.36.4, helm v4.3.0)
+
+The vendored ECK operator, Elasticsearch, Kibana and collector charts were installed by helm with each HelmRelease's committed values (the collector's `serviceMonitor` off: no kube-prometheus-stack in this lab); `kubectl apply -k` applied `elastic/settings` and `kibana/objects` at commit `40018ba25`. Flux did not run.
+
+- Jobs: `elastic-settings` Complete (ILM and `logs-otel@custom` both `{"acknowledged":true}`); `kibana-objects` Complete with `{"successCount":4,"success":true,…}`; a second run of the same Job: `"successCount":4,"success":true`.
+- Drill pod (10 lines from the real WBS logger plus negatives): `hits 10`. Three site-A failures and one site-B failure carried `failure.fingerprint` `fp1_29ec4478…` and `fp1_23a226d8…`; the plain line and `{` arrived with no attributes; `level: loud` arrived without `level`; the failure without a fingerprint carried `failure.occurrence_id` only; the 41 144-byte line (above containerd's 16 KiB chunk) arrived as one 41 178-character body carrying `failure.fingerprint: fp1_oversize`.
+- Dashboard **Failures** rendered in headless Chromium over a port-forward, Last 7 days, no embeddable error: rows `fp1_29ec…` 3, `fp1_23a2…` 1, `fp1_oversize` 1; the fingerprint-less failure forms no row. Three more site-A occurrences one second apart (`AE_SEQ1..3`) made that row `6` with latest occurrence `AE_SEQ3`.
+- Kibana refusals: truncated NDJSON → pod exit 22, `curl: (22) The requested URL returned error: 400`; an unknown object type → HTTP 200 with `"success":false`, pod exit 1, `Kibana refused the saved objects`; the same import with the verdict check removed → Job Complete. Kibana scaled to zero with the wait bound lowered to 3 → exit 1, `Kibana did not report available after 3 checks`; with the bound removed the Job stayed active.
+- Mapping takes effect at rollover: the collector created the data stream before the settings Job ran, so `attributes.msg` was a dynamic `keyword`. After `POST logs-puni.otel-local/_rollover`, backing index `-000002` mapped `msg` `match_only_text`, `time` `date`/`epoch_millis` and `failure.fingerprint` `keyword`; `match_phrase` `rollover drill` found the new line, stored as `rollover drill password=[REDACTED] searchable`.
+
+### Elasticsearch outage
+
+Procedure: generator pod writes 900 failure lines (`fp1_outage`, one occurrence id each, 5/s); ECK paused (`eck.k8s.elastic.co/managed=false`), StatefulSet scaled to 0, 60 s with no pod, scaled to 1, ECK resumed.
+
+| Run | Collector                                   | Outage                                                        | Result                                                                                                                                                                             |
+| --- | ------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | committed exporter (90 s default `timeout`) | scaled to 0 19:47:51, pod gone 19:48:44, scaled to 1 19:49:44 | **851 of 900 stored.** `Exporting failed. Dropping data. … dial tcp 10.43.208.203:9200: i/o timeout, dropped_items: 49` at 19:49:13; `otelcol_exporter_send_failed_log_records 49` |
+| 2   | same plus `timeout: 3m`                     | scaled to 0 19:59:37, pod gone 20:00:30, scaled to 1 20:01:30 | 900 of 900 stored, 900 distinct occurrence ids, no `Dropping data`; queue 2 → 22 batches, drained to 0 by 20:03:11                                                                 |
+
+Run 2 does not prove the timeout fixes the loss. With a black-holed endpoint (`10.255.255.1`) in the harness, `timeout: 10s` dropped at 10 s (`context deadline exceeded`), a refused endpoint was retried with no drop for 60 s, and both `timeout: 90s` and `timeout: 3m` dropped one batch (`dial tcp 10.255.255.1:9200: i/o timeout`, `dropped_items: 6`), after 136 s and 71 s. The exporter's `RetryOnError` refuses `context.DeadlineExceeded`, which a dial timeout satisfies (exporter source v0.160.0, `esclient.go`), and the exporter has no `retry_on_failure`. The timeout change was therefore not committed. The outage requirement stays open as task 2.6.
+
+Not verified: Flux reporting a failed `kibana-objects` Job (no Flux in this lab), and the production platform (gated on WBS 070.07 and 070.08).

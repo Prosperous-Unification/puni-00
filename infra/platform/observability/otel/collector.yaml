@@ -112,10 +112,13 @@ spec:
               parse_to: attributes.pino
               on_error: send
             # JSON from any other workload is not lifted: its fields are not ours to index.
+            # Proof: without this operator, a foreign line's `err.fingerprint` was lifted as
+            # `failure.fingerprint: fpX` in the collector harness on 2026-10-11.
             - type: remove
               id: pino-foreign
               if: 'attributes.pino != nil && (type(attributes.pino?.service) != "string" || !(attributes.pino.service in ["be-01", "gw-01", "fe-01", "mcp-01"]))'
               field: attributes.pino
+            # Proof: with this condition reduced to `!= nil`, `level: loud` was lifted on 2026-10-11.
             - type: move
               id: pino-level
               if: 'type(attributes.pino?.level) == "string" && attributes.pino.level in ["trace", "debug", "info", "warn", "error", "fatal"]'
@@ -136,6 +139,8 @@ spec:
               if: 'type(attributes.pino?.err) == "map" && type(attributes.pino.err.occurrence_id) == "string" && attributes.pino.err.occurrence_id matches "^[A-Za-z0-9_.:-]{1,128}$"'
               from: attributes.pino.err.occurrence_id
               to: attributes["failure.occurrence_id"]
+            # Proof: without the shape match, `failure.fingerprint: bad fingerprint!` was lifted on
+            # 2026-10-11.
             - type: move
               id: failure-fingerprint
               if: 'type(attributes.pino?.err) == "map" && type(attributes.pino.err.fingerprint) == "string" && attributes.pino.err.fingerprint matches "^[A-Za-z0-9_.:-]{1,128}$"'
@@ -177,6 +182,8 @@ spec:
                 - replace_pattern(body, "AKIA[0-9A-Z]{16}", "[REDACTED]")
                 - replace_pattern(body, "(?i)(authorization:\\s*(bearer|basic)\\s+)[^\\s\"]+", "$$1[REDACTED]")
                 - replace_pattern(body, "(?i)((password|passwd|secret|token|api[_-]?key)[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+", "$$1[REDACTED]")
+                # Proof: without the `msg` statements, `password=hunter2` reached `attributes.msg`
+                # in the collector harness on 2026-10-11; with them k3d stored `password=[REDACTED]`.
                 - replace_pattern(attributes["msg"], "AGE-SECRET-KEY-1[0-9A-Z]{58}", "[REDACTED]")
                 - replace_pattern(attributes["msg"], "gh[pousr]_[A-Za-z0-9]{36,}", "[REDACTED]")
                 - replace_pattern(attributes["msg"], "AKIA[0-9A-Z]{16}", "[REDACTED]")
@@ -206,8 +213,11 @@ spec:
             enabled: true
             storage: file_storage/queue
             queue_size: 5000
-          # Consumers keep retrying while the persistent queue absorbs the outage; loss starts only
-          # once the queue is full. The measured outage drill is in openspec/changes/k3s-fleet/verify.md.
+          # Consumers keep retrying a refused connection while the persistent queue absorbs the
+          # outage (openspec/changes/k3s-fleet/verify.md). A request whose connection hangs instead
+          # ends in a timeout the exporter does not retry, and its batch is dropped: a 60 s outage
+          # on k3d on 2026-10-11 lost 49 of 900 lines that way
+          # (openspec/changes/log-failure-records/verify.md, "Elasticsearch outage").
           retry:
             enabled: true
             max_retries: 100000
