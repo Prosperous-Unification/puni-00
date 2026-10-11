@@ -82,3 +82,7 @@ The bounded preview smoke in [Anonymous conversation activation](#anonymous-conv
 ### On k3s
 
 Recorded for `website-on-k3s`, not built here (design D7): a Traefik `RateLimit` middleware on the website Ingress (average 50 requests per second per client address, burst 100), and a `/metrics` endpoint with a cluster-internal `ServiceMonitor` exposing the pause, spend, cap, lock and refusal counters to the platform Alertmanager.
+
+## Funnel
+
+The operator page shows a Funnel panel below Guardrails: per UTC day for the last 30 days, the drafts, started conversations, captured briefs, exhausted conversations by reason, proposal requests split into manual and from-chat, and ceiling-settled operations, with the from-chat share of the window's proposal requests. Every figure is a count over rows the funnel already stores (`GET /operator/funnel`, operator session only, counts only); no analytics script or beacon runs in the browser, and a conversion is a `proposal_submission` row. Exhaustions count on the conversation's first day, and days whose drafts were erased by [draft retention](draft-retention.md) undercount drafts, conversations and briefs. The Guardrails panel's `Ceiling-settled today` line is how far today's spend may over-count: operations whose usage never arrived were settled at their full reservation. The counting rules are in the [website-funnel-counts design](../../openspec/changes/website-funnel-counts/design.md).

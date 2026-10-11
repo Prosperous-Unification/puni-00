@@ -103,3 +103,7 @@ _Avoid_: Kill switch, outage
 **Guardrail alert**:
 A durable, deduplicated record that a guardrail threshold was crossed, optionally pushed to the operator's webhook.
 _Avoid_: Notification, incident
+
+**Funnel count**:
+A per-UTC-day count of one funnel step (drafts, started conversations, captured briefs, exhausted conversations, manual or from-chat proposal requests, ceiling-settled operations) derived only from stored rows and shown to the operator.
+_Avoid_: Analytics event, conversion beacon
