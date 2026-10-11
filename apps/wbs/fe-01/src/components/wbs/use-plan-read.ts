@@ -3,13 +3,14 @@ import type * as React from 'react';
 import { type ReactNode, useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 
 import { ALL_RESOURCES, type DirectoryRead } from '@/lib/plan-refresh';
-import type { AssignedPersonView } from '@/lib/wbs-api';
+import type { AssignedPersonView, ElsewhereHolderView } from '@/lib/wbs-api';
 import {
   DEFAULT_PERT_WEIGHTS_VIEW,
   type EstimateMethod,
   type EstimateRoundingView,
   type PertWeightsView,
   type PlanOptimizationView,
+  type PlanRead,
   type SliceView,
   type StepView,
 } from '@/lib/wbs-api';
@@ -112,6 +113,12 @@ export interface ChartRead {
   steps: StepView[];
   people: AssignedPersonView[];
   /**
+   * The work items in other projects this plan's slices wait for, named, in
+   * the same payload as the slices that point at them. Empty for a plan
+   * nothing outranks, where be-01 sends none.
+   */
+  elsewhereHolders: ElsewhereHolderView[];
+  /**
    * How far into a predecessor this plan's dependencies reach.
    *
    * Here rather than in a `useState` of its own for the reason `roles` is: the
@@ -145,6 +152,25 @@ export interface ChartRead {
   generation: number;
 }
 
+/** Everything the chart is drawn from, off one delivered plan read. */
+export function chartReadOf(read: PlanRead, generation: number): ChartRead {
+  return {
+    slices: read.slices,
+    steps: read.steps,
+    people: read.assignedPeople,
+    // Absent exactly when the plan was scheduled around no booking.
+    // Proof: `[]` in its place made `carries each label from the read to the
+    // bar that waits for it` (`plan-chart-input.test.ts`) throw
+    // `GanttDataError`; re-watched 2026-10-11.
+    elsewhereHolders: read.elsewhereHolders ?? [],
+    depReach: read.depReach,
+    pertWeights: read.pertWeights,
+    estimateRounding: read.estimateRounding,
+    ...(read.optimization === undefined ? {} : { optimization: read.optimization }),
+    generation,
+  };
+}
+
 /**
  * No read has landed yet: no slices, no roles, nobody, and no generation.
  *
@@ -156,6 +182,7 @@ export const NO_CHART_READ: ChartRead = {
   slices: [],
   steps: [],
   people: [],
+  elsewhereHolders: [],
   depReach: 'whole-item',
   // The column defaults, which are what a project has unless it asks
   // otherwise — 1/4/1 and `ceil`, the same figures `libs/wbs/domain/domain`'s
@@ -258,20 +285,7 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
       // read put them — and `replaces the slices on every refetch, as it replaces
       // the rows` failed on `expected '2' to be '1'`: a second row on screen with
       // the one-row plan's slices still behind it; watched 2026-08-09.
-      tree === null
-        ? NO_CHART_READ
-        : {
-            slices: tree.value.slices,
-            steps: tree.value.steps,
-            people: tree.value.assignedPeople,
-            depReach: tree.value.depReach,
-            pertWeights: tree.value.pertWeights,
-            estimateRounding: tree.value.estimateRounding,
-            ...(tree.value.optimization === undefined
-              ? {}
-              : { optimization: tree.value.optimization }),
-            generation: tree.generation,
-          },
+      tree === null ? NO_CHART_READ : chartReadOf(tree.value, tree.generation),
     [tree],
   );
 

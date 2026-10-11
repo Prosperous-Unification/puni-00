@@ -432,7 +432,17 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
 ## 7. fe
 
 - [ ] 7.1 The `elsewhere` sentence, `waitingElsewhere`, refetch, and the settings switch.
-- [ ] 7.2 Negative: floor kind unmapped → Error Boundary, not a blank card.
+      Ported onto the coherent chain in batch 10 (lane `capacity-ui-mode`, from batch-9
+      `fce82cbb0`/`908939385`): `readSharedPeople` labels each holder a target slice names from the
+      influencer rows it captured; the tree carries `elsewhereHolders` exactly beside
+      `waitingElsewhere`; the chart's floor sentence reads "Waits for Ana to finish 010.3 Rewire in
+      Platform"; `elsewhere_changed` refetches the tree only. fe-01 shows no header count for any
+      floor, so `waitingElsewhere` stays on the wire beside `waitingForPerson`/`waitingForCapacity`,
+      which fe-01 omits alike; the sentence is hover text, so it is not a link. The settings switch
+      ships with its route (8.1); this box is checked with it.
+- [x] 7.2 Negative: floor kind unmapped → Error Boundary, not a blank card. Done as a holder the
+      read does not label: `GanttDataError`, not a sentence blaming nobody; and in be-01 a slice
+      naming an unlabelled holder fails the read. Evidence: verify.md "UI 7 port (batch 10)".
 
 ## 8. Mode route
 

@@ -4197,3 +4197,27 @@ Final rerun on the closing bytes, under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYP
 - `NX_DAEMON=false bunx nx run-many -t test,lint:fast,typecheck -p wbs-be-01,wbs-core --skip-nx-cache`
   printed Nx success. be-01 had 1923 pass, 1 skip, 0 fail of 1924; core passed 846/846.
 - OpenSpec all passed 158/158.
+
+## UI 7 port (batch 10)
+
+Lane `capacity-ui-mode`, branch `batch-10/010-4-16-capacity-ui-mode`, based on
+`batch-10/integration-4` 9a9d5677f. The batch-9 slice 7 commits (`fce82cbb0`, `908939385`) were
+ported, not merged: their chain (`chainAbove`, `elsewhere-chain.ts`) no longer exists, so the
+holder labels are computed in `readSharedPeople` from the influencers' captured `workItems` and
+reach the tree through `projectSharedTree`. Labels cover the holders a target Fast slice names
+(not every booking in the input), and are present exactly with the displayed `waitingElsewhere`.
+
+Proofs, each fault injected into production code, observed, then restored and rerun green
+(`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`; fe through `TZ=UTC bunx vitest run`), 2026-10-11:
+
+| Fault                                                         | Observed                                                                                                                      |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `holdersOf` refusal replaced by `continue`                    | `shared-people.test.ts` 15/16: `throws when a target slice names a holder the chain read no label for` failed                 |
+| tree projection without `elsewhereHolders`                    | `schedule-organization.controller.db.test.ts -t 'names whom'` 0/1: `names whom a slice waits for in the project above` failed |
+| gantt holder lookup given an "another project" fallback label | `gantt-geometry.test.ts` 171/172: `throws when a bar held elsewhere names no holder the read labels` failed                   |
+| `elsewhere_changed` line removed from `resourcesFor`          | `plan-refresh.test.ts` 15/16: `refetches only the tree when bookings above move` failed                                       |
+| `chartReadOf` holders forced to `[]`                          | `plan-chart-input.test.ts` 12/13: `carries each label from the read to the bar that waits for it` failed                      |
+
+Restored: `shared-people.test.ts` 16/16; `schedule-organization.controller.db.test.ts` 67/67;
+the three fe files 201/201; `nx run-many -t test -p wbs-core wbs-contracts` 457 and 774 pass, 0 fail; mcp-01 331/331;
+typecheck and lint:fast for wbs-core, wbs-be-01, wbs-contracts and wbs-fe-01 succeeded.
