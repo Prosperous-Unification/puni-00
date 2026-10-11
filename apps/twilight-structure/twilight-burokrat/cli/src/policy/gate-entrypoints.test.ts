@@ -1244,7 +1244,6 @@ await import(${JSON.stringify(productionSnapshotter)});
     );
     expect(hostGate).toContain('if [[ -n "$1" ]]; then bash "$1" committed');
     expect(ci).toContain('bash bin/tool-wiki-lint.sh committed . "$GITHUB_SHA"');
-    expect(ci).toContain("github.event_name == 'push'");
     expect(ci).toContain('diagnostic/non-certifying');
     expect(ci).toContain('bash bin/tool-wiki-push-audit.sh . "$GITHUB_SHA"');
     expect(ci).not.toContain('Stage trusted runtime modules outside the push candidate');
@@ -1323,9 +1322,15 @@ await import(${JSON.stringify(productionSnapshotter)});
       'utf8',
     );
     // Proof: an edited copy of the template failed here with the two texts printed side by side.
-    // A consumer that must diff this file against ours cannot copy it unchanged, and every
-    // divergence becomes a repository whose admission workflow is not the reviewed one.
-    expect(consumerTemplate).toBe(trustedCi);
+    // This repository's temporary pause is removed before comparing the active consumer template.
+    const pauseMarker = [
+      '    # Temporarily paused while the external activation archive is unavailable.',
+      '    # Local operators can still run bin/tool-wiki-lint.sh with a real activation.',
+      '    if: false',
+      '',
+    ].join('\n');
+    const repositoryAdmission = trustedCi.replace(pauseMarker, '');
+    expect(consumerTemplate).toBe(repositoryAdmission);
     const consumerReadme = readFileSync(
       join(workspace, 'apps', 'twilight-structure', 'twilight-burokrat', 'consumer', 'README.md'),
       'utf8',
@@ -1382,6 +1387,32 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(workspacePackage.scripts['lint']).toBe(
       'nx run-many -t lint --exclude=twilight-burokrat && nx run twilight-burokrat:lint:source',
     );
+  });
+
+  // Proof: before the CI pause, the production trusted-wiki job had no `if` and this test failed
+  // with `Expected: false, Received: undefined`; the local hook assertion guards the fallback.
+  test('trusted-wiki CI admission is paused while the local hook remains', () => {
+    const trustedWorkflow = parseYaml(
+      readFileSync(join(workspace, '.github', 'workflows', 'trusted-wiki.yml'), 'utf8'),
+    ) as { jobs?: { lint?: { if?: boolean } } };
+    const workspaceWorkflow = parseYaml(
+      readFileSync(join(workspace, '.github', 'workflows', 'ci.yml'), 'utf8'),
+    ) as { jobs?: { gate_workspace?: { steps?: { name?: string; if?: boolean }[] } } };
+    const hook = readFileSync(join(workspace, 'lefthook.yml'), 'utf8');
+    const wikiSteps = [
+      'Tool wiki — diagnostic/non-certifying',
+      'Provision immutable external activation for push audit',
+      'Tool wiki — externally activated push audit',
+    ];
+
+    expect(trustedWorkflow.jobs?.lint?.if).toBe(false);
+    for (const name of wikiSteps) {
+      const step = workspaceWorkflow.jobs?.gate_workspace?.steps?.find(
+        (candidate) => candidate.name === name,
+      );
+      expect(step?.if, `${name} must be paused`).toBe(false);
+    }
+    expect(hook).toContain('run: bash bin/tool-wiki-lint.sh staged . HEAD');
   });
 
   const provisioningSteps = [
