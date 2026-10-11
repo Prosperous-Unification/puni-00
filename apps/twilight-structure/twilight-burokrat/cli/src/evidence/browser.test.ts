@@ -6,6 +6,7 @@ import { digestEvidenceBytes } from '@shared/test-evidence';
 import { afterEach, expect, test } from 'bun:test';
 
 import { readCandidate } from '../inventory/read-candidate';
+import { invokeCli } from '../invoke-cli';
 import { registeredRules } from '../rules/registry';
 import { checkArtifactInventory, inspectBrowserBundle } from './browser';
 import { hashCanonical } from './content-manifest';
@@ -157,28 +158,22 @@ function inspect(setup: ReturnType<typeof fixture>) {
   return inspectBrowserBundle(setup.root, setup.revision, setup.policyPath, mode);
 }
 
-function invokeInspect(setup: ReturnType<typeof fixture>): {
+async function invokeInspect(setup: ReturnType<typeof fixture>): Promise<{
   exitCode: number;
   stdout: string;
   stderr: string;
-} {
-  const invocation = Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      join(import.meta.dir, '..', 'cli.ts'),
-      'inspect-browser',
-      setup.root,
-      setup.revision,
-      setup.policyPath,
-      mode,
-    ],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+}> {
+  const invocation = await invokeCli([
+    'inspect-browser',
+    setup.root,
+    setup.revision,
+    setup.policyPath,
+    mode,
+  ]);
   return {
     exitCode: invocation.exitCode,
-    stdout: invocation.stdout.toString(),
-    stderr: invocation.stderr.toString(),
+    stdout: invocation.stdout,
+    stderr: invocation.stderr,
   };
 }
 
@@ -191,35 +186,25 @@ test('diagnoses exact Browser observations while withholding authentication and 
   expect(Object.hasOwn(report, 'verifiedCoverage')).toBe(false);
 });
 
-test('prints only diagnostic observations through the production CLI', () => {
+test('prints only diagnostic observations through the production CLI', async () => {
   const setup = fixture();
-  const cli = join(import.meta.dir, '..', 'cli.ts');
-  const invocation = Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      cli,
-      'inspect-browser',
-      setup.root,
-      setup.revision,
-      setup.policyPath,
-      mode,
-    ],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
-  expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
-  const output = JSON.parse(invocation.stdout.toString()) as Record<string, unknown>;
+  const invocation = await invokeCli([
+    'inspect-browser',
+    setup.root,
+    setup.revision,
+    setup.policyPath,
+    mode,
+  ]);
+  expect(invocation.exitCode, invocation.stderr).toBe(0);
+  const output = JSON.parse(invocation.stdout) as Record<string, unknown>;
   expect(output['authentication']).toEqual({ kind: 'absent' });
   expect(output['certifies']).toBe(false);
   expect(Object.hasOwn(output, 'verifiedCoverage')).toBe(false);
-  const staged = Bun.spawnSync(
-    [process.execPath, 'run', cli, 'inspect-browser', setup.root, 'staged', setup.policyPath, mode],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const staged = await invokeCli(['inspect-browser', setup.root, 'staged', setup.policyPath, mode]);
   expect(staged.exitCode).toBe(1);
 });
 
-test('inspect-browser accepts reporter annotation metadata and refuses malformed properties', () => {
+test('inspect-browser accepts reporter annotation metadata and refuses malformed properties', async () => {
   const setup = fixture();
   const playwrightPath = join(setup.bundle, 'playwright.xml');
   const original = readFileSync(playwrightPath, 'utf8');
@@ -235,7 +220,7 @@ test('inspect-browser accepts reporter annotation metadata and refuses malformed
     writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
   };
   putJunit(withProperties);
-  const accepted = invokeInspect(setup);
+  const accepted = await invokeInspect(setup);
   expect(accepted.exitCode, accepted.stderr).toBe(0);
   const observation = JSON.parse(accepted.stdout) as Record<string, unknown>;
   expect(observation['certifies']).toBe(false);
@@ -278,14 +263,14 @@ test('inspect-browser accepts reporter annotation metadata and refuses malformed
     ],
   ] as const) {
     putJunit(xml);
-    const refused = invokeInspect(setup);
+    const refused = await invokeInspect(setup);
     expect(refused.exitCode, refused.stderr).toBe(1);
     expect(refused.stderr).toContain(diagnostic);
     expect(refused.stdout).toBe('');
   }
 });
 
-test('production CLI refuses missing, malformed, old-object and foreign candidate digests', () => {
+test('production CLI refuses missing, malformed, old-object and foreign candidate digests', async () => {
   const setup = fixture();
   const candidate = setup.manifest['candidate'];
   for (const [value, diagnostic] of [
@@ -297,24 +282,24 @@ test('production CLI refuses missing, malformed, old-object and foreign candidat
     if (value === undefined) delete setup.manifest['candidate'];
     else setup.manifest['candidate'] = value;
     writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
-    const inspection = invokeInspect(setup);
+    const inspection = await invokeInspect(setup);
     expect(inspection.exitCode).toBe(1);
     expect(inspection.stderr).toContain(diagnostic);
     expect(inspection.stdout).toBe('');
   }
 });
 
-test('production CLI refuses a changed manifest revision even with the exact candidate digest', () => {
+test('production CLI refuses a changed manifest revision even with the exact candidate digest', async () => {
   const setup = fixture();
   setup.manifest['revision'] = '0'.repeat(40);
   writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
-  const inspection = invokeInspect(setup);
+  const inspection = await invokeInspect(setup);
   expect(inspection.exitCode).toBe(1);
   expect(inspection.stderr).toContain('Browser manifest revision differs from committed selection');
   expect(inspection.stdout).toBe('');
 });
 
-test('production CLI distinguishes an empty descendant with the same tree from its parent digest', () => {
+test('production CLI distinguishes an empty descendant with the same tree from its parent digest', async () => {
   const setup = fixture();
   const oldTree = git(setup.root, ['rev-parse', `${setup.revision}^{tree}`]);
   git(setup.root, ['commit', '--allow-empty', '-m', 'same tree, new selection']);
@@ -322,7 +307,7 @@ test('production CLI distinguishes an empty descendant with the same tree from i
   expect(git(setup.root, ['rev-parse', `${setup.revision}^{tree}`])).toBe(oldTree);
   setup.manifest['revision'] = setup.revision;
   writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
-  const inspection = invokeInspect(setup);
+  const inspection = await invokeInspect(setup);
   expect(inspection.exitCode).toBe(1);
   expect(inspection.stderr).toContain(
     'Browser candidate identity differs from committed selection',
@@ -366,7 +351,7 @@ test('refuses raw byte, manifest case and normalized JUnit mismatches', () => {
   expect(() => inspect(setup)).toThrow('normalized JUnit cases differ');
 });
 
-test('inspect-browser refuses contradictory raw JUnit outcomes even when counts and JSON agree', () => {
+test('inspect-browser refuses contradictory raw JUnit outcomes even when counts and JSON agree', async () => {
   const setup = fixture();
   const discoveryPath = join(setup.bundle, 'discovery.json');
   const executionPath = join(setup.bundle, 'execution.json');
@@ -418,22 +403,15 @@ test('inspect-browser refuses contradictory raw JUnit outcomes even when counts 
   ];
   setup.manifest['coverage'] = { passingCases: 1, skippedDebt: 1 };
   writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
-  const cli = join(import.meta.dir, '..', 'cli.ts');
-  const invocation = Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      cli,
-      'inspect-browser',
-      setup.root,
-      setup.revision,
-      setup.policyPath,
-      mode,
-    ],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const invocation = await invokeCli([
+    'inspect-browser',
+    setup.root,
+    setup.revision,
+    setup.policyPath,
+    mode,
+  ]);
   expect(invocation.exitCode).toBe(1);
-  expect(invocation.stderr.toString()).toContain('duplicate outcome');
+  expect(invocation.stderr).toContain('duplicate outcome');
 });
 
 test('requires external mode/config authority and committed candidate blob', () => {
