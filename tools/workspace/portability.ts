@@ -121,6 +121,30 @@ function readBaseline(root: string): Fields {
   }
   return { version: 1, packageManager, pins, semantics, compiler, files };
 }
+const remoteCacheKeys = ['nxCloudId', 'nxCloudAccessToken', 'nxCloudUrl', 'nxCloudEncryptionKey'];
+/** Throws when `nx.json` names Nx Cloud or a task runner holding an access token.
+ * Transferred caches would carry task outputs out of either repository; both stay local-only.
+ */
+function refuseRemoteCache(root: string): void {
+  const nx = readRecord(root, 'nx.json');
+  const runners =
+    nx['tasksRunnerOptions'] === undefined
+      ? {}
+      : requireRecord(nx['tasksRunnerOptions'], 'tasksRunnerOptions');
+  const tokenRunners = Object.entries(runners).filter(([name, runner]) => {
+    const options = requireRecord(runner, `tasksRunnerOptions.${name}`)['options'];
+    return (
+      options !== undefined &&
+      requireRecord(options, `${name} options`)['accessToken'] !== undefined
+    );
+  });
+  const settings = [
+    ...remoteCacheKeys.filter((key) => nx[key] !== undefined),
+    ...tokenRunners.map(([name]) => `tasksRunnerOptions.${name}.options.accessToken`),
+  ];
+  if (settings.length > 0)
+    throw new Error(`Remote Nx cache is refused in ${root}/nx.json: remove ${settings.join(', ')}`);
+}
 function hashBaseline(baseline: Fields): string {
   return createHash('sha256').update(canonicalize(baseline)).digest('hex');
 }
@@ -172,8 +196,13 @@ export function synchronizeBaseline(source: string, destination: string): void {
   });
 }
 
-/** Throws when toolchain pins or supported target/compiler semantics have drifted. */
+/** Throws when toolchain pins or supported target/compiler semantics have drifted,
+ * or when either workspace configures a remote Nx cache.
+ */
 export function verifyBaseline(source: string, destination: string): void {
+  // Proof: removing both calls let check pass and copy write the project in the remote-cache test.
+  refuseRemoteCache(source);
+  refuseRemoteCache(destination);
   const expected = readBaseline(source);
   const observed = readBaseline(destination);
   // Proof: removing this comparison fails 'changed dependency pin fails conformance before transfer'.
@@ -252,6 +281,11 @@ export function copyProject(source: string, destination: string, project: string
     destinationOptions['paths'] === undefined
       ? {}
       : requireRecord(destinationOptions['paths'], 'destination paths');
+  const destinationManifest = readRecord(destinationRoot, 'package.json');
+  const installed = [
+    readDependencies(destinationManifest, 'dependencies'),
+    readDependencies(destinationManifest, 'devDependencies'),
+  ];
   const aliases: Record<string, string[]> = {};
   const completed = new Set<string>();
   const visiting = new Set<string>();
@@ -339,6 +373,18 @@ export function copyProject(source: string, destination: string, project: string
       if (Object.hasOwn(destinationAliases, alias) || Object.hasOwn(aliases, alias))
         throw new Error(`Destination alias collision: ${alias}`);
       aliases[alias] = [mapping[0]];
+    }
+    const packages = policy['packages'] === undefined ? {} : policy['packages'];
+    if (typeof packages !== 'object' || packages === null || Array.isArray(packages))
+      throw new Error(`Invalid package declaration: ${path}`);
+    for (const [name, spec] of Object.entries(packages)) {
+      if (typeof spec !== 'string' || spec.length === 0)
+        throw new Error(`Invalid package declaration: ${path} ${name}`);
+      // Proof: deleting this comparison copied the projects in both declared-package tests.
+      if (!installed.some((section) => section[name] === spec))
+        throw new Error(
+          `Missing package ${name}@${spec} in ${destinationRoot}/package.json: add it, run bun install, then commit bun.lock`,
+        );
     }
     inspectTree(join(sourceRoot, path));
     // Proof: omitting traversal fails the bidirectional closure test before its unchanged-byte assertion.

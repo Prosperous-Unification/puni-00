@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -323,4 +324,85 @@ test('unreadable trusted state is refused without mutating destination', () => {
     chmodSync(inaccessible, 0o600);
   }
   expect(readFileSync(join(destination, 'package.json'), 'utf8')).toBe(before);
+});
+
+function declarePackages(root: string, path: string, packages: unknown) {
+  const manifest = parseJson(join(root, path, 'project.json')) as {
+    metadata: { portability: Record<string, unknown> };
+  };
+  manifest.metadata.portability['packages'] = packages;
+  json(join(root, path, 'project.json'), manifest);
+}
+function addPackages(root: string, section: string, packages: Record<string, string>) {
+  const manifest = parseJson(join(root, 'package.json')) as Record<string, Record<string, string>>;
+  manifest[section] = { ...manifest[section], ...packages };
+  json(join(root, 'package.json'), manifest);
+}
+
+test('a project declaring a package the destination lacks is refused before any write', () => {
+  const { source, destination } = pair();
+  project(source, 'libs/fixture/domain/core');
+  project(source, 'apps/fixture/client', ['libs/fixture/domain/core']);
+  declarePackages(source, 'libs/fixture/domain/core', { '@noble/hashes': '^2.0.1' });
+  // Proof: deleting the declared-package comparison copied both projects and failed this refusal assertion.
+  expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow(
+    `Missing package @noble/hashes@^2.0.1 in ${realpathSync(destination)}/package.json: add it, run bun install, then commit bun.lock`,
+  );
+  expect(existsSync(join(destination, 'apps'))).toBe(false);
+  expect(existsSync(join(destination, 'libs'))).toBe(false);
+  addPackages(destination, 'dependencies', { '@noble/hashes': '^2.0.1' });
+  expect(copyProject(source, destination, 'apps/fixture/client')).toEqual([
+    'libs/fixture/domain/core',
+    'apps/fixture/client',
+  ]);
+});
+
+test('an incompatible declared spec is refused naming the repair', () => {
+  const { source, destination } = pair();
+  project(source, 'apps/fixture/client');
+  declarePackages(source, 'apps/fixture/client', { react: '19.2.0' });
+  addPackages(destination, 'devDependencies', { react: '^19.2.0' });
+  // Proof: deleting the declared-package comparison copied the project despite '^19.2.0' versus '19.2.0'.
+  expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow(
+    'Missing package react@19.2.0',
+  );
+  expect(existsSync(join(destination, 'apps'))).toBe(false);
+  declarePackages(source, 'apps/fixture/client', ['react']);
+  expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow(
+    'Invalid package declaration',
+  );
+  declarePackages(source, 'apps/fixture/client', { react: '' });
+  expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow(
+    'Invalid package declaration',
+  );
+  expect(existsSync(join(destination, 'apps'))).toBe(false);
+});
+
+test('a workspace with nxCloudId or a tasks-runner accessToken is refused by check and copy', () => {
+  for (const [side, setting] of [
+    ['destination', { nxCloudId: 'abc123' }],
+    ['source', { nxCloudAccessToken: 'token' }],
+    [
+      'destination',
+      {
+        tasksRunnerOptions: {
+          default: { runner: 'nx/tasks-runners/default', options: { accessToken: 'token' } },
+        },
+      },
+    ],
+  ] as const) {
+    const { source, destination } = pair();
+    project(source, 'apps/fixture/client');
+    const root = side === 'source' ? source : destination;
+    const nx = parseJson(join(root, 'nx.json')) as Record<string, unknown>;
+    json(join(root, 'nx.json'), { ...nx, ...setting });
+    // Proof: removing the remote-cache guard let check pass and copy write apps/fixture/client.
+    expect(() => {
+      verifyBaseline(source, destination);
+    }).toThrow('Remote Nx cache is refused');
+    expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow(
+      'Remote Nx cache is refused',
+    );
+    expect(existsSync(join(destination, 'apps'))).toBe(false);
+  }
 });
