@@ -116,7 +116,11 @@ describe('the effective production and test boundaries', () => {
     // Proof: widening the authority override to `['^@twilight-burokrat/']` failed this test at
     // the exact allow-list assertion (2026-10-11).
     expect(authorityOptions['allow']).toEqual(['^@twilight-burokrat/judge$']);
-    expect({ ...authorityOptions, allow: [] }).toEqual(peerOptions);
+    const withoutJudgeAlias: Readonly<Record<string, unknown>> = {
+      ...authorityOptions,
+      allow: [],
+    };
+    expect(withoutJudgeAlias).toEqual(peerOptions);
     expect(
       await ruleIds(authorityPath, "import { hashBytes } from '@twilight-burokrat/judge';"),
     ).not.toContain('@nx/enforce-module-boundaries');

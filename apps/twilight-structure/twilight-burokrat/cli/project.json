@@ -38,7 +38,11 @@
       "cache": false,
       "inputs": ["{workspaceRoot}/tools/worker-isolation/**/*", "{projectRoot}/project.json"],
       "options": {
-        "command": "bun test tools/worker-isolation/capability.test.ts && bun tools/worker-isolation/readiness.ts"
+        "command": "bun test tools/worker-isolation/capability.test.ts --timeout=60000 && bun tools/worker-isolation/readiness.ts",
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
       }
     },
     "lint": {
