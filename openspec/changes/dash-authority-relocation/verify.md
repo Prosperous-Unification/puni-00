@@ -57,6 +57,50 @@ Each fault was restored and the test passed again.
 | `deps.clock ?? wallClock()` in `runDash`                           | same test: `+ "cli.ts"` among `wallClock()` composers                                 |
 | dependency check in `runDash` turned into `continue`               | `runDash refuses missing dependencies`: `deps.planEnrollment is not a function`       |
 
-## S3–S6
+## S3: absence refuses, bootstrap is explicit, identity is pinned
+
+| Command                                                           | Result                     |
+| ----------------------------------------------------------------- | -------------------------- |
+| `bun test --preload … src --timeout=30000` in `twilight-dash/cli` | 200 pass, 0 fail, 13 files |
+| `NX_DAEMON=false bunx nx run twilight-dash:lint --skip-nx-cache`  | exit 0                     |
+
+Mandatory proof "missing versus unreadable adoption state": `authority-store.db.test.ts` cases
+`refuses an absent authority instead of creating one` and `distinguishes an unreadable authority
+from an absent one` (file mode `0000`; `module-wiki` mode `0600`, refused for uid 0).
+
+| Injected fault                                                      | Observed failure                                                                                                |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `openAuthority` falls back to creation on `absent`                  | `refuses an absent authority instead of creating one` received a store                                          |
+| every `lstat` failure mapped to `absent`                            | `distinguishes an unreadable …`: `absent` instead of `unreadable`/EACCES                                        |
+| under-lock `exists` refusal dropped                                 | `bootstrap refuses an existing authority`: `corrupt` instead of `exists`                                        |
+| post-wait `exists` refusal dropped                                  | `two bootstraps …`: `Error: authority initialization ended without a database`                                  |
+| `mkdirSync(module-wiki)` restored in `resolveAuthorityDatabasePath` | `open creates no directory` and the absent case observe the directory                                           |
+| `CHECK (generation >= 1)` weakened to `>= 0` in `SCHEMA`            | golden equality diff; the Burokrat dump refused `schema is incompatible`                                        |
+| bootstrap grammar loosened to `argv.length === 0`                   | CLI canary: Dash accepted `bootstrap-authority <root> extra`                                                    |
+| unknown commands routed to bootstrap                                | CLI canary: Dash accepted `acquire-claims <root>`                                                               |
+| inspect grammar check deleted                                       | CLI canary: `authority absent` instead of usage for `--sessions a`                                              |
+| `exists` refusal dropped (CLI)                                      | second `bootstrap-authority`: `authority database corrupt or incompatible: table authority_meta already exists` |
+
+A pre-lock `exists` check was removed rather than kept: with it present, the under-lock check
+could not be observed failing (8 concurrent rounds stayed green with it removed).
+`enrollment-plan.test.ts` does not observe a restored `mkdirSync`, because planning never
+resolves the authority path; the design's expectation there was wrong.
+
+Dump production (pre-relocation code, S0 commit `e57278139`):
+
+```sh
+git -C <S0 worktree> archive e57278139 apps/twilight-structure/twilight-burokrat/cli/src | tar -x -C <scratch>
+ln -s <repo>/node_modules <scratch>/node_modules   # plus <scratch>/tsconfig.json mapping @shared/validation
+# append the `golden producer` case to <scratch>/…/admission-runtime/integration-races.test.ts:
+# preparePublication('golden') → publishIntegrationRefs → finalizeIntegrationPublication,
+# a submitted session `two`, a working session `three` with a conflict group, then
+# `sqlite3 <db> .dump`, `sqlite3 <db> .schema` and `inspect()` before cleanup
+GOLDEN_OUTPUT=<out> bun test src/admission-runtime/integration-races.test.ts -t "golden producer"
+```
+
+`fixtures/authority/module-wiki-authority.v5.sql` is that `.schema` plus a fresh store's meta row;
+`burokrat-written-v5.sql` and `.state.json` are the dump and `inspect()` output.
+
+## S4–S6
 
 Recorded by each slice as it lands.

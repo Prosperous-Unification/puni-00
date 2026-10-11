@@ -20,9 +20,9 @@
 
 ## 4. Absence refuses, bootstrap is explicit (S3)
 
-- [ ] 4.1 `AuthorityOpenError` kinds; `openAuthority` refuses `absent`/`unreadable`; `bootstrapAuthority` with under-lock recheck; `resolveAuthorityDatabasePath` without `mkdir`; five tests with watched negatives.
-- [ ] 4.2 Golden v5 schema text and a Burokrat-written v5 dump fixture; `schema-golden.test.ts`.
-- [ ] 4.3 CLI `bootstrap-authority` and `inspect-authority`; dispatcher canary creates no `.git/module-wiki`.
+- [x] 4.1 `AuthorityOpenError` kinds; `openAuthority` refuses `absent`/`unreadable`; `bootstrapAuthority` with under-lock recheck; `resolveAuthorityDatabasePath` without `mkdir`; five tests with watched negatives.
+- [x] 4.2 Golden v5 schema text and a Burokrat-written v5 dump fixture; `schema-golden.test.ts`.
+- [x] 4.3 CLI `bootstrap-authority` and `inspect-authority`; dispatcher canary creates no `.git/module-wiki`.
 
 ## 5. Idempotent submission (S4)
 

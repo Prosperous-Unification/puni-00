@@ -1,0 +1,96 @@
+{
+  "nextGeneration": 4,
+  "generations": [
+    {
+      "claims": [],
+      "generation": 1,
+      "heartbeatAt": 1000,
+      "packet": {
+        "packetBytes": "{\"base\":{\"commit\":\"e543d9a6e3e5be6b64e84a79dfdb846746baa00f\",\"tree\":\"5410a47ba0a9b5554e297291c6929f44aa1876e7\"},\"checks\":[\"check.integration\"],\"conflictGroups\":[],\"consumedContracts\":[],\"consumedInterfaces\":[],\"evidenceRequirements\":[\"review.integration\"],\"generation\":1,\"invariants\":[\"invariant.integration\"],\"mappingIdentity\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"objective\":\"Change src/one.ts\",\"outcome\":\"src/one.ts changes\",\"ownedPaths\":[\"src/one.ts\"],\"policyIdentity\":\"45cf5a84066ee1e90bc0c0ceb3dbfc3bf3a7126e8115a4aa94c0b3857eb9b14e\",\"producedContracts\":[],\"producedInterfaces\":[],\"readDependencies\":[],\"schemaVersion\":1,\"sessionId\":\"one\",\"worktreePath\":\"/tmp/wiki-integration-race-rNWYvP/.writer-one\"}\n",
+        "packetIdentity": "a951ffd88d6c1bb47d465bc0e307dc5bb7dc2376ed42e2e45c47d5f74635c30b"
+      },
+      "sessionId": "one",
+      "status": "integrated",
+      "statusAt": 1000,
+      "submission": {
+        "candidateDiffIdentity": "d5758e1ecd03eb13b073d71e318e38c3dc1369a3909d985b0108cfd44c2e6a94",
+        "contentIdentity": "4e2f8c5d6218a388ff29b2afa1fe9f0a4214e87274cce1fd3989a920d7d9509f",
+        "patchIdentity": "3dd5b56a07fabb0cdff888c1af658492cdda24d4265ea80c9fa20a8c632dcbcb"
+      },
+      "worktreePath": "/tmp/wiki-integration-race-rNWYvP/.writer-one"
+    },
+    {
+      "claims": [
+        {
+          "access": "write",
+          "identity": "src/two.ts",
+          "kind": "path"
+        }
+      ],
+      "generation": 2,
+      "heartbeatAt": 1000,
+      "packet": {
+        "packetBytes": "{\"base\":{\"commit\":\"e543d9a6e3e5be6b64e84a79dfdb846746baa00f\",\"tree\":\"5410a47ba0a9b5554e297291c6929f44aa1876e7\"},\"checks\":[\"check.integration\"],\"conflictGroups\":[],\"consumedContracts\":[],\"consumedInterfaces\":[],\"evidenceRequirements\":[\"review.integration\"],\"generation\":2,\"invariants\":[\"invariant.integration\"],\"mappingIdentity\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"objective\":\"Change src/two.ts\",\"outcome\":\"src/two.ts changes\",\"ownedPaths\":[\"src/two.ts\"],\"policyIdentity\":\"45cf5a84066ee1e90bc0c0ceb3dbfc3bf3a7126e8115a4aa94c0b3857eb9b14e\",\"producedContracts\":[],\"producedInterfaces\":[],\"readDependencies\":[],\"schemaVersion\":1,\"sessionId\":\"two\",\"worktreePath\":\"/tmp/wiki-integration-race-rNWYvP/.writer-two\"}\n",
+        "packetIdentity": "5ee6634eb2ea9f6035814af622b6b5b1e74d7a519a55839b7e5ae03878a7ba75"
+      },
+      "sessionId": "two",
+      "status": "submitted",
+      "statusAt": 1000,
+      "submission": {
+        "candidateDiffIdentity": "9ed19236a50e91538e4a9bf127fbde8712c959800d8b37d67ab9121e2abb1255",
+        "contentIdentity": "4642346a8c04f85aff9e3a3700767956c0ec29bbf231bdb11362cdc1cd237553",
+        "patchIdentity": "1a9587dc588487f90931d1383fa25b71db26fcf23760e43a7bbc0c99037cbfdf"
+      },
+      "worktreePath": "/tmp/wiki-integration-race-rNWYvP/.writer-two"
+    },
+    {
+      "claims": [
+        {
+          "identity": "group.golden",
+          "kind": "group"
+        },
+        {
+          "access": "read",
+          "identity": "src/four.ts",
+          "kind": "path"
+        },
+        {
+          "access": "write",
+          "identity": "src/three.ts",
+          "kind": "path"
+        }
+      ],
+      "generation": 3,
+      "heartbeatAt": 1000,
+      "sessionId": "three",
+      "status": "working",
+      "statusAt": 1000,
+      "worktreePath": "/tmp/wiki-integration-race-rNWYvP/.writer-three"
+    }
+  ],
+  "integrations": [
+    {
+      "attemptCount": 1,
+      "attemptIdentity": "639321282876fb71f9c8aa8491468fe1673eec56857b3cb5565062f7c4d5bc3c",
+      "baseCommit": "e543d9a6e3e5be6b64e84a79dfdb846746baa00f",
+      "candidateTree": "c930c7f359eb425743c4eeb8571d506657def8e6",
+      "candidateCommit": "2c8bdf75dfd5256afea5489c6d0806276a6b215a",
+      "compositionIdentity": "4f021b6a094c50849b7f08ba8697930c70b8308ac9498c078464b802fde68e75",
+      "integrationId": "golden",
+      "markerRef": "refs/module-wiki/publications/54b8a60bc0ed50597cf940fdb6425f691c33cb47355f2348bec6dd402d5f0b8a",
+      "queuedAt": 1000,
+      "resources": [],
+      "status": "published",
+      "statusAt": 1000,
+      "submissions": [
+        {
+          "generation": 1,
+          "packetIdentity": "a951ffd88d6c1bb47d465bc0e307dc5bb7dc2376ed42e2e45c47d5f74635c30b",
+          "patchIdentity": "3dd5b56a07fabb0cdff888c1af658492cdda24d4265ea80c9fa20a8c632dcbcb",
+          "sessionId": "one"
+        }
+      ],
+      "targetRef": "refs/heads/main"
+    }
+  ]
+}
