@@ -106,6 +106,51 @@ All ran on the disposable k3d lab `puni-f9-rv` (app profile, two fresh clones `a
 
 Gates after the fixes: tool-fleet and tool-devsync `test`, `lint` and `typecheck` pass; tool-devsync 263 pass and 0 fail once the new files were committed (the merged branch had already fixed the 14 baseline failures). `format:check --all` exit 0.
 
+### F9 production cluster measurement (2026-10-11)
+
+This is a read-only measurement of the production two-node platform cluster, taken over SSH
+between 18:48 and 18:51 UTC using `kubectl describe node`, `kubectl top`, the
+`kubepods.slice` cgroup files, `free`, `swapon` and `df`. Only the stages through `secrets`,
+the website tenant, Traefik and cert-manager are deployed. `platform` is stuck on the
+registry's missing Secrets, so `observability`, `alerts` and `backup` are not deployed and the
+full platform graph cannot be measured live. The lab task below stays open.
+
+|                                   | h4claw (control-plane, product, ingress) | h3mon (observability)          |
+| --------------------------------- | ---------------------------------------- | ------------------------------ |
+| Capacity / allocatable memory     | 15603 / 13299 MiB, 8 CPU                 | 7740 / 6076 MiB, 4 CPU         |
+| Scheduled requests                | 515m CPU, 524 MiB                        | 150m CPU, 128 MiB              |
+| Scheduled limits                  | 3 CPU, 3498 MiB                          | 2 CPU, 2048 MiB                |
+| `kubectl top node`                | 219m, 2048 MiB                           | 800m, 2085 MiB                 |
+| `kubepods.slice` `memory.current` | 212 MiB                                  | 453 MiB                        |
+| Outside k3s                       | one Docker container, 413 MiB            | Docker Victoria stack, 908 MiB |
+| Swap / root disk                  | none / 9%                                | 4 GiB file, 40 MiB used / 10%  |
+
+On h3mon, `source-controller` used 623m CPU and 303 MiB while retrying the failing
+`puni-fleet` source.
+
+Declared demand of the stages that are not deployed yet, summed from the manifests at
+`99ab00fb0`:
+
+- Pinned to the observability node (Elasticsearch, Kibana, ECK, Prometheus and its operator,
+  Alertmanager, blackbox): 1070m CPU and 5414 MiB requested, 7104 MiB limits.
+- Per node, from DaemonSets (OTel collector, node-exporter, Velero node agent): 210m and
+  288 MiB requested, 1408 MiB limits.
+- Unpinned (kube-state-metrics, Velero server): 110m and 192 MiB requested.
+
+Once all of it is deployed, h3mon is requested to 5830 of 6076 MiB, leaving 246 MiB. h4claw,
+if it takes the unpinned pods, is requested to 1004 MiB, leaving 12295 MiB and 7.2 CPU.
+
+That remaining h4claw headroom fits this many source-run environments (`overlays/dev/pod.yaml`
+requests 768 MiB and limits each one to 2 GiB):
+
+- 16 if packed at their requests.
+- 6 at their limits without overcommit.
+- 5 at their limits next to the WBS application tier (544 MiB requested).
+
+It does not fit the `workers` ResourceQuota, which requests 16 GiB. Concurrent dev-environment
+demand is not recorded anywhere, and neither is a numeric threshold for using h2puni. These
+figures are the input to that decision, not the decision.
+
 ## F10 recovery and maintenance drills
 
 Code committed as `79b220b4`..`83b3eb8a`, then the live-found repairs in the F10 evidence commit.

@@ -89,3 +89,43 @@ All on the final tree before commit, uncached:
 - `git ls-files -z | xargs -0 bun run tools/tool-git-hooks/src/hooks/private-nesting.ts`: exit 0.
 - `bunx @fission-ai/openspec@1.12.0 validate --all`: 149 passed, 0 failed.
 - Not run: `bin/h2puni-gate.sh` (not requested), the QEMU lab (owed, §1.3), the CI rehearsal.
+
+## 4. Dev preview after the k3s cutover (2026-10-11)
+
+The preview's DNS moved to the platform cluster on h4claw on 2026-10-07 at 17:52 UTC. This is a
+read-only observation taken about 97 hours later, between 18:48 and 18:51 UTC, from the operator
+workstation over SSH. Commands: `kubectl get/top/describe/logs`, `journalctl`, `free`, `df` and
+`docker ps/stats/compose ls`, plus `curl` and `openssl s_client` against the public names.
+Nothing was applied or restarted, and no Secret was read. It is a point-in-time read of
+counters, retained Jobs and logs covering the window. It is not continuous monitoring: the
+`alerts` stage that carries the public blackbox probes (§1.1) is not Ready, so nothing probed
+the preview during the window.
+
+- [x] Live now: `https://dev.puni.dev/` 200, `https://dev.puni.dev/api/health` 200
+      (`{"ok":true,"service":"puni-website-api"}`), `https://dev.app.puni.dev/` 200;
+      `http://dev.puni.dev/` 301 to HTTPS, which is the `GET` behaviour §1.2 predicts.
+- [x] Restarts: the `api`, `app` and `site` pods in `website-dev` show 0 restarts and have not
+      been replaced since the cutover (the `api` pod started at 17:51:28 UTC on 2026-10-07).
+- [x] Certificates: `tls-dev-puni-dev` and `tls-dev-app-puni-dev` are Ready at revision 1 from
+      `ClusterIssuer/letsencrypt-production-puni`. The served chains are issued by Let's Encrypt
+      and expire on 2027-01-05. cert-manager plans renewal for 2026-12-06.
+- [x] Ingress errors: Traefik logged 4 `ERR` lines, all on 2026-10-07 between 17:54:57 and
+      17:54:58 UTC, each `service not found` for a `cm-acme-http-solver-*` Service removed
+      during issuance. After that it logged only daily update notices. The `api` log has no
+      error line.
+- [ ] Request-level 4xx/5xx counts over the window are **unavailable**. Traefik runs with
+      `--log.level=INFO` and no access log, and no Prometheus is deployed.
+- [x] Backups: `sqlite-backup` ran hourly. The three retained Jobs completed in 3–4 s; the
+      latest uploaded a versioned object at 18:23 UTC. `sqlite-backup-verify` completed on
+      2026-10-09, 10-10 and 10-11, each with a report 0.87 h old and 9 migrations. Bucket
+      history beyond the retained Jobs was not listed because that needs credentials.
+- [x] The old Compose preview on h2puni is still present. Its `app` and `site` containers are
+      up and healthy and `api` exited (137) at the cutover; `docker compose ls` shows
+      `puni-site-dev exited(1), running(2)`. It is not retired: retirement is due seven days
+      after the cutover, on 2026-10-14.
+- Seen alongside, not caused by the preview: the k3s server logs about 5 apiserver
+  `Handler timeout` errors an hour, steadily since 17:55 UTC on 2026-10-07; the cause is not
+  established. The `puni-registry` pod is stuck on its missing Secrets, so `platform` and every
+  later stage are not Ready. The `puni-fleet` GitRepository is failing with
+  `repository not found` and has served no new revision since 2026-10-10, so the preview runs
+  the revision applied on 2026-10-07.
