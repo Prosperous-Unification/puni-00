@@ -33,6 +33,17 @@
       filter applied before ordering; stale cursor resumed from the top; parent check
       removed; README count left unchanged.
 
+## 2b. Port onto batch-10 (branch `batch-10/170-list-paging`)
+
+- [x] 2b.1 Cherry-pick slices 0–2 onto `origin/batch-10/integration-4`; resolve the module
+      moves (`module/project`, `module/work-item`, `module/plan-commands`) and map the
+      tree read's new `access_refused` outcome in both new routes.
+- [x] 2b.2 Red then green: `full=true` on the whole-tree read is byte-identical to the
+      parameterless read, and any other query (including `full` repeated) is 400.
+- [x] 2b.3 Red then green: a walk keeps every row once across a page boundary while
+      siblings are inserted on both sides of it.
+- [x] 2b.4 mcp-01 README count 69 -> 71 (main had moved from 54 to 69 since batch 9).
+
 ## 3. Verify
 
 - [x] 3.1 `verify.md`: every command, its result and every proof.

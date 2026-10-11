@@ -28,7 +28,7 @@ import type { UndoOutcome, WorkItemService } from '../module/work-item/work-item
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Digest } from '../ports/runtime';
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
-import { pageQueryOf } from '../service/list-query';
+import { hasRepeatedKey, pageQueryOf } from '../service/list-query';
 import type { PlanCommand } from '../service/plan-command';
 import { pageWorkItems, slicesByWorkItem, workItemPageQueryOf } from '../service/work-item-page';
 import { BadCapacity } from './capacity-body';
@@ -401,36 +401,46 @@ export function workItemRoutes(
   organizations: OrganizationAccess,
 ) {
   return [
-    bind(getWorkItems, async ({ params, principal }): Promise<HttpReply<typeof getWorkItems>> => {
-      // Proof: reading the tree without resolving access made `refuses an
-      // unbound session and a removed member before any lookup` in
-      // `schedule-organization.controller.db.test.ts` answer 200; watched
-      // 2026-09-27.
-      const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
-      const tree = await workItems.treeWithin(params.id, resolved.access);
-      if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
-      // Proof: removing this branch made the mounted unavailable work-item read
-      // receive 500 instead of the required 409.
-      // Proof: removing this mapping failed mounted revocation: expected 403 became 500.
-      if ('kind' in tree && tree.kind === 'access_refused')
-        return organizationRefusal(tree.refusal);
-      if ('kind' in tree)
+    bind(
+      getWorkItems,
+      async ({ params, principal, request }): Promise<HttpReply<typeof getWorkItems>> => {
+        // `full=true` is the same dump; the mount already refused any other value
+        // or key, and only a repeated key reaches here collapsed.
+        // Proof, observed 2026-10-11: without this check, `refuses any other query
+        // with 400` in `work-item-rows.controller.db.test.ts` answered 200 for
+        // `full=true&full=true`.
+        if (hasRepeatedKey(request.url))
+          return { ok: false, status: 400, body: { error: 'invalid_query' } };
+        // Proof: reading the tree without resolving access made `refuses an
+        // unbound session and a removed member before any lookup` in
+        // `schedule-organization.controller.db.test.ts` answer 200; watched
+        // 2026-09-27.
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        const tree = await workItems.treeWithin(params.id, resolved.access);
+        if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        // Proof: removing this branch made the mounted unavailable work-item read
+        // receive 500 instead of the required 409.
+        // Proof: removing this mapping failed mounted revocation: expected 403 became 500.
+        if ('kind' in tree && tree.kind === 'access_refused')
+          return organizationRefusal(tree.refusal);
+        if ('kind' in tree)
+          return {
+            ok: false,
+            status: 409,
+            body: { error: tree.error, engine: tree.engine },
+          };
         return {
-          ok: false,
-          status: 409,
-          body: { error: tree.error, engine: tree.engine },
+          ok: true,
+          status: 200,
+          body: {
+            ...tree,
+            ...(await workItems.undoState(params.id, principal.id)),
+            ...(await readStepAddresses(params.id, tree, digest)),
+          },
         };
-      return {
-        ok: true,
-        status: 200,
-        body: {
-          ...tree,
-          ...(await workItems.undoState(params.id, principal.id)),
-          ...(await readStepAddresses(params.id, tree, digest)),
-        },
-      };
-    }),
+      },
+    ),
     bind(
       applyProjectCommands,
       async ({ params, body, principal }): Promise<HttpReply<typeof applyProjectCommands>> => {

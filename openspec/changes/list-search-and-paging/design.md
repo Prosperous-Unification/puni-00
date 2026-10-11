@@ -15,6 +15,12 @@ defaults become the defaults of `work-item-rows`. The motivating MCP client is r
 the shape's `document.summary`, which mcp-01 joins into the tool description: the old tool
 says it is the whole tree and names the two new ones.
 
+Batch 10 (2026-10-11) adds the notes' spelling without the swap hazard: the whole-tree
+read now declares one optional query key, `full=true`, answered byte for byte as the
+parameterless read. No caller in this repository sends it (fe-01 and the e2e fixtures stay
+parameterless, which every be-01 colour answers); it exists so an explicit export or MCP
+caller can name the dump, and so the dump's byte-compatibility is pinned by a test.
+
 ## D2. A new path for work items, one path for projects
 
 A single path answering two 200 shapes would make every typed caller of `getWorkItems`

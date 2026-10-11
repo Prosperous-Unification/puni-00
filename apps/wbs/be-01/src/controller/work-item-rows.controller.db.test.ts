@@ -127,6 +127,40 @@ describe('GET /api/projects/:id/work-item-rows', () => {
     expect(walked).toHaveLength(7);
   });
 
+  it('keeps every row once across a page boundary while siblings are inserted', async () => {
+    const first = await page('limit=3');
+    expect(first.rows.map((row) => row.id)).toEqual([refs['a'], refs['a1'], refs['a11']]);
+    if (first.nextCursor === null) throw new Error('expected a second page');
+    // One sibling lands before the boundary row's branch, one right after it.
+    await batch('ada', own, [
+      { kind: 'createWorkItem', ref: 'a0', parentId: refs['a'], afterId: null, name: 'a0' },
+      { kind: 'createWorkItem', ref: 'a1b', parentId: refs['a'], afterId: refs['a1'], name: 'a1b' },
+    ]);
+    const walked = [...first.rows];
+    let current = await page(`limit=3&cursor=${first.nextCursor}`);
+    for (;;) {
+      walked.push(...current.rows);
+      if (current.nextCursor === null) break;
+      current = await page(`limit=3&cursor=${current.nextCursor}`);
+    }
+    const ids = walked.map((row) => row.id);
+    // Proof, observed 2026-10-11: resuming at an offset (the count of rows
+    // already answered) instead of after the cursor's work item made this test
+    // answer `a11` twice (`Expected: 9, Received: 8` distinct ids).
+    expect(new Set(ids).size).toBe(ids.length);
+    const tree = (await wholeTree()).map((workItem) => workItem.id);
+    // The sibling inserted before the boundary is missed; every other row of
+    // the current tree is answered once, in the current tree's order.
+    expect(ids).toEqual(
+      tree.filter(
+        (id) =>
+          tree.indexOf(id) > tree.indexOf(refs['a11'] ?? '') ||
+          first.rows.some((row) => row.id === id),
+      ),
+    );
+    expect(ids).toHaveLength(8);
+  });
+
   it('answers the outline by default and adds only the named groups', async () => {
     const outline = await page('');
     expect(outline.rows).toHaveLength(7);
@@ -185,6 +219,26 @@ describe('GET /api/projects/:id/work-item-rows', () => {
       'sort=name',
     ]) {
       const answer = await rows('ada', own, search);
+      expect({ search, status: answer.status, body: answer.body }).toEqual({
+        search,
+        status: 400,
+        body: { error: 'invalid_query' },
+      });
+    }
+  });
+});
+
+describe('GET /api/projects/:id/work-items', () => {
+  it('answers full=true byte for byte as the parameterless whole-tree read', async () => {
+    const plain = await h.call('ada', 'GET', `/api/projects/${own}/work-items`);
+    const full = await h.call('ada', 'GET', `/api/projects/${own}/work-items?full=true`);
+    expect(plain.status).toBe(200);
+    expect(JSON.stringify(full)).toBe(JSON.stringify(plain));
+  });
+
+  it('refuses any other query with 400', async () => {
+    for (const search of ['full=false', 'full=1', 'limit=5', 'full=true&full=true']) {
+      const answer = await h.call('ada', 'GET', `/api/projects/${own}/work-items?${search}`);
       expect({ search, status: answer.status, body: answer.body }).toEqual({
         search,
         status: 400,

@@ -613,6 +613,10 @@ export const getWorkItems = defineEndpointShape({
   operationId: 'getApiProjectsByIdWork-items',
   policies: readPolicies,
   params,
+  // `full=true` names today's whole dump explicitly and answers it byte for
+  // byte; the paged read is getWorkItemRows. Callers that must also reach a
+  // be-01 older than this query keep sending nothing: that be-01 refuses it.
+  query: requestSchema(type({ 'full?': "'true'" })),
   responses: [
     {
       kind: 'json',
@@ -641,7 +645,7 @@ export const getWorkItems = defineEndpointShape({
   document: {
     summary: 'Read the whole project work-item tree, every field included.',
     description:
-      'Answers every work item with notes, schedule and slices, plus the project’s steps and settings: hundreds of KB on a large project. For a page of work items use getApiProjectsByIdWork-item-rows; for one work item in full use getApiProjectsByIdWork-itemsByWorkItemId.',
+      'Answers every work item with notes, schedule and slices, plus the project’s steps and settings: hundreds of KB on a large project. full=true answers the same dump. For a page of work items use getApiProjectsByIdWork-item-rows; for one work item in full use getApiProjectsByIdWork-itemsByWorkItemId.',
   },
 });
 

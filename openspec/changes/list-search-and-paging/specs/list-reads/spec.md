@@ -213,6 +213,15 @@ restarts when `projectRevision` changes.
 - **WHEN** it is read with `fields=notes,slices`
 - **THEN** each row carries the outline, `notes` and its own `slices`, and no `schedule`
 
+#### Scenario: siblings inserted across a page boundary
+
+- **GIVEN** a walk with `limit=3` whose first page ended on a work item
+- **WHEN** one sibling is inserted before that page's rows and one after them, and the
+  walk continues
+- **THEN** no row is answered twice, the sibling inserted before the boundary is not
+  answered, and every row after the boundary, the other new sibling included, is answered
+  once in the current tree order
+
 #### Scenario: a stale cursor
 
 - **GIVEN** a `nextCursor` whose last work item has since been deleted
@@ -238,7 +247,10 @@ and `updatedAt`. An absent or foreign project and an absent work item SHALL answ
 
 ### Requirement: The whole-tree read is unchanged and steers to the pages
 
-`GET /api/projects/:id/work-items` SHALL answer exactly as before this change. Its summary
+`GET /api/projects/:id/work-items` SHALL answer exactly as before this change. It SHALL
+accept `full=true`, the explicit spelling of that whole dump, and answer it byte for byte as
+the parameterless read; any other query value or key, or `full` given twice, SHALL answer
+`400 { error: 'invalid_query' }`. Its summary
 and description, which the MCP tool description carries, SHALL say it answers the whole
 tree and SHALL name the work-item-rows and single work-item reads for a page or for one
 work item.
@@ -247,6 +259,16 @@ work item.
 
 - **WHEN** it is read with no query string
 - **THEN** the body is the one it answered before this change
+
+#### Scenario: full=true is the same dump
+
+- **WHEN** it is read with `full=true`
+- **THEN** the body is byte for byte the parameterless read's body
+
+#### Scenario: any other query is refused
+
+- **WHEN** it is read with `full=false`, `full=1`, `limit=5` or `full=true&full=true`
+- **THEN** each answers `400 { error: 'invalid_query' }`
 
 #### Scenario: the MCP lists the two new reads
 
