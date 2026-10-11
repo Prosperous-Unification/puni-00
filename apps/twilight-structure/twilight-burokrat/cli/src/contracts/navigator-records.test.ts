@@ -68,8 +68,11 @@ function progressReceipt(overrides: Readonly<Record<string, unknown>> = {}) {
 
 describe('Navigator record kinds', () => {
   test('decodes a plan reference and a progress receipt', () => {
-    expect(decodeRecord('plan-reference', planReference())).toEqual(planReference());
-    expect(decodeRecord('progress-receipt', progressReceipt())).toEqual(progressReceipt());
+    const decoded: unknown[] = [
+      decodeRecord('plan-reference', planReference()),
+      decodeRecord('progress-receipt', progressReceipt()),
+    ];
+    expect(decoded).toEqual([planReference(), progressReceipt()]);
   });
 
   test('the kind set is exactly the documented list', () => {
