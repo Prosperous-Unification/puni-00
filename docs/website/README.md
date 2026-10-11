@@ -35,7 +35,8 @@ Manual submission does not require a visitor account. The [Build AI chat harness
 - [Build app icons](app-icons.md): the NASA-derived moon favicons, their source and checksums.
 - [Anonymous draft retention operator procedure](draft-retention.md) records the explicit inspect/apply command and its backup limitation.
 - [Request retention deadlines](request-retention.md) records the count-only report, activation coverage, ambiguous-anchor resolution, the retention journal commands, activation order and incident procedure.
-- [Interactive local walkthrough](prototypes/funnel.html) and [instructions](prototypes/README.md). Open the HTML file directly; it uses no accounts, network, model or real submission.
+- [Walkthrough](walkthrough.md): the reviewed visitor journey as a scenario table, each row mapped to a capture or test.
+- [2026-09 prototype](prototypes/funnel.html) and its [instructions](prototypes/README.md), superseded by the walkthrough and kept as a dated design artifact.
 
 The proposed budget values and turn limits live in the design. They are pilot assumptions; this planning work does not activate paid inference or deploy a public funnel.
 
