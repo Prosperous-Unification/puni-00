@@ -494,6 +494,38 @@ test('operator session reload and ordered status changes require operator CSRF',
   api.close();
 });
 
+/** Every handler gated by `operatorSession`; the drift test below keeps it in step with `server.ts`. */
+const operatorRoutes = [
+  ['GET', '/operator/session'],
+  ['GET', '/operator/guardrails'],
+  ['GET', '/operator/funnel'],
+  ['GET', '/operator/submissions'],
+  ['GET', '/operator/retention/status'],
+  ['POST', '/operator/inference/pause'],
+  ['POST', '/operator/inference/resume'],
+  ['POST', '/operator/retention/events'],
+  ['PATCH', '/operator/submissions/0000'],
+  ['DELETE', '/operator/session'],
+] as const;
+
+test('the operator route list matches every operator path and session check in the server', async () => {
+  const source = await Bun.file(new URL('./server.ts', import.meta.url)).text();
+  const literals = new Set(
+    source.match(/'\/operator\/[a-z/]*'/g)?.map((text) => text.slice(1, -1)),
+  );
+  const listed = new Set(
+    operatorRoutes.map(([, path]) => path).filter((path) => path !== '/operator/submissions/0000'),
+  );
+  // Proof: adding `if (path === '/operator/probe' && operatorSession(request, now))` to server.ts listed `/operator/probe` here;
+  // a bare extra `operatorSession(request, now)` made checks 10 and an extra `/^\/operator\//` regex made patterns 2.
+  expect([...literals].sort()).toEqual([...listed].sort());
+  // Pause and resume share one handler and one check; `PATCH /operator/submissions/:id` is the one pattern route.
+  expect({
+    checks: source.match(/operatorSession\(request, now\)/g)?.length,
+    patterns: source.match(/\/\^\\\/operator\\\//g)?.length,
+  }).toEqual({ checks: operatorRoutes.length - 1, patterns: 1 });
+});
+
 test('an expired operator session is refused on every operator route and writes nothing', async () => {
   const { config } = fixture();
   const now = Date.UTC(2026, 9, 11, 12);
@@ -511,25 +543,18 @@ test('an expired operator session is refused on every operator route and writes 
   // Any request first mints the day's source salt; this cookieless one keeps that row out of the comparison.
   await api.fetch(request('/operator/guardrails', 'GET', config.appOrigin));
   const before = countEveryTable(config.databasePath);
-  const routes = [
-    ['GET', '/operator/session'],
-    ['GET', '/operator/guardrails'],
-    ['GET', '/operator/funnel'],
-    ['GET', '/operator/submissions'],
-    ['GET', '/operator/retention/status'],
-    ['POST', '/operator/inference/pause'],
-    ['DELETE', '/operator/session'],
-  ] as const;
   const answers: string[] = [];
-  for (const [method, path] of routes) {
+  for (const [method, path] of operatorRoutes) {
     const response = await api.fetch(
       request(path, method, config.appOrigin, undefined, cookie, csrfToken),
     );
     answers.push(`${method} ${path} ${String(response.status)} ${await response.text()}`);
   }
-  // Proof: dropping `AND expires_at > ?` from findOperatorSession answered 200, 201 or 204 on all seven routes here.
+  // Proof: dropping `AND expires_at > ?` from findOperatorSession answered 200, 201, 204, 400 or 503 on all ten routes here.
   expect(answers).toEqual(
-    routes.map(([method, path]) => `${method} ${path} 401 {"code":"operator_unauthorized"}`),
+    operatorRoutes.map(
+      ([method, path]) => `${method} ${path} 401 {"code":"operator_unauthorized"}`,
+    ),
   );
   expect(countEveryTable(config.databasePath)).toEqual(before);
   expect(before['operator_session']).toBe(1);
@@ -543,21 +568,29 @@ test('a live operator cookie is refused from any Origin but the app', async () =
   );
   const cookie = login.headers.get('set-cookie')?.split(';')[0];
   const { csrfToken } = (await login.json()) as { csrfToken: string };
-  const origins = [config.publicOrigin, 'https://foreign.example', ''];
+  // `null` sends no Origin header at all; '' sends an empty one.
+  const origins = [config.publicOrigin, 'https://foreign.example', '', null];
   const answers: string[] = [];
   for (const origin of origins)
     for (const [method, path] of [
       ['GET', '/operator/guardrails'],
       ['POST', '/operator/inference/pause'],
     ] as const) {
-      const response = await api.fetch(request(path, method, origin, undefined, cookie, csrfToken));
-      answers.push(`${origin} ${method} ${path} ${String(response.status)}`);
+      const response = await api.fetch(
+        origin === null
+          ? new Request(`http://localhost:3101${path}`, {
+              method,
+              headers: { cookie: cookie ?? '', 'x-puni-csrf': csrfToken },
+            })
+          : request(path, method, origin, undefined, cookie, csrfToken),
+      );
+      answers.push(`${String(origin)} ${method} ${path} ${String(response.status)}`);
     }
   // Proof: deleting the app-Origin guard before the operator routes answered 200, 201 and 409 here.
   expect(answers).toEqual(
     origins.flatMap((origin) => [
-      `${origin} GET /operator/guardrails 403`,
-      `${origin} POST /operator/inference/pause 403`,
+      `${String(origin)} GET /operator/guardrails 403`,
+      `${String(origin)} POST /operator/inference/pause 403`,
     ]),
   );
   expect(countRows(config.databasePath, 'inference_pause')).toBe(0);
