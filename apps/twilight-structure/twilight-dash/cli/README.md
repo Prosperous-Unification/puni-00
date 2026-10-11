@@ -1,6 +1,6 @@
 # Twilight Dash
 
-Dash owns the runtime admission authority under [`src/authority`](src/authority) and
+Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts)) and
 exposes two local commands. `submit-admission <repository> <packet-json>
 <staged|committed> <revision-or-base>` freezes a bound packet's candidate and prints its
 submission report; it judges the packet through Twilight Burokrat's
