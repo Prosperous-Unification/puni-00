@@ -29,7 +29,9 @@ function stubPage(routes: Parameters<typeof stubServer>[0]) {
     'GET /api/organization/join-requests': [() => answer(200, { requests: [] })],
     'GET /api/organization/domains': [() => answer(200, { domains: [] })],
     'GET /api/organization/members': [() => answer(200, { members: [] })],
-    'GET /api/organization': [() => answer(200, { sharedPeople: false, sharingAvailable: false })],
+    'GET /api/organization': [
+      () => answer(200, { sharedPeople: false, sharingAvailable: false, canSwitch: false }),
+    ],
     ...routes,
   });
 }
@@ -221,7 +223,7 @@ describe('organization invitations', () => {
       'GET /api/organization/domains': [() => answer(200, { domains: [] })],
       'GET /api/organization/members': [() => answer(200, { members: [] })],
       'GET /api/organization': [
-        () => answer(200, { sharedPeople: false, sharingAvailable: false }),
+        () => answer(200, { sharedPeople: false, sharingAvailable: false, canSwitch: false }),
       ],
     });
     renderPage();

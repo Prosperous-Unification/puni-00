@@ -8,7 +8,8 @@ export type CapacityModeRefusal =
   'organization_required' | 'forbidden' | 'capacity_mode_unsupported';
 
 export type CapacityModeOutcome<R extends CapacityModeRefusal = CapacityModeRefusal> =
-  { ok: true; sharedPeople: boolean; sharingAvailable: boolean } | { ok: false; refusal: R };
+  | { ok: true; sharedPeople: boolean; sharingAvailable: boolean; canSwitch: boolean }
+  | { ok: false; refusal: R };
 
 export interface CapacityModeResourceOptions {
   /** In production, the owner that audits each switch and tells every project. */
@@ -33,10 +34,27 @@ export interface CapacityModeResourceOptions {
 export class CapacityModeResource {
   constructor(private readonly opts: CapacityModeResourceOptions) {}
 
-  async read(access: ResourceAccess): Promise<CapacityModeOutcome<'organization_required'>> {
+  /**
+   * The mode, whether the release can share people, and whether this caller may switch: the
+   * same super-admin rule {@link switch} refuses on, and never through a delegation.
+   */
+  async read(
+    access: ResourceAccess,
+    delegated: boolean,
+  ): Promise<CapacityModeOutcome<'organization_required'>> {
     if (access.kind === 'legacy') return { ok: false, refusal: 'organization_required' };
     const mode = await this.opts.modes.capacityModeIn(access.scope.organizationId);
-    return { ok: true, sharedPeople: mode === 'shared', sharingAvailable: this.sharingAvailable() };
+    return {
+      ok: true,
+      sharedPeople: mode === 'shared',
+      sharingAvailable: this.sharingAvailable(),
+      // Proof: the role clause widened to every in-person member failed `tells
+      // only a super-admin acting in person that they may switch`
+      // (`capacity-mode.controller.db.test.ts`); dropping the delegation clause
+      // failed the delegated read in `delegation.controller.db.test.ts`;
+      // watched 2026-10-11.
+      canSwitch: !delegated && access.scope.role === 'super_admin',
+    };
   }
 
   async switch(
@@ -61,7 +79,7 @@ export class CapacityModeResource {
       this.opts.clock.newId(),
     );
     if (!switched.ok) return { ok: false, refusal: switched.reason };
-    return { ok: true, sharedPeople, sharingAvailable: this.sharingAvailable() };
+    return { ok: true, sharedPeople, sharingAvailable: this.sharingAvailable(), canSwitch: true };
   }
 
   private sharingAvailable(): boolean {

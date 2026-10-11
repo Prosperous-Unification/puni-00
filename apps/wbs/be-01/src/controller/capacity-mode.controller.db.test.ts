@@ -74,18 +74,10 @@ function toldAboutTheMode(projectId: string): number {
 /** The production composition, with `modes` as the release's supported capacity modes. */
 async function open(modes?: readonly ('isolated' | 'shared')[], afterResolve?: () => void) {
   h.close();
-  h = OrganizationHarness.openComposed(
-    false,
-    afterResolve,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    modes,
-  );
+  h = OrganizationHarness.openComposedWith({
+    ...(afterResolve === undefined ? {} : { afterResolve }),
+    ...(modes === undefined ? {} : { supportedCapacityModes: modes }),
+  });
   await populate();
 }
 
@@ -122,7 +114,7 @@ afterEach(() => {
 describe('the capacity mode', () => {
   it('reads isolated by default, to any member', async () => {
     for (const username of ['sam', 'ada', 'mel', 'vic']) {
-      expect(await h.call(username, 'GET', MODE)).toEqual({
+      expect(await h.call(username, 'GET', MODE)).toMatchObject({
         status: 200,
         body: { sharedPeople: false, sharingAvailable: false },
       });
@@ -142,7 +134,7 @@ describe('the capacity mode', () => {
     // Switching to the mode it already has is allowed and changes nothing.
     expect(await h.call('sam', 'PATCH', MODE, { sharedPeople: false })).toEqual({
       status: 200,
-      body: { sharedPeople: false, sharingAvailable: false },
+      body: { sharedPeople: false, sharingAvailable: false, canSwitch: true },
     });
     expect(switches()).toEqual([]);
   });
@@ -151,11 +143,11 @@ describe('the capacity mode', () => {
     await open(SHARED_RELEASE);
     expect(await h.call('sam', 'PATCH', MODE, { sharedPeople: true })).toEqual({
       status: 200,
-      body: { sharedPeople: true, sharingAvailable: true },
+      body: { sharedPeople: true, sharingAvailable: true, canSwitch: true },
     });
     expect(await h.call('vic', 'GET', MODE)).toEqual({
       status: 200,
-      body: { sharedPeople: true, sharingAvailable: true },
+      body: { sharedPeople: true, sharingAvailable: true, canSwitch: false },
     });
     expect(await billingStart()).toBe(2);
 
@@ -219,6 +211,17 @@ describe('the capacity mode', () => {
     await h.call('sam', 'PATCH', MODE, { sharedPeople: true });
     expect([toldAboutTheMode(platform), toldAboutTheMode(billing)]).toEqual([1, 1]);
     expect(switches()).toHaveLength(1);
+  });
+});
+
+describe('who may switch', () => {
+  it('tells only a super-admin acting in person that they may switch', async () => {
+    const canSwitch: Record<string, unknown> = {};
+    for (const username of ['sam', 'ada', 'mel', 'vic'])
+      canSwitch[username] = (
+        (await h.call(username, 'GET', MODE)).body as { canSwitch: boolean }
+      ).canSwitch;
+    expect(canSwitch).toEqual({ sam: true, ada: false, mel: false, vic: false });
   });
 });
 

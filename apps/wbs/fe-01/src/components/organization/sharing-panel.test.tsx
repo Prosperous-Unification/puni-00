@@ -17,7 +17,9 @@ function renderPanel(onAccessLost: (loss: string) => void = () => undefined) {
 describe('shared people', () => {
   it('renders loading, then the isolated mode', async () => {
     stubServer({
-      'GET /api/organization': [() => answer(200, { sharedPeople: false, sharingAvailable: true })],
+      'GET /api/organization': [
+        () => answer(200, { sharedPeople: false, sharingAvailable: true, canSwitch: true }),
+      ],
     });
     renderPanel();
     expect(screen.getByText('Loading how people are shared…')).toBeDefined();
@@ -28,11 +30,11 @@ describe('shared people', () => {
   it('shares people after a confirmation and re-reads the mode', async () => {
     const sent = stubServer({
       'GET /api/organization': [
-        () => answer(200, { sharedPeople: false, sharingAvailable: true }),
-        () => answer(200, { sharedPeople: true, sharingAvailable: true }),
+        () => answer(200, { sharedPeople: false, sharingAvailable: true, canSwitch: true }),
+        () => answer(200, { sharedPeople: true, sharingAvailable: true, canSwitch: true }),
       ],
       'PATCH /api/organization': [
-        () => answer(200, { sharedPeople: true, sharingAvailable: true }),
+        () => answer(200, { sharedPeople: true, sharingAvailable: true, canSwitch: true }),
       ],
     });
     renderPanel();
@@ -49,7 +51,7 @@ describe('shared people', () => {
   it('offers no switch a release without shared people would refuse', async () => {
     stubServer({
       'GET /api/organization': [
-        () => answer(200, { sharedPeople: false, sharingAvailable: false }),
+        () => answer(200, { sharedPeople: false, sharingAvailable: false, canSwitch: true }),
       ],
     });
     renderPanel();
@@ -62,15 +64,48 @@ describe('shared people', () => {
 
   it('still lets a shared organization stop sharing in such a release', async () => {
     stubServer({
-      'GET /api/organization': [() => answer(200, { sharedPeople: true, sharingAvailable: false })],
+      'GET /api/organization': [
+        () => answer(200, { sharedPeople: true, sharingAvailable: false, canSwitch: true }),
+      ],
     });
     renderPanel();
     expect(await screen.findByRole('button', { name: 'Stop sharing people' })).toBeDefined();
   });
 
+  it('explains, without a switch, that only a super-admin may change it', async () => {
+    stubServer({
+      'GET /api/organization': [
+        () => answer(200, { sharedPeople: false, sharingAvailable: true, canSwitch: false }),
+      ],
+    });
+    renderPanel();
+    expect(await screen.findByText(/as if it had them alone/)).toBeDefined();
+    expect(
+      screen.getByText('Only a super-admin can change whether people are shared.'),
+    ).toBeDefined();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('says the switch is reversible before it is confirmed', async () => {
+    stubServer({
+      'GET /api/organization': [
+        () => answer(200, { sharedPeople: false, sharingAvailable: true, canSwitch: true }),
+      ],
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Share people across projects' }));
+    expect(
+      screen.getByText(
+        'This moves the dates of every project in the organization. Switching back restores them.',
+      ),
+    ).toBeDefined();
+  });
+
   it('cancels without switching', async () => {
     const sent = stubServer({
-      'GET /api/organization': [() => answer(200, { sharedPeople: true, sharingAvailable: true })],
+      'GET /api/organization': [
+        () => answer(200, { sharedPeople: true, sharingAvailable: true, canSwitch: true }),
+      ],
     });
     renderPanel();
     fireEvent.click(await screen.findByRole('button', { name: 'Stop sharing people' }));
@@ -93,7 +128,9 @@ describe('shared people', () => {
     ],
   ])('renders the %s switch refusal', async (error, status, copy) => {
     stubServer({
-      'GET /api/organization': [() => answer(200, { sharedPeople: false, sharingAvailable: true })],
+      'GET /api/organization': [
+        () => answer(200, { sharedPeople: false, sharingAvailable: true, canSwitch: true }),
+      ],
       'PATCH /api/organization': [() => answer(status, { error })],
     });
     renderPanel();

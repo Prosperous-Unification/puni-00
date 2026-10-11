@@ -6,10 +6,12 @@ import { requestSchema, responseSchema } from './schema-shape';
 
 /**
  * The organization's capacity mode (`share-people-across-projects`, spec `shared-people-mode`),
- * and whether this release can run shared people at all, so a client offers no switch the route
- * would refuse with `capacity_mode_unsupported`.
+ * whether this release can run shared people at all, and whether the caller may switch it (a
+ * super-admin acting in person), so a client offers no switch the route would refuse.
  */
-const modeReply = responseSchema(type({ sharedPeople: 'boolean', sharingAvailable: 'boolean' }));
+const modeReply = responseSchema(
+  type({ sharedPeople: 'boolean', sharingAvailable: 'boolean', canSwitch: 'boolean' }),
+);
 const common = [
   {
     status: 400,

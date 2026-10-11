@@ -456,16 +456,43 @@ export class OrganizationHarness {
   static openComposed(
     withOptimizer = false,
     afterResolve?: () => void,
-    spawn: ReservedSpawner = () => new Promise<never>(() => undefined),
-    solverVersion = '0.1.0',
+    spawn?: ReservedSpawner,
+    solverVersion?: string,
     openReadOnlyConnection?: (dbPath: string) => Connection,
-    pushFetch: Parameters<typeof buildServices>[0]['pushFetch'] = () =>
-      Promise.resolve(Response.json({ delivered_to_sockets: 0 })),
+    pushFetch?: Parameters<typeof buildServices>[0]['pushFetch'],
     onFanoutCapture?: (organizationId: string) => unknown,
     onCapturedFanout?: (captured: CapturedFanout) => void,
     onBorrowedUnitOfWork?: () => void,
-    supportedCapacityModes?: readonly CapacityMode[],
   ): OrganizationHarness {
+    return OrganizationHarness.openComposedWith({
+      withOptimizer,
+      ...(afterResolve === undefined ? {} : { afterResolve }),
+      ...(spawn === undefined ? {} : { spawn }),
+      ...(solverVersion === undefined ? {} : { solverVersion }),
+      ...(openReadOnlyConnection === undefined ? {} : { openReadOnlyConnection }),
+      ...(pushFetch === undefined ? {} : { pushFetch }),
+      ...(onFanoutCapture === undefined ? {} : { onFanoutCapture }),
+      ...(onCapturedFanout === undefined ? {} : { onCapturedFanout }),
+      ...(onBorrowedUnitOfWork === undefined ? {} : { onBorrowedUnitOfWork }),
+    });
+  }
+
+  /**
+   * {@link openComposed} with named options; new callers use this rather than
+   * extending the positional list.
+   */
+  static openComposedWith({
+    withOptimizer = false,
+    afterResolve,
+    spawn = () => new Promise<never>(() => undefined),
+    solverVersion = '0.1.0',
+    openReadOnlyConnection,
+    pushFetch = () => Promise.resolve(Response.json({ delivered_to_sockets: 0 })),
+    onFanoutCapture,
+    onCapturedFanout,
+    onBorrowedUnitOfWork,
+    supportedCapacityModes,
+  }: ComposedHarnessOptions): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
@@ -729,6 +756,22 @@ export class OrganizationHarness {
     const text = await res.text();
     return { status: res.status, body: text.startsWith('{') ? JSON.parse(text) : text };
   }
+}
+
+/** Named options for {@link OrganizationHarness.openComposedWith}. */
+export interface ComposedHarnessOptions {
+  withOptimizer?: boolean;
+  /** Runs after organization access resolves, before the route acts. */
+  afterResolve?: () => void;
+  spawn?: ReservedSpawner;
+  solverVersion?: string;
+  openReadOnlyConnection?: (dbPath: string) => Connection;
+  pushFetch?: Parameters<typeof buildServices>[0]['pushFetch'];
+  onFanoutCapture?: (organizationId: string) => unknown;
+  onCapturedFanout?: (captured: CapturedFanout) => void;
+  onBorrowedUnitOfWork?: () => void;
+  /** The release's capacity modes; production's `SUPPORTED_CAPACITY_MODES` when absent. */
+  supportedCapacityModes?: readonly CapacityMode[];
 }
 
 /**

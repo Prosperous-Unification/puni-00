@@ -17,22 +17,25 @@ const sharing = browserClient([readCapacityMode, switchCapacityMode]);
 type View =
   | { kind: 'loading' }
   | { kind: 'failure'; message: string }
-  | { kind: 'ready'; sharedPeople: boolean; sharingAvailable: boolean };
+  | { kind: 'ready'; sharedPeople: boolean; sharingAvailable: boolean; canSwitch: boolean };
 
 const SHARED_WORDS =
   'People are shared across projects: each project is scheduled around the work its people have in the projects ranked above it.';
 const ISOLATED_WORDS =
   'Each project schedules its people as if it had them alone. A person booked in two projects at once shows as an overlap on their load.';
 const UNAVAILABLE_WORDS = 'Sharing people across projects is not available in this release yet.';
+const SUPER_ADMIN_WORDS = 'Only a super-admin can change whether people are shared.';
 
 /**
  * Whether the active organization shares its people across projects
  * (`share-people-across-projects`, ADR 0034), and the switch. Any member reads
  * it; the server lets only a super-admin switch it. A switch moves the dates
  * of every project in the organization, so it asks for a confirmation, and
- * switching back restores each project's own dates. A release that cannot run
- * shared people says so instead of offering a switch it would refuse; an
- * organization already shared can always be switched back.
+ * switching back restores each project's own dates. Only a caller the server
+ * says may switch (`canSwitch`) is offered the switch; everyone else reads why
+ * not. A release that cannot run shared people says so instead of offering a
+ * switch it would refuse; an organization already shared can always be
+ * switched back.
  */
 export function SharingPanel({
   onAccessLost,
@@ -53,6 +56,7 @@ export function SharingPanel({
           kind: 'ready',
           sharedPeople: reply.body.sharedPeople,
           sharingAvailable: reply.body.sharingAvailable,
+          canSwitch: reply.body.canSwitch,
         });
         return;
       case 'failure':
@@ -127,7 +131,10 @@ export function SharingPanel({
           <p>{view.sharedPeople ? SHARED_WORDS : ISOLATED_WORDS}</p>
           {confirming ? (
             <p className="flex flex-wrap items-center gap-2">
-              <span>This moves the dates of every project in the organization.</span>
+              <span>
+                This moves the dates of every project in the organization. Switching back restores
+                them.
+              </span>
               <button
                 type="button"
                 disabled={sending}
@@ -155,6 +162,11 @@ export function SharingPanel({
             // supports made `offers no switch a release without shared
             // people would refuse` find the button.
             <p>{UNAVAILABLE_WORDS}</p>
+          ) : !view.canSwitch ? (
+            // Proof: 2026-10-11, offering the switch whatever the caller's role
+            // made `explains, without a switch, that only a super-admin may
+            // change it` find the button.
+            <p>{SUPER_ADMIN_WORDS}</p>
           ) : (
             <button
               type="button"
@@ -188,7 +200,7 @@ function sharingRefusal(error: SharingRefusalCode): RefusalOutcome {
     case 'organization_required':
       return lostAccess('no_active_organization');
     case 'forbidden':
-      return said('Only a super-admin can change whether people are shared.');
+      return said(SUPER_ADMIN_WORDS);
     case 'capacity_mode_unsupported':
       return said(UNAVAILABLE_WORDS);
     case 'insufficient_scope':

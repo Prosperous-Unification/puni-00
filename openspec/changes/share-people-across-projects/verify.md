@@ -4274,3 +4274,22 @@ Proofs (`TZ=UTC bunx vitest run`, 2026-10-11):
 | panel left off the page             | `organization-page.test.tsx` 15/16: `shows whether the organization shares its people` failed   |
 
 Restored: `src/components/organization/` 62/62 (the page gained one case).
+
+### Review fixes (Fable, #324 @1762acf6)
+
+- `canSwitch` on the mode reply: true only for a super-admin acting in person (the rule the
+  switch refuses on). `SharingPanel` renders "Only a super-admin can change whether people are
+  shared." without a button when it is false; the confirm line adds "Switching back restores
+  them."
+- `OrganizationHarness.openComposedWith(options)` replaces the eleventh positional parameter.
+- Spec: `causeProjectId: string | null`; "no route or CLI SHALL store `shared` while the release
+  does not list it". Runbook: the recovery switch is made by an in-person super-admin of the
+  organization, with how an operator is granted that role.
+
+| Fault                                                     | Observed                                                                                                   |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `canSwitch` role clause widened to every in-person member | `capacity-mode.controller.db.test.ts -t 'acting in person'` 0/1                                            |
+| `canSwitch` delegation clause dropped                     | `delegation.controller.db.test.ts -t 'capacity mode'` 0/1 (delegated read answered `canSwitch: true`)      |
+| panel ignores `canSwitch`                                 | `sharing-panel.test.tsx` 10/11: `explains, without a switch, that only a super-admin may change it` failed |
+
+Restored: organization fe tests 64/64; capacity-mode and delegation controllers 28/28.

@@ -291,6 +291,12 @@ describe('after activation', () => {
     expect(
       h.sqlite.query("SELECT shared_people FROM organization WHERE id = 'org-a'").get(),
     ).toEqual({ shared_people: 0 });
+    // Proof: 2026-10-11, reading canSwitch from the role alone made this
+    // delegated super-admin read answer canSwitch: true.
+    expect(await h.callWith(await delegation(), 'GET', '/api/organization')).toMatchObject({
+      status: 200,
+      body: { canSwitch: false },
+    });
   });
 
   it('lists only the delegated organization’s projects', async () => {

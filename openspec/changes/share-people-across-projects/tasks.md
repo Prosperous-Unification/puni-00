@@ -441,7 +441,11 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       which fe-01 omits alike; the sentence is hover text, so it is not a link. The settings switch
       (`SharingPanel` on `/organization`) shipped with its route (8.1): it reads the mode and
       `sharingAvailable`, offers no switch a release without shared people would refuse, always
-      lets a shared organization stop sharing, and confirms before switching.
+      lets a shared organization stop sharing, and confirms before switching. After Fable's review
+      of #324 the reply also carries `canSwitch` (super-admin in person); everyone else reads why
+      there is no switch, and the confirm line says switching back restores the dates.
+      Owed (recorded, not done): an eye review of `/organization` on the dev stack and an
+      e2e/pixel screen of it; no screens capture covers that page yet.
 - [x] 7.2 Negative: floor kind unmapped → Error Boundary, not a blank card. Done as a holder the
       read does not label: `GanttDataError`, not a sentence blaming nobody; and in be-01 a slice
       naming an unlabelled holder fails the read. Evidence: verify.md "UI 7 port (batch 10)".
@@ -460,5 +464,7 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       recorded. Not ported: the batch-9 in-memory fan-out record reset (no such memory now), the
       project-deletion guard (6j fans deletion out), the restore-audit (shared restore is
       refused), and the 8.0 cost measurement. The fe switch is 7.1's.
+      Owed before `SUPPORTED_CAPACITY_MODES` gains `shared` (WBS step 4, standing model-test rule):
+      the shared-people model test needs a `SwitchMode` command.
 - [x] 8.2 Negative: policy removed → an admin gets 200, not 403. Evidence with the other route,
       storage and owner faults: verify.md "Mode route 8 port (batch 10)".

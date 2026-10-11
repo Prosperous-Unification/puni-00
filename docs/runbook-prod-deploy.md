@@ -348,8 +348,15 @@ Once any switch is recorded the schema rollback is closed: rolling back past the
 refuses with `CHECK constraint failed: shared people switches are recorded: …`, and
 `shared-people-rollback-cli.ts remove` refuses with the same reason before changing anything. What
 remains is to switch every shared organization back to isolated through the route as one of its
-super-admins (each switch is audited and tells every project; each project's own dates return),
-then roll back code only: with no organization shared, the swap's capacity-modes guard admits an
+super-admins (each switch is audited and tells every project; each project's own dates return).
+There is no operator CLI or maintenance identity for this: the switch is an organization act, so
+it must be made by a super-admin of that organization signed in in person (a delegated session is
+refused). Every organization keeps at least one super-admin (`last_super_admin`), so ask one of
+them to send `PATCH /api/organization {"sharedPeople": false}` from the organization page's Shared
+people panel; an operator who must act instead first joins the organization by invitation and is then
+granted the role by that super-admin
+through `PATCH /api/organization/members/<userId> {"role": "super_admin"}`. Then roll back code
+only: with no organization shared, the swap's capacity-modes guard admits an
 older image, and the extra column and table are inert to it.
 
 The procedure below applies while no switch is recorded. The new column's down migration refuses

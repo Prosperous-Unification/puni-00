@@ -41,7 +41,7 @@ whose effective incoming basis or availability changes. Each graph SHALL be trav
 separately before unioning recipients; paths assembled from mixed old/new edges are invalid.
 The cause itself and foreign-organization projects SHALL NOT be recipients of that cause.
 
-The event SHALL be `elsewhere_changed {projectId, causeProjectId}` under the recipient's
+The event SHALL be `elsewhere_changed {projectId, causeProjectId: string | null}` (null only for an organization mode switch) under the recipient's
 project subscription. A commit SHALL record at most one event per recipient/cause pair,
 ordered lexicographically by recipient id then cause id. Multiple direct causes MAY produce
 multiple events for one recipient. Causes SHALL include every project whose local scheduling
@@ -501,9 +501,8 @@ and fe-01 understand `shared`.
 
 The intermediate storage and runtime/cache releases SHALL advertise supported `capacityModes`
 exactly `['isolated']` until runtime/cache, durable fan-out and UI prerequisites are complete.
-They SHALL NOT install a shared-mode setter that can store `shared`, an activation route or an
-environment override, and SHALL continue refusing shared restores. The mode route SHALL refuse
-`shared` while the release does not list it. A dormant runtime reader exercised with seeded shared
+No route or CLI SHALL store `shared` while the release does not list it; there SHALL be no
+activation route or environment override, and shared restores SHALL continue to be refused. A dormant runtime reader exercised with seeded shared
 state SHALL NOT itself authorize production activation.
 The swap SHALL inspect stored encodings truthfully: old schemas lacking the column mean isolated;
 a missing organization table, present unreadable column or value outside 0/1 SHALL refuse.
