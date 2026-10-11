@@ -1,6 +1,6 @@
 # Enterprise SSO is a WBS connection record, and WBS serves SCIM
 
-Status: proposed. This file is numbered when it merges.
+Status: proposed.
 
 An organization's enterprise SSO is a WBS record. It ties a verified domain to the name of an Auth0 enterprise connection. Login is routed with Auth0's `connection` parameter. Enforcement compares the authenticating identity's `sub` against the subject prefix `{strategy}|{connection}|`, and a connection must first be proven by a real login through it. Directory provisioning is a SCIM 2.0 `Users` service hosted by WBS for each organization. Its deprovision removes membership and ends WBS access in the same transaction.
 

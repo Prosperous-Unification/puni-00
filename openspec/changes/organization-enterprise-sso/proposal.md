@@ -34,7 +34,7 @@ Enterprise connection, Subject prefix, Enforced SSO, Pending membership, Provisi
 
 ## Decisions Recorded
 
-[Enterprise SSO is a WBS connection record](../../../docs/adr/00xx-enterprise-sso-is-a-wbs-connection-record.md) (proposed; numbered at merge).
+[Enterprise SSO is a WBS connection record](../../../docs/adr/0049-enterprise-sso-is-a-wbs-connection-record.md) (proposed).
 
 ## Impact
 

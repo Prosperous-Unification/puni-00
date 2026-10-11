@@ -56,6 +56,13 @@ A connection SHALL become proven only when a current super-admin of its organiza
 - **WHEN** the routed link returns `samlp|other|alice@acme.test`, `samlp|acme-saml-2|alice@acme.test`, `samlp|alice@acme.test` or `google-oauth2|1`
 - **THEN** the connection stays unproven, the mismatch time is recorded, and the link answers `sso_prefix_mismatch`
 
+#### Scenario: Proof sign-in without a connection name
+
+- **GIVEN** connection `acme-saml` (`samlp`) on `acme.test`, and super-admin S of A
+- **WHEN** S completes a link routed with `organization=acme` that returns subject `samlp|alice@acme.test`, which has no connection segment
+- **THEN** the connection stays unproven and cannot be enforced, the mismatch time is recorded, and the link answers `sso_prefix_mismatch`
+- **AND** this outcome is the trigger to switch enforcement to an Auth0 post-login Action claim that names the connection, a tenant change only Dany makes
+
 #### Scenario: Proof by a non-super-admin refused
 
 - **GIVEN** a member M of A who is not a super-admin
