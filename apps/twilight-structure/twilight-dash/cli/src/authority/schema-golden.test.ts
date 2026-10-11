@@ -74,13 +74,13 @@ test('the relocated schema equals the v5 golden text', () => {
   // (2026-10-11). Renaming a column instead breaks the store's own queries before this
   // comparison runs, so it is not the isolating fault.
   expect(statements([...tables, ...meta].join(';\n'))).toEqual(
-    statements(readFileSync(join(FIXTURES, 'module-wiki-authority.v5.sql'), 'utf8')),
+    statements(readFileSync(join(FIXTURES, 'module-wiki-authority.v5.sqlite-dump'), 'utf8')),
   );
   expect(AUTHORITY_SCHEMA_VERSION).toBe('module-wiki-authority.v5');
 });
 
 test('a Burokrat-written v5 dump opens and continues', () => {
-  const dump = readFileSync(join(FIXTURES, 'burokrat-written-v5.sql'), 'utf8');
+  const dump = readFileSync(join(FIXTURES, 'burokrat-written-v5.sqlite-dump'), 'utf8');
   // The fixture is `inspect()` output written by the pre-relocation code; the equality below
   // checks every field, so the cast only names the expected shape.
   const recorded = JSON.parse(
