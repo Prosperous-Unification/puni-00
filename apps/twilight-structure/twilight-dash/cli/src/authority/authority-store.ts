@@ -106,6 +106,12 @@ export interface AuthorityClock {
   read(): number;
 }
 
+/** Refuses an omitted clock distinctly from a malformed one; time is never defaulted. */
+function assertRequiredClock(clock: unknown): asserts clock is AuthorityClock {
+  if (clock === undefined) throw new Error('authority clock is required');
+  assertAuthorityClock(clock);
+}
+
 function assertAuthorityClock(clock: unknown): asserts clock is AuthorityClock {
   // Proof: before this boundary, `{clock:{}}` constructed live memory and SQLite stores; their
   // malformed-clock adapter tests observed that neither constructor threw.
@@ -470,13 +476,12 @@ export class MemoryAuthorityStore implements AuthorityStore {
   #state: AuthorityState;
   readonly #clock: AuthorityClock;
 
-  constructor(
-    initial: AuthorityState = { generations: [], integrations: [], nextGeneration: 1 },
-    clock: AuthorityClock = { read: () => Date.now() },
-  ) {
-    assertMemoryState(initial);
-    assertAuthorityClock(clock);
-    this.#state = copyState(initial);
+  /** `initial` defaults to an empty authority; the clock is required and never defaulted. */
+  constructor(initial: AuthorityState | undefined, clock: AuthorityClock) {
+    const state = initial ?? { generations: [], integrations: [], nextGeneration: 1 };
+    assertMemoryState(state);
+    assertRequiredClock(clock);
+    this.#state = copyState(state);
     this.#clock = clock;
   }
 
@@ -583,7 +588,8 @@ const MAX_BUSY_DELAY_MS = 50;
 export interface AuthorityStoreOptions {
   readonly maxBusyAttempts?: number;
   readonly busyDelayMilliseconds?: number;
-  readonly clock?: unknown;
+  /** Required: `authority/clock.ts` supplies the wall clock; tests supply fixed clocks. */
+  readonly clock: unknown;
 }
 
 interface RequiredAuthorityStoreOptions {
@@ -727,9 +733,10 @@ function isBusy(error: unknown): boolean {
 function requiredOptions(options: AuthorityStoreOptions): RequiredAuthorityStoreOptions {
   const maxBusyAttempts = options.maxBusyAttempts ?? DEFAULT_BUSY_ATTEMPTS;
   const busyDelayMilliseconds = options.busyDelayMilliseconds ?? DEFAULT_BUSY_DELAY_MS;
-  let clock = options.clock;
-  if (clock === undefined) clock = { read: () => Date.now() };
-  assertAuthorityClock(clock);
+  const clock = options.clock;
+  // Proof: restoring the `Date.now` default here made `refuses construction without a clock`
+  // construct a SQLite store instead of throwing `authority clock is required` (2026-10-11).
+  assertRequiredClock(clock);
   // Proof: before these ceilings, attempts 1001 constructed a live store; the finite-budget test
   // observed that the constructor did not throw.
   if (
@@ -1349,7 +1356,7 @@ class SqliteAuthorityStore implements AuthorityStore {
   readonly #database: Database;
   readonly #options: RequiredAuthorityStoreOptions;
 
-  constructor(databasePath: string, options: AuthorityStoreOptions = {}) {
+  constructor(databasePath: string, options: AuthorityStoreOptions) {
     this.#options = requiredOptions(options);
     this.#database = connectAuthority(databasePath, this.#options);
   }
@@ -1462,7 +1469,7 @@ class SqliteAuthorityStore implements AuthorityStore {
 /** Opens the canonical authority selected by a repository or linked worktree. */
 export function openAuthorityStore(
   worktreePath: string,
-  options: AuthorityStoreOptions = {},
+  options: AuthorityStoreOptions,
 ): SqliteAuthorityStore {
   return new SqliteAuthorityStore(resolveAuthorityDatabasePath(worktreePath), options);
 }

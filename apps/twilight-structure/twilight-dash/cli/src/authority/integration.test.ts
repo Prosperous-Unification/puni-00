@@ -24,6 +24,9 @@ import { composeIntegrationCandidate, recomposeIntegrationCandidate } from './in
 import { createAdmissionPacket } from './packet-binding';
 import { submitPacket } from './submit';
 
+/** Fixed authority time for cases that do not exercise the clock. */
+const FIXED_CLOCK = { read: () => 1_000_000 };
+
 const scratch: string[] = [];
 
 afterAll(() => {
@@ -57,7 +60,7 @@ function integrationFixture() {
     commit: git(root, ['rev-parse', 'HEAD']),
     tree: git(root, ['rev-parse', 'HEAD^{tree}']),
   };
-  const store = openAuthorityStore(root);
+  const store = openAuthorityStore(root, { clock: FIXED_CLOCK });
 
   function submission(
     sessionId: string,
@@ -438,7 +441,7 @@ test('refuses a stale read in the actual combined candidate', () => {
         : generation,
     ),
   };
-  const reboundStore = new MemoryAuthorityStore(reboundState);
+  const reboundStore = new MemoryAuthorityStore(reboundState, FIXED_CLOCK);
   expect(() =>
     composeIntegrationCandidate(reboundStore, subject.repository, {
       policy,
@@ -575,7 +578,7 @@ test('refuses authenticated patch application failure and frozen report mismatch
           : { ...generation.submission, patchIdentity: malformedIdentity },
     })),
   };
-  const malformedStore = new MemoryAuthorityStore(malformedState);
+  const malformedStore = new MemoryAuthorityStore(malformedState, FIXED_CLOCK);
   const temporaryIndexesBefore = readdirSync(tmpdir())
     .filter((name) => name.startsWith('wiki-integration-index-'))
     .sort();

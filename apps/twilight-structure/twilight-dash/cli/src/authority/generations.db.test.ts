@@ -18,6 +18,9 @@ import {
   submitGeneration,
 } from './generations';
 
+/** Fixed authority time for cases that do not exercise the clock. */
+const FIXED_CLOCK = { read: () => 1_000_000 };
+
 const PATCH = '1'.repeat(64);
 const DIFF = '2'.repeat(64);
 const CONTENT = '3'.repeat(64);
@@ -166,7 +169,9 @@ test('SQLite refuses malformed lifecycle state before it can be treated as avail
     database.run(mutation);
     database.close();
 
-    expect(() => openAuthorityStore(root)).toThrow('authority database corrupt');
+    expect(() => openAuthorityStore(root, { clock: FIXED_CLOCK })).toThrow(
+      'authority database corrupt',
+    );
   }
 });
 
@@ -180,7 +185,7 @@ const [{ openAuthorityStore }, { acquireClaims }, generations] = await Promise.a
   import(process.argv[2]), import(process.argv[3]), import(process.argv[4]),
 ]);
 const input = JSON.parse(process.argv[5]);
-const store = openAuthorityStore(input.root);
+const store = openAuthorityStore(input.root, { clock: { read: () => 1_000_000 } });
 try {
   let output;
   if (input.operation === 'acquire') output = acquireClaims(store, input.request);
@@ -277,7 +282,7 @@ test('separate processes fence stale generations and preserve a successor and fr
     }),
   ).toMatchObject({ ok: false, message: 'generation already submitted: session-b' });
 
-  const store = openAuthorityStore(root);
+  const store = openAuthorityStore(root, { clock: FIXED_CLOCK });
   expect(store.inspect().generations.find(({ generation }) => generation === 2)).toMatchObject({
     claims: [{ access: 'write', identity: 'tools/shared', kind: 'path' }],
     status: 'submitted',

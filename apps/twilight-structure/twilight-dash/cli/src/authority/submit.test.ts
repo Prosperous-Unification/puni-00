@@ -24,6 +24,9 @@ import { abandonGeneration } from './generations';
 import { createAdmissionPacket, expandPacketReads } from './packet-binding';
 import { submitPacket } from './submit';
 
+/** Fixed authority time for cases that do not exercise the clock. */
+const FIXED_CLOCK = { read: () => 1_000_000 };
+
 const scratch: string[] = [];
 
 afterAll(() => {
@@ -58,7 +61,7 @@ function fixture() {
   const root = realpathSync(repository);
   const baseCommit = git(root, ['rev-parse', 'HEAD']);
   const baseTree = git(root, ['rev-parse', 'HEAD^{tree}']);
-  const store = openAuthorityStore(root);
+  const store = openAuthorityStore(root, { clock: FIXED_CLOCK });
   const token = acquireClaims(store, {
     owner: { sessionId: 'session-a', worktreePath: root },
     paths: [
@@ -411,7 +414,7 @@ test('persisted packet binding is strictly decoded before authority use', () => 
     .query('UPDATE authority_generation SET packet_identity = ?, packet_bytes = ?')
     .run(hashCanonical({ ...body, extraWrites: ['outside.ts'] }), packetBytes);
   database.close();
-  expect(() => openAuthorityStore(subject.repository)).toThrow(
+  expect(() => openAuthorityStore(subject.repository, { clock: FIXED_CLOCK })).toThrow(
     'undeclared admission packet field: extraWrites',
   );
 
@@ -425,7 +428,7 @@ test('persisted packet binding is strictly decoded before authority use', () => 
     .query('UPDATE authority_generation SET packet_identity = ?, packet_bytes = ?')
     .run(hashCanonical(changedOwner), ownerBytes);
   ownerDatabase.close();
-  expect(() => openAuthorityStore(wrongOwner.repository)).toThrow(
+  expect(() => openAuthorityStore(wrongOwner.repository, { clock: FIXED_CLOCK })).toThrow(
     'authority packet binding has a different owner',
   );
 });
@@ -568,7 +571,7 @@ test('production CLI independently refuses hash-valid symlink and Gitlink descen
     );
     expect(refusal.exitCode, kind).toBe(1);
     expect(refusal.stderr.toString('utf8'), kind).toContain(`packet path traverses ${kind}`);
-    const state = openAuthorityStore(subject.repository);
+    const state = openAuthorityStore(subject.repository, { clock: FIXED_CLOCK });
     expect(state.inspect().generations[0]?.status, kind).toBe('working');
     state.close();
   }
@@ -722,7 +725,7 @@ test('refuses an unrelated committed candidate and an index race before authorit
   expect(racedCli.stderr.toString('utf8')).toContain(
     'candidate changed while submission was frozen',
   );
-  const racedState = openAuthorityStore(raced.repository);
+  const racedState = openAuthorityStore(raced.repository, { clock: FIXED_CLOCK });
   expect(racedState.inspect().generations[0]?.status).toBe('working');
   racedState.close();
 });

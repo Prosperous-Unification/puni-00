@@ -1,3 +1,4 @@
+import type { AuthorityClock } from './authority/authority-store';
 import { submitAdmission } from './authority/submit-admission';
 
 const enrollmentFlags = [
@@ -13,8 +14,15 @@ const enrollmentFlags = [
 
 type PlanEnrollment = (argv: readonly string[]) => Promise<void>;
 
+/** Everything `runDash` reaches outside its arguments, composed once by `entrypoint.ts`. */
+export interface DashDependencies {
+  readonly planEnrollment: PlanEnrollment;
+  readonly clock: AuthorityClock;
+  readonly stdout: { write(text: string): unknown };
+}
+
 /** Preserve the fleet CLI enrollment guards, plan bytes and summary without execution. */
-async function runFleetPlan(argv: readonly string[]): Promise<void> {
+export async function runFleetPlan(argv: readonly string[]): Promise<void> {
   const { runPlan } = await import('@tools/fleet-plan');
   // Proof: injecting kubectl apply after planning made the real-entrypoint equivalence
   // test fail on its mutation canary despite matching plan bytes and an exit-zero planner.
@@ -25,13 +33,22 @@ async function runFleetPlan(argv: readonly string[]): Promise<void> {
  * Dispatches enrollment planning through the fixed fleet planner and admission submission
  * through the runtime authority; every other command refuses before any effect.
  */
-export async function runDash(
-  argv: readonly string[],
-  planEnrollment: PlanEnrollment = runFleetPlan,
-): Promise<void> {
+export async function runDash(argv: readonly string[], deps: DashDependencies): Promise<void> {
+  // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.
+  // Proof: giving `clock` a `wallClock()` default here failed `only clock.ts reads the wall
+  // clock` naming `cli.ts`; dropping this check let `runDash refuses missing dependencies`
+  // reach the dispatcher (2026-10-11).
+  for (const name of ['planEnrollment', 'clock', 'stdout'] as const) {
+    if ((deps as Partial<DashDependencies> | undefined)?.[name] === undefined) {
+      throw new Error(`Dash dependency is required: ${name}`);
+    }
+  }
   const [command, ...argumentsAfterCommand] = argv;
   if (command === 'submit-admission') {
-    submitAdmission(argumentsAfterCommand, (text) => process.stdout.write(text));
+    submitAdmission(argumentsAfterCommand, {
+      clock: deps.clock,
+      write: (text) => deps.stdout.write(text),
+    });
     return;
   }
   if (command !== 'plan-enrollment') {
@@ -73,5 +90,5 @@ export async function runDash(
     }
     fleetArguments.push(flag, value);
   }
-  await planEnrollment(fleetArguments);
+  await deps.planEnrollment(fleetArguments);
 }

@@ -13,6 +13,9 @@ import {
   submitGeneration,
 } from './generations';
 
+/** Fixed authority time for cases that do not exercise the clock. */
+const FIXED_CLOCK = { read: () => 1_000_000 };
+
 const PATCH = '1'.repeat(64);
 const DIFF = '2'.repeat(64);
 const CONTENT = '3'.repeat(64);
@@ -286,20 +289,26 @@ test('memory state refuses malformed lifecycle records before ownership decision
   for (const generation of invalidStates) {
     expect(
       () =>
-        new MemoryAuthorityStore({
-          generations: [generation],
-          integrations: [],
-          nextGeneration: 2,
-        }),
+        new MemoryAuthorityStore(
+          {
+            generations: [generation],
+            integrations: [],
+            nextGeneration: 2,
+          },
+          FIXED_CLOCK,
+        ),
     ).toThrow();
   }
   expect(
     () =>
-      new MemoryAuthorityStore({
-        generations: [base, { ...base, generation: 2 }],
-        integrations: [],
-        nextGeneration: 3,
-      }),
+      new MemoryAuthorityStore(
+        {
+          generations: [base, { ...base, generation: 2 }],
+          integrations: [],
+          nextGeneration: 3,
+        },
+        FIXED_CLOCK,
+      ),
   ).toThrow('duplicate active authority session');
 });
 

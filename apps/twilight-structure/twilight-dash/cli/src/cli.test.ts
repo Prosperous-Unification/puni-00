@@ -2,7 +2,21 @@ import { join } from 'node:path';
 
 import { describe, expect, test } from 'bun:test';
 
-import { runDash } from './cli';
+import { type DashDependencies, runDash } from './cli';
+
+const FIXED_CLOCK = { read: () => 1_000 };
+
+function dependencies(planEnrollment: DashDependencies['planEnrollment']): DashDependencies {
+  return {
+    clock: FIXED_CLOCK,
+    planEnrollment,
+    stdout: {
+      write: () => {
+        throw new Error('this dispatcher case writes nothing');
+      },
+    },
+  };
+}
 
 const enrollmentFlags = [
   '--fleet',
@@ -41,7 +55,7 @@ async function expectRefusal(
 ) {
   let refusal: unknown;
   try {
-    await runDash(argv, planner.run);
+    await runDash(argv, dependencies(planner.run));
   } catch (cause) {
     refusal = cause;
   }
@@ -64,7 +78,7 @@ describe('Dash enrollment planning dispatcher', () => {
     const planner = observePlanner();
     await runDash(
       ['plan-enrollment', ...enrollmentFlags.slice(8), ...enrollmentFlags.slice(0, 8)],
-      planner.run,
+      dependencies(planner.run),
     );
     expect(planner.calls).toEqual([['--operation', 'enroll', ...enrollmentFlags]]);
   });
@@ -125,4 +139,28 @@ test('the fleet planner alias exposes only runPlan', async () => {
   // Proof: pointing `@tools/fleet-plan` in tsconfig.base.json back at tools/tool-fleet/src/cli.ts
   // failed this test with `runApply` and the other fleet commands in the export list (2026-10-11).
   expect(Object.keys(await import('@tools/fleet-plan'))).toEqual(['runPlan']);
+});
+
+async function refusalOf(deps: DashDependencies): Promise<string> {
+  try {
+    await runDash(['plan-enrollment', ...enrollmentFlags], deps);
+  } catch (cause) {
+    if (cause instanceof Error) return cause.message;
+    throw new Error('Dash did not return an Error', { cause });
+  }
+  throw new Error('Dash accepted incomplete dependencies');
+}
+
+test('runDash refuses missing dependencies', async () => {
+  const planner = observePlanner();
+  const complete = dependencies(planner.run);
+  for (const name of ['planEnrollment', 'clock', 'stdout'] as const) {
+    // The computed key widens to every dependency, so this models a JavaScript caller's omission.
+    const partial = { ...complete, [name]: undefined };
+    expect(await refusalOf(partial)).toBe(`Dash dependency is required: ${name}`);
+  }
+  expect(await refusalOf(undefined as unknown as DashDependencies)).toBe(
+    'Dash dependency is required: planEnrollment',
+  );
+  expect(planner.calls).toEqual([]);
 });

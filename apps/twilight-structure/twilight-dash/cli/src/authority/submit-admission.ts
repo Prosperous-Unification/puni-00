@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { decodeAdmissionPacket } from '@twilight-burokrat/judge';
 
-import { openAuthorityStore } from './authority-store';
+import { type AuthorityClock, openAuthorityStore } from './authority-store';
 import { submitPacket } from './submit';
 
 const usage =
@@ -39,14 +39,17 @@ function readPacketJson(path: string): unknown {
  *
  * @throws Error with the usage line when the argument count or selection kind is wrong.
  */
-export function submitAdmission(argv: readonly string[], write: (text: string) => void): void {
+export function submitAdmission(
+  argv: readonly string[],
+  { clock, write }: { readonly clock: AuthorityClock; readonly write: (text: string) => void },
+): void {
   const [repository, packetPath, kind, revision] = argv;
   if (argv.length !== 4 || (kind !== 'staged' && kind !== 'committed')) {
     throw new Error(usage);
   }
   try {
     const packet = decodeAdmissionPacket(readPacketJson(packetPath));
-    const store = openAuthorityStore(repository);
+    const store = openAuthorityStore(repository, { clock });
     try {
       const selection =
         kind === 'staged' ? ({ base: revision, kind } as const) : ({ kind, revision } as const);

@@ -44,6 +44,19 @@ Each fault was restored and the test passed again.
 | re-add only the `bin.ts` `validatorCommands` entry                | bin.ts entry exited `null` instead of 1                                                                                                           |
 | keep the handoff digest `a68a8631…`                               | observed `7b8d87be…` at 321 occurrences                                                                                                           |
 
-## S2–S6
+## S2: the clock is required and composed once
+
+| Command                                                           | Result                     |
+| ----------------------------------------------------------------- | -------------------------- |
+| `bun test --preload … src --timeout=30000` in `twilight-dash/cli` | 190 pass, 0 fail, 11 files |
+
+| Injected fault                                                     | Observed failure                                                                      |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `options.clock ?? { read: () => Date.now() }` in `requiredOptions` | `refuses construction without a clock`: SQLite half `Received function did not throw` |
+| `Date.now()` appended to `claims.ts`                               | `only clock.ts reads the wall clock`: `+ "authority/claims.ts"`                       |
+| `deps.clock ?? wallClock()` in `runDash`                           | same test: `+ "cli.ts"` among `wallClock()` composers                                 |
+| dependency check in `runDash` turned into `continue`               | `runDash refuses missing dependencies`: `deps.planEnrollment is not a function`       |
+
+## S3–S6
 
 Recorded by each slice as it lands.

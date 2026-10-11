@@ -3,6 +3,9 @@ import { expect, test } from 'bun:test';
 import { MemoryAuthorityStore } from './authority-store';
 import { acquireClaims, expandClaims } from './claims';
 
+/** Fixed authority time for cases that do not exercise the clock. */
+const FIXED_CLOCK = { read: () => 1_000_000 };
+
 const owner = (sessionId: string, worktreePath = `/worktrees/${sessionId}`) => ({
   sessionId,
   worktreePath,
@@ -44,7 +47,7 @@ test('acquires every requested claim with one generation', () => {
 });
 
 test('refuses the complete request when one path or group conflicts', () => {
-  const store = new MemoryAuthorityStore();
+  const store = new MemoryAuthorityStore(undefined, FIXED_CLOCK);
   acquireClaims(store, {
     owner: owner('session-a'),
     paths: [{ access: 'write', path: 'libs/contracts' }],
@@ -73,7 +76,7 @@ test('refuses the complete request when one path or group conflicts', () => {
 });
 
 test('permits disjoint writers and overlapping readers', () => {
-  const store = new MemoryAuthorityStore();
+  const store = new MemoryAuthorityStore(undefined, FIXED_CLOCK);
   acquireClaims(store, {
     owner: owner('session-a'),
     paths: [{ access: 'read', path: 'docs' }],
@@ -95,7 +98,7 @@ test('permits disjoint writers and overlapping readers', () => {
 });
 
 test('refuses reused sessions and malformed identities without mutation', () => {
-  const store = new MemoryAuthorityStore();
+  const store = new MemoryAuthorityStore(undefined, FIXED_CLOCK);
   acquireClaims(store, {
     owner: owner('session-a'),
     paths: [{ access: 'write', path: 'apps/fe-01' }],
@@ -122,7 +125,7 @@ test('refuses reused sessions and malformed identities without mutation', () => 
 });
 
 test('expands under the same owner and generation or changes nothing', () => {
-  const store = new MemoryAuthorityStore();
+  const store = new MemoryAuthorityStore(undefined, FIXED_CLOCK);
   const first = acquireClaims(store, {
     owner: owner('session-a'),
     paths: [{ access: 'read', path: 'docs' }],
@@ -165,7 +168,7 @@ test('expands under the same owner and generation or changes nothing', () => {
 });
 
 test('upgrades a read atomically and refuses a wrong token distinctly', () => {
-  const store = new MemoryAuthorityStore();
+  const store = new MemoryAuthorityStore(undefined, FIXED_CLOCK);
   const first = acquireClaims(store, {
     owner: owner('session-a'),
     paths: [{ access: 'read', path: 'docs' }],
@@ -202,7 +205,7 @@ test('upgrades a read atomically and refuses a wrong token distinctly', () => {
     { access: 'read', kind: 'path', identity: 'docs' },
   ]);
 
-  const upgradeStore = new MemoryAuthorityStore();
+  const upgradeStore = new MemoryAuthorityStore(undefined, FIXED_CLOCK);
   const upgrade = acquireClaims(upgradeStore, {
     owner: owner('upgrade'),
     paths: [{ access: 'read', path: 'docs' }],
@@ -219,7 +222,7 @@ test('upgrades a read atomically and refuses a wrong token distinctly', () => {
 });
 
 test('rejects noncanonical worktree identities before reserving a session', () => {
-  const store = new MemoryAuthorityStore();
+  const store = new MemoryAuthorityStore(undefined, FIXED_CLOCK);
   for (const worktreePath of ['relative', '/worktrees/../other', '/worktrees/bad\\alias']) {
     expect(() =>
       acquireClaims(store, {
@@ -233,7 +236,7 @@ test('rejects noncanonical worktree identities before reserving a session', () =
 });
 
 test('rejects a session identity outside the strict authority alphabet', () => {
-  const store = new MemoryAuthorityStore();
+  const store = new MemoryAuthorityStore(undefined, FIXED_CLOCK);
   expect(() =>
     acquireClaims(store, {
       owner: owner('bad/session'),
@@ -252,11 +255,14 @@ test('rejects a session identity outside the strict authority alphabet', () => {
 });
 
 test('fails closed before overflowing the persisted generation counter', () => {
-  const store = new MemoryAuthorityStore({
-    generations: [],
-    integrations: [],
-    nextGeneration: Number.MAX_SAFE_INTEGER,
-  });
+  const store = new MemoryAuthorityStore(
+    {
+      generations: [],
+      integrations: [],
+      nextGeneration: Number.MAX_SAFE_INTEGER,
+    },
+    FIXED_CLOCK,
+  );
   expect(() =>
     acquireClaims(store, {
       owner: owner('session-a'),
@@ -274,26 +280,29 @@ test('fails closed before overflowing the persisted generation counter', () => {
 test('rejects a state whose next generation can collide with an existing owner', () => {
   expect(
     () =>
-      new MemoryAuthorityStore({
-        nextGeneration: 1,
-        integrations: [],
-        generations: [
-          {
-            claims: [],
-            generation: 1,
-            heartbeatAt: 1_000,
-            sessionId: 'session-a',
-            status: 'working',
-            statusAt: 1_000,
-            worktreePath: '/worktrees/session-a',
-          },
-        ],
-      }),
+      new MemoryAuthorityStore(
+        {
+          nextGeneration: 1,
+          integrations: [],
+          generations: [
+            {
+              claims: [],
+              generation: 1,
+              heartbeatAt: 1_000,
+              sessionId: 'session-a',
+              status: 'working',
+              statusAt: 1_000,
+              worktreePath: '/worktrees/session-a',
+            },
+          ],
+        },
+        FIXED_CLOCK,
+      ),
   ).toThrow('authority next generation does not follow existing generations');
 });
 
 test('refuses an asynchronous transaction callback before committing its pending state', () => {
-  const store = new MemoryAuthorityStore();
+  const store = new MemoryAuthorityStore(undefined, FIXED_CLOCK);
   expect(() =>
     store.transact((transaction) => {
       transaction.writeState({ generations: [], integrations: [], nextGeneration: 2 });

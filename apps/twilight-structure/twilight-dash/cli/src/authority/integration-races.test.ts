@@ -51,6 +51,9 @@ import {
 } from './publication';
 import { submitPacket } from './submit';
 
+/** Fixed authority time for cases that do not exercise the clock. */
+const FIXED_CLOCK = { read: () => 1_000_000 };
+
 const scratch: string[] = [];
 
 afterAll(() => {
@@ -1814,20 +1817,23 @@ test('queue caps batches, separates resource prerequisites, and reports starvati
   const queued = persisted.integrations[0];
   expect(
     () =>
-      new MemoryAuthorityStore({
-        ...persisted,
-        integrations: [
-          {
-            ...queued,
-            submissions: submissions.map(({ packet, report }) => ({
-              generation: packet.generation,
-              packetIdentity: packet.packetIdentity,
-              patchIdentity: report.patchIdentity,
-              sessionId: packet.sessionId,
-            })),
-          },
-        ],
-      }),
+      new MemoryAuthorityStore(
+        {
+          ...persisted,
+          integrations: [
+            {
+              ...queued,
+              submissions: submissions.map(({ packet, report }) => ({
+                generation: packet.generation,
+                packetIdentity: packet.packetIdentity,
+                patchIdentity: report.patchIdentity,
+                sessionId: packet.sessionId,
+              })),
+            },
+          ],
+        },
+        FIXED_CLOCK,
+      ),
   ).toThrow('invalid authority integration batch size');
   subject.store.close();
   const reopened = openAuthorityStore(subject.repository, { clock: { read: () => clock.now } });
@@ -1932,7 +1938,7 @@ test.each(['wbs-wiki-authority.v3', 'wbs-wiki-authority.v4'])(
     // Proof: pinning `AUTHORITY_SCHEMA_VERSION` back at `wbs-wiki-authority.v4` made the v4 row
     // open without throwing, and this case failed on `Received function did not throw` — the v5
     // bump is what refuses an authority written under the old `.git/wbs-wiki` name (2026-09-16).
-    expect(() => openAuthorityStore(subject.repository)).toThrow(
+    expect(() => openAuthorityStore(subject.repository, { clock: FIXED_CLOCK })).toThrow(
       'authority database version is incompatible',
     );
   },
@@ -1947,72 +1953,84 @@ test('memory authority refuses partial or mismatched durable integration records
   const queued = state.integrations[0];
   expect(
     () =>
-      new MemoryAuthorityStore({
-        ...state,
-        integrations: [
-          {
-            ...queued,
-            baseCommit: subject.base.commit,
-            compositionIdentity: '7'.repeat(64),
-            status: 'checking',
-          },
-        ],
-      }),
+      new MemoryAuthorityStore(
+        {
+          ...state,
+          integrations: [
+            {
+              ...queued,
+              baseCommit: subject.base.commit,
+              compositionIdentity: '7'.repeat(64),
+              status: 'checking',
+            },
+          ],
+        },
+        FIXED_CLOCK,
+      ),
   ).toThrow('partial publication fields');
   expect(
     () =>
-      new MemoryAuthorityStore({
-        ...state,
-        integrations: [
-          {
-            ...queued,
-            resources: [
-              { identity: 'heavy', kind: 'lane' },
-              { identity: 'heavy', kind: 'lane' },
-            ],
-          },
-        ],
-      }),
+      new MemoryAuthorityStore(
+        {
+          ...state,
+          integrations: [
+            {
+              ...queued,
+              resources: [
+                { identity: 'heavy', kind: 'lane' },
+                { identity: 'heavy', kind: 'lane' },
+              ],
+            },
+          ],
+        },
+        FIXED_CLOCK,
+      ),
   ).toThrow('duplicate authority integration resource');
   const submission = queued.submissions[0];
   expect(
     () =>
-      new MemoryAuthorityStore({
-        ...state,
-        integrations: [
-          {
-            ...queued,
-            submissions: [{ ...submission, packetIdentity: '6'.repeat(64) }],
-          },
-        ],
-      }),
+      new MemoryAuthorityStore(
+        {
+          ...state,
+          integrations: [
+            {
+              ...queued,
+              submissions: [{ ...submission, packetIdentity: '6'.repeat(64) }],
+            },
+          ],
+        },
+        FIXED_CLOCK,
+      ),
   ).toThrow('authority integration submission is not retained');
   expect(
     () =>
-      new MemoryAuthorityStore({
-        ...state,
-        integrations: [
-          {
-            ...queued,
-            attemptCount: 1,
-            attemptIdentity: '8'.repeat(64),
-            baseCommit: subject.base.commit,
-            candidateTree: subject.base.tree,
-            compositionIdentity: '7'.repeat(64),
-            status: 'checking',
-          },
-          {
-            ...queued,
-            attemptCount: 1,
-            attemptIdentity: '9'.repeat(64),
-            baseCommit: subject.base.commit,
-            candidateTree: subject.base.tree,
-            compositionIdentity: '6'.repeat(64),
-            integrationId: 'malformed-other',
-            status: 'checking',
-          },
-        ],
-      }),
+      new MemoryAuthorityStore(
+        {
+          ...state,
+          integrations: [
+            {
+              ...queued,
+              attemptCount: 1,
+              attemptIdentity: '8'.repeat(64),
+              baseCommit: subject.base.commit,
+              candidateTree: subject.base.tree,
+              compositionIdentity: '7'.repeat(64),
+              status: 'checking',
+            },
+            {
+              ...queued,
+              attemptCount: 1,
+              attemptIdentity: '9'.repeat(64),
+              baseCommit: subject.base.commit,
+              candidateTree: subject.base.tree,
+              compositionIdentity: '6'.repeat(64),
+              integrationId: 'malformed-other',
+              status: 'checking',
+            },
+          ],
+        },
+        FIXED_CLOCK,
+      ),
   ).toThrow('authority generation has competing integrations');
   subject.store.close();
 });
