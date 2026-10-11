@@ -10,6 +10,7 @@ import { filterUsingGlobPatterns, getTargetInputs } from 'nx/src/hasher/task-has
 import ts from 'typescript';
 
 import { readProjects } from '../workspace-projects.mjs';
+import { collectedFiles, parseLevelCommand } from './test-levels';
 
 /**
  * `tsc -p` on a solution-style config compiles **nothing**.
@@ -97,6 +98,18 @@ function commandsOf(target: ProjectTarget): string[] {
   ];
 }
 
+/** Whether a source target selects a file; level selectors run through the production parser. */
+function selectsTestFile(command: string, file: string, root: string, target: string): boolean {
+  if (!command.includes('bun test ')) return false;
+  if (target.endsWith(':level') || command.includes('bun test $files')) {
+    return collectedFiles(root, parseLevelCommand(command).selector).includes(file);
+  }
+  const selector = /\bbun test (src(?:\/[^\s]+)?)(?:\s|$)/.exec(command)?.[1];
+  if (selector !== undefined) return selector === file || file.startsWith(`${selector}/`);
+  if (/\bbun test --coverage\b/.test(command)) return true;
+  throw new Error(`unrecognized Bun test file selector: ${command}`);
+}
+
 describe('source conformance target discovery', () => {
   it('selects each terminal source file exactly and keeps normal test inclusion', async () => {
     const projects = await projectsOnDisk();
@@ -106,19 +119,16 @@ describe('source conformance target discovery', () => {
         file: 'src/testing/source-conformance.test.ts',
         timeout: 10_000,
         inputs: ['default', '^production'],
-        certificateTargets: ['test', 'test:conformance', 'test:unit'],
+        certificateTargets: ['test', 'test:conformance', 'test:conformance:level', 'test:unit'],
       },
       'wbs-store-sqlite': {
         root: 'libs/wbs/adapters/store-sqlite',
         file: 'src/testing/source-conformance.db.test.ts',
         timeout: 30_000,
         inputs: ['default', '^production', '{workspaceRoot}/apps/wbs/be-01/drizzle'],
-        certificateTargets: ['test', 'test:conformance'],
+        certificateTargets: ['test', 'test:conformance', 'test:conformance:level'],
       },
     } as const;
-    // The time budget every Bun command states is checked on its own below; it does not decide
-    // which files a target selects.
-    const unbudgeted = (command: string): string => command.replace(/ --timeout=\d+$/, '');
     const observed = Object.fromEntries(
       Object.entries(expected).map(([name, contract]) => {
         const project = projects.find(({ config }) => config.name === name);
@@ -133,25 +143,31 @@ describe('source conformance target discovery', () => {
             cwd: target.options?.cwd,
             cache: target.cache,
             inputs: target.inputs,
-            normalIncludes: commandsOf(project.config.targets['test'] ?? {})
-              .map(unbudgeted)
-              .some(
-                (candidate) =>
-                  candidate === 'bun test src --coverage --coverage-reporter=lcov' ||
-                  candidate === 'bun test --coverage --coverage-reporter=lcov',
-              ),
+            normalIncludes: commandsOf(project.config.targets['test'] ?? {}).some(
+              (candidateCommand) =>
+                selectsTestFile(candidateCommand, contract.file, contract.root, 'test'),
+            ),
             certificateTargets: Object.entries(project.config.targets)
-              .filter(([, candidate]) =>
-                commandsOf(candidate ?? {})
-                  .map(unbudgeted)
-                  .some(
-                    (candidateCommand) =>
-                      candidateCommand.includes(contract.file) ||
-                      candidateCommand === 'bun test src --coverage --coverage-reporter=lcov' ||
-                      candidateCommand === 'bun test --coverage --coverage-reporter=lcov',
-                  ),
+              .filter(([targetName, candidate]) =>
+                commandsOf(candidate ?? {}).some((candidateCommand) =>
+                  selectsTestFile(candidateCommand, contract.file, contract.root, targetName),
+                ),
               )
               .map(([targetName, candidate]) => ({ name: targetName, cache: candidate?.cache })),
+            ...(name === 'wbs-store-memory'
+              ? {
+                  unitLevelExcludesConformance: !commandsOf(
+                    project.config.targets['test:unit:level'] ?? {},
+                  ).some((candidateCommand) =>
+                    selectsTestFile(
+                      candidateCommand,
+                      contract.file,
+                      contract.root,
+                      'test:unit:level',
+                    ),
+                  ),
+                }
+              : {}),
             filtered: command.some((candidate) =>
               /(?:^|\s)(?:-t|--test-name-pattern)(?:\s|=)/.test(candidate),
             ),
@@ -179,6 +195,10 @@ describe('source conformance target discovery', () => {
     // revision. With cache:false it reruns and prints that same SHA with -dirty.
     // Discovery includes every broad target that can select the terminal file;
     // adding another cacheable broad source target therefore changes this map.
+    // Proof: removing memory Unit's `! -path` exclusion failed with
+    // `test:unit:level` newly collected and `unitLevelExcludesConformance: false`.
+    // Replacing the memory Conformance level's `find` name with a foreign fixture
+    // failed because `test:conformance:level` disappeared from certificateTargets.
     expect(observed).toEqual(
       Object.fromEntries(
         Object.entries(expected).map(([name, contract]) => [
@@ -193,6 +213,7 @@ describe('source conformance target discovery', () => {
               name: targetName,
               cache: false,
             })),
+            ...(name === 'wbs-store-memory' ? { unitLevelExcludesConformance: true } : {}),
             filtered: false,
             forwardsCliArgs: false,
           },
@@ -565,6 +586,8 @@ function dependencyInputCovers(
  * `CLAUDECODE=1 bunx nx run wbs-mcp-01:test` failed 124 to 1 on
  * `isolated Bun process observes MCP state comparisons at the crypto primitive`, then passed 125
  * with the default in place.
+ * Proof: before adding explicit defaults to the five new level targets, this
+ * named FE Unit/View, memory Unit/Conformance and SQLite Conformance as exposed.
  */
 describe('every test-running target answers the same from an agent shell', () => {
   it('sets the agent output variables to 0', async () => {
@@ -969,6 +992,8 @@ describe('the root fast tier discovers every eligible project', () => {
     // ["solver-supervisor-protocol"]` and `unexpected: []` (2026-09-10).
     // Adding `test:unit` to the discovered tool-devsync project failed here
     // with `missing: []` and `unexpected: ["tool-devsync"]` (2026-09-10).
+    // Proof: before adding the two shared targets, this named
+    // `shared-test-evidence` and `shared-test-levels` in `missing`.
     expect({ missing, unexpected }).toEqual({ missing: [], unexpected: [] });
   });
 

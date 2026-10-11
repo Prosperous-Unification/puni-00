@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "fixtures": [
+    {
+      "ruleId": "MOD-INDEX",
+      "file": "src/architecture/mod-index.architecture.test.ts"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "file": "src/architecture/inv-classify.architecture.test.ts"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "file": "src/architecture/mod-direct-entries.architecture.test.ts"
+    },
+    {
+      "ruleId": "F7",
+      "file": "src/architecture/f7.architecture.test.ts"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "file": "src/architecture/mod-layout.architecture.test.ts"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "file": "src/architecture/rel-extract.architecture.test.ts"
+    },
+    {
+      "ruleId": "F1",
+      "file": "src/architecture/f1.architecture.test.ts"
+    },
+    {
+      "ruleId": "K2",
+      "file": "src/architecture/k2.architecture.test.ts"
+    },
+    {
+      "ruleId": "K3",
+      "file": "src/architecture/k3.architecture.test.ts"
+    },
+    {
+      "ruleId": "K4",
+      "file": "src/architecture/k4.architecture.test.ts"
+    },
+    {
+      "ruleId": "K5",
+      "file": "src/architecture/k5.architecture.test.ts"
+    },
+    {
+      "ruleId": "K6",
+      "file": "src/architecture/k6.architecture.test.ts"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "file": "src/architecture/perf-threshold.architecture.test.ts"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "file": "src/architecture/spec-scenarios.architecture.test.ts"
+    }
+  ]
+}

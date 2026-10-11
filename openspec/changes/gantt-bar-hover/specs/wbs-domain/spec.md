@@ -250,18 +250,7 @@ open a surface.
 - **WHEN** a bar is tapped on a touch screen
 - **THEN** the plan takes the reader to that row and no surface is shown
 
-## MODIFIED Requirements
-
-<!--
-The header below is the one this requirement carries **after**
-`gantt-calendar-axis` archives, which is this change's own precondition: the
-archive order is `gantt-view` → `gantt-calendar-axis` → `gantt-bar-hover`, and
-neither of the first two renames it. The body is the complete text as it will
-then stand, amended here — a MODIFIED block is applied by full-text
-replacement, so everything below survives and nothing else does.
--->
-
-### Requirement: A bar explains itself and finds its row
+### Requirement: A bar's explanation uses the shared accessible surface
 
 Hovering **or focusing** a bar SHALL name its slice's binding floor in words —
 for a person floor, naming the person and the slice they were finishing — and

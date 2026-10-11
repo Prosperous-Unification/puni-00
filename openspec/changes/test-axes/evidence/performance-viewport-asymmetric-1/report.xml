@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="wbs-fe-01.performance" tests="1" failures="0" errors="0" skipped="0">
+  <testcase classname="apps/wbs/fe-01/e2e-performance/mounted-cells.perf.spec.ts" name="[TEST-AXES-038] a 100-row folded plan stays within its mounted-cell budget" file="apps/wbs/fe-01/e2e-performance/mounted-cells.perf.spec.ts"></testcase>
+</testsuite>

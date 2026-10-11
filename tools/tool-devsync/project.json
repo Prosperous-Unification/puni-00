@@ -5,6 +5,13 @@
   "projectType": "library",
   "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
   "targets": {
+    "test-levels:verify": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-devsync/src/verify-test-levels-cli.ts"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "inputs": [

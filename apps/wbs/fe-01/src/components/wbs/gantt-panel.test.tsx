@@ -7118,6 +7118,78 @@ describe('the pointed row', () => {
     expect(litBands()).toEqual(['2']);
   });
 
+  itDom('points a genuinely barless row from its label and its line', () => {
+    const pointed = createPointedRows();
+    render(
+      <GanttPanel
+        plan={plan()}
+        startDate={MONDAY}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={pointed.pointChart}
+        pointed={pointed}
+      />,
+    );
+
+    expect(document.querySelector('[data-gantt-bar][aria-label^="030 - "]')).toBeNull();
+    const line = document.querySelector('[data-gantt-row-line="2"]');
+    if (line === null) throw new Error('the barless row has no line');
+
+    fireEvent(labelFor('seal'), pointerEvent('mouse', 'pointerover'));
+    expect(pointed.pointedAt()).toBe('seal');
+    expect(litLabels()).toEqual(['seal']);
+    expect(litBands()).toEqual(['2']);
+
+    act(() => {
+      pointed.pointChart(null, 'pointer');
+    });
+    expect(litBands()).toEqual([]);
+    // Proof: temporarily removing the row line's pointRow call made this
+    // production-path assertion fail while the barless label case still passed.
+    fireEvent(line, pointerEvent('mouse', 'pointerover'));
+    expect(pointed.pointedAt()).toBe('seal');
+    expect(litLabels()).toEqual(['seal']);
+    expect(litBands()).toEqual(['2']);
+  });
+
+  itDom('lighting one bar leaves another role bar on the same row unchanged', () => {
+    const pointed = createPointedRows();
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 5, { number: '010', name: 'Strip' })],
+          slices: [sliceAt('strip-dev', 'strip', 0, 3), sliceAt('strip-qa', 'strip', 3, 5)],
+        })}
+        startDate={MONDAY}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={pointed.pointChart}
+        pointed={pointed}
+      />,
+    );
+
+    const first = markFor('strip-dev');
+    const otherRole = markFor('strip-qa');
+    const paintAndShape = (mark: Element): readonly (string | null)[] =>
+      ['fill', 'stroke', 'class', 'x', 'y', 'width', 'height', 'rx', 'ry'].map((name) =>
+        mark.getAttribute(name),
+      );
+    const before = paintAndShape(otherRole);
+    expect(first.getAttribute('fill')).not.toBeNull();
+    expect(otherRole.getAttribute('fill')).not.toBeNull();
+
+    fireEvent(first, pointerEvent('mouse', 'pointerover'));
+    expect(pointed.pointedAt()).toBe('strip');
+    expect(litBands()).toEqual(['0']);
+    // Proof: a temporary pointed-row fill on every same-row bar changed this
+    // second role's fill and made this actual mark oracle fail.
+    expect(paintAndShape(otherRole)).toEqual(before);
+  });
+
   itDom('pointing a row re-renders no Gantt mark', () => {
     const pointed = createPointedRows();
     render(

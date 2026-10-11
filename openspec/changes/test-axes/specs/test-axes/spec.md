@@ -12,8 +12,8 @@ Every test file SHALL have exactly one level, selected by the first matching rul
 | 4     | A member of a declared Playwright suite, and carrying declared thresholds                                                                                                                                                                                          | Performance  |
 | 5     | A member of a declared Playwright suite: today the three configurations `apps/wbs/fe-01/playwright.config.ts`, `apps/wbs/fe-01/playwright.packaged.config.ts` and `libs/wbs/application/core/playwright.config.ts`, each through its own `testDir` and `testMatch` | Browser      |
 | 6     | Ending `.db.test.ts`                                                                                                                                                                                                                                               | API          |
-| 7     | Listed in `apps/wbs/fe-01/vitest.node-suites.ts`                                                                                                                                                                                                                   | Unit         |
-| 8     | Under `apps/wbs/fe-01/src`, ending `.test.tsx` or `.test.ts` and not in that list                                                                                                                                                                                  | View         |
+| 7     | Listed in the FE-owned `apps/wbs/fe-01/vitest.node-suites.json` manifest backing the `NODE_SUITES` export                                                                                                                                                          | Unit         |
+| 8     | Under `apps/wbs/fe-01/src`, ending `.test.tsx` or `.test.ts` and not in that manifest                                                                                                                                                                              | View         |
 | 9     | Ending `.test.tsx` anywhere else                                                                                                                                                                                                                                   | View         |
 | 10    | Ending `.test.ts` anywhere else                                                                                                                                                                                                                                    | Unit         |
 
@@ -58,6 +58,154 @@ Each level SHALL be runnable alone through one Nx target. An existing aggregate 
 - **GIVEN** one target declared as an aggregate and one undeclared target
 - **WHEN** each runs files from two levels
 - **THEN** the declared aggregate passes and the undeclared target fails
+
+### Requirement: Performance execution measures the declared real WBS fixture
+
+The Performance target SHALL execute its declared fixture against the real WBS FE/BE/GW stack in a detached committed checkout. Its selection environment SHALL be exactly `CI=1` and a canonical decimal `E2E_PORT_SHIFT` from 1 through 9999 excluding 100, 1000 and 1100; the same captured pair SHALL reach setup, services, discovery and execution, SHALL NOT be overridden by a descriptor, and SHALL be bound into evidence, manifest and Burokrat selection digest. Before admitting an invocation, it SHALL refuse if any selected shifted port is already occupied and SHALL preserve that unrelated listener. The WBS rendering case SHALL verify the seeded server plan contains exactly 100 logical rows and two steps, and SHALL sample nonempty geometry at logical rows 0, 50 and 99 at a 1400×900 viewport with Gantt closed and estimates folded. It SHALL retain and count the active editor row in the final sample. Its measured value SHALL be the maximum actual mounted table-cell count from those settled samples and SHALL pass only at or below 1200 cells; waiting for the count to meet the threshold SHALL NOT be a readiness condition. A runner startup/readiness failure, execution timeout, or failed cleanup SHALL refuse the invocation without publishing a current-success pointer. Before launch, the Linux runner SHALL verify child-subreaper, `pidfd_open` and `pidfd_send_signal` support, otherwise refusing before services start. It SHALL keep the subreaper alive through cleanup, stop launching before draining, repeatedly discover descendants and adopted children during a bounded graceful/forced cleanup loop, await directly spawned child exits, reap adopted children, and verify no live/adopted child remains. It SHALL signal only revalidated pidfd identities. A pre-existing or unexpected foreign listener SHALL cause a named refusal and SHALL NOT be killed. Evidence publication SHALL be an immutable per-invocation bundle plus one atomic current pointer; a new admitted attempt invalidates the old pointer, successful passing evidence publishes it only after cleanup, and an older invocation SHALL NOT publish after a newer admission. Failed threshold measurements SHALL retain diagnostic JUnit and observations in their immutable invocation bundle without a current-success pointer. Successful sequential invocations SHALL publish distinct fresh evidence and leave all owned shifted listeners closed. All evidence remains noncertifying.
+
+#### Scenario: [TEST-AXES-038] A folded 100-row plan stays within its mounted-cell budget
+
+- **GIVEN** the real WBS stack and the declared 100-row sparse plan fixture
+- **WHEN** the Performance case verifies 100 logical rows and samples settled, nonempty mounted-cell geometry at logical rows 0, 50 and 99 with Gantt closed and estimates folded at a 1400×900 viewport
+- **THEN** it records the maximum sampled count, retains the active editor row in the final sample, and passes only when the count is at most 1200, with noncertifying evidence
+
+#### Scenario: [TEST-AXES-039] A timed-out Performance run leaves no owned process or listener
+
+- **GIVEN** an admitted Performance invocation whose actual supervised WBS stack starts an intermediate wrapper that exits immediately after starting a separate-session child with a shifted listener and a second child with no listener
+- **WHEN** the runner deadline expires
+- **THEN** child-subreaper adoption retains both children, the runner repeatedly discovers and signals their stable pidfd identities with bounded graceful then forced cleanup, reaps both and verifies neither remains without signaling an unrelated process, retains failure diagnostics without a current-success pointer, and refuses publication
+
+#### Scenario: [TEST-AXES-040] A required service fails readiness before Performance execution
+
+- **GIVEN** a required WBS service does not become ready after admission, or a selected shifted port is occupied before admission
+- **WHEN** the runner performs bounded stack startup
+- **THEN** an occupied-port refusal preserves the existing listener; a readiness refusal occurs before test-case execution, cleans up only owned processes, and publishes no current-success pointer
+
+#### Scenario: [TEST-AXES-041] Sequential Performance invocations own fresh reports and ports
+
+- **GIVEN** two successful Performance invocations run sequentially with validated shifted ports
+- **WHEN** each completes against its own fresh committed checkout
+- **THEN** each passing run publishes a distinct immutable invocation bundle through the atomic current pointer and all owned shifted listeners are closed after each run
+
+### Requirement: Browser observations bind one committed candidate
+
+A version-1 Browser bundle SHALL carry its `candidate` as one canonical lowercase SHA-256 digest. The Browser inspector SHALL independently select the committed revision and recompute its candidate digest before reporting an observation. A valid observation SHALL remain `certifies:false` with authentication absent.
+
+#### Scenario: [TEST-AXES-034] A bundle matches its committed selection
+
+- **GIVEN** a complete Browser bundle with the exact candidate digest and revision
+- **WHEN** the inspector reads it under an external Browser policy pin
+- **THEN** it reports the observed cases with absent authentication and no certification
+
+#### Scenario: [TEST-AXES-035] A candidate digest is absent or foreign
+
+- **GIVEN** a bundle whose candidate digest is missing, malformed, an object, or from another commit with the same tree
+- **WHEN** the inspector independently selects the committed revision
+- **THEN** it refuses the bundle, including when a distinct empty descendant has identical file bytes
+
+#### Scenario: [TEST-AXES-036] A manifest names another revision
+
+- **GIVEN** a bundle with the exact candidate digest but a different manifest revision
+- **WHEN** the inspector compares it with the committed selection
+- **THEN** it refuses the bundle
+
+#### Scenario: [TEST-AXES-037] An opt-in Browser case carries Playwright annotation metadata
+
+- **GIVEN** raw Playwright JUnit places descriptive `properties` and `property` elements before a testcase's skipped outcome, with matching JSON selection and outcome
+- **WHEN** the Browser inspector reconciles the bundle
+- **THEN** it keeps that case skipped and noncertifying, while malformed property placement, blank names, attributes, or character data refuse
+
+### Requirement: Diagnostic test observations bind committed case sources
+
+The `inspect-test-reports` command SHALL inspect one ordinary, packaged or portable Browser publication through the existing Browser inspector, under an external Browser policy, for an explicitly selected full committed revision. It SHALL emit a versioned diagnostic observation binding the revision, candidate digest, policy digest, mode and invocation identity. Each observed case SHALL retain its exact config, project, workspace-relative file, full ordered title path and passed, failed or skipped outcome. Its case identity SHALL bind config, project, file and title path independently of outcome. Duplicate case identities SHALL refuse, including duplicates with different outcomes. Each case file SHALL resolve to a regular blob in that same committed candidate; the observation SHALL bind the selected file mode and SHA-256 content digest. Missing, nonregular, malformed or escaping file identities SHALL refuse. Working files SHALL NOT supply missing committed bytes.
+
+The observation digest SHALL bind the complete versioned normalized observation, including outcomes and source bindings, in deterministic case-identity order. It SHALL describe the inspected observation, not authenticate a runner receipt. Every successful inspection SHALL emit `authentication:{kind:'absent'}` and `certifies:false`, including all-passing observations. Inspection SHALL preserve the existing Browser publication, policy, discovery, JUnit and race refusals. A successful command exit SHALL mean the diagnostic inspection completed; it SHALL NOT mean tests passed, scenarios were covered, or admission was granted. This slice SHALL neither resolve scenario citations nor bypass a refused B3 selection to grant coverage.
+
+#### Scenario: [TEST-AXES-042] A diagnostic observation binds its committed test file
+
+- **GIVEN** a valid Browser publication and its exact committed candidate and external policy
+- **WHEN** the diagnostic command inspects the publication
+- **THEN** every observed case SHALL bind its complete case identity, outcome and selected regular test-file bytes
+- **AND** the observation SHALL retain its invocation and authority identities with authentication absent and certification false
+
+#### Scenario: [TEST-AXES-043] A reported case has no regular committed source
+
+- **GIVEN** internally matching Browser reports and manifest naming a missing, nonregular or escaping case file
+- **WHEN** the diagnostic command joins the case to its committed candidate
+- **THEN** it SHALL refuse with a named source-boundary diagnostic even if a working file exists at that path
+
+#### Scenario: [TEST-AXES-044] Two outcomes claim one observed case identity
+
+- **GIVEN** two observations with equal config, project, file and full title path
+- **WHEN** the diagnostic command inspects them
+- **THEN** it SHALL refuse the duplicate identity whether their outcomes agree or differ
+
+#### Scenario: [TEST-AXES-045] An observation preserves outcomes without coverage credit
+
+- **GIVEN** a valid publication containing passing, failing or skipped observations
+- **WHEN** the diagnostic command completes
+- **THEN** it SHALL retain each actual outcome without turning a failed or skipped case into a pass
+- **AND** it SHALL produce no scenario coverage or admission credit, including when every observed case passed
+
+#### Scenario: [TEST-AXES-046] The diagnostic observation digest binds outcomes and source
+
+- **GIVEN** the same validated observations presented in a different case order
+- **WHEN** their diagnostic digests are computed
+- **THEN** the digests SHALL agree
+- **AND** changing an outcome, selected source binding or provenance identity SHALL change the digest while changing only an outcome SHALL preserve the case identity
+
+#### Scenario: [TEST-AXES-047] A diagnostic inspection preserves Browser refusals
+
+- **GIVEN** a Browser publication with invalid policy, candidate, report parity or publication-token stability
+- **WHEN** the diagnostic command invokes the Browser inspector
+- **THEN** it SHALL refuse rather than normalize unvalidated report claims
+
+### Requirement: Diagnostic test sources bind exact indexed ownership
+
+The `inspect-test-sources <repository> <full-committed-sha> <external-policy> <ordinary|packaged|portable>` command SHALL inspect a Browser publication through `inspectTestReports` and resolve each reported case file through `checkIndexes` on the same selected committed candidate. It SHALL accept no caller-supplied observation, ownership map or level-membership facts. It SHALL preserve existing report and index refusals and refuse a case with no unique validated index owner. It SHALL read source and index bytes only from selected Git blobs; working files SHALL NOT repair missing committed state. Source ownership SHALL identify the module containing the test file, and SHALL NOT claim which module's behavior the test proves.
+
+The version-1 observation SHALL bind the exact revision and candidate digest, upstream report observation digest, validated index report identity and index review debt. Every case binding SHALL retain its case ID, file, outcome and source mode/content digest, and identify its owner's module ID, index path and index identity. Bindings and review debt SHALL have deterministic ordering. The observation digest SHALL bind the entire versioned payload excluding itself. Every binding SHALL state `level:{kind:'unresolved',reason:'complete-level-membership-unavailable'}`; the diagnostic SHALL NOT replace unknown higher-precedence facts with empty sets or infer Browser level from Playwright membership. Authentication SHALL remain absent and certification false, without scenario coverage, structural coverage, admission or capability-chain credit. Exit zero SHALL mean ownership inspection completed, including admitted failed/skipped observations and explicit unresolved level classification; malformed or unsupported input SHALL exit nonzero with a named refusal and no partial success JSON.
+
+#### Scenario: [TEST-AXES-048] A reported case binds its exact nested index owner
+
+- **GIVEN** an inspected Browser case whose selected regular source belongs to a validated nested module index
+- **WHEN** source ownership is inspected
+- **THEN** its binding SHALL name that nested module and exact index identity rather than an enclosing module or a module inferred from imports
+- **AND** its case ID, source binding and outcome SHALL remain those of the inspected report
+
+#### Scenario: [TEST-AXES-049] A reported source has no unique validated owner
+
+- **GIVEN** a reported case outside every validated module boundary, or index metadata that makes ownership invalid or ambiguous
+- **WHEN** source ownership is inspected
+- **THEN** inspection SHALL refuse with a named diagnostic and no partial success JSON
+- **AND** a working-tree index SHALL NOT supply missing committed ownership
+
+#### Scenario: [TEST-AXES-050] Ownership and report observations select different candidates
+
+- **GIVEN** the report inspector and source-ownership reader report different committed revisions or candidate digests
+- **WHEN** the observations are joined
+- **THEN** inspection SHALL refuse the mismatch rather than bind an owner from another selection
+
+#### Scenario: [TEST-AXES-051] Ownership diagnostics preserve upstream refusals
+
+- **GIVEN** missing, unreadable, malformed or inconsistent committed index state, or an invalid Browser policy, source, publication or report binding
+- **WHEN** source ownership is inspected through the production command
+- **THEN** the responsible upstream refusal SHALL remain observable without a directory-based fallback
+- **AND** omitted, extra or unsupported command arguments SHALL refuse before observation emission
+
+#### Scenario: [TEST-AXES-052] Ownership identity includes index membership and review debt
+
+- **GIVEN** valid observations whose case and index-debt presentation order differs
+- **WHEN** ownership observation digests are computed
+- **THEN** equivalent observations SHALL have equal digests
+- **AND** changing a source binding, outcome, report provenance, owner, index identity, membership identity or index review debt SHALL change the digest
+
+#### Scenario: [TEST-AXES-053] Source ownership does not determine test level or coverage
+
+- **GIVEN** a valid ownership inspection with passing, failing or skipped Browser observations and possibly index review debt
+- **WHEN** the command completes
+- **THEN** it SHALL preserve every outcome and review-debt entry, report level classification explicitly unresolved, and emit authentication absent and certification false
+- **AND** it SHALL emit no tested-module, service-kind, scenario-coverage, structural-coverage or admission claim
 
 ### Requirement: Tests live inside their modules
 
@@ -116,6 +264,64 @@ A scenario identifier SHALL never be reused.
 - **GIVEN** an identifier once held by a removed scenario
 - **WHEN** an allocation requests that identifier
 - **THEN** allocation fails and names the removed scenario
+
+### Requirement: Production scenario provenance is pinned to a reviewed base
+
+Twilight Burokrat SHALL select an externally pinned full Git commit as the predecessor of a committed candidate, or the exact base named by a staged or working selection. Its specifications rule SHALL read the base and candidate journals as immutable regular Git blobs, require the base event values to be an exact prefix of the candidate event values, and reject a missing or malformed journal. A first adoption without a base journal SHALL require an external reviewed bootstrap record binding the base SHA, candidate journal digest, reviewer and reference. Local Git replacement objects SHALL NOT change selected authority or journal bytes. Every rule mode SHALL leave an unjudgeable provenance result unevaluated and disallowed.
+
+#### Scenario: [TEST-AXES-026] A retirement event disappears
+
+- **GIVEN** a reviewed base journal that retires an identifier
+- **WHEN** a candidate deletes the retirement event and restores the identified heading
+- **THEN** the specifications rule refuses the journal rewrite even if the candidate journal and spec agree
+
+#### Scenario: [TEST-AXES-027] Initial journal lacks reviewed bootstrap
+
+- **GIVEN** a selected base commit without a scenario journal
+- **WHEN** the candidate first adds a journal without a matching external reviewed bootstrap record
+- **THEN** the specifications rule leaves the candidate unevaluated and disallowed
+
+### Requirement: Canonical scenarios reconcile in both directions
+
+The specifications rule SHALL select active OpenSpec spec paths, excluding archived changes and headings in fenced code, and compare identified headings with the current journal index in both directions. A missing allocation, duplicate identifier or active allocation without a selected heading SHALL refuse evaluation. Unidentified legacy headings SHALL appear as findings subject to rule mode. The evidence identity SHALL bind the external policy bytes, resolved base, base and candidate journal bytes, selector version and selected spec bytes.
+
+The active selector SHALL parse immutable specification ASTs and apply `ADDED`, `MODIFIED`, `REMOVED` and explicit `RENAMED Requirements` `FROM:`/`TO:` pairs by exact capability and requirement title. A rename SHALL preserve canonical position and all canonical scenarios by identifier, or by exact title when unidentified; it SHALL not require a scenario journal event. One `MODIFIED` requirement at the destination in the same change MAY accompany the pair in either section order. Scenario title changes SHALL still require a journal `rename` event. A rename SHALL refuse malformed, missing or duplicate endpoints, absent predecessors, occupied destinations, chains, cycles and any other operation targeting either endpoint, including in another active change. It SHALL retain canonical requirement order and append new requirements in stable key order. A `MODIFIED` requirement SHALL retain every canonical scenario by identifier, or by exact title when unidentified. A removed adopted identifier SHALL have a journal retirement. Duplicate or competing operations, absent predecessors, unsupported operation sections and scenario headings outside a requirement SHALL refuse evaluation. Synced identical `ADDED` requirements SHALL share one lineage. Selector version 3 evidence SHALL bind every active input path and content digest, effective requirements and source aliases, applied operations including rename endpoints, paths and digests, and removals. The effective requirement digest SHALL bind the renamed title and effective body.
+
+#### Scenario: [TEST-AXES-028] An allocated heading disappears
+
+- **GIVEN** an active journal identity and its canonical identified heading
+- **WHEN** the heading is removed while the journal identity remains active
+- **THEN** the specifications rule leaves the candidate unevaluated and disallowed
+
+#### Scenario: [TEST-AXES-029] Only the reviewed base changes
+
+- **GIVEN** two valid ancestor commits holding the same journal bytes
+- **WHEN** the external policy pins each base for the same candidate
+- **THEN** their specifications evidence identities differ
+
+#### Scenario: [TEST-AXES-030] A modified requirement loses a canonical scenario
+
+- **GIVEN** an active canonical requirement with an adopted scenario
+- **WHEN** a change modifies that requirement without retaining the scenario identifier
+- **THEN** the specifications rule refuses the overlay
+
+#### Scenario: [TEST-AXES-031] Concurrent changes modify one requirement
+
+- **GIVEN** two active changes target the same capability and requirement title
+- **WHEN** both declare an operation on that requirement
+- **THEN** the specifications rule refuses the competing operations without choosing by path order
+
+#### Scenario: [TEST-AXES-032] A removed adopted requirement lacks retirement
+
+- **GIVEN** a canonical requirement with an active allocated identifier
+- **WHEN** an active change removes the requirement without a journal retirement
+- **THEN** the specifications rule refuses the removal
+
+#### Scenario: [TEST-AXES-033] An active input changes without changing effective requirements
+
+- **GIVEN** a synced duplicate requirement in an active change
+- **WHEN** the active change spec path or content changes
+- **THEN** the selector version 3 evidence identity changes and records the input and alias
 
 ### Requirement: T1 unit tests need no scenario citation
 

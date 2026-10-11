@@ -1712,6 +1712,37 @@ test.describe('the pointer moves a row by the same ink on both steps of the stri
         'a hovered banded row is the colour of every unbanded row',
       ).toBeGreaterThan(8);
     });
+
+    test(`a focused bar keeps one row light under the pointer on both stripes, in ${palette}`, async ({
+      page,
+    }) => {
+      await wearPalette(page, palette);
+      await parkPointer(page);
+      const restingPlain = await settledRowBg(page, '010');
+      const restingBand = await settledRowBg(page, '020');
+      expect(restingBand, 'the two resting stripes are the same colour').not.toBe(restingPlain);
+
+      await page.getByRole('button', { name: 'Gantt', exact: true }).click();
+      await expect(page.locator('[data-gantt-chart]')).toBeVisible();
+      const bar020 = page.locator('[data-gantt-bar][aria-label^="020 - "]').first();
+      await bar020.focus();
+      await expect(rowOf(page, '020')).toHaveAttribute('data-row-lit', 'true');
+      await rowOf(page, '020').locator('td[data-column="name"]').hover();
+      await expect(bar020).toBeFocused();
+      const bandedInk = await settledRowBg(page, '020');
+
+      await parkPointer(page);
+      const bar010 = page.locator('[data-gantt-bar][aria-label^="010 - "]').first();
+      await bar010.focus();
+      await expect(rowOf(page, '010')).toHaveAttribute('data-row-lit', 'true');
+      await rowOf(page, '010').locator('td[data-column="name"]').hover();
+      await expect(bar010).toBeFocused();
+      const plainInk = await settledRowBg(page, '010');
+
+      // Proof: removing the banded-hover rule's data-row-lit exclusion made
+      // this actual computed-colour assertion fail under focused-bar pointing.
+      expect(bandedInk, 'the banded stripe painted over the focused row light').toBe(plainInk);
+    });
   }
 });
 
@@ -1938,4 +1969,130 @@ test.describe('a Gantt row’s own line', () => {
     await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(0);
     await expect(page.locator('tbody tr[data-row-lit]')).toHaveCount(0);
   });
+});
+
+test('pointing a visible paired row neither scrolls nor requests row navigation', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Gantt', exact: true }).click();
+  const chart = page.locator('[data-gantt-chart]');
+  await expect(chart).toBeVisible();
+  await chart.scrollIntoViewIfNeeded();
+  await page.mouse.move(0, 0);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            resolve();
+          });
+        });
+      }),
+  );
+
+  const before = await page.evaluate(() => {
+    const table = document.querySelector('[data-table-frame]');
+    const chartPanel = document.querySelector('[data-gantt-panel]');
+    const row = document.querySelector('[aria-label="Name of 010"]')?.closest('tr');
+    const bar = document.querySelector('[data-gantt-bar][aria-label^="010 - "]');
+    if (
+      !(table instanceof HTMLElement) ||
+      !(chartPanel instanceof HTMLElement) ||
+      row === null ||
+      row === undefined ||
+      !(bar instanceof SVGElement)
+    ) {
+      throw new Error('a pointed-row pane, target row or target bar is missing');
+    }
+    const tableBox = table.getBoundingClientRect();
+    const rowBox = row.getBoundingClientRect();
+    const chartBox = chartPanel.getBoundingClientRect();
+    const barBox = bar.getBoundingClientRect();
+    const visible = {
+      left: Math.max(barBox.left, chartBox.left, 0),
+      right: Math.min(barBox.right, chartBox.right, window.innerWidth),
+      top: Math.max(barBox.top, chartBox.top, 0),
+      bottom: Math.min(barBox.bottom, chartBox.bottom, window.innerHeight),
+    };
+    if (visible.left >= visible.right || visible.top >= visible.bottom)
+      throw new Error('the first bar is outside the chart client clip or viewport');
+    const point = { x: (visible.left + visible.right) / 2, y: (visible.top + visible.bottom) / 2 };
+    return {
+      positions: {
+        tableLeft: table.scrollLeft,
+        tableTop: table.scrollTop,
+        chartLeft: chartPanel.scrollLeft,
+        chartTop: chartPanel.scrollTop,
+        pageX: window.scrollX,
+        pageY: window.scrollY,
+      },
+      targetInsideTable: rowBox.top >= tableBox.top && rowBox.bottom <= tableBox.bottom,
+      point,
+      targetHit: document.elementFromPoint(point.x, point.y)?.closest('[data-gantt-bar]') === bar,
+      focused: document.activeElement?.outerHTML,
+    };
+  });
+  expect(before.targetInsideTable, 'the paired table row is outside its client clip').toBe(true);
+  expect(before.targetHit, 'the pointer target is covered by the axis or another mark').toBe(true);
+  await page.evaluate(() => {
+    const original: unknown = Reflect.get(Element.prototype, 'scrollIntoView');
+    if (typeof original !== 'function') throw new Error('native scrollIntoView is missing');
+    const calls: { target: string; options: unknown[] }[] = [];
+    Reflect.set(window, '__pointedRowScrollRecorder', { original, calls });
+    Element.prototype.scrollIntoView = function (...options) {
+      calls.push({ target: this.outerHTML.slice(0, 160), options: [...options] });
+      Reflect.apply(original, this, options);
+    };
+  });
+  try {
+    // Proof: routing bar hover through onPickRow moved focus to Name of 010
+    // in this production browser case; the preserved-focus assertion failed.
+    await page.mouse.move(before.point.x, before.point.y);
+    await expect(page.locator('[data-gantt-row-lit]')).toHaveAttribute('data-gantt-row-lit', '0');
+    await expect(page.locator('[data-gantt-label-lit]')).toHaveText(/010/);
+    await expect(rowOf(page, '010')).toHaveAttribute('data-row-lit', 'true');
+
+    const after = await page.evaluate(() => {
+      const table = document.querySelector('[data-table-frame]');
+      const chartPanel = document.querySelector('[data-gantt-panel]');
+      if (!(table instanceof HTMLElement) || !(chartPanel instanceof HTMLElement))
+        throw new Error('a pointed-row pane disappeared');
+      const recorder: unknown = Reflect.get(window, '__pointedRowScrollRecorder');
+      if (
+        typeof recorder !== 'object' ||
+        recorder === null ||
+        !('calls' in recorder) ||
+        !Array.isArray(recorder.calls)
+      )
+        throw new Error('scroll recorder disappeared');
+      return {
+        positions: {
+          tableLeft: table.scrollLeft,
+          tableTop: table.scrollTop,
+          chartLeft: chartPanel.scrollLeft,
+          chartTop: chartPanel.scrollTop,
+          pageX: window.scrollX,
+          pageY: window.scrollY,
+        },
+        focused: document.activeElement?.outerHTML,
+        scrollRequests: recorder.calls.length,
+      };
+    });
+    expect(after.positions).toEqual(before.positions);
+    expect(after.focused).toBe(before.focused);
+    expect(after.scrollRequests).toBe(0);
+  } finally {
+    await page.evaluate(() => {
+      const recorder: unknown = Reflect.get(window, '__pointedRowScrollRecorder');
+      if (
+        typeof recorder === 'object' &&
+        recorder !== null &&
+        'original' in recorder &&
+        typeof recorder.original === 'function'
+      )
+        Element.prototype.scrollIntoView =
+          recorder.original as typeof Element.prototype.scrollIntoView;
+      Reflect.deleteProperty(window, '__pointedRowScrollRecorder');
+    });
+  }
 });
