@@ -40,6 +40,8 @@ export class ConnectionAccess {
   private readonly held = new Map<string, string>();
   private queue: Promise<unknown> = Promise.resolve();
   private cancelLease: (() => void) | null = null;
+  /** A lease round is queued or running; another is not stacked behind it. */
+  private rounding = false;
   private closed = false;
 
   constructor(private readonly deps: ConnectionAccessDeps) {
@@ -109,7 +111,13 @@ export class ConnectionAccess {
       // The next round is scheduled before this one checks anything, so the
       // cadence is fixed and the revocation bound does not grow by check time.
       this.scheduleRound();
-      void this.run(() => this.renew());
+      // Proof: dropping this guard made `queues at most one lease round behind
+      // busy subscription changes` run stacked rounds back to back (2026-10-11).
+      if (this.rounding) return;
+      this.rounding = true;
+      void this.run(() => this.renew()).finally(() => {
+        this.rounding = false;
+      });
     });
   }
 
@@ -120,15 +128,19 @@ export class ConnectionAccess {
    * just after a renewal` (2026-10-11).
    */
   private async renew(): Promise<void> {
-    for (const [subscription, projectId] of [...this.held]) {
-      if (this.held.get(subscription) !== projectId) continue;
-      const admission = await this.admit(projectId);
-      if (admission === 'closed') return;
-      if (admission === 'denied') {
-        this.held.delete(subscription);
-        this.deps.onRevoked(subscription);
-      }
-    }
+    // Every held project at once, so one round takes one check deadline
+    // however many subscriptions the socket holds.
+    // Proof: checking them one after another made `keeps the bound and serves
+    // a subscribe with five held projects and a slow be-01` observe
+    // revocations beyond the 4.5 s bound (2026-10-11).
+    const held = [...this.held];
+    const admissions = await Promise.all(held.map(([, projectId]) => this.admit(projectId)));
+    if (admissions.includes('closed')) return;
+    held.forEach(([subscription, projectId], index) => {
+      if (admissions[index] !== 'denied' || this.held.get(subscription) !== projectId) return;
+      this.held.delete(subscription);
+      this.deps.onRevoked(subscription);
+    });
   }
 
   private close(hook: () => void): void {

@@ -123,6 +123,14 @@ const frames = (seen: readonly string[]): string =>
  *    `unavailable` denial is gw-01's own fail-closed path, which is what an
  *    unreachable or rejecting be-01 produces.
  *
+ * What the 1008 outcome no longer proves, compared with the `out_of_range`
+ * answer this probe relied on before gw-01 checked project access: that
+ * be-01's `/internal/resume` route works, or that it reads the event log for a
+ * real principal. The refusal comes from the browser-access check before any
+ * replay, and a be-01 holding a wrong session key refuses the smoke token in
+ * exactly the same way, so that misconfiguration passes this probe too. Only a
+ * smoke account that be-01 recognises would restore those proofs.
+ *
  * What this does NOT prove: that a *successful* forward did anything. be-01's
  * `onForward` is a no-op and nothing is echoed back, so the forward half is the
  * absence of an error frame, drained for {@link FORWARD_DRAIN_MS} before the

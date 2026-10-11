@@ -30,6 +30,8 @@ export function forwardedCookieHeader(credential: ForwardedBrowserCredential): s
  * - 404 (absent or foreign) and the 403 organization and scope refusals are `denied`.
  * - 401 `unauthenticated` is `unauthenticated`.
  *
+ * A transport failure is retried once within the same deadline.
+ *
  * @throws on anything else, including 401 `unauthorized` (a wrong gateway
  * secret is the gateway's fault, not the user's) and an unreadable reply, so
  * the caller fails closed.
@@ -40,17 +42,33 @@ export function browserProjectAccess(opts: {
   fetchImpl: FetchLike;
 }): (credential: ForwardedBrowserCredential) => CheckProjectAccess {
   return (credential) => async (projectId, signal) => {
-    const response = await opts.fetchImpl(
-      `${opts.beUrl}/internal/gateway/projects/${encodeURIComponent(projectId)}/browser-access`,
-      {
-        method: 'POST',
-        headers: {
-          'x-internal-auth': opts.secret,
-          cookie: forwardedCookieHeader(credential),
+    const send = () =>
+      opts.fetchImpl(
+        `${opts.beUrl}/internal/gateway/projects/${encodeURIComponent(projectId)}/browser-access`,
+        {
+          method: 'POST',
+          headers: {
+            'x-internal-auth': opts.secret,
+            cookie: forwardedCookieHeader(credential),
+          },
+          signal,
         },
-        signal,
-      },
-    );
+      );
+    let response: Response;
+    try {
+      response = await send();
+    } catch (caught) {
+      // One retry for a transport failure, inside the caller's same deadline:
+      // during a blue/green swap the be-01 alias re-points and one stale
+      // connection or DNS answer must not close every socket 1013. A deadline
+      // or a closed socket (an aborted signal) is never retried.
+      // Proof: removing this retry made `retries one transport failure inside
+      // the same budget` (browser-access-client.test.ts) throw; retrying an
+      // aborted check made `fails closed after a second transport failure, and
+      // never retries an aborted check` send twice (2026-10-11).
+      if (signal.aborted) throw caught;
+      response = await send();
+    }
     if (response.status === 204) {
       await response.body?.cancel();
       return 'granted';

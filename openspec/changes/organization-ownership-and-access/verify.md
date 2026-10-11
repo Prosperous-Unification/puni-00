@@ -1564,5 +1564,14 @@ Commands: `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test` in `apps/wbs/gw
 | smoke: treat every close as failure                                           | `succeeds when be-01 refuses the smoke principal` (13 pass, 1 fail).                                                       |
 | smoke: treat a 1013 close as success                                          | `fails when gw-01 closes because the access check went unanswered` (13 pass, 1 fail).                                      |
 | smoke: drop close-frame parsing                                               | `consumeFrame > reports a close frame's code and reason` (13 pass, 1 fail).                                                |
+| be-01: read no forwarded organization cookie (`cookie: null`)                 | every `gateway-browser-selection.controller.db.test.ts` case (0 pass, 4 fail).                                             |
+| gw-01: renew held projects one after another                                  | `keeps the bound and serves a subscribe with five held projects and a slow be-01` exceeded 4.5 s (6 pass, 1 fail).         |
+| gw-01: drop the one-queued-round guard                                        | `queues at most one lease round behind busy subscription changes` (6 pass, 1 fail).                                        |
+| gw-01: no transport retry                                                     | `retries one transport failure inside the same budget` and the fail-closed case (4 pass, 2 fail).                          |
+| gw-01: retry an aborted check                                                 | `fails closed after a second transport failure, and never retries an aborted check` (5 pass, 1 fail).                      |
 
-Not done in this slice: forwarded-command authorization and membership-change notification fan-out (the lease alone meets the bound).
+Organization cookie (review F1): with the harness's real selection binding, a selected member's own project is 204, a foreign project is 404 like an absent one, a removed member with their own still-valid cookie is 403 `not_a_member`, and another user's genuine cookie pasted beside one's own credential binds nothing (403 `no_active_organization`, not `not_a_member`: the cookie is bound to its owner's credential). Production honesty: be-01 still composes `NO_BOUND_ORGANIZATION`, so before activation every authenticated socket is granted every project (legacy, identical to HTTP reads) and after activation without the binding every subscribe would be refused.
+
+Smoke (review F5): the backend hop now passes on be-01 refusing the unknown smoke principal; it no longer proves `/internal/resume` reads the log for a real principal, and a be-01 with a wrong session key passes it too.
+
+Not done in this slice: forwarded-command authorization, membership-change notification fan-out (the lease alone meets the bound) and the batch access route (F4).

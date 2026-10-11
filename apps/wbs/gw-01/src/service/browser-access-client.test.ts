@@ -69,4 +69,46 @@ describe('browserProjectAccess', () => {
       expect(failure).toEqual(new Error(`project browser access failed ${String(status)}`));
     }
   });
+
+  it('retries one transport failure inside the same budget', async () => {
+    let attempts = 0;
+    const check = browserProjectAccess({
+      beUrl: 'http://be.test',
+      secret: 'service-secret',
+      fetchImpl: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new TypeError('connect ECONNREFUSED'))
+          : Promise.resolve(new Response(null, { status: 204 }));
+      },
+    })({ accessCookie: 'tok', organizationCookie: null });
+
+    expect(await check('project-1', new AbortController().signal)).toBe('granted');
+    expect(attempts).toBe(2);
+  });
+
+  it('fails closed after a second transport failure, and never retries an aborted check', async () => {
+    let attempts = 0;
+    const failing = browserProjectAccess({
+      beUrl: 'http://be.test',
+      secret: 'service-secret',
+      fetchImpl: () => {
+        attempts += 1;
+        return Promise.reject(new TypeError('connect ECONNREFUSED'));
+      },
+    })({ accessCookie: 'tok', organizationCookie: null });
+
+    expect(
+      await failing('project-1', new AbortController().signal).catch((caught: unknown) => caught),
+    ).toBeInstanceOf(TypeError);
+    expect(attempts).toBe(2);
+
+    attempts = 0;
+    const deadline = new AbortController();
+    deadline.abort(new Error('request deadline exceeded'));
+    expect(
+      await failing('project-1', deadline.signal).catch((caught: unknown) => caught),
+    ).toBeInstanceOf(TypeError);
+    expect(attempts).toBe(1);
+  });
 });
