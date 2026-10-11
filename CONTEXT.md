@@ -78,6 +78,30 @@ _Avoid_: session token, internal service secret
 The single admission of a delegation's issuer and token identifier; a later request presenting that same delegation is a replay.
 _Avoid_: session, command idempotency key
 
+**Enterprise connection**:
+An organization's record of the company identity provider its people sign in through. It belongs to one verified domain and names one Auth0 connection.
+_Avoid_: Auth0 Organization, SSO tenant, IdP config
+
+**Subject prefix**:
+The leading part of an upstream subject that names the enterprise connection which minted the identity.
+_Avoid_: provider id, connection id
+
+**Enforced SSO**:
+An organization's rule that only identities carrying its enterprise connection's subject prefix may act in that organization.
+_Avoid_: SSO-only login, mandatory SSO for the user
+
+**Pending membership**:
+A membership a company directory provisioned for an email address that no WBS user holds yet. It grants nothing until that person's first sign-in through the enterprise connection.
+_Avoid_: invitation, JIT membership, inactive member
+
+**Provisioning token**:
+An organization's bearer secret that lets a company directory provision and deprovision that organization's members.
+_Avoid_: API key, SCIM password
+
+**Session policy**:
+An organization's limits on how long one sign-in may keep acting in it, and how long before the person must sign in again interactively.
+_Avoid_: token lifetime, idle timeout
+
 ### Spaces
 
 **Space**:
