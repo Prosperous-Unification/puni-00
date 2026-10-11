@@ -143,6 +143,9 @@ test('counts drafts, conversations, briefs, exhaustions and proposals per UTC da
     exhausted: { turns: 1, conversation_spend: 0, source_spend: 0, site_spend: 0 },
     proposals: { manual: 1, fromChat: 1 },
     ceilingSettled: { count: 1, microUsd: 3_000 },
+    // Three completed operations settled at 900 each plus one stop settled at its 3,000 ceiling.
+    // Proof: subtracting the ceiling-settled amount from the day's spend made this 2,700.
+    spendMicroUsd: 5_700,
   });
   expect(counts.days[1]).toEqual({
     utcDay: '2026-10-06',
@@ -152,6 +155,7 @@ test('counts drafts, conversations, briefs, exhaustions and proposals per UTC da
     exhausted: { turns: 0, conversation_spend: 0, source_spend: 1, site_spend: 0 },
     proposals: { manual: 0, fromChat: 0 },
     ceilingSettled: { count: 1, microUsd: 2_500 },
+    spendMicroUsd: 3_400,
   });
   expect(counts.days.slice(2).every((row) => row.drafts === 0)).toBe(true);
   database.close();

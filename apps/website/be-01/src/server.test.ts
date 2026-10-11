@@ -1435,6 +1435,8 @@ test("the funnel overview counts the day's rows", async () => {
     exhausted: { turns: 1, conversation_spend: 0, source_spend: 0, site_spend: 0 },
     proposals: { manual: 1, fromChat: 1 },
     ceilingSettled: { count: 0, microUsd: 0 },
+    // Two completed operations settled at 900 micro-USD each.
+    spendMicroUsd: 1_800,
   });
 });
 

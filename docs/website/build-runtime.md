@@ -67,6 +67,25 @@ The [abuse guardrails design](../../openspec/changes/website-abuse-guardrails/de
 - **Browser check.** The first paid reply of each conversation needs a solved proof-of-work challenge from `GET /conversation` ([ADR 0040](../adr/0040-bot-deterrence-is-a-self-hosted-proof-of-work.md)). Build solves it in a Web Worker before the visitor presses Send; it costs about 0.2 to 0.8 s normally and 0.6 to 2.7 s once half the day's ceiling is spent (measured in Chrome, see the change's `verify.md`). The manual brief never needs it.
 - **Inference pause.** When a reservation brings the site's UTC-day spend to 80% of the $10 ceiling, paid inference pauses: Build shows `AI chat is paused right now` with the manual path, and paid streams answer `503 provider_paused`. The automatic pause opens at most once per UTC day and never clears by itself, not at midnight and not on restart. To resume, sign in at `/operator`, open the Guardrails panel above the inbox and press `Resume AI chat`, then confirm. After a resume the day runs to the hard ceiling; the next day's spend can pause again. `Pause AI chat` in the same panel pauses by hand.
 
+### Reading the operator panels
+
+- `Today's spend` is the UTC day's recorded site spend against the $10 ceiling: settled amounts, plus the reservations of calls still in flight. It never under-counts.
+- `In flight now` is today's paid calls admitted and not yet settled, and the reservation they hold. A call normally settles within the 30-second deadline. One that stays here longer is a stuck reservation: restart the API, which settles every in-flight call at its full reservation, so the line returns to `None` and `Today's spend` does not change.
+- `Ceiling-settled today` is how far `Today's spend` may over-count: calls whose usage never arrived (Stop, disconnect, timeout, stream error, restart) were recorded at their full reservation. There is no reconciliation ([batch 10 decision D3](../../openspec/changes/website-funnel-counts/proposal.md)).
+- The Funnel's `Spend` column is the same daily figure for each of the last 30 UTC days, so a trend in spend sits beside the drafts, briefs and proposals it bought.
+
+What each operator question maps to:
+
+| Situation                       | Where it shows                                                                                          | What to do                                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Provider unavailable or failing | `provider_failures` alert (5 in 10 minutes); failed calls appear under `Ceiling-settled today`          | Pause AI chat; the manual brief and the Build proposal card keep working. Resume when it recovers. |
+| A spend cap is reached          | `site_spend_half` at 50%; the automatic pause and `inference_paused` at 80%; Funnel `Exhausted` reasons | Nothing for per-conversation and per-source caps; for the site pause, resume or wait for tomorrow. |
+| A noisy source                  | `rate_limited` and `refusals` alerts; `draft_cap_*` and `proposal_cap_*` alerts                         | The windows and caps already refuse it; pause AI chat if paid calls are the target.                |
+| A stuck reservation             | `In flight now` stays above `None`                                                                      | Restart the API; spend is unchanged.                                                               |
+| Kill switch                     | `Pause AI chat` / `Resume AI chat`                                                                      | Pausing stops new paid calls only; manual proposals and the Build card still submit.               |
+
+Not shown, by design: per-visitor spend (sources are salted daily hashes and the funnel is anonymous), stored counts of individual refusals (paused, busy, browser check, request windows and cap refusals store nothing; their floods raise the alerts above), and a durable provider-failure count (the alert is the signal).
+
 ### Alert webhook
 
 Alerts (`site_spend_half`, `inference_paused`, `operator_locked`, `draft_cap_half`, `draft_cap_full`, `proposal_cap_half`, `proposal_cap_full`, `provider_failures`, `refusals`, `rate_limited`) are rows in `guardrail_alert` first; the operator panel lists the last 50 with their delivery. They carry counts, kinds, UTC days and micro-USD only, never an address, hash, email or message text.

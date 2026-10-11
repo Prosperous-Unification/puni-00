@@ -22,6 +22,8 @@ export interface FunnelDayView {
   exhausted: Record<ExhaustedReason, number>;
   proposals: { manual: number; fromChat: number };
   ceilingSettled: { count: number; microUsd: number };
+  /** The day's recorded site spend; it may over-count by `ceilingSettled.microUsd`. */
+  spendMicroUsd: number;
 }
 
 /** The funnel body did not match the API contract. */
@@ -63,6 +65,7 @@ function parseFunnelDay(value: unknown): FunnelDayView {
       count: readCount(settled['count'], 'days.ceilingSettled.count'),
       microUsd: readCount(settled['microUsd'], 'days.ceilingSettled.microUsd'),
     },
+    spendMicroUsd: readCount(day['spendMicroUsd'], 'days.spendMicroUsd'),
   };
 }
 
@@ -114,6 +117,7 @@ export function FunnelBody({ days, failure }: { days: FunnelDayView[] | null; fa
                 <th scope="col">Manual</th>
                 <th scope="col">From chat</th>
                 <th scope="col">Ceiling-settled</th>
+                <th scope="col">Spend</th>
               </tr>
             </thead>
             <tbody>
@@ -127,6 +131,7 @@ export function FunnelBody({ days, failure }: { days: FunnelDayView[] | null; fa
                   <td>{day.proposals.manual}</td>
                   <td>{day.proposals.fromChat}</td>
                   <td>{day.ceilingSettled.count}</td>
+                  <td>{`$${(day.spendMicroUsd / 1_000_000).toFixed(2)}`}</td>
                 </tr>
               ))}
             </tbody>
