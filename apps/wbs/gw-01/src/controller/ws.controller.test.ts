@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { SubscriptionMap } from '../service/subscription-map';
+import { grantingAccess } from '../testing/project-access';
 import type { UnexpectedBackendFailure } from './unexpected-backend-failure';
 import { handleWsMessage, isKnownSubscription, type WsSocket } from './ws.controller';
 
@@ -20,6 +21,7 @@ describe('handleWsMessage', () => {
       connectionId: 'c-1',
       clientId: 'u-1',
       reportUnexpectedBackendFailure: () => undefined,
+      access: grantingAccess(),
       forward: () => Promise.resolve({ ack: true }),
       resume: () => Promise.resolve({}),
     });
@@ -39,6 +41,7 @@ describe('handleWsMessage', () => {
       connectionId: 'c-1',
       clientId: 'u-1',
       reportUnexpectedBackendFailure: (failure) => reports.push(failure),
+      access: grantingAccess(),
       forward: (m) => {
         captured = m;
         return Promise.resolve({ ack: true });
@@ -54,37 +57,54 @@ describe('handleWsMessage', () => {
     const subs = new SubscriptionMap<WsSocket>();
     const reports: UnexpectedBackendFailure[] = [];
     await handleWsMessage({
-      frame: { type: 'resume', resume_points: { presence: 5, 'doc:b': 7 } },
+      frame: {
+        type: 'resume',
+        resume_points: {
+          'project:00000000-0000-4000-8000-00000000000c': 5,
+          'project:00000000-0000-4000-8000-00000000000b': 7,
+        },
+      },
       socket: sock,
       subs,
       connectionId: 'c-1',
       clientId: 'u-1',
       reportUnexpectedBackendFailure: (failure) => reports.push(failure),
+      access: grantingAccess(),
       forward: () => Promise.resolve({ ack: true }),
       resume: () =>
         Promise.resolve({
-          presence: {
+          'project:00000000-0000-4000-8000-00000000000c': {
             status: 'replaying',
             events: [
               { seq: 6, message: { a: 1 } },
               { seq: 7, message: { a: 2 } },
             ],
           },
-          'doc:b': { status: 'denied', reason: 'out_of_range' },
+          'project:00000000-0000-4000-8000-00000000000b': {
+            status: 'denied',
+            reason: 'out_of_range',
+          },
         }),
     });
     const frames = sent.map((s) => JSON.parse(s) as Record<string, unknown>);
 
     expect(frames.filter((f) => f['type'] === 'resume_denied')).toEqual([
-      { type: 'resume_denied', subscription: 'doc:b', reason: 'out_of_range' },
+      {
+        type: 'resume_denied',
+        subscription: 'project:00000000-0000-4000-8000-00000000000b',
+        reason: 'out_of_range',
+      },
     ]);
     // The events carry the same shape as a live push, so the client needs no
     // replay branch — and they arrive before the acknowledgement that counts them.
     expect(frames.filter((f) => f['seq'] !== undefined)).toEqual([
-      { subscription: 'presence', seq: 6, message: { a: 1 } },
-      { subscription: 'presence', seq: 7, message: { a: 2 } },
+      { subscription: 'project:00000000-0000-4000-8000-00000000000c', seq: 6, message: { a: 1 } },
+      { subscription: 'project:00000000-0000-4000-8000-00000000000c', seq: 7, message: { a: 2 } },
     ]);
-    expect(frames.at(-1)).toEqual({ type: 'resume_ack', replayed: { presence: 2 } });
+    expect(frames.at(-1)).toEqual({
+      type: 'resume_ack',
+      replayed: { 'project:00000000-0000-4000-8000-00000000000c': 2 },
+    });
     expect(reports).toEqual([]);
   });
 
@@ -95,20 +115,27 @@ describe('handleWsMessage', () => {
     const asking = makeSocket();
     const bystander = makeSocket();
     const subs = new SubscriptionMap<WsSocket>();
-    subs.subscribe('doc:a', asking.sock);
-    subs.subscribe('doc:a', bystander.sock);
+    subs.subscribe('project:00000000-0000-4000-8000-00000000000a', asking.sock);
+    subs.subscribe('project:00000000-0000-4000-8000-00000000000a', bystander.sock);
 
     await handleWsMessage({
-      frame: { type: 'resume', resume_points: { 'doc:a': 0 } },
+      frame: {
+        type: 'resume',
+        resume_points: { 'project:00000000-0000-4000-8000-00000000000a': 0 },
+      },
       socket: asking.sock,
       subs,
       connectionId: 'c-1',
       clientId: 'u-1',
       reportUnexpectedBackendFailure: () => undefined,
+      access: grantingAccess(),
       forward: () => Promise.resolve({ ack: true }),
       resume: () =>
         Promise.resolve({
-          'doc:a': { status: 'replaying', events: [{ seq: 1, message: { a: 1 } }] },
+          'project:00000000-0000-4000-8000-00000000000a': {
+            status: 'replaying',
+            events: [{ seq: 1, message: { a: 1 } }],
+          },
         }),
     });
 
@@ -128,6 +155,7 @@ describe('handleWsMessage', () => {
       connectionId: 'c-1',
       clientId: 'u-1',
       reportUnexpectedBackendFailure: (failure) => reports.push(failure),
+      access: grantingAccess(),
       forward: () => Promise.reject(caught),
       resume: () => Promise.resolve({}),
     });
@@ -158,6 +186,7 @@ describe('handleWsMessage', () => {
       connectionId: 'c-1',
       clientId: 'u-1',
       reportUnexpectedBackendFailure: () => undefined,
+      access: grantingAccess(),
       forward: () => Promise.resolve({ ack: true }),
       resume: () => Promise.resolve({}),
     });
@@ -170,6 +199,7 @@ describe('handleWsMessage', () => {
       connectionId: 'c-1',
       clientId: 'u-1',
       reportUnexpectedBackendFailure: () => undefined,
+      access: grantingAccess(),
       forward: () => Promise.resolve({ ack: true }),
       resume: () => Promise.resolve({}),
     });
@@ -208,6 +238,7 @@ describe('subscription names', () => {
       connectionId: 'c1',
       clientId: 'someone',
       reportUnexpectedBackendFailure: (failure) => reports.push(failure),
+      access: grantingAccess(),
       forward: () => Promise.resolve({ ack: true }),
       resume: () => Promise.resolve({}),
     });
@@ -234,21 +265,33 @@ describe('handleWsMessage — cross-review findings', () => {
     await handleWsMessage({
       frame: {
         type: 'resume',
-        resume_points: { 'doc:a': 1, 'doc:b': 2 },
+        resume_points: {
+          'project:00000000-0000-4000-8000-00000000000a': 1,
+          'project:00000000-0000-4000-8000-00000000000b': 2,
+        },
       },
       socket: sock,
       subs,
       connectionId: 'c-1',
       clientId: 'u-1',
       reportUnexpectedBackendFailure: (failure) => reports.push(failure),
+      access: grantingAccess(),
       forward: () => Promise.resolve({ ack: true }),
       resume: () => Promise.reject(caught),
     });
 
     const frames = sent.map((s) => JSON.parse(s) as Record<string, unknown>);
     expect(frames).toEqual([
-      { type: 'resume_denied', subscription: 'doc:a', reason: 'unavailable' },
-      { type: 'resume_denied', subscription: 'doc:b', reason: 'unavailable' },
+      {
+        type: 'resume_denied',
+        subscription: 'project:00000000-0000-4000-8000-00000000000a',
+        reason: 'unavailable',
+      },
+      {
+        type: 'resume_denied',
+        subscription: 'project:00000000-0000-4000-8000-00000000000b',
+        reason: 'unavailable',
+      },
       { type: 'resume_ack', replayed: {} },
     ]);
     // Proof: omitting the resume report left this empty while all three frames still matched
@@ -305,6 +348,7 @@ describe('client frame validation before dispatch', () => {
         reportUnexpectedBackendFailure: () => {
           dispatched += 1;
         },
+        access: grantingAccess(),
         forward: () => {
           dispatched += 1;
           return Promise.resolve({ ack: true });
@@ -346,6 +390,7 @@ describe('client frame validation before dispatch', () => {
       connectionId: 'c-1',
       clientId: 'u-1',
       reportUnexpectedBackendFailure: (failure) => reports.push(failure),
+      access: grantingAccess(),
       forward: (message) => {
         forwarded = message;
         return Promise.resolve({ ack: true });

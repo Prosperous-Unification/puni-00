@@ -36,7 +36,7 @@ export function wsResumeAck(replayed: Record<string, number>): string {
 /** See {@link ResumeDeniedFrame}. */
 export function wsResumeDenied(
   subscription: string,
-  reason: 'out_of_range' | 'unavailable',
+  reason: 'out_of_range' | 'unavailable' | 'forbidden',
 ): string {
   return JSON.stringify({ type: 'resume_denied', subscription, reason });
 }

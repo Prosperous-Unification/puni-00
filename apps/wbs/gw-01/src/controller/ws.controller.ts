@@ -9,6 +9,7 @@ import {
 } from '@wbs/contracts';
 import { type } from '@wbs/validation';
 
+import type { ConnectionAccess } from '../service/connection-access';
 import type { SubscriptionMap } from '../service/subscription-map';
 import type { UnexpectedBackendFailureReporter } from './unexpected-backend-failure';
 
@@ -30,6 +31,8 @@ export interface HandleWsMessageArgs {
   connectionId: string;
   clientId: string;
   reportUnexpectedBackendFailure: UnexpectedBackendFailureReporter;
+  /** This connection's project authorization; see {@link ConnectionAccess}. */
+  access: Pick<ConnectionAccess, 'run' | 'admit' | 'hold' | 'release'>;
   forward: (m: unknown) => Promise<{ ack: boolean }>;
   resume: (points: Record<string, number>) => Promise<Record<string, ResumeStatus>>;
   onInbound?: () => void;
@@ -61,9 +64,9 @@ export interface HandleWsMessageArgs {
  * project it becomes an open door onto internal channels, and a typo becomes a
  * socket that silently receives nothing forever rather than an error.
  *
- * Project reads are open to every authenticated account by design, so this is a
- * shape check rather than an authorisation one — the socket is already
- * authenticated when it gets here.
+ * This is the shape check; authorization of a `project:` name is
+ * {@link ConnectionAccess.admit}, which asks be-01 about the socket's own
+ * principal.
  */
 const PROJECT_SUBSCRIPTION = /^project:([0-9a-fA-F-]{36})$/;
 
@@ -125,7 +128,23 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
 
   if (msg.type === 'resume') {
     args.onReconnect?.();
-    const points = msg.resume_points;
+    // A resume point is a replay request, and replay is a read: it never
+    // grants access on its own. A name that is not a project the principal
+    // may read is refused here and never reaches be-01.
+    const points: Record<string, number> = {};
+    const refused: string[] = [];
+    // Proof: forwarding `msg.resume_points` unfiltered made `refuses resume
+    // points for a project the socket may not read` in
+    // project-authorization.integration.test.ts replay the foreign event.
+    const admissions = await admitAll(args.access, Object.keys(msg.resume_points));
+    if (admissions === 'closed') return;
+    for (const [subscription, seq] of Object.entries(msg.resume_points)) {
+      if (admissions.get(subscription) === 'granted') points[subscription] = seq;
+      else refused.push(subscription);
+    }
+    for (const subscription of refused) {
+      args.socket.send(wsResumeDenied(subscription, 'forbidden'));
+    }
     let result: Record<string, ResumeStatus>;
     try {
       result = await args.resume(points);
@@ -153,8 +172,19 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
     // Proof: removing this guard emitted replay data and resume_ack after close
     // in the late-success case of ws-cancellation.test.ts.
     if (args.signal?.aborted === true) return;
+    // Queued replay is rechecked before delivery: access lost while be-01 was
+    // reading the log must not be served from what it read.
+    // Proof: skipping this recheck made `withholds replay when access is lost
+    // while be-01 reads it` in project-authorization.integration.test.ts
+    // deliver the queued event.
+    const rechecked = await admitAll(args.access, Object.keys(result));
+    if (rechecked === 'closed') return;
     const replayed: Record<string, number> = {};
     for (const [subscription, outcome] of Object.entries(result)) {
+      if (rechecked.get(subscription) !== 'granted') {
+        args.socket.send(wsResumeDenied(subscription, 'forbidden'));
+        continue;
+      }
       if (outcome.status === 'denied') {
         args.socket.send(wsResumeDenied(subscription, 'out_of_range'));
         continue;
@@ -182,14 +212,58 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
       args.socket.send(wsError('unknown_subscription', { subscription: msg.subscription }));
       return;
     }
-    args.subs.subscribe(msg.subscription, args.socket);
-    // After the map accepted it, and never for a refused name: presence is
-    // scoped by the subscription, so telling it about one the fan-out does not
-    // hold would put a socket in a roster for a project it receives nothing on.
-    args.onSubscribed?.(msg.subscription);
+    const subscription = msg.subscription;
+    const projectId = projectIdOf(subscription);
+    await args.access.run(async () => {
+      if (projectId !== null) {
+        // Proof: skipping this admission made `refuses a project the
+        // principal cannot read` in project-authorization.integration.test.ts
+        // deliver the foreign push and roster.
+        const admission = await args.access.admit(projectId);
+        if (admission === 'closed') return;
+        if (admission === 'denied') {
+          // The same refusal as a malformed name: a foreign project is
+          // indistinguishable from one that does not exist.
+          args.socket.send(wsError('unknown_subscription', { subscription }));
+          return;
+        }
+        args.access.hold(subscription, projectId);
+      }
+      args.subs.subscribe(subscription, args.socket);
+      // After the map accepted it, and never for a refused name: presence is
+      // scoped by the subscription, so telling it about one the fan-out does not
+      // hold would put a socket in a roster for a project it receives nothing on.
+      args.onSubscribed?.(subscription);
+    });
     return;
   }
 
-  args.subs.unsubscribe(msg.subscription, args.socket);
-  args.onUnsubscribed?.(msg.subscription);
+  const left = msg.subscription;
+  await args.access.run(() => {
+    args.access.release(left);
+    args.subs.unsubscribe(left, args.socket);
+    args.onUnsubscribed?.(left);
+  });
+}
+
+/**
+ * Admits every named subscription at once. A name that is not a project is
+ * `denied` without asking be-01; `closed` when any check closed the socket.
+ */
+async function admitAll(
+  access: Pick<ConnectionAccess, 'admit'>,
+  subscriptions: readonly string[],
+): Promise<Map<string, 'granted' | 'denied'> | 'closed'> {
+  const verdicts = await Promise.all(
+    subscriptions.map(async (subscription) => {
+      const projectId = projectIdOf(subscription);
+      return [subscription, projectId === null ? 'denied' : await access.admit(projectId)] as const;
+    }),
+  );
+  const admissions = new Map<string, 'granted' | 'denied'>();
+  for (const [subscription, verdict] of verdicts) {
+    if (verdict === 'closed') return 'closed';
+    admissions.set(subscription, verdict);
+  }
+  return admissions;
 }

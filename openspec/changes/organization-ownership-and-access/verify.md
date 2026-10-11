@@ -1536,3 +1536,20 @@ PR #259's branch merged `origin/main` at `a3b1526bd` (23 content conflicts: the 
 Observed on `4f3a35a32` under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`: `nx run wbs-store-sqlite:test` 1305 tests, 1 fail before the shared-people-mode correction, then that file 4/4; `nx run wbs-be-01:test` 1934 pass, 0 fail; `nx run-many -t test -p wbs-mcp-01,wbs-fe-01` passed (mcp-01 330/330, fe-01 Vitest 3542 and 848); typecheck for be-01, store-sqlite, fe-01, mcp-01, auth, contracts and core passed; `lint:fast` for the same seven passed; CI migration lint over `git ls-files '*.sql'` exited 0; OpenSpec 1.12.0 `validate --all --json` 158/158.
 
 Omission negatives, each restored after: deleting the lifecycle entry from `project.db.test.ts`'s inventory failed that file 33 pass / 1 fail; deleting the `browser_auth_lifecycle` exclusion from the calendar-marker filter failed 2 pass / 1 fail; deleting `project_rank` from `ALSO_ROLLED_BACK` failed 17 pass / 1 fail; putting `shared_people` back ahead of the lifecycle in a `migrate-down` inventory failed 18 pass / 1 fail; removing the lifecycle migration folder made the mounted process and OIDC files fail 37 pass / 41 fail with `no such table: browser_auth_lifecycle`. Restored, those four store files passed 74/74 and the two mounted files 78/78, 460 assertions. The exact-SHA canonical gate (B2.6) has not run.
+
+## Slice realtime-auth — gateway project authorization (6.1–6.3 gateway side), batch 10, 2026-10-11
+
+Commands: `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test` in `apps/wbs/gw-01`, `libs/wbs/domain/contracts`; `bunx nx run-many -t lint:fast,typecheck -p wbs-gw-01 wbs-contracts`. Each fault below was injected into the production path, the named test watched fail, and the code restored.
+
+| Fault                                                | Test failure                                                                                                               |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Treat every subscribe admission as `granted`         | `refuses a project the principal cannot read` timed out waiting for the refusal (6 pass, 1 fail).                          |
+| Forward `msg.resume_points` unfiltered to be-01      | `refuses resume points for a project the socket may not read` saw the foreign point reach be-01 (6 pass, 1 fail).          |
+| Skip the post-replay recheck                         | `withholds replay when access is lost while be-01 reads it` delivered the queued event (6 pass, 1 fail).                   |
+| Lease renewal returns at once                        | `drops a removed member's live subscription when its lease is renewed` and the 1008 close case timed out (5 pass, 2 fail). |
+| Unanswered check answers `granted`                   | `closes the socket when be-01 cannot answer, and grants nothing` kept the socket open (6 pass, 1 fail).                    |
+| Renew every 6000 ms instead of `LEASE_RENEW_MS`      | `revokes within the lease bound when access is lost just after a renewal` observed 6000 ms (10 pass, 2 fail).              |
+| Start subscription changes at once instead of queued | `applies a subscription change only after the one queued before it` saw the unsubscribe first (11 pass, 1 fail).           |
+| Drop the connection-abort listener                   | `stops leasing once the connection closes` found a lease round still scheduled (11 pass, 1 fail).                          |
+
+Not done in this slice: the be-01-backed `CheckProjectAccess` adapter and be-01's `/internal/resume` principal recheck (decision pending), forwarded-command authorization, and membership-change notification fan-out (the lease alone meets the bound).
