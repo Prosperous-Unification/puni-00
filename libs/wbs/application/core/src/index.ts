@@ -116,13 +116,13 @@ export * from './ports/user-store';
 export * from './ports/work-item-store';
 export type { WriteStamp } from './ports/write-stamp';
 export { DeadlineExceeded, delay, untilAborted, withinDeadline } from './runtime/deadline';
-// Compatibility export: these domain rules moved to `@wbs/domain` (task 6.1) and keep
-// their barrel names until importers name the domain library.
 export * from './service/assumed-assignee';
 export * from './service/auth.service';
 export * from './service/compensating';
 export * from './service/dependency';
 export * from './service/directory-usage';
+// Compatibility export: these domain rules moved to `@wbs/domain` (task 6.1) and keep their
+// barrel names until importers name the domain library; task 7.1 retires it.
 export {
   bodyBytesRefusal,
   buildScheduleBody,
