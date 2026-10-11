@@ -177,4 +177,7 @@ The fault proofs below were run by the slice's helper agent and are carried by t
 | endpoint loopback rule       | config test accepted `http://storage.example.test`                     |
 | prefix segments              | config test accepted `retention-journal/../website/`                   |
 
-- `bun test libs/website/adapters/store-sqlite/src/retention-journal/s3-remote.test.ts`: `10 pass`, `0 fail`.
+- Review fixes (Fable, 2026-10-11):
+  - A 404 is absence only when its S3 error code is `NoSuchKey`. `NoSuchBucket`, or a 404 with no code, is `unreadable`. Fault: every 404 returned `null`. Observed: `(fail) a missing bucket is unreadable, not absent`.
+  - The stand-in now ignores `If-None-Match` by default, as a Hetzner versioned bucket does. Fault: default `true`. Observed: `(fail) an if-none-match put on an existing key is accepted when the bucket ignores it`.
+- `bun test libs/website/adapters/store-sqlite/src/retention-journal/s3-remote.test.ts`: `12 pass`, `0 fail`.

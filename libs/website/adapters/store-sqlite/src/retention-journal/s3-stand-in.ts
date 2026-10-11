@@ -6,8 +6,12 @@
 export class S3StandIn {
   /** When false, PUT stores but answers without `x-amz-version-id`, as an unversioned bucket does. */
   versioned = true;
-  /** When true, PUT with `If-None-Match: *` on an existing key answers 412. */
-  honourIfNoneMatch = true;
+  /**
+   * When true, PUT with `If-None-Match: *` on an existing key answers 412. Off by default, as on
+   * Hetzner versioned buckets, so no test passes by assuming compare-and-swap.
+   */
+  // Proof: defaulting to true made `an if-none-match put on an existing key is accepted when the bucket ignores it` see precondition_failed.
+  honourIfNoneMatch = false;
   /** Full object keys whose GET and PUT answer 500. */
   readonly failingKeys = new Set<string>();
   /** When true, a truncated listing omits `NextContinuationToken`. */
@@ -54,15 +58,14 @@ export class S3StandIn {
         return new Response('missing signature', { status: 403 });
       return this.listObjects(url);
     }
-    if (!url.pathname.startsWith(`${bucketPath}/`))
-      return new Response('no such bucket', { status: 404 });
+    if (!url.pathname.startsWith(`${bucketPath}/`)) return s3Error('NoSuchBucket', 404);
     if (!url.searchParams.has('X-Amz-Signature'))
       return new Response('missing presigned signature', { status: 403 });
     const objectKey = decodeURIComponent(url.pathname.slice(bucketPath.length + 1));
     if (this.failingKeys.has(objectKey)) return new Response('injected failure', { status: 500 });
     if (request.method === 'GET') {
       const current = this.objects.get(objectKey);
-      if (current === undefined) return new Response('no such key', { status: 404 });
+      if (current === undefined) return s3Error('NoSuchKey', 404);
       return new Response(current.bytes, { headers: this.versionHeaders(current.versionId) });
     }
     if (request.method === 'PUT') {
@@ -111,6 +114,14 @@ export class S3StandIn {
     const body = `<?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Name>${escapeXml(this.bucket)}</Name><Prefix>${escapeXml(prefix)}</Prefix><KeyCount>${String(page.length)}</KeyCount><MaxKeys>${String(limit)}</MaxKeys><IsTruncated>${String(truncated)}</IsTruncated>${next}${contents}</ListBucketResult>`;
     return new Response(body, { headers: { 'content-type': 'application/xml' } });
   }
+}
+
+/** An S3 XML error body, as providers send with each 4xx. */
+function s3Error(code: string, status: number): Response {
+  return new Response(
+    `<?xml version="1.0" encoding="UTF-8"?><Error><Code>${code}</Code><Message>${code}</Message></Error>`,
+    { status, headers: { 'content-type': 'application/xml' } },
+  );
 }
 
 function escapeXml(text: string): string {
