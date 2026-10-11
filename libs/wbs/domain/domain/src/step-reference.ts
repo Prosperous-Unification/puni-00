@@ -29,7 +29,7 @@ export type StepReferenceRefusal =
   | 'unknown_code'
   | 'alias_mismatch';
 
-const TAIL = /^(?:s([1-9][0-9]*)-)?([a-z][a-z0-9-]*)$/;
+const TAIL = /^(?:s(0*[1-9][0-9]*)-)?([a-z][a-z0-9-]*)$/;
 /** A work item number: dot-separated digit groups, as `deriveNumbers` writes them. */
 const NUMBER = /^[0-9]+(?:\.[0-9]+)*$/;
 
@@ -51,7 +51,8 @@ export function formatStepReference(number: string, code: string): string {
  * characters and outside the reserved namespace.
  *
  * Also reads the input-only alias `<number>.s<ordinal>-<code>`, whose ordinal is
- * the step's 1-based displayed position. A tail that is itself reserved (`s2`)
+ * the step's 1-based displayed position and may have leading zeroes. A tail
+ * that is itself reserved (`s2`)
  * is neither a code nor an alias.
  *
  * @returns `null` when the text is not a step reference at all.

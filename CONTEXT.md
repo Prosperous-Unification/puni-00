@@ -216,8 +216,8 @@ _Avoid_: step reference (which is the readable, changeable spelling)
 **Step reference**:
 A step node's readable spelling: work item number, a dot, step code — `010.dev`,
 `020.2.review`. Changes when the work item is renumbered; stable once its number is
-frozen. Input may also spell the step by displayed ordinal, `010.s1-dev`, which must
-agree with the code and is never stored.
+frozen. Input may also spell the step by displayed ordinal, `010.s1-dev` or
+`010.s01-dev`, which must agree with the code and is never stored.
 _Avoid_: node id, path, `010.s1-dev` as the canonical form
 
 **Step graph**:
