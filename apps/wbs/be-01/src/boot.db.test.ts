@@ -1153,17 +1153,33 @@ describe('bootBe01', () => {
   it('answers a resume from the log it opened', async () => {
     // End to end through the real HTTP route, the real SQLite file and the
     // services `main.ts` will build: the wiring, not the parts.
-    const be = await boot();
+    // Local mode: the forwarded principal is the fixed local identity.
+    const be = await boot(undefined, undefined, {
+      id: 'local-dev',
+      username: 'local-dev',
+      scopes: ['read', 'write'],
+    });
+    const created = await fetch(`http://localhost:${String(be.port)}/api/projects`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+      body: JSON.stringify({ name: 'Resumed' }),
+    });
+    const projectId = ((await created.json()) as { project: { id: string } }).project.id;
 
     const res = await fetch(`http://localhost:${String(be.port)}/internal/resume`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-internal-auth': 's'.repeat(32) },
-      body: JSON.stringify({ resume_points: { 'project:unknown': 4 }, trace_id: 't-1' }),
+      body: JSON.stringify({
+        resume_points: { [`project:${projectId}`]: 4, 'project:unknown': 4 },
+        trace_id: 't-1',
+      }),
     });
 
     expect(res.status).toBe(200);
     expect((await res.json()) as unknown).toEqual({
-      'project:unknown': { status: 'denied', reason: 'out_of_range' },
+      [`project:${projectId}`]: { status: 'denied', reason: 'out_of_range' },
+      // The wired access check: a project nobody can read is never replayed.
+      'project:unknown': { status: 'denied', reason: 'forbidden' },
     });
   });
 });
