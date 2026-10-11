@@ -14,7 +14,8 @@
     "portability": {
       "visibility": "public",
       "dependencies": [],
-      "aliases": ["@website/contracts"]
+      "aliases": ["@website/contracts"],
+      "packages": { "@noble/hashes": "2.4.0" }
     }
   },
   "targets": {

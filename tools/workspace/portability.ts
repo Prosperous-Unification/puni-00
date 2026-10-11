@@ -121,6 +121,68 @@ function readBaseline(root: string): Fields {
   }
   return { version: 1, packageManager, pins, semantics, compiler, files };
 }
+const remoteCacheKeys = [
+  'nxCloudId',
+  'nxCloudAccessToken',
+  'nxCloudUrl',
+  'nxCloudEncryptionKey',
+  's3',
+  'gcs',
+  'azure',
+  'sharedFs',
+];
+const remoteCacheVariables = [
+  'NX_CLOUD_ACCESS_TOKEN',
+  'NX_CLOUD_AUTH_TOKEN',
+  'NX_SELF_HOSTED_REMOTE_CACHE_SERVER',
+  'NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN',
+];
+const remoteCacheModule = /nx-cloud|-cache$/;
+/** Throws when this process carries a remote Nx cache credential or server, or when `nx.json`
+ * names Nx Cloud, a self-hosted cache block, a cache plugin, or a runner that is a cache module
+ * or holds an access token. Transferred caches would carry task outputs out of either repository.
+ * Detection covers these named settings only; other remote-cache configurations are not detected.
+ */
+function refuseRemoteCache(root: string): void {
+  // Proof: removing this check let check pass and copy write apps/fixture/client in the environment test.
+  const variables = remoteCacheVariables.filter((name) => process.env[name] !== undefined);
+  if (variables.length > 0)
+    throw new Error(`Remote Nx cache is refused: unset ${variables.join(', ')}`);
+  const nx = readRecord(root, 'nx.json');
+  const runners =
+    nx['tasksRunnerOptions'] === undefined
+      ? {}
+      : requireRecord(nx['tasksRunnerOptions'], 'tasksRunnerOptions');
+  const runnerSettings = Object.entries(runners).flatMap(([name, runner]) => {
+    const configuration = requireRecord(runner, `tasksRunnerOptions.${name}`);
+    const options = configuration['options'];
+    const module = configuration['runner'];
+    return [
+      ...(options !== undefined &&
+      requireRecord(options, `${name} options`)['accessToken'] !== undefined
+        ? [`tasksRunnerOptions.${name}.options.accessToken`]
+        : []),
+      ...(typeof module === 'string' && remoteCacheModule.test(module)
+        ? [`tasksRunnerOptions.${name}.runner ${module}`]
+        : []),
+    ];
+  });
+  const plugins = nx['plugins'] === undefined ? [] : nx['plugins'];
+  if (!Array.isArray(plugins)) throw new Error('Invalid plugins: expected array');
+  const pluginSettings = plugins.flatMap((plugin: unknown) => {
+    const module = typeof plugin === 'string' ? plugin : requireRecord(plugin, 'plugin')['plugin'];
+    if (typeof module !== 'string') throw new Error('Invalid plugin: expected module name');
+    return remoteCacheModule.test(module) ? [`plugin ${module}`] : [];
+  });
+  const settings = [
+    ...remoteCacheKeys.filter((key) => nx[key] !== undefined),
+    ...runnerSettings,
+    ...pluginSettings,
+  ];
+  // Proof: removing the runner-module and plugin checks failed the nx-cloud runner and cache plugin cases.
+  if (settings.length > 0)
+    throw new Error(`Remote Nx cache is refused in ${root}/nx.json: remove ${settings.join(', ')}`);
+}
 function hashBaseline(baseline: Fields): string {
   return createHash('sha256').update(canonicalize(baseline)).digest('hex');
 }
@@ -172,8 +234,13 @@ export function synchronizeBaseline(source: string, destination: string): void {
   });
 }
 
-/** Throws when toolchain pins or supported target/compiler semantics have drifted. */
+/** Throws when toolchain pins or supported target/compiler semantics have drifted,
+ * or when either workspace configures a remote Nx cache.
+ */
 export function verifyBaseline(source: string, destination: string): void {
+  // Proof: removing both calls let check pass and copy write the project in the remote-cache test.
+  refuseRemoteCache(source);
+  refuseRemoteCache(destination);
   const expected = readBaseline(source);
   const observed = readBaseline(destination);
   // Proof: removing this comparison fails 'changed dependency pin fails conformance before transfer'.
@@ -224,6 +291,26 @@ function inspectTree(directory: string): void {
     else if (!entry.isFile()) throw new Error(`Unsupported filesystem entry: ${entry.name}`);
   }
 }
+const sourceExtension = /\.(?:[cm]?[jt]s|[jt]sx)$/;
+const importSpecifier = /(?:\bfrom\s*|\bimport\s*\(?\s*)['"]([^'"]+)['"]/g;
+/** Lists module specifiers in the tree's JavaScript and TypeScript files; inspect the tree first. */
+function readImports(directory: string): Set<string> {
+  const specifiers = new Set<string>();
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const location = join(directory, entry.name);
+    if (entry.isDirectory())
+      for (const specifier of readImports(location)) specifiers.add(specifier);
+    else if (sourceExtension.test(entry.name))
+      for (const match of readFileSync(location, 'utf8').matchAll(importSpecifier))
+        specifiers.add(match[1]);
+  }
+  return specifiers;
+}
+function matchesAlias(specifier: string, alias: string): boolean {
+  return alias.endsWith('/*')
+    ? specifier.startsWith(alias.slice(0, -1))
+    : specifier === alias || specifier.startsWith(`${alias}/`);
+}
 
 /** Copies an explicitly classified project and its declared local dependency closure.
  * Performs every classification, collision, schema and filesystem check before writes.
@@ -252,6 +339,11 @@ export function copyProject(source: string, destination: string, project: string
     destinationOptions['paths'] === undefined
       ? {}
       : requireRecord(destinationOptions['paths'], 'destination paths');
+  const destinationManifest = readRecord(destinationRoot, 'package.json');
+  const installed = [
+    readDependencies(destinationManifest, 'dependencies'),
+    readDependencies(destinationManifest, 'devDependencies'),
+  ];
   const aliases: Record<string, string[]> = {};
   const completed = new Set<string>();
   const visiting = new Set<string>();
@@ -340,7 +432,31 @@ export function copyProject(source: string, destination: string, project: string
         throw new Error(`Destination alias collision: ${alias}`);
       aliases[alias] = [mapping[0]];
     }
+    const packages = policy['packages'] === undefined ? {} : policy['packages'];
+    if (typeof packages !== 'object' || packages === null || Array.isArray(packages))
+      throw new Error(`Invalid package declaration: ${path}`);
+    for (const [name, spec] of Object.entries(packages)) {
+      if (typeof spec !== 'string' || spec.length === 0)
+        throw new Error(`Invalid package declaration: ${path} ${name}`);
+      // Proof: deleting this comparison copied the projects in both declared-package tests.
+      if (!installed.some((section) => section[name] === spec))
+        throw new Error(
+          `Missing package ${name}@${spec} in ${destinationRoot}/package.json: add it, run bun install, then commit bun.lock`,
+        );
+    }
     inspectTree(join(sourceRoot, path));
+    const owners = [path, ...dependencies];
+    for (const specifier of readImports(join(sourceRoot, path))) {
+      for (const [alias, mapping] of Object.entries(sourceAliases)) {
+        if (!matchesAlias(specifier, alias)) continue;
+        const target: unknown = Array.isArray(mapping) ? mapping.at(0) : undefined;
+        // Proof: deleting this ownership check copied apps/website/fe-01 without its contracts library.
+        if (typeof target !== 'string' || !owners.some((owner) => target.startsWith(`./${owner}/`)))
+          throw new Error(
+            `Invalid dependency closure: ${path} imports ${alias} from ${String(target)}; declare its project in metadata.portability.dependencies`,
+          );
+      }
+    }
     // Proof: omitting traversal fails the bidirectional closure test before its unchanged-byte assertion.
     for (const dependency of dependencies) visit(dependency);
     visiting.delete(path);
