@@ -300,11 +300,11 @@ describe('migration deploy entrypoints', () => {
     const dbPath = join(root, 'plan.db');
     const migrations = join(root, 'drizzle');
     const capturePath = join(root, 'capture.json');
-    const candidateName = '20261001020000_add_browser_auth_lifecycle';
+    const candidateName = '20261001020000_older_candidate_probe';
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261005110000_add_shared_people');
+    expect(baselineLedger.at(-1)?.name).toBe('20261011120000_add_browser_auth_lifecycle');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -318,8 +318,8 @@ describe('migration deploy entrypoints', () => {
     addMigration(
       root,
       candidateName,
-      'CREATE TABLE browser_auth_lifecycle (id text PRIMARY KEY);',
-      'DROP TABLE browser_auth_lifecycle;',
+      'CREATE TABLE older_candidate_probe (id text PRIMARY KEY);',
+      'DROP TABLE older_candidate_probe;',
     );
     const identity = ['--target=wbs-be-01', '--attempt=abort-test', '--candidate=deadbeef'];
     const capture = await runCliFrom(
@@ -347,7 +347,7 @@ describe('migration deploy entrypoints', () => {
       stdout: 'migrations applied\n',
       stderr: '',
     });
-    expect(schemaAt(dbPath).some((ddl) => ddl.includes('browser_auth_lifecycle'))).toBe(true);
+    expect(schemaAt(dbPath).some((ddl) => ddl.includes('older_candidate_probe'))).toBe(true);
     expect(migrationLedgerAt(dbPath)).toHaveLength(baselineLedger.length + 1);
 
     const restored = await runCliFrom(
@@ -377,19 +377,19 @@ describe('migration deploy entrypoints', () => {
     roots.push(root);
     const dbPath = join(root, 'plan.db');
     const capturePath = join(root, 'capture.json');
-    const lifecycle = '20261001020000_add_browser_auth_lifecycle';
-    const addition = '20261006010000_add_after_lifecycle';
+    const lifecycle = '20261001020000_older_candidate_probe';
+    const addition = '20261012010000_add_after_lifecycle';
     cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
     addMigration(
       root,
       lifecycle,
-      'CREATE TABLE browser_auth_lifecycle (id text PRIMARY KEY);',
-      'DROP TABLE browser_auth_lifecycle;',
+      'CREATE TABLE older_candidate_probe (id text PRIMARY KEY);',
+      'DROP TABLE older_candidate_probe;',
     );
     runMigrations(dbPath, join(root, 'drizzle'));
     const sqlite = openDatabase(dbPath);
     try {
-      sqlite.run("INSERT INTO browser_auth_lifecycle (id) VALUES ('retained')");
+      sqlite.run("INSERT INTO older_candidate_probe (id) VALUES ('retained')");
     } finally {
       sqlite.close();
     }
@@ -423,7 +423,7 @@ describe('migration deploy entrypoints', () => {
     expect(migrationLedgerAt(dbPath)).toEqual(baseline);
     const restored = openDatabase(dbPath);
     try {
-      expect(restored.query('SELECT id FROM browser_auth_lifecycle').all()).toEqual([
+      expect(restored.query('SELECT id FROM older_candidate_probe').all()).toEqual([
         { id: 'retained' },
       ]);
       expect(
@@ -679,8 +679,8 @@ describe('migration deploy entrypoints', () => {
     roots.push(root);
     const dbPath = join(root, 'plan.db');
     const capturePath = join(root, 'capture.json');
-    const first = '20261006010000_first_after_baseline';
-    const second = '20261006020000_second_after_baseline';
+    const first = '20261012010000_first_after_baseline';
+    const second = '20261012020000_second_after_baseline';
     cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baseline = migrationLedgerAt(dbPath);

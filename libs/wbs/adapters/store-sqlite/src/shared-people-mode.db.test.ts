@@ -62,6 +62,12 @@ describe('shared people mode storage', () => {
 
   it('refuses column rollback with a shared organization, preserving schema and ledger', () => {
     execute("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    // Each migration reverses in its own transaction, so the newer, empty
+    // browser lifecycle is taken off first; the ledger claim is about the
+    // refused shared-people step, not about everything above it.
+    expect(rollbackTo(path, MIGRATIONS_FOLDER, '20261005110000_add_shared_people')).toEqual([
+      '20261011120000_add_browser_auth_lifecycle',
+    ]);
     const ledger = execute('SELECT * FROM __drizzle_migrations');
     expect(() => rollbackTo(path, MIGRATIONS_FOLDER, '20260929180000_add_project_rank')).toThrow(
       'shared-people-rollback-cli.ts',

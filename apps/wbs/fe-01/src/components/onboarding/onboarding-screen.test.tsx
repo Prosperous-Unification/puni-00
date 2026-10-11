@@ -11,6 +11,21 @@ const answer = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 describe('onboarding screen', () => {
+  it('hands the visible sign-out gesture to the app coordinator', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(answer(200, { state: 'create_organization' }))),
+    );
+    const onSignOut = vi.fn();
+    render(
+      <OnboardingScreen onSignOut={onSignOut}>
+        <p>Existing app</p>
+      </OnboardingScreen>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
+    expect(onSignOut).toHaveBeenCalledOnce();
+  });
+
   it('keeps the existing app when onboarding is inactive', async () => {
     vi.stubGlobal(
       'fetch',

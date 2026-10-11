@@ -161,6 +161,26 @@ describe('the signed-out screen', () => {
     });
     expect(screen.getByLabelText<HTMLInputElement>('Username').value).toBe('ada');
   });
+  itDom(
+    'explains a refused predecessor instead of treating it as invalid credentials',
+    async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(response(401, { error: 'unauthenticated' }))),
+      );
+      render(<AuthForm onSignedIn={() => undefined} />);
+      fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
+      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'lovelace99' } });
+      fireEvent.submit(
+        screen.getByRole('button', { name: 'Sign in with password' }).closest('form')!,
+      );
+      expect(
+        await screen.findByText(
+          'The previous browser session could not be verified. Reload and try again.',
+        ),
+      ).toBeDefined();
+    },
+  );
   itDom('does not sign in with a malformed successful response', async () => {
     const signedIn = vi.fn();
     vi.stubGlobal(

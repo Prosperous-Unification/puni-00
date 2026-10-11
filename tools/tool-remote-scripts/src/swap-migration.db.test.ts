@@ -82,7 +82,7 @@ function prepareComposeFixture(
   roots.push(root);
   const dbPath = join(root, 'plan.db');
   const baseline = '20261005110000_add_shared_people';
-  const candidate = '20261001020000_add_browser_auth_lifecycle';
+  const candidate = '20261001020000_older_candidate_probe';
   mkdirSync(join(root, 'drizzle'));
   migrationAt(root, baseline, 'CREATE TABLE shared_people (id text);', 'DROP TABLE shared_people;');
   new Database(dbPath).close();
@@ -98,8 +98,8 @@ function prepareComposeFixture(
   migrationAt(
     root,
     candidate,
-    'CREATE TABLE browser_auth_lifecycle (id text);',
-    'DROP TABLE browser_auth_lifecycle;',
+    'CREATE TABLE older_candidate_probe (id text);',
+    'DROP TABLE older_candidate_probe;',
   );
   const containerFiles = new Map<string, string>();
   const commands: string[][] = [];
@@ -256,7 +256,7 @@ describe('Compose migration command adapter', () => {
       ),
     ).toContain('migration ledger differs from persisted captured applied set');
     expect(ledgerAt(dbPath).map((row) => row.name)).toContain(candidate);
-    expect(tablesAt(dbPath)).toContain('browser_auth_lifecycle');
+    expect(tablesAt(dbPath)).toContain('older_candidate_probe');
     expect(commands.at(-1)).toEqual(['stop', 'be-01-green']);
     expect(readdirSync(root).some((name) => name.startsWith('migration-be-01-green-'))).toBe(true);
   }, 60_000);
@@ -302,7 +302,7 @@ describe('Compose migration command adapter', () => {
     );
     expect(manual.exitCode).toBe(0);
     expect(ledgerAt(dbPath)).toEqual(baselineLedger);
-    expect(tablesAt(dbPath)).not.toContain('browser_auth_lifecycle');
+    expect(tablesAt(dbPath)).not.toContain('older_candidate_probe');
   }, 60_000);
 
   it('refuses a modified host capture before copying or reversing migrations', async () => {
@@ -408,6 +408,6 @@ describe('Compose migration command adapter', () => {
     expect(tablesAt(dbPath)).toEqual(beforeManualTables);
     expect(ledgerAt(dbPath).map((row) => row.name)).toEqual([candidate, baseline].sort());
     expect(tablesAt(dbPath)).toContain('shared_people');
-    expect(tablesAt(dbPath)).toContain('browser_auth_lifecycle');
+    expect(tablesAt(dbPath)).toContain('older_candidate_probe');
   }, 60_000);
 });

@@ -8,6 +8,10 @@
       "file": "src/components/board/step-board.test.ts"
     },
     {
+      "file": "src/components/spaces/single-flight.test.ts",
+      "reason": "Not `src/lib/api.test.ts`: `websocketUrl` reads `location`, so one of its cases needs a browser after all. It is the file the plan's own measurement named as the exception, and the guard below asserts it stays one."
+    },
+    {
       "file": "src/components/wbs/cell-card-store.test.ts"
     },
     {
@@ -87,17 +91,10 @@
       "reason": "`work-item-deadline` 8.9's repository assertion. It parses `.tsx` sources with the TypeScript parser and reads them off disk, which is a file-system job and not a browser one."
     },
     {
-      "file": "src/components/spaces/single-flight.test.ts",
-      "reason": "Not `src/lib/api.test.ts`: `websocketUrl` reads `location`, so one of its cases needs a browser after all. It is the file the plan's own measurement named as the exception, and the guard below asserts it stays one."
-    },
-    {
       "file": "src/lib/local-write.test.ts"
     },
     {
       "file": "src/lib/plan-refresh.test.ts"
-    },
-    {
-      "file": "src/lib/step-view.test.ts"
     },
     {
       "file": "src/lib/refusal.test.ts"
@@ -105,6 +102,9 @@
     {
       "file": "src/lib/saved-plan-compare.test.ts",
       "reason": "Of saved-plans' three `src/lib` suites this is the only one the tier rule reads as DOM-free, and the other two are excluded by that rule rather than by taste: `saved-plan-save.test.ts` imports `@testing-library` and runs under jsdom for real, and `saved-plan-api.test.ts` is caught by `DOM_EVIDENCE`'s deliberately generous `\\bdocument\\b` \u2014 fourteen prose mentions of the *OpenAPI* document, no browser global at all. That is the safe direction to be wrong in, as the rule's own comment says, so it is left where the rule puts it rather than special-cased. The shelf's own suite moved to `src/modules/saved-plans/` and is judged there the same way."
+    },
+    {
+      "file": "src/lib/step-view.test.ts"
     },
     {
       "file": "src/modules/calendar-markers/calendar-markers.feature.test.ts"
@@ -171,6 +171,9 @@
     {
       "file": "src/runtime/application-runtime.test.ts",
       "reason": "The page's own lifetime ownership: plain TypeScript over DI Bag, no browser global and no component, which is the whole point of rule F1."
+    },
+    {
+      "file": "src/runtime/browser-sign-out.test.ts"
     },
     {
       "file": "src/runtime/lifetime-slot.model.test.ts"

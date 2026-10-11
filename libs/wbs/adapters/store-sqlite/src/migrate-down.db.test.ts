@@ -666,6 +666,7 @@ describe('readMigrationFolders', () => {
       '20260929180000_add_project_rank',
       '20261001010000_add_browser_credential_revocations',
       '20261005110000_add_shared_people',
+      '20261011120000_add_browser_auth_lifecycle',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -736,16 +737,19 @@ describe('rollbackTo, against a real database', () => {
   it('exact set restores an older newly introduced migration after a newer baseline', () => {
     const db = tempDb();
     const candidateFolder = mkdtempSync(join(tmpdir(), 'wbs-older-candidate-'));
-    const candidateName = '20261001020000_add_browser_auth_lifecycle';
+    const candidateName = '20261001020000_older_candidate_probe';
     try {
       cpSync(FOLDER, candidateFolder, { recursive: true });
       runMigrations(db.path, FOLDER);
       const originalNames = appliedNames(db.path);
-      expect(originalNames.at(-1)).toBe('20261005110000_add_shared_people');
+      expect(originalNames.at(-1)).toBe('20261011120000_add_browser_auth_lifecycle');
       const candidate = join(candidateFolder, candidateName);
       mkdirSync(candidate);
-      writeFileSync(join(candidate, 'migration.sql'), 'CREATE TABLE lifecycle_probe (id text);');
-      writeFileSync(join(candidate, 'down.sql'), 'DROP TABLE lifecycle_probe;');
+      writeFileSync(
+        join(candidate, 'migration.sql'),
+        'CREATE TABLE older_candidate_probe (id text);',
+      );
+      writeFileSync(join(candidate, 'down.sql'), 'DROP TABLE older_candidate_probe;');
       const capture = captureAppliedMigrationSet(db.path, candidateFolder, {
         target: 'wbs-be-01',
         attempt: 'store-test',
@@ -753,11 +757,11 @@ describe('rollbackTo, against a real database', () => {
       });
       expect(capture.pending.map((entry) => entry.name)).toEqual([candidateName]);
       runMigrations(db.path, candidateFolder);
-      expect(tables(db.path)).toContain('lifecycle_probe');
+      expect(tables(db.path)).toContain('older_candidate_probe');
       expect(restoreAppliedMigrationSet(db.path, candidateFolder, capture)).toEqual([
         candidateName,
       ]);
-      expect(tables(db.path)).not.toContain('lifecycle_probe');
+      expect(tables(db.path)).not.toContain('older_candidate_probe');
       expect(appliedNames(db.path)).toEqual(originalNames);
     } finally {
       db.cleanup();
@@ -833,11 +837,13 @@ describe('rollbackTo, against a real database', () => {
         '20260929180000_add_project_rank',
         '20261001010000_add_browser_credential_revocations',
         '20261005110000_add_shared_people',
+        '20261011120000_add_browser_auth_lifecycle',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
         '20260929180000_add_project_rank',
@@ -984,6 +990,7 @@ describe('rollbackTo, against a real database', () => {
         '20260929180000_add_project_rank',
         '20261001010000_add_browser_credential_revocations',
         '20261005110000_add_shared_people',
+        '20261011120000_add_browser_auth_lifecycle',
       ]);
     } finally {
       db.cleanup();
@@ -1054,6 +1061,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
         '20260929180000_add_project_rank',
@@ -1161,6 +1169,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
         '20260929180000_add_project_rank',
@@ -1253,6 +1262,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
         '20260929180000_add_project_rank',

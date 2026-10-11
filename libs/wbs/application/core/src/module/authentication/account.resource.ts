@@ -49,6 +49,13 @@ export class AccountResource {
     return this.opts.users.findById(accountId);
   }
 
+  /** Read an existing verified pair for refresh without login's account-creating resolver. */
+  readExistingIdentity(identity: Pick<OidcIdentity, 'issuer' | 'subject'>): Promise<User | null> {
+    if (this.opts.identities === undefined)
+      throw new Error('OIDC identity store is not configured');
+    return this.opts.identities.findExistingOidcIdentity(identity);
+  }
+
   /** Mint a candidate ID before resolving a verified OIDC identity. */
   resolveIdentity(identity: OidcIdentity): Promise<User | null> {
     // Proof (2026-09-27): forcing this guard false failed `direct account

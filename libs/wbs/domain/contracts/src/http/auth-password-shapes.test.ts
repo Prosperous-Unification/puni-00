@@ -51,7 +51,7 @@ test('requires exactly string credentials at the request boundary', async () => 
 
 test('pins route-specific refusal status and error pairings', () => {
   expect(registerPassword.refusals.map(({ status }) => status)).toEqual([
-    400, 403, 404, 409, 422, 429,
+    400, 401, 403, 404, 409, 422, 429,
   ]);
   expect(loginPassword.refusals.map(({ status }) => status)).toEqual([
     400, 401, 403, 404, 422, 429,
