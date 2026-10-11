@@ -18,6 +18,7 @@ export const PORT_NAMES = [
   'actuals',
   'measures',
   'progress',
+  'attempts',
   'dependencies',
   'typedDependencies',
   'subtrees',
@@ -104,6 +105,7 @@ export const CASE_MANIFEST = {
     'progress.moveAll:ownership',
     'progress.set:unknown_step',
   ],
+  attempts: ['attempts.start:number-and-running', 'attempts.moveAll:ownership'],
   dependencies: [
     'dependencies.listByWorkItems:incident-scope',
     'dependencies.add:idempotent-pair',

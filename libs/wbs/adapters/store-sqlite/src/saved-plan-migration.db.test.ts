@@ -169,6 +169,7 @@ describe('the saved-plan migration', () => {
     expect(columnsOf('saved_plan_body')).toContain('bytes');
 
     expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([
+      '20261012120000_add_step_node_attempts',
       '20261011200000_add_shared_people_audit',
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',

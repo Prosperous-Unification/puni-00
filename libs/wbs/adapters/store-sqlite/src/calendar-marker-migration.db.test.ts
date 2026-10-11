@@ -240,6 +240,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20261012120000_add_step_node_attempts',
       '20261011200000_add_shared_people_audit',
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
@@ -277,6 +278,7 @@ describe('20260905090000_add_calendar_marker', () => {
           n !== 'browser_auth_association' &&
           n !== 'browser_auth_lifecycle' &&
           n !== 'shared_people_audit' &&
+          n !== 'step_node_attempt' &&
           n !== 'browser_credential_revocations' &&
           n !== 'email_challenge' &&
           n !== 'typed_dependency' &&

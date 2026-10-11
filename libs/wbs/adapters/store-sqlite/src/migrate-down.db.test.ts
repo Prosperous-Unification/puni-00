@@ -668,6 +668,7 @@ describe('readMigrationFolders', () => {
       '20261005110000_add_shared_people',
       '20261011120000_add_browser_auth_lifecycle',
       '20261011200000_add_shared_people_audit',
+      '20261012120000_add_step_node_attempts',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -743,7 +744,7 @@ describe('rollbackTo, against a real database', () => {
       cpSync(FOLDER, candidateFolder, { recursive: true });
       runMigrations(db.path, FOLDER);
       const originalNames = appliedNames(db.path);
-      expect(originalNames.at(-1)).toBe('20261011200000_add_shared_people_audit');
+      expect(originalNames.at(-1)).toBe('20261012120000_add_step_node_attempts');
       const candidate = join(candidateFolder, candidateName);
       mkdirSync(candidate);
       writeFileSync(
@@ -840,11 +841,13 @@ describe('rollbackTo, against a real database', () => {
         '20261005110000_add_shared_people',
         '20261011120000_add_browser_auth_lifecycle',
         '20261011200000_add_shared_people_audit',
+        '20261012120000_add_step_node_attempts',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20261012120000_add_step_node_attempts',
         '20261011200000_add_shared_people_audit',
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
@@ -995,6 +998,7 @@ describe('rollbackTo, against a real database', () => {
         '20261005110000_add_shared_people',
         '20261011120000_add_browser_auth_lifecycle',
         '20261011200000_add_shared_people_audit',
+        '20261012120000_add_step_node_attempts',
       ]);
     } finally {
       db.cleanup();
@@ -1065,6 +1069,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        '20261012120000_add_step_node_attempts',
         '20261011200000_add_shared_people_audit',
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
@@ -1174,6 +1179,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20261012120000_add_step_node_attempts',
         '20261011200000_add_shared_people_audit',
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
@@ -1268,6 +1274,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20261012120000_add_step_node_attempts',
         '20261011200000_add_shared_people_audit',
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',

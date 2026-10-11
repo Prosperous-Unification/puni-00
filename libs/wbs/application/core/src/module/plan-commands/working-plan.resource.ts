@@ -415,6 +415,12 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     actuals: retainedActuals,
     measures: retainedMeasures,
     progress: retainedProgress,
+    // Not retained: no batch-planning read folds attempts, so the scope's
+    // own store is the one every command writes through.
+    get attempts() {
+      assertOpen();
+      return scope.stores.attempts;
+    },
     dependencies: retainedDependencies,
     typedDependencies,
     subtrees: retainedSubtrees,

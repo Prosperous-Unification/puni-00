@@ -106,6 +106,7 @@ import type {
   LivePlanRead,
   PlanDocumentReads,
 } from '../../ports/shared-people-values';
+import type { StepNodeAttemptStore } from '../../ports/step-node-attempt-store';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
 import type {
@@ -952,6 +953,12 @@ export interface WorkItemServiceOptions {
    * this ships and therefore an invisible mistake for a week.
    */
   progress: StepProgressStore;
+  /**
+   * The attempts at step nodes, required for {@link progress}'s reason: a
+   * service built without one would leave a leaf's attempts behind on the
+   * parent at the hand-down, invisible to every reader.
+   */
+  attempts: StepNodeAttemptStore;
   directory: DirectoryStore;
   /**
    * How many of each team this project may have at work at once — C1's `slotsOf`
@@ -2420,6 +2427,9 @@ export class WorkItemService {
       await this.opts.actuals.moveAll(gainsFirstChild, workItem.id, stamp);
       await this.opts.progress.moveAll(gainsFirstChild, workItem.id, stamp);
       await this.opts.measures.moveAll(gainsFirstChild, workItem.id, stamp);
+      // Proof: skipped, `hands a leaf’s attempts down to its first child,
+      // numbers kept` read none on the child; watched 2026-10-12.
+      await this.opts.attempts.moveAll(gainsFirstChild, workItem.id, stamp);
       // Proof: skipping these writes failed `hands a first child every Dev fact and Ann`
       // at `Expected: <Ann id>, Received: undefined` for child.assignees[Dev]; watched 2026-09-27.
       for (const assignment of assignedHandedDown) {

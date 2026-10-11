@@ -38,7 +38,7 @@
 
 ## 3. Storage and migration
 
-- [ ] 3.1 Red: `step-node-attempt-migration.db.test.ts` (apply; the running check refuses an
+- [x] 3.1 Red: `step-node-attempt-migration.db.test.ts` (apply; the running check refuses an
       outcome without an end and an end without an outcome; the order check refuses an end
       before its start; the partial index; an old-writer project insert reads `UTC`; rollback
       refused over a row naming the CLI; rollback and re-apply over none);
@@ -47,10 +47,10 @@
       rows); `migration-cli.db.test.ts` "saves, removes and restores attempts through the rollback
       CLI" (three rows on two nodes, numbers verbatim); every migration-enumerating db test lists
       the new folder.
-- [ ] 3.2 Green: stamp allocated now, written into `design.md`;
+- [x] 3.2 Green: stamp allocated now, written into `design.md`;
       `drizzle/<stamp>_add_step_node_attempts/{migration,down}.sql`; `schema.ts`;
       `StepNodeAttemptRepository`; `project.timezone` in `ProjectRepository`; migration lint.
-- [ ] 3.3 Negatives: the unique partial index dropped → the concurrent-start case stores two running
+- [x] 3.3 Negatives: the unique partial index dropped → the concurrent-start case stores two running
       rows under a bypassed refusal; the `down.sql` guard removed → "rollback refused over a row"; the
       running-state CHECK dropped → "refuses an outcome without an end"; the `max + 1` read
       moved outside the transaction → the concurrent-start case inserts two running rows.

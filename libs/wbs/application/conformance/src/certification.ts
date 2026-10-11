@@ -64,6 +64,8 @@ export const SOURCE_CONFORMANCE_CASES = [
   'progress.remove:absence',
   'progress.moveAll:ownership',
   'progress.set:unknown_step',
+  'attempts.start:number-and-running',
+  'attempts.moveAll:ownership',
   'dependencies.listByWorkItems:incident-scope',
   'dependencies.add:idempotent-pair',
   'dependencies.remove:pair',

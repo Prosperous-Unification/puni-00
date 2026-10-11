@@ -304,7 +304,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261011200000_add_shared_people_audit');
+    expect(baselineLedger.at(-1)?.name).toBe('20261012120000_add_step_node_attempts');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -679,8 +679,8 @@ describe('migration deploy entrypoints', () => {
     roots.push(root);
     const dbPath = join(root, 'plan.db');
     const capturePath = join(root, 'capture.json');
-    const first = '20261012010000_first_after_baseline';
-    const second = '20261012020000_second_after_baseline';
+    const first = '20261013010000_first_after_baseline';
+    const second = '20261013020000_second_after_baseline';
     cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baseline = migrationLedgerAt(dbPath);
@@ -1300,6 +1300,83 @@ describe('migration deploy entrypoints', () => {
     const missingArgument = await runCli('step-node-attempt-rollback-cli.ts', dbPath, 'restore');
     expect(missingArgument.exitCode).not.toBe(0);
     expect(missingArgument.stderr).toContain('usage:');
+  }, 60_000);
+
+  it('saves, removes and restores attempts through the rollback CLI', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-attempt-round-trip-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const savedPath = join(root, 'attempts.json');
+    const names = readdirSync(MIGRATIONS).sort();
+    const attemptsAt = names.findIndex((name) => name.endsWith('_add_step_node_attempts'));
+    const baseline = attemptsAt < 1 ? undefined : names.at(attemptsAt - 1);
+    if (baseline === undefined) {
+      throw new Error('the attempts migration needs one below it');
+    }
+    runMigrations(dbPath, MIGRATIONS);
+    const rows = [
+      "('a','dev',1,100,150,'failed',NULL,'PR #11',NULL,1,2,'u')",
+      "('a','dev',3,160,NULL,NULL,'kat',NULL,'retry',3,3,'u')",
+      "('a','qa',1,170,180,'succeeded',NULL,NULL,NULL,4,5,'u')",
+    ];
+    const readAttempts = () => {
+      const sqlite = openDatabase(dbPath);
+      try {
+        return sqlite
+          .query('SELECT * FROM step_node_attempt ORDER BY step_id, attempt_number')
+          .all();
+      } finally {
+        sqlite.close();
+      }
+    };
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run(
+        "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
+      );
+      sqlite.run(
+        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+      );
+      sqlite.run(
+        "INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',10),('qa','p','QA',20)",
+      );
+      sqlite.run(
+        "INSERT INTO work_item (id,project_id,position,name,revision) VALUES ('a','p',1,'A',0)",
+      );
+      sqlite.run("INSERT INTO person (id,name) VALUES ('kat','Kat')");
+      sqlite.run(
+        `INSERT INTO step_node_attempt (work_item_id,step_id,attempt_number,started_at,ended_at,outcome,executor_person_id,reference,note,created_at,updated_at,created_by) VALUES ${rows.join(',')}`,
+      );
+    } finally {
+      sqlite.close();
+    }
+    const stored = readAttempts();
+    expect(stored).toHaveLength(3);
+    const refused = await runCli('migrate-down-cli.ts', dbPath, `--to=${baseline}`);
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toContain('step-node-attempt-rollback-cli.ts');
+    expect(await runCli('step-node-attempt-rollback-cli.ts', dbPath, 'save', savedPath)).toEqual({
+      exitCode: 0,
+      stdout: 'step node attempts saved: 3\n',
+      stderr: '',
+    });
+    expect(await runCli('step-node-attempt-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
+      exitCode: 0,
+      stdout: 'step node attempts removed: 3\n',
+      stderr: '',
+    });
+    const down = await runCli('migrate-down-cli.ts', dbPath, `--to=${baseline}`);
+    expect(down.stderr).toBe('');
+    expect(down.stdout).toContain('rolled back: 20261012120000_add_step_node_attempts');
+    expect(await runCli('migrate-cli.ts', dbPath)).toEqual({
+      exitCode: 0,
+      stdout: 'migrations applied\n',
+      stderr: '',
+    });
+    expect(await runCli('step-node-attempt-rollback-cli.ts', dbPath, 'restore', savedPath)).toEqual(
+      { exitCode: 0, stdout: 'step node attempts restored: 3\n', stderr: '' },
+    );
+    expect(readAttempts()).toEqual(stored);
   }, 60_000);
 
   it('saves, removes and restores readiness and holds through the rollback CLI', async () => {

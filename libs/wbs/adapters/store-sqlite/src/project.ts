@@ -19,6 +19,7 @@ import {
   isDependencyReach,
   isEstimateMethod,
   isEstimateRounding,
+  isTimezone,
   ORGANIZATION_ROLES,
   type OrganizationRole,
   PertWeights,
@@ -108,9 +109,11 @@ function weightColumns(weights: PertWeights): {
  *
  * `optimizationDeletePendingAt` is the optimizer drain's cross-process fence
  * (tasks.md 3.1b): internal state, not a field of a project, and no boundary
- * returns it.
+ * returns it. `timezone` is read and written through
+ * {@link ProjectRepository.timezoneOf} and {@link ProjectRepository.setTimezone}
+ * until the timezone route publishes it (`step-node-attempts` slice 4).
  */
-const INTERNAL_PROJECT_COLUMNS = ['optimizationDeletePendingAt'] as const;
+const INTERNAL_PROJECT_COLUMNS = ['optimizationDeletePendingAt', 'timezone'] as const;
 
 /**
  * What a project created without stating its settings gets — the same three
@@ -1187,6 +1190,35 @@ export class ProjectRepository implements ProjectStore {
         const { revision, ...writtenStep } = written;
         return { ok: true, step: writtenStep, previousPercent: held.allowancePercent, revision };
       });
+    });
+  }
+
+  async timezoneOf(projectId: string): Promise<string | null> {
+    await Promise.resolve();
+    const found = this.db
+      .select({ timezone: project.timezone })
+      .from(project)
+      .where(eq(project.id, projectId))
+      .get();
+    if (found === undefined) return null;
+    if (!isTimezone(found.timezone)) {
+      throw unknownStoredValue('project', 'timezone', found.timezone);
+    }
+    return found.timezone;
+  }
+
+  /** One `UPDATE` carrying the zone and the revision bump together. */
+  async setTimezone(projectId: string, timezone: string, stamp: WriteStamp): Promise<boolean> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return (
+        this.db
+          .update(project)
+          .set({ timezone, revision: bumpedProject, ...auditOnUpdate(stamp) })
+          .where(eq(project.id, projectId))
+          .returning({ id: project.id })
+          .all().length === 1
+      );
     });
   }
 

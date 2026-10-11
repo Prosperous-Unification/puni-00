@@ -202,6 +202,7 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261012120000_add_step_node_attempts',
         '20261011200000_add_shared_people_audit',
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
@@ -229,8 +230,9 @@ describe('the project settings migration', () => {
         CALENDAR_MARKER,
         PROJECT_SETTINGS,
       ]);
+      // `timezone` goes with `_add_step_node_attempts`, rolled back above it.
       expect(projectColumns(db.path)).toEqual(
-        migrated.filter((name) => !ADDED_COLUMNS.includes(name as never)),
+        migrated.filter((name) => !ADDED_COLUMNS.includes(name as never) && name !== 'timezone'),
       );
     } finally {
       db.cleanup();
@@ -259,6 +261,7 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261012120000_add_step_node_attempts',
         '20261011200000_add_shared_people_audit',
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
@@ -359,6 +362,7 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261012120000_add_step_node_attempts',
         '20261011200000_add_shared_people_audit',
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',

@@ -102,7 +102,13 @@ describe('shared people audit', () => {
     expect(() =>
       rollbackTo(path, MIGRATIONS_FOLDER, '20261011120000_add_browser_auth_lifecycle'),
     ).toThrow('shared people switches are recorded');
-    expect(execute('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
+    // The newer attempts migration, holding no attempt, reverses first and
+    // commits its own step; the refused one keeps its row.
+    expect(execute('SELECT * FROM __drizzle_migrations')).toEqual(
+      ledger.filter(
+        (row) => (row as { name: string }).name !== '20261012120000_add_step_node_attempts',
+      ),
+    );
     expect(execute('SELECT id FROM shared_people_audit')).toEqual([{ id: 'audit-1' }]);
   });
 
@@ -123,7 +129,7 @@ describe('shared people audit', () => {
   it('rolls back the empty audit table', () => {
     expect(
       rollbackTo(path, MIGRATIONS_FOLDER, '20261011120000_add_browser_auth_lifecycle'),
-    ).toEqual(['20261011200000_add_shared_people_audit']);
+    ).toEqual(['20261012120000_add_step_node_attempts', '20261011200000_add_shared_people_audit']);
     expect(
       execute("SELECT name FROM sqlite_master WHERE name LIKE 'shared_people_audit%'"),
     ).toEqual([]);

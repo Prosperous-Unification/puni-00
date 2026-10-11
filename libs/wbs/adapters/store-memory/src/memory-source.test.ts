@@ -9,6 +9,7 @@ import { openMemorySource, openMemorySourceFixture } from './source';
 const stamp = { at: 1, by: 'owner' };
 const STORE_BINDINGS = [
   'actuals',
+  'attempts',
   'calendarMarkers',
   'capacity',
   'dependencies',
@@ -149,6 +150,17 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
   );
   await stores.progress.set(
     { workItemId: 'wi-1', stepId: 'step-memory', state: 'done', statedAt: 2 },
+    stamp,
+  );
+  await stores.attempts.start(
+    {
+      workItemId: 'wi-1',
+      stepId: 'step-memory',
+      startedAt: 2,
+      executorPersonId: null,
+      reference: 'stored reference',
+      note: null,
+    },
     stamp,
   );
   const recorded = await stores.eventLog.recordEvent(
@@ -295,6 +307,11 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       name: 'progress',
       returned: await stores.progress.listByProject('p1'),
       reread: () => stores.progress.listByProject('p1'),
+    },
+    {
+      name: 'attempts',
+      returned: await stores.attempts.listByProject('p1'),
+      reread: () => stores.attempts.listByProject('p1'),
     },
     {
       name: 'event record',

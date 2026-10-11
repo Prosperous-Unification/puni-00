@@ -38,6 +38,7 @@ import { ProjectRepository } from './project';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 import { StepRepository } from './step';
 import { StepMeasureRepository } from './step-measure';
+import { StepNodeAttemptRepository } from './step-node-attempt';
 import { StepProgressRepository } from './step-progress';
 import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
@@ -143,6 +144,7 @@ beforeEach(async () => {
     actuals: new ActualRepository(db, OPEN),
     measures: new StepMeasureRepository(db, OPEN),
     progress: new StepProgressRepository(db, OPEN),
+    attempts: new StepNodeAttemptRepository(db, OPEN),
     directory: directoryStore,
     capacity: capacityStore,
     priorityBands: bandStore,

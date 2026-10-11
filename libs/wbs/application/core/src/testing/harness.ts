@@ -1,4 +1,5 @@
 import { inMemoryActuals } from '@wbs/store-memory/actual-fixture';
+import { inMemoryAttempts } from '@wbs/store-memory/attempt-fixture';
 import { inMemoryCapacity } from '@wbs/store-memory/capacity-fixture';
 import { inMemoryCommandJournal } from '@wbs/store-memory/command-journal-fixture';
 import { inMemoryDependencies } from '@wbs/store-memory/dependency-fixture';
@@ -67,6 +68,7 @@ export interface InMemoryPlan {
       | 'actuals'
       | 'measures'
       | 'progress'
+      | 'attempts'
       | 'dependencies'
       | 'typedDependencies'
       | 'directory'
@@ -89,6 +91,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
   const actuals = overrides.actuals ?? inMemoryActuals(workItems);
   const measures = overrides.measures ?? inMemoryMeasures(workItems);
   const progress = overrides.progress ?? inMemoryProgress(workItems);
+  const attempts = overrides.attempts ?? inMemoryAttempts(workItems);
   const dependencies = overrides.dependencies ?? inMemoryDependencies([], undefined, workItems);
   const typedDependencies = overrides.typedDependencies ?? inMemoryTypedDependencies();
   const projects = overrides.projects ?? inMemoryProjects();
@@ -119,6 +122,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
     actuals,
     measures,
     progress,
+    attempts,
     dependencies,
     typedDependencies,
     directory,

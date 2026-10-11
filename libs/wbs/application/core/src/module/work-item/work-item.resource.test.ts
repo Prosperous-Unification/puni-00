@@ -10,6 +10,7 @@ import type {
   DirectoryStore,
   Project,
   ProjectStore,
+  StepNodeAttemptStore,
   WorkItemStore,
   WriteStamp,
 } from '../../index';
@@ -46,10 +47,11 @@ let directory: DirectoryStore;
  */
 let capacity: CapacityStore;
 let broadcast: RecordingBroadcaster;
+let attempts: StepNodeAttemptStore;
 
 beforeEach(async () => {
   const harness = inMemoryServices();
-  ({ projects, dependencies, directory, workItems, capacity } = harness.stores);
+  ({ projects, dependencies, directory, workItems, capacity, attempts } = harness.stores);
   broadcast = harness.broadcast;
   // Kept whole: three cases below build a second service from these options with
   // one store swapped for a broken one, which is how they drive a failure the
@@ -260,6 +262,28 @@ describe('creating work items', () => {
   it('accepts an empty name', async () => {
     await add('');
     expect(await numbered()).toEqual({ '010': '' });
+  });
+
+  /**
+   * Proof: the attempts' `moveAll` skipped at the hand-down and this case read
+   * the leaf's Dev attempts still on the parent (`Expected: [1, 2]`, `Received:
+   * undefined` for the child); watched 2026-10-12.
+   */
+  it('hands a leaf’s attempts down to its first child, numbers kept', async () => {
+    const leaf = await add('Strip');
+    const node = { workItemId: leaf, stepId, executorPersonId: null, reference: null, note: null };
+    await attempts.start({ ...node, startedAt: 100 }, WROTE);
+    await attempts.end({ workItemId: leaf, stepId, endedAt: 110, outcome: 'failed' }, WROTE);
+    await attempts.start({ ...node, startedAt: 120 }, WROTE);
+
+    const child = await add('Back boxes', leaf);
+
+    const numbersOn = async (workItemId: string) =>
+      (await attempts.listOfWorkItem(workItemId))
+        .get(stepId)
+        ?.map(({ attemptNumber }) => attemptNumber);
+    expect(await numbersOn(child)).toEqual([1, 2]);
+    expect(await numbersOn(leaf)).toBeUndefined();
   });
 
   it('refuses a stranger on a restricted project', async () => {

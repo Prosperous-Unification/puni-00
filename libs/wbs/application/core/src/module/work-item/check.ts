@@ -38,6 +38,9 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       progressStore: DiBag.createProvider(() => requirements.progress, {
         factoryReturnKind: 'sync-value',
       }),
+      attemptStore: DiBag.createProvider(() => requirements.attempts, {
+        factoryReturnKind: 'sync-value',
+      }),
       directoryStore: DiBag.createProvider(() => requirements.directory, {
         factoryReturnKind: 'sync-value',
       }),

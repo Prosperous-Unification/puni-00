@@ -224,6 +224,7 @@ it('allows pre-activation rollback once every use has expired', () => {
     connection.close();
   }
   expect(rollbackTo(path, FOLDER, '20260928020000_add_email_verification')).toEqual([
+    '20261012120000_add_step_node_attempts',
     '20261011200000_add_shared_people_audit',
     '20261011120000_add_browser_auth_lifecycle',
     '20261005110000_add_shared_people',

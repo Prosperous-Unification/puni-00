@@ -399,8 +399,9 @@ without that CLI reads none, so any ended attempt refuses it, the error listing 
 its count; a database with no attempts, or only running ones, passes. Redeploy a release that
 reads them, or save and remove the attempts with the commands below and rerun the deploy.
 
-Rolling back past the attempts migration refuses while any attempt row exists; the refusal reads
-`CHECK constraint failed: step node attempts exist: …`. The project timezone is dropped without a
+Rolling back past the attempts migration, `20261012120000_add_step_node_attempts`, refuses while
+any attempt row exists; the refusal reads `CHECK constraint failed: step node attempts exist: …`
+and leaves the table and its ledger row in place. `<baseline>` is the migration below it. The project timezone is dropped without a
 guard: it is a planner's setting, lost as readiness is. Run the commands inside the incoming
 container with the same `DB_PATH`, after writers have stopped. `save` refuses on a database the
 attempts migration never reached.

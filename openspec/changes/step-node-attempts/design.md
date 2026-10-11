@@ -14,6 +14,11 @@ and recorded in `verify.md`. Pins on `a3b1526b`: `PLAN_DOCUMENT_VERSION` 6,
 engines read no attempt), newest stamp `20261005110000_add_shared_people`. Versions taken by
 `estimate-units` or `measures-vocabulary-and-size-templates` first push this change to the next.
 
+Migration stamp, allocated in slice 3 (2026-10-12): `20261012120000_add_step_node_attempts`.
+It sorts after every folder on `origin/main` and every `batch-10/*` branch, whose newest are
+`20261011200000_add_shared_people_audit` (main, integration-7) and
+`20261012090200_widen_organization_audit` (`batch-10/010-5-5-enterprise-sso-impl`).
+
 ## D1 — Storage
 
 ```

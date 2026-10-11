@@ -396,6 +396,9 @@ function heldSolutionUnitOfWork(
           setStepAllowance: (projectId, stepId, percent, stamp) =>
             stored.setStepAllowance(projectId, stepId, percent, stamp),
           stepAllowanceRevisions: (projectId) => stored.stepAllowanceRevisions(projectId),
+          timezoneOf: (projectId) => stored.timezoneOf(projectId),
+          setTimezone: (projectId, timezone, stamp) =>
+            stored.setTimezone(projectId, timezone, stamp),
         };
         return act({ stores: { ...scope.stores, projects } });
       });
