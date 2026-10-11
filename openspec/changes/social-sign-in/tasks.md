@@ -35,7 +35,7 @@
 - [x] 6.1 `sessionUser` resolving a password session or a verified OIDC access token.
 - [x] 6.2 `startAuth0Link` / `completeAuth0Link` for both kinds (negatives: skipped re-verification; password accepted on an OIDC session).
 - [x] 6.3 `linkedMethods` on `GET /api/auth/me` from mappings (negative: account read answering no pairs).
-- [ ] 6.3b fe-01 "Add <method>" buttons under the account menu (follow-up slice; not in this change's first PR).
+- [x] 6.3b fe-01 "Add <method>" items in the account menu, one per enabled method not yet linked, calling the link start (negative: linked methods not subtracted).
 
 ## 7. MCP follows the identity
 

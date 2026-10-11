@@ -1,3 +1,4 @@
+import { authMethod, type AuthMethodId } from '@wbs/contracts';
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 
 import { ThemeChoiceItems } from '@/components/chrome/theme-choice';
@@ -11,22 +12,25 @@ export interface AccountMenuProps {
   /** The palette this browser is on, and the way to change it. See `lib/theme.ts`. */
   theme: ThemeChoice;
   onChooseTheme: (choice: ThemeChoice) => void;
+  /** Enabled sign-in methods this account has not linked; none renders no item. */
+  addMethods?: readonly AuthMethodId[];
+  /** Starts linking one of {@link addMethods}; the menu stays open for its answer. */
+  onAddMethod?: (method: AuthMethodId) => void;
+  /** What the last link start said, when it did not leave the page. */
+  addMessage?: string;
 }
 
 /**
- * Where `Log out` stands in the menu's flat list of items.
- *
- * After the three palette answers, and **still the item the menu opens onto**.
+ * Where the "Add <method>" items start: after the three palette answers.
+ * `Log out` follows them (`signOutAt` below), and is **still the item the menu
+ * opens onto**.
  * That is deliberate rather than left over: somebody who opens this menu is far
  * more often leaving than repainting, the palette is a thing you set once, and
  * the arrows reach it in one press. It is also the assertion `moves the focus
  * onto the item it opens` has always made, and nothing here is worth breaking
  * it for.
  */
-const SIGN_OUT_AT = THEME_CHOICES.length;
-
-/** How many items the keyboard walks: the three answers, and the way out. */
-const ITEM_COUNT = SIGN_OUT_AT + 1;
+const FIRST_ADD_AT = THEME_CHOICES.length;
 
 /**
  * Who is signed in, the palette, and the way out — one button in the header bar
@@ -68,9 +72,15 @@ export function AccountMenu({
   onSignOut,
   theme,
   onChooseTheme,
+  addMethods = [],
+  onAddMethod,
+  addMessage = '',
 }: AccountMenuProps): React.JSX.Element {
+  // Log out follows the palette and the add items; the keyboard walks all of them.
+  const signOutAt = FIRST_ADD_AT + addMethods.length;
+  const itemCount = signOutAt + 1;
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(SIGN_OUT_AT);
+  const [active, setActive] = useState(signOutAt);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const items = useRef<(HTMLButtonElement | null)[]>([]);
   const wrapper = useRef<HTMLSpanElement | null>(null);
@@ -108,7 +118,7 @@ export function AccountMenu({
 
   const closeAndReturnFocus = (): void => {
     setOpen(false);
-    setActive(SIGN_OUT_AT);
+    setActive(signOutAt);
     trigger.current?.focus();
   };
 
@@ -127,13 +137,13 @@ export function AccountMenu({
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       const step = event.key === 'ArrowDown' ? 1 : -1;
-      setActive((at + step + ITEM_COUNT) % ITEM_COUNT);
+      setActive((at + step + itemCount) % itemCount);
       return;
     }
     if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
       event.preventDefault();
       const step = event.key === 'ArrowRight' ? 1 : -1;
-      setActive((at + step + ITEM_COUNT) % ITEM_COUNT);
+      setActive((at + step + itemCount) % itemCount);
       return;
     }
     if (event.key === 'Escape') {
@@ -210,7 +220,7 @@ export function AccountMenu({
           // rule `lib/theme.ts`'s `chooseTheme` states and keeps. `open` is
           // this render's value and a click handler has no newer one.
           const opening = !open;
-          if (opening) setActive(SIGN_OUT_AT);
+          if (opening) setActive(signOutAt);
           setOpen(opening);
         }}
         onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
@@ -219,7 +229,7 @@ export function AccountMenu({
           // own on a button, and the toggle above is what they land on. Only
           // ArrowDown needs saying, because nothing else opens a menu with it.
           event.preventDefault();
-          setActive(SIGN_OUT_AT);
+          setActive(signOutAt);
           setOpen(true);
         }}
       >
@@ -241,10 +251,29 @@ export function AccountMenu({
             itemProps={itemProps}
             firstAt={0}
           />
+          {addMethods.map((method, index) => (
+            <button
+              key={method}
+              type="button"
+              role="menuitem"
+              {...itemProps(FIRST_ADD_AT + index)}
+              className="hover:bg-accent hover:text-accent-foreground w-full cursor-pointer rounded-sm bg-transparent px-2 py-1 text-left"
+              onClick={() => {
+                onAddMethod?.(method);
+              }}
+            >
+              {authMethod(method).addLabel}
+            </button>
+          ))}
+          {addMessage !== '' && (
+            <p role="status" className="text-muted-foreground max-w-56 px-2 py-1 text-xs">
+              {addMessage}
+            </p>
+          )}
           <button
             type="button"
             role="menuitem"
-            {...itemProps(SIGN_OUT_AT)}
+            {...itemProps(signOutAt)}
             className="hover:bg-accent hover:text-accent-foreground w-full cursor-pointer rounded-sm bg-transparent px-2 py-1 text-left"
             onClick={() => {
               setOpen(false);

@@ -8,6 +8,7 @@ import {
 } from 'react';
 
 import { AppRouter } from '@/app-router';
+import { useAddSignInMethod } from '@/components/account/add-sign-in-method';
 import { SignInCard } from '@/components/auth/auth-form';
 import { AccountMenu } from '@/components/chrome/account-menu';
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
@@ -89,12 +90,14 @@ function ThemedAccountMenu({
   onSignOut: () => void;
 }): React.JSX.Element {
   const { choice, chooseTheme } = useThemeChoice();
+  const adding = useAddSignInMethod();
   return (
     <AccountMenu
       username={username}
       theme={choice}
       onChooseTheme={chooseTheme}
       onSignOut={onSignOut}
+      {...adding}
     />
   );
 }

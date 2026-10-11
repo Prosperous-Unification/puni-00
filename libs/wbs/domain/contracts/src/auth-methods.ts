@@ -6,7 +6,10 @@
 export interface AuthMethod {
   readonly id: AuthMethodId;
   readonly connection: string;
+  /** The sign-in button's words. */
   readonly label: string;
+  /** The account menu's words for linking this method to a signed-in account. */
+  readonly addLabel: string;
 }
 
 export type AuthMethodId = 'google' | 'github' | 'email' | 'apple';
@@ -18,10 +21,20 @@ export type AuthMethodId = 'google' | 'github' | 'email' | 'apple';
  * `apple` entry ships before its connection exists.
  */
 export const AUTH_METHODS: readonly AuthMethod[] = [
-  { id: 'google', connection: 'google-oauth2', label: 'Continue with Google' },
-  { id: 'github', connection: 'github', label: 'Continue with GitHub' },
-  { id: 'email', connection: 'email', label: 'Continue with an email code' },
-  { id: 'apple', connection: 'apple', label: 'Continue with Apple' },
+  {
+    id: 'google',
+    connection: 'google-oauth2',
+    label: 'Continue with Google',
+    addLabel: 'Add Google',
+  },
+  { id: 'github', connection: 'github', label: 'Continue with GitHub', addLabel: 'Add GitHub' },
+  {
+    id: 'email',
+    connection: 'email',
+    label: 'Continue with an email code',
+    addLabel: 'Add an email code sign-in',
+  },
+  { id: 'apple', connection: 'apple', label: 'Continue with Apple', addLabel: 'Add Apple' },
 ];
 
 /** Narrows an untrusted string to a catalogue id without consulting the prototype chain. */
