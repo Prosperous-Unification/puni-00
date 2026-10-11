@@ -27,6 +27,16 @@ called `PlanDocumentService.export`. The script was deleted; the file holds no r
 | `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                  | 161/161 passed.                                                                                                                                                                                                                                                    |
 | `bunx prettier --check` on every touched path                                                                                             | All matched files use Prettier code style.                                                                                                                                                                                                                         |
 
+## CI correction
+
+The first PR run (#325, `bcc90a4db`) failed `tool-devsync:test` on two cases the five oracle
+files did not cover: `repo-namespacing-handoff.test.ts` refused the alias
+`@twilight/burokrat-contracts` (`no product named twilight`: an alias scope must be a product),
+and the README link check found `../twilight-burokrat/…` resolving under the Navigator
+directory. The alias is now `@twilight-burokrat/contracts` and the link `../../twilight-burokrat/…`.
+Afterwards `bunx nx run-many -t test lint typecheck -p tool-devsync twilight-navigator
+--skip-nx-cache` exited 0: tool-devsync 395/395 across 28 files, Navigator 29/29.
+
 ## R5 proofs
 
 Each fault was injected alone, the named test watched failing, and the source restored before
@@ -69,5 +79,4 @@ could not fail.
 ## Not run
 
 - `bin/h2puni-gate.sh <sha>` (host gate): the orchestrator runs it on the integrated head.
-- The full `tool-devsync:test` target: only the five oracle files above ran.
 - The unreadable-input proofs need a non-root runner; under uid 0 the test throws.

@@ -1,7 +1,7 @@
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { digestOf, PlanReferenceRecord } from '@twilight/burokrat-contracts';
+import { digestOf, PlanReferenceRecord } from '@twilight-burokrat/contracts';
 import { applyProjectCommands, validateSchema } from '@wbs/contracts';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 

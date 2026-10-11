@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
-import { digestOf, type PlanRef, PlanReferenceRecord } from '@twilight/burokrat-contracts';
+import { digestOf, type PlanRef, PlanReferenceRecord } from '@twilight-burokrat/contracts';
 import { PLAN_DOCUMENT_VERSION, type PlanDocument, planDocument } from '@wbs/contracts';
 
 import type { FlagValues } from './cli';

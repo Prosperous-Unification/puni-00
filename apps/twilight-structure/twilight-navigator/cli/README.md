@@ -7,7 +7,7 @@ network access, reads no clock, and never opens Burokrat's authority store.
 
 Navigator and Dash exchange records, not calls. A plan reference goes Navigator→Dash; a
 progress receipt comes back. Burokrat declares and validates both
-([`navigator-records.ts`](../twilight-burokrat/cli/src/contracts/navigator-records.ts));
+([`navigator-records.ts`](../../twilight-burokrat/cli/src/contracts/navigator-records.ts));
 `twib validate plan-reference <file>` checks one.
 
 ## `twin plan-reference`

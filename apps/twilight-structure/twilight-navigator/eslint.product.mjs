@@ -41,9 +41,9 @@ export default ({
     {
       files: ['apps/twilight-structure/twilight-navigator/cli/src/**/*.ts'],
       // Proof: omitting this override made uncached Navigator lint fail on the
-      // `@twilight/burokrat-contracts` and `@wbs/contracts` imports in plan-reference.ts;
+      // `@twilight-burokrat/contracts` and `@wbs/contracts` imports in plan-reference.ts;
       // a sibling `@wbs/core` import still fails with it present (2026-10-11).
-      rules: boundary(['^@twilight/burokrat-contracts$', '^@wbs/contracts$']),
+      rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
     },
   ];
 };

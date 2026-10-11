@@ -16,7 +16,7 @@ receipt-to-commands`. Non-goals are in proposal.md.
 **Records live in Burokrat (N3).** `PlanReferenceRecord` and `ProgressReceiptRecord` are added to
 `apps/twilight-structure/twilight-burokrat/cli/src/contracts/navigator-records.ts` and to `RecordKind` and
 `decodeRecord`. Navigator imports them through one exact path alias,
-`@twilight/burokrat-contracts`, allowed only in Navigator's product lint policy. Burokrat imports
+`@twilight-burokrat/contracts`, allowed only in Navigator's product lint policy. Burokrat imports
 nothing from Navigator.
 
 **Canonical digest.** `contracts/canonical.ts` serializes JSON with object keys sorted by UTF-16

@@ -4,7 +4,7 @@ import {
   digestOf,
   PlanReferenceRecord,
   ProgressReceiptRecord,
-} from '@twilight/burokrat-contracts';
+} from '@twilight-burokrat/contracts';
 import type { PlanCommandWire } from '@wbs/contracts';
 
 import type { FlagValues } from './cli';

@@ -110,7 +110,7 @@ describe('the effective production and test boundaries', () => {
       throw new Error('Navigator boundary options are malformed');
     }
     expect(navigatorOptions['allow']).toEqual([
-      '^@twilight/burokrat-contracts$',
+      '^@twilight-burokrat/contracts$',
       '^@wbs/contracts$',
     ]);
     const withoutRecordAliases: Readonly<Record<string, unknown>> = {
@@ -125,7 +125,7 @@ describe('the effective production and test boundaries', () => {
         '@nx/enforce-module-boundaries',
       );
     }
-    expect(await ruleIds(peerPath, "await import('@twilight/burokrat-contracts');")).toContain(
+    expect(await ruleIds(peerPath, "await import('@twilight-burokrat/contracts');")).toContain(
       '@nx/enforce-module-boundaries',
     );
   }, 30_000);
