@@ -129,6 +129,7 @@ Each fault below was applied to `migration.sql` by a scratch runner. The runner 
 
 - `bun test libs/website/adapters/store-sqlite/src`: `98 pass`, `0 fail`.
 - `bun test apps/website/be-01/src --timeout=30000`: `153 pass`, `0 fail`.
+- Review fix (Fable, 2026-10-11): a legacy `chat_turn` with no `request_id` is now fenced through its account, the same way the legacy account copies are. Fault: fence keyed on `request_id` only. Observed: `(fail) a fenced subject refuses an older binary's content write: chat_turn without request`, `Received function did not throw`.
 - `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $(git ls-files '*.sql') <010 files>` (the CI step plus the new files): exit 0.
 - `nx run-many -t lint,typecheck -p website-store-sqlite,website-be-01`: success.
 
