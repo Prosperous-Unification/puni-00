@@ -14,45 +14,45 @@ import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import type { CandidateEntry } from '../inventory/read-candidate';
+import { type CliInvocation, invokeCli } from '../invoke-cli';
 import { resolveKinds, type ServiceKind } from './kinds';
 
 const cliPath = join(import.meta.dir, '..', 'cli.ts');
 
-function runCli(argv: string[]): ReturnType<typeof Bun.spawnSync> {
-  return Bun.spawnSync([process.execPath, 'run', cliPath, ...argv], {
-    cwd: import.meta.dir,
-    env: process.env,
-    stderr: 'pipe',
-    stdout: 'pipe',
-  });
+/** Runs one CLI command in this process through the CLI entry; see {@link invokeCli}. */
+function runCli(argv: string[]): Promise<CliInvocation> {
+  return invokeCli(argv);
 }
 
-/** `runCli` with an overridden child environment. `runCli` itself is unchanged. */
-function runCliWithEnv(
-  argv: string[],
-  env: Record<string, string | undefined>,
-): ReturnType<typeof Bun.spawnSync> {
-  return Bun.spawnSync([process.execPath, 'run', cliPath, ...argv], {
+/**
+ * Runs one CLI command as its own Bun process with an overridden environment: Bun gives spawned
+ * `git` the environment the test process started with, so only a child process sees the change.
+ */
+function runCliWithEnv(argv: string[], env: Record<string, string | undefined>): CliInvocation {
+  const invocation = Bun.spawnSync([process.execPath, 'run', cliPath, ...argv], {
     cwd: import.meta.dir,
     env: { ...process.env, ...env },
     stderr: 'pipe',
     stdout: 'pipe',
   });
+  return {
+    exitCode: invocation.exitCode,
+    stdout: invocation.stdout.toString('utf8'),
+    stderr: invocation.stderr.toString('utf8'),
+  };
 }
 
-function stdoutOf(invocation: ReturnType<typeof Bun.spawnSync>): string {
-  if (invocation.stdout === undefined) throw new Error('stdout pipe was unavailable');
-  return Buffer.from(invocation.stdout).toString('utf8');
+function stdoutOf(invocation: CliInvocation): string {
+  return invocation.stdout;
 }
 
-function stderrOf(invocation: ReturnType<typeof Bun.spawnSync>): string {
-  if (invocation.stderr === undefined) throw new Error('stderr pipe was unavailable');
-  return Buffer.from(invocation.stderr).toString('utf8');
+function stderrOf(invocation: CliInvocation): string {
+  return invocation.stderr;
 }
 
 describe('explain production CLI', () => {
-  test('prints the registry record for a known rule', () => {
-    const invocation = runCli(['explain', 'MOD-INDEX']);
+  test('prints the registry record for a known rule', async () => {
+    const invocation = await runCli(['explain', 'MOD-INDEX']);
     expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
     expect(JSON.parse(stdoutOf(invocation)) as unknown).toEqual({
       id: 'MOD-INDEX',
@@ -65,8 +65,8 @@ describe('explain production CLI', () => {
     });
   });
 
-  test('refuses an unregistered rule identifier and names every registered rule', () => {
-    const invocation = runCli(['explain', 'NO-SUCH-RULE']);
+  test('refuses an unregistered rule identifier and names every registered rule', async () => {
+    const invocation = await runCli(['explain', 'NO-SUCH-RULE']);
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain(
       'unknown rule: NO-SUCH-RULE (registered: F1, F7, INV-CLASSIFY, K2, K3, K4, K5, K6, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, PERF-THRESHOLD, REL-EXTRACT, SPEC-SCENARIOS)',
@@ -87,7 +87,7 @@ interface CheckVerdict {
   certifies: boolean;
 }
 
-function verdictOf(invocation: ReturnType<typeof Bun.spawnSync>): CheckVerdict {
+function verdictOf(invocation: CliInvocation): CheckVerdict {
   return JSON.parse(stdoutOf(invocation)) as CheckVerdict;
 }
 
@@ -393,7 +393,7 @@ afterEach(() => {
 });
 
 describe('rule policy boundary', () => {
-  test('refuses a rule policy inside the worktree even when the repository argument is interior', () => {
+  test('refuses a rule policy inside the worktree even when the repository argument is interior', async () => {
     const { repository, revision } = createIndexedCandidate();
     const inside = join(repository, 'rule-policy.json');
     writeFileSync(
@@ -401,7 +401,7 @@ describe('rule policy boundary', () => {
       `${JSON.stringify({ schemaVersion: 1, policyId: 'rules.test.v1', ruleModes: everyRuleObserving })}\n`,
       'utf8',
     );
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       join(repository, 'src'),
@@ -418,12 +418,12 @@ describe('rule policy boundary', () => {
     expect(invocation.exitCode).toBe(1);
   });
 
-  test('refuses a policy that states no mode for a registered rule', () => {
+  test('refuses a policy that states no mode for a registered rule', async () => {
     const { repository, revision } = createIndexedCandidate();
     const policyPath = writeRulePolicy(
       everyRuleObserving.filter((entry) => entry.ruleId !== 'INV-CLASSIFY'),
     );
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -436,13 +436,13 @@ describe('rule policy boundary', () => {
     expect(invocation.exitCode).toBe(1);
   });
 
-  test('refuses a policy that names an unregistered rule', () => {
+  test('refuses a policy that names an unregistered rule', async () => {
     const { repository, revision } = createIndexedCandidate();
     const policyPath = writeRulePolicy([
       ...everyRuleObserving,
       { ruleId: 'NO-SUCH-RULE', mode: 'observe' },
     ]);
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -455,13 +455,13 @@ describe('rule policy boundary', () => {
     expect(invocation.exitCode).toBe(1);
   });
 
-  test('refuses a policy that states a mode for one rule twice', () => {
+  test('refuses a policy that states a mode for one rule twice', async () => {
     const { repository, revision } = createIndexedCandidate();
     const policyPath = writeRulePolicy([
       ...everyRuleObserving,
       { ruleId: 'MOD-INDEX', mode: 'enforce' },
     ]);
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -474,14 +474,14 @@ describe('rule policy boundary', () => {
     expect(invocation.exitCode).toBe(1);
   });
 
-  test('refuses ratchet when the policy states no adopted set', () => {
+  test('refuses ratchet when the policy states no adopted set', async () => {
     const { repository, revision } = createIndexedCandidate();
     const policyPath = writeRulePolicy(
       everyRuleObserving.map((entry) =>
         entry.ruleId === 'INV-CLASSIFY' ? { ...entry, mode: 'ratchet' as const } : entry,
       ),
     );
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -496,10 +496,10 @@ describe('rule policy boundary', () => {
     expect(invocation.exitCode).toBe(1);
   }, 15_000);
 
-  test('refuses a selected rule whose policy input is absent', () => {
+  test('refuses a selected rule whose policy input is absent', async () => {
     const { repository, revision } = createIndexedCandidate();
     const policyPath = writeRulePolicy(everyRuleObserving);
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -516,10 +516,10 @@ describe('rule policy boundary', () => {
     expect(invocation.exitCode).toBe(1);
   });
 
-  test('refuses missing Performance authority even in observe mode through the production CLI', () => {
+  test('refuses missing Performance authority even in observe mode through the production CLI', async () => {
     const { repository, revision } = createIndexedCandidate();
     const policyPath = writeRulePolicy(everyRuleObserving);
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -534,7 +534,7 @@ describe('rule policy boundary', () => {
     expect(invocation.exitCode).toBe(1);
   });
 
-  test('refuses malformed, non-UTF-8, unreadable, absent and undeclared-key policies distinctly', () => {
+  test('refuses malformed, non-UTF-8, unreadable, absent and undeclared-key policies distinctly', async () => {
     const { repository, revision } = createIndexedCandidate();
     const root = scratch('twilight-rules-bad-policy-');
     const malformed = join(root, 'malformed.json');
@@ -544,14 +544,14 @@ describe('rule policy boundary', () => {
     const unreadable = writeRulePolicy(everyRuleObserving);
     const absent = join(root, 'absent.json');
     const undeclared = writeRulePolicy(everyRuleObserving, { unexpected: 1 });
-    const run = (policyPath: string) =>
-      runCli(['check', 'committed', repository, revision, policyPath, '--rule', 'MOD-INDEX']);
+    const run = async (policyPath: string) =>
+      await runCli(['check', 'committed', repository, revision, policyPath, '--rule', 'MOD-INDEX']);
 
-    const malformedInvocation = run(malformed);
+    const malformedInvocation = await run(malformed);
     expect(stderrOf(malformedInvocation)).toContain(`malformed rule policy JSON ${malformed}`);
     expect(malformedInvocation.exitCode).toBe(1);
 
-    const notUtf8Invocation = run(notUtf8);
+    const notUtf8Invocation = await run(notUtf8);
     expect(stderrOf(notUtf8Invocation)).toContain(`rule policy ${notUtf8} is not UTF-8`);
     expect(notUtf8Invocation.exitCode).toBe(1);
 
@@ -559,18 +559,18 @@ describe('rule policy boundary', () => {
     // A test process that can still read the file would prove nothing, so the fixture is
     // checked before it is used. Running as root is the case this catches.
     expect(() => readFileSync(unreadable, 'utf8')).toThrow();
-    const unreadableInvocation = run(unreadable);
+    const unreadableInvocation = await run(unreadable);
     chmodSync(unreadable, 0o600);
     expect(stderrOf(unreadableInvocation)).toContain(
       `cannot open rule policy ${unreadable}: EACCES`,
     );
     expect(unreadableInvocation.exitCode).toBe(1);
 
-    const absentInvocation = run(absent);
+    const absentInvocation = await run(absent);
     expect(stderrOf(absentInvocation)).toContain(`cannot open rule policy ${absent}: ENOENT`);
     expect(absentInvocation.exitCode).toBe(1);
 
-    const undeclaredInvocation = run(undeclared);
+    const undeclaredInvocation = await run(undeclared);
     expect(stderrOf(undeclaredInvocation)).toContain('unexpected must be removed');
     expect(undeclaredInvocation.exitCode).toBe(1);
     // Proof: the h2puni gate on fd0a777c timed this test out at 5025.16ms under Bun's 5-second
@@ -580,7 +580,7 @@ describe('rule policy boundary', () => {
 });
 
 describe('ratchet mode', () => {
-  test('reports ratchet debt outside the adopted set and allows the candidate', () => {
+  test('reports ratchet debt outside the adopted set and allows the candidate', async () => {
     const { repository, revision } = createDirectEntryDebtCandidate();
     const policyPath = writeRulePolicy(
       everyRuleObserving.map((entry) =>
@@ -588,7 +588,7 @@ describe('ratchet mode', () => {
       ),
       { adoptedSet: { adoptedPrefixes: ['src'] } },
     );
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -610,7 +610,7 @@ describe('ratchet mode', () => {
     ]);
   }, 15_000);
 
-  test('refuses ratchet debt inside the adopted set', () => {
+  test('refuses ratchet debt inside the adopted set', async () => {
     const { repository, revision } = createDirectEntryDebtCandidate();
     const policyPath = writeRulePolicy(
       everyRuleObserving.map((entry) =>
@@ -618,7 +618,7 @@ describe('ratchet mode', () => {
       ),
       { adoptedSet: { adoptedPrefixes: ['README.md'] } },
     );
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -640,12 +640,12 @@ describe('ratchet mode', () => {
     ]);
   }, 15_000);
 
-  test('refuses an adopted set that repeats a prefix', () => {
+  test('refuses an adopted set that repeats a prefix', async () => {
     const { repository, revision } = createDirectEntryDebtCandidate();
     const policyPath = writeRulePolicy(everyRuleObserving, {
       adoptedSet: { adoptedPrefixes: ['src', 'src'] },
     });
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -661,12 +661,12 @@ describe('ratchet mode', () => {
 
 describe('F7 the size ratchet', () => {
   const ceilings = { ceiling: 40, roots: ['src'], pinned: [] };
-  const checkF7 = (
+  const checkF7 = async (
     repository: string,
     revision: string,
     sizeCeilings?: Record<string, unknown>,
-  ): ReturnType<typeof Bun.spawnSync> =>
-    runCli([
+  ): Promise<CliInvocation> =>
+    await runCli([
       'check',
       'committed',
       repository,
@@ -676,24 +676,24 @@ describe('F7 the size ratchet', () => {
       'F7',
     ]);
 
-  test('allows a candidate whose files are under the ceiling', () => {
+  test('allows a candidate whose files are under the ceiling', async () => {
     const { repository, revision } = createSizedCandidate({ 'src/small.ts': 10 });
-    const invocation = checkF7(repository, revision, ceilings);
+    const invocation = await checkF7(repository, revision, ceilings);
     expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
     expect(verdictOf(invocation).findings).toEqual([]);
     expect(verdictOf(invocation).unevaluated).toEqual([]);
   }, 15_000);
 
-  test('allows a file exactly at the ceiling', () => {
+  test('allows a file exactly at the ceiling', async () => {
     const { repository, revision } = createSizedCandidate({ 'src/exact.ts': 40 });
-    const invocation = checkF7(repository, revision, ceilings);
+    const invocation = await checkF7(repository, revision, ceilings);
     expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
     expect(verdictOf(invocation).findings).toEqual([]);
   }, 15_000);
 
-  test('reports an unpinned file over the ceiling with both numbers', () => {
+  test('reports an unpinned file over the ceiling with both numbers', async () => {
     const { repository, revision } = createSizedCandidate({ 'src/big.ts': 50 });
-    const invocation = checkF7(repository, revision, ceilings);
+    const invocation = await checkF7(repository, revision, ceilings);
     expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
     expect(verdictOf(invocation).findings).toEqual([
       {
@@ -705,9 +705,9 @@ describe('F7 the size ratchet', () => {
     ]);
   }, 15_000);
 
-  test('allows a pinned file under its pinned maximum', () => {
+  test('allows a pinned file under its pinned maximum', async () => {
     const { repository, revision } = createSizedCandidate({ 'src/big.ts': 50 });
-    const invocation = checkF7(repository, revision, {
+    const invocation = await checkF7(repository, revision, {
       ...ceilings,
       pinned: [{ path: 'src/big.ts', maximum: 60 }],
     });
@@ -715,9 +715,9 @@ describe('F7 the size ratchet', () => {
     expect(verdictOf(invocation).findings).toEqual([]);
   }, 15_000);
 
-  test('reports a pinned file that has grown past its pin', () => {
+  test('reports a pinned file that has grown past its pin', async () => {
     const { repository, revision } = createSizedCandidate({ 'src/big.ts': 50 });
-    const invocation = checkF7(repository, revision, {
+    const invocation = await checkF7(repository, revision, {
       ...ceilings,
       pinned: [{ path: 'src/big.ts', maximum: 45 }],
     });
@@ -731,9 +731,9 @@ describe('F7 the size ratchet', () => {
     ]);
   }, 15_000);
 
-  test('reports a pinned file that has fallen under the ceiling', () => {
+  test('reports a pinned file that has fallen under the ceiling', async () => {
     const { repository, revision } = createSizedCandidate({ 'src/big.ts': 30 });
-    const invocation = checkF7(repository, revision, {
+    const invocation = await checkF7(repository, revision, {
       ...ceilings,
       pinned: [{ path: 'src/big.ts', maximum: 60 }],
     });
@@ -747,9 +747,9 @@ describe('F7 the size ratchet', () => {
     ]);
   }, 15_000);
 
-  test('refuses a size policy that pins a file the candidate does not hold', () => {
+  test('refuses a size policy that pins a file the candidate does not hold', async () => {
     const { repository, revision } = createSizedCandidate({ 'src/small.ts': 10 });
-    const invocation = checkF7(repository, revision, {
+    const invocation = await checkF7(repository, revision, {
       ...ceilings,
       pinned: [{ path: 'src/gone.ts', maximum: 60 }],
     });
@@ -763,40 +763,40 @@ describe('F7 the size ratchet', () => {
     ]);
   }, 15_000);
 
-  test('measures neither a test file nor a declaration file', () => {
+  test('measures neither a test file nor a declaration file', async () => {
     const { repository, revision } = createSizedCandidate({
       'src/big.test.ts': 50,
       'src/big.d.ts': 50,
     });
-    const invocation = checkF7(repository, revision, ceilings);
+    const invocation = await checkF7(repository, revision, ceilings);
     expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
     expect(verdictOf(invocation).findings).toEqual([]);
   }, 15_000);
 
-  test('measures nothing outside the declared roots', () => {
+  test('measures nothing outside the declared roots', async () => {
     const { repository, revision } = createSizedCandidate(
       { 'src/keep.ts': 10, 'src2/big.ts': 50 },
       ['src', 'src2'],
     );
-    const invocation = checkF7(repository, revision, ceilings);
+    const invocation = await checkF7(repository, revision, ceilings);
     expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
     expect(verdictOf(invocation).findings).toEqual([]);
   }, 15_000);
 
-  test('refuses a size policy with no root, a repeated root or a repeated pin', () => {
+  test('refuses a size policy with no root, a repeated root or a repeated pin', async () => {
     const { repository, revision } = createSizedCandidate({ 'src/small.ts': 10 });
-    const emptyRoots = checkF7(repository, revision, { ...ceilings, roots: [] });
+    const emptyRoots = await checkF7(repository, revision, { ...ceilings, roots: [] });
     expect(stderrOf(emptyRoots)).toContain('at least one measured root');
     expect(emptyRoots.exitCode).toBe(1);
 
-    const repeatedRoots = checkF7(repository, revision, {
+    const repeatedRoots = await checkF7(repository, revision, {
       ...ceilings,
       roots: ['src', 'src'],
     });
     expect(stderrOf(repeatedRoots)).toContain('unique measured roots');
     expect(repeatedRoots.exitCode).toBe(1);
 
-    const repeatedPins = checkF7(repository, revision, {
+    const repeatedPins = await checkF7(repository, revision, {
       ...ceilings,
       pinned: [
         { path: 'src/small.ts', maximum: 60 },
@@ -807,9 +807,9 @@ describe('F7 the size ratchet', () => {
     expect(repeatedPins.exitCode).toBe(1);
   }, 45_000);
 
-  test('refuses F7 when the policy states no size ceilings', () => {
+  test('refuses F7 when the policy states no size ceilings', async () => {
     const { repository, revision } = createSizedCandidate({ 'src/small.ts': 10 });
-    const invocation = checkF7(repository, revision);
+    const invocation = await checkF7(repository, revision);
     expect(stderrOf(invocation)).toContain(
       'rule F7 needs policy.sizeCeilings, which the rule policy omits',
     );
@@ -884,8 +884,8 @@ describe('MOD-LAYOUT', () => {
   const noContractModuleReadme = indexSource('M', 'module.m', [
     { kind: 'path', path: 'm.feature.ts' },
   ]);
-  const checkLayout = (repository: string, revision: string): ReturnType<typeof Bun.spawnSync> =>
-    runCli([
+  const checkLayout = async (repository: string, revision: string): Promise<CliInvocation> =>
+    await runCli([
       'check',
       'committed',
       repository,
@@ -895,32 +895,32 @@ describe('MOD-LAYOUT', () => {
       'MOD-LAYOUT',
     ]);
 
-  test('allows a module that declares its index and its contract', () => {
+  test('allows a module that declares its index and its contract', async () => {
     const { repository, revision } = createModuleCandidate({
       moduleReadme: validModuleReadme,
       contractMode: 'regular',
     });
-    const invocation = checkLayout(repository, revision);
+    const invocation = await checkLayout(repository, revision);
     expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
     expect(verdictOf(invocation).findings).toEqual([]);
     expect(verdictOf(invocation).unevaluated).toEqual([]);
   }, 15_000);
 
-  test('allows a module at the candidate root', () => {
+  test('allows a module at the candidate root', async () => {
     const { repository, revision } = createRootModuleCandidate();
-    const invocation = checkLayout(repository, revision);
+    const invocation = await checkLayout(repository, revision);
     expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
     expect(verdictOf(invocation).findings).toEqual([]);
     expect(verdictOf(invocation).unevaluated).toEqual([]);
     expect(verdictOf(invocation).allowed).toBe(true);
   }, 15_000);
 
-  test('names a module directory that declares no contract', () => {
+  test('names a module directory that declares no contract', async () => {
     const { repository, revision } = createModuleCandidate({
       moduleReadme: noContractModuleReadme,
       contractMode: 'absent',
     });
-    const invocation = checkLayout(repository, revision);
+    const invocation = await checkLayout(repository, revision);
     expect(verdictOf(invocation).findings).toEqual([
       {
         ruleId: 'MOD-LAYOUT',
@@ -931,12 +931,12 @@ describe('MOD-LAYOUT', () => {
     ]);
   }, 15_000);
 
-  test('names a module directory that declares no wiki index', () => {
+  test('names a module directory that declares no wiki index', async () => {
     const { repository, revision } = createModuleCandidate({
       moduleReadme: '# Module\n\nOrdinary prose, no metadata.\n',
       contractMode: 'regular',
     });
-    const invocation = checkLayout(repository, revision);
+    const invocation = await checkLayout(repository, revision);
     expect(verdictOf(invocation).findings).toEqual([
       {
         ruleId: 'MOD-LAYOUT',
@@ -947,23 +947,23 @@ describe('MOD-LAYOUT', () => {
     ]);
   }, 15_000);
 
-  test('names a module whose contract is a symlink', () => {
+  test('names a module whose contract is a symlink', async () => {
     const { repository, revision } = createModuleCandidate({
       moduleReadme: validModuleReadme,
       contractMode: 'symlink',
     });
-    const invocation = checkLayout(repository, revision);
+    const invocation = await checkLayout(repository, revision);
     expect(verdictOf(invocation).findings.map((finding) => finding.message)).toContain(
       'module directory declares no contract file',
     );
   }, 15_000);
 
-  test('refuses a candidate whose index metadata is malformed', () => {
+  test('refuses a candidate whose index metadata is malformed', async () => {
     const { repository, revision } = createModuleCandidate({
       moduleReadme: '# M\n\n<!-- module-index {not json} -->\n',
       contractMode: 'regular',
     });
-    const invocation = checkLayout(repository, revision);
+    const invocation = await checkLayout(repository, revision);
     expect(invocation.exitCode).toBe(1);
     expect(verdictOf(invocation).findings).toEqual([]);
     expect(verdictOf(invocation).unevaluated).toHaveLength(1);
@@ -975,11 +975,11 @@ describe('MOD-LAYOUT', () => {
 });
 
 describe('K3 and K4', () => {
-  const checkDirection = (
+  const checkDirection = async (
     ruleId: 'K3' | 'K4',
     sources: Record<string, string>,
     env?: Record<string, string | undefined>,
-  ): ReturnType<typeof Bun.spawnSync> => {
+  ): Promise<CliInvocation> => {
     const { repository, revision } = createKindedCandidate(sources);
     const argv = [
       'check',
@@ -990,13 +990,13 @@ describe('K3 and K4', () => {
       '--rule',
       ruleId,
     ];
-    return env === undefined ? runCli(argv) : runCliWithEnv(argv, env);
+    return env === undefined ? await runCli(argv) : runCliWithEnv(argv, env);
   };
 
   const repositorySource = 'export const store = { read: (): number => 1 };\n';
 
-  test('names a feature-service that imports a repository', () => {
-    const invocation = checkDirection('K3', {
+  test('names a feature-service that imports a repository', async () => {
+    const invocation = await checkDirection('K3', {
       'src/m/m.repository.ts': repositorySource,
       'src/m/m.feature.ts':
         "import { store } from './m.repository';\nexport const run = (): number => store.read();\n",
@@ -1013,8 +1013,8 @@ describe('K3 and K4', () => {
     ]);
   }, 30_000);
 
-  test('sees a repository through a barrel a feature imports', () => {
-    const invocation = checkDirection('K3', {
+  test('sees a repository through a barrel a feature imports', async () => {
+    const invocation = await checkDirection('K3', {
       'src/m/m.repository.ts': repositorySource,
       'src/m/barrel.ts': "export * from './m.repository';\n",
       'src/m/m.feature.ts':
@@ -1032,8 +1032,8 @@ describe('K3 and K4', () => {
     ]);
   }, 30_000);
 
-  test('names a feature-service that imports a delivery component', () => {
-    const invocation = checkDirection('K3', {
+  test('names a feature-service that imports a delivery component', async () => {
+    const invocation = await checkDirection('K3', {
       'src/m/view/panel.ts': 'export const panel = 1;\n',
       'src/m/m.feature.ts':
         "import { panel } from './view/panel';\nexport const run = (): number => panel;\n",
@@ -1050,8 +1050,8 @@ describe('K3 and K4', () => {
     ]);
   }, 30_000);
 
-  test('allows a feature-service that imports a resource-service', () => {
-    const invocation = checkDirection('K3', {
+  test('allows a feature-service that imports a resource-service', async () => {
+    const invocation = await checkDirection('K3', {
       'src/m/m.resource.ts': 'export const load = (): number => 1;\n',
       'src/m/m.feature.ts':
         "import { load } from './m.resource';\nexport const run = (): number => load();\n",
@@ -1061,8 +1061,8 @@ describe('K3 and K4', () => {
     expect(verdictOf(invocation).unevaluated).toEqual([]);
   }, 30_000);
 
-  test('names a resource-service that imports a feature-service', () => {
-    const invocation = checkDirection('K4', {
+  test('names a resource-service that imports a feature-service', async () => {
+    const invocation = await checkDirection('K4', {
       'src/m/m.feature.ts': 'export const run = (): number => 1;\n',
       'src/m/m.resource.ts':
         "import { run } from './m.feature';\nexport const load = (): number => run();\n",
@@ -1079,8 +1079,8 @@ describe('K3 and K4', () => {
     ]);
   }, 30_000);
 
-  test('exempts a composition root that imports every kind', () => {
-    const invocation = checkDirection('K3', {
+  test('exempts a composition root that imports every kind', async () => {
+    const invocation = await checkDirection('K3', {
       'src/m/m.feature.ts': 'export const run = (): number => 1;\n',
       'src/m/m.resource.ts': 'export const load = (): number => 2;\n',
       'src/m/m.repository.ts': repositorySource,
@@ -1091,8 +1091,8 @@ describe('K3 and K4', () => {
     expect(verdictOf(invocation).findings).toEqual([]);
   }, 30_000);
 
-  test('refuses K3 when the trusted modules are unconfigured', () => {
-    const invocation = checkDirection(
+  test('refuses K3 when the trusted modules are unconfigured', async () => {
+    const invocation = await checkDirection(
       'K3',
       {
         'src/m/m.repository.ts': repositorySource,
@@ -1119,19 +1119,19 @@ describe('K2, K5, K6 and F1', () => {
       publicEntrypoints: ['src/entry.ts'],
     },
   };
-  const checkKindRule = (
+  const checkKindRule = async (
     ruleId: 'F1' | 'K2' | 'K5' | 'K6',
     sources: Record<string, string>,
     policyPath = writeCompleteRulePolicy(everyRuleObserving),
     env?: Record<string, string | undefined>,
-  ): ReturnType<typeof Bun.spawnSync> => {
+  ): Promise<CliInvocation> => {
     const { repository, revision } = createKindedCandidate(sources);
     const argv = ['check', 'committed', repository, revision, policyPath, '--rule', ruleId];
-    return env === undefined ? runCli(argv) : runCliWithEnv(argv, env);
+    return env === undefined ? await runCli(argv) : runCliWithEnv(argv, env);
   };
 
-  test('names a delivery component that imports a resource-service', () => {
-    const invocation = checkKindRule('K2', {
+  test('names a delivery component that imports a resource-service', async () => {
+    const invocation = await checkKindRule('K2', {
       'src/m/m.resource.ts': 'export const load = (): number => 1;\n',
       'src/m/view/panel.ts':
         "import { load } from '../m.resource';\nexport const panel = (): number => load();\n",
@@ -1148,8 +1148,8 @@ describe('K2, K5, K6 and F1', () => {
     ]);
   }, 30_000);
 
-  test('allows a delivery component that imports its feature-service', () => {
-    const invocation = checkKindRule('K2', {
+  test('allows a delivery component that imports its feature-service', async () => {
+    const invocation = await checkKindRule('K2', {
       'src/m/m.feature.ts': 'export const run = (): number => 1;\n',
       'src/m/view/panel.ts':
         "import { run } from '../m.feature';\nexport const panel = (): number => run();\n",
@@ -1158,8 +1158,8 @@ describe('K2, K5, K6 and F1', () => {
     expect(verdictOf(invocation).findings).toEqual([]);
   }, 30_000);
 
-  test('names a repository adapter that imports a resource-service', () => {
-    const invocation = checkKindRule('K5', {
+  test('names a repository adapter that imports a resource-service', async () => {
+    const invocation = await checkKindRule('K5', {
       'src/m/m.resource.ts': 'export const load = (): number => 1;\n',
       'src/m/m.repository.ts':
         "import { load } from './m.resource';\nexport const store = (): number => load();\n",
@@ -1169,8 +1169,8 @@ describe('K2, K5, K6 and F1', () => {
     expect(verdictOf(invocation).findings[0]?.path).toBe('src/m/m.repository.ts');
   }, 30_000);
 
-  test("names a feature that imports another module's feature", () => {
-    const invocation = checkKindRule('K6', {
+  test("names a feature that imports another module's feature", async () => {
+    const invocation = await checkKindRule('K6', {
       'src/a/a.feature.ts': 'export const run = (): number => 1;\n',
       'src/b/b.feature.ts':
         "import { run } from '../a/a.feature';\nexport const call = (): number => run();\n",
@@ -1183,8 +1183,8 @@ describe('K2, K5, K6 and F1', () => {
     });
   }, 30_000);
 
-  test('allows two files of one kind inside one module', () => {
-    const invocation = checkKindRule('K6', {
+  test('allows two files of one kind inside one module', async () => {
+    const invocation = await checkKindRule('K6', {
       'src/m/one.feature.ts': 'export const run = (): number => 1;\n',
       'src/m/two.feature.ts':
         "import { run } from './one.feature';\nexport const call = (): number => run();\n",
@@ -1193,7 +1193,7 @@ describe('K2, K5, K6 and F1', () => {
     expect(verdictOf(invocation).findings).toEqual([]);
   }, 30_000);
 
-  test('names a store the policy declares plain TypeScript', () => {
+  test('names a store the policy declares plain TypeScript', async () => {
     const sources = {
       'src/m/m.feature.ts': 'export const run = (): number => 1;\n',
       'src/m/store.ts':
@@ -1205,7 +1205,7 @@ describe('K2, K5, K6 and F1', () => {
       [{ kind: 'path', value: 'src/m/store.ts' }],
       [{ kind: 'prefix', value: 'src/m' }],
     ]) {
-      const invocation = checkKindRule(
+      const invocation = await checkKindRule(
         'F1',
         sources,
         writeRulePolicy(everyRuleObserving, { relationshipRequest, plainTypeScriptPaths }),
@@ -1223,12 +1223,12 @@ describe('K2, K5, K6 and F1', () => {
     }
   }, 60_000);
 
-  test('names a service that imports a scoped React package', () => {
+  test('names a service that imports a scoped React package', async () => {
     const policyPath = writeRulePolicy(everyRuleObserving, {
       relationshipRequest,
       plainTypeScriptPaths: [],
     });
-    const invocation = checkKindRule(
+    const invocation = await checkKindRule(
       'F1',
       {
         'src/m/m.resource.ts':
@@ -1245,8 +1245,8 @@ describe('K2, K5, K6 and F1', () => {
     });
   }, 30_000);
 
-  test('exempts delivery from the framework boundary', () => {
-    const invocation = checkKindRule(
+  test('exempts delivery from the framework boundary', async () => {
+    const invocation = await checkKindRule(
       'F1',
       {
         'src/m/m.feature.ts': 'export const run = (): number => 1;\n',
@@ -1262,12 +1262,12 @@ describe('K2, K5, K6 and F1', () => {
     expect(verdictOf(invocation).findings).toEqual([]);
   }, 30_000);
 
-  test('refuses a plain TypeScript selector the candidate does not hold', () => {
+  test('refuses a plain TypeScript selector the candidate does not hold', async () => {
     for (const plainTypeScriptPaths of [
       [{ kind: 'path', value: 'src/m/store.ts' }],
       [{ kind: 'prefix', value: 'src/stores' }],
     ]) {
-      const invocation = checkKindRule(
+      const invocation = await checkKindRule(
         'F1',
         { 'src/m/m.feature.ts': 'export const run = (): number => 1;\n' },
         writeRulePolicy(everyRuleObserving, { relationshipRequest, plainTypeScriptPaths }),
@@ -1286,9 +1286,9 @@ describe('K2, K5, K6 and F1', () => {
     }
   }, 30_000);
 
-  test('prints the registry record for a kind rule', () => {
+  test('prints the registry record for a kind rule', async () => {
     createIndexedCandidate();
-    const directionInvocation = runCli(['explain', 'K3']);
+    const directionInvocation = await runCli(['explain', 'K3']);
     expect(directionInvocation.exitCode, stderrOf(directionInvocation)).toBe(0);
     expect(JSON.parse(stdoutOf(directionInvocation)) as unknown).toEqual({
       id: 'K3',
@@ -1299,14 +1299,14 @@ describe('K2, K5, K6 and F1', () => {
         'openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph',
       inputs: ['candidate.entries', 'policy.relationshipRequest'],
     });
-    const plainInvocation = runCli(['explain', 'F1']);
+    const plainInvocation = await runCli(['explain', 'F1']);
     expect(plainInvocation.exitCode, stderrOf(plainInvocation)).toBe(0);
     expect(verdictOf(plainInvocation).findings).toBeUndefined();
     expect((JSON.parse(stdoutOf(plainInvocation)) as { family: string }).family).toBe('code-shape');
   }, 15_000);
 
-  test('refuses F1 when the policy declares no plain TypeScript paths', () => {
-    const invocation = checkKindRule(
+  test('refuses F1 when the policy declares no plain TypeScript paths', async () => {
+    const invocation = await checkKindRule(
       'F1',
       { 'src/m/m.feature.ts': 'export const run = (): number => 1;\n' },
       writeRulePolicy(everyRuleObserving, { relationshipRequest }),
@@ -1321,12 +1321,12 @@ describe('K2, K5, K6 and F1', () => {
 describe('ambient non-code graph evaluation', () => {
   const graphRuleIds = ['F1', 'K2', 'K3', 'K4', 'K5', 'K6', 'REL-EXTRACT'];
 
-  test('evaluates graph rules for an ambient non-code import without a physical asset', () => {
+  test('evaluates graph rules for an ambient non-code import without a physical asset', async () => {
     const { repository, revision } = createKindedCandidate({
       'src/non-code.d.ts': "declare module '*.css';\n",
       'src/m/m.feature.ts': "import './styles.css';\nexport const run = (): number => 1;\n",
     });
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -1344,12 +1344,12 @@ describe('ambient non-code graph evaluation', () => {
     expect(verdict.allowed).toBe(false);
   }, 30_000);
 
-  test('keeps graph rules unevaluated without an ambient declaration even when the asset exists', () => {
+  test('keeps graph rules unevaluated without an ambient declaration even when the asset exists', async () => {
     const { repository, revision } = createKindedCandidate({
       'src/m/m.feature.ts': "import './styles.css';\nexport const run = (): number => 1;\n",
       'src/m/styles.css': ':root { color: black; }\n',
     });
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -1380,7 +1380,7 @@ describe('ambient non-code graph evaluation', () => {
 });
 
 describe('check production CLI', () => {
-  test('allows the indexed candidate under an enforced module rule and never certifies', () => {
+  test('allows the indexed candidate under an enforced module rule and never certifies', async () => {
     const { repository, revision } = createIndexedCandidate();
     const policyPath = writeRulePolicy(
       everyRuleObserving.map((entry) =>
@@ -1389,7 +1389,7 @@ describe('check production CLI', () => {
           : entry,
       ),
     );
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -1409,10 +1409,10 @@ describe('check production CLI', () => {
     expect(verdict.candidate).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  test('refuses an unindexed candidate in every mode and exits 1', () => {
+  test('refuses an unindexed candidate in every mode and exits 1', async () => {
     const { repository, revision } = createUnindexedCandidate();
     const observing = writeRulePolicy(everyRuleObserving);
-    const observed = runCli([
+    const observed = await runCli([
       'check',
       'committed',
       repository,
@@ -1434,7 +1434,7 @@ describe('check production CLI', () => {
         entry.ruleId === 'MOD-INDEX' ? { ...entry, mode: 'enforce' as const } : entry,
       ),
     );
-    const enforced = runCli([
+    const enforced = await runCli([
       'check',
       'committed',
       repository,
@@ -1447,16 +1447,16 @@ describe('check production CLI', () => {
     expect(verdictOf(enforced).unevaluated).toEqual(observedVerdict.unevaluated);
   });
 
-  test('refuses an unknown selection kind, an unknown flag and an unknown narrowed rule', () => {
+  test('refuses an unknown selection kind, an unknown flag and an unknown narrowed rule', async () => {
     const { repository, revision } = createIndexedCandidate();
     const policyPath = writeRulePolicy(everyRuleObserving);
-    const badKind = runCli(['check', 'bogus', repository, revision, policyPath]);
+    const badKind = await runCli(['check', 'bogus', repository, revision, policyPath]);
     expect(stderrOf(badKind)).toContain(
       'usage: twilight-burokrat check <committed|staged|working>',
     );
     expect(badKind.exitCode).toBe(1);
 
-    const badFlag = runCli([
+    const badFlag = await runCli([
       'check',
       'committed',
       repository,
@@ -1468,7 +1468,7 @@ describe('check production CLI', () => {
     expect(stderrOf(badFlag)).toContain('the only check flag is --rule <rule-id>: received --only');
     expect(badFlag.exitCode).toBe(1);
 
-    const badRule = runCli([
+    const badRule = await runCli([
       'check',
       'committed',
       repository,
@@ -1485,14 +1485,14 @@ describe('check production CLI', () => {
 });
 
 describe('explain with a rule policy', () => {
-  test('prints the policy identifier and the stated mode', () => {
+  test('prints the policy identifier and the stated mode', async () => {
     const { repository } = createIndexedCandidate();
     const policyPath = writeRulePolicy(
       everyRuleObserving.map((entry) =>
         entry.ruleId === 'MOD-INDEX' ? { ...entry, mode: 'enforce' as const } : entry,
       ),
     );
-    const invocation = runCli(['explain', 'MOD-INDEX', repository, policyPath]);
+    const invocation = await runCli(['explain', 'MOD-INDEX', repository, policyPath]);
     expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
     expect(JSON.parse(stdoutOf(invocation)) as unknown).toEqual({
       id: 'MOD-INDEX',
@@ -1509,9 +1509,9 @@ describe('explain with a rule policy', () => {
 });
 
 describe('rule adapters over real candidates', () => {
-  test('reports an index over the direct-entry limit with its exact counts', () => {
+  test('reports an index over the direct-entry limit with its exact counts', async () => {
     const { repository, revision } = createDirectEntryDebtCandidate();
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -1531,9 +1531,9 @@ describe('rule adapters over real candidates', () => {
     ]);
   });
 
-  test('turns direct-entry debt into a refusal under enforce', () => {
+  test('turns direct-entry debt into a refusal under enforce', async () => {
     const { repository, revision } = createDirectEntryDebtCandidate();
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -1552,9 +1552,9 @@ describe('rule adapters over real candidates', () => {
     expect(verdict.findings.map(({ effect }) => effect)).toEqual(['refusal']);
   });
 
-  test('refuses a rule whose prerequisite failed, in observe mode', () => {
+  test('refuses a rule whose prerequisite failed, in observe mode', async () => {
     const { repository, revision } = createUnindexedCandidate();
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -1575,11 +1575,11 @@ describe('rule adapters over real candidates', () => {
     ]);
   });
 
-  test('refuses an unclassifiable entry in observe mode', () => {
+  test('refuses an unclassifiable entry in observe mode', async () => {
     const { repository } = createIndexedCandidate();
     write(repository, 'src/unknown.zzz', 'unclassifiable\n');
     const revision = commit(repository, 'add an unclassifiable entry');
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -1600,7 +1600,7 @@ describe('rule adapters over real candidates', () => {
     ]);
   });
 
-  test('reports a declared relationship that the candidate leaves unresolved', () => {
+  test('reports a declared relationship that the candidate leaves unresolved', async () => {
     const { repository } = createIndexedCandidate();
     write(
       repository,
@@ -1637,7 +1637,7 @@ describe('rule adapters over real candidates', () => {
       ]),
     );
     const revision = commit(repository, 'declare an unresolved relationship');
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
@@ -1661,9 +1661,9 @@ describe('rule adapters over real candidates', () => {
     ]);
   });
 
-  test('selects every registered rule and refuses a candidate without a Performance declaration', () => {
+  test('selects every registered rule and refuses a candidate without a Performance declaration', async () => {
     const { repository, revision } = createIndexedCandidate();
-    const invocation = runCli([
+    const invocation = await runCli([
       'check',
       'committed',
       repository,
