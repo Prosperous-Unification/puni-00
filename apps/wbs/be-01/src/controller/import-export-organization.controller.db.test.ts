@@ -784,6 +784,7 @@ describe('the import', () => {
     });
     expect((await h.call('ada', 'GET', '/api/projects')).body as { projects: unknown[] }).toEqual({
       projects: [],
+      nextCursor: null,
     });
   });
 
