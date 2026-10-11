@@ -5,6 +5,8 @@ import type { Capability } from './contracts';
 export type DiscoverySource =
   | `provider:${string}`
   | `lab-provider:${string}`
+  /** A cluster whose API endpoint is under the reserved `.invalid` TLD; nothing was read. */
+  | `unprovisioned:${string}`
   | `kubernetes-nodes:${string}`
   | `kubernetes-pvcs:${string}`
   | `kubernetes-pvs:${string}`
