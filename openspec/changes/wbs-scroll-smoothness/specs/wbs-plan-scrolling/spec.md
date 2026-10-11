@@ -41,3 +41,8 @@ The plan renderer SHALL publish a new row or column window only when that mounte
 
 - **WHEN** scrolling crosses a row or column window boundary, or the frame is resized
 - **THEN** the renderer publishes the changed window or dimensions and mounts the required cells
+
+#### Scenario: row publication is delayed near a bucket edge
+
+- **WHEN** the row window uses a 320px publication bucket and the compositor reaches its far edge before the next React commit
+- **THEN** the mounted interval extends at least 448px beyond the viewport at that edge while preserving the 768px trailing overscan budget
