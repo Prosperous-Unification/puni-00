@@ -266,7 +266,7 @@ The pre-hold snapshot replay that task 2.3 names is `an old snapshot replays des
 - `request-retention-cli.ts` dispatches those commands and refuses a local `resolve` while `RETENTION_JOURNAL=s3`.
 - Store additions: `openMaintenanceDatabase`, `listDueRetentionSubjects`, `assertErasable`, and a `readOnly` session option.
 - `build.ts` writes `dist/capabilities.json`. `build-smoke.ts` runs the bundled `journal-init` and `journal-status` against the loopback S3 stand-in, through the real S3 adapter with dummy credentials.
-- Documentation: ADR 0046, the journal section of `docs/website/request-retention.md`, seven glossary terms, the rewritten journal section of `design.md`, and spec deltas for journaled anchor resolutions, the operator actor, hourly snapshots and the 48 h / 30 d / 60 d aging bound.
+- Documentation: ADR 0041, the journal section of `docs/website/request-retention.md`, seven glossary terms, the rewritten journal section of `design.md`, and spec deltas for journaled anchor resolutions, the operator actor, hourly snapshots and the 48 h / 30 d / 60 d aging bound.
 - Tests: `retention-journal-cli.test.ts` (9) and `session.test.ts` `journal-replay never writes the remote`.
 
 | Guard                                    | Injected fault                    | Observed failure                                                                               |

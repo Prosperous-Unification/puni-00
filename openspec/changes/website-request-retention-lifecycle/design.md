@@ -22,7 +22,7 @@ At a due non-client subject, fence all writes and any running stream before remo
 
 ### Recovery journal and ordering
 
-[ADR 0038](../../../docs/adr/0038-retention-journal-survives-website-database-restore.md) owns the decision to keep a separate recovery record, and [ADR 0046](../../../docs/adr/0046-retention-journal-is-a-hash-chain-in-the-versioned-backup-bucket.md) owns its shape.
+[ADR 0038](../../../docs/adr/0038-retention-journal-survives-website-database-restore.md) owns the decision to keep a separate recovery record, and [ADR 0041](../../../docs/adr/0041-retention-journal-is-a-hash-chain-in-the-versioned-backup-bucket.md) owns its shape.
 
 **Record.** The journal lives under `retention-journal/<environment>/` in the existing versioned backup bucket. It has three kinds of object:
 

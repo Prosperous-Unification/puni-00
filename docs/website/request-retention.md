@@ -2,7 +2,7 @@
 
 Each retention subject (an account-owned software request, or a standalone manual proposal submission with no software request) gets a fixed deadline 12 UTC calendar months after its first stored nonempty content. The rules and state live on `backfillRetentionSubjects`, `anchorRequestContent` and `addUtcMonths` in `libs/website/adapters/store-sqlite/src/request-retention.ts`. The [retention change](../../openspec/changes/website-request-retention-lifecycle/design.md) owns the full lifecycle.
 
-With `RETENTION_JOURNAL=disabled` the release **only reports**: no command deletes or blanks content, and the operator policy routes answer 503. Designation, holds and erasure run only through the [retention journal](#retention-journal). Its decision record is [ADR 0046](../adr/0046-retention-journal-is-a-hash-chain-in-the-versioned-backup-bucket.md).
+With `RETENTION_JOURNAL=disabled` the release **only reports**: no command deletes or blanks content, and the operator policy routes answer 503. Designation, holds and erasure run only through the [retention journal](#retention-journal). Its decision record is [ADR 0041](../adr/0041-retention-journal-is-a-hash-chain-in-the-versioned-backup-bucket.md).
 
 ## Commands
 
