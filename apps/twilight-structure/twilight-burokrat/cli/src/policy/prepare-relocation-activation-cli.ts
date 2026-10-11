@@ -176,6 +176,11 @@ function assertOutsideCandidate(repository: string, path: string, flag: string):
   return resolved;
 }
 
+/**
+ * Runs one candidate check and measures its start and end on the host clock. Running checks is
+ * Twilight Dash's work still inside the Burokrat package (docs/twilight-structure/names.md,
+ * "Clock reads"); a judge reads the recorded instants, never the clock.
+ */
 function runCheck(
   repository: string,
   check: {
