@@ -107,6 +107,12 @@ export function SharingPanel({
           }
           setConfirming(false);
           setMessage(outcome.text);
+          // The refusal may mean the release or the caller's role changed since
+          // the read; re-reading puts the panel in the state the server holds,
+          // so the switch it just refused is not offered again.
+          // Proof: 2026-10-11, without this re-read `stops offering a switch
+          // the server refused` still found the button.
+          await refresh();
           return;
         }
         default:
@@ -128,45 +134,47 @@ export function SharingPanel({
       {view.kind === 'failure' && <p role="alert">{view.message}</p>}
       {view.kind === 'ready' && (
         <>
-          <p>{view.sharedPeople ? SHARED_WORDS : ISOLATED_WORDS}</p>
+          <p className="mb-3">{view.sharedPeople ? SHARED_WORDS : ISOLATED_WORDS}</p>
           {confirming ? (
-            <p className="flex flex-wrap items-center gap-2">
-              <span>
+            <div role="group" aria-label="Confirm the switch">
+              <p className="mb-2 font-medium">
                 This moves the dates of every project in the organization. Switching back restores
                 them.
-              </span>
-              <button
-                type="button"
-                disabled={sending}
-                onClick={() => {
-                  // Proof: 2026-10-11, sending the mode already held instead
-                  // of its opposite made `shares people after a confirmation
-                  // and re-reads the mode` receive { sharedPeople: false }.
-                  void switchTo(!view.sharedPeople);
-                }}
-              >
-                {view.sharedPeople ? 'Confirm: stop sharing people' : 'Confirm: share people'}
-              </button>
-              <button
-                type="button"
-                disabled={sending}
-                onClick={() => {
-                  setConfirming(false);
-                }}
-              >
-                Cancel
-              </button>
-            </p>
+              </p>
+              <p className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={sending}
+                  onClick={() => {
+                    // Proof: 2026-10-11, sending the mode already held instead
+                    // of its opposite made `shares people after a confirmation
+                    // and re-reads the mode` receive { sharedPeople: false }.
+                    void switchTo(!view.sharedPeople);
+                  }}
+                >
+                  {view.sharedPeople ? 'Confirm: stop sharing people' : 'Confirm: share people'}
+                </button>
+                <button
+                  type="button"
+                  disabled={sending}
+                  onClick={() => {
+                    setConfirming(false);
+                  }}
+                >
+                  Cancel
+                </button>
+              </p>
+            </div>
           ) : !view.sharedPeople && !view.sharingAvailable ? (
             // Proof: 2026-10-11, offering the switch whatever the release
             // supports made `offers no switch a release without shared
             // people would refuse` find the button.
-            <p>{UNAVAILABLE_WORDS}</p>
+            <p className="text-muted-foreground">{UNAVAILABLE_WORDS}</p>
           ) : !view.canSwitch ? (
             // Proof: 2026-10-11, offering the switch whatever the caller's role
             // made `explains, without a switch, that only a super-admin may
             // change it` find the button.
-            <p>{SUPER_ADMIN_WORDS}</p>
+            <p className="text-muted-foreground">{SUPER_ADMIN_WORDS}</p>
           ) : (
             <button
               type="button"
@@ -179,7 +187,11 @@ export function SharingPanel({
           )}
         </>
       )}
-      {message !== '' && <p role="status">{message}</p>}
+      {message !== '' && (
+        <p role="status" className="mt-3">
+          {message}
+        </p>
+      )}
     </section>
   );
 }

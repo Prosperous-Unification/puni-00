@@ -101,6 +101,26 @@ describe('shared people', () => {
     ).toBeDefined();
   });
 
+  it('stops offering a switch the server refused', async () => {
+    stubServer({
+      'GET /api/organization': [
+        () => answer(200, { sharedPeople: false, sharingAvailable: true, canSwitch: true }),
+        () => answer(200, { sharedPeople: false, sharingAvailable: false, canSwitch: true }),
+      ],
+      'PATCH /api/organization': [() => answer(409, { error: 'capacity_mode_unsupported' })],
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Share people across projects' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm: share people' }));
+    expect(await screen.findByRole('status')).toHaveProperty(
+      'textContent',
+      'Sharing people across projects is not available in this release yet.',
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole('button')).toBeNull();
+    });
+  });
+
   it('cancels without switching', async () => {
     const sent = stubServer({
       'GET /api/organization': [
@@ -129,6 +149,7 @@ describe('shared people', () => {
   ])('renders the %s switch refusal', async (error, status, copy) => {
     stubServer({
       'GET /api/organization': [
+        () => answer(200, { sharedPeople: false, sharingAvailable: true, canSwitch: true }),
         () => answer(200, { sharedPeople: false, sharingAvailable: true, canSwitch: true }),
       ],
       'PATCH /api/organization': [() => answer(status, { error })],

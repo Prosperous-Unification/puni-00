@@ -4293,3 +4293,20 @@ Restored: `src/components/organization/` 62/62 (the page gained one case).
 | panel ignores `canSwitch`                                 | `sharing-panel.test.tsx` 10/11: `explains, without a switch, that only a super-admin may change it` failed |
 
 Restored: organization fe tests 64/64; capacity-mode and delegation controllers 28/28.
+
+### Confirm-review fix and eye review (batch 10)
+
+- `maySwitchCapacityMode` (super-admin, not delegated) answers the read's `canSwitch` and admits
+  the switch; its role half `roleMaySwitchCapacityMode` is what the writer re-checks. Proofs:
+  the switch's rule re-split (admins in place of super-admins) failed `reads canSwitch exactly as
+the switch admits`; the role widened to admins failed four capacity-mode cases; the delegation
+  clause dropped failed the delegated read and switch.
+- `/organization` was captured on a local Vite server with every `/api` call stubbed by
+  Playwright: super-admin (offer, confirm, shared), member, this release, and a refused switch;
+  light and dark; 1280 and 375 px. No horizontal overflow at either width. From the captures, the
+  panel gained spacing between the description, the confirm line and the buttons; the "only a
+  super-admin" and "not available" sentences are muted; the confirm sentence is its own line
+  above the buttons; and a refused switch re-reads the mode so the refused switch is not offered
+  again (proof: the re-read removed failed `stops offering a switch the server refused`).
+  The e2e pixel suite was not extended: `/organization` needs an activated organization with a
+  bound super-admin, which the browser gate's fixtures do not seed.
