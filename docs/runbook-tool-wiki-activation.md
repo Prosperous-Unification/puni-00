@@ -16,6 +16,11 @@ Without `TOOL_WIKI_ACTIVATION_ROOT`, this command reports `status: inactive` and
 provision the archive below, remove the temporary `if: false` conditions from the
 repository workflows, and rerun the affected PR checks.
 
+The uninstalled ordinary-PR observation service and its one-time administrator
+provisioning sequence are documented in the
+[observation service runbook](../infra/ci/burokrat/observation/README.md). The
+service has no review, publication, admission, merge, or WBS authority.
+
 The bootstrap policy is `policy.tool-wiki-bootstrap.v1` in
 `docs/wiki-policy/bootstrap-policy.json`. It enforces only
 `boundary.infra.tool-wiki`; the six modules in the historical pilot remain named, non-selected

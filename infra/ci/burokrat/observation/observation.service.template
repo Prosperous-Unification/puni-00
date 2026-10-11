@@ -1,0 +1,39 @@
+[Unit]
+Description=Tool Wiki ordinary-PR observation
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=@SERVICE_USER@
+Group=@SERVICE_GROUP@
+WorkingDirectory=@WORKING_DIRECTORY@
+UMask=0077
+# Proof: nopriv removed escalation refusal; the mounted unit contract refused it.
+NoNewPrivileges=yes
+# Proof: caps omitted the empty capability bounding set; the mounted unit contract refused it.
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=@READ_ONLY_PATHS@
+# Proof: readwrite removed state confinement; the mounted unit contract refused it.
+ReadWritePaths=@STATE_DIRECTORY@
+# Proof: preflight removed the runtime pin check; the mounted unit contract refused it.
+ExecStartPre=/usr/bin/sha256sum --check @RUNTIME_PIN_PATH@
+# Proof: envclear removed `env -i` and envfile removed `--no-env-file`;
+# each changed the rendered command in the mounted unit contract.
+ExecStart=/usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent TMPDIR=/tmp @BUN_PATH@ --no-env-file --config=@BUN_CONFIG_PATH@ @LAUNCHER_PATH@ @SERVICE_CONFIG_PATH@
+TimeoutStartSec=@START_TIMEOUT_SEC@s
+TimeoutStopSec=@STOP_TIMEOUT_SEC@s
+# Proof: killgroup omitted whole-group termination; the mounted unit contract refused it.
+KillMode=control-group
+SendSIGKILL=yes
+# Proof: restart removed the no-loop directive; the mounted unit contract refused it.
+Restart=no
