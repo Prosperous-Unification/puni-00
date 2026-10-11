@@ -206,5 +206,6 @@ The fault proofs below were run by the slice's helper agent and are carried by t
 | Fence ABORT mapped at admission | mapping removed                              | same test failed (the SQLite fence error escaped)                                           |
 | `secure_delete` plus `VACUUM`   | both removed                                 | `(fail) erased text is absent …`: `"file": true`. Either one alone cleared this fixture.    |
 
+- Review fix (Fable, 2026-10-11): legacy `chat_turn` rows with no `request_id` are blanked together with the account identity, once no other content-bearing request of the account remains. Fault: the update made a no-op. Observed: `(fail) a due account request is blanked in every current and legacy table`.
 - `bun test libs/website/adapters/store-sqlite/src`: `142 pass`, `0 fail`. `bun test apps/website/be-01/src`: `153 pass`, `0 fail`.
 - `nx run-many -t lint,typecheck -p website-store-sqlite,website-be-01`: success.
