@@ -60,6 +60,7 @@ test('put returns the bucket version id and get reads it back', async () => {
 });
 
 test('an existing key refuses an if-none-match put', async () => {
+  standIn.honourIfNoneMatch = true;
   await remote.put('events/000000000001.json', bytesOf('a\n'), { ifNoneMatch: true });
   const error = await remoteFault(() =>
     remote.put('events/000000000001.json', bytesOf('b\n'), { ifNoneMatch: true }),
@@ -68,6 +69,30 @@ test('an existing key refuses an if-none-match put', async () => {
   expect(error.message).toContain('events/000000000001.json');
   expect(await remote.put('head.json', bytesOf('1\n'))).toBeString();
   expect(await remote.put('head.json', bytesOf('2\n'))).toBeString();
+});
+
+test('an if-none-match put on an existing key is accepted when the bucket ignores it', async () => {
+  const first = await remote.put('events/000000000001.json', bytesOf('a\n'), { ifNoneMatch: true });
+  const second = await remote.put('events/000000000001.json', bytesOf('b\n'), {
+    ifNoneMatch: true,
+  });
+  expect(second).not.toBe(first);
+  expect(await remote.get('events/000000000001.json')).toEqual({
+    bytes: bytesOf('b\n'),
+    versionId: second,
+  });
+});
+
+test('a missing bucket is unreadable, not absent', async () => {
+  const misconfigured = new S3JournalRemote(
+    readS3JournalConfig(environment({ RETENTION_JOURNAL_BUCKET: 'other-bucket' })),
+  );
+  const error = await remoteFault(() => misconfigured.get('genesis.json'));
+  expect({ reason: error.reason, message: error.message }).toEqual({
+    reason: 'unreadable',
+    message: expect.stringContaining('NoSuchBucket') as string,
+  });
+  expect(await remote.get('genesis.json')).toBeNull();
 });
 
 test('an unversioned bucket is refused', async () => {

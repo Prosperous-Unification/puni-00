@@ -40,6 +40,10 @@ BEGIN
 END;
 -- Content fences: a fenced or erased subject refuses every content insert, and every update that
 -- would leave nonblank content, so the eraser's blanking passes and nothing else does.
+-- A legacy chat_turn without request_id belongs to no request; it is fenced by its account, as the
+-- legacy account_request and concept_preview copies are (over-fence, never under-fence).
+-- Proof: keying the chat_turn fences on request_id alone let `a fenced subject refuses an older
+-- binary's content write: chat_turn without request` insert a NULL-request turn for the erased account.
 -- Proof: dropping any one fence failed that table's case in the older-binary fence test; a fence
 -- `WHEN 0` kept the blanking case green and failed the refusal case.
 CREATE TRIGGER retention_fence_software_request_insert
@@ -80,13 +84,13 @@ BEGIN
 END;
 CREATE TRIGGER retention_fence_chat_turn_insert
 BEFORE INSERT ON chat_turn
-WHEN EXISTS (SELECT 1 FROM retention_subject WHERE subject_kind = 'software_request' AND subject_id = NEW.request_id AND erasure_state <> 'none')
+WHEN (EXISTS (SELECT 1 FROM retention_subject WHERE subject_kind = 'software_request' AND subject_id = NEW.request_id AND erasure_state <> 'none') OR (NEW.request_id IS NULL AND EXISTS (SELECT 1 FROM retention_subject AS fence JOIN software_request AS request ON request.id = fence.subject_id WHERE fence.subject_kind = 'software_request' AND fence.erasure_state <> 'none' AND request.account_id = NEW.account_id)))
 BEGIN
   SELECT RAISE(ABORT, 'retention: subject content is fenced');
 END;
 CREATE TRIGGER retention_fence_chat_turn_update
 BEFORE UPDATE OF content ON chat_turn
-WHEN (trim(NEW.content, char(9, 10, 11, 12, 13, 32)) <> '') AND EXISTS (SELECT 1 FROM retention_subject WHERE subject_kind = 'software_request' AND subject_id = NEW.request_id AND erasure_state <> 'none')
+WHEN (trim(NEW.content, char(9, 10, 11, 12, 13, 32)) <> '') AND (EXISTS (SELECT 1 FROM retention_subject WHERE subject_kind = 'software_request' AND subject_id = NEW.request_id AND erasure_state <> 'none') OR (NEW.request_id IS NULL AND EXISTS (SELECT 1 FROM retention_subject AS fence JOIN software_request AS request ON request.id = fence.subject_id WHERE fence.subject_kind = 'software_request' AND fence.erasure_state <> 'none' AND request.account_id = NEW.account_id)))
 BEGIN
   SELECT RAISE(ABORT, 'retention: subject content is fenced');
 END;
