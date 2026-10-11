@@ -98,8 +98,10 @@ ln -s <repo>/node_modules <scratch>/node_modules   # plus <scratch>/tsconfig.jso
 GOLDEN_OUTPUT=<out> bun test src/admission-runtime/integration-races.test.ts -t "golden producer"
 ```
 
-`fixtures/authority/module-wiki-authority.v5.sql` is that `.schema` plus a fresh store's meta row;
-`burokrat-written-v5.sql` and `.state.json` are the dump and `inspect()` output.
+`fixtures/authority/module-wiki-authority.v5.sqlite-dump` is that `.schema` plus a fresh store's
+meta row; `burokrat-written-v5.sqlite-dump` and `.state.json` are the dump and `inspect()`
+output. They are not named `.sql`: every tracked `.sql` file is a migration, and migration lint
+refuses one outside a migration tree.
 
 ## Fable review fixes (S1, S3)
 
