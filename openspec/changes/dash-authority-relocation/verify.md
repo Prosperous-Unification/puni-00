@@ -113,6 +113,25 @@ GOLDEN_OUTPUT=<out> bun test src/admission-runtime/integration-races.test.ts -t 
 
 Dash suite 202/0; devsync oracles 129/0; uncached `twilight-dash:lint` exit 0.
 
-## S4–S6
+## S4: exact-identity submission retry and the lifecycle model
+
+| Command                                                           | Result                     |
+| ----------------------------------------------------------------- | -------------------------- |
+| `bun test --preload … src --timeout=30000` in `twilight-dash/cli` | 209 pass, 0 fail, 14 files |
+
+Mandatory proof "lost-response reconciliation" (submission half): `submit.test.ts` cases
+`an exact repeated submission returns the same report without a write` (CLI twice, byte-equal
+stdout and database) and `a different candidate after a lost response is refused`; publication
+half in S5.
+
+| Injected fault                                            | Observed failure                                                                                                          |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| exact-repeat branch dropped in `submitGenerationMatching` | `an exact repeated submission is a no-op`: `generation already submitted: session-a`; the CLI case: outputs differ        |
+| `transact` rewrites rows when the operation wrote nothing | same test: database sha256 changed                                                                                        |
+| authority comparison dropped from the exact-repeat branch | `an equal submission under a different authority binding is still refused`: returned the token                            |
+| store opened before the packet is decoded                 | `submit-admission refuses before opening the store on a malformed packet`: `authority absent` instead of the packet field |
+| five lifecycle sabotages                                  | `authority lifecycle matches its model across concurrent processes`; counterexamples in its `Proof:`                      |
+
+## S5–S6
 
 Recorded by each slice as it lands.

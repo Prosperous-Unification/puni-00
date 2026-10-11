@@ -48,6 +48,9 @@ export function submitAdmission(
     throw new Error(usage);
   }
   try {
+    // Decode before any store open, so a malformed packet never touches the authority. Proof:
+    // swapping these two lines made `submit-admission refuses before opening the store on a
+    // malformed packet` report the absent authority instead (2026-10-12).
     const packet = decodeAdmissionPacket(readPacketJson(packetPath));
     const store = openAuthority(repository, { clock });
     try {

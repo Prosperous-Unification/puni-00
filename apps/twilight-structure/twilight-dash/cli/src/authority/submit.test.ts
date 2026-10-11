@@ -1,7 +1,9 @@
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   rmSync,
   symlinkSync,
@@ -10,13 +12,18 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { decodeAdmissionPacket, hashCanonical, serializeCanonical } from '@twilight-burokrat/judge';
+import {
+  decodeAdmissionPacket,
+  hashCanonical,
+  packetAuthorityClaims,
+  serializeCanonical,
+} from '@twilight-burokrat/judge';
 import { Database } from 'bun:sqlite';
 import { afterAll, expect, test } from 'bun:test';
 
 import { MemoryAuthorityStore, resolveAuthorityDatabasePath } from './authority-store';
 import { acquireClaims, expandClaims } from './claims';
-import { abandonGeneration } from './generations';
+import { abandonGeneration, submitGenerationMatching } from './generations';
 import { createAdmissionPacket, expandPacketReads } from './packet-binding';
 import { submitPacket } from './submit';
 import { openOrBootstrapAuthority } from './testing/open-or-bootstrap';
@@ -865,4 +872,154 @@ test('CLI rejects a packet whose bytes changed without a new packet identity', (
   );
   expect(identityRefusal.exitCode).toBe(1);
   expect(identityRefusal.stderr.toString('utf8')).toContain('admission packet identity mismatch');
+});
+
+function databaseBytes(repository: string): string {
+  return new Bun.CryptoHasher('sha256')
+    .update(readFileSync(resolveAuthorityDatabasePath(repository)))
+    .digest('hex');
+}
+
+test('an exact repeated submission is a no-op', () => {
+  const subject = fixture();
+  writeFileSync(join(subject.repository, 'src', 'owned.ts'), 'export const owned = 2;\n');
+  git(subject.repository, ['add', 'src/owned.ts']);
+  const selection = { base: subject.baseCommit, kind: 'staged' } as const;
+  const first = submitPacket(subject.store, subject.packet, subject.repository, selection);
+  const state = subject.store.inspect();
+  const bytes = databaseBytes(subject.repository);
+  // Proof: dropping the exact-identity branch in submitGenerationMatching made this repeat
+  // refuse `generation already submitted: session-a`; letting transact rewrite rows when the
+  // operation wrote nothing changed the database bytes (2026-10-12).
+  expect(submitPacket(subject.store, subject.packet, subject.repository, selection)).toEqual(first);
+  expect(subject.store.inspect()).toEqual(state);
+  expect(databaseBytes(subject.repository)).toBe(bytes);
+
+  writeFileSync(join(subject.repository, 'src', 'owned.ts'), 'export const owned = 3;\n');
+  git(subject.repository, ['add', 'src/owned.ts']);
+  expect(() => submitPacket(subject.store, subject.packet, subject.repository, selection)).toThrow(
+    'generation already submitted: session-a',
+  );
+  expect(subject.store.inspect()).toEqual(state);
+  subject.store.close();
+});
+
+test('an equal submission under a different authority binding is still refused', () => {
+  const subject = fixture();
+  writeFileSync(join(subject.repository, 'src', 'owned.ts'), 'export const owned = 2;\n');
+  git(subject.repository, ['add', 'src/owned.ts']);
+  const report = submitPacket(subject.store, subject.packet, subject.repository, {
+    base: subject.baseCommit,
+    kind: 'staged',
+  });
+  const submission = {
+    candidateDiffIdentity: report.candidateDiffIdentity,
+    contentIdentity: report.contentIdentity,
+    patchIdentity: report.patchIdentity,
+  };
+  const expected = {
+    claims: packetAuthorityClaims(subject.packet),
+    packetIdentity: subject.packet.packetIdentity,
+    worktreePath: subject.repository,
+  };
+  const state = subject.store.inspect();
+  // Proof: dropping the authority comparison from the exact-repeat branch let each of these
+  // three return the token instead of `generation already submitted` (2026-10-12).
+  for (const forged of [
+    { ...expected, packetIdentity: '9'.repeat(64) },
+    { ...expected, worktreePath: join(subject.repository, 'elsewhere') },
+    { ...expected, claims: expected.claims.slice(1) },
+  ]) {
+    expect(() =>
+      submitGenerationMatching(subject.store, subject.token, submission, forged),
+    ).toThrow('generation already submitted: session-a');
+  }
+  expect(submitGenerationMatching(subject.store, subject.token, submission, expected)).toEqual(
+    subject.token,
+  );
+  expect(subject.store.inspect()).toEqual(state);
+  subject.store.close();
+});
+
+function submitThroughCli(repository: string, packetPath: string, base: string) {
+  const execution = Bun.spawnSync(
+    [
+      process.execPath,
+      join(import.meta.dir, '..', 'entrypoint.ts'),
+      'submit-admission',
+      repository,
+      packetPath,
+      'staged',
+      base,
+    ],
+    { stderr: 'pipe', stdout: 'pipe' },
+  );
+  return {
+    exitCode: execution.exitCode,
+    stderr: execution.stderr.toString('utf8'),
+    stdout: execution.stdout.toString('utf8'),
+  };
+}
+
+test('submit-admission names bootstrap when the authority is absent', () => {
+  const subject = fixture();
+  const packetPath = join(subject.repository, 'packet.json');
+  writeFileSync(packetPath, `${JSON.stringify(subject.packet)}\n`);
+  subject.store.close();
+  rmSync(join(subject.repository, '.git', 'module-wiki'), { force: true, recursive: true });
+  const refused = submitThroughCli(subject.repository, packetPath, subject.baseCommit);
+  expect(refused.exitCode).toBe(1);
+  expect(refused.stdout).toBe('');
+  expect(refused.stderr).toContain('authority absent');
+  expect(refused.stderr).toContain('twilight-dash bootstrap-authority <repository>');
+  expect(existsSync(join(subject.repository, '.git', 'module-wiki'))).toBe(false);
+});
+
+test('an exact repeated submission returns the same report without a write', () => {
+  const subject = fixture();
+  writeFileSync(join(subject.repository, 'src', 'owned.ts'), 'export const owned = 2;\n');
+  git(subject.repository, ['add', 'src/owned.ts']);
+  const packetPath = join(subject.repository, '.git', 'packet.json');
+  writeFileSync(packetPath, `${JSON.stringify(subject.packet)}\n`);
+  subject.store.close();
+  const first = submitThroughCli(subject.repository, packetPath, subject.baseCommit);
+  expect(first.exitCode, first.stderr).toBe(0);
+  const bytes = databaseBytes(subject.repository);
+  // The first response is treated as lost: the caller only repeats the exact command.
+  const second = submitThroughCli(subject.repository, packetPath, subject.baseCommit);
+  expect(second).toEqual(first);
+  expect(databaseBytes(subject.repository)).toBe(bytes);
+});
+
+test('a different candidate after a lost response is refused', () => {
+  const subject = fixture();
+  writeFileSync(join(subject.repository, 'src', 'owned.ts'), 'export const owned = 2;\n');
+  git(subject.repository, ['add', 'src/owned.ts']);
+  const packetPath = join(subject.repository, '.git', 'packet.json');
+  writeFileSync(packetPath, `${JSON.stringify(subject.packet)}\n`);
+  subject.store.close();
+  expect(submitThroughCli(subject.repository, packetPath, subject.baseCommit).exitCode).toBe(0);
+  const bytes = databaseBytes(subject.repository);
+  writeFileSync(join(subject.repository, 'src', 'owned.ts'), 'export const owned = 3;\n');
+  git(subject.repository, ['add', 'src/owned.ts']);
+  const refused = submitThroughCli(subject.repository, packetPath, subject.baseCommit);
+  expect(refused.exitCode).toBe(1);
+  expect(refused.stdout).toBe('');
+  expect(refused.stderr).toContain('generation already submitted: session-a');
+  expect(databaseBytes(subject.repository)).toBe(bytes);
+});
+
+test('submit-admission refuses before opening the store on a malformed packet', () => {
+  const subject = fixture();
+  const packetPath = join(subject.repository, 'packet.json');
+  writeFileSync(packetPath, `${JSON.stringify({ ...subject.packet, extraWrites: ['x'] })}\n`);
+  subject.store.close();
+  rmSync(join(subject.repository, '.git', 'module-wiki'), { force: true, recursive: true });
+  // Proof: opening the authority before decoding the packet made this refusal name the absent
+  // authority instead of the undeclared packet field (2026-10-12).
+  const refused = submitThroughCli(subject.repository, packetPath, subject.baseCommit);
+  expect(refused.exitCode).toBe(1);
+  expect(refused.stderr).toContain('undeclared admission packet field: extraWrites');
+  expect(refused.stderr).not.toContain('authority absent');
+  expect(existsSync(join(subject.repository, '.git', 'module-wiki'))).toBe(false);
 });

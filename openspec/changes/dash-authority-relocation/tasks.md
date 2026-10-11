@@ -26,8 +26,10 @@
 
 ## 5. Idempotent submission (S4)
 
-- [ ] 5.1 `submitGenerationMatching` returns the token for an exact repeated submission.
-- [ ] 5.2 CLI `submit-admission` in Dash with the four lost-response and refusal tests.
+- [x] 5.1 `submitGenerationMatching` returns the token for an exact repeated submission.
+- [x] 5.2 CLI `submit-admission` in Dash with the four lost-response and refusal tests.
+- [x] 5.3 Model-based lifecycle test (`fc.asyncModelRun` + `fc.scheduler()`, child processes) for
+      bootstrap, open, inspect and acquire; five sabotages fail it.
 
 ## 6. Publication recovery (S5)
 

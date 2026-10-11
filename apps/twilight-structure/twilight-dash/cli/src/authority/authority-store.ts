@@ -1476,15 +1476,20 @@ class SqliteAuthorityStore implements AuthorityStore {
       try {
         this.#database.run('BEGIN IMMEDIATE');
         let pending = readSqliteState(this.#database);
+        const writes = { count: 0 };
         const value = operation({
           readState: () => copyState(pending),
           writeState: (state) => {
             assertMemoryState(state);
             pending = copyState(state);
+            writes.count += 1;
           },
         });
         assertSynchronous(value);
-        writeSqliteState(this.#database, pending);
+        // An operation that wrote nothing leaves the file byte-identical. Proof: rewriting rows
+        // unconditionally changed the bytes in `an exact repeated submission is a no-op`
+        // (2026-10-12).
+        if (writes.count > 0) writeSqliteState(this.#database, pending);
         this.#database.run('COMMIT');
         return value;
       } catch (cause) {
