@@ -102,6 +102,7 @@ import type {
 } from '../../ports/scheduler';
 import type {
   AccessRefused,
+  ElsewhereHolderLabel,
   LivePlanRead,
   PlanDocumentReads,
 } from '../../ports/shared-people-values';
@@ -1974,7 +1975,18 @@ export class WorkItemService {
          * two for any slice.
          */
         waitingForCapacity: number;
+        /**
+         * How many work items hold a slice a booking in another project is the
+         * reason for. Present exactly when the displayed schedule was placed
+         * around bookings elsewhere (ADR 0034), with {@link elsewhereHolders}.
+         */
         waitingElsewhere?: number;
+        /**
+         * One label per work item in another project that a slice's
+         * `elsewhereHolder` names, so a reader is told whom a bar waits for
+         * without reading that project. Present exactly with `waitingElsewhere`.
+         */
+        elsewhereHolders?: ElsewhereHolderLabel[];
         /**
          * Every slice the schedule placed, in the order the engine placed them.
          *
@@ -2182,6 +2194,8 @@ export class WorkItemService {
         steps,
         slotsOf,
         priorityBands,
+        // An isolated input carries no bookings elsewhere, so no slice names a holder.
+        elsewhereHolders: [],
       },
       scheduling,
     );
@@ -6019,6 +6033,8 @@ interface TreeReads {
   steps: Step[];
   slotsOf: ReadonlyMap<string, number>;
   priorityBands: PriorityBand[];
+  /** The shared chain's holder labels; empty for an isolated read. */
+  elsewhereHolders: readonly ElsewhereHolderLabel[];
 }
 
 /** Projects detached shared rows and captured schedules without reading stores or admitting work. */
@@ -6058,6 +6074,7 @@ function projectSharedTree(
         .map(({ id, name }) => ({ id, name })),
       slotsOf: reads.capacity,
       priorityBands: [...reads.priorityBands],
+      elsewhereHolders: chain.kind === 'scheduled' ? chain.holders : [],
     },
     chain.kind === 'scheduled' ? chain.scheduled : { kind: 'unavailable', reason: chain.reason },
   );
@@ -6400,7 +6417,14 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     scheduleError,
     waitingForPerson,
     waitingForCapacity,
-    ...(waitingElsewhere === undefined ? {} : { waitingElsewhere }),
+    // Present exactly with the engine's own count, so a plan nothing outranks
+    // keeps its shape.
+    // Proof: the labels left out made `names whom a slice waits for in the
+    // project above` (`schedule-organization.controller.db.test.ts`) find no
+    // `elsewhereHolders`; watched 2026-10-11.
+    ...(waitingElsewhere === undefined
+      ? {}
+      : { waitingElsewhere, elsewhereHolders: [...reads.elsewhereHolders] }),
     slices: scheduledSlices,
     // The very array `slicesOf` was handed the ids of, so a slice's `stepId`
     // is a step this list has and its place in the list is the order the
