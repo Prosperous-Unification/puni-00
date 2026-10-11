@@ -347,10 +347,10 @@ describe('work item routes', () => {
       return { status: response.status, body: (await response.json()) as unknown };
     };
     const dev = tree.stepNodes.find(
-      (node) => node.workItemId === firstId && node.reference === '010.dev',
+      (node) => node.workItemId === firstId && node.reference === '010.s1-dev',
     );
     const review = tree.stepNodes.find(
-      (node) => node.workItemId === nestedId && node.reference === '020.2.review',
+      (node) => node.workItemId === nestedId && node.reference === '020.2.s3-review',
     );
     if (dev === undefined || review === undefined)
       throw new Error(`expected coded nodes absent: ${JSON.stringify(tree.stepNodes)}`);
@@ -362,7 +362,12 @@ describe('work item routes', () => {
     });
     expect(await resolve('010.dev')).toEqual({
       status: 200,
-      body: { stepNodeId: dev.id, workItemId: firstId, stepId: dev.stepId, reference: '010.dev' },
+      body: {
+        stepNodeId: dev.id,
+        workItemId: firstId,
+        stepId: dev.stepId,
+        reference: '010.s1-dev',
+      },
     });
     expect(await resolve('020.2.review')).toEqual({
       status: 200,
@@ -370,12 +375,17 @@ describe('work item routes', () => {
         stepNodeId: review.id,
         workItemId: nestedId,
         stepId: review.stepId,
-        reference: '020.2.review',
+        reference: '020.2.s3-review',
       },
     });
     expect(await resolve('010.s1-dev')).toEqual({
       status: 200,
-      body: { stepNodeId: dev.id, workItemId: firstId, stepId: dev.stepId, reference: '010.dev' },
+      body: {
+        stepNodeId: dev.id,
+        workItemId: firstId,
+        stepId: dev.stepId,
+        reference: '010.s1-dev',
+      },
     });
     for (const [reference, reason] of [
       ['010.s2-dev', 'alias_mismatch'],

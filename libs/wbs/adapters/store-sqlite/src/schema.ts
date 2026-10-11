@@ -779,7 +779,7 @@ export const step = sqliteTable(
      */
     position: integer('position').notNull().default(0),
     /**
-     * The step's step code — `dev` in the step reference `010.dev` — or NULL
+     * The step's step code — `dev` in the step reference `010.s1-dev` — or NULL
      * while the step is uncoded.
      *
      * NULL is a modeled state, not a missing default: blue and green share one

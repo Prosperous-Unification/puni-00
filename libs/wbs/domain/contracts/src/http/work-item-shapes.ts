@@ -680,7 +680,7 @@ export const getStepReference = defineEndpointShape({
   ],
   document: {
     summary:
-      'Resolve a step reference such as 010.dev to its step node ID. Pass the addressRevision the work-item read returned (not projectRevision). A 409 means addresses changed since that read: read the work items again and re-check which step you mean before resolving.',
+      'Resolve a step reference such as 010.s1-dev to its step node ID. Pass the addressRevision the work-item read returned (not projectRevision). A 409 means addresses changed since that read: read the work items again and re-check which step you mean before resolving.',
   },
 });
 
