@@ -782,7 +782,12 @@ describe('the import', () => {
       status: 403,
       body: { error: 'forbidden' },
     });
-    expect((await h.call('ada', 'GET', '/api/projects')).body as { projects: unknown[] }).toEqual({
+    expect(
+      (await h.call('ada', 'GET', '/api/projects')).body as {
+        projects: unknown[];
+        nextCursor: string | null;
+      },
+    ).toEqual({
       projects: [],
       nextCursor: null,
     });
