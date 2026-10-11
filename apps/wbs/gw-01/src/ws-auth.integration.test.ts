@@ -5,6 +5,7 @@ import { SignJWT } from 'jose';
 import { buildApp } from './app';
 import { loadConfig } from './config';
 import { type JwtClaims, JwtVerifier, type TokenVerifier } from './service/jwt-auth';
+import { GRANT_EVERY_PROJECT } from './testing/project-access';
 
 const JWT_KEY = 'k'.repeat(32);
 const INTERNAL_SECRET = 's'.repeat(32);
@@ -52,6 +53,7 @@ beforeAll(() => {
   );
   const app = buildApp({
     beUrl: cfg.BE_URL,
+    projectAccess: GRANT_EVERY_PROJECT,
     internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
     jwtKey: cfg.JWT_SIGNING_KEY_CURRENT,
     previousJwtKey: cfg.JWT_SIGNING_KEY_PREVIOUS,
@@ -156,6 +158,7 @@ describe('WebSocket query authentication', () => {
   it('refuses an upgrade when WebSocket authentication is not configured', async () => {
     const app = buildApp({
       beUrl: 'http://be.invalid',
+      projectAccess: GRANT_EVERY_PROJECT,
       internalAuthSecret: INTERNAL_SECRET,
       jwtKey: JWT_KEY,
     });
@@ -233,6 +236,7 @@ describe('OIDC WebSocket authentication', () => {
       {
         appOrigin: APP_ORIGIN,
         beUrl: 'http://be.invalid',
+        projectAccess: GRANT_EVERY_PROJECT,
         internalAuthSecret: INTERNAL_SECRET,
         jwtKey: JWT_KEY,
       },
@@ -264,6 +268,7 @@ describe('OIDC WebSocket authentication', () => {
       {
         appOrigin: APP_ORIGIN,
         beUrl: 'http://be.invalid',
+        projectAccess: GRANT_EVERY_PROJECT,
         internalAuthSecret: INTERNAL_SECRET,
         jwtKey: JWT_KEY,
       },
@@ -332,6 +337,7 @@ describe('WebSocket identity after the upgrade', () => {
       {
         appOrigin: APP_ORIGIN,
         beUrl: 'http://be.invalid',
+        projectAccess: GRANT_EVERY_PROJECT,
         internalAuthSecret: INTERNAL_SECRET,
         jwtKey: JWT_KEY,
         verifier: verifierThatExpiresAfterTheUpgrade(),
@@ -379,6 +385,7 @@ describe('WebSocket identity after the upgrade', () => {
       {
         appOrigin: APP_ORIGIN,
         beUrl: 'http://be.invalid',
+        projectAccess: GRANT_EVERY_PROJECT,
         internalAuthSecret: INTERNAL_SECRET,
         jwtKey: JWT_KEY,
         verifier: verifierThatExpiresDuringAnInFlightFrame(),
