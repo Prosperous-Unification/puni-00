@@ -45,6 +45,7 @@ const description =
 // run that creates one draft per capture.
 const runPrefix = `10.${String(Math.floor(Math.random() * 250))}.${String(Math.floor(Math.random() * 250))}`;
 let visitorCount = 0;
+let receiptCount = 0;
 
 function nextVisitor() {
   visitorCount += 1;
@@ -263,6 +264,28 @@ const states = [
     path: '/manual',
     cookie: true,
     ready: (page) => page.getByRole('alert').waitFor(),
+  },
+  {
+    name: 'manual-receipt',
+    // A real submission from the AI-off stack; each capture is its own visitor and email.
+    check: async (page) => {
+      const heading = await page.locator('h1').innerText();
+      return heading === 'A person will review your brief and reply by email.'
+        ? []
+        : [`unexpected receipt heading: ${heading}`];
+    },
+    stack: aiOff,
+    path: '/manual',
+    cookie: true,
+    ready: async (page) => {
+      await page.locator('#brief').waitFor();
+      receiptCount += 1;
+      await page
+        .locator('#email')
+        .fill(`receipt-${runPrefix.replaceAll('.', '-')}-${String(receiptCount)}@example.test`);
+      await page.getByRole('button', { name: /Request a human proposal/ }).click();
+      await page.getByText('Request received').waitFor();
+    },
   },
   {
     name: 'manual-nocookie',
@@ -725,6 +748,10 @@ try {
       });
       const problems = state.check ? await state.check(page, consoleTexts, state.stack) : [];
       problems.push(...(await auditFocus(page)));
+      // W11: a person reads every request and replies by email; no page states a response time.
+      // Proof: "We reply within 2 days." added to the receipt lead made manual-receipt report this at every width.
+      const responseTime = /within \d+ (hours|days)/i.exec(await page.locator('body').innerText());
+      if (responseTime) problems.push(`states a response time: "${responseTime[0]}"`);
       if (audit.overflow > 0) problems.push(`horizontal overflow ${String(audit.overflow)}px`);
       if (audit.small.length > 0) problems.push(`small targets: ${audit.small.join('; ')}`);
       if (audit.cls >= 0.05) problems.push(`CLS ${audit.cls.toFixed(3)}`);

@@ -441,7 +441,7 @@ function ManualPage() {
               <div className="state">
                 <p className="eyebrow">Request received</p>
                 <h1 ref={heading} tabIndex={-1}>
-                  A person will review your brief.
+                  A person will review your brief and reply by email.
                 </h1>
                 <p className="lead">
                   Your reference is <strong className="reference">{receipt}</strong>

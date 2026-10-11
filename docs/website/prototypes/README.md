@@ -1,5 +1,7 @@
 # PUNI funnel walkthrough
 
+> **Superseded 2026-10-11 by the anonymous Build ([ADR 0039](../../adr/0039-anonymous-paid-chat-bound-to-the-browser-claim.md)); kept as the 2026-09 design artifact.** Its sign-in, cancelled sign-in and twelve-turn steps no longer exist. The reviewed journey is the [walkthrough](../walkthrough.md).
+
 Open [funnel.html](funnel.html) directly in a browser. There is no install step, server, network request, browser storage, account, AI call, or real submission. Use fictional ideas and no personal information.
 
 This throwaway prototype asks whether the sequence **landing prompt → early simulated sign-in → limited scripted chat → editable brief → optional fixed concept → proposal request** feels coherent. A separate manual proposal path skips sign-in and AI. The manual route, cancelled sign-in, twelve-turn limit, and unavailable AI route are included as guided scenarios. The expandable state panel shows what changed after each action.
