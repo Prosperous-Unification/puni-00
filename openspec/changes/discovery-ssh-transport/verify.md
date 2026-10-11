@@ -8,7 +8,8 @@ workstation and contacted no real host, cluster or cloud API. Bun tests ran unde
 
 | Command                                                             | Result                         |
 | ------------------------------------------------------------------- | ------------------------------ |
-| `bunx nx run tool-fleet:test --skip-nx-cache`                       | 397 tests across 33 files pass |
+| `bunx nx run tool-fleet:test --skip-nx-cache` (after A28)           | 405 tests across 34 files pass |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                    | 56 tests pass                  |
 | `bunx nx run tool-fleet:lint:fast`                                  | pass                           |
 | `bunx nx run tool-fleet:typecheck --skip-nx-cache`                  | pass                           |
 | `bunx @fission-ai/openspec@1.12.0 validate discovery-ssh-transport` | valid                          |
@@ -43,6 +44,24 @@ failed at least one test; none passed.
 | rendered extra vars                                                                                  | dropped from the SSH fact command        | observer and production CLI tests failed                                     |
 | controller transport arguments                                                                       | not pushed                               | production CLI test failed                                                   |
 
+### Decision A28: API forward and `.invalid` clusters
+
+The same procedure, with `api-forward.test.ts` and `contracts.test.ts` added to the run.
+
+| Check                                              | Injected fault                                    | Observed                                                                            |
+| -------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `.invalid` cluster not read                        | branch `if (false)`                               | `.invalid` test saw provider and Kubernetes reads for workers                       |
+| `.invalid` cluster declares no nodes               | refusal off                                       | `.invalid` test: declared worker nodes recorded as not bootstrapped                 |
+| `unprovisioned:` satisfies source closure          | alternative removed from `decodeFleetObservation` | `.invalid` observation failed decoding as incomplete                                |
+| SSH-served API is forwarded                        | `findApiForwardHost` returns undefined            | forward test: kubectl dialled the endpoint directly                                 |
+| certificate verified for the endpoint host         | `--tls-server-name` dropped                       | forward test failed                                                                 |
+| forward closed on failure                          | close moved after the reads (success only)        | x509 negative left the forward open                                                 |
+| forward host cannot be an ssh option               | refusal off                                       | `refuses a forward host that ssh could read as an option` failed                    |
+| `ExitOnForwardFailure=yes`, `-N`, `127.0.0.1` bind | each removed in turn                              | `renders a loopback-only pinned forward …` failed (and the open test for `-N`/bind) |
+| teardown failure reported                          | removal status ignored                            | `refuses when the forward container cannot be removed` resolved                     |
+| ssh exit detected                                  | exit check off                                    | host-key negative reported a timeout instead of `Host key verification failed`      |
+| readiness deadline                                 | deadline off                                      | never-listening negative polled until the runner timeout                            |
+
 ## Rehearsal through the locked controller
 
 A scratch script rendered the transport with `readSshTransport`, `renderControllerTransport` and
@@ -66,6 +85,21 @@ were removed afterwards.
 The third row is why `ANSIBLE_HOST_KEY_CHECKING=True` is rendered rather than left to the image or
 an Ansible configuration file.
 
+### API forward (A28)
+
+A second scratch script called the production `readSshTransport` and `openSshApiForward` with
+the locked controller against a disposable sshd (172.17.0.3) whose loopback served TLS on 6443
+with `openssl s_server`, then ran the forwarded `kubectl --context platform --server
+https://127.0.0.1:<port> --tls-server-name 172.17.0.3 get nodes -o json` in the controller with
+a kubeconfig holding the rehearsal CA.
+
+| Case                               | Result                                                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| certificate with SAN 172.17.0.3    | forward opened; TLS verified; kubectl then failed on the non-Kubernetes body (`invalid character '<'`) |
+| certificate with SAN 10.9.9.9 only | `tls: failed to verify certificate: x509: certificate is valid for 10.9.9.9, not 172.17.0.3`           |
+| `known_hosts` pins another key     | `forward refused: SSH API forward to 172.17.0.3 exited 255: … Host key verification failed.`           |
+| after each close                   | `docker ps --filter name=puni-fleet-forward` listed none                                               |
+
 ## Not run
 
 - Discovery against h4claw or h3mon: lanes never touch production hosts; task 8 belongs to a host
@@ -73,5 +107,8 @@ an Ansible configuration file.
 - The full `tool-fleet:discover` command against the sshd containers: its provider and Kubernetes
   sources need an hcloud inventory and a cluster; the CLI wiring is covered by the fixture test.
 - The container user: the controller runs as uid 1000, so the operator's owner-only
-  `known_hosts` must be owned by uid 1000 (true on the workstation here; the playbook procedure
-  has the same constraint on h2puni).
+  `known_hosts` and agent socket must be readable by uid 1000 (true on the workstation here; the
+  playbook procedure has the same constraint on h2puni). The runbook states it.
+- An empty agent: discovery checks only that `SSH_AUTH_SOCK` is a socket; an agent without the
+  key fails at login, not as a typed refusal.
+- A forwarded `kubectl get nodes` against h4claw: not run; lanes do not contact production.

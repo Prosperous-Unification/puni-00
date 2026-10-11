@@ -12,5 +12,11 @@
 - [x] 6. Rehearse the rendered transport through the locked controller against disposable local
       sshd containers: pinned, changed key, `ANSIBLE_HOST_KEY_CHECKING=False`, pinned and
       mis-pinned jump.
-- [x] 7. Runbook and operator guide: discovery reaches production through the transport.
+- [x] 7. Runbook and operator guide: discovery is invoked through the transport; both remaining
+      blockers named (API firewall, `workers` placeholder) with their A28 answers.
+- [x] 7a. A28: `.invalid` endpoints recorded not bootstrapped from `unprovisioned:` with no read;
+      tests fail first; declared nodes refused; a missing context elsewhere still refuses.
+- [x] 7b. A28: SSH-served cluster API through `openSshApiForward` (loopback-only, pinned,
+      `ExitOnForwardFailure`, removed after the reads, `--tls-server-name` the endpoint host);
+      tests fail first; fault-injected; rehearsed against a TLS listener behind local sshd.
 - [ ] 8. Read-only production discovery of h4claw and h3mon from h2puni (host lane).

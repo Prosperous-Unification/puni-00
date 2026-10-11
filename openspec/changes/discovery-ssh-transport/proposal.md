@@ -12,10 +12,13 @@ enrollment runbook had to run the playbooks directly (Twilight Dash WBS 070.05).
 
 Discovery of a production fleet with SSH nodes takes one operator transport file: the remote
 user, the reviewed `known_hosts`, and optionally a jump host pinned by the same file. It is
-validated with the forwarded agent into one record before any command runs, then rendered into
+validated into one record, with `SSH_AUTH_SOCK` checked to be a socket, before any command runs, then rendered into
 `discover.yml`'s connection variables (strict host-key checking, no global known hosts, batch
 mode) and into the controller container (read-only `known_hosts`, the agent socket,
-`ANSIBLE_HOST_KEY_CHECKING=True`). Every unusable input is a typed refusal.
+`ANSIBLE_HOST_KEY_CHECKING=True`). A cluster API served by one of its SSH nodes is reached
+through a pinned SSH forward to that node's loopback (decision A28), and a cluster whose endpoint
+is under the reserved `.invalid` TLD is recorded not bootstrapped without any read. Every
+unusable input is a typed refusal.
 
 ## Non-goals
 

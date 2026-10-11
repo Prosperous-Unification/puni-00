@@ -46,3 +46,42 @@ receive the `known_hosts` read-only, the validated agent socket, and
 - **GIVEN** a transport whose jump host's pinned key differs from the jump's real key
 - **WHEN** `discover.yml` runs through the jump
 - **THEN** the connection closes before authentication and the host is unreachable
+
+### Requirement: An SSH-served cluster API is reached through a pinned forward
+
+When a cluster's API endpoint host is the address of one of its SSH nodes, production discovery
+SHALL reach the API only through an SSH local forward from a controller loopback port to that
+node's loopback, pinned by the same transport, SHALL verify the API certificate for the endpoint
+host, SHALL remove the forward when the cluster's Kubernetes reads end, and SHALL refuse when the
+forward cannot be established or the certificate does not match.
+
+#### Scenario: Forward host key changed
+
+- **GIVEN** a transport whose `known_hosts` pins another key for the API host
+- **WHEN** discovery opens the API forward
+- **THEN** it refuses with ssh's host key verification failure and reads no Kubernetes source
+
+#### Scenario: Certificate for another address
+
+- **GIVEN** an open forward whose API certificate is valid only for another address
+- **WHEN** discovery reads Kubernetes nodes
+- **THEN** discovery refuses with the x509 failure and removes the forward
+
+### Requirement: Reserved .invalid endpoints are unprovisioned clusters
+
+A cluster whose API endpoint host is under the RFC 2606 `.invalid` TLD SHALL be observed as
+not bootstrapped from an `unprovisioned:` source without any provider, Kubernetes or SSH read
+and without a kubeconfig context; such a cluster SHALL declare no nodes. Any other cluster whose
+Kubernetes context is missing SHALL still be refused.
+
+#### Scenario: Declared workers placeholder
+
+- **GIVEN** the `workers` cluster at `https://workers.example.invalid:6443` with no nodes
+- **WHEN** discovery runs
+- **THEN** it records `workers` not bootstrapped and issues no command for it
+
+#### Scenario: Missing context for a real endpoint
+
+- **GIVEN** a cluster at `https://workers.example.test:6443` and no `workers` context
+- **WHEN** discovery runs
+- **THEN** it refuses and names `kubernetes-nodes:workers`

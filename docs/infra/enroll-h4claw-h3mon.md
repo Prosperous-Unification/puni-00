@@ -156,7 +156,7 @@ then removes the enrollment taints.
 
 `tool-fleet:discover` and `plan --operation enroll` also refuse a wrong or missing target (see
 `placement.test.ts`). This procedure uses the playbooks directly; the ID checks above are its
-identity gate. Discovery reaches both hosts read-only through an SSH transport file beside
+identity gate. Read-only discovery of both hosts is invoked through an SSH transport file beside
 `$OPS/vars.json`, mode `0600`, using the same `known_hosts` and an account the forwarded agent's
 key can log in as (the admin user, or `puni-fleet` from the inventory's `puni_operator_name`):
 
@@ -167,13 +167,24 @@ bunx nx run tool-fleet:discover -- --fleet infra/fleet/desired.yaml \
   --output "$OPS/observation-$(date -u +%Y%m%dT%H%M%SZ).json" --ssh-transport "$OPS/ssh-transport.json"
 ```
 
-The SSH facts need `SSH_AUTH_SOCK` (connect to h2puni with `ssh -A`) and pin exactly the
-reviewed keys; `"jump": {"user": …, "address": …}` adds a hop whose key must be in the same
-`known_hosts`. Every refusal and rendered SSH option is in
-[the discovery transport change](../../openspec/changes/discovery-ssh-transport/verify.md).
-The other sources still need `HCLOUD_TOKEN` and a `KUBECONFIG` with `platform` and `workers`
-contexts whose API admits the controller; the fleet firewall admits only enrolled addresses and
-loopback, so no production run has completed yet.
+- **Agent.** `SSH_AUTH_SOCK` must name a socket (connect to h2puni with `ssh -A`); discovery
+  checks only that it is a socket, so an empty agent fails at login.
+- **Owner.** The controller runs as uid 1000, so the transport's `known_hosts` and the agent
+  socket must be readable by uid 1000; an owner-only file of another user fails at connect.
+- **Host keys.** Only the reviewed keys are accepted; `"jump": {"user": …, "address": …}` adds a
+  hop whose key must be in the same `known_hosts`.
+- **Kubernetes API.** The fleet firewall admits the API only from enrolled addresses and
+  loopback, so discovery reaches `https://10.1.0.4:6443` through an SSH forward to h4claw's
+  loopback with the same transport, and verifies the certificate for `10.1.0.4`. `KUBECONFIG`
+  needs a `platform` context holding the cluster CA and credentials (h4claw's
+  `/etc/rancher/k3s/k3s.yaml`, context renamed); its server address is replaced by the forward.
+- **Workers.** The `workers` cluster's `.invalid` endpoint marks it declared but unprovisioned:
+  discovery records it not bootstrapped without any read, so it needs no context.
+- **Provider.** The `platform` provider read still needs `HCLOUD_TOKEN`.
+
+Every refusal, rendered option and rehearsal is in
+[the discovery transport change](../../openspec/changes/discovery-ssh-transport/verify.md). No
+production run has completed yet.
 
 ## 6. Check h3mon's memory
 
