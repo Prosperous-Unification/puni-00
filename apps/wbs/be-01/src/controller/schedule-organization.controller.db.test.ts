@@ -650,6 +650,36 @@ describe('shared live projection', () => {
   });
 });
 
+describe('shared holder labels', () => {
+  it('names whom a slice waits for in the project above', async () => {
+    const { higher, lower } = await seedSharedPlans();
+    const higherRead = await h.call('ada', 'GET', `/api/projects/${higher}/work-items`);
+    expect(higherRead.body).not.toHaveProperty('elsewhereHolders');
+    const row = (
+      higherRead.body as { workItems: { id: string; number: string; name: string }[] }
+    ).workItems.find((each) => each.id === 'higher-work');
+    if (row === undefined) throw new Error('Higher holds no row');
+    const answer = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    expect(answer.status).toBe(200);
+    expect(answer.body).toMatchObject({
+      waitingElsewhere: 1,
+      elsewhereHolders: [
+        {
+          projectId: higher,
+          projectName: 'Higher',
+          workItemId: 'higher-work',
+          number: row.number,
+          name: 'higher-work',
+        },
+      ],
+    });
+    h.sqlite.run("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
+    const isolated = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    expect(isolated.body).not.toHaveProperty('elsewhereHolders');
+    expect(isolated.body).not.toHaveProperty('waitingElsewhere');
+  });
+});
+
 describe('shared transactional consumers', () => {
   it('shared command preflight sees staged writes and arrangement', async () => {
     const { lower, lowerStep } = await seedSharedPlans();

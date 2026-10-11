@@ -1,5 +1,6 @@
 import type {
   Broadcaster,
+  CapacityModeSwitch,
   Clock,
   DomainChallenges,
   EditAdmission,
@@ -19,6 +20,7 @@ import type {
 } from '@wbs/core';
 import type { Scope, UnitOfWork } from '@wbs/core';
 import { clockOf } from '@wbs/core';
+import { capacityModeRoutes } from '@wbs/core/http/capacity-mode.routes';
 import { domainRoutes } from '@wbs/core/http/domain.routes';
 import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
 import { invitationRoutes } from '@wbs/core/http/invitation.routes';
@@ -40,10 +42,12 @@ import type { StepService } from '@wbs/core/module/step/step.resource';
 import type { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import type { BeforeProjectUpdate, BeforeStepRemoval } from '@wbs/core/ports/fanout-capture-store';
 import type { AuthService } from '@wbs/core/service/auth.service';
+import { CapacityModeResource } from '@wbs/core/service/capacity-mode.resource';
 import type { CommittedFanoutDelivery } from '@wbs/core/service/committed-fanout';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
 import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
 import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
+import { type CapacityMode, SUPPORTED_CAPACITY_MODES } from '@wbs/domain';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
 
@@ -188,10 +192,18 @@ export interface AppOptions {
    */
   spaces: SpaceStore;
   /**
-   * The organizations' project rank (`share-people-across-projects`, slice
-   * 3). Required, like `spaces`: the load reads order by it.
+   * The organizations' project rank and capacity mode
+   * (`share-people-across-projects`, slices 3 and 8). Required, like
+   * `spaces`: the load reads order by it. In production both writers own a
+   * complete write turn (`standaloneRankStore`, `standaloneCapacityModeSwitch`).
    */
-  projectRanks: ProjectRankStore;
+  projectRanks: ProjectRankStore & CapacityModeSwitch;
+  /**
+   * The capacity modes the mode route may store. A test seam: production
+   * boot never sets it, so the route admits exactly
+   * `SUPPORTED_CAPACITY_MODES`, the set the swap and the restore check.
+   */
+  supportedCapacityModes?: readonly CapacityMode[];
   /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
@@ -411,6 +423,14 @@ export function mountedEndpoints(
         workItems: opts.workItems,
         directory: opts.directory,
         ranks: opts.projectRanks,
+      }),
+      opts.organizations,
+    ),
+    ...capacityModeRoutes(
+      new CapacityModeResource({
+        modes: opts.projectRanks,
+        clock: spaceClock,
+        supported: opts.supportedCapacityModes ?? SUPPORTED_CAPACITY_MODES,
       }),
       opts.organizations,
     ),

@@ -3,9 +3,15 @@ import { deadlineOffsetOf, workdaysBetween } from '@wbs/domain/workday';
 import type * as React from 'react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
-import type { PriorityBandView, TeamView, TypedDependencyView } from '@/lib/wbs-api';
+import type {
+  ElsewhereHolderView,
+  PriorityBandView,
+  TeamView,
+  TypedDependencyView,
+} from '@/lib/wbs-api';
 
 import {
+  elsewhereHolderKey,
   GanttDataError,
   type GanttPlan,
   type ServiceTeamLabel,
@@ -114,6 +120,18 @@ function useShownPlanRows(
   }, [structuralRows]);
 
   return structuralRows;
+}
+
+/**
+ * The chart's holder lookup: each label a plan read carries, filed under
+ * {@link elsewhereHolderKey} so a slice's `elsewhereHolder` finds it.
+ */
+export function elsewhereHoldersOf(
+  holders: readonly ElsewhereHolderView[],
+): Map<string, ElsewhereHolderView> {
+  return new Map(
+    holders.map((holder) => [elsewhereHolderKey(holder.projectId, holder.workItemId), holder]),
+  );
 }
 
 /**
@@ -310,6 +328,7 @@ export function usePlanChartInput({
       // moment is the skew `layOutGantt` throws on.
       steps: chartRead.steps,
       personNames: new Map(chartRead.people.map((person) => [person.id, person.name])),
+      elsewhereHolders: elsewhereHoldersOf(chartRead.elsewhereHolders),
       teamNames: new Map(teams.map((team) => [team.id, team.name])),
       // The ladder the chart names its priorities with. Off the same state the
       // table's cells read, so a bar's cap and its row's digits are one colour.

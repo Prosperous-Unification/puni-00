@@ -56,6 +56,28 @@ refusal.
 - **WHEN** a request is built with quantum 48
 - **THEN** her wire intervals are `[0, 2)` and `[2, 3)`, while her original bookings retain their holders and fractions
 
+### Requirement: A read names whom its slices wait for
+
+A plan read whose displayed schedule carries `waitingElsewhere` SHALL also carry
+`elsewhereHolders`: one label per holder a slice's `elsewhereHolder` names (the project's id and
+name, and the work item's id, number and name as that project's own plan derives them, from the
+same chain observation). It SHALL carry neither otherwise. A slice naming a holder the chain did
+not label SHALL fail the read. fe-01 SHALL name the holder in the floor sentence, SHALL refuse a
+slice bound `elsewhere` whose holder the read does not label (its error boundary, never a sentence
+naming nobody), and SHALL refetch only the tree on `elsewhere_changed`.
+
+#### Scenario: a slice held in Platform
+
+- **GIVEN** Ana's slice waits for her booking on Platform's 010.3 Rewire
+- **WHEN** the plan is read and drawn
+- **THEN** its sentence reads "Waits for Ana to finish 010.3 Rewire in Platform"
+
+#### Scenario: an isolated read
+
+- **GIVEN** the organization is isolated
+- **WHEN** the plan is read
+- **THEN** the response carries neither `waitingElsewhere` nor `elsewhereHolders`
+
 ### Requirement: The hash moves only when elsewhere does
 
 `canonicalScheduleInput` SHALL include `elsewhere` (persons sorted, intervals sorted, each with

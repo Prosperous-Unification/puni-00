@@ -149,6 +149,17 @@ export const workItemTree = type({
   scheduleError: "'calendar_range' | 'cycle' | null",
   waitingForPerson: 'number',
   waitingForCapacity: 'number',
+  // Both present exactly when the displayed schedule was placed around bookings
+  // in other projects (`share-people-across-projects`): the engine's count, and
+  // one label per holder a slice's `elsewhereHolder` names.
+  'waitingElsewhere?': 'number',
+  'elsewhereHolders?': type({
+    projectId: 'string',
+    projectName: 'string',
+    workItemId: 'string',
+    number: 'string',
+    name: 'string',
+  }).array(),
   slices: workItemSlice.array(),
   steps: stepShape.array(),
   assignedPeople: named.array(),

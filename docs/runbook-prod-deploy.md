@@ -334,8 +334,34 @@ runtime operation. The swap reads actual stored encodings and refuses an isolate
 release while any organization is shared, before migration and again after the outgoing color
 stops. A missing old-schema column means isolated; missing tables or malformed state refuse.
 
-The new column's down migration refuses while any shared organization **or any project rank**
-exists. Use the combined recovery procedure instead of removing ranks alone. It preserves all
+Every switch through `PATCH /api/organization` is recorded in `shared_people_audit`
+(`20261011200000_add_shared_people_audit`), and a rollback never discards audit evidence, as with
+`organization_audit`. While this release supports only isolated people the route refuses a switch
+to shared (`409 capacity_mode_unsupported`) and a switch to the mode an organization already has
+records nothing, so the table stays empty. Check it before choosing a path:
+
+```sh
+docker exec be-01-<colour> bun -e "import { Database } from 'bun:sqlite'; const db = new Database(process.env.DB_PATH, { readonly: true }); console.log(db.query('SELECT COUNT(*) AS switches FROM shared_people_audit').get())"
+```
+
+Once any switch is recorded the schema rollback is closed: rolling back past the audit migration
+refuses with `CHECK constraint failed: shared people switches are recorded: …`, and
+`shared-people-rollback-cli.ts remove` refuses with the same reason before changing anything. What
+remains is to switch every shared organization back to isolated through the route as one of its
+super-admins (each switch is audited and tells every project; each project's own dates return).
+There is no operator CLI or maintenance identity for this: the switch is an organization act, so
+it must be made by a super-admin of that organization signed in in person (a delegated session is
+refused). The last-super-admin guard keeps a super-admin membership row in every organization, but
+that row is not proof of a person who can still sign in. If one can, they switch the organization
+back themselves from the organization page's Shared people panel (`PATCH /api/organization
+{"sharedPeople": false}`); promoting an operator instead needs that same super-admin, so it is
+never a shortcut. If no super-admin can sign in, recovery starts by restoring one super-admin's
+sign-in; WBS has no operator path around it. Then roll back code
+only: with no organization shared, the swap's capacity-modes guard admits an
+older image, and the extra column and table are inert to it.
+
+The procedure below applies while no switch is recorded. The new column's down migration refuses
+while any shared organization **or any project rank** exists. Use the combined recovery procedure instead of removing ranks alone. It preserves all
 organization identities and semantic modes, including isolated, and every rank field:
 
 ```sh
