@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { type CliInvocation, invokeCli } from '../invoke-cli';
+
 type Membership =
   | { kind: 'path'; path: string }
   | { kind: 'directory-prefix'; prefix: string; exclusions: string[] };
@@ -172,22 +174,31 @@ function commit(repository: string, message: string): string {
  */
 const CYCLE_BOUND_MS = 20_000;
 
-function runCheck(
+/**
+ * Runs `check-indexes` in this process through the CLI entry, or as its own Bun process when the
+ * case needs one: an `env` (a fake `git` on `PATH`) must reach the spawned Git, and a `timeout`
+ * must be able to kill a looping check, which an in-process call could not interrupt.
+ */
+async function runCheck(
   repository: string,
   revision: string,
   env?: Record<string, string>,
   timeout?: number,
-): ReturnType<typeof Bun.spawnSync> {
-  return Bun.spawnSync(
-    [process.execPath, 'run', cliPath, 'check-indexes', 'committed', repository, revision],
-    {
-      cwd: import.meta.dir,
-      env: env === undefined ? process.env : { ...process.env, ...env },
-      stderr: 'pipe',
-      stdout: 'pipe',
-      timeout,
-    },
-  );
+): Promise<CliInvocation> {
+  const argv = ['check-indexes', 'committed', repository, revision];
+  if (env === undefined && timeout === undefined) return invokeCli(argv);
+  const invocation = Bun.spawnSync([process.execPath, 'run', cliPath, ...argv], {
+    cwd: import.meta.dir,
+    env: env === undefined ? process.env : { ...process.env, ...env },
+    stderr: 'pipe',
+    stdout: 'pipe',
+    timeout,
+  });
+  return {
+    exitCode: invocation.exitCode,
+    stdout: pipeText(invocation.stdout, 'index stdout'),
+    stderr: pipeText(invocation.stderr, 'index stderr'),
+  };
 }
 
 function pipeText(stream: Uint8Array | undefined, name: string): string {
@@ -195,11 +206,11 @@ function pipeText(stream: Uint8Array | undefined, name: string): string {
   return Buffer.from(stream).toString('utf8');
 }
 
-function outputOf(invocation: ReturnType<typeof Bun.spawnSync>): string {
-  return `${pipeText(invocation.stdout, 'index stdout')}${pipeText(invocation.stderr, 'index stderr')}`;
+function outputOf(invocation: CliInvocation): string {
+  return `${invocation.stdout}${invocation.stderr}`;
 }
 
-function expectRefusal(invocation: ReturnType<typeof Bun.spawnSync>, expected: string): void {
+function expectRefusal(invocation: CliInvocation, expected: string): void {
   const output = outputOf(invocation);
   expect(invocation.exitCode, output).toBe(1);
   expect(output).toContain(expected);
@@ -212,16 +223,16 @@ afterEach(() => {
 });
 
 describe('index production CLI', () => {
-  test('checks nested indexes, grouped sets and frozen archive proposal navigation', () => {
+  test('checks nested indexes, grouped sets and frozen archive proposal navigation', async () => {
     const repository = createRepository();
     writeFixture(repository);
     const revision = commit(repository, 'fixture');
     const tree = runGit(repository, ['rev-parse', `${revision}^{tree}`]);
 
-    const invocation = runCheck(repository, revision);
+    const invocation = await runCheck(repository, revision);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(0);
-    const report = JSON.parse(pipeText(invocation.stdout, 'index stdout')) as IndexCheckReport;
+    const report = JSON.parse(invocation.stdout) as IndexCheckReport;
     expect(report).toMatchObject({
       schemaVersion: 1,
       selection: { kind: 'committed', revision, tree },
@@ -261,29 +272,29 @@ describe('index production CLI', () => {
     expect(report.reviewDebt).toEqual([]);
   });
 
-  test('refuses a declared child deleted from the selected candidate', () => {
+  test('refuses a declared child deleted from the selected candidate', async () => {
     const repository = createRepository();
     writeFixture(repository);
     rmSync(join(repository, 'docs/guide.md'));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'delete indexed child')),
+      await runCheck(repository, commit(repository, 'delete indexed child')),
       'membership target absent: docs/guide.md',
     );
   });
 
-  test('refuses a selected child absent from its nearest index', () => {
+  test('refuses a selected child absent from its nearest index', async () => {
     const repository = createRepository();
     writeFixture(repository);
     write(repository, 'unindexed.txt', 'new child\n');
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'add unindexed child')),
+      await runCheck(repository, commit(repository, 'add unindexed child')),
       'unindexed candidate path in README.md: unindexed.txt',
     );
   });
 
-  test('refuses a Markdown link whose case differs from the selected path', () => {
+  test('refuses a Markdown link whose case differs from the selected path', async () => {
     const repository = createRepository();
     writeFixture(repository);
     const root = indexSource(
@@ -304,7 +315,7 @@ describe('index production CLI', () => {
     write(repository, 'README.md', root);
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'wrong link case')),
+      await runCheck(repository, commit(repository, 'wrong link case')),
       'Markdown path case mismatch in README.md: docs/Guide.md -> docs/guide.md',
     );
   });
@@ -314,20 +325,20 @@ describe('index production CLI', () => {
     writeFixture(repository);
     const rootPath = join(repository, 'README.md');
     const source = Bun.file(rootPath).text();
-    return source.then((markdown) => {
+    return source.then(async (markdown) => {
       writeFileSync(
         rootPath,
         markdown.replace('docs/guide.md#details', 'docs/guide.md#missing'),
         'utf8',
       );
       expectRefusal(
-        runCheck(repository, commit(repository, 'missing anchor')),
+        await runCheck(repository, commit(repository, 'missing anchor')),
         'Markdown anchor absent in README.md: docs/guide.md#missing',
       );
     });
   });
 
-  test('refuses invalid versioned metadata before inferring membership', () => {
+  test('refuses invalid versioned metadata before inferring membership', async () => {
     const repository = createRepository();
     writeFixture(repository);
     const malformed = metadata('module.root', []);
@@ -335,12 +346,12 @@ describe('index production CLI', () => {
     write(repository, 'README.md', indexSource('Repository map', malformed, []));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'invalid metadata')),
+      await runCheck(repository, commit(repository, 'invalid metadata')),
       'index metadata malformed at README.md',
     );
   });
 
-  test('refuses duplicate relationship selectors in index metadata', () => {
+  test('refuses duplicate relationship selectors in index metadata', async () => {
     const repository = createRepository();
     const malformed = metadata('module.root', []);
     malformed.relationshipSelectors = ['typescript.public', 'typescript.public'];
@@ -350,12 +361,12 @@ describe('index production CLI', () => {
     write(repository, 'README.md', indexSource('Root', malformed, []));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'duplicate relationship selectors')),
+      await runCheck(repository, commit(repository, 'duplicate relationship selectors')),
       'unique relationship selectors',
     );
   });
 
-  test('refuses duplicate inapplicable sections in index metadata', () => {
+  test('refuses duplicate inapplicable sections in index metadata', async () => {
     const repository = createRepository();
     const malformed = metadata('module.root', []);
     malformed.inapplicableSections.push({
@@ -365,12 +376,12 @@ describe('index production CLI', () => {
     write(repository, 'README.md', indexSource('Root', malformed, []));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'duplicate inapplicable sections')),
+      await runCheck(repository, commit(repository, 'duplicate inapplicable sections')),
       'unique inapplicable sections',
     );
   });
 
-  test('requires relationship selectors when relationships are applicable', () => {
+  test('requires relationship selectors when relationships are applicable', async () => {
     const repository = createRepository();
     const malformed = metadata('module.root', []);
     malformed.inapplicableSections = malformed.inapplicableSections.filter(
@@ -379,24 +390,24 @@ describe('index production CLI', () => {
     write(repository, 'README.md', indexSource('Root', malformed, []));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'missing relationship selectors')),
+      await runCheck(repository, commit(repository, 'missing relationship selectors')),
       'relationship selectors or one explicit relationships inapplicability reason',
     );
   });
 
-  test('refuses relationship selectors when relationships are inapplicable', () => {
+  test('refuses relationship selectors when relationships are inapplicable', async () => {
     const repository = createRepository();
     const malformed = metadata('module.root', []);
     malformed.relationshipSelectors = ['typescript.public'];
     write(repository, 'README.md', indexSource('Root', malformed, []));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'contradictory relationship selectors')),
+      await runCheck(repository, commit(repository, 'contradictory relationship selectors')),
       'relationship selectors or one explicit relationships inapplicability reason',
     );
   });
 
-  test('refuses a directory exclusion outside its declared prefix', () => {
+  test('refuses a directory exclusion outside its declared prefix', async () => {
     const repository = createRepository();
     const malformed = metadata('module.root', [
       { kind: 'directory-prefix', prefix: 'docs', exclusions: ['other/guide.md'] },
@@ -405,24 +416,24 @@ describe('index production CLI', () => {
     write(repository, 'docs/guide.md', '# Guide\n');
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'outside directory exclusion')),
+      await runCheck(repository, commit(repository, 'outside directory exclusion')),
       'directory exclusions below their declared prefix',
     );
   });
 
-  test('refuses a membership path that escapes its index boundary', () => {
+  test('refuses a membership path that escapes its index boundary', async () => {
     const repository = createRepository();
     writeFixture(repository);
     const escaping = metadata('module.alpha', [{ kind: 'path', path: '../outside.ts' }]);
     write(repository, 'apps/alpha/README.md', indexSource('Alpha', escaping, []));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'escaping membership')),
+      await runCheck(repository, commit(repository, 'escaping membership')),
       'index metadata malformed at apps/alpha/README.md',
     );
   });
 
-  test('refuses a candidate path matched by two membership declarations', () => {
+  test('refuses a candidate path matched by two membership declarations', async () => {
     const repository = createRepository();
     writeFixture(repository);
     const overlapping = metadata('module.root', [
@@ -440,7 +451,7 @@ describe('index production CLI', () => {
     write(repository, 'README.md', indexSource('Repository map', overlapping, []));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'ambiguous membership')),
+      await runCheck(repository, commit(repository, 'ambiguous membership')),
       'ambiguous membership in README.md: tests/unit/alpha.test.ts',
     );
   });
@@ -450,16 +461,16 @@ describe('index production CLI', () => {
     writeFixture(repository);
     const rootPath = join(repository, 'README.md');
     const source = Bun.file(rootPath).text();
-    return source.then((markdown) => {
+    return source.then(async (markdown) => {
       writeFileSync(rootPath, `${markdown}\n[No globs](tests/*.ts)\n`, 'utf8');
       expectRefusal(
-        runCheck(repository, commit(repository, 'glob link')),
+        await runCheck(repository, commit(repository, 'glob link')),
         'Markdown link contains a glob in README.md: tests/*.ts',
       );
     });
   });
 
-  test('reports navigation review debt without moving or rejecting forty-one direct entries', () => {
+  test('reports navigation review debt without moving or rejecting forty-one direct entries', async () => {
     const repository = createRepository();
     const memberships: Membership[] = [];
     for (let index = 1; index <= 41; index += 1) {
@@ -474,16 +485,16 @@ describe('index production CLI', () => {
     );
     const revision = commit(repository, 'wide fixture');
 
-    const invocation = runCheck(repository, revision);
+    const invocation = await runCheck(repository, revision);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(0);
-    const report = JSON.parse(pipeText(invocation.stdout, 'index stdout')) as IndexCheckReport;
+    const report = JSON.parse(invocation.stdout) as IndexCheckReport;
     expect(report.reviewDebt).toEqual([{ indexPath: 'README.md', directEntries: 41, limit: 40 }]);
     expect(report.indexes[0]?.members).toHaveLength(41);
     expect(runGit(repository, ['status', '--short'])).toBe('');
   });
 
-  test('fails closed when a selected index blob cannot be read', () => {
+  test('fails closed when a selected index blob cannot be read', async () => {
     const repository = createRepository();
     writeFixture(repository);
     const revision = commit(repository, 'fixture');
@@ -501,7 +512,7 @@ describe('index production CLI', () => {
     chmodSync(wrapperPath, 0o755);
 
     expectRefusal(
-      runCheck(repository, revision, {
+      await runCheck(repository, revision, {
         PATH: `${wrapperDirectory}:${process.env['PATH'] ?? ''}`,
         WIKI_REAL_GIT: realGit,
       }),
@@ -509,7 +520,7 @@ describe('index production CLI', () => {
     );
   });
 
-  test('refuses a linked selected symlink at the membership boundary', () => {
+  test('refuses a linked selected symlink at the membership boundary', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -523,29 +534,27 @@ describe('index production CLI', () => {
     symlinkSync('../../outside', join(repository, 'escape'));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'escaping symlink')),
+      await runCheck(repository, commit(repository, 'escaping symlink')),
       'membership symlink escapes candidate in README.md: escape -> ../../outside',
     );
   });
 
-  test('binds canonical index identities and links to the selected candidate rather than host files', () => {
+  test('binds canonical index identities and links to the selected candidate rather than host files', async () => {
     const repository = createRepository();
     writeFixture(repository);
     const revision = commit(repository, 'immutable fixture');
-    const first = runCheck(repository, revision);
+    const first = await runCheck(repository, revision);
     expect(first.exitCode, outputOf(first)).toBe(0);
 
     write(repository, 'README.md', '<!-- module-index {"schemaVersion":99} -->\n');
     rmSync(join(repository, 'docs/guide.md'));
-    const second = runCheck(repository, revision);
+    const second = await runCheck(repository, revision);
 
     expect(second.exitCode, outputOf(second)).toBe(0);
-    expect(pipeText(second.stdout, 'second index stdout')).toBe(
-      pipeText(first.stdout, 'first index stdout'),
-    );
+    expect(second.stdout).toBe(first.stdout);
   });
 
-  test('refuses duplicate stable module identities across nested indexes', () => {
+  test('refuses duplicate stable module identities across nested indexes', async () => {
     const repository = createRepository();
     writeFixture(repository);
     write(
@@ -559,17 +568,17 @@ describe('index production CLI', () => {
     );
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'duplicate module identity')),
+      await runCheck(repository, commit(repository, 'duplicate module identity')),
       'duplicate index module identity: module.alpha',
     );
   });
 
-  test('fails closed when the selected candidate declares no index metadata', () => {
+  test('fails closed when the selected candidate declares no index metadata', async () => {
     const repository = createRepository();
     write(repository, 'README.md', '# Ordinary readme\n');
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'missing index metadata')),
+      await runCheck(repository, commit(repository, 'missing index metadata')),
       'selected candidate contains no module indexes',
     );
   });
@@ -579,7 +588,7 @@ describe('index production CLI', () => {
     writeFixture(repository);
     const rootPath = join(repository, 'README.md');
     const source = Bun.file(rootPath).text();
-    return source.then((markdown) => {
+    return source.then(async (markdown) => {
       writeFileSync(
         rootPath,
         markdown.replace(
@@ -588,7 +597,7 @@ describe('index production CLI', () => {
         ),
         'utf8',
       );
-      const invocation = runCheck(repository, commit(repository, 'reference link'));
+      const invocation = await runCheck(repository, commit(repository, 'reference link'));
       expect(invocation.exitCode, outputOf(invocation)).toBe(0);
     });
   });
@@ -598,7 +607,7 @@ describe('index production CLI', () => {
     writeFixture(repository);
     const rootPath = join(repository, 'README.md');
     const source = Bun.file(rootPath).text();
-    return source.then((markdown) => {
+    return source.then(async (markdown) => {
       writeFileSync(
         rootPath,
         markdown.replace(
@@ -608,7 +617,7 @@ describe('index production CLI', () => {
         'utf8',
       );
       expectRefusal(
-        runCheck(repository, commit(repository, 'absent reference target')),
+        await runCheck(repository, commit(repository, 'absent reference target')),
         'Markdown path absent in README.md: docs/absent.md',
       );
     });
@@ -619,7 +628,7 @@ describe('index production CLI', () => {
     writeFixture(repository);
     const rootPath = join(repository, 'README.md');
     const source = Bun.file(rootPath).text();
-    return source.then((markdown) => {
+    return source.then(async (markdown) => {
       writeFileSync(
         rootPath,
         markdown.replace(
@@ -629,7 +638,7 @@ describe('index production CLI', () => {
         'utf8',
       );
       expectRefusal(
-        runCheck(repository, commit(repository, 'wrong-case reference target')),
+        await runCheck(repository, commit(repository, 'wrong-case reference target')),
         'Markdown path case mismatch in README.md: docs/Guide.md -> docs/guide.md',
       );
     });
@@ -640,7 +649,7 @@ describe('index production CLI', () => {
     writeFixture(repository);
     const rootPath = join(repository, 'README.md');
     const source = Bun.file(rootPath).text();
-    return source.then((markdown) => {
+    return source.then(async (markdown) => {
       writeFileSync(
         rootPath,
         markdown.replace(
@@ -650,7 +659,7 @@ describe('index production CLI', () => {
         'utf8',
       );
       expectRefusal(
-        runCheck(repository, commit(repository, 'absent reference anchor')),
+        await runCheck(repository, commit(repository, 'absent reference anchor')),
         'Markdown anchor absent in README.md: docs/guide.md#missing',
       );
     });
@@ -661,38 +670,38 @@ describe('index production CLI', () => {
     writeFixture(repository);
     const rootPath = join(repository, 'README.md');
     const source = Bun.file(rootPath).text();
-    return source.then((markdown) => {
+    return source.then(async (markdown) => {
       writeFileSync(rootPath, `${markdown}\n[Tests][tests]\n\n[tests]: tests/*.ts\n`, 'utf8');
       expectRefusal(
-        runCheck(repository, commit(repository, 'glob reference target')),
+        await runCheck(repository, commit(repository, 'glob reference target')),
         'Markdown link contains a glob in README.md: tests/*.ts',
       );
     });
   });
 
-  test('refuses a fenced HTML example as an anchor target', () => {
+  test('refuses a fenced HTML example as an anchor target', async () => {
     const repository = createRepository();
     writeFixture(repository);
     write(repository, 'docs/guide.md', '# Guide\n\n```html\n<a id="details"></a>\n```\n');
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'fenced anchor example')),
+      await runCheck(repository, commit(repository, 'fenced anchor example')),
       'Markdown anchor absent in README.md: docs/guide.md#details',
     );
   });
 
-  test('does not treat a fenced metadata example as an index envelope', () => {
+  test('does not treat a fenced metadata example as an index envelope', async () => {
     const repository = createRepository();
     const envelope = `<!-- module-index ${JSON.stringify(metadata('module.example', []))} -->`;
     write(repository, 'README.md', `# Example\n\n\`\`\`md\n${envelope}\n\`\`\`\n`);
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'fenced metadata example')),
+      await runCheck(repository, commit(repository, 'fenced metadata example')),
       'selected candidate contains no module indexes',
     );
   });
 
-  test('refuses an unlinked exact member symlink that escapes the candidate', () => {
+  test('refuses an unlinked exact member symlink that escapes the candidate', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -706,12 +715,12 @@ describe('index production CLI', () => {
     symlinkSync('../../outside', join(repository, 'escape'));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'unlinked exact escape')),
+      await runCheck(repository, commit(repository, 'unlinked exact escape')),
       'membership symlink escapes candidate in README.md: escape -> ../../outside',
     );
   });
 
-  test('refuses an unlinked grouped member symlink that escapes the candidate', () => {
+  test('refuses an unlinked grouped member symlink that escapes the candidate', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -726,12 +735,12 @@ describe('index production CLI', () => {
     symlinkSync('../../../outside', join(repository, 'group/escape'));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'unlinked grouped escape')),
+      await runCheck(repository, commit(repository, 'unlinked grouped escape')),
       'membership symlink escapes candidate in README.md: group/escape -> ../../../outside',
     );
   });
 
-  test('refuses an absolute member symlink target', () => {
+  test('refuses an absolute member symlink target', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -745,12 +754,12 @@ describe('index production CLI', () => {
     symlinkSync('/outside', join(repository, 'escape'));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'absolute member symlink')),
+      await runCheck(repository, commit(repository, 'absolute member symlink')),
       'membership symlink escapes candidate in README.md: escape -> /outside',
     );
   });
 
-  test('refuses a member symlink whose target is absent from the selected candidate', () => {
+  test('refuses a member symlink whose target is absent from the selected candidate', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -764,12 +773,12 @@ describe('index production CLI', () => {
     symlinkSync('not-selected', join(repository, 'missing'));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'absent member symlink target')),
+      await runCheck(repository, commit(repository, 'absent member symlink target')),
       'membership symlink target absent in README.md: missing -> not-selected',
     );
   });
 
-  test('refuses a cycle in selected member symlinks', () => {
+  test('refuses a cycle in selected member symlinks', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -787,23 +796,23 @@ describe('index production CLI', () => {
     symlinkSync('first', join(repository, 'second'));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'cyclic member symlinks')),
+      await runCheck(repository, commit(repository, 'cyclic member symlinks')),
       'membership symlink cycle in README.md: first',
     );
   });
 
-  test('refuses an anchor spelling that exists only inside an HTML comment', () => {
+  test('refuses an anchor spelling that exists only inside an HTML comment', async () => {
     const repository = createRepository();
     writeFixture(repository);
     write(repository, 'docs/guide.md', '# Guide\n\n<!-- <a id="details"></a> -->\n');
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'comment anchor example')),
+      await runCheck(repository, commit(repository, 'comment anchor example')),
       'Markdown anchor absent in README.md: docs/guide.md#details',
     );
   });
 
-  test('refuses an anchor spelling inside an HTML raw-text element', () => {
+  test('refuses an anchor spelling inside an HTML raw-text element', async () => {
     const repository = createRepository();
     writeFixture(repository);
     write(
@@ -813,12 +822,12 @@ describe('index production CLI', () => {
     );
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'raw text anchor example')),
+      await runCheck(repository, commit(repository, 'raw text anchor example')),
       'Markdown anchor absent in README.md: docs/guide.md#details',
     );
   });
 
-  test('refuses an anchor spelling inside inert HTML template contents', () => {
+  test('refuses an anchor spelling inside inert HTML template contents', async () => {
     const repository = createRepository();
     writeFixture(repository);
     write(
@@ -828,7 +837,7 @@ describe('index production CLI', () => {
     );
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'template anchor example')),
+      await runCheck(repository, commit(repository, 'template anchor example')),
       'Markdown anchor absent in README.md: docs/guide.md#details',
     );
   });
@@ -844,14 +853,14 @@ describe('index production CLI', () => {
     const rootPath = join(repository, 'README.md');
     const source = Bun.file(rootPath).text();
 
-    return source.then((markdown) => {
+    return source.then(async (markdown) => {
       writeFileSync(rootPath, `${markdown}\n[Legacy](docs/guide.md#legacy)\n`, 'utf8');
-      const invocation = runCheck(repository, commit(repository, 'rendered element anchors'));
+      const invocation = await runCheck(repository, commit(repository, 'rendered element anchors'));
       expect(invocation.exitCode, outputOf(invocation)).toBe(0);
     });
   });
 
-  test('resolves a trailing-slash directory link', () => {
+  test('resolves a trailing-slash directory link', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -862,11 +871,11 @@ describe('index production CLI', () => {
     );
     write(repository, 'docs/README.md', '# Docs\n\n## Details\n');
 
-    const invocation = runCheck(repository, commit(repository, 'directory links'));
+    const invocation = await runCheck(repository, commit(repository, 'directory links'));
     expect(invocation.exitCode, outputOf(invocation)).toBe(0);
   });
 
-  test('resolves a current-directory self link to its index README', () => {
+  test('resolves a current-directory self link to its index README', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -874,11 +883,11 @@ describe('index production CLI', () => {
       indexSource('Root', metadata('module.root', []), ['- [Self](./#root)']),
     );
 
-    const invocation = runCheck(repository, commit(repository, 'current-directory link'));
+    const invocation = await runCheck(repository, commit(repository, 'current-directory link'));
     expect(invocation.exitCode, outputOf(invocation)).toBe(0);
   });
 
-  test('refuses wrong case on a trailing-slash directory link', () => {
+  test('refuses wrong case on a trailing-slash directory link', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -890,12 +899,12 @@ describe('index production CLI', () => {
     write(repository, 'docs/README.md', '# Docs\n\n## Details\n');
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'wrong-case directory link')),
+      await runCheck(repository, commit(repository, 'wrong-case directory link')),
       'Markdown path case mismatch in README.md: Docs -> docs/README.md',
     );
   });
 
-  test('refuses an absent trailing-slash directory link at its canonical path', () => {
+  test('refuses an absent trailing-slash directory link at its canonical path', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -903,12 +912,12 @@ describe('index production CLI', () => {
       indexSource('Root', metadata('module.root', []), ['- [Missing](missing/)']),
     );
 
-    const invocation = runCheck(repository, commit(repository, 'absent directory link'));
+    const invocation = await runCheck(repository, commit(repository, 'absent directory link'));
     expect(invocation.exitCode, outputOf(invocation)).toBe(1);
     expect(outputOf(invocation).trim()).toBe('Markdown path absent in README.md: missing');
   });
 
-  test('uses the canonical directory path in a trailing-slash anchor diagnostic', () => {
+  test('uses the canonical directory path in a trailing-slash anchor diagnostic', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -919,23 +928,26 @@ describe('index production CLI', () => {
     );
     write(repository, 'docs/README.md', '# Docs\n');
 
-    const invocation = runCheck(repository, commit(repository, 'directory anchor diagnostic'));
+    const invocation = await runCheck(
+      repository,
+      commit(repository, 'directory anchor diagnostic'),
+    );
     expect(invocation.exitCode, outputOf(invocation)).toBe(1);
     expect(outputOf(invocation).trim()).toBe('Markdown anchor absent in README.md: docs#missing');
   });
 
-  test('refuses a Markdown heading rendered inside an inert HTML template', () => {
+  test('refuses a Markdown heading rendered inside an inert HTML template', async () => {
     const repository = createRepository();
     writeFixture(repository);
     write(repository, 'docs/guide.md', '# Guide\n\n<template>\n\n## Details\n\n</template>\n');
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'template Markdown heading')),
+      await runCheck(repository, commit(repository, 'template Markdown heading')),
       'Markdown anchor absent in README.md: docs/guide.md#details',
     );
   });
 
-  test('slugs the rendered text of inline HTML in a Markdown heading', () => {
+  test('slugs the rendered text of inline HTML in a Markdown heading', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -950,11 +962,11 @@ describe('index production CLI', () => {
       '# Guide\n\n## Release <template>Draft</template> <em>Notes</em>\n',
     );
 
-    const invocation = runCheck(repository, commit(repository, 'rendered heading text'));
+    const invocation = await runCheck(repository, commit(repository, 'rendered heading text'));
     expect(invocation.exitCode, outputOf(invocation)).toBe(0);
   });
 
-  test('allocates heading collisions against every previously used slug', () => {
+  test('allocates heading collisions against every previously used slug', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -965,11 +977,11 @@ describe('index production CLI', () => {
     );
     write(repository, 'guide.md', '# A\n\n## A\n\n## A-1\n');
 
-    const invocation = runCheck(repository, commit(repository, 'heading slug collisions'));
+    const invocation = await runCheck(repository, commit(repository, 'heading slug collisions'));
     expect(invocation.exitCode, outputOf(invocation)).toBe(0);
   });
 
-  test('does not let source HTML forge an internal Markdown-heading marker', () => {
+  test('does not let source HTML forge an internal Markdown-heading marker', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -985,12 +997,12 @@ describe('index production CLI', () => {
     );
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'forged heading marker')),
+      await runCheck(repository, commit(repository, 'forged heading marker')),
       'Markdown anchor absent in README.md: guide.md#forged',
     );
   });
 
-  test('does not let rendered heading text forge an internal Markdown-heading marker', () => {
+  test('does not let rendered heading text forge an internal Markdown-heading marker', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -1006,12 +1018,12 @@ describe('index production CLI', () => {
     );
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'rendered forged heading marker')),
+      await runCheck(repository, commit(repository, 'rendered forged heading marker')),
       'Markdown anchor absent in README.md: guide.md#forged',
     );
   });
 
-  test('preserves a leading UTF-8 BOM in a selected symlink target', () => {
+  test('preserves a leading UTF-8 BOM in a selected symlink target', async () => {
     const repository = createRepository();
     const target = '\uFEFFdocs/guide.md';
     write(
@@ -1029,11 +1041,11 @@ describe('index production CLI', () => {
     write(repository, target, '# Guide\n\n## Details\n');
     symlinkSync(target, join(repository, 'guide-link'));
 
-    const invocation = runCheck(repository, commit(repository, 'BOM symlink target'));
+    const invocation = await runCheck(repository, commit(repository, 'BOM symlink target'));
     expect(invocation.exitCode, outputOf(invocation)).toBe(0);
   });
 
-  test('names the exact BOM-prefixed target when a selected symlink is dangling', () => {
+  test('names the exact BOM-prefixed target when a selected symlink is dangling', async () => {
     const repository = createRepository();
     const target = '\uFEFFmissing.md';
     write(
@@ -1044,12 +1056,12 @@ describe('index production CLI', () => {
     symlinkSync(target, join(repository, 'missing-link'));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'dangling BOM symlink target')),
+      await runCheck(repository, commit(repository, 'dangling BOM symlink target')),
       `membership symlink target absent in README.md: missing-link -> ${target}`,
     );
   });
 
-  test('refuses traversal through a selected regular-file component', () => {
+  test('refuses traversal through a selected regular-file component', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -1061,12 +1073,12 @@ describe('index production CLI', () => {
     write(repository, 'docs/guide.md', '# Guide\n\n## Details\n');
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'regular-file path component')),
+      await runCheck(repository, commit(repository, 'regular-file path component')),
       'Markdown path component is not a directory in README.md: docs/guide.md',
     );
   });
 
-  test('refuses a trailing separator on a selected regular file', () => {
+  test('refuses a trailing separator on a selected regular file', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -1078,12 +1090,12 @@ describe('index production CLI', () => {
     write(repository, 'guide.md', '# Guide\n');
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'regular file trailing separator')),
+      await runCheck(repository, commit(repository, 'regular file trailing separator')),
       'Markdown path component is not a directory in README.md: guide.md',
     );
   });
 
-  test('resolves parent segments through selected directories and directory symlinks', () => {
+  test('resolves parent segments through selected directories and directory symlinks', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -1105,11 +1117,14 @@ describe('index production CLI', () => {
     write(repository, 'docs/nested/keep.txt', 'keeps the selected directory concrete\n');
     symlinkSync('docs', join(repository, 'docs-link'));
 
-    const invocation = runCheck(repository, commit(repository, 'directory component resolution'));
+    const invocation = await runCheck(
+      repository,
+      commit(repository, 'directory component resolution'),
+    );
     expect(invocation.exitCode, outputOf(invocation)).toBe(0);
   });
 
-  test('permits finite reuse of a directory symlink after its expansion completes', () => {
+  test('permits finite reuse of a directory symlink after its expansion completes', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -1126,11 +1141,11 @@ describe('index production CLI', () => {
     write(repository, 'docs/guide.md', '# Guide\n\n## Details\n');
     symlinkSync('docs', join(repository, 'docs-link'));
 
-    const invocation = runCheck(repository, commit(repository, 'finite symlink reuse'));
+    const invocation = await runCheck(repository, commit(repository, 'finite symlink reuse'));
     expect(invocation.exitCode, outputOf(invocation)).toBe(0);
   });
 
-  test('resolves a directory README symlink before checking its anchor', () => {
+  test('resolves a directory README symlink before checking its anchor', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -1148,11 +1163,11 @@ describe('index production CLI', () => {
     mkdirSync(join(repository, 'docs'), { recursive: true });
     symlinkSync('../guide.md', join(repository, 'docs/README.md'));
 
-    const invocation = runCheck(repository, commit(repository, 'directory README symlink'));
+    const invocation = await runCheck(repository, commit(repository, 'directory README symlink'));
     expect(invocation.exitCode, outputOf(invocation)).toBe(0);
   });
 
-  test('refuses a directory README symlink that restarts its own fallback', () => {
+  test('refuses a directory README symlink that restarts its own fallback', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -1165,7 +1180,7 @@ describe('index production CLI', () => {
     symlinkSync('.', join(repository, 'docs/README.md'));
 
     expectRefusal(
-      runCheck(
+      await runCheck(
         repository,
         commit(repository, 'self directory README fallback'),
         undefined,
@@ -1175,7 +1190,7 @@ describe('index production CLI', () => {
     );
   }, 30_000);
 
-  test('refuses mutual directory README symlinks that restart fallback', () => {
+  test('refuses mutual directory README symlinks that restart fallback', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -1195,7 +1210,7 @@ describe('index production CLI', () => {
     symlinkSync('../docs', join(repository, 'manuals/README.md'));
 
     expectRefusal(
-      runCheck(
+      await runCheck(
         repository,
         commit(repository, 'mutual directory README fallback'),
         undefined,
@@ -1205,7 +1220,7 @@ describe('index production CLI', () => {
     );
   }, 30_000);
 
-  test('resolves a directory README symlink to a finite parent README', () => {
+  test('resolves a directory README symlink to a finite parent README', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -1218,11 +1233,11 @@ describe('index production CLI', () => {
     mkdirSync(join(repository, 'docs'), { recursive: true });
     symlinkSync('..', join(repository, 'docs/README.md'));
 
-    const invocation = runCheck(repository, commit(repository, 'parent directory README'));
+    const invocation = await runCheck(repository, commit(repository, 'parent directory README'));
     expect(invocation.exitCode, outputOf(invocation)).toBe(0);
   });
 
-  test('refuses a member symlink target that traverses through a selected regular file', () => {
+  test('refuses a member symlink target that traverses through a selected regular file', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -1240,7 +1255,7 @@ describe('index production CLI', () => {
     symlinkSync('docs/guide.md/../guide.md', join(repository, 'broken-link'));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'member regular-file component')),
+      await runCheck(repository, commit(repository, 'member regular-file component')),
       'membership symlink path component is not a directory in README.md: docs/guide.md',
     );
   });
