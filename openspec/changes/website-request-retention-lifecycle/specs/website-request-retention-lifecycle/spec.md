@@ -21,7 +21,7 @@ The system SHALL assign each retention subject, whether an account-owned softwar
 
 ### Requirement: Explicit client designation
 
-Only an authenticated operator SHALL designate either retention subject type as belonging to a contracted client, recording the operator, UTC time and non-content evidence reference in an append-only audit. Proposal contact status, including `closed`, SHALL never create that designation. A designated client subject SHALL be excluded from automatic non-client content cleanup; its later deletion requires a separate client-record policy. Classification holds, hold releases and designation corrections SHALL use the same durable recovery record as designations and erasures.
+Only an authenticated operator SHALL designate either retention subject type as belonging to a contracted client, recording the operator, UTC time and non-content evidence reference in an append-only audit. Proposal contact status, including `closed`, SHALL never create that designation. A designated client subject SHALL be excluded from automatic non-client content cleanup; its later deletion requires a separate client-record policy. Classification holds, hold releases, designation corrections and operator anchor resolutions SHALL use the same durable recovery record as designations and erasures. A designation made through the operator API SHALL record the actor `operator`, because the operator session carries no individual identity.
 
 #### Scenario: Closed proposal remains non-client
 
@@ -42,6 +42,11 @@ Only an authenticated operator SHALL designate either retention subject type as 
 
 - **WHEN** a backup taken before an operator placed a classification hold is restored
 - **THEN** the hold is replayed before cleanup can run, and the due subject remains protected
+
+#### Scenario: Restored anchor resolution
+
+- **WHEN** a backup taken before an operator resolved an ambiguous anchor is restored
+- **THEN** the journaled resolution is replayed before serving, so activation coverage does not regress to ambiguous
 
 #### Scenario: Manual proposal designated as client
 

@@ -355,3 +355,44 @@ export function compactAfterErasure(database: Database): void {
   // `erased text is absent from the database file and a fresh VACUUM INTO backup`; either one alone cleared that fixture.
   database.run('VACUUM');
 }
+
+/** A subject whose deadline passed, as cleanup sees it; carries no content. */
+export interface DueRetentionSubject extends RetentionSubjectRef {
+  classification: 'non_client' | 'client' | 'hold';
+  erasureState: 'none' | 'fenced';
+  deadlineAt: number;
+}
+
+/** Every anchored, not yet erased subject whose deadline is at or before `now`, oldest deadline first. */
+export function listDueRetentionSubjects(database: Database, now: number): DueRetentionSubject[] {
+  return database
+    .query<DueRetentionSubject, [number]>(
+      `SELECT subject_kind AS kind, subject_id AS id, classification, erasure_state AS erasureState,
+         deadline_at AS deadlineAt
+       FROM retention_subject
+       WHERE resolution = 'anchored' AND deadline_at <= ? AND erasure_state <> 'erased'
+       ORDER BY deadline_at, subject_kind, subject_id`,
+    )
+    .all(now);
+}
+
+/**
+ * Proves the subject could be erased now (no shared draft lineage) by running the erasure in a
+ * transaction that is always rolled back. Cleanup calls it before journaling an `erase`, so a
+ * confirmed remote event can always be applied on replay.
+ *
+ * @throws ErasureRefusedError for shared lineage.
+ */
+export function assertErasable(database: Database, subject: RetentionSubjectRef): void {
+  const rolledBack = new Error('erasure rehearsal rolled back');
+  try {
+    database
+      .transaction(() => {
+        eraseSubjectContent(database, subject, 1, 0);
+        throw rolledBack;
+      })
+      .immediate();
+  } catch (error) {
+    if (error !== rolledBack) throw error;
+  }
+}

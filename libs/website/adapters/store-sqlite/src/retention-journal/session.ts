@@ -51,6 +51,11 @@ export interface RetentionJournalOptions {
   now: () => number;
   /** Overrides the 30 s policy-lock wait; tests shorten it. */
   lockTimeoutMilliseconds?: number;
+  /**
+   * Never writes the remote: an orphan event refuses instead of being settled, and `append`
+   * refuses. `journal-replay` uses it for scratch copies in drills and backup verification.
+   */
+  readOnly?: boolean;
 }
 
 /** Local and remote journal position, without content. */
@@ -333,6 +338,12 @@ export class RetentionJournalSession {
     }
     // Proof: returning here unconditionally made `an orphan event is settled before new appends` see no `behind` refusal for the next append.
     if (stored === null) return tip;
+    // Proof: settling here made `journal-replay never writes the remote` add a head version.
+    if (this.options.readOnly === true)
+      throw new RetentionJournalError(
+        'behind',
+        `retention journal orphan ${key} awaits a writer; a read-only replay cannot settle it`,
+      );
     let orphan: JournalEvent;
     try {
       orphan = parseEvent(stored.bytes, key);
@@ -412,6 +423,8 @@ export class RetentionJournalSession {
    *   RetentionJournalError for every remote refusal, with no database change.
    */
   async append(subject: RetentionSubjectRef, body: JournalEventBody): Promise<JournalEvent> {
+    if (this.options.readOnly === true)
+      throw new RetentionJournalError('unavailable', 'a read-only journal session cannot append');
     return this.locked(async () => {
       const { tip, events } = await this.verifiedTail();
       const position = boundPosition(this.database, this.options.journalId);

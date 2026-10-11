@@ -259,3 +259,28 @@ The pre-hold snapshot replay that task 2.3 names is `an old snapshot replays des
 
 - `bun test apps/website/be-01/src --timeout=30000`: `163 pass`, `0 fail`.
 - `nx run-many -t lint,typecheck,build,test:package -p website-store-sqlite,website-be-01`: success.
+
+### Slice 7: CLI journal commands, build capability, documentation (2026-10-11), tasks 3.2 and 3.3
+
+- `apps/website/be-01/src/retention-journal-cli.ts` adds the commands `journal-init` (creates the journal and attaches the database), `journal-attach`, `journal-status`, `journal-replay` (read-only against the remote), `event` and `erase-due`.
+- `request-retention-cli.ts` dispatches those commands and refuses a local `resolve` while `RETENTION_JOURNAL=s3`.
+- Store additions: `openMaintenanceDatabase`, `listDueRetentionSubjects`, `assertErasable`, and a `readOnly` session option.
+- `build.ts` writes `dist/capabilities.json`. `build-smoke.ts` runs the bundled `journal-init` and `journal-status` against the loopback S3 stand-in, through the real S3 adapter with dummy credentials.
+- Documentation: ADR 0041, the journal section of `docs/website/request-retention.md`, seven glossary terms, the rewritten journal section of `design.md`, and spec deltas for journaled anchor resolutions, the operator actor, hourly snapshots and the 48 h / 30 d / 60 d aging bound.
+- Tests: `retention-journal-cli.test.ts` (9) and `session.test.ts` `journal-replay never writes the remote`.
+
+| Guard                                    | Injected fault                    | Observed failure                                                                               |
+| ---------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `RETENTION_ERASURE=erase` gate           | gate removed                      | `(fail) erase-due in report mode changes nothing`: `"erased": 2` instead of `0`                |
+| Coverage gate                            | gate removed                      | `(fail) cleanup refuses while coverage is incomplete`: no rejection                            |
+| Erasability rehearsal before journaling  | rehearsal removed                 | `(fail) erase-due erases due subjects, reports exceptions and exits non-zero on a refused one` |
+| Journal required for every command       | binding built regardless          | `(fail) erase-due refuses without a journal`: foreign-journal refusal instead                  |
+| Local `resolve` refused with `s3`        | refusal removed                   | `(fail) resolve refuses while the journal is active`                                           |
+| Read-only replay never settles an orphan | refusal removed                   | `(fail) journal-replay never writes the remote`                                                |
+| Build capability                         | `capabilities.json` write removed | `build-smoke.ts` exit 1: `ENOENT … bundle/capabilities.json`                                   |
+
+Documentation has no negative of its own. The proofs are the validators below.
+
+- `bun test apps/website/be-01/src --timeout=30000`: `172 pass`, `0 fail`. `bun test libs/website/adapters/store-sqlite/src`: `162 pass`, `0 fail`.
+- `nx run-many -t lint,typecheck,build,test:package -p website-store-sqlite,website-be-01 --skip-nx-cache`: success. `main.js` contains neither test double.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: `158` passed, `0` failed. `validate website-request-retention-lifecycle --strict`: valid.

@@ -560,3 +560,29 @@ test('journal-attach refuses applied_sequence > 0', async () => {
     database.close();
   }
 });
+
+test('journal-replay never writes the remote', async () => {
+  const { databasePath, directory, remote } = await fixture();
+  const scratchPath = join(directory, 'scratch.sqlite');
+  const database = open(databasePath);
+  try {
+    database.run(`VACUUM INTO '${scratchPath}'`);
+    const session = await openRetentionJournal(database, remote, options());
+    await session.append(subject('req-1'), designate);
+    remote.failPutOnce(headKey);
+    expect((await refusal(session.append(subject('req-2'), hold))).reason).toBe('unavailable');
+  } finally {
+    database.close();
+  }
+  const headVersions = remote.versionCount(headKey);
+  const scratch = open(scratchPath);
+  try {
+    const replaying = new RetentionJournalSession(scratch, remote, options({ readOnly: true }));
+    expect((await refusal(replaying.synchronise())).message).toContain('read-only replay');
+    expect((await refusal(replaying.append(subject('req-3'), hold))).reason).toBe('unavailable');
+    expect(remote.versionCount(headKey)).toBe(headVersions);
+    expect(position(scratch)?.applied_sequence).toBe(0);
+  } finally {
+    scratch.close();
+  }
+});

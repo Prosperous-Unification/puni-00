@@ -64,6 +64,7 @@ import {
   type RetentionJournalOptions,
   type RetentionJournalSession,
 } from './retention-journal/session';
+export { openMaintenanceDatabase } from './checked-database';
 export type {
   ConversationAdmission,
   ConversationAdmissionRequest,
@@ -84,8 +85,9 @@ export type {
   ProposalCapRefusal,
 } from './guardrail-store';
 export { guardrailAllowance } from './guardrail-store';
-export type { ErasureOutcome, RetentionSubjectRef } from './request-erasure';
+export type { DueRetentionSubject, ErasureOutcome, RetentionSubjectRef } from './request-erasure';
 export {
+  assertErasable,
   compactAfterErasure,
   contentFenceMessage,
   eraseAccountIdentityIfUnneeded,
@@ -93,6 +95,7 @@ export {
   ErasureRefusedError,
   fenceSubject,
   isContentFence,
+  listDueRetentionSubjects,
   prepareErasureConnection,
   releaseFence,
 } from './request-erasure';
@@ -123,6 +126,8 @@ export type { RetentionJournalRemote } from './retention-journal/remote';
 export { JournalRemoteError } from './retention-journal/remote';
 export type { S3JournalConfig } from './retention-journal/s3-remote';
 export { readS3JournalConfig, S3JournalRemote } from './retention-journal/s3-remote';
+/** Loopback S3 emulation for tests and the build smoke; never pointed at a real bucket. */
+export { S3StandIn } from './retention-journal/s3-stand-in';
 export type { RetentionJournalOptions, RetentionJournalStatus } from './retention-journal/session';
 export {
   attachJournal,
