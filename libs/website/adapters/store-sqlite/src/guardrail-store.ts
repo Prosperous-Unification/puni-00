@@ -410,7 +410,33 @@ export interface GuardrailOverview {
   lockedSources: number;
   /** See {@link readCeilingSettled}: how far today's recorded spend may over-count. */
   ceilingSettledToday: CeilingSettled;
+  /** See {@link readInflight}: paid calls running now and the reservations they hold. */
+  inflightToday: Inflight;
   alerts: GuardrailAlert[];
+}
+
+/** Paid conversation calls that have not settled yet, and the micro-USD they reserved. */
+export interface Inflight {
+  count: number;
+  reservedMicroUsd: number;
+}
+
+/**
+ * The `inflight` conversation operations admitted on one UTC day (`utc_day` is the admission
+ * day, as for site spend): reserved and not yet settled. A call admitted just before midnight and
+ * still running after it is counted under its admission day, so for at most the 30-second
+ * deadline it is missing from "today". Site spend already counts these at their reservation; a
+ * restart settles any left over at that reservation (`unknown`), so they never leave the day's
+ * spend.
+ */
+export function readInflight(database: Database, utcDay: string): Inflight {
+  const row = database
+    .query<{ count: number; micro_usd: number }, [string]>(
+      "SELECT count(*) AS count, COALESCE(SUM(reserved_micro_usd), 0) AS micro_usd FROM conversation_operation WHERE state = 'inflight' AND utc_day = ?",
+    )
+    .get(utcDay);
+  if (!row) throw new Error('In-flight query returned no row');
+  return { count: row.count, reservedMicroUsd: row.micro_usd };
 }
 
 /** Operations settled at their full reservation, and the micro-USD that settlement recorded. */
@@ -498,6 +524,7 @@ export function readGuardrailOverview(
     accountLockedUntil: locks.accountLockedUntil,
     lockedSources: locks.lockedSources,
     ceilingSettledToday: readCeilingSettled(database, utcDay),
+    inflightToday: readInflight(database, utcDay),
     alerts: listRecentAlerts(database, 50),
   };
 }

@@ -1,6 +1,6 @@
 import './style.css';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { ApiFailure, requestJson } from './api';
@@ -92,6 +92,7 @@ function ManualPage() {
   );
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState('');
+  const feedback = useRef<HTMLParagraphElement>(null);
   const [requestKey, setRequestKey] = useState(() => {
     const saved = sessionStorage.getItem('puni_proposal_key');
     if (saved) return saved;
@@ -132,6 +133,11 @@ function ManualPage() {
         );
       });
   }, []);
+
+  // The answer appears under the form, below the fold on a short screen; bring it into view.
+  useEffect(() => {
+    if (message) feedback.current?.scrollIntoView({ block: 'nearest' });
+  }, [message]);
 
   async function replayProposal(pending: PendingProposal): Promise<string> {
     const answer = await requestJson<{ receipt: string }>('/proposals', {
@@ -195,8 +201,8 @@ function ManualPage() {
         csrfToken: load.draft.csrfToken,
         createdAt: Date.now(),
       };
+      // Stored for a reload after a lost response; the notice is only for an earlier page load.
       sessionStorage.setItem(pendingKey, JSON.stringify(pending));
-      setPendingProposal(pending);
       const answer = await requestJson<{ receipt: string }>('/proposals', {
         method: 'POST',
         headers: { 'X-Puni-CSRF': pending.csrfToken },
@@ -425,7 +431,7 @@ function ManualPage() {
                   </button>
                 </form>
                 {message && (
-                  <p className="feedback" role="status">
+                  <p className="feedback" role="status" ref={feedback}>
                     {message}
                   </p>
                 )}
@@ -573,7 +579,7 @@ function OperatorPage() {
                   <p className="small">Original request</p>
                   <p>{submission.description}</p>
                   <p className="small">Submitted brief</p>
-                  <p>{submission.brief}</p>
+                  <p className="submission-brief">{submission.brief}</p>
                   <div className="status-actions">
                     {(['reviewing', 'contacted', 'closed'] as const).map((status) => (
                       <button
