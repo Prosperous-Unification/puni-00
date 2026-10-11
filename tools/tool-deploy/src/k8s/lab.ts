@@ -15,6 +15,7 @@ import { join, resolve } from 'node:path';
 import {
   backendTaskJob,
   executeRelease,
+  jobName,
   kubectlEffects,
   ReleaseFailedError,
   renderOverlay,
@@ -28,15 +29,53 @@ const ROOT = resolve(import.meta.dir, '../../../..');
 /**
  * The lab-only additive migration that deploy/k8s/wbs/lab/backend-upgrade.Dockerfile adds to v2.
  *
- * Its stamp is far in the future so it sorts after every committed backend migration.
- * migrate-down reverses only migrations newer than the swap baseline, so a stamp that a
- * committed migration overtakes survives the schema rollback and the induced-failure
- * scenario ends `rollback-failed` (CI run 36296199037).
+ * Its stamp remains far in the future for the existing F8 ordering proof. Before exact-set
+ * rollback, a committed migration overtaking its stamp made the induced-failure scenario end
+ * `rollback-failed` under the old timestamp cutoff (CI run 36296199037). This rehearsal adds a
+ * separate older candidate without weakening that original fixture.
  *
  * Proof: with the old 20260918000000 stamp, lab-migration.test.ts failed
  * `Expected: > 20260927150000`, and the live rehearsal failed `release ended rolled-back`.
  */
 export const LAB_MIGRATION = '29991231000000_lab_additive';
+/** A distinct new candidate whose stamp predates the already-applied shared-people baseline. */
+export const LAB_OLDER_MIGRATION = '20261001015000_lab_older_candidate';
+
+/** Full database evidence captured before and after each disposable rollback scenario. */
+export interface LabSchema {
+  columns: string[];
+  migrations: { name: string; hash: string }[];
+  tables: string[];
+  projects: { id: string; name: string }[];
+}
+
+/** Compare the full SQLite evidence observed before the candidate image was admitted. */
+export function assertRestoredSchema(observed: LabSchema, baseline: LabSchema): void {
+  // Proof: bypassing this comparison made `refuses a changed baseline hash or retained older
+  // candidate schema after rollback` accept a changed forward hash.
+  assert(
+    JSON.stringify(observed.migrations) === JSON.stringify(baseline.migrations),
+    'complete migration ledger returned to the pre-upgrade name/hash identities',
+  );
+  // Proof: bypassing this comparison made the same watched test accept a retained older
+  // candidate table after rollback.
+  assert(
+    JSON.stringify(observed.tables) === JSON.stringify(baseline.tables),
+    'complete table schema returned to the pre-upgrade set',
+  );
+  // Proof: bypassing this comparison made the same watched test accept missing work-item
+  // columns after rollback.
+  assert(
+    JSON.stringify(observed.columns) === JSON.stringify(baseline.columns),
+    'work-item columns returned to the pre-upgrade set',
+  );
+  // Proof: bypassing the sentinel comparison made the watched schema test accept a missing
+  // or replaced project row even though its complete ledger and table names matched.
+  assert(
+    JSON.stringify(observed.projects) === JSON.stringify(baseline.projects),
+    'project sentinel rows returned unchanged',
+  );
+}
 const CLUSTER = 'puni-f8-lab';
 const REGISTRY = 'puni-f8-registry';
 const CONTEXT = `k3d-${CLUSTER}`;
@@ -394,6 +433,8 @@ interface LabImages {
   broken: ReleaseIdentity;
   /** v2 plus a label only: a new digest with no schema change, for the concurrency run. */
   v3: ReleaseIdentity;
+  /** v3 plus a blocked down script and unhealthy process, for the final recovery run. */
+  rollbackFault: ReleaseIdentity;
 }
 
 async function images(port: number, sourceSha: string): Promise<LabImages> {
@@ -416,6 +457,15 @@ async function images(port: number, sourceSha: string): Promise<LabImages> {
     'FROM wbs-be-01:f8-v2\nLABEL dev.puni.lab=v3\n',
     600_000,
   );
+  await build('wbs-be-01:f8-rollback-fault', join(lab, 'backend-rollback-fault.Dockerfile'), lab, {
+    BASE: 'wbs-be-01:f8-v3',
+  });
+  await build(
+    'wbs-be-01:f8-rollback-fault-unhealthy',
+    join(lab, 'backend-unhealthy.Dockerfile'),
+    lab,
+    { BASE: 'wbs-be-01:f8-rollback-fault' },
+  );
   const shared = {
     gateway: await publish('wbs-gw-01:f8-v1', 'wbs-gw-01', port),
     frontend: await publish('wbs-fe-01:f8-v1', 'wbs-fe-01', port),
@@ -430,6 +480,9 @@ async function images(port: number, sourceSha: string): Promise<LabImages> {
     v2: identity(await publish('wbs-be-01:f8-v2', 'wbs-be-01', port)),
     broken: identity(await publish('wbs-be-01:f8-v2-unhealthy', 'wbs-be-01', port)),
     v3: identity(await publish('wbs-be-01:f8-v3', 'wbs-be-01', port)),
+    rollbackFault: identity(
+      await publish('wbs-be-01:f8-rollback-fault-unhealthy', 'wbs-be-01', port),
+    ),
   };
 }
 
@@ -522,32 +575,49 @@ async function liveWriters(): Promise<string[]> {
     .map((p) => p.metadata.name);
 }
 
-/** Samples writer pods every 300 ms; `stop()` returns the most seen at once. */
-function watchWriters(): {
+/** Refuse a writer-count conclusion when no kubectl observation was recorded. */
+export function summarizeWriterObservation(
+  max: number,
+  worst: string[],
+  samples: number,
+): { max: number; worst: string[]; samples: number } {
+  // Proof: removing this zero-sample guard made `requires at least one writer observation
+  // before claiming a maximum` accept a fabricated max=0 with no kubectl samples.
+  if (samples === 0) throw new Error('writer observer recorded no samples');
+  return { max, worst, samples };
+}
+
+/** Samples writer pods every 300 ms; `stop()` refuses observation gaps. */
+export function watchWriters(readWriters: () => Promise<string[]> = liveWriters): {
   stop: () => Promise<{ max: number; worst: string[]; samples: number }>;
 } {
   const flag = { running: true };
   let max = 0;
   let worst: string[] = [];
   let samples = 0;
+  let observationFailure: Error | null = null;
   const loop = (async () => {
     while (flag.running) {
-      const writers = await liveWriters().catch(() => null);
-      if (writers !== null) {
-        samples++;
-        if (writers.length > max) {
-          max = writers.length;
-          worst = writers;
-        }
+      const writers = await readWriters();
+      samples++;
+      if (writers.length > max) {
+        max = writers.length;
+        worst = writers;
       }
       await Bun.sleep(300);
     }
-  })();
+  })().catch((cause: unknown) => {
+    observationFailure = cause instanceof Error ? cause : new Error(String(cause));
+    flag.running = false;
+  });
   return {
     stop: async () => {
       flag.running = false;
       await loop;
-      return { max, worst, samples };
+      // Proof: dropping this propagation made `refuses a writer observation gap after one
+      // successful sample` resolve after the second kubectl read failed, with samples=1.
+      if (observationFailure !== null) throw observationFailure;
+      return summarizeWriterObservation(max, worst, samples);
     },
   };
 }
@@ -570,11 +640,46 @@ async function projectNames(): Promise<string[]> {
   return JSON.parse(out) as string[];
 }
 
-async function schemaFacts(): Promise<{ columns: string[]; migrations: string[] }> {
-  const out = await inBackend(
-    "const { Database } = require('bun:sqlite'); const db = new Database('/data/wbs.sqlite', { readonly: true }); console.log(JSON.stringify({ columns: db.query('PRAGMA table_info(work_item)').all().map((c) => c.name), migrations: db.query('SELECT name FROM __drizzle_migrations ORDER BY created_at').all().map((m) => m.name) }));",
-  );
-  return JSON.parse(out) as { columns: string[]; migrations: string[] };
+const SCHEMA_FACTS_SCRIPT =
+  "const { Database } = require('bun:sqlite'); const db = new Database('/data/wbs.sqlite', { readonly: true }); console.log(JSON.stringify({ columns: db.query('PRAGMA table_info(work_item)').all().map((column) => column.name), migrations: db.query('SELECT name, hash FROM __drizzle_migrations ORDER BY created_at, name').all(), tables: db.query(\"SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name\").all().map((table) => table.name), projects: db.query('SELECT id, name FROM project ORDER BY id').all() }));";
+
+async function schemaFacts(): Promise<LabSchema> {
+  const out = await inBackend(SCHEMA_FACTS_SCRIPT);
+  // Boundary: the Bun expression above creates precisely these SQLite evidence fields.
+  return JSON.parse(out) as LabSchema;
+}
+
+/** Run a one-off admitted database task while the backend deployment is stopped. */
+async function databaseJob(
+  settings: Parameters<typeof kubectlEffects>[0],
+  name: string,
+  image: string,
+  script: string,
+): Promise<string> {
+  const job = backendTaskJob(settings, name, image, {});
+  // Boundary: backendTaskJob always renders one backend task container with a command.
+  const spec = job['spec'] as { template: { spec: { containers: { command: string[] }[] } } };
+  spec.template.spec.containers[0].command = ['bun', '-e', script];
+  await k(['create', '-f', '-'], JSON.stringify(job));
+  await k([
+    '-n',
+    'wbs-solver',
+    'wait',
+    '--for=condition=complete',
+    `job/${name}`,
+    '--timeout=300s',
+  ]);
+  return (await k(['-n', 'wbs-solver', 'logs', `job/${name}`])).trim();
+}
+
+async function schemaFactsJob(
+  settings: Parameters<typeof kubectlEffects>[0],
+  name: string,
+  image: string,
+): Promise<LabSchema> {
+  const output = await databaseJob(settings, name, image, SCHEMA_FACTS_SCRIPT);
+  // Boundary: the same script used by schemaFacts emits one LabSchema JSON object.
+  return JSON.parse(output) as LabSchema;
 }
 
 async function runningImages(): Promise<Record<K8sTier, string>> {
@@ -671,13 +776,18 @@ function requestFor(
   };
 }
 
-async function expectRestored(v1: ReleaseIdentity, rows: readonly string[]): Promise<void> {
+async function expectRestored(
+  v1: ReleaseIdentity,
+  rows: readonly string[],
+  baseline: LabSchema,
+): Promise<void> {
   const images = await runningImages();
   assert(JSON.stringify(images) === JSON.stringify(v1.images), 'every tier runs the old digest');
   const schema = await schemaFacts();
+  assertRestoredSchema(schema, baseline);
   assert(!schema.columns.includes('lab_marker'), 'work_item has no lab_marker column (old schema)');
   assert(
-    !schema.migrations.includes(LAB_MIGRATION),
+    !schema.migrations.some((migration) => migration.name === LAB_MIGRATION),
     'the lab migration is not recorded as applied',
   );
   const names = await projectNames();
@@ -716,7 +826,7 @@ async function main(): Promise<void> {
     const labImages = await images(port, sourceSha);
     writeFileSync(join(state, 'images.json'), JSON.stringify(labImages, null, 2));
     log(`images ${JSON.stringify(labImages)}`);
-    const { v1, v2, broken, v3 } = labImages;
+    const { v1, v2, broken, v3, rollbackFault } = labImages;
     await platform();
     mcpKeys = await createMcpSecret();
     const uid = (
@@ -755,6 +865,17 @@ async function main(): Promise<void> {
     );
     await insertProject('f8-row-before');
     assert((await projectNames()).includes('f8-row-before'), 'row inserted through the v1 API');
+    const baselineSchema = await schemaFacts();
+    assert(
+      baselineSchema.migrations.some(
+        (migration) => migration.name === '20261005110000_add_shared_people',
+      ),
+      'the newer shared-people baseline is already applied',
+    );
+    assert(
+      !baselineSchema.migrations.some((migration) => migration.name === LAB_OLDER_MIGRATION),
+      'the older candidate is absent before upgrade',
+    );
 
     log(
       'proof: exact runtime directory admitted, alternate host paths and unapproved images refused',
@@ -812,7 +933,7 @@ async function main(): Promise<void> {
       admitted === `${broken.images.backend},${v1.images.backend}`,
       'the coordinator wrote solverImages as the candidate then the rollback digest',
     );
-    await expectRestored(v1, ['f8-row-before']);
+    await expectRestored(v1, ['f8-row-before'], baselineSchema);
     assert(
       seen.max <= 1,
       `at most one writer pod during the failed rollout (max ${String(seen.max)} over ${String(seen.samples)} samples)`,
@@ -868,7 +989,7 @@ async function main(): Promise<void> {
       resumed.exitCode !== 0 && (resumed.stdout + resumed.stderr).includes('ended at rolled-back'),
       'the resumed coordinator rolled back',
     );
-    await expectRestored(v1, ['f8-row-before']);
+    await expectRestored(v1, ['f8-row-before'], baselineSchema);
     assert(
       seen.max <= 1,
       `at most one writer pod across the kill and resume (max ${String(seen.max)} over ${String(seen.samples)} samples)`,
@@ -885,6 +1006,11 @@ async function main(): Promise<void> {
     seen = await writers.stop();
     const upgraded = await schemaFacts();
     assert(upgraded.columns.includes('lab_marker'), 'the additive column exists after promotion');
+    assert(
+      upgraded.tables.includes('lab_older_candidate') &&
+        upgraded.migrations.some((migration) => migration.name === LAB_OLDER_MIGRATION),
+      'the older candidate table and migration identity were applied',
+    );
     assert((await projectNames()).includes('f8-row-before'), 'row survived the upgrade');
     assert(
       JSON.stringify(await runningImages()) === JSON.stringify(v2.images),
@@ -943,6 +1069,128 @@ async function main(): Promise<void> {
     assert(
       seen.max <= 1,
       `at most one writer pod with two coordinators (max ${String(seen.max)} over ${String(seen.samples)} samples)`,
+    );
+
+    log(
+      'scenario 5: failing down SQL keeps writes fenced; the pinned manual command restores schema',
+    );
+    const beforeFaultSchema = await schemaFacts();
+    writers = watchWriters();
+    const faultJournal = fileJournal(join(state, 'failed-down.json'));
+    const downFailure = await executeRelease(
+      requestFor(rollbackFault, v3, uid),
+      faultJournal,
+      kubectlEffects(settings),
+      log,
+    ).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    assert(
+      downFailure instanceof ReleaseFailedError && downFailure.state.phase === 'rollback-failed',
+      'the blocked down SQL ended rollback-failed',
+    );
+    if (!(downFailure instanceof ReleaseFailedError)) {
+      throw new Error('the blocked down SQL did not return release failure evidence');
+    }
+    log(downFailure.message);
+    assert(
+      downFailure.state.failure?.step === 'rollback-schema' &&
+        downFailure.state.failure.message.includes('CHECK constraint failed'),
+      'the real down SQL guard caused schema rollback to fail',
+    );
+    assert(!(await writesOpen()), 'writes remain fenced after failed schema rollback');
+    assert(
+      (
+        await k([
+          '-n',
+          'wbs-solver',
+          'get',
+          'deployment',
+          'wbs-backend',
+          '-o',
+          'jsonpath={.spec.replicas}',
+        ])
+      ).trim() === '0',
+      'the backend remains scaled to zero after failed schema rollback',
+    );
+    assert((await liveWriters()).length === 0, 'no active writer remains after failed rollback');
+    // Boundary: only the Lease fields asserted below are read; missing metadata/spec throws
+    // rather than becoming an absent or default release identity.
+    const lease = JSON.parse(
+      await k(['-n', 'wbs-solver', 'get', 'lease', 'wbs-release', '-o', 'json']),
+    ) as {
+      metadata: { annotations?: Record<string, string> };
+      spec: { holderIdentity?: string };
+    };
+    assert(
+      lease.metadata.annotations?.['puni.dev/parked'] === 'rollback-failed' &&
+        lease.spec.holderIdentity?.startsWith(downFailure.state.transactionId) === true,
+      'the held Lease is parked at rollback-failed',
+    );
+    const retained = faultJournal.read();
+    assert(
+      retained?.state.phase === 'rollback-failed' &&
+        retained.state.capture?.sha256 === downFailure.state.capture?.sha256,
+      'the failed journal retains the original migration capture',
+    );
+    const printed = downFailure.message
+      .split('\n')
+      .find((line) => line.startsWith('manual command: '))
+      ?.slice('manual command: '.length);
+    assert(
+      printed !== undefined && printed === downFailure.state.failure?.manualCommand,
+      'the failure prints its exact retained manual schema command',
+    );
+    const blockedSchema = await schemaFactsJob(
+      settings,
+      'wbs-schema-blocked-lab',
+      rollbackFault.images.backend,
+    );
+    assert(
+      blockedSchema.migrations.some(
+        (migration) => migration.name === '29991231010000_lab_rollback_failure',
+      ) && blockedSchema.tables.includes('lab_rollback_control'),
+      'failed down SQL left its migration identity and control table together',
+    );
+    assert(
+      (await databaseJob(
+        settings,
+        'wbs-unblock-down-lab',
+        rollbackFault.images.backend,
+        "const { Database } = require('bun:sqlite'); const db = new Database('/data/wbs.sqlite'); const changed = db.run('UPDATE lab_rollback_control SET allowed = 1 WHERE id = 1').changes; if (changed !== 1) throw new Error('missing rollback control row'); console.log('unblocked');",
+      )) === 'unblocked',
+      'the admitted maintenance Job unblocked the stable down script',
+    );
+    if (printed === undefined) throw new Error('manual schema command was not printed');
+    await sh(['bash', '-c', printed]);
+    await k([
+      '-n',
+      'wbs-solver',
+      'wait',
+      '--for=condition=complete',
+      `job/${jobName('manual-rollback', downFailure.state.transactionId)}`,
+      '--timeout=300s',
+    ]);
+    assertRestoredSchema(
+      await schemaFactsJob(settings, 'wbs-schema-restored-lab', rollbackFault.images.backend),
+      beforeFaultSchema,
+    );
+    assert(!(await writesOpen()), 'manual schema completion did not reopen writes');
+    // Boundary: this re-reads the same Lease resource shape checked above; missing
+    // metadata/spec throws before a manual-recovery conclusion is reported.
+    const heldAfterManual = JSON.parse(
+      await k(['-n', 'wbs-solver', 'get', 'lease', 'wbs-release', '-o', 'json']),
+    ) as typeof lease;
+    assert(
+      heldAfterManual.metadata.annotations?.['puni.dev/parked'] === 'rollback-failed' &&
+        heldAfterManual.spec.holderIdentity === lease.spec.holderIdentity,
+      'manual schema completion did not release the held Lease',
+    );
+    seen = await writers.stop();
+    assert(
+      seen.max <= 1,
+      `at most one writer pod through failed down and manual recovery (max ${String(seen.max)} over ${String(seen.samples)} samples)`,
     );
     log('all lab assertions passed');
   } catch (cause) {

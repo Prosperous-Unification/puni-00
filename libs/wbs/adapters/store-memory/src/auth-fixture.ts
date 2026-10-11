@@ -46,6 +46,13 @@ export function inMemoryUsers(
     findById(id) {
       return Promise.resolve(byId.get(id) ?? null);
     },
+    findExistingOidcIdentity(identity) {
+      const owners = [...byId.values()].filter(
+        (user) => user.idpIssuer === identity.issuer && user.idpSub === identity.subject,
+      );
+      if (owners.length > 1) throw new Error('OIDC identity maps to multiple users');
+      return Promise.resolve(owners[0] ?? null);
+    },
     resolveOidcIdentity(identity, create, stamp) {
       for (const user of byId.values()) {
         if (user.idpIssuer === identity.issuer && user.idpSub === identity.subject) {

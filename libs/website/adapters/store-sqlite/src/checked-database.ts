@@ -85,3 +85,24 @@ export function validateDatabase(database: Database, purpose: string): void {
     expected.close();
   }
 }
+
+/**
+ * Opens an existing, fully migrated website database for a maintenance command that writes
+ * (the retention journal commands), with foreign keys and the bounded busy wait. Never creates
+ * or migrates a file.
+ *
+ * @throws as {@link existingDatabasePath} and {@link validateDatabase}.
+ */
+export function openMaintenanceDatabase(databasePath: string, purpose: string): Database {
+  const path = existingDatabasePath(databasePath, true, purpose);
+  const database = new Database(path, { readwrite: true });
+  try {
+    database.run('PRAGMA foreign_keys = ON');
+    database.run(`PRAGMA busy_timeout = ${String(busyTimeoutMilliseconds)}`);
+    validateDatabase(database, purpose);
+    return database;
+  } catch (error) {
+    database.close();
+    throw error;
+  }
+}

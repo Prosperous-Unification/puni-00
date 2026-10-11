@@ -2,6 +2,8 @@ import type { PersonKind } from '@wbs/domain';
 
 import type { ExternalSystem, Service, Tag, WorkItemType } from './work-item-values';
 
+export type { Assignment } from '@wbs/domain';
+
 /**
  * A service or team work can be labelled with. Global, shared by every project.
  *
@@ -63,13 +65,6 @@ export interface Person {
 /** A person and the teams they belong to — empty means a free agent. */
 export interface PersonWithTeams extends Person {
   teamIds: string[];
-}
-
-/** Who is doing one work item's work for one step. */
-export interface Assignment {
-  workItemId: string;
-  stepId: string;
-  personId: string;
 }
 
 /** The six directory catalogs a client lists, each under its list route's name. */

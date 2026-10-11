@@ -2,8 +2,13 @@ import {
   addWorkdays,
   allowanceOf,
   type AllowancePercent,
+  assumedAssignee,
+  byTreeOrder,
   CalendarRangeError,
+  canDepend,
+  canReparent,
   chargedDays,
+  type Days,
   deadlineOffsetOf,
   deadlineOffsetsOf,
   type DependencyEndpoint,
@@ -17,12 +22,14 @@ import {
   firstWorkdayOf,
   formatStepNodeId,
   formatTypedDependencyKey,
+  haveSameSliceOrder,
   type Hold,
   type IsoDate,
   isoDateOfInstant,
   isWithin,
   isWritableRelationshipType,
   lastWorkdayOf,
+  MEASURE_METRICS,
   type MeasureMetric,
   nextWorkday,
   ORDINARY_BAND_RANK,
@@ -32,26 +39,33 @@ import {
   POSITION_STEP,
   type PriorityBand,
   type Readiness,
-  type SettableStatus,
-  type Sibling,
-  type StepAllowances,
-  type StepPolicy,
-  type StepState,
-  UNKNOWN,
-  withoutHeldSubtrees,
-  workdaysBetween,
-  type WorkItemStatus,
-} from '@wbs/domain';
-import { MEASURE_METRICS, SOLVER_OBJECTIVES, type SolverObjectiveName } from '@wbs/domain';
-import { byTreeOrder, type StepNodeCycle, treeOrder, type TypedDependency } from '@wbs/domain';
-import {
-  haveSameSliceOrder,
+  rollUp,
+  rollUpActuals,
+  rollUpFinals,
+  rollUpMeasures,
+  rollUpProgress,
+  rollUpWorkItemStatuses,
   type Schedule,
   ScheduleCycleError,
   type Scheduled,
   type ScheduledSlice,
+  type SettableStatus,
+  type Sibling,
   type Slice,
   sliceKey,
+  SOLVER_OBJECTIVES,
+  type SolverObjectiveName,
+  type StepAllowances,
+  type StepNodeCycle,
+  type StepPolicy,
+  type StepState,
+  treeOrder,
+  type TypedDependency,
+  UNKNOWN,
+  withoutHeldSubtrees,
+  workdaysBetween,
+  workedStepsOf,
+  type WorkItemStatus,
 } from '@wbs/domain';
 import { arrangeBySchedule as arrangeSiblingsBySchedule } from '@wbs/domain/arrange-siblings';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
@@ -105,7 +119,6 @@ import type {
   WorkItemStore,
 } from '../../ports/work-item-store';
 import type { WriteStamp } from '../../ports/write-stamp';
-import { assumedAssignee } from '../../service/assumed-assignee';
 import {
   type CompensatingCommand,
   type CompensatingReferences,
@@ -120,19 +133,8 @@ import {
   subjectOf,
   touchedBy,
 } from '../../service/compensating';
-import { canDepend, canReparent } from '../../service/dependency';
 import { DependencyGraphGuard } from '../../service/dependency-graph';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
-import {
-  type Days,
-  rollUp,
-  rollUpActuals,
-  rollUpFinals,
-  rollUpMeasures,
-  rollUpProgress,
-  rollUpWorkItemStatuses,
-  workedStepsOf,
-} from '../../service/roll-up';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
 
 /**

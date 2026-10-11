@@ -471,7 +471,7 @@ test('checks each shim row form against the files it names', async () => {
   // auth.service (5 pass, 1 fail).
   const audit = await shimRowMismatches([
     { path: capacity, disposition: namesCapacity },
-    { path: `${core}/service/assumed-assignee.ts`, disposition: namesCapacity },
+    { path: `${core}/service/directory-usage.ts`, disposition: namesCapacity },
     { path: `${core}/service/clean-name.ts`, disposition: 'Re-export shim of clean-name' },
     {
       path: 'apps/wbs/be-01/src/service/absent.ts',
@@ -491,7 +491,7 @@ test('checks each shim row form against the files it names', async () => {
   expect(audit).toEqual({
     named: 2,
     mismatches: [
-      `${core}/service/assumed-assignee.ts: re-exports what ${core}/module/capacity does not export`,
+      `${core}/service/directory-usage.ts: re-exports what ${core}/module/capacity does not export`,
       `${core}/service/clean-name.ts: re-export shim disposition matches no known form`,
       'apps/wbs/be-01/src/service/absent.ts: forwards to a core service that does not exist: absent',
     ],

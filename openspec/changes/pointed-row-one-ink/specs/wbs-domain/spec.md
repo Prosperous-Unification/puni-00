@@ -6,7 +6,8 @@ The plan SHALL have at most one **pointed row** at a time. The pointer over any
 **bar**, **row label** or any point on a Gantt row's own line SHALL point that
 row's work item; the pointer over a plan renderer row SHALL point that row's
 work item. Pointing SHALL be immediate — no delay on either face — and the
-pointer leaving SHALL clear it.
+pointer leaving all pointable rows SHALL clear its contribution. A focused
+bar SHALL continue to point its row when the pointer contribution clears.
 
 A pointed row SHALL be lit in the Gantt panel, on its **row label** and as a band
 across its row, whichever face pointed it.
@@ -53,7 +54,8 @@ surface after its wait.
 
 #### Scenario: a row nobody has estimated still points
 
-- **GIVEN** a work item with no estimate, so its Gantt row draws no bar
+- **GIVEN** a work item with no estimate whose Gantt row may draw an assumed
+  placeholder bar
 - **WHEN** the pointer rests on that row's line in the chart
 - **THEN** that work item is the pointed row on both faces
 
@@ -64,8 +66,9 @@ surface after its wait.
 
 #### Scenario: leaving clears the light
 
-- **WHEN** the pointer leaves the chart without arriving on a row of the plan
-  renderer
+- **GIVEN** no bar holds keyboard focus
+- **WHEN** the pointer leaves all pointable rows without arriving on another
+  Gantt or plan renderer row
 - **THEN** no row on either face is lit
 
 #### Scenario: a bar's other roles are not lit
@@ -74,3 +77,9 @@ surface after its wait.
   the pointer rests on the first of them
 - **THEN** the row is lit on both faces and the second bar is drawn exactly as it
   is drawn with nothing pointed
+
+#### Scenario: pointing scrolls nothing
+
+- **WHEN** the pointer rests on a bar whose work item's plan renderer row is
+  scrolled out of view
+- **THEN** neither face has scrolled, and the row label and band are lit

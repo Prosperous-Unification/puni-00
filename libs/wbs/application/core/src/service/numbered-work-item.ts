@@ -1,13 +1,8 @@
-import type { IsoDate, Scheduled, StepState, WorkItemStatus } from '@wbs/domain';
+import type { Days, IsoDate, Scheduled, StepState, WorkItemStatus } from '@wbs/domain';
 
 import type { LabelledWorkItem } from '../ports/work-item-store';
 
-/** Three durations in days, summed or held directly. */
-export interface Days {
-  optimistic: number;
-  realistic: number;
-  pessimistic: number;
-}
+export type { Days } from '@wbs/domain';
 
 /**
  * A work item as a reader sees it: the stored row, the number derived for it and

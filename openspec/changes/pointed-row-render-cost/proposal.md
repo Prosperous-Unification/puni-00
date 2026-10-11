@@ -51,8 +51,9 @@ none
 
 ### Modified Capabilities
 
-- `wbs-domain`: the pointed-row requirement gains a render-isolation clause —
-  pointing a row must not re-render unrelated rows or chart marks.
+- `wbs-domain`: `Pointing a row never remounts a cell` gains a
+  render-isolation clause — pointing a row must not re-render unrelated rows or
+  chart marks, and its editor continuity stays intact.
 
 ## Domain Terms
 

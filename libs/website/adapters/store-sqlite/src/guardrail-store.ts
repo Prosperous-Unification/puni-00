@@ -264,19 +264,23 @@ export function reserveLoginAttempt(
  * failures still justify stays.
  */
 export function settleLoginSuccess(database: Database, sourceHash: string): void {
-  database.transaction(() => {
-    database
-      .query("DELETE FROM login_failure WHERE scope = 'source' AND key_hash = ?")
-      .run(sourceHash);
-    database
-      .query(
-        "UPDATE login_failure SET failures = failures - 1, locked_until = CASE WHEN failures - 1 < ? THEN NULL ELSE locked_until END WHERE scope = 'account' AND key_hash = ? AND failures > 1",
-      )
-      .run(guardrailAllowance.accountLoginFailures, operatorAccountKey);
-    database
-      .query("DELETE FROM login_failure WHERE scope = 'account' AND key_hash = ? AND failures = 1")
-      .run(operatorAccountKey);
-  })();
+  database
+    .transaction(() => {
+      database
+        .query("DELETE FROM login_failure WHERE scope = 'source' AND key_hash = ?")
+        .run(sourceHash);
+      database
+        .query(
+          "UPDATE login_failure SET failures = failures - 1, locked_until = CASE WHEN failures - 1 < ? THEN NULL ELSE locked_until END WHERE scope = 'account' AND key_hash = ? AND failures > 1",
+        )
+        .run(guardrailAllowance.accountLoginFailures, operatorAccountKey);
+      database
+        .query(
+          "DELETE FROM login_failure WHERE scope = 'account' AND key_hash = ? AND failures = 1",
+        )
+        .run(operatorAccountKey);
+    })
+    .immediate();
 }
 
 /** The operator account lock's end and the number of locked sources at `now`. */
@@ -333,14 +337,16 @@ export function openInferencePause(
   pausedBy: InferencePause['pausedBy'],
   now: number,
 ): string | null {
-  return database.transaction(() => {
-    if (findOpenInferencePause(database)) return null;
-    const id = crypto.randomUUID();
-    database
-      .query('INSERT INTO inference_pause (id, paused_at, reason, paused_by) VALUES (?, ?, ?, ?)')
-      .run(id, now, reason, pausedBy);
-    return id;
-  })();
+  return database
+    .transaction(() => {
+      if (findOpenInferencePause(database)) return null;
+      const id = crypto.randomUUID();
+      database
+        .query('INSERT INTO inference_pause (id, paused_at, reason, paused_by) VALUES (?, ?, ?, ?)')
+        .run(id, now, reason, pausedBy);
+      return id;
+    })
+    .immediate();
 }
 
 /** Closes the open pause as the operator; false, writing nothing, when none is open. */
@@ -355,7 +361,8 @@ export function resumeInferencePause(database: Database, now: number): boolean {
 }
 
 /**
- * The pause rule inside a paid admission transaction, after the site's UTC-day spend is summed:
+ * The pause rule inside the conversation admission transaction (its only caller), after the site's
+ * UTC-day spend is summed:
  * an open pause refuses (`openedPauseId` null); a reservation that brings the spend to
  * {@link guardrailAllowance.pauseMicroUsd} or above opens a `site_spend` pause and refuses,
  * unless a `site_spend` pause was already opened this UTC day. So after an operator resumes, the
@@ -427,7 +434,7 @@ export function readCeilingSettled(database: Database, utcDay: string): CeilingS
   return { count: row.count, microUsd: row.micro_usd };
 }
 
-/** Settled and reserved spend of one UTC day across conversations and account calls. */
+/** Settled and reserved spend of one UTC day across conversations and legacy account calls. */
 export function readSiteSpend(database: Database, utcDay: string): number {
   const spent = 'COALESCE(SUM(COALESCE(settled_micro_usd, reserved_micro_usd)), 0)';
   const row = database

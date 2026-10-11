@@ -192,11 +192,13 @@ async function threeRoots(api = fakeApi(), subscribe?: WbsTableOverClientProps['
 async function planWithTheChartOpen(
   seeded = fakeApi(),
   subscribe?: WbsTableOverClientProps['subscribe'],
+  unestimatedNumber?: string,
 ) {
   const api = await threeRoots(seeded, subscribe);
   // `threeRoots` unfolds Dev, so the three points are three boxes rather than
   // the folded cell's one.
   for (const number of ['010', '020', '030']) {
+    if (number === unestimatedNumber) continue;
     for (const [point, days] of [
       ['optimistic', '2'],
       ['realistic', '3'],
@@ -340,6 +342,19 @@ describe('the pointed row', () => {
     expect(litRows()).toEqual(['020']);
     expect(litBands()).toEqual(['1']);
     expect(labelOf('020').getAttribute('data-gantt-label-lit')).toBe('true');
+  });
+
+  itDom('keeps an unestimated placeholder row pointed from the table', async () => {
+    await planWithTheChartOpen(fakeApi(), undefined, '030');
+    const assumed = document.querySelector('[data-gantt-bar][data-assumed][aria-label^="030 - "]');
+    if (assumed === null) throw new Error('the unestimated row has no assumed placeholder');
+
+    // Proof: removing PlanRow's pointTable publication made this production
+    // seam test fail at the exact 030 row-light assertion ([] versus ['030']).
+    fireEvent(trOf('030'), pointerEvent('mouse', 'pointerover'));
+    expect(litRows()).toEqual(['030']);
+    expect(litBands()).toEqual(['2']);
+    expect(labelOf('030').getAttribute('data-gantt-label-lit')).toBe('true');
   });
 
   itDom('clears when the pointer leaves the chart', async () => {

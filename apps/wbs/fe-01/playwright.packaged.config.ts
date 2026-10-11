@@ -52,7 +52,10 @@ export default defineConfig({
   retries: 0,
   timeout: 60_000,
   expect: { timeout: 10_000 },
-  reporter: [['list']],
+  reporter: [
+    ['list'],
+    ['junit', { outputFile: join(repoRoot, 'tmp', 'junit', 'wbs-fe-01.browser.packaged.xml') }],
+  ],
   use: {
     baseURL: `http://localhost:${String(PORT)}`,
     screenshot: 'only-on-failure',
@@ -78,6 +81,11 @@ export default defineConfig({
       // build" fault in a different hat.
       reuseExistingServer: false,
       timeout: 120_000,
+      // Proof: removing this option made the uncached packaged target pass its
+      // cases, then the production docker-ps teardown assertion failed on its
+      // surviving Caddy container (4341 connected). SIGTERM made the container
+      // exit and freed 4341. Ten seconds bounds normal cleanup before force-kill.
+      gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
       stdout: 'pipe' as const,
       stderr: 'pipe' as const,
     },

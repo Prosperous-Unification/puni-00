@@ -16,9 +16,15 @@ The repository has several test runners and established test levels, but no comp
 - To: scenario and structural ledgers expose uncovered work, explicit dispositions and missing test levels.
 - Impact: architectural; manual cases gain reviewed reasons, steps, environment-bound reports and staleness rules.
 
+**Performance level execution**
+
+- From: the isolated Performance target correctly refuses an empty declaration but has no repository fixture.
+- To: one real WBS rendering case measures mounted table cells against a reviewed budget through the real FE/BE/GW stack; startup failures and timed-out process trees refuse without publishing a report.
+- Impact: adds one measured Performance case and bounded runner lifecycle behavior. The resulting report remains operational and noncertifying.
+
 ## Non-Goals
 
-This change renames no test and implements no allocator or coverage ledger. It adds test targets and test reporting only additively: an existing target is never renamed, removed or repurposed. Conformance and Architecture tests remain outside T2 because they prove contracts and rules rather than scenarios.
+This change renames no existing test. It adds test targets and test reporting only additively: an existing target is never renamed, removed or repurposed. Conformance and Architecture tests remain outside T2 because they prove contracts and rules rather than scenarios. Migration of every legacy OpenSpec scenario is outside the first adopted set; the ledgers must report that debt explicitly.
 
 ## Constraints
 

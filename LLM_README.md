@@ -133,4 +133,6 @@ Package adoption: [caught-object-report-json, application-exception, and di-bag 
 
 Code organization: [four service kinds, modules, frontend rules and test axes](docs/superpowers/specs/2026-09-19-code-organization-design.md), with its [rollout plan](docs/superpowers/plans/2026-09-19-code-organization-rollout.md) and the [Twilight Burokrat rules design](docs/superpowers/specs/2026-09-19-twilight-burokrat-rules-design.md). Naming: [rename plan](docs/superpowers/plans/2026-09-19-twilight-rename.md).
 
+Test levels, scenario identifiers and coverage evidence: [test-axes tasks](openspec/changes/test-axes/tasks.md) for status and [its verify record](openspec/changes/test-axes/verify.md) for commands, results and proofs.
+
 Conventions: pure planners + thin IO shell; strict types; comments say **why** and what was verified; never print secrets.

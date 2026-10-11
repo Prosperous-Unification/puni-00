@@ -1,0 +1,611 @@
+{
+  "schemaVersion": 1,
+  "events": [
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-001",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A service has no kind"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-002",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A service has two declarations"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-003",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A suffix declares one kind"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-004",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A component reaches through its feature"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-005",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A component uses its allowed dependencies"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-006",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "Contracts values differ by delivery runtime"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-007",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A feature reaches a repository"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-008",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A feature uses its allowed dependencies"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-009",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A barrel hides a forbidden repository"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-010",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A resource reaches a feature"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-011",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A resource uses its allowed dependencies"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-012",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A resource reaches delivery"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-013",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A repository reaches a resource"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-014",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A repository implements its port"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-015",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A feature imports another module's feature"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-016",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "Same-kind files stay inside one module"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-017",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A composition root supplies every kind"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-018",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "Policy claims the wiring exemption"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-019",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A resource opens a unit of work"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-020",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A feature owns a multi-resource transaction"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-021",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "Two modules claim one table"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-022",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "No module claims a table"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-023",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A feature has no capability"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-024",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A resource names no glossary term"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-042",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "Observe mode finds an unclassified candidate"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-043",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A classification entry is stale"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-044",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "The classification file is unavailable"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-045",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A classification entry is malformed"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-025",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A service imports React"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-026",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A store or geometry module imports React"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-027",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A component imports React"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-028",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A snapshot changes without state changing"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-029",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A feature imports vendor UI"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-030",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A non-primitive file imports vendor UI"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-031",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A primitive imports vendor UI"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-032",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "An unlisted file exceeds the ceiling"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-033",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A listed oversized file grows"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-034",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A module has no contract"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-035",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "An index reaches into another module"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-036",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "A module spans runtimes"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-037",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "Debt and an inventory failure coexist"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-038",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "Touched code introduces a violation"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-039",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "An adopted module regresses"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-040",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "Unadopted debt remains visible"
+    },
+    {
+      "kind": "import",
+      "id": "SERVICE-TAXONOMY-041",
+      "source": "openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md",
+      "title": "Ratchet debt becomes an enforce refusal"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-001",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A file matches no level"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-002",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A plain suffix belongs to Conformance"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-003",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A database suffix belongs to Conformance first"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-024",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A portable suite outside the frontend is Browser"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-004",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A level target collects another level"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-005",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "An aggregate target spans levels deliberately"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-006",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A test belongs to no module"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-007",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A scenario has no identifier"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-008",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A scenario is renamed"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-009",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "An identifier has no allocator provenance"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-010",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A scenario splits"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-025",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Existing change identifiers are reserved"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-011",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A removed scenario's identifier is allocated again"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-012",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A unit test has no citation"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-013",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A browser test has no citation in enforce mode"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-014",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A browser test has no citation in observe mode"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-015",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A scenario is uncovered"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-016",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A disposition has no allowed form"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-017",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A repository adapter lacks conformance coverage"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-018",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Capability tests stop at the feature-service"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-019",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A manual disposition has no reason"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-020",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A manual disposition has no steps"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-021",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A manual report lacks a binding"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-022",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A manual report predates its inputs"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-023",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A manual disposition is overdue"
+    },
+    {
+      "kind": "import",
+      "id": "PROJECT-ASSIGNMENT-READS-001",
+      "source": "openspec/specs/project-assignment-reads/spec.md",
+      "title": "Tiny project among unrelated projects"
+    },
+    {
+      "kind": "import",
+      "id": "PROJECT-ASSIGNMENT-READS-002",
+      "source": "openspec/specs/project-assignment-reads/spec.md",
+      "title": "Assignment write among unrelated projects"
+    },
+    {
+      "kind": "import",
+      "id": "PROJECT-ASSIGNMENT-READS-003",
+      "source": "openspec/specs/project-assignment-reads/spec.md",
+      "title": "Different projects in the memory fixture"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-026",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A retirement event disappears"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-027",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Initial journal lacks reviewed bootstrap"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-028",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "An allocated heading disappears"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-029",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Only the reviewed base changes"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-030",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A modified requirement loses a canonical scenario"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-031",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Concurrent changes modify one requirement"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-032",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A removed adopted requirement lacks retirement"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-033",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "An active input changes without changing effective requirements"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-034",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A bundle matches its committed selection"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-035",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A candidate digest is absent or foreign"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-036",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A manifest names another revision"
+    },
+    {
+      "kind": "import",
+      "id": "TEST-AXES-037",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "An opt-in Browser case carries Playwright annotation metadata"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-038",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A folded 100-row plan stays within its mounted-cell budget"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-039",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A timed-out Performance run leaves no owned process or listener"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-040",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A required service fails readiness before Performance execution"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-041",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Sequential Performance invocations own fresh reports and ports"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-042",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A diagnostic observation binds its committed test file"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-043",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A reported case has no regular committed source"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-044",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Two outcomes claim one observed case identity"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-045",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "An observation preserves outcomes without coverage credit"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-046",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "The diagnostic observation digest binds outcomes and source"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-047",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A diagnostic inspection preserves Browser refusals"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-048",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A reported case binds its exact nested index owner"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-049",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A reported source has no unique validated owner"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-050",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Ownership and report observations select different candidates"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-051",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Ownership diagnostics preserve upstream refusals"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-052",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Ownership identity includes index membership and review debt"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-053",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Source ownership does not determine test level or coverage"
+    }
+  ]
+}

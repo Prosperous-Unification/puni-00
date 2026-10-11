@@ -69,9 +69,12 @@ Five rules govern this repo:
 - Every `migration.sql` ships beside `down.sql`; migration lint and rollback require it.
 - Forward migrations are additive because blue and green share SQLite mid-swap. Lint applies
   this to `migration.sql`, not destructive rollback-only `down.sql`.
-- Swap records applied migrations before moving forward and reverses to that set on abort via
-  `migrate-status-cli.ts` and `migrate-down-cli.ts --to=<name>`. Failed rollback must report
-  loudly with the manual completion command.
+- Deploy callers persist the complete applied-migration set before moving forward and reverse
+  exactly the new additions on abort with `migrate-down-cli.ts --capture-file`, then compare
+  the full name/hash ledger. Compose uses `migrate-status-cli.ts --capture`; Kubernetes first
+  requires the candidate's DB-free `migrate-capabilities-cli.ts` response, then captures the
+  same identities in its schema Job. `--to=<name>` remains a legacy operator interface.
+  Failed rollback must report loudly with the pinned manual completion command.
 - Rollback refuses a migration edited after application.
 
 ## Gate

@@ -139,6 +139,154 @@
       }
     },
     {
+      "factId": "check.test-evidence.test",
+      "family": "targets",
+      "at": {
+        "kind": "current"
+      },
+      "kind": "nx-target",
+      "project": "shared-test-evidence",
+      "target": "test",
+      "expectedConfiguration": {
+        "cache": true,
+        "inputs": ["default", "^production"],
+        "outputs": ["{projectRoot}/coverage"],
+        "options": {
+          "command": "bun test src --timeout=10000",
+          "cwd": "libs/shared/domain/test-evidence"
+        },
+        "executor": "nx:run-commands",
+        "configurations": {},
+        "parallelism": true
+      }
+    },
+    {
+      "factId": "check.test-evidence.lint",
+      "family": "targets",
+      "at": {
+        "kind": "current"
+      },
+      "kind": "nx-target",
+      "project": "shared-test-evidence",
+      "target": "lint",
+      "expectedConfiguration": {
+        "cache": true,
+        "inputs": [
+          "default",
+          "{workspaceRoot}/eslint.config.js",
+          "{workspaceRoot}/tools/tool-devsync/product-policies.mjs",
+          "{workspaceRoot}/tools/tool-devsync/workspace-projects.mjs",
+          "{workspaceRoot}/apps/*/eslint.product.mjs",
+          "{workspaceRoot}/apps/*/*/eslint.product.mjs",
+          "{workspaceRoot}/libs/*/eslint.product.mjs",
+          "{workspaceRoot}/apps/**/project.json",
+          "{workspaceRoot}/libs/**/project.json",
+          "{workspaceRoot}/tools/**/project.json",
+          "{workspaceRoot}/.prettierrc.json"
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "bunx eslint libs/shared/domain/test-evidence/src"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    },
+    {
+      "factId": "check.test-evidence.typecheck",
+      "family": "targets",
+      "at": {
+        "kind": "current"
+      },
+      "kind": "nx-target",
+      "project": "shared-test-evidence",
+      "target": "typecheck",
+      "expectedConfiguration": {
+        "cache": true,
+        "inputs": ["default", "^production", "{workspaceRoot}/tsconfig.base.json"],
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "bunx tsc --build --force libs/shared/domain/test-evidence/tsconfig.json"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    },
+    {
+      "factId": "check.test-levels.test",
+      "family": "targets",
+      "at": {
+        "kind": "current"
+      },
+      "kind": "nx-target",
+      "project": "shared-test-levels",
+      "target": "test",
+      "expectedConfiguration": {
+        "cache": true,
+        "inputs": ["default", "^production"],
+        "outputs": ["{projectRoot}/coverage"],
+        "options": {
+          "command": "bun test src --timeout=10000",
+          "cwd": "libs/shared/domain/test-levels"
+        },
+        "executor": "nx:run-commands",
+        "configurations": {},
+        "parallelism": true
+      }
+    },
+    {
+      "factId": "check.test-levels.lint",
+      "family": "targets",
+      "at": {
+        "kind": "current"
+      },
+      "kind": "nx-target",
+      "project": "shared-test-levels",
+      "target": "lint",
+      "expectedConfiguration": {
+        "cache": true,
+        "inputs": [
+          "default",
+          "{workspaceRoot}/eslint.config.js",
+          "{workspaceRoot}/tools/tool-devsync/product-policies.mjs",
+          "{workspaceRoot}/tools/tool-devsync/workspace-projects.mjs",
+          "{workspaceRoot}/apps/*/eslint.product.mjs",
+          "{workspaceRoot}/apps/*/*/eslint.product.mjs",
+          "{workspaceRoot}/libs/*/eslint.product.mjs",
+          "{workspaceRoot}/apps/**/project.json",
+          "{workspaceRoot}/libs/**/project.json",
+          "{workspaceRoot}/tools/**/project.json",
+          "{workspaceRoot}/.prettierrc.json"
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "bunx eslint libs/shared/domain/test-levels/src"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    },
+    {
+      "factId": "check.test-levels.typecheck",
+      "family": "targets",
+      "at": {
+        "kind": "current"
+      },
+      "kind": "nx-target",
+      "project": "shared-test-levels",
+      "target": "typecheck",
+      "expectedConfiguration": {
+        "cache": true,
+        "inputs": ["default", "^production", "{workspaceRoot}/tsconfig.base.json"],
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "bunx tsc --build --force libs/shared/domain/test-levels/tsconfig.json"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    },
+    {
       "factId": "check.wiki-cli.test",
       "family": "targets",
       "at": {
@@ -214,7 +362,9 @@
     {
       "factId": "check.fe-01.typecheck-module",
       "family": "targets",
-      "at": { "kind": "current" },
+      "at": {
+        "kind": "current"
+      },
       "kind": "nx-target",
       "project": "wbs-fe-01",
       "target": "typecheck:module",

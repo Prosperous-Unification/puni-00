@@ -31,6 +31,7 @@ import {
 
 import type {
   CommittedDecision,
+  OptimizationAdmissionObservation,
   OptimizationCachedPair,
   OptimizationRepository,
   OptimizationRetryDecision,
@@ -164,6 +165,80 @@ function isRecordedEvent(value: unknown): value is RecordedEvent {
   );
 }
 
+/** Preserve outcome adaptation and durable-envelope validation in the caller's source turn. */
+export function recordOptimizationOutcomeIn(
+  db: Drizzle,
+  eventLog: EventLogTransactionalWrite,
+  write: Parameters<OptimizationRepository['recordOutcome']>[0],
+): CommittedDecision<RecordedOptimizationOutcome> {
+  const committed = storeOptimizedOutcomeAndRecord(
+    db,
+    {
+      recordEventIn: (tx, subscription, message, createdAt) => {
+        const recorded = eventLog.recordEventIn(tx, subscription, message, createdAt);
+        // Proof: an injected event writer returning undefined left one
+        // committed cache row when this guard was removed; the malformed
+        // envelope test observed 1 instead of 0 before restoration.
+        if (!isRecordedEvent(recorded))
+          throw new Error('stored optimization outcome has no durable event envelope');
+        return recorded;
+      },
+    },
+    {
+      ...write,
+      outcome:
+        write.outcome.kind === 'ok'
+          ? { kind: 'ok', result: write.outcome.optimized }
+          : write.outcome,
+    },
+  );
+  if (committed.result !== 'stored') return { decision: { kind: committed.result }, envelopes: [] };
+  // The store's optional fields are valid here because recordEventIn checked
+  // the envelope before the nested synchronous transaction committed.
+  const envelope = committed as {
+    readonly subscription: string;
+    readonly recorded: RecordedEvent;
+    readonly event: Extract<RecordedOptimizationOutcome, { kind: 'stored' }>['event'];
+  };
+  return {
+    decision: {
+      kind: 'stored',
+      subscription: envelope.subscription,
+      recorded: envelope.recorded,
+      event: envelope.event,
+    },
+    envelopes: [],
+  };
+}
+
+/** Reads one admission identity inside a synchronous immediate source turn. */
+export function observeForAdmissionIn(
+  db: Drizzle,
+  key: Parameters<OptimizationRepository['observeForAdmission']>[0],
+  now: number,
+): OptimizationAdmissionObservation {
+  return db.transaction(
+    (tx) => {
+      const generation = allocateEnabledGenerationIn(
+        tx,
+        key.projectId,
+        key.contractVersion,
+        key.inputHash,
+        now,
+      );
+      if (generation === null) return { kind: 'idle' } as const;
+      const requests: { key: typeof key; objective: 'pri' | 'time' }[] = [];
+      const pair = projectCachedPair(
+        readOptimizedPairAndSpawn(tx, key, (request) => {
+          requests.push(request);
+        }),
+      );
+      return { kind: 'observed', generation, pair, requests } as const;
+    },
+    { behavior: 'immediate' },
+  );
+}
+
 export function reservationOf(
   admission: ReturnType<typeof reserveSolverSlot>,
   budgetMs: number,
@@ -227,28 +302,10 @@ export function createOptimizationRepository(
       // intervening generation 3 failed PRI row appear beside generation 1,
       // and the objective list lost PRI in the competing-owner test.
       gate.enter(() =>
-        Promise.resolve().then(() =>
-          db.transaction(
-            (tx) => {
-              const generation = allocateEnabledGenerationIn(
-                tx,
-                key.projectId,
-                key.contractVersion,
-                key.inputHash,
-                now,
-              );
-              if (generation === null) return { kind: 'idle' } as const;
-              const requests: { key: typeof key; objective: 'pri' | 'time' }[] = [];
-              const pair = projectCachedPair(
-                readOptimizedPairAndSpawn(tx, key, (request) => {
-                  requests.push(request);
-                }),
-              );
-              return { kind: 'observed', generation, pair, requests } as const;
-            },
-            { behavior: 'immediate' },
-          ),
-        ),
+        Promise.resolve().then(() => ({
+          decision: observeForAdmissionIn(db, key, now),
+          envelopes: [],
+        })),
       ),
     isVariantLive: (key, generation, objective, now) =>
       // Proof: dropping this turn settled a live read inside an awaited source
@@ -302,48 +359,9 @@ export function createOptimizationRepository(
     // Proof: omitting this turn lost the committed cache and event on owner rollback.
     recordOutcome: (write) =>
       gate.enter<CommittedDecision<RecordedOptimizationOutcome>>(() =>
-        Promise.resolve().then(() => {
-          // Proof: splitting cache storage into its own transaction made the throwing
-          // event-writer test observe one cache row instead of zero.
-          const committed = storeOptimizedOutcomeAndRecord(
-            db,
-            {
-              recordEventIn: (tx, subscription, message, createdAt) => {
-                const recorded = eventLog.recordEventIn(tx, subscription, message, createdAt);
-                // Proof: an injected event writer returning undefined previously left one
-                // committed cache row; the malformed-envelope test observed 1 instead of 0.
-                if (!isRecordedEvent(recorded))
-                  throw new Error('stored optimization outcome has no durable event envelope');
-                return recorded;
-              },
-            },
-            {
-              ...write,
-              outcome:
-                write.outcome.kind === 'ok'
-                  ? { kind: 'ok', result: write.outcome.optimized }
-                  : write.outcome,
-            },
-          );
-          if (committed.result !== 'stored')
-            return { decision: { kind: committed.result }, envelopes: [] };
-          // The store's legacy optional fields are safe here because recordEventIn
-          // validates the envelope inside the same transaction before commit.
-          const envelope = committed as {
-            readonly subscription: string;
-            readonly recorded: RecordedEvent;
-            readonly event: Extract<RecordedOptimizationOutcome, { kind: 'stored' }>['event'];
-          };
-          return {
-            decision: {
-              kind: 'stored',
-              subscription: envelope.subscription,
-              recorded: envelope.recorded,
-              event: envelope.event,
-            },
-            envelopes: [],
-          };
-        }),
+        // Proof: splitting cache storage into its own transaction made the throwing
+        // event-writer test observe one cache row instead of zero.
+        Promise.resolve().then(() => recordOptimizationOutcomeIn(db, eventLog, write)),
       ),
     // Proof (2026-09-28): replacing the coordinator turn with immediate execution
     // made `waits for an overlapping rolled-back unit of work before accepting

@@ -1,6 +1,4 @@
-import type { PersonKind } from '@wbs/domain';
-import type { OrganizationScope } from '@wbs/domain';
-import { PERSON_KINDS } from '@wbs/domain';
+import { cleanName, type OrganizationScope, PERSON_KINDS, type PersonKind } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
 import type {
@@ -26,7 +24,6 @@ import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
 import type { WriteStamp } from '../../ports/write-stamp';
-import { cleanName } from '../../service/clean-name';
 import {
   type DirectoryUsage,
   directoryUsageOfPerson,

@@ -139,6 +139,66 @@ export class UserRepository implements UserStore {
   }
 
   /**
+   * Reads only an existing exact issuer/subject owner. Refresh uses this after
+   * cryptographic provider verification; email can neither link nor create an
+   * account here. Marker and mapping state are read afresh in one snapshot.
+   */
+  async findExistingOidcIdentity(
+    identity: Pick<OidcIdentity, 'issuer' | 'subject'>,
+  ): Promise<User | null> {
+    const { issuer, subject } = identity;
+    if (issuer.length === 0 || subject.length === 0)
+      throw new Error('a verified identity has an empty issuer or subject');
+    return Promise.resolve(
+      this.db.transaction((tx) => {
+        const activated = readOrganizationActivation(tx) === 'activated';
+        const legacyOwners = tx
+          .select(USER_COLUMNS)
+          .from(users)
+          .where(and(eq(users.idpIssuer, issuer), eq(users.idpSub, subject)))
+          .all();
+        if (legacyOwners.length > 1)
+          throw new Error(`legacy identity ${issuer} ${subject} has multiple users`);
+        if (!activated) return legacyOwners[0] ?? null;
+
+        const mappings = tx
+          .select({ userId: sql<unknown>`${externalIdentity.userId}` })
+          .from(externalIdentity)
+          .where(and(eq(externalIdentity.issuer, issuer), eq(externalIdentity.subject, subject)))
+          .all();
+        // Proof: letting a missing/duplicate/malformed mapping fall back to
+        // the legacy pair failed the read-only corruption negatives.
+        if (mappings.length > 1)
+          throw new Error(
+            `external identity ${issuer} ${subject} is mapped ${String(mappings.length)} times`,
+          );
+        const mapping = mappings.at(0);
+        if (mapping === undefined) {
+          // Proof: bypassing this integrity check made the activated
+          // legacy-without-mapping negative return null instead of throwing
+          // (0/1, 2026-10-01).
+          if (legacyOwners.length > 0)
+            throw new Error(`legacy identity ${issuer} ${subject} was never mapped at activation`);
+          return null;
+        }
+        if (typeof mapping.userId !== 'string' || mapping.userId.length === 0)
+          throw new Error(`external identity ${issuer} ${subject} has a malformed user id`);
+        const owner = tx.select(USER_COLUMNS).from(users).where(eq(users.id, mapping.userId)).get();
+        if (owner === undefined)
+          throw new Error(`external identity ${issuer} ${subject} maps to no user`);
+        const unbound = owner.idpIssuer === null && owner.idpSub === null;
+        if (!unbound && (owner.idpIssuer !== issuer || owner.idpSub !== subject))
+          throw new Error(
+            `external identity ${issuer} ${subject} disagrees with its user's own pair`,
+          );
+        if (legacyOwners.some((legacy) => legacy.id !== owner.id))
+          throw new Error(`external identity ${issuer} ${subject} is another user's legacy pair`);
+        return owner;
+      }),
+    );
+  }
+
+  /**
    * Resolves one first login under a single SQLite transaction. `null` is an
    * identity collision, not "not found": the caller must stop rather than
    * silently reassign it.

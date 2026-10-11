@@ -392,7 +392,7 @@ if (operatorPassword)
     },
     {
       name: 'operator-funnel',
-      stack: oidc,
+      stack: aiOff,
       path: '/operator',
       cookie: false,
       operatorSignIn: true,

@@ -4,11 +4,19 @@ import { join } from 'node:path';
 
 import { clockOf, type OptimizationVariantState } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { compareSharedPeopleFanout } from '@wbs/core/service/shared-people-fanout';
+import { contractVersionOf, schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
+import { createLogger } from '@wbs/observability';
+import { openSqliteSource, type SqliteSource } from '@wbs/store-sqlite';
+import type { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
 import fc from 'fast-check';
 
-import type { ReservedSpawnRequest } from '../module/optimization/contract';
+import type {
+  OptimizationOutcomeWrite,
+  ReservedSpawnRequest,
+} from '../module/optimization/contract';
 import { OptimizationCoordinator } from '../module/optimization/optimization.feature';
 import { runSolverChildLifecycle } from '../module/optimization/solver-child-lifecycle';
 import { openDatabase, openDrizzle } from '../repository/db';
@@ -19,8 +27,10 @@ import { createOptimizationRepository } from '../repository/optimization';
 import { beginOptimizationDrain } from '../repository/optimization-drain';
 import { ProjectRepository } from '../repository/project';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
+import { buildServices } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { optimizerWiring } from './optimizer-wiring';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '7+0.2.0';
@@ -1344,4 +1354,818 @@ describe('OptimizationCoordinator production SQLite model', () => {
       expect(reached.get(ordering) ?? 0, `scheduler never reached ${ordering}`).toBeGreaterThan(0);
     }
   }, 60_000);
+});
+
+/**
+ * The installed shared-person owners under arbitrary command interleavings.
+ *
+ * The world above drives the coordinator over a bare repository; this one
+ * goes through `buildServices`, so readPlan observation, outcome storage,
+ * Retry and the FIFO pump run inside the source-bound owners that capture
+ * the organization's display and record `elsewhere_changed` before commit.
+ * Projects A and B share one person in an activated shared organization.
+ */
+type SharedVariant = 'live' | 'shifted';
+
+interface SharedModel {
+  /** Hash of A's committed optimization generation, null before the first read. */
+  generationHash: string | null;
+  /** A ready selected (pri) row at the live hash whose schedule differs from Fast. */
+  displayedSelected: boolean;
+  /** Number of B events the model expects to be durable. */
+  expectedB: number;
+}
+
+interface SharedChild {
+  readonly request: ReservedSpawnRequest;
+  readonly kill: () => void;
+  alive: boolean;
+}
+
+interface SharedWorld {
+  readonly dir: string;
+  readonly path: string;
+  readonly source: SqliteSource;
+  readonly services: ReturnType<typeof buildServices>;
+  readonly optimizer: OptimizationCoordinator;
+  readonly inputs: Record<SharedVariant, ScheduleInput>;
+  readonly hashes: Record<SharedVariant, string>;
+  readonly pushes: { subscription: string; seq: number; message: unknown }[];
+  readonly held: (() => void)[];
+  readonly children: SharedChild[];
+  holdB: boolean;
+  omitCapture: boolean;
+}
+
+const SHARED_CONTRACT = contractVersionOf('0.2.0');
+const SHARED_BUDGET = 60_000;
+const ELSEWHERE_B = { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' } as const;
+
+/** A promise that must settle within one bound; the label names the boundary it proves. */
+async function within<T>(work: Promise<T>, label: string, ms = 1500): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(label));
+        }, ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function seedSharedOrganization(path: string): void {
+  const seed = openDatabase(path);
+  try {
+    seed.run(
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1)",
+    );
+    seed.run(
+      "INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-a', 'A', 1, 1)",
+    );
+    seed.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
+    seed.run(
+      "INSERT INTO organization_membership (organization_id, user_id, role, created_at, updated_at, created_by) VALUES ('org-a', 'ada', 'admin', 1, 1, 'ada')",
+    );
+    seed.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
+    seed.run(
+      "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
+    );
+    for (const [index, projectId] of ['A', 'B'].entries()) {
+      seed.run(
+        `INSERT INTO project (id, name, owner_id, restricted, revision, created_at, start_date, estimate_rounding)
+         VALUES (?, ?, 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
+        [projectId, projectId],
+      );
+      seed.run(
+        "INSERT INTO project_organization (resource_id, organization_id) VALUES (?, 'org-a')",
+        [projectId],
+      );
+      seed.run(
+        "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES (?, 'org-a', ?, 1, 'ada')",
+        [projectId, index * 10],
+      );
+      seed.run('INSERT INTO step (id, project_id, name, position) VALUES (?, ?, ?, 10)', [
+        `${projectId}-step`,
+        projectId,
+        `${projectId}-step`,
+      ]);
+      seed.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
+        projectId,
+        projectId,
+        projectId,
+      ]);
+      seed.run(
+        'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
+        [projectId, `${projectId}-step`],
+      );
+      seed.run('INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)', [
+        projectId,
+        `${projectId}-step`,
+        'ana',
+      ]);
+    }
+    seed.run(
+      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'",
+    );
+  } finally {
+    seed.close();
+  }
+}
+
+async function createSharedWorld(): Promise<SharedWorld> {
+  const dir = mkdtempSync(join(tmpdir(), 'wbs-shared-owner-model-'));
+  const path = join(dir, 'model.db');
+  runMigrations(path, FOLDER);
+  seedSharedOrganization(path);
+  const source = openSqliteSource({ dbPath: path });
+  const pushes: SharedWorld['pushes'] = [];
+  const held: (() => void)[] = [];
+  const children: SharedChild[] = [];
+  const flags = { holdB: false, omitCapture: false };
+  // The capture omission is the installed missing-capability case: the
+  // owner must refuse with its modeled message before any generation write.
+  const installed = {
+    ...source,
+    bindLivePlans(options: Parameters<typeof source.bindLivePlans>[0]) {
+      const bound = source.bindLivePlans(options);
+      return {
+        ...bound,
+        uow: {
+          run: <T>(act: Parameters<typeof bound.uow.run<T>>[0]) =>
+            bound.uow.run((scope) =>
+              act(flags.omitCapture ? { ...scope, fanoutCapture: undefined } : scope),
+            ),
+        },
+      };
+    },
+  };
+  let pid = 9000;
+  const services = buildServices({
+    source: installed,
+    logger: createLogger({ service: 'be-01', destination: { write: () => undefined } }),
+    jwtKey: 'k'.repeat(32),
+    gwUrl: 'http://gw.invalid',
+    internalAuthSecret: 's'.repeat(32),
+    pushFetch: (_url, init) => {
+      if (typeof init?.body !== 'string') throw new Error('push body must be JSON text');
+      const body = JSON.parse(init.body) as SharedWorld['pushes'][number];
+      pushes.push(body);
+      const answer = Response.json({ delivered_to_sockets: 0 });
+      if (!flags.holdB || body.subscription !== 'project:B') return Promise.resolve(answer);
+      return new Promise((resolve) => {
+        held.push(() => {
+          resolve(answer);
+        });
+      });
+    },
+    optimizer: {
+      solverVersion: '0.2.0',
+      budgetMs: SHARED_BUDGET,
+      spawn: (request) => {
+        let closeOut = (): void => undefined;
+        let exit = (_code: number): void => undefined;
+        const exited = new Promise<number>((resolve) => {
+          exit = resolve;
+        });
+        const child: SharedChild = {
+          request,
+          alive: true,
+          kill: () => {
+            if (!child.alive) return;
+            child.alive = false;
+            closeOut();
+            exit(137);
+          },
+        };
+        children.push(child);
+        pid += 1;
+        return Promise.resolve({
+          pid,
+          stdout: new ReadableStream<Uint8Array>({
+            start(controller) {
+              closeOut = () => {
+                controller.close();
+              };
+            },
+          }),
+          stderr: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.close();
+            },
+          }),
+          exited,
+          verdict: () => undefined,
+          kill: child.kill,
+        });
+      },
+    },
+  });
+  const optimizer = services.optimizer;
+  if (optimizer === undefined) throw new Error('shared model optimizer was not installed');
+  const captured = await services.workItems.optimizationInput('A');
+  if (captured.kind !== 'scheduled') throw new Error('shared model input unavailable');
+  const live = captured.input;
+  const shifted = { ...live, notBefore: new Map([['A', 50_000_000]]) };
+  return {
+    dir,
+    path,
+    source,
+    services,
+    optimizer,
+    inputs: { live, shifted },
+    hashes: { live: scheduleInputHash(live), shifted: scheduleInputHash(shifted) },
+    pushes,
+    held,
+    children,
+    get holdB() {
+      return flags.holdB;
+    },
+    set holdB(value: boolean) {
+      flags.holdB = value;
+    },
+    get omitCapture() {
+      return flags.omitCapture;
+    },
+    set omitCapture(value: boolean) {
+      flags.omitCapture = value;
+    },
+  };
+}
+
+/** The source's own connection: the one its owners and readers share. */
+function clientOf(world: SharedWorld): Database {
+  // Test-only: drizzle's bun-sqlite handle exposes its client for this probe.
+  return (world.source.db as unknown as { $client: Database }).$client;
+}
+
+function bRows(world: SharedWorld): { seq: number; message: unknown }[] {
+  const sql = openDatabase(world.path);
+  try {
+    return sql
+      .query<{ seq: number; message: string }, []>(
+        "SELECT seq, message FROM event_log WHERE subscription = 'project:B' ORDER BY seq",
+      )
+      .all()
+      .map(({ seq, message }) => ({ seq, message: JSON.parse(message) as unknown }));
+  } finally {
+    sql.close();
+  }
+}
+
+function committedGeneration(
+  world: SharedWorld,
+): { generation: number; input_hash: string } | null {
+  const sql = openDatabase(world.path);
+  try {
+    return (
+      sql
+        .query<{ generation: number; input_hash: string }, [string]>(
+          "SELECT generation, input_hash FROM optimization_generation WHERE project_id = 'A' AND contract_version = ?",
+        )
+        .get(SHARED_CONTRACT) ?? null
+    );
+  } finally {
+    sql.close();
+  }
+}
+
+function liveSlots(world: SharedWorld) {
+  const sql = openDatabase(world.path);
+  try {
+    return sql
+      .query<
+        {
+          generation: number;
+          objective: string;
+          attempt_token: string;
+          owner_id: string;
+          lifecycle: string;
+          cancel_requested_at: number | null;
+        },
+        []
+      >(
+        "SELECT generation, objective, attempt_token, owner_id, lifecycle, cancel_requested_at FROM solver_slot WHERE project_id = 'A'",
+      )
+      .all();
+  } finally {
+    sql.close();
+  }
+}
+
+/** Waits until every spawned child is bound or gone, so the next command sees a quiet store. */
+async function settleShared(world: SharedWorld): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    await Bun.sleep(5);
+    const slots = liveSlots(world);
+    const starting = slots.some(({ lifecycle }) => lifecycle === 'starting');
+    const tokens = new Set(slots.map(({ attempt_token }) => attempt_token));
+    const exiting = world.children.some(
+      (child) => !child.alive && tokens.has(child.request.admission.attemptToken),
+    );
+    if (!starting && !exiting) return;
+  }
+  throw new Error('shared world did not settle');
+}
+
+function captureDisplay(world: SharedWorld) {
+  const bound = world.source.bindLivePlans({
+    schedulerOf: (readCaptured) =>
+      optimizerWiring(
+        readCaptured === undefined
+          ? undefined
+          : {
+              readCaptured,
+              readLive: () => {
+                throw new Error('live read inside shared model capture');
+              },
+            },
+      ).scheduler,
+    optimization: { contractVersion: SHARED_CONTRACT, budgetMs: SHARED_BUDGET, now: Date.now },
+  });
+  return within(
+    bound.uow.run(async (scope) => {
+      if (scope.fanoutCapture === undefined) throw new Error('shared model capture unavailable');
+      return { commit: false, value: await scope.fanoutCapture.capture('org-a') };
+    }),
+    'display capture waited for a held writer',
+  );
+}
+
+/**
+ * The invariants every command ends on.
+ *
+ * (I-a)/(I-b): the B rows this command added are exactly one A-cause event at
+ * the next sequence when the model expects a display change and none
+ * otherwise; an independent borrowed capture must agree with the model.
+ * (I-c): B sequences are contiguous from zero and each is pushed at most once.
+ * (I-d): no command leaves the source connection inside a transaction.
+ */
+async function assertShared(
+  model: SharedModel,
+  world: SharedWorld,
+  before: Awaited<ReturnType<typeof captureDisplay>>,
+  expectChange: boolean,
+  context: string,
+): Promise<void> {
+  const after = await captureDisplay(world);
+  const recipients = compareSharedPeopleFanout({
+    before: before.observation,
+    after: after.observation,
+    directCauses: ['A'],
+  }).recipients;
+  expect(
+    recipients.some(({ projectId }) => projectId === 'B'),
+    `${context}: independent capture disagrees with the model`,
+  ).toBe(expectChange);
+  if (expectChange) model.expectedB += 1;
+  const rows = bRows(world);
+  expect(rows, `${context}: durable B rows`).toEqual(
+    Array.from({ length: model.expectedB }, (_, seq) => ({ seq, message: ELSEWHERE_B })),
+  );
+  const pushedB = world.pushes
+    .filter(({ subscription }) => subscription === 'project:B')
+    .map(({ seq }) => seq);
+  expect(new Set(pushedB).size, `${context}: a B sequence pushed twice`).toBe(pushedB.length);
+  expect(
+    pushedB.every((seq) => seq < model.expectedB),
+    `${context}: pushed a sequence with no row`,
+  ).toBe(true);
+  expect(clientOf(world).inTransaction, `${context}: source left inside a transaction`).toBe(false);
+}
+
+function variantOf(world: SharedWorld, hash: string): SharedVariant {
+  if (hash === world.hashes.live) return 'live';
+  if (hash === world.hashes.shifted) return 'shifted';
+  throw new Error(`unknown model hash ${hash}`);
+}
+
+type SharedCommand = fc.AsyncCommand<SharedModel, SharedWorld>;
+
+class SharedReadPlan implements SharedCommand {
+  constructor(private readonly variant: SharedVariant) {}
+  check(): boolean {
+    return true;
+  }
+  async run(model: SharedModel, world: SharedWorld): Promise<void> {
+    const before = await captureDisplay(world);
+    const hash = world.hashes[this.variant];
+    const advances = model.generationHash !== hash;
+    const read = await within(
+      world.optimizer.readPlan({
+        projectId: 'A',
+        objective: 'pri',
+        input: world.inputs[this.variant],
+        enabled: true,
+      }),
+      'observation decision waited for recipient transport',
+    );
+    await settleShared(world);
+    const committed = committedGeneration(world);
+    // (I-d) A read never answers a generation the store did not commit.
+    expect(committed?.input_hash).toBe(hash);
+    expect(read.generation).toBe(committed?.generation ?? null);
+    // (I-a) Advancing past a displayed selected row evicts it: one B event.
+    const expectChange = advances && model.displayedSelected;
+    if (expectChange) note('sharedEvict');
+    if (advances) model.displayedSelected = false;
+    model.generationHash = hash;
+    await assertShared(model, world, before, expectChange, this.toString());
+  }
+  toString(): string {
+    return `ReadPlan(${this.variant})`;
+  }
+}
+
+class SharedExitChild implements SharedCommand {
+  constructor(
+    private readonly ordinal: number,
+    private readonly kind: 'ok' | 'failed' | 'kill',
+  ) {}
+  check(): boolean {
+    return true;
+  }
+  async run(model: SharedModel, world: SharedWorld): Promise<void> {
+    const alive = world.children.filter((child) => child.alive);
+    // An outcome is only an outcome for a current selected-objective seat, so
+    // `ok` and `failed` pick among those first; `kill` takes any child.
+    const current = committedGeneration(world)?.generation;
+    const eligible = alive.filter(
+      ({ request }) => request.objective === 'pri' && request.generation === current,
+    );
+    const pool = this.kind !== 'kill' && eligible.length > 0 ? eligible : alive;
+    if (pool.length === 0) return;
+    const child = pool[this.ordinal % pool.length];
+    const before = await captureDisplay(world);
+    const committed = committedGeneration(world);
+    const slot = liveSlots(world).find(
+      ({ attempt_token, cancel_requested_at }) =>
+        attempt_token === child.request.admission.attemptToken && cancel_requested_at === null,
+    );
+    let expectChange = false;
+    if (
+      this.kind !== 'kill' &&
+      slot?.objective === 'pri' &&
+      committed !== null &&
+      slot.generation === committed.generation
+    ) {
+      const input = world.inputs[variantOf(world, committed.input_hash)];
+      const write: OptimizationOutcomeWrite = {
+        claim: {
+          projectId: 'A',
+          contractVersion: SHARED_CONTRACT,
+          generation: slot.generation,
+          objective: 'pri',
+          budgetMs: SHARED_BUDGET,
+          attemptToken: slot.attempt_token,
+          ownerId: slot.owner_id,
+        },
+        inputHash: committed.input_hash,
+        admittedCancelEpoch: 0,
+        outcome:
+          this.kind === 'failed'
+            ? { kind: 'failed', reason: 'timeout' }
+            : {
+                kind: 'ok',
+                optimized: {
+                  publication: 'solver',
+                  objectiveValues: {
+                    makespan: { value: 9, stageValue: 9, bound: 9, status: 'optimal' },
+                    priority: { value: 0, stageValue: 0, bound: 0, status: 'optimal' },
+                    movement: { value: 0, stageValue: 0, bound: 0, status: 'optimal' },
+                  },
+                  schedule: schedule(
+                    input.rows,
+                    input.edges,
+                    input.slices,
+                    new Map([['A', 3]]),
+                    input.poolSizes,
+                    input.reach,
+                    input.deadlines,
+                    input.typed,
+                    undefined,
+                    input.elsewhere,
+                  ),
+                },
+              },
+        now: Date.now(),
+      };
+      // ExitChild covers the installed outcome owner and trackCommittedDelivery; solver-response
+      // parsing and the child-exit callback are proven by services.db.test.ts "releases the exact
+      // terminal child while only its installed outcome transport holds stop".
+      const installed = world.optimizer as unknown as {
+        storeOutcome(write: OptimizationOutcomeWrite): Promise<string>;
+      };
+      const stored = await within(
+        installed.storeOutcome(write),
+        'stored outcome waited for recipient transport',
+      );
+      // An ok outcome at the live hash becomes A's selected display.
+      if (
+        stored === 'stored' &&
+        this.kind === 'ok' &&
+        committed.input_hash === world.hashes.live &&
+        !model.displayedSelected
+      ) {
+        expectChange = true;
+        model.displayedSelected = true;
+        note('sharedStore');
+      }
+    }
+    child.kill();
+    await settleShared(world);
+    await assertShared(model, world, before, expectChange, this.toString());
+  }
+  toString(): string {
+    return `ExitChild(${String(this.ordinal)}, ${this.kind})`;
+  }
+}
+
+class SharedRetry implements SharedCommand {
+  check(): boolean {
+    return true;
+  }
+  async run(model: SharedModel, world: SharedWorld): Promise<void> {
+    const committed = committedGeneration(world);
+    if (committed === null) return;
+    const before = await captureDisplay(world);
+    const retried = await within(
+      world.optimizer.retry({
+        projectId: 'A',
+        objective: 'pri',
+        inputHash: committed.input_hash,
+        input: world.inputs[variantOf(world, committed.input_hash)],
+        scoped: { organizationId: 'org-a', actorId: 'ada' },
+      }),
+      'Retry decision waited for recipient transport',
+    );
+    note(`sharedRetry:${retried.kind}`);
+    await settleShared(world);
+    // Retry replaces a failure marker: status only, never a display change.
+    await assertShared(model, world, before, false, this.toString());
+  }
+  toString(): string {
+    return 'Retry';
+  }
+}
+
+class SharedPump implements SharedCommand {
+  check(): boolean {
+    return true;
+  }
+  async run(model: SharedModel, world: SharedWorld): Promise<void> {
+    const before = await captureDisplay(world);
+    const pump = world.optimizer as unknown as { pumpQueue(): Promise<void> };
+    await within(pump.pumpQueue(), 'FIFO pump waited for recipient transport');
+    await settleShared(world);
+    // A dequeue reserves seats; with B never optimized it changes no display.
+    await assertShared(model, world, before, false, this.toString());
+  }
+  toString(): string {
+    return 'Pump';
+  }
+}
+
+class HoldPush implements SharedCommand {
+  check(): boolean {
+    return true;
+  }
+  run(_model: SharedModel, world: SharedWorld): Promise<void> {
+    world.holdB = true;
+    return Promise.resolve();
+  }
+  toString(): string {
+    return 'HoldPush';
+  }
+}
+
+class ReleasePush implements SharedCommand {
+  check(): boolean {
+    return true;
+  }
+  async run(model: SharedModel, world: SharedWorld): Promise<void> {
+    world.holdB = false;
+    for (const release of world.held.splice(0)) release();
+    await Bun.sleep(5);
+    const before = await captureDisplay(world);
+    await assertShared(model, world, before, false, this.toString());
+  }
+  toString(): string {
+    return 'ReleasePush';
+  }
+}
+
+class SecondWriter implements SharedCommand {
+  check(): boolean {
+    return true;
+  }
+  async run(model: SharedModel, world: SharedWorld): Promise<void> {
+    const before = await captureDisplay(world);
+    const second = openDatabase(world.path);
+    try {
+      second.run('PRAGMA busy_timeout = 50');
+      // A rename changes no scheduling fact, so it is also a silent control.
+      second.run("UPDATE project SET name = 'second writer' WHERE id = 'B'");
+    } finally {
+      second.close();
+    }
+    await assertShared(model, world, before, false, this.toString());
+  }
+  toString(): string {
+    return 'SecondWriter';
+  }
+}
+
+class HeldWriterRead implements SharedCommand {
+  check(model: Readonly<SharedModel>): boolean {
+    return model.generationHash !== null;
+  }
+  async run(model: SharedModel, world: SharedWorld): Promise<void> {
+    const hash = model.generationHash;
+    if (hash === null) return;
+    const before = await captureDisplay(world);
+    const staged = deferred<undefined>();
+    const release = deferred<undefined>();
+    const bound = world.source.bindLivePlans({
+      schedulerOf: () => optimizerWiring(undefined).scheduler,
+      optimization: { contractVersion: SHARED_CONTRACT, budgetMs: SHARED_BUDGET, now: Date.now },
+    });
+    // Another owner of the same source stages generation + 100 and rolls back.
+    const holding = bound.uow.run(() => {
+      clientOf(world).run(
+        "UPDATE optimization_generation SET generation = generation + 100 WHERE project_id = 'A'",
+      );
+      staged.resolve(undefined);
+      return release.promise.then(() => ({ commit: false, value: undefined }));
+    });
+    await staged.promise;
+    note('sharedHeldWriter');
+    const reading = world.optimizer.readPlan({
+      projectId: 'A',
+      objective: 'pri',
+      input: world.inputs[variantOf(world, hash)],
+      enabled: true,
+    });
+    await Bun.sleep(5);
+    release.resolve(undefined);
+    await holding;
+    const read = await within(reading, 'held-writer read did not settle');
+    await settleShared(world);
+    const committed = committedGeneration(world);
+    // (I-d) The staged generation rolled back; the read must not report it.
+    expect(
+      read.generation ?? -1,
+      `read answered generation ${String(read.generation)} over committed ${String(committed?.generation)}`,
+    ).toBeLessThanOrEqual(committed?.generation ?? -1);
+    await assertShared(model, world, before, false, this.toString());
+  }
+  toString(): string {
+    return 'HeldWriterRead';
+  }
+}
+
+class DropCaptureRead implements SharedCommand {
+  check(): boolean {
+    return true;
+  }
+  async run(model: SharedModel, world: SharedWorld): Promise<void> {
+    const before = await captureDisplay(world);
+    const generation = committedGeneration(world);
+    const variant: SharedVariant = model.generationHash === world.hashes.live ? 'shifted' : 'live';
+    world.omitCapture = true;
+    let refusal: unknown;
+    try {
+      await within(
+        world.optimizer.readPlan({
+          projectId: 'A',
+          objective: 'pri',
+          input: world.inputs[variant],
+          enabled: true,
+        }),
+        'missing-capture read did not settle',
+      );
+    } catch (caught) {
+      refusal = caught;
+    } finally {
+      world.omitCapture = false;
+    }
+    expect(refusal).toBeInstanceOf(Error);
+    expect((refusal as Error).message).toBe(
+      'optimization observation lacks borrowed ownership and capture',
+    );
+    expect(committedGeneration(world)).toEqual(generation);
+    await assertShared(model, world, before, false, this.toString());
+  }
+  toString(): string {
+    return 'DropCaptureRead';
+  }
+}
+
+async function sharedTrace(commands: Iterable<SharedCommand>): Promise<void> {
+  const world = await createSharedWorld();
+  const model: SharedModel = { generationHash: null, displayedSelected: false, expectedB: 0 };
+  let failure: Error | null = null;
+  try {
+    await fc.asyncModelRun(() => ({ model, real: world }), commands);
+  } catch (caught) {
+    failure =
+      caught instanceof Error
+        ? caught
+        : new Error('shared model threw a non-Error', { cause: caught });
+  }
+  world.holdB = false;
+  for (const release of world.held.splice(0)) release();
+  for (const child of world.children) child.kill();
+  try {
+    await within(world.optimizer.stop(), 'shared model optimizer did not stop', 5000);
+    await world.source.close();
+  } finally {
+    rmSync(world.dir, { recursive: true, force: true });
+  }
+  if (failure !== null) throw failure;
+}
+
+describe('installed shared-person owners model', () => {
+  it('records one A-cause event when a stored selected display is evicted', async () => {
+    // Proof (2026-10-11): reusing the observation owner's `before` capture as
+    // `after` failed this trace at `ReadPlan(shifted): durable B rows` (the
+    // eviction row absent); delivering inside either owner failed it at
+    // `a B sequence pushed twice`.
+    await sharedTrace([
+      new SharedReadPlan('live'),
+      new SharedExitChild(0, 'ok'),
+      new SharedReadPlan('shifted'),
+      new SharedReadPlan('live'),
+    ]);
+  }, 30_000);
+
+  it('commits outcome and observation before held recipient transport', async () => {
+    // Proof (2026-10-11): awaiting delivery inside the outcome owner failed at
+    // `stored outcome waited for recipient transport`; inside the observation
+    // owner, at `observation decision waited for recipient transport`.
+    await sharedTrace([
+      new HoldPush(),
+      new SharedReadPlan('live'),
+      new SharedExitChild(0, 'ok'),
+      new SecondWriter(),
+      new SharedReadPlan('shifted'),
+      new SecondWriter(),
+      new ReleasePush(),
+    ]);
+  }, 30_000);
+
+  it('refuses a missing capture with its modeled message', async () => {
+    // Proof (2026-10-11): removing the observation owner's capability guard
+    // answered `undefined is not an object (evaluating
+    // 'capture.resolveLifecycleOwner')` instead of the modeled refusal.
+    await sharedTrace([new SharedReadPlan('live'), new DropCaptureRead()]);
+  }, 30_000);
+
+  it('never answers a generation a held writer staged and rolled back', async () => {
+    // Proof (2026-10-11): observing before the owner's source turn read the
+    // held writer's staged row: `read answered generation 101 over committed 1`.
+    await sharedTrace([new SharedReadPlan('live'), new HeldWriterRead()]);
+  }, 30_000);
+
+  it('explores bounded shared command histories', async () => {
+    // Proof (2026-10-11): under each of the five faults above, seed 20261011
+    // shrank to a two- or three-command counterexample; verify.md records them.
+    resetReached();
+    const commands = fc.commands<SharedModel, SharedWorld, false>(
+      [
+        fc.constantFrom(new SharedReadPlan('live'), new SharedReadPlan('shifted')),
+        fc.constantFrom(new SharedReadPlan('live'), new SharedReadPlan('shifted')),
+        fc
+          .tuple(
+            fc.integer({ min: 0, max: 3 }),
+            fc.constantFrom<'ok' | 'failed' | 'kill'>('ok', 'ok', 'failed', 'kill'),
+          )
+          .map(([ordinal, kind]) => new SharedExitChild(ordinal, kind)),
+        fc.constantFrom<SharedCommand>(
+          new SharedRetry(),
+          new SharedPump(),
+          new HoldPush(),
+          new ReleasePush(),
+          new SecondWriter(),
+          new HeldWriterRead(),
+          new DropCaptureRead(),
+        ),
+      ],
+      { maxCommands: 12 },
+    );
+    await fc.assert(
+      fc.asyncProperty(commands, (history) => sharedTrace(history)),
+      { seed: 20261011, numRuns: 60 },
+    );
+    for (const reachedCommand of ['sharedStore', 'sharedEvict', 'sharedHeldWriter']) {
+      expect(
+        reached.get(reachedCommand) ?? 0,
+        `model never reached ${reachedCommand}`,
+      ).toBeGreaterThan(0);
+    }
+  }, 300_000);
 });
