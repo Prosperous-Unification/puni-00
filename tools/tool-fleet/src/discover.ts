@@ -28,6 +28,13 @@ import {
   type ObservedNode,
   type ObservedNodeState,
 } from './observation';
+import {
+  readSshTransport,
+  renderControllerTransport,
+  renderSshDiscoveryVariables,
+  type SshTransport,
+  SshTransportRefusal,
+} from './ssh-transport';
 
 export interface DiscoveryCommand {
   readonly source: DiscoverySource;
@@ -100,6 +107,8 @@ interface ObserveOptions {
   readonly labProvider?: LabProviderSource;
   /** Reads the lab provider inventory; tests replace the process observation. */
   readonly observeLab?: (source: LabProviderSource) => Promise<LabProviderInventory>;
+  /** How production discovery reaches SSH nodes; required when the fleet has any. */
+  readonly sshTransport?: SshTransport;
 }
 
 function buildControllerCommand(
@@ -107,6 +116,7 @@ function buildControllerCommand(
   root: string,
   image: string,
   digest: string,
+  transport: SshTransport | undefined,
 ): DiscoveryCommand {
   // Proof: invoking the logical executable directly made the production CLI fixture bypass the
   // digest-locked controller; its Docker invocation assertion failed under that mutation.
@@ -120,7 +130,7 @@ function buildControllerCommand(
     '--workdir',
     root,
   ];
-  for (const name of ['HCLOUD_TOKEN', 'KUBECONFIG', 'SSH_AUTH_SOCK'] as const) {
+  for (const name of ['HCLOUD_TOKEN', 'KUBECONFIG'] as const) {
     const value = process.env[name];
     if (value === undefined || value.length === 0) continue;
     controllerArguments.push('--env', name);
@@ -128,8 +138,9 @@ function buildControllerCommand(
       for (const path of value.split(':'))
         controllerArguments.push('--volume', `${path}:${path}:ro`);
     }
-    if (name === 'SSH_AUTH_SOCK') controllerArguments.push('--volume', `${value}:${value}`);
   }
+  // The agent reaches the controller only inside a validated transport, never from ambient env.
+  if (transport !== undefined) controllerArguments.push(...renderControllerTransport(transport));
   // Proof: omitting the in-container timeout made the production Docker invocation assertion fail;
   // it bounds the workload even if killing a disconnected Docker client cannot stop the container.
   controllerArguments.push(
@@ -635,19 +646,29 @@ function buildSshDiscoveryCommand(
   nodeId: string,
   provider: { readonly kind: 'ssh'; readonly address: string; readonly machineId: string },
   timeoutMs: number,
+  transport: SshTransport,
 ): DiscoveryCommand {
   return {
     source: `ssh-facts:${cluster.id}/${nodeId}`,
     executable: 'ansible-playbook',
+    // Extra vars outrank every inventory and config source, as `$OPS/vars.json` does for the
+    // playbook procedure. Proof: dropping the rendered variables failed `reaches production SSH
+    // nodes only through the validated transport` and the production discover CLI test.
     arguments: [
       join(root, 'infra/ansible/playbooks/discover.yml'),
       '--inventory',
       `${provider.address},`,
       '--extra-vars',
-      JSON.stringify({ puni_display_name: nodeId }),
+      JSON.stringify({ puni_display_name: nodeId, ...renderSshDiscoveryVariables(transport) }),
     ],
     timeoutMs,
   };
+}
+
+function requireTransport(transport: SshTransport | undefined): SshTransport {
+  // observeFleet refuses a production SSH fleet without a transport before any command runs.
+  if (transport === undefined) throw new Error('SSH discovery reached without a transport');
+  return transport;
 }
 
 /** Execute one bounded read-only discovery command. */
@@ -693,6 +714,16 @@ export async function observeFleet(
   fleet: Fleet,
   options: ObserveOptions,
 ): Promise<FleetObservation> {
+  const sshTransport = options.sshTransport;
+  const sshNodes = fleet.nodes.filter(({ provider }) => provider.kind === 'ssh');
+  if (options.labProvider === undefined && sshNodes.length > 0 && sshTransport === undefined) {
+    // Proof: removing this refusal made `reaches production SSH nodes only through the validated
+    // transport` issue the provider command, and the CLI negative reach Docker.
+    throw new SshTransportRefusal(
+      'transport-required',
+      `Production discovery reaches SSH nodes ${sshNodes.map(({ id }) => id).join(', ')} only through --ssh-transport`,
+    );
+  }
   let run = options.run;
   if (run === undefined) {
     const toolchain = await readToolchain(join(options.root, 'infra/versions/toolchain.json'));
@@ -703,6 +734,7 @@ export async function observeFleet(
           options.root,
           toolchain.controller.image,
           toolchain.controller.digest,
+          sshTransport,
         ),
       );
       if ([125, 126, 127].includes(response.exitCode)) {
@@ -844,7 +876,14 @@ export async function observeFleet(
       if (labRunning !== undefined && !labRunning.has(node.id)) continue;
       const sshCommand =
         labProvider === undefined
-          ? buildSshDiscoveryCommand(options.root, cluster, node.id, node.provider, timeoutMs)
+          ? buildSshDiscoveryCommand(
+              options.root,
+              cluster,
+              node.id,
+              node.provider,
+              timeoutMs,
+              requireTransport(sshTransport),
+            )
           : {
               source: `ssh-facts:${cluster.id}/${node.id}` as const,
               executable: 'ansible-playbook',
@@ -1051,7 +1090,14 @@ function readDiscoveryFlags(argv: readonly string[]): ReadonlyMap<string, string
   }
   for (const flag of flags.keys()) {
     if (
-      !['--fleet', '--output', '--max-source-age-ms', '--timeout-ms', '--lab-state'].includes(flag)
+      ![
+        '--fleet',
+        '--output',
+        '--max-source-age-ms',
+        '--timeout-ms',
+        '--lab-state',
+        '--ssh-transport',
+      ].includes(flag)
     ) {
       // Proof: disabling this refusal made the unknown-flag production CLI negative persist an
       // observation while ignoring unreviewed input.
@@ -1110,12 +1156,32 @@ export async function runDiscover(argv: readonly string[], root: string): Promis
   }
   const fleet = decodeFleet(fleetInput);
   const labState = flags.get('--lab-state');
+  const transportPath = flags.get('--ssh-transport');
+  if (labState !== undefined && transportPath !== undefined) {
+    // Proof: removing this refusal made the lab CLI negative read the production transport for a
+    // lab whose own inventory already pins each machine's user and host key.
+    throw new SshTransportRefusal(
+      'transport-conflict',
+      '--ssh-transport is production-only and cannot be combined with --lab-state',
+    );
+  }
   if (labState !== undefined) requireLabFleet(fleet, fleetPath, root);
+  const sshTransport =
+    transportPath === undefined
+      ? undefined
+      : await readSshTransport(
+          transportPath,
+          process.env,
+          fleet.nodes.flatMap(({ provider }) =>
+            provider.kind === 'ssh' ? [provider.address] : [],
+          ),
+        );
   const observation = await observeFleet(fleet, {
     root,
     maxSourceAgeMs: positiveMilliseconds(flags, '--max-source-age-ms', 30_000),
     timeoutMs: positiveMilliseconds(flags, '--timeout-ms', 30_000),
     ...(labState === undefined ? {} : { labProvider: { stateDirectory: resolve(labState) } }),
+    ...(sshTransport === undefined ? {} : { sshTransport }),
   });
   try {
     await writeFile(outputPath, `${JSON.stringify(observation, undefined, 2)}\n`, {

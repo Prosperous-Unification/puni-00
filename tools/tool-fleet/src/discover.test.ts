@@ -11,8 +11,19 @@ import {
   findMachineFactDocument,
   type FleetObservationBody,
 } from './observation';
+import {
+  renderSshDiscoveryVariables,
+  type SshTransport,
+  SshTransportRefusal,
+} from './ssh-transport';
 
 const now = new Date('2026-09-17T12:00:00.000Z');
+
+const sshTransport: SshTransport = {
+  user: 'puni-fleet',
+  knownHostsFile: '/ops/known_hosts',
+  agentSocket: '/run/agent.sock',
+};
 
 function fleetOf(
   bootstrap: 'required' | 'complete' = 'complete',
@@ -437,6 +448,7 @@ PLAY RECAP *********************************************************************
       return Promise.resolve(response({ items: [] }));
     };
     const observation = await observeFleet(fleetOf('complete', 'ssh'), {
+      sshTransport,
       now: () => now,
       run,
       root: '/repo',
@@ -452,6 +464,7 @@ PLAY RECAP *********************************************************************
     ]);
     expect(
       observeFleet(fleetOf('complete', 'ssh'), {
+        sshTransport,
         now: () => now,
         run: (command) =>
           command.source.startsWith('ssh-facts:') ? Promise.resolve(response({})) : run(command),
@@ -461,6 +474,7 @@ PLAY RECAP *********************************************************************
 
     expect(
       observeFleet(fleetOf('complete', 'ssh'), {
+        sshTransport,
         now: () => now,
         run: (command) =>
           command.source.startsWith('ssh-facts:')
@@ -475,6 +489,48 @@ PLAY RECAP *********************************************************************
         root: '/repo',
       }),
     ).rejects.toThrow(/malformed machine identity fact/i);
+  });
+
+  it('reaches production SSH nodes only through the validated transport', async () => {
+    const issued: DiscoveryCommand[] = [];
+    const run = (command: DiscoveryCommand): Promise<DiscoveryResponse> => {
+      issued.push(command);
+      if (command.source === 'provider:platform')
+        return Promise.resolve(response({ _meta: { hostvars: {} } }));
+      if (command.source.startsWith('ssh-facts:')) {
+        return Promise.resolve(
+          response({
+            hosts: [{ name: 'platform-a', machineId: 'machine-platform-a', address: '10.0.0.11' }],
+          }),
+        );
+      }
+      return Promise.resolve(response({ items: [] }));
+    };
+    let refusal: unknown;
+    try {
+      await observeFleet(fleetOf('complete', 'ssh'), { now: () => now, run, root: '/repo' });
+    } catch (cause) {
+      refusal = cause;
+    }
+    expect(
+      refusal instanceof SshTransportRefusal ? [refusal.reason, refusal.message] : refusal,
+    ).toEqual(['transport-required', expect.stringContaining('platform-a')]);
+    expect(issued).toEqual([]);
+
+    const jumped = { ...sshTransport, jump: { user: 'puni1', address: '10.0.0.3' } };
+    await observeFleet(fleetOf('complete', 'ssh'), {
+      now: () => now,
+      run,
+      root: '/repo',
+      sshTransport: jumped,
+    });
+    expect(issued.find(({ source }) => source.startsWith('ssh-facts:'))?.arguments).toEqual([
+      '/repo/infra/ansible/playbooks/discover.yml',
+      '--inventory',
+      '10.0.0.11,',
+      '--extra-vars',
+      JSON.stringify({ puni_display_name: 'platform-a', ...renderSshDiscoveryVariables(jumped) }),
+    ]);
   });
 
   it('round-trips replaced and unenrolled SSH identities with their actual source', async () => {
@@ -519,6 +575,7 @@ PLAY RECAP *********************************************************************
 
     for (const enrolled of [true, false]) {
       const observation = await observeFleet(fleetOf('complete', 'ssh'), {
+        sshTransport,
         now: () => now,
         run: replacementRunner(enrolled),
         root: '/repo',
@@ -649,9 +706,9 @@ PLAY RECAP *********************************************************************
       }
       return Promise.resolve(response({ items: [] }));
     };
-    expect(observeFleet(fleet, { now: () => now, run, root: '/repo' })).rejects.toThrow(
-      /duplicates provider identity ssh:observed-duplicate/i,
-    );
+    expect(
+      observeFleet(fleet, { now: () => now, run, root: '/repo', sshTransport }),
+    ).rejects.toThrow(/duplicates provider identity ssh:observed-duplicate/i);
   });
 
   it('refuses failed, malformed, partial, and stale sources while accepting a valid empty list', async () => {
@@ -1245,6 +1302,112 @@ exit 98
     expect(controllerInvocations).toContain('timeout --signal=TERM --kill-after=0.1s');
     // Budget measured 2026-09-27 (docs/test-budgets.md): 5.7s idle; on the loaded run it
     // timed out at its old 10-second limit, so the new one is at least twice that.
+  }, 30_000);
+
+  it('hands the controller only the validated SSH transport and refuses before Docker without one', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-discover-ssh-'));
+    const binaries = join(directory, 'bin');
+    await mkdir(binaries);
+    const fleetPath = join(directory, 'fleet.json');
+    await Bun.write(fleetPath, JSON.stringify(fleetOf('complete', 'ssh')));
+    const knownHostsFile = join(directory, 'known_hosts');
+    await writeFile(knownHostsFile, '10.0.0.11 ssh-ed25519 AAAAC3NzaPlatformA\n', { mode: 0o600 });
+    const transportPath = join(directory, 'transport.json');
+    await writeFile(transportPath, JSON.stringify({ user: 'puni-fleet', knownHostsFile }), {
+      mode: 0o600,
+    });
+    const agentSocket = join(directory, 'agent.sock');
+    const agent = Bun.listen({ unix: agentSocket, socket: { data: () => undefined } });
+    const dockerLog = join(directory, 'docker.log');
+    const playbookLog = join(directory, 'playbook.log');
+    const fakes = {
+      'ansible-inventory': `#!/bin/sh\nprintf '{"_meta":{"hostvars":{}}}'\n`,
+      kubectl: `#!/bin/sh\nprintf '{"items":[]}'\n`,
+      'ansible-playbook': `#!/bin/sh\nprintf '%s\\n' "$@" >> "$PUNI_PLAYBOOK_LOG"\nprintf '{"hosts":[{"name":"platform-a","machineId":"machine-platform-a","address":"10.0.0.11"}]}'\n`,
+      docker: `#!/bin/sh
+printf '%s\\n' "$*" >> "$PUNI_DOCKER_LOG"
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    ansible-inventory|kubectl|ansible-playbook) executable="$1"; shift; exec "$PUNI_FAKE_BIN/$executable" "$@" ;;
+  esac
+  shift
+done
+exit 98
+`,
+    };
+    for (const [name, source] of Object.entries(fakes)) {
+      await writeFile(join(binaries, name), source);
+      await chmod(join(binaries, name), 0o700);
+    }
+    const environment = {
+      ...process.env,
+      PATH: `${binaries}:${process.env['PATH'] ?? ''}`,
+      PUNI_FAKE_BIN: binaries,
+      PUNI_DOCKER_LOG: dockerLog,
+      PUNI_PLAYBOOK_LOG: playbookLog,
+      SSH_AUTH_SOCK: agentSocket,
+    };
+    const invoke = (
+      output: string,
+      extra: readonly string[],
+      env: Record<string, string | undefined> = environment,
+    ) =>
+      Bun.spawnSync(
+        [
+          process.execPath,
+          join(import.meta.dir, 'entrypoint.ts'),
+          'discover',
+          '--fleet',
+          fleetPath,
+          '--output',
+          join(directory, output),
+          ...extra,
+        ],
+        { env, stdout: 'pipe', stderr: 'pipe' },
+      );
+    try {
+      const { SSH_AUTH_SOCK: _forwarded, ...withoutAgent } = environment;
+      for (const refusal of [
+        { output: 'untransported.json', extra: [], diagnostic: /platform-a.*--ssh-transport/ },
+        {
+          output: 'lab.json',
+          extra: ['--ssh-transport', transportPath, '--lab-state', directory],
+          diagnostic: /--ssh-transport.*--lab-state/,
+        },
+        {
+          output: 'agentless.json',
+          extra: ['--ssh-transport', transportPath],
+          env: withoutAgent,
+          diagnostic: /SSH_AUTH_SOCK/,
+        },
+      ]) {
+        const invocation = invoke(refusal.output, refusal.extra, refusal.env);
+        expect(invocation.exitCode).not.toBe(0);
+        expect(invocation.stderr.toString()).toMatch(refusal.diagnostic);
+        expect(Bun.file(join(directory, refusal.output)).size).toBe(0);
+      }
+      expect(Bun.file(dockerLog).size).toBe(0);
+
+      const discovered = invoke('observation.json', ['--ssh-transport', transportPath]);
+      expect(discovered.stderr.toString()).toBe('');
+      expect(discovered.exitCode).toBe(0);
+      const sshInvocation = (await readFile(dockerLog, 'utf8'))
+        .split('\n')
+        .find((line) => line.includes('ansible-playbook'));
+      expect(sshInvocation).toContain(`--volume ${knownHostsFile}:${knownHostsFile}:ro`);
+      expect(sshInvocation).toContain(`--volume ${agentSocket}:${agentSocket}`);
+      expect(sshInvocation).toContain(`--env SSH_AUTH_SOCK=${agentSocket}`);
+      expect(sshInvocation).toContain('--env ANSIBLE_HOST_KEY_CHECKING=True');
+      const playbookArguments = (await readFile(playbookLog, 'utf8')).trimEnd().split('\n');
+      expect(playbookArguments.slice(1, 3)).toEqual(['--inventory', '10.0.0.11,']);
+      expect(JSON.parse(playbookArguments[4])).toEqual({
+        puni_display_name: 'platform-a',
+        ansible_user: 'puni-fleet',
+        ansible_ssh_common_args: `-o UserKnownHostsFile=${knownHostsFile} -o GlobalKnownHostsFile=/dev/null -o StrictHostKeyChecking=yes -o BatchMode=yes`,
+      });
+    } finally {
+      agent.stop(true);
+    }
   }, 30_000);
 });
 
