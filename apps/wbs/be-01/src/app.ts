@@ -47,9 +47,10 @@ import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
 
-import { authOidcEndpoints } from './controller/auth-oidc-endpoints';
+import { authOidcEndpoints, nativeBrowserLogoutEndpoints } from './controller/auth-oidc-endpoints';
 import { authPasswordEndpoints } from './controller/auth-password-endpoints';
 import { bearerContextRoutes } from './controller/bearer-context.routes';
+import type { BrowserSessionAuthority } from './controller/browser-session';
 import { calendarMarkerRoutes } from './controller/calendar-marker.routes';
 import { directoryRoutes } from './controller/directory.routes';
 import { historyRoutes } from './controller/history.routes';
@@ -92,6 +93,8 @@ export interface AppOptions {
    * absent, answering 404 — indistinguishable from a routing fault at the edge.
    */
   auth: AuthService;
+  /** Explicit shared browser lifecycle authority; absent preserves legacy routes. */
+  browserSession?: BrowserSessionAuthority;
   /** Optional evidence seam; absent callers cannot select an organization. */
   credentialEvidence?: VerifiedCredentialOf;
   /** Selection is intentionally refusing unless the composition explicitly enables it. */
@@ -287,6 +290,24 @@ export function mountedEndpoints(
     scrapeMetrics: opts.metricsScrape ?? (() => scrapeMetrics('be-01')),
   },
 ): readonly BoundEndpoint[] {
+  if (
+    // Proof: removing this clause let an OIDC lifecycle mount without a
+    // browser-session authority, so logout took the legacy branch and never
+    // closed it (oidc-identity `refuses an OIDC browser lifecycle mounted
+    // without a browser-session authority` 0/1, 2026-10-11).
+    (opts.oidc?.browserLifecycle !== undefined && opts.browserSession === undefined) ||
+    (opts.browserSession !== undefined &&
+      opts.oidc !== undefined &&
+      // Proof: removing the defined-lifecycle requirement let mounted OIDC and
+      // browserSession share undefined while callback/refresh stayed unfenced
+      // (composition negative 0/1, 2026-10-01).
+      (opts.oidc.browserLifecycle === undefined ||
+        opts.browserSession.lifecycle === undefined ||
+        opts.oidc.browserLifecycle !== opts.browserSession.lifecycle ||
+        opts.oidc.tokens !== opts.browserSession.tokens ||
+        opts.oidc.client.revoke !== opts.browserSession.revokeProvider))
+  )
+    throw new Error('browser lifecycle composition disagrees with OIDC routes');
   const passwordThrottle = opts.loginThrottle;
   const commands = createPlanCommandRunner({
     batchServices: opts.writes.batch,
@@ -327,11 +348,21 @@ export function mountedEndpoints(
       logger: runtime.logger,
       scrapeMetrics: runtime.scrapeMetrics,
     }),
-    ...authPasswordEndpoints(opts.auth, opts.oidc, passwordThrottle),
+    ...authPasswordEndpoints(
+      opts.auth,
+      opts.oidc,
+      passwordThrottle,
+      opts.browserSession,
+      opts.appOrigin,
+    ),
     ...bearerContextRoutes(opts.bearerContext ?? REFUSE_BEARER_CONTEXT),
     // Proof: removing this spread made app.routes.test.ts receive 40 bindings
     // instead of the 44 required by the OIDC composition.
-    ...(opts.oidc === undefined ? [] : authOidcEndpoints(opts.auth, opts.oidc, passwordThrottle)),
+    ...(opts.oidc === undefined
+      ? opts.browserSession === undefined
+        ? []
+        : nativeBrowserLogoutEndpoints(opts.appOrigin, opts.browserSession)
+      : authOidcEndpoints(opts.auth, opts.oidc, passwordThrottle, opts.browserSession)),
     // Proof: omitting this binding made “binds each shared HTTP shape once”
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),

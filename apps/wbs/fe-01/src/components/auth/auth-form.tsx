@@ -14,6 +14,8 @@ function refusalMessage(
   switch (refusal.error) {
     case 'invalid_credentials':
       return 'Username or password is incorrect.';
+    case 'unauthenticated':
+      return 'The previous browser session could not be verified. Reload and try again.';
     case 'not_found':
       return 'Password sign-in is not available on this server. Continue with SSO.';
     case 'invalid_origin':

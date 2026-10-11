@@ -1,5 +1,6 @@
 import type { ReleaseEffects } from './execute';
 import type { JournalRecord, ReleaseJournal } from './journal';
+import { sealMigrationCapture, sha256Of } from './migration-capture';
 import {
   type FluxUnit,
   K8S_TIERS,
@@ -209,19 +210,23 @@ export class FakeCluster implements ReleaseEffects {
     this.backendReplicas = 0;
     return Promise.resolve();
   }
-  capture(releaseId: string, image: string) {
+  capture(identity: Parameters<ReleaseEffects['capture']>[0], image: string) {
     this.enter('capture');
     this.admit(image);
     this.writerJob();
     const folders = this.migrationsOf(image);
     const pending = folders.filter((m) => !this.applied.includes(m.name));
     return Promise.resolve({
-      capture: {
-        baseline: this.applied.at(-1) ?? 'none',
-        applied: this.applied.map((name) => ({ name, hash: `hash-${name}` })),
-        pending: pending.map((m) => ({ name: m.name, downSha256: m.downSha256 })),
-      },
-      snapshot: { path: `/data/snapshots/${releaseId}.sqlite`, sha256: 'f'.repeat(64) },
+      capture: sealMigrationCapture(
+        identity,
+        this.applied.map((name) => ({ name, hash: sha256Of(`hash-${name}`) })),
+        pending.map((m) => ({
+          name: m.name,
+          hash: sha256Of(m.hash),
+          downHash: sha256Of(m.downSha256),
+        })),
+      ),
+      snapshot: { path: `/data/snapshots/${identity.attempt}.sqlite`, sha256: 'f'.repeat(64) },
     });
   }
   migrate(_releaseId: string, image: string) {
@@ -238,22 +243,32 @@ export class FakeCluster implements ReleaseEffects {
     this.enter('observeDownMigrations');
     this.admit(image);
     return Promise.resolve(
-      this.migrationsOf(image).map((m) => ({ name: m.name, downSha256: m.downSha256 })),
+      this.migrationsOf(image).map((m) => ({ name: m.name, downSha256: sha256Of(m.downSha256) })),
     );
   }
-  rollbackSchema(_releaseId: string, image: string, baseline: string) {
+  rollbackSchema(
+    _releaseId: string,
+    image: string,
+    _identity: Parameters<ReleaseEffects['rollbackSchema']>[2],
+    capture: Parameters<ReleaseEffects['rollbackSchema']>[3],
+  ) {
     this.enter('rollbackSchema');
     this.admit(image);
     this.writerJob();
-    const keep = baseline === 'none' ? 0 : this.applied.indexOf(baseline) + 1;
-    this.applied = this.applied.slice(0, keep);
-    return Promise.resolve([...this.applied]);
+    const pending = new Set(capture.pending.map((row) => row.name));
+    this.applied = this.applied.filter((name) => !pending.has(name));
+    return Promise.resolve(this.applied.map((name) => ({ name, hash: sha256Of(`hash-${name}`) })));
   }
   manualReopenCommand(releaseId: string) {
     return `reopen writes and delete the Lease of ${releaseId}`;
   }
-  manualSchemaCommand(releaseId: string, _image: string, baseline: string) {
-    return `kubectl --context lab create -f /state/wbs-manual-rollback-${releaseId}.json # --to=${baseline}`;
+  manualSchemaCommand(
+    releaseId: string,
+    _image: string,
+    _identity: Parameters<ReleaseEffects['manualSchemaCommand']>[2],
+    capture: Parameters<ReleaseEffects['manualSchemaCommand']>[3],
+  ) {
+    return `kubectl --context lab create -f /state/wbs-manual-rollback-${releaseId}.json # capture-sha256=${capture.sha256}`;
   }
   rolloutBackend(image: string) {
     this.enter('rolloutBackend');

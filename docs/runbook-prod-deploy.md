@@ -138,6 +138,24 @@ dump with the deploy record.
 pre-migration backup the swap printed. Stop both be-01 colours first, then run the restore from a
 throwaway container of the new image:
 
+For a pre-route `be` abort, swap first captures the complete applied migration set from green,
+persists an attempt-specific private file under `/home/puni1/wbs/state`, and reads it back before
+running the forward migration. On abort it verifies that the retained and copied bytes still match,
+runs `migrate-down-cli.ts --capture-file` in green, and compares the complete final ledger with
+the captured set. A zero-exit down command with a different ledger is a rollback failure. The
+capture remains on the host after green stops. If rollback fails, use the **exact pinned-image
+`docker run` command printed by swap**: it binds that retained capture read-only, binds
+`/home/puni1/wbs/data` read-write, and sets the DB_PATH observed from green before migration.
+The exact-set CLI requires `--capture-file`, `--target`, `--attempt` and `--candidate`; the
+printed automatic/manual command also passes `--capture-sha256` from the original durable
+capture. The backend refuses changed bytes before parsing the file or opening SQLite for
+reversal. Keep those fields and the image digest unchanged; inspect the capture and current
+ledger before retrying. An absent or unreadable capture is not an empty applied set.
+The `--to=<baseline>` commands below are legacy operator procedures for
+separate data-removal workflows, not the automatic swap abort path.
+
+After `reload`, restore the pre-migration backup as follows:
+
 ```sh
 docker run --rm -v /home/puni1/wbs/data:/data -e DB_PATH=/data/wbs.db \
   --entrypoint bun <be-01 image> run src/restore-db-cli.ts /data/backups/<name>.db

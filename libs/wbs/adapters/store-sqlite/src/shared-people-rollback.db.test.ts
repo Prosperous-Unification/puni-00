@@ -163,7 +163,7 @@ describe('combined shared people recovery', () => {
     expect(ranks()).toEqual([]);
     expect(
       rollbackTo(path, MIGRATIONS_FOLDER, '20261001010000_add_browser_credential_revocations'),
-    ).toEqual(['20261005110000_add_shared_people']);
+    ).toEqual(['20261011120000_add_browser_auth_lifecycle', '20261005110000_add_shared_people']);
     runMigrations(path, MIGRATIONS_FOLDER);
     expect(() => restoreSharedPeople(connection.db, saved, 202)).toThrow(
       'unsupported capacity mode shared',

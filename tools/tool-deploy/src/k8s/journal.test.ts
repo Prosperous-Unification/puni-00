@@ -1,10 +1,11 @@
-import { chmodSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { fileJournal, type JournalRecord } from './journal';
+import { migrationIdentityOf, sealMigrationCapture } from './migration-capture';
 import { initialState, type ReleaseRequest } from './release';
 
 const roots: string[] = [];
@@ -43,7 +44,7 @@ const fixedState = { ...initialState(request), phase: 'migrated' as const };
 
 function record(): JournalRecord {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     request,
     state: fixedState,
     history: [{ phase: 'migrated', at: '2026-09-18T00:00:00.000Z' }],
@@ -80,8 +81,34 @@ describe('fileJournal', () => {
 
   it('rejects a newer schema', () => {
     const path = join(directory(), 'release.json');
-    writeFileSync(path, JSON.stringify({ ...record(), schemaVersion: 2 }));
+    writeFileSync(path, JSON.stringify({ ...record(), schemaVersion: 3 }));
     expect(() => fileJournal(path).read()).toThrow('unsupported schema version');
+  });
+
+  it('refuses a legacy in-flight journal without replacing its bytes', () => {
+    const path = join(directory(), 'release.json');
+    const legacy = JSON.stringify({ ...record(), schemaVersion: 1 });
+    writeFileSync(path, legacy);
+    expect(() => fileJournal(path).read()).toThrow('legacy migration capture');
+    expect(readFileSync(path, 'utf8')).toBe(legacy);
+  });
+
+  it('rejects a changed capture from disk before returning a journal record', () => {
+    const path = join(directory(), 'release.json');
+    const original = record();
+    const capture = sealMigrationCapture(
+      migrationIdentityOf(original.request, original.state.transactionId),
+      [],
+      [],
+    );
+    const malformed = {
+      ...original,
+      state: { ...original.state, capture: { ...capture, bytes: ` ${capture.bytes}` } },
+    };
+    const bytes = JSON.stringify(malformed);
+    writeFileSync(path, bytes);
+    expect(() => fileJournal(path).read()).toThrow('original SHA-256');
+    expect(readFileSync(path, 'utf8')).toBe(bytes);
   });
 
   it('distinguishes an unreadable journal from an absent one', () => {

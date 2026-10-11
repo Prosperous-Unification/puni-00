@@ -15,6 +15,7 @@
 // on a throwaway file with the same import pattern inlines the text and the
 // resulting bundle still runs correctly when moved and executed from an
 // unrelated directory.
+import { createHash, randomUUID } from 'node:crypto';
 import { unlink } from 'node:fs/promises';
 
 import { renderTemplate, siteCaddyTmpl, tierComposeTmpl } from '@tools/compose';
@@ -30,6 +31,7 @@ import {
   capacityModesCommand,
   composeUpArgs,
   containerName,
+  copyMigrationCaptureCommand,
   CURRENT_ENV,
   deriveTierSecrets,
   EDGE_CONTAINER,
@@ -37,9 +39,11 @@ import {
   grantAliasCommands,
   holdKindsCommand,
   manifestInspectArgs,
+  migrateCaptureCommand,
   migrateCommand,
-  migrateDownCommand,
-  migrateStatusCommand,
+  migrateDownCapturedCommand,
+  migrationCaptureDigestCommand,
+  migrationDatabasePathCommand,
   NETWORK,
   PORT,
   psColorsFrom,
@@ -61,6 +65,12 @@ import {
 import { drain } from './lib/drain';
 import { waitForHealthy } from './lib/health';
 import { withLock } from './lib/lock';
+import {
+  type MigrationSetCapture,
+  type MigrationSetIdentity,
+  parseMigrationSetCapture,
+} from './lib/migration-capture';
+import { writeNewMigrationCapture } from './lib/migration-capture-file';
 import { readPhase, writePhase } from './lib/phase';
 import { type Observed, planSwap, type SwapPlan, type SwapStep } from './lib/reconcile';
 import { mcpExposureEnabled, routedColorFromAdminConfig, siteContext } from './lib/site';
@@ -548,6 +558,12 @@ export interface SwapExecutionIo {
   readPhase: typeof readPhase;
   writePhase: typeof writePhase;
   writeAtomic: typeof writeAtomic;
+  /** Test seam for a disposable state directory; production uses the pinned environment root. */
+  captureStateDir?: string;
+  /** Test seam for readback faults; production reads the persisted host file. */
+  readCapture?: (path: string) => Promise<string>;
+  /** Test seam for durable capture failure; production exclusively publishes and syncs. */
+  writeCapture?: (path: string, contents: string) => Promise<void>;
 }
 
 const PRODUCTION_SWAP_IO: SwapExecutionIo = { sh, readPhase, writePhase, writeAtomic };
@@ -768,17 +784,15 @@ export async function execute(
   // are set at the exact point the corresponding action becomes undoable.
   let aliasMovedToGreen = false;
   let siteTextBefore: string | null = null;
-  /**
-   * The newest migration applied before this deploy touched the schema, or
-   * `null` while the migrate step has not run.
-   *
-   * Blue and green share one SQLite file, so the migrate step changes the
-   * schema the still-serving old colour is reading. Restoring routing on an
-   * abort does not restore that: without this, a failed health gate left the
-   * old release running against a schema it never asked for, and the deploy
-   * reported a rollback it had not performed.
-   */
-  let migrationBaseline: string | null = null;
+  /** Persisted before migration; kept when green is stopped so manual recovery stays possible. */
+  let migrationCapture: {
+    path: string;
+    containerPath: string;
+    identity: MigrationSetIdentity;
+    captured: MigrationSetCapture;
+    serialized: string;
+    databasePath: string;
+  } | null = null;
 
   /**
    * Design decision 10's abort rows, which were previously undelivered:
@@ -818,16 +832,78 @@ export async function execute(
     //    fails must not replace the original failure in the operator's output.
     //    It says so explicitly, because a silent failure here is the schema
     //    staying forward while the message says the deploy was rolled back.
-    if (migrationBaseline !== null) {
+    let schemaRecoveryFailure: string | null = null;
+    if (migrationCapture !== null) {
+      const { path, containerPath, identity, captured, serialized, databasePath } =
+        migrationCapture;
       try {
-        const out = await io.sh(migrateDownCommand(greenName, migrationBaseline));
+        const retained = await (io.readCapture ?? ((file) => Bun.file(file).text()))(path);
+        // Proof: skipping retained-byte equality made `refuses a modified host capture`
+        // copy a changed capture and reverse the candidate before reporting success.
+        if (retained !== serialized) throw new Error('retained migration capture bytes differ');
+        await io.sh(copyMigrationCaptureCommand(greenName, path, containerPath));
+        const expectedDigest = createHash('sha256').update(serialized).digest('hex');
+        const copiedDigest = (
+          await io.sh(migrationCaptureDigestCommand(greenName, containerPath))
+        ).trim();
+        // Proof: removing copied-byte comparison made `refuses changed copied bytes`
+        // run exact-set down with a transport-altered capture.
+        if (copiedDigest !== expectedDigest)
+          throw new Error('copied migration capture bytes differ');
+        const out = await io.sh(
+          migrateDownCapturedCommand(greenName, containerPath, identity, expectedDigest),
+        );
+        const reported: unknown = JSON.parse(
+          await io.sh(migrateCaptureCommand(greenName, identity)),
+        );
+        const observed = parseMigrationSetCapture(reported, identity);
+        const applied = (entries: readonly { name: string; hash: string }[]): string[] =>
+          entries.map((entry) => `${entry.name}:${entry.hash}`).sort();
+        // Proof: removing final-set equality made `zero-exit down command`
+        // accept a reported rollback while the candidate table and ledger row remained.
+        if (
+          JSON.stringify(applied(observed.applied)) !== JSON.stringify(applied(captured.applied))
+        ) {
+          throw new Error('migration ledger differs from persisted captured applied set');
+        }
         console.error(`[swap-${tier}] schema rolled back: ${out.trim()}`);
       } catch (e: unknown) {
+        const recoveryCommand = [
+          'docker',
+          'run',
+          '--rm',
+          '--mount',
+          // Proof: adding readonly here made `retains a usable pinned-image recovery command`
+          // report a data mount that cannot run SQLite reversal.
+          `type=bind,source=${ROOT}/data,target=/data`,
+          '--mount',
+          `type=bind,source=${path},target=/migration-capture.json,readonly`,
+          '-e',
+          // Proof: replacing this pinned value with a default path made
+          // `retains a usable pinned-image recovery command` report the wrong DB_PATH.
+          `DB_PATH=${databasePath}`,
+          '--entrypoint',
+          'bun',
+          image,
+          'run',
+          'src/migrate-down-cli.ts',
+          '--capture-file=/migration-capture.json',
+          // Proof: omitting the original digest let the tampered-capture manual recovery
+          // reverse both the shared-people baseline and lifecycle candidate.
+          `--capture-sha256=${createHash('sha256').update(serialized).digest('hex')}`,
+          `--target=${identity.target}`,
+          `--attempt=${identity.attempt}`,
+          `--candidate=${identity.candidate}`,
+        ]
+          .map((argument) => `'${argument.replaceAll("'", "'\\''")}'`)
+          .join(' ');
+        schemaRecoveryFailure =
+          `SCHEMA NOT ROLLED BACK (${e instanceof Error ? e.message : String(e)}). ` +
+          `Complete with retained capture and pinned image: ${recoveryCommand}`;
         console.error(
-          `[swap-${tier}] SCHEMA NOT ROLLED BACK (${e instanceof Error ? e.message : String(e)}) — ` +
+          `[swap-${tier}] ${schemaRecoveryFailure} — ` +
             `${from ?? 'the previous release'} is now serving against the migrated schema. ` +
-            `Reverse it by hand before the next deploy: docker exec ${greenName} ` +
-            `bun run src/migrate-down-cli.ts --to=${migrationBaseline}`,
+            'Reverse it before the next deploy.',
         );
       }
     }
@@ -903,7 +979,10 @@ export async function execute(
       );
     }
 
-    throw new Error(`${reason}: ${detail}; ${from ?? 'nothing'} left live`);
+    throw new Error(
+      `${reason}: ${detail}; ${from ?? 'nothing'} left live` +
+        (schemaRecoveryFailure === null ? '' : `; ${schemaRecoveryFailure}`),
+    );
   }
 
   for (const step of plan.steps) {
@@ -934,7 +1013,7 @@ export async function execute(
           break;
         }
 
-        case 'migrate':
+        case 'migrate': {
           // Discrete step before green takes traffic: a failed migration
           // aborts the deploy with the old colour untouched and un-migrated
           // (decision 10). Green is stopped rather than left running, because a
@@ -943,19 +1022,48 @@ export async function execute(
           // try/catch below delegates to abortSwap for every step at or
           // before 'reload'.
           //
-          // The baseline is read BEFORE migrating and from the same container
-          // that is about to migrate, so an abort knows exactly how far back
-          // to unwind. A tier that cannot answer fails the deploy here rather
-          // than at abort time, when the answer would be needed and missing.
-          migrationBaseline = (await io.sh(migrateStatusCommand(greenName))).trim();
-          if (migrationBaseline === '') {
+          // The exact set is captured by the incoming image before it can change the
+          // shared schema, then persisted and read back under the owner state root.
+          // A failed capture leaves migrationCapture unset, so no forward CLI runs.
+          const identity: MigrationSetIdentity = {
+            target: `${CURRENT_ENV.env}:${greenName}`,
+            attempt: randomUUID(),
+            candidate: image,
+          };
+          const databasePath = (await io.sh(migrationDatabasePathCommand(greenName))).trim();
+          // Proof: accepting an unmounted or missing path made the pinned recovery
+          // command unusable after green was stopped.
+          if (!/^\/data\/[A-Za-z0-9_./-]+$/.test(databasePath) || databasePath.includes('..')) {
             throw new Error(
-              `${greenName} did not report which migrations are applied, so a failed ` +
-                'deploy could not roll the schema back',
+              `green DB_PATH is not under the mounted /data directory: ${databasePath}`,
             );
           }
+          const reported: unknown = JSON.parse(
+            await io.sh(migrateCaptureCommand(greenName, identity)),
+          );
+          const captured = parseMigrationSetCapture(reported, identity);
+          const path = `${io.captureStateDir ?? CURRENT_ENV.stateDir}/migration-${greenName}-${identity.attempt}.json`;
+          const serialized = JSON.stringify(captured);
+          // Proof: moving migrate before this write made `attempt capture cannot be persisted`
+          // observe a forward migration despite the capture disk refusal.
+          await (io.writeCapture ?? writeNewMigrationCapture)(path, serialized);
+          const readback = await (io.readCapture ?? ((file) => Bun.file(file).text()))(path);
+          // Proof: removing byte equality made `persisted capture cannot be read back unchanged`
+          // accept valid JSON with altered bytes and run the forward migration.
+          if (readback !== serialized)
+            throw new Error(`migration capture readback differs at ${path}`);
+          parseMigrationSetCapture(JSON.parse(readback), identity);
+          migrationCapture = {
+            path,
+            containerPath: `/tmp/migration-${identity.attempt}.json`,
+            identity,
+            captured,
+            serialized,
+            databasePath,
+          };
           await io.sh(migrateCommand(greenName));
           break;
+        }
 
         case 'health-gate': {
           const ip = await containerIp(greenName);

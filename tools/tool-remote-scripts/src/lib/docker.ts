@@ -778,6 +778,20 @@ export function migrateStatusCommand(container: string): string[] {
   return ['exec', container, 'bun', 'run', 'src/migrate-status-cli.ts'];
 }
 
+/** Captures the exact applied set and candidate scripts from the incoming backend image. */
+export function migrateCaptureCommand(
+  container: string,
+  identity: { target: string; attempt: string; candidate: string },
+): string[] {
+  return [
+    ...migrateStatusCommand(container),
+    '--capture',
+    `--target=${identity.target}`,
+    `--attempt=${identity.attempt}`,
+    `--candidate=${identity.candidate}`,
+  ];
+}
+
 /**
  * Reads incoming types. Only an absent CLI under a readable source directory means FS-only.
  * Proof: replacing the directory check with an unconditional FS fallback made
@@ -906,6 +920,46 @@ export function migrateDownCommand(container: string, baseline: string): string[
     throw new Error('migrateDownCommand needs a baseline migration name, or "none"');
   }
   return ['exec', container, 'bun', 'run', 'src/migrate-down-cli.ts', `--to=${baseline}`];
+}
+
+/** Copies the retained host capture into the still-running incoming container. */
+export function copyMigrationCaptureCommand(
+  container: string,
+  hostPath: string,
+  containerPath: string,
+): string[] {
+  return ['cp', hostPath, `${container}:${containerPath}`];
+}
+
+/** Reads the copied bytes through the incoming image before rollback can consume them. */
+export function migrationCaptureDigestCommand(container: string, containerPath: string): string[] {
+  return ['exec', container, 'bun', 'run', 'src/migrate-capture-digest-cli.ts', containerPath];
+}
+
+/** Observes the green process's actual database path for a later manual recovery. */
+export function migrationDatabasePathCommand(container: string): string[] {
+  return ['exec', container, 'printenv', 'DB_PATH'];
+}
+
+/** Runs exact-set rollback with the same attempt identity used at capture. */
+export function migrateDownCapturedCommand(
+  container: string,
+  containerPath: string,
+  identity: { target: string; attempt: string; candidate: string },
+  expectedSha256: string,
+): string[] {
+  return [
+    'exec',
+    container,
+    'bun',
+    'run',
+    'src/migrate-down-cli.ts',
+    `--capture-file=${containerPath}`,
+    `--capture-sha256=${expectedSha256}`,
+    `--target=${identity.target}`,
+    `--attempt=${identity.attempt}`,
+    `--candidate=${identity.candidate}`,
+  ];
 }
 
 /**

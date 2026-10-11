@@ -1,7 +1,7 @@
 import { type ComponentType, type ReactNode, StrictMode } from 'react';
 import { createRoot, type RootOptions } from 'react-dom/client';
 
-import { App } from '@/app';
+import { App, LOCAL_BROWSER_SIGN_OUT } from '@/app';
 import type { DisclosedFault } from '@/components/chrome/fault-disclosure';
 import { LifetimeFault } from '@/components/chrome/lifetime-fault';
 import { ROOT_FAULT_OPTIONS } from '@/components/chrome/root-fault-options';
@@ -45,7 +45,7 @@ const PRODUCTION: BootstrapDependencies = {
   acquire: acquireApplicationRuntime,
   slot: applicationSlot,
   mount: (host, options) => createRoot(host, options),
-  app: App,
+  app: () => <App signOutMode={LOCAL_BROWSER_SIGN_OUT} />,
   eventTarget: window,
 };
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
+import { sealMigrationCapture } from './migration-capture';
 import {
   admittedBackendImages,
   assertDownMigrationsUnchanged,
@@ -61,11 +62,11 @@ const observed = {
   approvedBackendImages: [OLD.images.backend, NEW.images.backend],
 };
 
-const capture: MigrationCapture = {
-  baseline: '0001_init',
-  applied: [{ name: '0001_init', hash: 'h1' }],
-  pending: [{ name: '0002_add', downSha256: 'd2' }],
-};
+const capture: MigrationCapture = sealMigrationCapture(
+  { target: 'test', attempt: 'test', candidate: 'test' },
+  [{ name: '0001_init', hash: 'a'.repeat(64) }],
+  [{ name: '0002_add', hash: 'b'.repeat(64), downHash: 'c'.repeat(64) }],
+);
 
 function at(phase: ReleaseState['phase'], patch: Partial<ReleaseState> = {}): ReleaseState {
   return { ...initialState(request()), phase, ...patch };

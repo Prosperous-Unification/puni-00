@@ -1,5 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
+import type { AppliedMigration, MigrationCapture } from './migration-capture';
+
 /** One of the four WBS Deployments the release moves. */
 export type K8sTier = 'backend' | 'gateway' | 'frontend' | 'mcp';
 
@@ -118,23 +120,7 @@ export function isReleasePhase(value: unknown): value is ReleasePhase {
   return typeof value === 'string' && ALL_PHASES.has(value);
 }
 
-/** One applied row of `__drizzle_migrations`, as the capture Job reported it. */
-export interface AppliedMigration {
-  name: string;
-  hash: string;
-}
-
-/**
- * The schema facts rollback depends on, captured by the new backend image while no writer runs.
- * `pending` is what this release's migration Job will apply, each with the SHA-256 of the
- * `down.sql` that must reverse it.
- */
-export interface MigrationCapture {
-  /** Newest applied migration before this release, or `none`, as `migrate-down-cli --to=` takes. */
-  baseline: string;
-  applied: readonly AppliedMigration[];
-  pending: readonly { name: string; downSha256: string }[];
-}
+export type { AppliedMigration, MigrationCapture } from './migration-capture';
 
 /** A `VACUUM INTO` copy on the data volume that passed `PRAGMA integrity_check`. */
 export interface Snapshot {
@@ -452,6 +438,8 @@ export function failStep(
   manualCommand: string | null,
 ): ReleaseState {
   const failure: ReleaseFailure = { step: step.kind, message, manualCommand };
+  // Proof: mapping a failed rollback-schema to rollback-schema-restored made the live k3s
+  // lab (2026-10-11) fail `the blocked down SQL ended rollback-failed`, exit 1.
   if (!isForward(state.phase)) {
     return { ...state, phase: 'rollback-failed', failure };
   }
@@ -494,10 +482,10 @@ export function assertDownMigrationsUnchanged(
     const now = seen.get(pending.name);
     // Proof: `refuses an edited down migration` rolled back with a changed down.sql hash until
     // this comparison existed.
-    if (now !== pending.downSha256) {
+    if (now !== pending.downHash) {
       throw new Error(
         `${pending.name}/down.sql is ${now ?? 'missing'} but capture recorded ` +
-          `${pending.downSha256}; refusing to reverse it with a different script`,
+          `${pending.downHash}; refusing to reverse it with a different script`,
       );
     }
   }
@@ -521,9 +509,15 @@ export function assertMigratedSet(capture: MigrationCapture, applied: readonly s
 }
 
 /** After schema rollback the database must record exactly the captured applied set. */
-export function assertRestoredSet(capture: MigrationCapture, applied: readonly string[]): void {
-  const expected = capture.applied.map((m) => m.name).sort();
-  const sorted = [...applied].sort();
+export function assertRestoredSet(
+  capture: MigrationCapture,
+  applied: readonly AppliedMigration[],
+): void {
+  const expected = capture.applied.map((m) => `${m.name}:${m.hash}`).sort();
+  const sorted = applied.map((m) => `${m.name}:${m.hash}`).sort();
+  // Proof: skipping full identity equality made `refuses changed restored hash before reopening
+  // writes` end rolled-back; equal names with a different hash were accepted. The same equality
+  // rejects duplicate observed rows.
   if (JSON.stringify(expected) !== JSON.stringify(sorted)) {
     throw new Error(
       `after rollback the database records [${sorted.join(', ')}]; ` +

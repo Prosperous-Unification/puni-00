@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -34,6 +35,62 @@ import {
   type SwapExecutionIo,
   type SwapRunDeps,
 } from './swap';
+
+function captureForStatusCommand(args: readonly string[]): string {
+  const flag = (name: string): string =>
+    args.find((argument) => argument.startsWith(`--${name}=`))?.slice(name.length + 3) ?? 'legacy';
+  return JSON.stringify({
+    format: 'applied-migration-set',
+    version: 1,
+    target: flag('target'),
+    attempt: flag('attempt'),
+    candidate: flag('candidate'),
+    applied: [],
+    pending: [],
+  });
+}
+
+async function failureMessage(operation: Promise<unknown>): Promise<string> {
+  try {
+    await operation;
+    return '';
+  } catch (error: unknown) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
+function withCapturedMigrationIo(io: SwapExecutionIo): SwapExecutionIo {
+  const captures = new Map<string, string>();
+  return {
+    ...io,
+    sh: async (args) => {
+      if (args[0] === 'exec' && args[2] === 'printenv' && args[3] === 'DB_PATH') {
+        return '/data/wbs.db\n';
+      }
+      if (args.includes('src/migrate-status-cli.ts')) {
+        await io.sh(args);
+        return captureForStatusCommand(args);
+      }
+      if (args[0] === 'cp') return '';
+      if (args.includes('src/migrate-capture-digest-cli.ts')) {
+        const capture = [...captures.values()].at(-1);
+        if (capture === undefined) throw new Error('capture missing');
+        return `${createHash('sha256').update(capture).digest('hex')}\n`;
+      }
+      if (args.includes('src/migrate-down-cli.ts')) return 'restored captured migration set';
+      return io.sh(args);
+    },
+    writeCapture: (path, contents) => {
+      captures.set(path, contents);
+      return Promise.resolve();
+    },
+    readCapture: (path) => {
+      const contents = captures.get(path);
+      if (contents === undefined) throw new Error(`capture was not written: ${path}`);
+      return Promise.resolve(contents);
+    },
+  };
+}
 
 describe('state', () => {
   it('flips color', () => {
@@ -944,7 +1001,7 @@ describe('execute, stored vocabulary rollback guard', () => {
         { tier: 'be', from: 'blue', to: 'green', steps: ['stored-vocabularies', 'migrate'] },
         'registry/be-01@sha256:abc',
         'deadbeef',
-        io,
+        withCapturedMigrationIo(io),
       );
     } catch (error) {
       caught = error;
@@ -1130,7 +1187,7 @@ describe('execute, pre-migration backup', () => {
         { tier: 'be', from: 'blue', to: 'green', steps: ['backup-db', 'migrate'] },
         'registry/be-01@sha256:abc',
         'deadbeef',
-        io,
+        withCapturedMigrationIo(io),
       );
     } catch (error) {
       caught = error;
@@ -1184,6 +1241,128 @@ describe('execute, pre-migration backup', () => {
     );
     expect(empty.caught).toHaveProperty('message', expect.stringContaining('verified snapshot'));
     expect(migrated(empty.ran)).toBe(false);
+  });
+});
+
+describe('execute, captured migration set', () => {
+  it('refuses malformed, foreign and duplicate status captures before migration', async () => {
+    const sha = 'a'.repeat(64);
+    for (const fault of ['format', 'identity', 'duplicate', 'order'] as const) {
+      const ran: string[][] = [];
+      let persisted = '';
+      const io: SwapExecutionIo = {
+        sh: (args) => {
+          ran.push(args);
+          if (args[2] === 'printenv' && args[3] === 'DB_PATH')
+            return Promise.resolve('/data/wbs.db\n');
+          if (args.includes('src/migrate-status-cli.ts')) {
+            const capture = JSON.parse(captureForStatusCommand(args)) as Record<string, unknown>;
+            if (fault === 'format') capture['format'] = 'legacy';
+            if (fault === 'identity') capture['attempt'] = 'another-attempt';
+            if (fault === 'duplicate') {
+              capture['applied'] = [{ name: 'same', hash: sha }];
+              capture['pending'] = [{ name: 'same', hash: sha, downHash: sha }];
+            }
+            if (fault === 'order') {
+              capture['pending'] = [
+                { name: 'z', hash: sha, downHash: sha },
+                { name: 'a', hash: sha, downHash: sha },
+              ];
+            }
+            return Promise.resolve(JSON.stringify(capture));
+          }
+          if (args.includes('src/migrate-cli.ts')) return Promise.resolve('migrated');
+          if (args[0] === 'stop') return Promise.resolve('');
+          throw new Error(`unexpected Docker command: ${args.join(' ')}`);
+        },
+        readPhase: () => Promise.resolve('committed'),
+        writePhase: () => Promise.resolve(),
+        writeAtomic: () => Promise.resolve(),
+        writeCapture: (_path, contents) => {
+          persisted = contents;
+          return Promise.resolve();
+        },
+        readCapture: () => Promise.resolve(persisted),
+      };
+      const refusal = await failureMessage(
+        execute(
+          { tier: 'be', from: 'blue', to: 'green', steps: ['migrate'] },
+          'registry/be-01@sha256:abc',
+          'deadbeef',
+          io,
+        ),
+      );
+      expect(refusal).not.toBe('');
+      expect(ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+    }
+  });
+
+  it('refuses migration when the attempt capture cannot be persisted', async () => {
+    const ran: string[][] = [];
+    const io: SwapExecutionIo = {
+      sh: (args) => {
+        ran.push(args);
+        if (args[2] === 'printenv' && args[3] === 'DB_PATH')
+          return Promise.resolve('/data/wbs.db\n');
+        if (args.includes('src/migrate-status-cli.ts'))
+          return Promise.resolve(captureForStatusCommand(args));
+        if (args.includes('src/migrate-cli.ts')) return Promise.resolve('migrated');
+        if (args[0] === 'stop') return Promise.resolve('');
+        throw new Error(`unexpected Docker command: ${args.join(' ')}`);
+      },
+      readPhase: () => Promise.resolve('committed'),
+      writePhase: () => Promise.resolve(),
+      writeAtomic: () => Promise.reject(new Error('capture disk full')),
+      writeCapture: () => Promise.reject(new Error('capture disk full')),
+    };
+    expect(
+      await failureMessage(
+        execute(
+          { tier: 'be', from: 'blue', to: 'green', steps: ['migrate'] },
+          'registry/be-01@sha256:abc',
+          'deadbeef',
+          io,
+        ),
+      ),
+    ).toContain('capture disk full');
+    expect(ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+    expect(ran.at(-1)).toEqual(['stop', 'be-01-green']);
+  });
+
+  it('refuses migration when the persisted capture cannot be read back unchanged', async () => {
+    const ran: string[][] = [];
+    let captured = '';
+    const io: SwapExecutionIo = {
+      sh: (args) => {
+        ran.push(args);
+        if (args[2] === 'printenv' && args[3] === 'DB_PATH')
+          return Promise.resolve('/data/wbs.db\n');
+        if (args.includes('src/migrate-status-cli.ts'))
+          return Promise.resolve(captureForStatusCommand(args));
+        if (args.includes('src/migrate-cli.ts')) return Promise.resolve('migrated');
+        if (args[0] === 'stop') return Promise.resolve('');
+        throw new Error(`unexpected Docker command: ${args.join(' ')}`);
+      },
+      readPhase: () => Promise.resolve('committed'),
+      writePhase: () => Promise.resolve(),
+      writeAtomic: () => Promise.resolve(),
+      writeCapture: (_path, contents) => {
+        captured = contents;
+        return Promise.resolve();
+      },
+      readCapture: () => Promise.resolve(`${captured} `),
+    };
+    expect(
+      await failureMessage(
+        execute(
+          { tier: 'be', from: 'blue', to: 'green', steps: ['migrate'] },
+          'registry/be-01@sha256:abc',
+          'deadbeef',
+          io,
+        ),
+      ),
+    ).toContain('migration capture readback differs');
+    expect(ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
   });
 });
 
@@ -1243,7 +1422,7 @@ describe('execute, after routing has moved', () => {
         },
         'registry/be-01@sha256:abc',
         'deadbeef',
-        io,
+        withCapturedMigrationIo(io),
       );
     } catch (error) {
       caught = error;
@@ -1320,7 +1499,7 @@ describe('execute, after routing has moved', () => {
         },
         'registry/be-01@sha256:abc',
         'deadbeef',
-        io,
+        withCapturedMigrationIo(io),
       );
     } catch (error) {
       caught = error;
@@ -1369,7 +1548,7 @@ describe('execute, after routing has moved', () => {
         { tier: 'be', from: 'blue', to: 'green', steps: ['backfill-step-codes', 'commit'] },
         'registry/be-01@sha256:abc',
         'deadbeef',
-        io,
+        withCapturedMigrationIo(io),
       );
     } catch (error) {
       caught = error;
@@ -1448,7 +1627,7 @@ describe('execute, capacity mode guard', () => {
         },
         'registry/be-01@sha256:abc',
         'deadbeef',
-        io,
+        withCapturedMigrationIo(io),
       );
     } catch (failure) {
       caught = failure;
