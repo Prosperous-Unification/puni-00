@@ -70,9 +70,12 @@ sessions and their claims)`.
   I5 overlapping acquisitions linearize: at most one holds an overlapping path. I6 every outcome
   is typed; `corrupt` or an untyped failure is a defect.
 
-`authority-lifecycle.model.test.ts` checks I1–I6 with `fc.asyncModelRun` and `fc.scheduler()`
-against a reference model, running concurrent bootstraps and acquisitions as Bun child processes
-released together. Five sabotages (each named in its `Proof:`) fail it.
+`authority-lifecycle.model.test.ts` checks I1–I6 with `fc.asyncModelRun` against a reference
+model. Concurrent bootstraps and acquisitions run as Bun child processes. `fc.scheduler()` only
+orders their spawns; a shared barrier file then releases them together, and the operating system
+interleaves their transactions. The scheduler does not control that interleaving, so each
+concurrent command checks every outcome a linearization allows. Five sabotages (each named in
+its `Proof:`) fail it.
 
 ## Risks / Trade-offs
 
