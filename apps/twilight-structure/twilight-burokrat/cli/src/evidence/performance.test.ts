@@ -10,6 +10,7 @@ import {
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { readCandidate } from '../inventory/read-candidate';
+import { type CliInvocation, invokeCli } from '../invoke-cli';
 import { registeredRules } from '../rules/registry';
 import { loadRulePolicyWithIdentity } from '../rules/rule-policy';
 import { hashBytes, hashCanonical } from './content-manifest';
@@ -30,14 +31,12 @@ const performanceCase: PerformanceCases['cases'][number] = {
   threshold: 200,
 };
 
-function stdoutOf(invocation: ReturnType<typeof Bun.spawnSync>): string {
-  if (invocation.stdout === undefined) throw new Error('Performance CLI stdout unavailable');
-  return invocation.stdout.toString();
+function stdoutOf(invocation: CliInvocation): string {
+  return invocation.stdout;
 }
 
-function stderrOf(invocation: ReturnType<typeof Bun.spawnSync>): string {
-  if (invocation.stderr === undefined) throw new Error('Performance CLI stderr unavailable');
-  return invocation.stderr.toString();
+function stderrOf(invocation: CliInvocation): string {
+  return invocation.stderr;
 }
 const declaration = {
   schemaVersion: 1,
@@ -84,7 +83,7 @@ const selection = {
 
 function git(repository: string, args: string[]): void {
   const invocation = Bun.spawnSync(['git', '-C', repository, ...args], { stderr: 'pipe' });
-  expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+  expect(invocation.exitCode, invocation.stderr.toString('utf8')).toBe(0);
 }
 
 function productionFixture(): {
@@ -146,29 +145,23 @@ function productionFixture(): {
   return { repository, policyPath, evidencePath, evidence };
 }
 
-function checkProduction(
+async function checkProduction(
   fixture: ReturnType<typeof productionFixture>,
   includeEvidence = true,
   flags: { ruleFlag?: string; ruleId?: string; evidenceFlag?: string } = {},
-): ReturnType<typeof Bun.spawnSync> {
-  return Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      join(import.meta.dir, '..', 'cli.ts'),
-      'check',
-      'committed',
-      fixture.repository,
-      'HEAD',
-      fixture.policyPath,
-      flags.ruleFlag ?? '--rule',
-      flags.ruleId ?? 'PERF-THRESHOLD',
-      ...(includeEvidence
-        ? [flags.evidenceFlag ?? '--performance-evidence', fixture.evidencePath]
-        : []),
-    ],
-    { stdout: 'pipe', stderr: 'pipe', env: process.env },
-  );
+): Promise<CliInvocation> {
+  return await invokeCli([
+    'check',
+    'committed',
+    fixture.repository,
+    'HEAD',
+    fixture.policyPath,
+    flags.ruleFlag ?? '--rule',
+    flags.ruleId ?? 'PERF-THRESHOLD',
+    ...(includeEvidence
+      ? [flags.evidenceFlag ?? '--performance-evidence', fixture.evidencePath]
+      : []),
+  ]);
 }
 
 function policyFixture() {
@@ -202,22 +195,11 @@ afterEach(() => {
 });
 
 describe('Burokrat Performance judge', () => {
-  it('prints the non-certifying identity used by check and changes with the selected commit', () => {
+  it('prints the non-certifying identity used by check and changes with the selected commit', async () => {
     const fixture = productionFixture();
-    const identity = (revision: string) =>
-      Bun.spawnSync(
-        [
-          process.execPath,
-          'run',
-          join(import.meta.dir, '..', 'cli.ts'),
-          'candidate-identity',
-          'committed',
-          fixture.repository,
-          revision,
-        ],
-        { stdout: 'pipe', stderr: 'pipe', env: process.env },
-      );
-    const first = identity('HEAD');
+    const identity = async (revision: string) =>
+      await invokeCli(['candidate-identity', 'committed', fixture.repository, revision]);
+    const first = await identity('HEAD');
     expect(first.exitCode, stderrOf(first)).toBe(0);
     const firstRecord = JSON.parse(stdoutOf(first)) as {
       candidate: string;
@@ -240,17 +222,17 @@ describe('Burokrat Performance judge', () => {
     writeFileSync(join(fixture.repository, 'other.txt'), 'changed');
     git(fixture.repository, ['add', '.']);
     git(fixture.repository, ['commit', '-qm', 'new candidate']);
-    expect((JSON.parse(stdoutOf(identity('HEAD'))) as { candidate: string }).candidate).not.toBe(
-      firstRecord.candidate,
-    );
-    const absent = identity('NO-SUCH-REVISION');
+    expect(
+      (JSON.parse(stdoutOf(await identity('HEAD'))) as { candidate: string }).candidate,
+    ).not.toBe(firstRecord.candidate);
+    const absent = await identity('NO-SUCH-REVISION');
     expect(absent.exitCode).toBe(1);
     expect(stderrOf(absent)).toContain('absent');
   });
 
-  it('carries a nonempty candidate-bound run through the production check command', () => {
+  it('carries a nonempty candidate-bound run through the production check command', async () => {
     const fixture = productionFixture();
-    const invocation = checkProduction(fixture);
+    const invocation = await checkProduction(fixture);
     expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
     const verdict = JSON.parse(stdoutOf(invocation)) as {
       allowed: boolean;
@@ -260,7 +242,7 @@ describe('Burokrat Performance judge', () => {
     expect(verdict.unevaluated).toEqual([]);
   });
 
-  it('refuses changed candidate and policy identities and an invalid execution through production', () => {
+  it('refuses changed candidate and policy identities and an invalid execution through production', async () => {
     const fixture = productionFixture();
     for (const mutation of [
       { candidate: '0'.repeat(64) },
@@ -269,7 +251,7 @@ describe('Burokrat Performance judge', () => {
       { run: { ...execution, exitCode: 1 } },
     ]) {
       writeFileSync(fixture.evidencePath, JSON.stringify({ ...fixture.evidence, ...mutation }));
-      const invocation = checkProduction(fixture);
+      const invocation = await checkProduction(fixture);
       expect(invocation.exitCode).toBe(1);
       const verdict = JSON.parse(stdoutOf(invocation)) as {
         unevaluated: { reason: string }[];
@@ -278,7 +260,7 @@ describe('Burokrat Performance judge', () => {
     }
   });
 
-  it('refuses absent declaration even when the reviewed case set is empty', () => {
+  it('refuses absent declaration even when the reviewed case set is empty', async () => {
     const fixture = productionFixture();
     git(fixture.repository, ['rm', selection.declarationPath]);
     git(fixture.repository, ['commit', '-qm', 'remove declaration']);
@@ -290,12 +272,12 @@ describe('Burokrat Performance judge', () => {
         performance: { ...(policy['performance'] as object), reviewedCases: [] },
       }),
     );
-    const invocation = checkProduction(fixture);
+    const invocation = await checkProduction(fixture);
     expect(invocation.exitCode).toBe(1);
     expect(stdoutOf(invocation)).toContain('the Performance declaration is absent');
   });
 
-  it('reports a valid empty Performance declaration as no-cases', () => {
+  it('reports a valid empty Performance declaration as no-cases', async () => {
     const fixture = productionFixture();
     writeFileSync(
       join(fixture.repository, selection.declarationPath),
@@ -311,26 +293,28 @@ describe('Burokrat Performance judge', () => {
         performance: { ...(policy['performance'] as object), reviewedCases: [] },
       }),
     );
-    const invocation = checkProduction(fixture);
+    const invocation = await checkProduction(fixture);
     expect(invocation.exitCode).toBe(1);
     expect(stdoutOf(invocation)).toContain(
       'no-cases: Performance declaration has no reviewed cases',
     );
   });
 
-  it('distinguishes absent, malformed, non-UTF-8 and invalid Performance evidence inputs', () => {
+  it('distinguishes absent, malformed, non-UTF-8 and invalid Performance evidence inputs', async () => {
     const fixture = productionFixture();
     rmSync(fixture.evidencePath);
-    expect(stderrOf(checkProduction(fixture))).toContain('cannot read Performance evidence');
+    expect(stderrOf(await checkProduction(fixture))).toContain('cannot read Performance evidence');
     writeFileSync(fixture.evidencePath, '{');
-    expect(stderrOf(checkProduction(fixture))).toContain('malformed Performance evidence JSON');
+    expect(stderrOf(await checkProduction(fixture))).toContain(
+      'malformed Performance evidence JSON',
+    );
     writeFileSync(fixture.evidencePath, Uint8Array.of(0xff));
-    expect(stderrOf(checkProduction(fixture))).toContain('is not UTF-8');
+    expect(stderrOf(await checkProduction(fixture))).toContain('is not UTF-8');
     writeFileSync(fixture.evidencePath, JSON.stringify({ ...fixture.evidence, unexpected: true }));
-    expect(stderrOf(checkProduction(fixture))).toContain('Invalid Performance evidence');
+    expect(stderrOf(await checkProduction(fixture))).toContain('Invalid Performance evidence');
   });
 
-  it('refuses changed executed selection and an unreviewed case digest through production', () => {
+  it('refuses changed executed selection and an unreviewed case digest through production', async () => {
     const fixture = productionFixture();
     for (const selectionChange of [
       { config: 'apps/wbs/fe-01/other.config.ts' },
@@ -348,7 +332,7 @@ describe('Burokrat Performance judge', () => {
           selection: { ...(fixture.evidence['selection'] as object), ...selectionChange },
         }),
       );
-      const invocation = checkProduction(fixture);
+      const invocation = await checkProduction(fixture);
       expect(invocation.exitCode, stdoutOf(invocation)).toBe(1);
     }
     writeFileSync(fixture.evidencePath, JSON.stringify(fixture.evidence));
@@ -370,7 +354,7 @@ describe('Burokrat Performance judge', () => {
         policyDigest: loadRulePolicyWithIdentity(fixture.repository, fixture.policyPath).digest,
       }),
     );
-    const invocation = checkProduction(fixture);
+    const invocation = await checkProduction(fixture);
     expect(invocation.exitCode).toBe(1);
     expect(stdoutOf(invocation)).toContain('Performance reviewed digest mismatch');
   }, 30_000);
@@ -387,26 +371,26 @@ describe('Burokrat Performance judge', () => {
     );
   });
 
-  it('refuses missing run evidence and changed candidate config before judging', () => {
+  it('refuses missing run evidence and changed candidate config before judging', async () => {
     const fixture = productionFixture();
-    expect(stdoutOf(checkProduction(fixture, false))).toContain(
+    expect(stdoutOf(await checkProduction(fixture, false))).toContain(
       'Performance run evidence is not supplied',
     );
     const configPath = join(fixture.repository, declaration.config);
     writeFileSync(configPath, 'export default { changed: true }\n');
     git(fixture.repository, ['add', '.']);
     git(fixture.repository, ['commit', '-qm', 'change config']);
-    expect(stdoutOf(checkProduction(fixture))).toContain(
+    expect(stdoutOf(await checkProduction(fixture))).toContain(
       'Performance config content differs from reviewed authority',
     );
     git(fixture.repository, ['rm', declaration.config]);
     git(fixture.repository, ['commit', '-qm', 'remove config']);
-    expect(stdoutOf(checkProduction(fixture))).toContain(
+    expect(stdoutOf(await checkProduction(fixture))).toContain(
       'Performance config is absent from candidate',
     );
   });
 
-  it('refuses a changed candidate declaration selection', () => {
+  it('refuses a changed candidate declaration selection', async () => {
     const fixture = productionFixture();
     for (const change of [{ config: 'apps/wbs/fe-01/other.config.ts' }, { project: 'firefox' }]) {
       writeFileSync(
@@ -415,13 +399,13 @@ describe('Burokrat Performance judge', () => {
       );
       git(fixture.repository, ['add', '.']);
       git(fixture.repository, ['commit', '-qm', 'change declaration']);
-      expect(stdoutOf(checkProduction(fixture))).toContain(
+      expect(stdoutOf(await checkProduction(fixture))).toContain(
         'Performance declaration config or project differs from reviewed authority',
       );
     }
   });
 
-  it('reports an independently measured threshold breach under enforce, observe and ratchet', () => {
+  it('reports an independently measured threshold breach under enforce, observe and ratchet', async () => {
     const fixture = productionFixture();
     const violated = {
       ...execution,
@@ -459,7 +443,7 @@ describe('Burokrat Performance judge', () => {
           run: violated,
         }),
       );
-      const invocation = checkProduction(fixture);
+      const invocation = await checkProduction(fixture);
       const verdict = JSON.parse(stdoutOf(invocation)) as {
         allowed: boolean;
         certifies: boolean;
@@ -481,12 +465,12 @@ describe('Burokrat Performance judge', () => {
     }
   });
 
-  it('rejects invalid evidence flag and evidence without the Performance rule', () => {
+  it('rejects invalid evidence flag and evidence without the Performance rule', async () => {
     const fixture = productionFixture();
-    const invalidFlag = checkProduction(fixture, true, { evidenceFlag: '--other-evidence' });
+    const invalidFlag = await checkProduction(fixture, true, { evidenceFlag: '--other-evidence' });
     expect(invalidFlag.exitCode).toBe(1);
     expect(stderrOf(invalidFlag)).toContain('--performance-evidence <json>');
-    const wrongRule = checkProduction(fixture, true, { ruleId: 'MOD-INDEX' });
+    const wrongRule = await checkProduction(fixture, true, { ruleId: 'MOD-INDEX' });
     expect(wrongRule.exitCode).toBe(1);
     expect(stderrOf(wrongRule)).toContain(
       'Performance evidence was supplied without selecting PERF-THRESHOLD',
