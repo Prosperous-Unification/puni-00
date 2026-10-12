@@ -19,7 +19,7 @@ The WBS logger serializes an `err` into `{ type, message, stack }` while the dec
 **Log loss alert (2026-10-12 amendment, A30)**
 
 - From: a hung-connection drop shows only in a counter, and the log-export rules query a `_total` name Prometheus does not store.
-- To: `PuniLogRecordsDropped` fires on every send or enqueue drop; the rules read the stored names.
+- To: `PuniLogRecordsDropped` fires on every send drop and `PuniLogQueueFull` on a full, blocking queue; the rules read the stored names.
 - Impact: alert rules and docs only.
 
 ## Non-Goals

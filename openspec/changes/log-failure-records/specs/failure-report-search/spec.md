@@ -69,7 +69,7 @@ The platform SHALL provide a Kibana dashboard over the last 7 days that shows on
 
 ### Requirement: Loss during an Elasticsearch outage is bounded and counted
 
-While Elasticsearch refuses connections, failure lines SHALL wait in the collector's persistent sending queue and SHALL all be stored once it returns, until that queue's 5000 requests fill. A request whose connection hangs SHALL be abandoned when the exporter's 90 second request timeout or an earlier dial timeout expires; its batch is then dropped without retry, and the dropped records SHALL be counted in `otelcol_exporter_send_failed_log_records`. Records the full queue refuses SHALL be counted in `otelcol_exporter_enqueue_failed_log_records`. Every drop SHALL raise the `PuniLogRecordsDropped` alert in Alertmanager, including the first drop after the collector starts, and an outage that drops nothing SHALL NOT raise it. Making the hanging case lossless is open (task 2.6).
+While Elasticsearch refuses connections, failure lines SHALL wait in the collector's persistent sending queue and SHALL all be stored once it returns, until that queue's 5000 requests fill. A request whose connection hangs SHALL be abandoned when the exporter's 90 second request timeout or an earlier dial timeout expires; its batch is then dropped without retry, and the dropped records SHALL be counted in `otelcol_exporter_send_failed_log_records`. Every drop SHALL raise the `PuniLogRecordsDropped` alert in Alertmanager, including the first drop after the collector starts, and an outage that drops nothing SHALL NOT raise it. A full queue SHALL stop intake rather than drop, and SHALL raise `PuniLogQueueFull` while it stays full. Making the hanging case lossless is open (task 2.6).
 
 #### Scenario: Elasticsearch refuses connections
 
@@ -94,6 +94,7 @@ While Elasticsearch refuses connections, failure lines SHALL wait in the collect
 
 #### Scenario: The persistent queue is full
 
-- **GIVEN** a collector whose persistent queue holds 5000 requests
-- **WHEN** further records are refused at enqueue
-- **THEN** `otelcol_exporter_enqueue_failed_log_records` grows and `PuniLogRecordsDropped` fires
+- **GIVEN** a collector whose persistent queue is at capacity
+- **WHEN** a minute passes without the queue draining
+- **THEN** `PuniLogQueueFull` fires
+- **AND** the queue does not drop queued records to make room

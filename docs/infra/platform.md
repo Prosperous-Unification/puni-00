@@ -325,14 +325,23 @@ is in [the change's verify record](../../openspec/changes/log-failure-records/ve
 
 ### Log loss
 
-`PuniLogRecordsDropped` (critical, routed by the `alertmanager-puni` Secret like
-every platform alert) fires when a collector pod's
-`otelcol_exporter_send_failed_log_records` or
-`otelcol_exporter_enqueue_failed_log_records` for the `elasticsearch` exporter
-grew in the last 5 minutes, or first appeared then. Either means log records,
-failure reports included, were dropped for good. It resolves on its own once
-5 minutes pass without a new drop, so the firing notification is the record of
-the loss.
+Two critical alerts, routed by the `alertmanager-puni` Secret like every
+platform alert, cover log records the collector cannot deliver:
+
+- `PuniLogRecordsDropped` fires when a collector pod's
+  `otelcol_exporter_send_failed_log_records` for the `elasticsearch` exporter
+  grew in the last 5 minutes, or appeared after an hour with no sample (the
+  collector creates the counter at its first drop). Records, failure reports
+  included, were dropped for good. It resolves once 5 minutes pass without a
+  new drop, so the firing notification is the record of the loss. A counter
+  that comes back after more than an hour without samples (a scrape outage that
+  long) fires it once without a new drop.
+- `PuniLogQueueFull` fires when the pod's persistent queue has been at its
+  5000-request capacity for a minute. The queue blocks (`block_on_overflow`,
+  stated in `collector.yaml`): the filelog receiver stops reading and resumes
+  from its checkpoint, so nothing is dropped yet. Lines are lost only if the
+  kubelet rotates a pod's log file away before the collector reads it, and no
+  counter records that. `PuniLogBacklog` warns earlier, at 20 waiting requests.
 
 What loses records, with the pinned collector-contrib 0.160.0:
 
@@ -343,28 +352,31 @@ What loses records, with the pinned collector-contrib 0.160.0:
   `context.DeadlineExceeded`) and has no `retry_on_failure`, so the persistent
   queue drops that batch and counts it in `send_failed`. Three 60 s black holes
   on k3d lost 51, 147 and 219 of 900 lines; a longer black hole loses more.
-- **A full queue.** A refused connection is retried and the persistent queue
-  holds the backlog, so nothing is lost until its 5000 requests fill; then new
-  records are refused and counted in `enqueue_failed`. `PuniLogBacklog` warns
-  once more than 20 requests wait.
+- **A long refusal.** A refused connection is retried, and the queue holds the
+  backlog until it fills. Then intake stops, and only log rotation loses lines.
 
-When it fires:
+When `PuniLogRecordsDropped` fires:
 
 1. Find the window: the collector logs `Exporting failed. Dropping data.` with
-   `dropped_items` and the error. `i/o timeout` or `context deadline exceeded`
-   is the hung case; a growing `enqueue_failed` with a queue at capacity is the
-   full-queue case.
+   `dropped_items` and the error (`i/o timeout` or `context deadline exceeded`).
 2. Check Elasticsearch health and the path to it (`elasticsearch-es-http`,
-   NetworkPolicy, node). A refused connection drops nothing and needs no action
-   beyond restoring Elasticsearch before the queue fills.
+   NetworkPolicy, node).
 3. The dropped lines are still in the pods' `/var/log/pods` files until the
    kubelet rotates them. Read them there for the window if a failure report is
    needed; the collector's checkpoint has moved past them and will not resend.
+
+When `PuniLogQueueFull` fires, restore Elasticsearch before the busiest pod's
+log rotates; the backlog then drains without loss.
+
+A test in `tool-fleet` (`platform-alerts.test.ts`) fails when a rule names a
+collector metric missing from `conformance/alerts/collector-metrics.json`, the
+exposition captured from the pinned image, or when the pinned image changes
+without a new capture.
 
 Follow-up: the loss ends when a collector-contrib release retries timed-out
 bulk requests. None did up to v0.162.0 (2026-09-29): `esclient.go` still refuses
 `context.DeadlineExceeded` and `factory.go` registers no `WithRetry`. Before
 bumping the pinned image, rerun the 60 s hung-connection drill from the
-[log-failure-records verify record](../../openspec/changes/log-failure-records/verify.md)
-and keep the old version unless it shows zero loss and every k3d negative still
-passes.
+[log-failure-records verify record](../../openspec/changes/log-failure-records/verify.md),
+recapture the exposition, and keep the old version unless the drill shows zero
+loss and every k3d negative still passes.
