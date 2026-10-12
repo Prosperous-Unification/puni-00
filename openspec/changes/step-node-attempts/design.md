@@ -44,7 +44,44 @@ step_node_attempt (
 )
 INDEX step_node_attempt_by_step (step_id)
 UNIQUE INDEX step_node_attempt_running (work_item_id, step_id) WHERE ended_at IS NULL
+
+step_node_attempt_issued (
+  work_item_id → work_item ON DELETE CASCADE,
+  step_id      → step ON DELETE CASCADE,
+  issued       INTEGER NOT NULL CHECK (issued >= 1),
+  PRIMARY KEY (work_item_id, step_id)
+)
+INDEX step_node_attempt_issued_by_step (step_id)
 ```
+
+**Attempt numbers are never reused** — A42 (Fable, 2026-10-12). The attempt is the unit of
+execution history (ADR 0045) and its number appears in history labels and Navigator receipts,
+so a number freed by a removal must never be claimed again, the highest included. The command
+journal is pruned after 365 days, so it cannot be the high-water source; `step_node_attempt_issued`
+holds each node's highest issued number instead. It is a table of its own because a node's
+attempt rows can all be removed. Every start and every verbatim restore raises it; nothing
+lowers it. Both references cascade: the mark is a number, not history a step removal must
+count, and neither colour's plain delete may meet a constraint it cannot see.
+
+How each path keeps the mark:
+
+- **Undo of a removal / of an end, redo of a start**: `restore` writes the row under its own
+  number and raises the mark to it.
+- **Undo of a start**: removes the row; the number stays issued, so the next start takes the one
+  after it.
+- **Hand-down** (`moveAll`, a leaf's first child): copies the parent's marks to the child and
+  keeps the parent's. The create's undo deletes the child (its marks cascade) and writes the
+  attempts back onto the parent, which still holds its marks; the create's forward
+  `restore_subtree` carries the child's marks (`issuedAttemptNumbers`) for the redo.
+- **Delete of a branch**: the inverse `restore_subtree` carries the branch's marks, read before
+  the cascade, and raises them after the attempts; a mark on a step removed since is dropped
+  with that step. Journals written before marks existed raise each node to its attempts'
+  highest number only.
+- **Rollback**: `down.sql` drops the table without a guard of its own; the save file (version 2) carries the marks beside the rows, and `restore` writes them back, then raises every node
+  to at least its highest restored attempt.
+- **Plan document import**: the document carries no removed numbers; each imported attempt is
+  written through `restore`, so a node's mark is its highest imported number. Saved plans do
+  not capture attempts.
 
 `project.timezone TEXT NOT NULL DEFAULT 'UTC'`. The two checks make "running" one state
 (`ended_at` and `outcome` both null) and an end before its start unrepresentable; the
@@ -60,16 +97,20 @@ Three new kinds in `definitions.ts` (the registry count moves by three):
 - `startAttempt { …step address, at?: epochMs, executorPersonId?, reference?, note? }`.
   Inside the write transaction: the node's statement `done` → `409 node_done`; a running
   attempt on the node → `409 attempt_running`; `at` after the write stamp → `422
-attempt_in_future`; else `attempt_number = max + 1` for the node and the row is inserted
-  with `started_at = at ?? stamp.at`. Inverse: `removeAttempt` of that number.
+attempt_in_future`; else the number is one past the higher of the node's issued mark and its
+  highest row (A42, D1), written back as the mark, and the row is inserted with `started_at =
+at ?? stamp.at`. The store reads the node's statement again inside its own `BEGIN IMMEDIATE`
+  and refuses `node_done` there too: the service's check runs before that transaction, and in
+  a blue/green overlap the other colour can state the node done in between. Inverse:
+  `removeAttempt` of that number.
 - `endAttempt { …step address, outcome, at?, reference?, note? }`. No running attempt →
   `409 no_running_attempt`; `at` after the stamp → `422 attempt_in_future`; `at` before the
   running row's `started_at` → `422 attempt_ends_before_start`; else the row gains
   `ended_at`, `outcome` and any reference or note given. Inverse: the row's prior values
   verbatim (a patch, not a delete).
 - `removeAttempt { …step address, attemptNumber }`: a correction path; `404 unknown_attempt`
-  when absent. Inverse: the row re-inserted verbatim with its number. A later
-  `startAttempt` takes `max + 1`, so a removed number is never reused.
+  when absent. Inverse: the row re-inserted verbatim with its number. The node's mark stays,
+  so a later `startAttempt` never takes a removed number (A42).
 
 None of the three writes `step_progress`. `setStatus done` on a node with a running attempt
 leaves it running (the readings packet shows the contradiction; `endAttempt` corrects it).

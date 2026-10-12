@@ -404,7 +404,9 @@ any attempt row exists; the refusal reads `CHECK constraint failed: step node at
 and leaves the table and its ledger row in place. `<baseline>` is the migration below it. The project timezone is dropped without a
 guard: it is a planner's setting, lost as readiness is. Run the commands inside the incoming
 container with the same `DB_PATH`, after writers have stopped. `save` refuses on a database the
-attempts migration never reached.
+attempts migration never reached. The save file (format version 2) holds every attempt and every
+node's issued-number mark (`step_node_attempt_issued`), which `down.sql` drops without a guard;
+the CLI prints both counts, e.g. `step node attempts saved: 3, marks: 2`.
 
 ```sh
 docker exec be-01-<colour> bun run src/step-node-attempt-rollback-cli.ts save /data/step-node-attempts-<date>.json
@@ -412,9 +414,11 @@ docker exec be-01-<colour> bun run src/step-node-attempt-rollback-cli.ts remove 
 docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
 ```
 
-`remove` refuses unless the saved attempts equal the table column for column. After a later
-forward migration or redeploy, restore them, numbers included; restore refuses the whole set if a
-saved work item is gone or has become a parent, or a saved step is gone:
+`remove` refuses unless the saved attempts and marks equal both tables column for column, then
+deletes both. After a later forward migration or redeploy, restore them, numbers and marks
+included, so no node issues a removed number again; restore refuses the whole set if a saved
+attempt's work item is gone or has become a parent, a saved mark's work item is gone, or a saved
+step is gone, and it refuses a version-1 file:
 
 ```sh
 docker exec be-01-<colour> bun run src/step-node-attempt-rollback-cli.ts restore /data/step-node-attempts-<date>.json

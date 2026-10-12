@@ -107,6 +107,14 @@
       test under `TZ=America/Los_Angeles`; `End attempt` offered with none running → the card
       test.
 
+## 6b. Review fixes (2026-10-12)
+
+- [x] 6b.1 A42: `step_node_attempt_issued` in the unmerged migration, `start` past the mark,
+      `restore` raising it, `moveAll` copying it, `restore_subtree` carrying it, the rollback
+      save at version 2; red first at store, conformance and mounted level (design D1).
+- [x] 6b.2 `node_done` read inside the store's `BEGIN IMMEDIATE`; the two-process negative in
+      `step-node-attempt.db.test.ts` (design D2).
+
 ## 7. Verify
 
 - [ ] 7.1 Affected tests, migration lint, apply and rollback, `prettier --check`, `lint:fast`,
