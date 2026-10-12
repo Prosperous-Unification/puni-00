@@ -2,10 +2,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { clockOf, type OptimizationVariantState } from '@wbs/core';
+import { clockOf, type OptimizationVariantState, type ProjectEvent } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { compareSharedPeopleFanout } from '@wbs/core/service/shared-people-fanout';
-import { contractVersionOf, schedule } from '@wbs/domain';
+import { type CapacityMode, contractVersionOf, schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource, type SqliteSource } from '@wbs/store-sqlite';
@@ -1372,8 +1372,15 @@ interface SharedModel {
   generationHash: string | null;
   /** A ready selected (pri) row at the live hash whose schedule differs from Fast. */
   displayedSelected: boolean;
-  /** Number of B events the model expects to be durable. */
-  expectedB: number;
+  mode: CapacityMode;
+  readonly events: Record<'A' | 'B', Extract<ProjectEvent, { type: 'elsewhere_changed' }>[]>;
+  readonly audits: {
+    id: string;
+    organization_id: string;
+    actor_id: string;
+    shared_people: number;
+    created_at: number;
+  }[];
 }
 
 interface SharedChild {
@@ -1390,6 +1397,10 @@ interface SharedWorld {
   readonly optimizer: OptimizationCoordinator;
   readonly inputs: Record<SharedVariant, ScheduleInput>;
   readonly hashes: Record<SharedVariant, string>;
+  readonly inputsByHash: Map<string, ScheduleInput>;
+  readonly switches: Promise<unknown>[];
+  readonly edits: (() => void)[];
+  nextSwitch: number;
   readonly pushes: { subscription: string; seq: number; message: unknown }[];
   readonly held: (() => void)[];
   readonly children: SharedChild[];
@@ -1430,6 +1441,12 @@ function seedSharedOrganization(path: string): void {
     seed.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
     seed.run(
       "INSERT INTO organization_membership (organization_id, user_id, role, created_at, updated_at, created_by) VALUES ('org-a', 'ada', 'admin', 1, 1, 'ada')",
+    );
+    seed.run(
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('sam', 'sam', 'x', 1)",
+    );
+    seed.run(
+      "INSERT INTO organization_membership (organization_id, user_id, role, created_at, updated_at, created_by) VALUES ('org-a', 'sam', 'super_admin', 1, 1, 'ada')",
     );
     seed.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
     seed.run(
@@ -1567,6 +1584,13 @@ async function createSharedWorld(): Promise<SharedWorld> {
   });
   const optimizer = services.optimizer;
   if (optimizer === undefined) throw new Error('shared model optimizer was not installed');
+  const edits: (() => void)[] = [];
+  // Background edit debounces are held so commands explicitly own admission ordering.
+  const controlled = optimizer as unknown as { options: { sleep: (ms: number) => Promise<void> } };
+  controlled.options.sleep = () =>
+    new Promise<void>((resolve) => {
+      edits.push(resolve);
+    });
   const captured = await services.workItems.optimizationInput('A');
   if (captured.kind !== 'scheduled') throw new Error('shared model input unavailable');
   const live = captured.input;
@@ -1579,6 +1603,13 @@ async function createSharedWorld(): Promise<SharedWorld> {
     optimizer,
     inputs: { live, shifted },
     hashes: { live: scheduleInputHash(live), shifted: scheduleInputHash(shifted) },
+    inputsByHash: new Map([
+      [scheduleInputHash(live), live],
+      [scheduleInputHash(shifted), shifted],
+    ]),
+    switches: [],
+    edits,
+    nextSwitch: 0,
     pushes,
     held,
     children,
@@ -1603,14 +1634,17 @@ function clientOf(world: SharedWorld): Database {
   return (world.source.db as unknown as { $client: Database }).$client;
 }
 
-function bRows(world: SharedWorld): { seq: number; message: unknown }[] {
+function projectRows(
+  world: SharedWorld,
+  projectId: 'A' | 'B',
+): { seq: number; message: unknown }[] {
   const sql = openDatabase(world.path);
   try {
     return sql
-      .query<{ seq: number; message: string }, []>(
-        "SELECT seq, message FROM event_log WHERE subscription = 'project:B' ORDER BY seq",
+      .query<{ seq: number; message: string }, [string]>(
+        'SELECT seq, message FROM event_log WHERE subscription = ? ORDER BY seq',
       )
-      .all()
+      .all(`project:${projectId}`)
       .map(({ seq, message }) => ({ seq, message: JSON.parse(message) as unknown }));
   } finally {
     sql.close();
@@ -1696,55 +1730,286 @@ function captureDisplay(world: SharedWorld) {
   );
 }
 
-/**
- * The invariants every command ends on.
- *
- * (I-a)/(I-b): the B rows this command added are exactly one A-cause event at
- * the next sequence when the model expects a display change and none
- * otherwise; an independent borrowed capture must agree with the model.
- * (I-c): B sequences are contiguous from zero and each is pushed at most once.
- * (I-d): no command leaves the source connection inside a transaction.
- */
+/** Checks the independent event/audit ledger; borrowed capture is a secondary witness. */
 async function assertShared(
   model: SharedModel,
   world: SharedWorld,
   before: Awaited<ReturnType<typeof captureDisplay>>,
-  expectChange: boolean,
+  expectDisplayChange: boolean,
   context: string,
+  switched = false,
 ): Promise<void> {
+  const expectChange = expectDisplayChange && model.mode === 'shared';
   const after = await captureDisplay(world);
-  const recipients = compareSharedPeopleFanout({
-    before: before.observation,
-    after: after.observation,
-    directCauses: ['A'],
-  }).recipients;
-  expect(
-    recipients.some(({ projectId }) => projectId === 'B'),
-    `${context}: independent capture disagrees with the model`,
-  ).toBe(expectChange);
-  if (expectChange) model.expectedB += 1;
-  const rows = bRows(world);
-  expect(rows, `${context}: durable B rows`).toEqual(
-    Array.from({ length: model.expectedB }, (_, seq) => ({ seq, message: ELSEWHERE_B })),
-  );
-  const pushedB = world.pushes
-    .filter(({ subscription }) => subscription === 'project:B')
-    .map(({ seq }) => seq);
-  expect(new Set(pushedB).size, `${context}: a B sequence pushed twice`).toBe(pushedB.length);
-  expect(
-    pushedB.every((seq) => seq < model.expectedB),
-    `${context}: pushed a sequence with no row`,
-  ).toBe(true);
+  if (!switched) {
+    const recipients = compareSharedPeopleFanout({
+      before: before.observation,
+      after: after.observation,
+      directCauses: ['A'],
+    }).recipients;
+    expect(
+      recipients.some(({ projectId }) => projectId === 'B'),
+      `${context}: borrowed capture disagrees with the model`,
+    ).toBe(expectChange);
+    if (expectChange) model.events.B.push(ELSEWHERE_B);
+  }
+  const streams = { A: projectRows(world, 'A'), B: projectRows(world, 'B') };
+  for (const projectId of ['A', 'B'] as const) {
+    const stream = streams[projectId];
+    expect(
+      stream.map(({ seq }) => seq),
+      `${context}: ${projectId} sequences are not contiguous`,
+    ).toEqual(Array.from({ length: stream.length }, (_, seq) => seq));
+    const fanout = stream
+      .map(({ message }) => message)
+      .filter((message) => (message as ProjectEvent).type === 'elsewhere_changed');
+    expect(fanout, `${context}: durable ${projectId} rows`).toEqual(model.events[projectId]);
+    const pushed = world.pushes.filter(
+      ({ subscription }) => subscription === `project:${projectId}`,
+    );
+    expect(
+      new Set(pushed.map(({ seq }) => seq)).size,
+      `${context}: a ${projectId} sequence pushed twice`,
+    ).toBe(pushed.length);
+    for (const { seq, message } of pushed) {
+      expect(message, `${context}: pushed event differs from its durable row`).toEqual(
+        stream[seq]?.message,
+      );
+      expect(stream[seq], `${context}: pushed a sequence with no row`).toBeDefined();
+    }
+  }
+  const sql = openDatabase(world.path);
+  try {
+    expect(
+      sql.query("SELECT shared_people FROM organization WHERE id = 'org-a'").get(),
+      `${context}: stored mode`,
+    ).toEqual({ shared_people: model.mode === 'shared' ? 1 : 0 });
+    expect(
+      sql.query('SELECT * FROM shared_people_audit ORDER BY created_at, id').all(),
+      `${context}: audit ledger`,
+    ).toEqual(model.audits);
+    expect(
+      sql.query('SELECT subscription, next_seq FROM event_sequencer ORDER BY subscription').all(),
+      `${context}: event sequences`,
+    ).toEqual(
+      (['A', 'B'] as const)
+        .filter((projectId) => streams[projectId].length > 0)
+        .map((projectId) => ({
+          subscription: `project:${projectId}`,
+          next_seq: streams[projectId].length,
+        })),
+    );
+  } finally {
+    sql.close();
+  }
   expect(clientOf(world).inTransaction, `${context}: source left inside a transaction`).toBe(false);
 }
 
-function variantOf(world: SharedWorld, hash: string): SharedVariant {
-  if (hash === world.hashes.live) return 'live';
-  if (hash === world.hashes.shifted) return 'shifted';
-  throw new Error(`unknown model hash ${hash}`);
+function inputFor(world: SharedWorld, hash: string): ScheduleInput {
+  const input = world.inputsByHash.get(hash);
+  if (input === undefined) throw new Error(`unknown model hash ${hash}`);
+  return input;
+}
+
+/** Re-captures mode-aware inputs without changing committed generation or selected rows. */
+async function refreshInputs(world: SharedWorld): Promise<void> {
+  const captured = await world.services.workItems.optimizationInput('A');
+  if (captured.kind !== 'scheduled') throw new Error('shared model input unavailable');
+  world.inputs.live = captured.input;
+  world.inputs.shifted = { ...captured.input, notBefore: new Map([['A', 50_000_000]]) };
+  for (const variant of ['live', 'shifted'] as const) {
+    const input = world.inputs[variant];
+    world.hashes[variant] = scheduleInputHash(input);
+    world.inputsByHash.set(world.hashes[variant], input);
+  }
 }
 
 type SharedCommand = fc.AsyncCommand<SharedModel, SharedWorld>;
+
+/** Waits for one additional held request and joins polling before timeout escapes. */
+async function waitForHeld(
+  world: Pick<SharedWorld, 'held'>,
+  count: number,
+  ms = 1500,
+): Promise<void> {
+  const cancellation = new AbortController();
+  const polling = (async () => {
+    while (!cancellation.signal.aborted && world.held.length === count) await Bun.sleep(1);
+  })();
+  try {
+    await within(polling, 'mode switch never reached held transport', ms);
+  } finally {
+    cancellation.abort();
+    await polling;
+  }
+}
+
+/** Switches through the installed public owner; held delivery is joined by ReleasePush. */
+class SwitchMode implements SharedCommand {
+  constructor(private readonly mode: CapacityMode) {}
+  check(): boolean {
+    return true;
+  }
+  async run(model: SharedModel, world: SharedWorld): Promise<void> {
+    const before = await captureDisplay(world);
+    const generation = committedGeneration(world);
+    const cached = clientOf(world)
+      .query('SELECT * FROM optimized_schedule_cache ORDER BY project_id, input_hash, objective')
+      .all();
+    const changed = model.mode !== this.mode;
+    world.nextSwitch += 1;
+    const stamp = { by: 'sam', at: world.nextSwitch };
+    const auditId = `switch-${String(world.nextSwitch)}`;
+    const heldBefore = world.held.length;
+    const switching = world.services.projectRanks.switchCapacityMode(
+      'org-a',
+      this.mode,
+      stamp,
+      auditId,
+    );
+    let settled = false;
+    // Attach immediately so a failed held switch remains observable without an unhandled rejection.
+    const joined = switching.then((answer) => {
+      settled = true;
+      expect(answer).toEqual({ ok: true, changed });
+    });
+    world.switches.push(joined);
+    if (world.holdB && changed) {
+      await waitForHeld(world, heldBefore);
+      expect(settled, 'switch answered before held delivery settled').toBe(false);
+      note('switchHeldDelivery');
+    } else {
+      await within(joined, 'mode switch did not settle');
+    }
+    if (changed) {
+      model.mode = this.mode;
+      model.audits.push({
+        id: auditId,
+        organization_id: 'org-a',
+        actor_id: 'sam',
+        shared_people: this.mode === 'shared' ? 1 : 0,
+        created_at: stamp.at,
+      });
+      for (const projectId of ['A', 'B'] as const) {
+        model.events[projectId].push({
+          type: 'elsewhere_changed',
+          projectId,
+          causeProjectId: null,
+        });
+      }
+      note(`switch:${this.mode}`);
+    } else note('switch:no-op');
+    await assertShared(model, world, before, false, this.toString(), true);
+    expect(committedGeneration(world), 'switch rewrote the optimizer generation').toEqual(
+      generation,
+    );
+    expect(
+      clientOf(world)
+        .query('SELECT * FROM optimized_schedule_cache ORDER BY project_id, input_hash, objective')
+        .all(),
+      'switch rewrote selected cache state',
+    ).toEqual(cached);
+    await refreshInputs(world);
+  }
+  toString(): string {
+    return `SwitchMode(${this.mode})`;
+  }
+}
+
+/** A queued source turn must re-read authority after an earlier demotion commits. */
+class DemoteBeforeSwitch implements SharedCommand {
+  check(): boolean {
+    return true;
+  }
+  async run(model: SharedModel, world: SharedWorld): Promise<void> {
+    const before = await captureDisplay(world);
+    const staged = deferred<undefined>();
+    const release = deferred<undefined>();
+    const bound = world.source.bindLivePlans({
+      schedulerOf: () => optimizerWiring(undefined).scheduler,
+    });
+    const demoting = bound.uow.run(async () => {
+      clientOf(world).run(
+        "UPDATE organization_membership SET role = 'admin' WHERE user_id = 'sam'",
+      );
+      staged.resolve(undefined);
+      await release.promise;
+      return { commit: true, value: undefined };
+    });
+    let switching: ReturnType<SharedWorld['services']['projectRanks']['switchCapacityMode']>;
+    try {
+      await staged.promise;
+      let settled = false;
+      switching = world.services.projectRanks.switchCapacityMode(
+        'org-a',
+        model.mode === 'shared' ? 'isolated' : 'shared',
+        { by: 'sam', at: 1000 },
+        'demoted',
+      );
+      void switching.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+      await Bun.sleep(5);
+      expect(settled, 'switch bypassed queued writer').toBe(false);
+    } finally {
+      release.resolve(undefined);
+      await demoting;
+    }
+    expect(await within(switching, 'queued switch did not settle')).toEqual({
+      ok: false,
+      reason: 'forbidden',
+    });
+    await assertShared(model, world, before, false, this.toString());
+    clientOf(world).run(
+      "UPDATE organization_membership SET role = 'super_admin' WHERE user_id = 'sam'",
+    );
+    note('switchDemotion');
+  }
+  toString(): string {
+    return 'DemoteBeforeSwitch';
+  }
+}
+
+/** Failing the second recipient insert must undo the first event, sequence, audit and mode. */
+class FailSwitchEvent implements SharedCommand {
+  check(): boolean {
+    return true;
+  }
+  async run(model: SharedModel, world: SharedWorld): Promise<void> {
+    const before = await captureDisplay(world);
+    const pushed = world.pushes.length;
+    clientOf(world).run(
+      "CREATE TRIGGER fail_switch_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:B' BEGIN SELECT RAISE(ABORT, 'injected switch event failure'); END",
+    );
+    let refusal: unknown;
+    try {
+      await world.services.projectRanks.switchCapacityMode(
+        'org-a',
+        model.mode === 'shared' ? 'isolated' : 'shared',
+        { by: 'sam', at: 1000 },
+        'failed',
+      );
+    } catch (caught) {
+      refusal = caught;
+    } finally {
+      clientOf(world).run('DROP TRIGGER fail_switch_event');
+    }
+    expect(refusal).toBeInstanceOf(Error);
+    expect((refusal as Error).cause).toBeInstanceOf(Error);
+    expect(((refusal as Error).cause as Error).message).toContain('injected switch event failure');
+    expect(world.pushes.length, 'rollback delivered an event').toBe(pushed);
+    await assertShared(model, world, before, false, this.toString());
+    note('switchRollback');
+  }
+  toString(): string {
+    return 'FailSwitchEvent';
+  }
+}
 
 class SharedReadPlan implements SharedCommand {
   constructor(private readonly variant: SharedVariant) {}
@@ -1770,8 +2035,9 @@ class SharedReadPlan implements SharedCommand {
     expect(committed?.input_hash).toBe(hash);
     expect(read.generation).toBe(committed?.generation ?? null);
     // (I-a) Advancing past a displayed selected row evicts it: one B event.
-    const expectChange = advances && model.displayedSelected;
-    if (expectChange) note('sharedEvict');
+    const expectChange =
+      advances && model.displayedSelected && model.generationHash === world.hashes.live;
+    if (expectChange) note(model.mode === 'shared' ? 'sharedEvict' : 'isolatedEvict');
     if (advances) model.displayedSelected = false;
     model.generationHash = hash;
     await assertShared(model, world, before, expectChange, this.toString());
@@ -1813,7 +2079,7 @@ class SharedExitChild implements SharedCommand {
       committed !== null &&
       slot.generation === committed.generation
     ) {
-      const input = world.inputs[variantOf(world, committed.input_hash)];
+      const input = inputFor(world, committed.input_hash);
       const write: OptimizationOutcomeWrite = {
         claim: {
           projectId: 'A',
@@ -1873,7 +2139,7 @@ class SharedExitChild implements SharedCommand {
       ) {
         expectChange = true;
         model.displayedSelected = true;
-        note('sharedStore');
+        note(model.mode === 'shared' ? 'sharedStore' : 'isolatedStore');
       }
     }
     child.kill();
@@ -1898,7 +2164,7 @@ class SharedRetry implements SharedCommand {
         projectId: 'A',
         objective: 'pri',
         inputHash: committed.input_hash,
-        input: world.inputs[variantOf(world, committed.input_hash)],
+        input: inputFor(world, committed.input_hash),
         scoped: { organizationId: 'org-a', actorId: 'ada' },
       }),
       'Retry decision waited for recipient transport',
@@ -1950,6 +2216,7 @@ class ReleasePush implements SharedCommand {
   async run(model: SharedModel, world: SharedWorld): Promise<void> {
     world.holdB = false;
     for (const release of world.held.splice(0)) release();
+    await Promise.all(world.switches.splice(0));
     await Bun.sleep(5);
     const before = await captureDisplay(world);
     await assertShared(model, world, before, false, this.toString());
@@ -2007,7 +2274,7 @@ class HeldWriterRead implements SharedCommand {
     const reading = world.optimizer.readPlan({
       projectId: 'A',
       objective: 'pri',
-      input: world.inputs[variantOf(world, hash)],
+      input: inputFor(world, hash),
       enabled: true,
     });
     await Bun.sleep(5);
@@ -2067,7 +2334,13 @@ class DropCaptureRead implements SharedCommand {
 
 async function sharedTrace(commands: Iterable<SharedCommand>): Promise<void> {
   const world = await createSharedWorld();
-  const model: SharedModel = { generationHash: null, displayedSelected: false, expectedB: 0 };
+  const model: SharedModel = {
+    generationHash: null,
+    displayedSelected: false,
+    mode: 'shared',
+    events: { A: [], B: [] },
+    audits: [],
+  };
   let failure: Error | null = null;
   try {
     await fc.asyncModelRun(() => ({ model, real: world }), commands);
@@ -2079,9 +2352,19 @@ async function sharedTrace(commands: Iterable<SharedCommand>): Promise<void> {
   }
   world.holdB = false;
   for (const release of world.held.splice(0)) release();
+  // End held automatic edit work after admissions have been disabled for cleanup.
+  clientOf(world).run('UPDATE project SET optimization_enabled = 0');
+  for (const resume of world.edits.splice(0)) resume();
   for (const child of world.children) child.kill();
   try {
+    await Promise.all(world.switches.splice(0));
     await within(world.optimizer.stop(), 'shared model optimizer did not stop', 5000);
+    expect(world.edits, 'cleanup left a held edit debounce').toHaveLength(0);
+    expect(world.held, 'cleanup left recipient transport held').toHaveLength(0);
+    expect(
+      world.children.every((child) => !child.alive),
+      'cleanup left a live child',
+    ).toBe(true);
     await world.source.close();
   } finally {
     rmSync(world.dir, { recursive: true, force: true });
@@ -2131,6 +2414,129 @@ describe('installed shared-person owners model', () => {
     await sharedTrace([new SharedReadPlan('live'), new HeldWriterRead()]);
   }, 30_000);
 
+  it('stops polling after held transport times out', async () => {
+    // Proof: removing cancellation/join let the timed-out task keep polling (5 → 14 calls).
+    let polls = 0;
+    const world = {
+      get held(): (() => void)[] {
+        polls += 1;
+        return [];
+      },
+    };
+    let refusal: unknown;
+    try {
+      await waitForHeld(world, 0, 10);
+    } catch (caught) {
+      refusal = caught;
+    }
+    expect(refusal).toBeInstanceOf(Error);
+    expect((refusal as Error).message).toBe('mode switch never reached held transport');
+    const stopped = polls;
+    await Bun.sleep(10);
+    expect(polls, 'timed-out transport polling continued').toBe(stopped);
+  });
+
+  it.each(['answer', 'rejection'] as const)(
+    'releases the demotion writer when an early switch %s fails the assertion',
+    async (outcome) => {
+      // Proof: removing release/join from finally retained the writer after the early answer assertion failed.
+      const world = await createSharedWorld();
+      const model: SharedModel = {
+        generationHash: null,
+        displayedSelected: false,
+        mode: 'shared',
+        events: { A: [], B: [] },
+        audits: [],
+      };
+      // Inject an early-settling switch; the real demotion writer is still suspended.
+      world.services.projectRanks.switchCapacityMode = () =>
+        outcome === 'answer'
+          ? Promise.resolve({ ok: false, reason: 'forbidden' })
+          : Promise.reject(new Error('injected early switch rejection'));
+      let refusal: unknown;
+      try {
+        try {
+          await new DemoteBeforeSwitch().run(model, world);
+        } catch (caught) {
+          refusal = caught;
+        }
+        expect(refusal).toBeInstanceOf(Error);
+        expect((refusal as Error).message).toContain('switch bypassed queued writer');
+        expect(
+          clientOf(world).inTransaction,
+          'failed queued-switch assertion retained the writer',
+        ).toBe(false);
+        await captureDisplay(world);
+      } finally {
+        // A regressed harness must not retain the database during this negative test.
+        if (clientOf(world).inTransaction) clientOf(world).run('ROLLBACK');
+        await within(world.optimizer.stop(), 'negative trace optimizer did not stop', 5000);
+        await world.source.close();
+        rmSync(world.dir, { recursive: true, force: true });
+      }
+    },
+    10_000,
+  );
+
+  it('switches shared to isolated and back with silent same-mode repeats', async () => {
+    // Proof (2026-10-13): omitting fan-out or substituting A for the null cause failed
+    // at SwitchMode(isolated): durable A rows. Removing both no-op guards failed
+    // the same-mode result assertion. Production faults restored before the green run.
+    resetReached();
+    await sharedTrace([
+      new SwitchMode('shared'),
+      new SharedReadPlan('live'),
+      new SharedExitChild(0, 'ok'),
+      new SwitchMode('isolated'),
+      new SwitchMode('isolated'),
+      new SharedReadPlan('shifted'),
+      new SharedReadPlan('live'),
+      new SharedExitChild(0, 'ok'),
+      new SwitchMode('shared'),
+      new SwitchMode('shared'),
+      new SharedExitChild(0, 'ok'),
+      new SharedReadPlan('shifted'),
+    ]);
+    for (const transition of ['isolatedStore', 'isolatedEvict', 'sharedStore', 'sharedEvict']) {
+      expect(
+        reached.get(transition) ?? 0,
+        `round trip never reached ${transition}`,
+      ).toBeGreaterThan(0);
+    }
+  }, 30_000);
+
+  it('commits mode audit and events and releases the writer before held delivery', async () => {
+    // Proof (2026-10-13): moving delivery inside the writer failed at
+    // display capture waited for a held writer, before SecondWriter could acquire.
+    // Dropping the post-commit delivery await failed switch answered before held delivery settled.
+    await sharedTrace([
+      new HoldPush(),
+      new SwitchMode('isolated'),
+      new SecondWriter(),
+      new ReleasePush(),
+      new HoldPush(),
+      new SwitchMode('shared'),
+      new SecondWriter(),
+      new ReleasePush(),
+    ]);
+  }, 30_000);
+
+  it('refuses the switch queued behind a committed demotion', async () => {
+    // Proof (2026-10-13): bypassing the writer's fresh authority check returned
+    // {ok: true, changed: true} instead of the modeled forbidden outcome.
+    await sharedTrace([
+      new DemoteBeforeSwitch(),
+      new SwitchMode('isolated'),
+      new DemoteBeforeSwitch(),
+    ]);
+  }, 30_000);
+
+  it('rolls mode audit events and sequences back when the second event insert fails', async () => {
+    // Proof (2026-10-13): deferring event recording until after commit left A's
+    // event durable when B's insert failed; FailSwitchEvent: durable A rows failed.
+    await sharedTrace([new FailSwitchEvent(), new SwitchMode('isolated'), new FailSwitchEvent()]);
+  }, 30_000);
+
   it('explores bounded shared command histories', async () => {
     // Proof (2026-10-11): under each of the five faults above, seed 20261011
     // shrank to a two- or three-command counterexample; verify.md records them.
@@ -2139,6 +2545,8 @@ describe('installed shared-person owners model', () => {
       [
         fc.constantFrom(new SharedReadPlan('live'), new SharedReadPlan('shifted')),
         fc.constantFrom(new SharedReadPlan('live'), new SharedReadPlan('shifted')),
+        fc.constantFrom(new SwitchMode('shared'), new SwitchMode('isolated')),
+        fc.constantFrom(new SwitchMode('shared'), new SwitchMode('isolated')),
         fc
           .tuple(
             fc.integer({ min: 0, max: 3 }),
@@ -2153,15 +2561,29 @@ describe('installed shared-person owners model', () => {
           new SecondWriter(),
           new HeldWriterRead(),
           new DropCaptureRead(),
+          new SwitchMode('shared'),
+          new SwitchMode('isolated'),
+          new DemoteBeforeSwitch(),
+          new FailSwitchEvent(),
         ),
       ],
-      { maxCommands: 12 },
+      { maxCommands: 20 },
     );
     await fc.assert(
       fc.asyncProperty(commands, (history) => sharedTrace(history)),
-      { seed: 20261011, numRuns: 60 },
+      { seed: 20261011, numRuns: 100 },
     );
-    for (const reachedCommand of ['sharedStore', 'sharedEvict', 'sharedHeldWriter']) {
+    for (const reachedCommand of [
+      'sharedStore',
+      'sharedEvict',
+      'sharedHeldWriter',
+      'switch:shared',
+      'switch:isolated',
+      'switch:no-op',
+      'switchHeldDelivery',
+      'switchDemotion',
+      'switchRollback',
+    ]) {
       expect(
         reached.get(reachedCommand) ?? 0,
         `model never reached ${reachedCommand}`,
