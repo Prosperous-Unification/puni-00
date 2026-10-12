@@ -1,168 +1,155 @@
 # WBS 090/100 local diagnostic inventory
 
-This is a bounded survey of candidate `74ce3c8bf3a0070b7af73198d75cdcebae385f14`
-(corrected #380 candidate), not final candidate acceptance. It introduces no application or
-validator behavior. No activation, certification, ratchet, adoption, WBS completion,
-source synchronization, archiving, host gate, merge or deployment was performed.
+The current survey targets reviewed #380 release candidate
+`a61ce440dcbe0880559bc6d97e584e055cf7e23d`. This is diagnostic evidence; it does
+not accept the final release candidate, certify WBS, activate enforcement, adopt
+files, enable ratchets or mark WBS work complete.
 
-## Authority and selection
+The prior survey of `74ce3c8bf3a0070b7af73198d75cdcebae385f14` remains under
+[evidence/candidate-74ce3c8b](evidence/candidate-74ce3c8b), including its
+[original verification narrative](evidence/candidate-74ce3c8b/verify.md.txt).
+Astra high reviewed survey commit `394d7d964d92ea566a4621fd713cc4dcd263cbca`
+with no P1/P2 findings, as reported by the coordinating agent. That review precedes
+this rerun and does not approve its new evidence.
 
-The live WBS project is `558ec5c7-f561-4181-9d9b-055b06bc9796`. The read-only
-`getApiProjectsByIdWork_itemsByWorkItemId` responses retained in
-[evidence/candidate-74ce3c8b/live-wbs.json](evidence/candidate-74ce3c8b/live-wbs.json)
-identify 090 (`7ad9e8a6-0369-43f0-9711-8d9e687d92a6`) and 100
-(`02d9313b-d484-4cf1-9485-f71fe81c0fdf`), both revision 12 and
-`blocked_by_proxy`. Their notes permit local diagnostic inventory before activation;
-certification still requires 030.6. These observations do not change the live rows.
+## Candidate, tool and policy
 
-[identity.json](evidence/candidate-74ce3c8b/identity.json) binds the exact candidate
-SHA/tree, tool SHA/tree and tool source subtree, source CLI entry, Bun executable/version/revision,
-lockfile, TypeScript package/compiler and complete TypeScript package closure digests.
-The tool is the source CLI at that same SHA, not a published distribution or activated
-release. `bun install --frozen-lockfile --ignore-scripts` succeeded with 1292 packages.
-The installed runtime modules were hard linked to an ignored sibling directory outside
-the candidate for relationship materialization. The first attempted copy to `/tmp`
-refused cross-device hard links and was not used. The compiler is TypeScript 6.0.2;
-Bun is 1.4.2+744846f84. Dependency lifecycle scripts were skipped intentionally.
+The isolated survey branch normal-merged exact candidate `a61ce440` into merge
+commit `2867b16c41f83cb1225828fec9ce277266faf2ee`. The CLI checks the explicit
+candidate SHA, never the survey merge HEAD. Relative to the earlier candidate,
+this candidate changes five test files and `estimate-units/verify.md` only.
+The actual tool source and `libs/shared`, `tsconfig.base.json`, and `bun.lock`
+were freshly compared with `a61ce440` and have no checkout differences.
 
-The original tracked rule policy is retained byte for byte in
-[original-policy.json.txt](evidence/candidate-74ce3c8b/original-policy.json.txt). It was
-copied outside the candidate to `/tmp/wbs-burokrat-74ce3c8b/original-policy.json`.
-The external diagnostic copy adds four explicit fields; their complete values are in
-[diagnostic-policy.json.txt](evidence/candidate-74ce3c8b/diagnostic-policy.json.txt):
+[identity.json](evidence/candidate-a61ce440/identity.json) binds the candidate and
+tool SHA/tree, source subtree/entry, execution checkout SHA, Bun executable and
+revision, lockfile, TypeScript compiler/package/closure identities and exact policy
+digests. This runs the source CLI, not a published or activated executable.
+The frozen installation and external runtime module copy from the first survey
+are reused; no candidate-supplied modules are loaded by materialized extraction.
+Bun remains `1.4.2+744846f84`, TypeScript `6.0.2`. Original and final policy byte
+digests were rechecked before invocation.
 
-- `relationshipRequest`: 21 actual production tsconfigs for be-01, gw-01, mcp-01,
-  fe-01 and all WBS/shared libraries, with 21 corresponding actual app main/public
-  library index entrypoints. Existing selected-fact relationship declarations remain
-  `docs/wiki-policy/relationships.json`. This is a WBS project graph, not the activation
-  pilot's one-domain source selection. Transitive sources may extend beyond the roots.
-- `plainTypeScriptPaths`: 442 explicit tracked production `.ts` paths covering WBS
-  domain/application libraries and frontend feature/resource services, stores and geometry.
-  Filename and directory selection implement the F1 plain-source categories; they do not
-  claim a complete manually reviewed classification of every frontend helper. Kinded
-  services also remain covered by the rule's own kind inventory.
-- `sizeCeilings`: ceiling 800, roots be-01/gw-01/mcp-01/fe-01 `src`, `libs/wbs`
-  and `libs/shared`; `pinned: []`. This observes the decided ceiling without accepting
-  any file above it. The existing production-source predicate also measures `.ts`
-  testing support files that are not named `.test` or `.spec`; those findings are retained.
-- `adoptedSet`: `adoptedPrefixes: []`, explicitly empty for this diagnostic. No
-  adoption was inferred. All 14 registered rules retain `observe` mode.
+The final external policy bytes are identical to the reviewed earlier survey:
+[diagnostic-policy.json.txt](evidence/candidate-a61ce440/diagnostic-policy.json.txt).
+The original repository policy is also retained:
+[original-policy.json.txt](evidence/candidate-a61ce440/original-policy.json.txt).
+The diagnostic policy preserves every registered mode as `observe` and adds only:
 
-Original/result policy digests are recorded in `identity.json`. The evidence copies
-inside this documentation tree are snapshots, not authority: replay must copy the selected
-snapshot outside the candidate before invoking `check`. Reviewed Performance and scenario
-policy fields were preserved, including their stale/refused state; no new authority was invented.
+- Relationships: 21 actual production tsconfigs and 21 app/library public
+  entrypoints across be-01, gw-01, mcp-01, fe-01, WBS libraries and shared libraries.
+  Existing `docs/wiki-policy/relationships.json` selected-fact declarations remain.
+- Plain sources: 442 exact tracked `.ts` selectors for domain/application libraries
+  and frontend feature/resource services, stores and geometry. Kinded services also
+  remain subject to F1. Filename selectors are a bounded inventory, not a complete
+  manually reviewed classification of every frontend helper.
+- Size observations: ceiling 800 under all four WBS app source roots, `libs/wbs`
+  and `libs/shared`; `pinned: []`. Testing support sources without test/spec suffixes
+  remain measured by the existing production-source predicate.
+- Adoption: `adoptedPrefixes: []`, an explicit empty diagnostic set. No adoption
+  was inferred and no authority was refreshed to suppress a refusal.
 
-## Commands and evidence
+Live WBS notes remain the earlier read-only revision-12 observations retained in
+[live-wbs.json](evidence/candidate-74ce3c8b/live-wbs.json): both 090 and 100 were
+`blocked_by_proxy` and expressly permitted local diagnostics absent activation.
+Those rows were not reread or changed during this rerun. Their certification
+prerequisite 030.6 remains outside this survey.
 
-Every invocation retains its exact argv, selected environment, exit code and elapsed
-seconds in `*.command.json`, raw stdout in `*.stdout.txt` and raw stderr in
-`*.stderr.txt`. Empty stdout is intentional for command refusals. Policy snapshots use `.json.txt` and raw stdout uses `.txt` to preserve the exact
-bytes without formatter rewriting; nonempty verdict streams contain JSON.
+## Commands and outcome
 
-The initial `dependency-refusal-*` commands failed before policy loading because
-`@noble/hashes` was absent from the inherited installation. Frozen installation resolved
-that process prerequisite. `preflight-original` then refused with
-`rule F1 needs policy.plainTypeScriptPaths, which the rule policy omits`; it produced no
-candidate verdict and evaluated no rule. Its first omission is not the only missing input.
-
-`exploratory-19-configs` retains the first complete registry invocation before gw-01
-and mcp-01 were added to the explicit relationship/size scope. Its policy snapshot and
-digest are distinct. The `full` invocation and subsequent `rule-*` invocations use the
-final 21-project selector policy, and retain global whole-tree refusals.
-
-The canonical diagnostic command was:
+Each `full` or `rule-*` invocation retains exact argv/environment/exit/duration in
+`*.command.json`, raw stdout in `*.stdout.txt`, and raw stderr in `*.stderr.txt`
+under [candidate-a61ce440](evidence/candidate-a61ce440). Policy snapshots and raw
+streams use `.txt` to preserve their bytes through formatting.
 
 ```sh
 TOOL_WIKI_TRUSTED_NODE_MODULES=/home/df/wd/puni/puni-00/.worktrees/wbs-090-100-runtime-modules \
   bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check committed \
   /home/df/wd/puni/puni-00/.worktrees/wbs-090-100-diagnostics \
-  74ce3c8bf3a0070b7af73198d75cdcebae385f14 \
-  /tmp/wbs-burokrat-74ce3c8b/diagnostic-policy-complete-wbs.json
+  a61ce440dcbe0880559bc6d97e584e055cf7e23d \
+  /tmp/wbs-burokrat-a61ce440/diagnostic-policy.json
 ```
 
-Per-rule diagnostics append `--rule <id>` without changing the candidate or policy.
-They select representative blockers (REL-EXTRACT, INV-CLASSIFY, PERF-THRESHOLD,
-SPEC-SCENARIOS) and independently observable rules (F7, MOD-INDEX,
-MOD-DIRECT-ENTRIES, MOD-LAYOUT). F1 and K2–K6 share the full invocation's single
-memoized relationship refusal; separate commands for these six consumers were skipped
-because the same prerequisite prevented their evaluation.
+Per-rule invocations append `--rule <id>` with unchanged candidate and policy:
+REL-EXTRACT, INV-CLASSIFY, PERF-THRESHOLD, SPEC-SCENARIOS, F7, MOD-INDEX,
+MOD-DIRECT-ENTRIES and MOD-LAYOUT. The other six relationship consumers
+(F1/K2–K6) use the complete invocation's memoized graph refusal; their individual
+commands are deliberately skipped because that prerequisite prevents evaluation.
 
-## Interpreting the inventory
+The full command exited 1 after 107.78 seconds. It returned
+`allowed: false`, `certifies: false`, 42 debt findings and ten unevaluated rules.
+The candidate digest is
+`37eb8482273159c6589b485940e01571f5613f70e7828f4cbce981c5294c199d`;
+the unchanged final policy SHA-256 is
+`ffc33d5b91dcfae0e622294936f732c366c501d202fc53d15c6a744d266f2690`.
 
-The full invocation exited 1 after 107.39 seconds and returned `allowed: false`,
-`certifies: false`, 42 findings and ten unevaluated rules. The final policy SHA-256 is
-`ffc33d5b91dcfae0e622294936f732c366c501d202fc53d15c6a744d266f2690` (the exact retained value is in `identity.json`).
-
-| Registered rules                    | Observed classification                          | Evidence                                                                                                 |
+| Registered rules                    | Classification                                   | Observed output                                                                                          |
 | ----------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| F7                                  | Evaluated debt                                   | 38 files exceed 800 lines; no pins                                                                       |
+| F7                                  | Evaluated debt                                   | 38 files over 800 lines                                                                                  |
 | MOD-LAYOUT                          | Evaluated debt                                   | Four missing index/contract findings in two service directories                                          |
-| MOD-INDEX, MOD-DIRECT-ENTRIES       | Evaluated clean                                  | Zero findings for these two rules only                                                                   |
+| MOD-INDEX, MOD-DIRECT-ENTRIES       | Evaluated clean                                  | No findings for these two rules                                                                          |
 | F1, K2, K3, K4, K5, K6, REL-EXTRACT | Unevaluated; compiler prerequisite refused       | Invalid `@tanstack/table-core` augmentation, implicit row parameter types, missing ColumnMeta properties |
 | INV-CLASSIFY                        | Unevaluated; classification prerequisite refused | Undeclared website `apple-touch-icon.png` binary                                                         |
 | PERF-THRESHOLD                      | Unevaluated; reviewed authority refused          | Performance config content differs from reviewed authority                                               |
 | SPEC-SCENARIOS                      | Unevaluated; source selection refused            | Competing `wbs-domain` leaf-status overlay operation                                                     |
 
-The 090 projection retains 20 F7 and four MOD-LAYOUT findings. The 100 projection
-retains 20 F7 findings. Two domain-library F7 findings occur in both projections,
-so their counts cannot be added. These counts describe selected findings, not
-complete application acceptance.
+Findings and unevaluated reasons exactly match the prior survey despite the changed
+candidate digest. The 090 projection retains 20 F7 and four module layout findings;
+the 100 projection retains 20 F7 findings. Two domain findings occur in both.
 
-The machine-readable inventory and 090/100 projections accompany the raw verdict.
-`evaluated-clean` means that a selected rule returned observations with no findings;
-`evaluated-debt` means it returned debt findings. A tool `unevaluated` record is retained
-as `unevaluated`, with a separate prerequisite-refusal description. A process or policy
-exception before a verdict is `command-refusal`. No observed finding has refusal effect
-under this observe-only policy. Designed obligations absent from the registry are
-`unimplemented-obligation`, never an evaluated clean rule.
+[inventory.json](evidence/candidate-a61ce440/inventory.json),
+[wbs-090.json](evidence/candidate-a61ce440/wbs-090.json) and
+[wbs-100.json](evidence/candidate-a61ce440/wbs-100.json) retain the actual observations.
 
-090 projects be-01/gw-01/mcp-01 and WBS domain/application/adapter libraries. 100 projects
-fe-01 plus the domain/contracts/validation libraries also consumed by the frontend.
-Shared libraries appear in both projections where applicable. Every projection inherits
-all whole-tree unevaluated records and the full verdict's `allowed: false` and
-`certifies: false`. A website classification refusal is a global blocker even though it
-is outside either WBS projection. A frontend compiler refusal also prevents backend
-kind/direction evaluation in the combined graph. Projection finding counts are not
-independent scoped verdicts or coverage claims.
+## Projection meaning and follow-up
 
-## Bounded follow-up slices
+The inventory distinguishes evaluated-clean, evaluated-debt, unevaluated with
+prerequisite refusal, command refusal before a verdict, and obligations without
+complete registered evaluation. No observe-only finding has refusal effect.
+K1/K7/K8/K9/F2/F3/T1/T2 have no complete dedicated registered verdict; internal
+partial prerequisites are not complete obligation evaluation. Full test-axes
+ledgers remain open. A successful exit from an observe-only debt rule is not
+zero debt.
 
-1. Resolve the frozen frontend compiler boundary: inspect the actual TanStack package
-   version/export surface and its augmentation/callers. The reported missing
-   `@tanstack/table-core` augmentation, implicit row types and missing ColumnMeta fields
-   must be repaired against an owning precise spec or a new OpenSpec change. Rerun the
-   full relationship graph before claiming F1/K2–K6 clean or reporting import debt.
-2. Review the website binary declaration at
-   `apps/website/fe-01/public/apple-touch-icon.png` in the owning classification policy,
-   with real format/consumer/regeneration provenance. Do not add a catch-all or silently
-   discard the global refusal. Rerun INV-CLASSIFY and then full inventory.
-3. Reconcile the Performance config with its reviewed authority through the owning
-   change. Do not refresh its digest just to suppress the refusal. No browser measurements
-   were produced by this survey; further authority/evidence gaps may become visible later.
-4. Resolve the competing `wbs-domain` leaf-status overlay through the owning scenario
-   sources. Do not synchronize or archive competing sources as part of this survey.
-   Rerun SPEC-SCENARIOS and preserve downstream missing allocator/coverage obligations.
-5. Inspect the service directories reported by MOD-LAYOUT before proposing module
-   boundaries, contracts and wiki indexes. Preserve the actual debt until reviewed.
-6. Turn F7 findings into small, behavior-preserving repair slices with callers/tests
-   read first. The baseline creates no size pins and enables no ratchet. Prioritize
-   high-coupling large files only after their owning module shape is understood.
+Both 090/100 projections retain every global unevaluated record and full verdict
+`allowed: false`/`certifies: false`. 090 projects the three backend apps plus all
+WBS/shared libraries. 100 projects fe-01 plus WBS domain and shared libraries.
+These are projections of one global verdict, not independent scoped verdicts.
+A website binary refusal remains a global blocker. Combined-graph frontend
+compiler failure also prevents backend kind/direction evaluation. Overlapping
+domain/shared findings cannot be added across projections.
 
-## Unverified work and limits
+Bounded follow-ups remain those identified in the original reviewed survey:
+repair the frozen TanStack augmentation/type boundary before import evaluation;
+review the website binary's exact classification provenance; reconcile Performance
+configuration through reviewed authority; resolve the competing leaf-status spec
+sources through their owning changes; inspect module layout debt; split over-ceiling
+sources into behavior-preserving repairs after reading callers/tests. No competing
+source synchronization or archive, digest-only authority refresh or catch-all
+classification is authorized by this survey.
 
-All eight representative per-rule invocations matched the corresponding full-verdict
-findings or unevaluated records and candidate digest. The four blocker commands exited 1;
-F7 and all three module commands exited 0. F7 and MOD-LAYOUT still report debt under
-observe mode: exit 0 does not mean zero findings. A retained read-only evidence check
-verified policy byte digests, candidate identities, global refusal preservation, inventory
-counts and per-rule parity. Scoped Prettier formatting was run on generated documentation
-and metadata; raw stdout and policy snapshots remain byte for byte.
+## Validation and limits
 
-No application tests, browser runs, full format/lint/typecheck/build gate, negative mutation
-proofs, host gate, package release checks or activation checks ran in this diagnostic
-survey. No safety check or production behavior changed, so this survey adds no R5
-safety-check proof. The compiler errors are outputs from relationship extraction, not
-an independent application typecheck. Scope selection is explicit and bounded; other
-products/tools and non-TypeScript infrastructure remain for 120/130. Candidate acceptance,
-repairs, complete ledgers, certification and live activation remain open.
+All eight representative per-rule commands matched the full candidate digest,
+findings and unevaluated reasons. Four blocker commands exited 1. F7 and the
+three module commands exited 0; F7 and MOD-LAYOUT still reported debt.
+The retained read-only evidence check rehashed Bun, compiler/package/closure,
+lockfile and policies, checked source checkout parity with the selected tool,
+verified all eight per-rule outputs and both global-refusal-preserving projections,
+and compared the historical findings without claiming unchanged candidate identity.
+
+`bunx @fission-ai/openspec@1.12.0 validate --all --json` initially exited 1 with
+184 passed/one failed: the documentation-only survey had no spec delta. Its named
+refusal explicitly supported `skip_specs: true` for documentation-only changes.
+The survey now declares that metadata in `.openspec.yaml`. A fresh rerun exited 0
+with **185 passed, zero failed**. Both exact raw outputs are retained. No behavior
+spec was invented for this survey. Scoped Prettier formatting/checking covers this
+survey's Markdown, metadata JSON and YAML; raw evidence bytes remain untouched.
+
+No application tests, browser measurements, lint/typecheck/build gate, mutation
+proofs, host gate, activation, merge to main or deployment ran. The only merge was
+the authorized normal merge into this isolated survey branch. Compiler diagnostics
+come from relationship extraction, not a standalone application typecheck.
+No safety check or production behavior changed; no new R5 safety proof is claimed.
+Other products/tools, infrastructure rule evaluation, repairs, complete ledgers,
+final candidate acceptance and certification remain open.
