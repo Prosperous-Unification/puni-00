@@ -11,12 +11,13 @@ import {
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
+import { CredentialRefusalState } from '@/components/organization/credential-refusal-state';
 import { STATUS_GLYPH, STATUS_LABEL } from '@/components/wbs/status-cell';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import { InProgressList, type InProgressState, readInProgress } from './in-progress-list';
 import { singleFlight } from './single-flight';
-import { spaceRefusal } from './space-access';
+import { type RefusedView, refusedView, spaceRefusal } from './space-access';
 import { type SpaceGanttInput, spaceGanttLanesOf } from './space-gantt';
 import { useSpacesPolling } from './use-spaces-polling';
 
@@ -39,11 +40,7 @@ type ProjectEntry = Extract<
   ClientReply<typeof listProjects>,
   { kind: 'success' }
 >['body']['projects'][number];
-type View =
-  | { kind: 'loading' }
-  | { kind: 'failure'; message: string }
-  | { kind: 'refused'; message: string }
-  | { kind: 'ready'; read: SpaceRead };
+type View = { kind: 'loading' } | RefusedView | { kind: 'ready'; read: SpaceRead };
 /** Where the keyboard goes once a write's re-read has drawn. */
 type FocusTarget = { kind: 'control'; label: string } | { kind: 'heading' };
 /** One row's roll-up as the table shows it while chunks arrive. */
@@ -155,12 +152,7 @@ export function SpacePage({
         setView({ kind: 'failure', message: failureMessage(reply.failure) });
         return;
       case 'refusal': {
-        const outcome = spaceRefusal(reply.body.error);
-        setView(
-          outcome.kind === 'page'
-            ? { kind: 'refused', message: outcome.text }
-            : { kind: 'failure', message: outcome.text },
-        );
+        setView(refusedView(spaceRefusal(reply.body)));
         return;
       }
       default:
@@ -224,9 +216,9 @@ export function SpacePage({
           setMessage(failureMessage(reply.failure));
           break;
         case 'refusal': {
-          const outcome = spaceRefusal(reply.body.error);
-          if (outcome.kind === 'page') {
-            setView({ kind: 'refused', message: outcome.text });
+          const outcome = spaceRefusal(reply.body);
+          if (outcome.kind !== 'message') {
+            setView(refusedView(outcome));
             return;
           }
           setMessage(outcome.text);
@@ -257,6 +249,7 @@ export function SpacePage({
         </h1>
         {view.kind === 'loading' && <p>Loading space…</p>}
         {(view.kind === 'failure' || view.kind === 'refused') && <p role="alert">{view.message}</p>}
+        {view.kind === 'credential' && <CredentialRefusalState refusal={view.refusal} />}
         {view.kind === 'ready' && view.read.rows.length === 0 && (
           <p>No projects in this space yet.</p>
         )}

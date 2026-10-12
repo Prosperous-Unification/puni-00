@@ -63,7 +63,7 @@ export function SharingPanel({
         setView({ kind: 'failure', message: failureMessage(reply.failure) });
         return;
       case 'refusal': {
-        const outcome = sharingRefusal(reply.body.error);
+        const outcome = sharingRefusal(reply.body);
         if (outcome.kind === 'lost') onAccessLost(outcome.loss);
         else setView({ kind: 'failure', message: outcome.text });
         return;
@@ -100,7 +100,7 @@ export function SharingPanel({
           setMessage(failureMessage(reply.failure));
           return;
         case 'refusal': {
-          const outcome = sharingRefusal(reply.body.error);
+          const outcome = sharingRefusal(reply.body);
           if (outcome.kind === 'lost') {
             onAccessLost(outcome.loss);
             return;
@@ -196,20 +196,21 @@ export function SharingPanel({
   );
 }
 
-type SharingRefusalCode = Extract<
+type SharingRefusal = Extract<
   ClientReply<typeof readCapacityMode | typeof switchCapacityMode>,
   { kind: 'refusal' }
->['body']['error'];
+>['body'];
 
 /** Every modeled sharing refusal receives its own copy. */
-function sharingRefusal(error: SharingRefusalCode): RefusalOutcome {
-  switch (error) {
+function sharingRefusal(refusal: SharingRefusal): RefusalOutcome {
+  switch (refusal.error) {
     case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
+      return lostAccess(refusal.error);
     case 'sso_required':
     case 'reauthentication_required':
-      return lostAccess(error);
+      return lostAccess(refusal);
     // Before activation there is no organization to share people in.
     case 'organization_required':
       return lostAccess('no_active_organization');
@@ -226,6 +227,6 @@ function sharingRefusal(error: SharingRefusalCode): RefusalOutcome {
     case 'invalid_origin':
       return said(RELOAD);
     default:
-      return unreachable(error);
+      return unreachable(refusal);
   }
 }

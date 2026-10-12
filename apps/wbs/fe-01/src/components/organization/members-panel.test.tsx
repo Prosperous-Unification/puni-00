@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { answerEmpty, answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { MembersPanel } from './members-panel';
+import { type AccessLoss } from './organization-access';
 
 afterEach(() => {
   cleanup();
@@ -18,7 +19,7 @@ const member = (userId: string, username: string, role: string, email: string | 
   createdAt: 1,
 });
 
-function renderPanel(onAccessLost: (loss: string) => void = () => undefined) {
+function renderPanel(onAccessLost: (loss: AccessLoss) => void = () => undefined) {
   render(<MembersPanel onAccessLost={onAccessLost} />);
 }
 
@@ -110,7 +111,7 @@ describe('members', () => {
   });
 
   it('hands a lost membership to the page', async () => {
-    const losses: string[] = [];
+    const losses: AccessLoss[] = [];
     stubServer({ 'GET /api/organization/members': [() => answer(403, { error: 'not_a_member' })] });
     renderPanel((loss) => losses.push(loss));
     await waitFor(() => {

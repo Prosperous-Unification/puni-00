@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { answerEmpty, answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { DomainsPanel } from './domains-panel';
+import { type AccessLoss } from './organization-access';
 
 afterEach(() => {
   cleanup();
@@ -28,7 +29,7 @@ const challenge = {
   expiresAt: 86_400_000,
 };
 
-function renderPanel(onAccessLost: (loss: string) => void = () => undefined) {
+function renderPanel(onAccessLost: (loss: AccessLoss) => void = () => undefined) {
   render(<DomainsPanel onAccessLost={onAccessLost} />);
 }
 
@@ -172,7 +173,7 @@ describe('domain settings', () => {
   });
 
   it('hands a lost organization to the page', async () => {
-    const losses: string[] = [];
+    const losses: AccessLoss[] = [];
     stubServer({
       'GET /api/organization/domains': [() => answer(403, { error: 'no_active_organization' })],
     });

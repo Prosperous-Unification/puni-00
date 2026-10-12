@@ -52,7 +52,7 @@ export function MembersPanel({
         setView({ kind: 'failure', message: failureMessage(reply.failure) });
         return;
       case 'refusal': {
-        const outcome = memberRefusal(reply.body.error, 'view members');
+        const outcome = memberRefusal(reply.body, 'view members');
         if (outcome.kind === 'lost') onAccessLost(outcome.loss);
         else setView({ kind: 'failure', message: outcome.text });
         return;
@@ -87,7 +87,7 @@ export function MembersPanel({
           setMessage(failureMessage(reply.failure));
           return;
         case 'refusal': {
-          const outcome = memberRefusal(reply.body.error, 'make this change');
+          const outcome = memberRefusal(reply.body, 'make this change');
           if (outcome.kind === 'lost') {
             onAccessLost(outcome.loss);
             return;
@@ -209,7 +209,8 @@ export function MembersPanel({
   );
 }
 
-const ROLE_NAMES: Record<Role, string> = {
+/** The words each membership role reads as. */
+export const ROLE_NAMES: Record<Role, string> = {
   super_admin: 'Super-admin',
   admin: 'Admin',
   member: 'Member',
@@ -223,10 +224,10 @@ function roleOf(value: string): Role {
   throw new Error(`Unexpected membership role option: ${value}`);
 }
 
-type MemberRefusalCode = Extract<
+type MemberRefusal = Extract<
   ClientReply<typeof listMembers | typeof changeMemberRole | typeof removeMember>,
   { kind: 'refusal' }
->['body']['error'];
+>['body'];
 
 /**
  * Every modeled member refusal receives its own copy.
@@ -234,15 +235,16 @@ type MemberRefusalCode = Extract<
  * Proof: 2026-09-29, answering `last_super_admin` with the role copy failed
  * `renders the last_super_admin change refusal`.
  */
-function memberRefusal(error: MemberRefusalCode, action: string): RefusalOutcome {
-  switch (error) {
+function memberRefusal(refusal: MemberRefusal, action: string): RefusalOutcome {
+  switch (refusal.error) {
     case 'onboarding_inactive':
     case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
+      return lostAccess(refusal.error);
     case 'sso_required':
     case 'reauthentication_required':
-      return lostAccess(error);
+      return lostAccess(refusal);
     case 'forbidden':
       return said(`Your role cannot ${action}.`);
     case 'last_super_admin':
@@ -258,6 +260,6 @@ function memberRefusal(error: MemberRefusalCode, action: string): RefusalOutcome
     case 'invalid_origin':
       return said(RELOAD);
     default:
-      return unreachable(error);
+      return unreachable(refusal);
   }
 }

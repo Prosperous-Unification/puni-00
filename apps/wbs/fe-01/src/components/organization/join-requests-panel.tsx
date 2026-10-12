@@ -55,7 +55,7 @@ export function JoinRequestsPanel({
         setView({ kind: 'failure', message: failureMessage(reply.failure) });
         return;
       case 'refusal': {
-        const outcome = decisionRefusal(reply.body.error, 'view join requests');
+        const outcome = decisionRefusal(reply.body, 'view join requests');
         if (outcome.kind === 'lost') onAccessLost(outcome.loss);
         else setView({ kind: 'failure', message: outcome.text });
         return;
@@ -101,7 +101,7 @@ export function JoinRequestsPanel({
           setMessage(failureMessage(reply.failure));
           return;
         case 'refusal': {
-          const outcome = decisionRefusal(reply.body.error, 'decide join requests');
+          const outcome = decisionRefusal(reply.body, 'decide join requests');
           if (outcome.kind === 'lost') {
             onAccessLost(outcome.loss);
             return;
@@ -207,19 +207,20 @@ function approvalRoleOf(value: string): ApprovalRole {
  * `renders the domain_changed approval refusal`.
  */
 function decisionRefusal(
-  error:
-    | Extract<ClientReply<typeof approveJoinRequest>, { kind: 'refusal' }>['body']['error']
-    | Extract<ClientReply<typeof listJoinRequests>, { kind: 'refusal' }>['body']['error'],
+  refusal:
+    | Extract<ClientReply<typeof approveJoinRequest>, { kind: 'refusal' }>['body']
+    | Extract<ClientReply<typeof listJoinRequests>, { kind: 'refusal' }>['body'],
   action: string,
 ): RefusalOutcome {
-  switch (error) {
+  switch (refusal.error) {
     case 'onboarding_inactive':
     case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
+      return lostAccess(refusal.error);
     case 'sso_required':
     case 'reauthentication_required':
-      return lostAccess(error);
+      return lostAccess(refusal);
     case 'forbidden':
       return said(`Your role cannot ${action}.`);
     case 'request_resolved':
@@ -241,6 +242,6 @@ function decisionRefusal(
     case 'invalid_origin':
       return said(RELOAD);
     default:
-      return unreachable(error);
+      return unreachable(refusal);
   }
 }
