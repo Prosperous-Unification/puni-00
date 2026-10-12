@@ -121,6 +121,10 @@ function endMembership(
   // Proof: skipping this guard made `refuses to deprovision the last
   // super-admin, changing nothing` in `enterprise-sso-stores.db.test.ts`
   // delete the membership; watched 2026-10-12.
+  // Dropping the `last-super-admin` return also made mounted `refuses to
+  // deprovision the last super-admin with 409 mutability, changing nothing`
+  // (`scim-deprovisioning.controller.db.test.ts`) answer 200 and deactivate
+  // the record; watched 2026-10-12.
   const guarded = guardFinalSuperAdmin(tx, organizationId, userId, null);
   if (guarded === 'last-super-admin') return 'last_super_admin';
   if (guarded === null)
@@ -206,6 +210,11 @@ export class ScimUserRepository implements ScimUsers {
   ): Promise<
     { readonly kind: 'updated'; readonly user: ScimUser } | { readonly kind: ScimRefusal }
   > {
+    // Proof: committing the membership deletion in its own transaction ahead
+    // of this one made mounted `rolls a deprovision back and answers 500 when
+    // its audit row cannot be written` (`scim-deprovisioning.controller.db
+    // .test.ts`) lose carol's org-a membership despite the 500; watched
+    // 2026-10-12.
     return this.write((tx): { kind: 'updated'; user: ScimUser } | { kind: ScimRefusal } => {
       requireActivated(tx);
       const stored = userIn(tx, organizationId, id);

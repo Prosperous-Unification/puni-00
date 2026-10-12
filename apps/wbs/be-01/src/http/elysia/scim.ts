@@ -42,6 +42,10 @@ export function scimEndpoints(
       } catch (error) {
         // The adapter's error boundary, as `mountEndpoints` has for the
         // typed table: report, then answer without detail.
+        // Proof: rethrowing instead made mounted `rolls a deprovision back and
+        // answers 500 when its audit row cannot be written` receive
+        // Elysia's plain-text error, the failed SQL itself, instead of the
+        // SCIM error; watched 2026-10-12.
         reportUnexpectedFailure(error);
         reply = FAILED;
       }
