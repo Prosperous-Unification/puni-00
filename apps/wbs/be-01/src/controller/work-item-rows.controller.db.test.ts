@@ -189,6 +189,49 @@ describe('GET /api/projects/:id/work-item-rows', () => {
     });
   });
 
+  it('includes native charges only when the estimates group is requested', async () => {
+    const tree = await h.call('ada', 'GET', `/api/projects/${own}/work-items`);
+    expect(tree.status).toBe(200);
+    const steps = (tree.body as { steps: { id: string }[] }).steps;
+    const minuteStep = steps.at(0);
+    const workdayStep = steps.at(1);
+    if (minuteStep === undefined || workdayStep === undefined)
+      throw new Error('the project needs two default steps');
+    expect(
+      await h.call('ada', 'PATCH', `/api/projects/${own}/steps/${minuteStep.id}`, {
+        estimateUnit: 'minutes',
+      }),
+    ).toMatchObject({ status: 200 });
+    await batch('ada', own, [
+      {
+        kind: 'setEstimate',
+        workItemId: refs['a11'],
+        stepId: minuteStep.id,
+        days: { optimistic: 40, realistic: 40, pessimistic: 40 },
+      },
+      {
+        kind: 'setEstimate',
+        workItemId: refs['a11'],
+        stepId: workdayStep.id,
+        days: { optimistic: 2, realistic: 2, pessimistic: 2 },
+      },
+    ]);
+    const selected = await page(`fields=estimates&parentId=${refs['a1']}`);
+    expect(selected.rows).toHaveLength(1);
+    expect(selected.rows[0]).toHaveProperty('charged', {
+      [minuteStep.id]: { unit: 'minutes', minutes: 40 },
+      [workdayStep.id]: { unit: 'workdays', days: 2 },
+    });
+    for (const field of ['attempts', 'spans', 'span'])
+      expect(selected.rows[0]).not.toHaveProperty(field);
+    const parent = await page('fields=estimates&limit=1');
+    expect(parent.rows[0]).not.toHaveProperty('nodeReadings');
+    const outline = await page(`parentId=${refs['a1']}`);
+    expect(outline.rows[0]).not.toHaveProperty('charged');
+    const notes = await page(`fields=notes&parentId=${refs['a1']}`);
+    expect(notes.rows[0]).not.toHaveProperty('charged');
+  });
+
   it('refuses a stale cursor with 409 and an unknown parent with 404', async () => {
     const first = await page('limit=2');
     if (first.nextCursor === null) throw new Error('expected a second page');

@@ -98,7 +98,14 @@ export function workItemPageQueryOf(
   return { ...rest, after, statuses, parentId: input.parentId ?? null, depth, groups };
 }
 
-/** A work item as its page row: the outline, then each named group. */
+/**
+ * A work item as its page row: the outline, then each named group, preserving
+ * absence of optional tree fields.
+ *
+ * Proof: removing the own-property check made `includes native charges only
+ * when the estimates group is requested` return HTTP 500: absent attempts,
+ * spans and span became explicit undefined and failed the response schema.
+ */
 function rowOf(
   workItem: TreeWorkItem,
   updatedAt: number | null,
@@ -109,7 +116,7 @@ function rowOf(
   for (const group of groups) {
     if (group === 'slices') continue;
     for (const field of WORK_ITEM_FIELD_GROUPS[group])
-      Object.assign(grouped, { [field]: workItem[field] });
+      if (Object.hasOwn(workItem, field)) Object.assign(grouped, { [field]: workItem[field] });
   }
   return {
     ...grouped,

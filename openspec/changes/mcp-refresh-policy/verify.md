@@ -223,3 +223,29 @@ Final correction checks:
 - Changed-file Prettier check and `git diff --check`: passed.
 - Exact-SHA host gate, push, draft PR, merge and deploy remain unperformed; the
   correction is held for Astra re-review.
+
+## Align with corrected integration head
+
+Astra approved lease repair `58eb31879d55096463bc9ba69dfa06cce689485f`
+with no P1/P2 findings. Normally merged exact integration head
+`4f2d3782e5f5f75ad7e143153f9c9dd5bc9914a6` into that repair. Both histories
+remain ancestors. The merge was conflict-free; the duplicate OpenAPI test-only
+repair has identical content to the integration head and creates no additional
+diff for `openapi-tools.test.ts`.
+
+Fresh merged checks:
+
+- `bun test ./apps/wbs/mcp-01/src/*.test.ts ./libs/wbs/application/core/src/ports/credential-rules.test.ts`:
+  431 passed, zero failed, 1838 assertions, 17 files.
+- `NX_ISOLATE_PLUGINS=false NX_DAEMON=false bunx nx run wbs-mcp-01:lint --skip-nx-cache`:
+  succeeded with cache explicitly skipped. An initial target invocation reused
+  cache, so lint was rerun explicitly.
+- `NX_ISOLATE_PLUGINS=false NX_DAEMON=false bunx nx run wbs-mcp-01:typecheck`:
+  succeeded, uncached.
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate mcp-refresh-policy --type change --json`:
+  valid, one passed, zero failed, no issues.
+- `git diff --check`, merged-parent ancestry checks and OpenAPI content comparison:
+  passed. The verification record is included in the merge commit.
+- No push, draft PR, host gate, production authority activation, merge into a
+  release branch or deploy performed. The production prerequisites listed above
+  remain open.
