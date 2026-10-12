@@ -16,6 +16,12 @@ The WBS logger serializes an `err` into `{ type, message, stack }` while the dec
 - To: the collector lifts the report's `fingerprint`, `occurrence_id` and `v`, plus `service`, `level`, `msg` and `time`, into keyword-mapped attributes, and a Kibana Job imports a 7-day dashboard grouped by fingerprint.
 - Impact: infrastructure only (`infra/platform/observability`); the log line, the report and the schema are unchanged.
 
+**Log loss alert (2026-10-12 amendment, A30)**
+
+- From: a hung-connection drop shows only in a counter, and the log-export rules query a `_total` name Prometheus does not store.
+- To: `PuniLogRecordsDropped` fires on every send drop and `PuniLogQueueFull` on a full, blocking queue; the rules read the stored names.
+- Impact: alert rules and docs only.
+
 ## Non-Goals
 
 No boundary adopts the contract in this change: the backend unexpected-error boundary, the MCP tool-call boundary and the gateway remain as they are. No new service name, no new telemetry endpoint, no HTTP status, WebSocket frame or MCP envelope change, and no browser-execution claim. The 2026-10-11 amendment adds the ingestion and dashboard this change first excluded, and still adds no fingerprint alerting, no change to the report format, and no shared logger for the website's be-01, which keeps `console.error` until its own WBS row.

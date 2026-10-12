@@ -21,17 +21,47 @@ spec:
           labels: { severity: warning }
           annotations:
             summary: '{{ $labels.pod }} is queueing logs it cannot deliver to Elasticsearch'
-        - alert: PuniLogExportFailing
-          expr: sum by (pod) (rate(otelcol_exporter_send_failed_log_records_total[5m])) > 0
-          for: 5m
-          labels: { severity: warning }
+        # A failed send loses its batch for good; the Elasticsearch exporter does not retry a request
+        # that times out (docs/infra/platform.md, "Log loss"). A full queue drops nothing: it blocks
+        # (`block_on_overflow`), which PuniLogQueueFull covers.
+        # The collector creates the counter at its first failure, already incremented, so `increase`
+        # alone misses that drop; the `unless` branch catches a pod's counter that had no sample in
+        # the hour before the window, which a scrape gap shorter than an hour does not fake.
+        # Proof: with the `increase` branch alone, the first-dropped-batch promtool case got no
+        # alert, and k3d run 1's stored series gave no sample, on 2026-10-12.
+        # Proof: with `unless … offset 5m` in place of `last_over_time(…[1h] offset 5m)`, the
+        # scrape-gap promtool case alerted on 2026-10-12.
+        - alert: PuniLogRecordsDropped
+          expr: >-
+            (sum by (pod) (increase(otelcol_exporter_send_failed_log_records{exporter="elasticsearch"}[5m])) > 0)
+            or ((sum by (pod) (otelcol_exporter_send_failed_log_records{exporter="elasticsearch"}) > 0)
+              unless sum by (pod) (last_over_time(otelcol_exporter_send_failed_log_records{exporter="elasticsearch"}[1h] offset 5m)))
+          labels: { severity: critical }
           annotations:
-            summary: '{{ $labels.pod }} fails to export logs'
+            summary: '{{ $labels.pod }} dropped log records it could not deliver to Elasticsearch'
+        # A full queue blocks the pipeline: the filelog receiver stops reading and resumes from its
+        # checkpoint, so lines are lost only if the kubelet rotates them away first, which no counter
+        # records.
+        # Proof: without the exporter filter, the full remote-write queue alerted in the full-queue
+        # promtool case; with `> 1`, the full log queue did not, on 2026-10-12.
+        - alert: PuniLogQueueFull
+          expr: >-
+            max by (pod) (
+              otelcol_exporter_queue_size{exporter="elasticsearch", data_type="logs"}
+              / otelcol_exporter_queue_capacity{exporter="elasticsearch", data_type="logs"}
+            ) >= 1
+          for: 1m
+          labels: { severity: critical }
+          annotations:
+            summary: '{{ $labels.pod }} stopped reading logs because its Elasticsearch queue is full'
         - alert: PuniLogIngestStopped
           # `or vector(0)` keeps the alert live when the collector or its series disappears.
           # Proof: the previous expression failed the vanished-series promtool case on 2026-09-18.
+          # The collector's counters have no `_total` suffix in Prometheus.
+          # Proof: with `_total` the rule fired while k3d sent records, and the records-flow
+          # promtool case failed, on 2026-10-12.
           expr: >-
-            (sum(rate(otelcol_exporter_sent_log_records_total{exporter="elasticsearch"}[15m]))
+            (sum(rate(otelcol_exporter_sent_log_records{exporter="elasticsearch"}[15m]))
             or vector(0)) == 0
           for: 15m
           labels: { severity: critical }
