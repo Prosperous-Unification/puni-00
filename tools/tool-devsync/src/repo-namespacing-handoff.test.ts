@@ -628,7 +628,10 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     categories: {
       // Proof: two shared lint facts added five legitimate recursive selectors
       // each; the old 34/311 pin failed on the observed 44/321 corpus.
-      'current recursive selector': 44,
+      // Proof: the exhaustive-coverage integration case's copied repository fixture added one
+      // recursive selector (`apps/**/*.ts`); the 44/321 pin failed on the observed 45/322
+      // corpus (2026-10-12).
+      'current recursive selector': 45,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
       'historical policy selector or baseline': 89,
@@ -898,8 +901,11 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // path they are reported under, none unclassified (2026-10-11).
     // Proof: one injected legacy source occurrence changed this count/digest
     // and failed the named corpus test; restoring it passed again.
-    digest: '7b8d87be67c78beb6c7e101e28826844584acac0831a18aaddd5266cc3584bd2',
-    occurrences: 321,
+    // Proof: leaving `1cb67b80…` here after the activation controller moved from Burokrat's
+    // `activation-controller/` to `twilight-dash/cli/src/activation/` failed on the observed
+    // digest below at the same 322 occurrences and categories (2026-10-12).
+    digest: '8801695df3fcf499d8babe6cd30af96ca44a48c08a25ce05b72c6a3ed0239eef',
+    occurrences: 322,
     unclassified: [],
   });
 });
