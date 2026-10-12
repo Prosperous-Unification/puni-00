@@ -457,6 +457,9 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // refuse `libs/website/adapters/store-sqlite/src/down.sql matched 0 classification rules`.
     // Proof: omitting the five namespaced Dagger target inputs from the live relationship
     // declaration made this production CLI report the exact authority-selector mismatch (0/1).
+    // Proof (2026-10-12): omitting use-attempt-actions.ts from plan-commands' mapped consumers
+    // while its index declared that production importer failed this case with exit 1 and
+    // `pilot module external consumers disagree with index …/plan-commands/README.md` (0/1).
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',
