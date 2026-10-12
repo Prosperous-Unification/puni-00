@@ -84,3 +84,219 @@ Load-sensitive tests:
 read inside the tick, before any GET, which `service refuses absent injected clocks before any
 provider call` shows (exit 1 and zero fetches for each omission; exit 0 with fetches once both are
 present). An explicit check there could not be made to fail distinguishably, so none was added.
+
+## S3: observation store ownership
+
+Observed 2026-10-12 on branch `batch-10/080-activation-relocation-s3` (from S2 `025bcc28a`).
+
+`runDash` gains `bootstrap-observation <service.json>` and `migrate-observation <service.json>`
+(`activation/observation-commands.ts`). Each parses exactly one non-flag argument, then reads the
+protected service configuration through `readObservationStateConfig`, the same reader the
+observation service uses. The typed refusals (`ObservationStoreError.failure`) are decided before
+the observation lock is taken. `bootstrap-observation` is `initializeObservationState` (v9) then
+`migrateObservationRecoveryState` (v10), each under its own hold of `observation.lock`, so it
+creates exactly the store the service tests build. `migrate-observation` reads `user_version`
+through a read-only handle and runs the steps from that version: 8 runs `migrateObservationState`
+then `migrateObservationRecoveryState`; 9 runs the second only. It prints
+`{"path","status":"migrated","from","to":10}`.
+
+| Command                                                                                                                                                                | Result                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Dash suite before S3 (S2 head `025bcc28a`)                                                                                                                             | 1526 pass, 0 fail, 5451 `expect()` calls, 34 files                                              |
+| `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT TOOL_WIKI_TRUSTED_NODE_MODULES=… bun test --preload ../../../../tools/test/scratch/preload.ts src --timeout=60000` (Dash) | 1537 pass, 0 fail, 5518 `expect()` calls, 36 files                                              |
+| the same with `TMPDIR=/var/tmp`                                                                                                                                        | 1537 pass, 0 fail, 5522 `expect()` calls, 36 files                                              |
+| `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                                                                     | exit 0                                                                                          |
+| `bunx nx run twilight-dash:lint --skip-nx-cache`                                                                                                                       | `Successfully ran target lint for project twilight-dash`                                        |
+| `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $(git ls-files '*.sql')`                                                                                     | exit 0 (the dumps are `.sqlite-dump`, not `.sql`)                                               |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                               | 183 items, 183 passed, 0 failed                                                                 |
+| `bun test tools/tool-devsync/src/{workspace-targets,eslint-boundaries,workspace-projects,adr-index}.test.ts`                                                           | 65 pass, 0 fail (a first run concurrent with the Dash suite saw 9 fail; rerun alone 65/0 twice) |
+
+Dash count change: `observation-commands.db.test.ts` adds 9 tests and `schema-golden.test.ts`
+adds 2, so 1526 + 11 = 1537 across 36 files.
+
+| Injected fault                                                                | Observed failure                                                                                                                                                                                      | Restored |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `CHECK (sequence >= 1)` weakened to `>= 0` in `AttemptDefinition`             | golden equality: `- … CHECK (sequence >= 1) …`, `+ … CHECK (sequence >= 0) …`; the Burokrat-written store: `observation recovery table malformed: activation_observation_attempt`                     | pass     |
+| exact-definition comparison removed from `readRecovery` (renamed-column dump) | still refused before any attempt, later: `- "observation recovery table malformed: activation_observation_attempt"`, `+ "Validation failed: classification must be a string or null (was missing) …"` | pass     |
+| `current` check removed from `migrate-observation`                            | `Dash accepted migrate-observation and printed {"path":…,"status":"migrated","from":10,"to":10}`                                                                                                      | pass     |
+| absent pre-check removed from `migrate-observation`                           | canary: `Expected: "absent"`, `Received: "unreadable"` (the read-only open still created nothing)                                                                                                     | pass     |
+| absent pre-check and the read-only flag both removed                          | canary: `- []`, `+ ["activation.sqlite"]`                                                                                                                                                             | pass     |
+| read-only flag alone removed                                                  | 9 pass: masked by the absent pre-check; recorded, not claimed as a proof                                                                                                                              | —        |
+| `exists` pre-check removed from `bootstrap-observation`                       | `error: observation state already exists` (untyped) in the bootstrap and canary tests                                                                                                                 | pass     |
+| every `lstat` failure mapped to absence                                       | search-denied test: bootstrap reached the lock, `observation protected path malformed: …/state`                                                                                                       | pass     |
+| `version` check removed (version-7 store)                                     | `error: observation migration requires version 8` (untyped)                                                                                                                                           | pass     |
+| `activation_request` table check removed (foreign v9 file)                    | `error: observation state partial: activation_request` (untyped)                                                                                                                                      | pass     |
+| grammar loosened to `argv.length === 0`                                       | `Dash accepted bootstrap-observation and printed {…"status":"bootstrapped","version":10}`                                                                                                             | pass     |
+| `--` test dropped from the grammar                                            | `bootstrap-observation --force`: `Expected: "usage: …"`, `Received: "observation service configuration unavailable"`                                                                                  | pass     |
+
+Assumptions:
+
+1. `PRE_RELOCATION_SHA` is `802c26bd8`, the S0 head; the S0 merge commit does not exist yet.
+   Between main `21a6bd537` and `802c26bd8`, `observation-state.ts`, `controller.ts`,
+   `bootstrap.ts`, `github-reader.ts` and `github-source.ts` differ only in import lines
+   (`git diff 21a6bd537 802c26bd8 -- <those five>` filtered to non-import lines is empty).
+2. "`withObservationAttempt` continues the sequence" is read as `withRecoveryObservation`: at v10
+   that is the attempt path, while `withObservationAttempt` is the v9 path and refuses a v10 store
+   (`observation state schema unsupported`).
+3. `openActivationController` keeps creating an absent database. It is the creation primitive
+   `initializeObservationState` uses on its temporary path, and the controller tests open fresh
+   stores through it. Every observation entry point (`withObservationAttempt`,
+   `withRecoveryObservation`, both migrations) already refuses absence, which
+   `scheduled observation refuses absent state before provider work` proves. Making the
+   controller refuse would change no observation behaviour.
+4. The typed refusals are decided outside the lock, because the existing operations each take it
+   themselves and a second `flock` on a new descriptor in the same process reports busy. Every
+   operation keeps its own version fence inside the lock, so a racing writer gets the untyped
+   inner refusal, never a second store. A bootstrap interrupted between its two steps leaves a v9
+   store; `bootstrap-observation` then refuses `exists` and `migrate-observation` finishes it.
+5. `bootstrap-observation` requires the state directory to exist (it refuses with
+   `observation protected path absent`) and never creates it, as before. The spec states this.
+6. A store file SQLite cannot read (`SQLITE_NOTADB`, `SQLITE_CANTOPEN`) is `unreadable`; a
+   readable file without `activation_request` is `unsupported-version`.
+7. `busy` from either step throws `observation store busy …`; it is not one of the five typed
+   refusals and has no new test.
+
+### Fixture production
+
+The producer ran from a detached worktree of `802c26bd8` with the repository's `node_modules`
+symlinked in, under `/tmp/claude-1000/s3` (mode `0700`, because the store refuses a replaceable
+ancestor). Commands are in `fixtures/activation/README.md`. The producer, never committed:
+
+```ts
+// Scratch producer for DS/fixtures/activation; never committed. Run from the pre-relocation tree.
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { Database } from 'bun:sqlite';
+
+import { hashBytes, serializeCanonical } from '../judge-facade';
+import { GitHubReadFailure } from './github-reader';
+import {
+  initializeObservationState,
+  migrateObservationRecoveryState,
+  withRecoveryObservation,
+} from './observation-state';
+
+const output = process.env.GOLDEN_OUTPUT;
+if (output === undefined) throw new Error('GOLDEN_OUTPUT is required');
+const bootstrap = {
+  schemaVersion: 1,
+  authorityGeneration: 3,
+  reviewer: {
+    kind: 'external-audit-provider',
+    providerId: 'review.provider',
+    executorId: 'review.executor',
+    protocolIdentity: 'a'.repeat(64),
+    promptIdentity: 'b'.repeat(64),
+  },
+  journal: {
+    kind: 'authenticated-external-journal',
+    verifierId: 'journal.verifier',
+    issuerId: 'journal.issuer',
+    endpoint: 'https://journal.example.invalid/v1',
+  },
+  publisher: {
+    kind: 'immutable-external-store',
+    issuerId: 'publisher.issuer',
+    endpoint: 'https://store.example.invalid/activations',
+  },
+  admission: { requiredWorkflow: '.github/workflows/trusted-wiki.yml', protectedBranch: 'main' },
+};
+const binding = {
+  repositoryId: 8241,
+  owner: 'Prosperous-Unification',
+  name: 'puni-00',
+  targetRef: 'refs/heads/main',
+  policyIdentity: '3'.repeat(64),
+  mappingIdentity: '4'.repeat(64),
+  toolkitIdentity: '5'.repeat(64),
+  readDeadlineMs: 1000,
+};
+const policy = {
+  maxAttempts: 3,
+  wholeTickMs: 5000,
+  maxSubjects: 100,
+  initialDelayMs: 100,
+  maxDelayMs: 400,
+  fallbackDelayMs: 200,
+  recoveryProbeMs: 1000,
+  horizonMs: 5000,
+};
+
+function store(name: string) {
+  const stateDirectory = join(output, name);
+  mkdirSync(stateDirectory, { mode: 0o700 });
+  chmodSync(stateDirectory, 0o700);
+  const bootstrapPath = join(output, `${name}.bootstrap.json`);
+  const bytes = serializeCanonical(bootstrap);
+  writeFileSync(bootstrapPath, bytes, { mode: 0o600 });
+  let now = 1_000_000;
+  return {
+    advance: (to: number) => {
+      now = to;
+    },
+    config: {
+      stateDirectory,
+      bootstrapPath,
+      pin: {
+        identity: hashBytes(bytes),
+        journalIssuerId: 'journal.issuer',
+        publisherIssuerId: 'publisher.issuer',
+      },
+      binding,
+      policy,
+      clock: () => now,
+    },
+  };
+}
+
+const fresh = store('fresh');
+console.log(await initializeObservationState(fresh.config));
+console.log(await migrateObservationRecoveryState(fresh.config));
+
+const written = store('written');
+console.log(await initializeObservationState(written.config));
+console.log(await migrateObservationRecoveryState(written.config));
+written.advance(1_001_000);
+console.log(
+  JSON.stringify(
+    await withRecoveryObservation(written.config, () =>
+      Promise.resolve({ kind: 'complete' } as const),
+    ),
+  ),
+);
+written.advance(1_002_000);
+try {
+  await withRecoveryObservation(written.config, () =>
+    Promise.reject(new GitHubReadFailure('unavailable', 'fixture provider unavailable', 503)),
+  );
+  throw new Error('provider failure was not raised');
+} catch (cause) {
+  if (!(cause instanceof GitHubReadFailure)) throw cause;
+  console.log('provider-failure recorded');
+}
+const database = new Database(join(written.config.stateDirectory, 'activation.sqlite'), {
+  readonly: true,
+});
+const schedule = database.query('SELECT * FROM activation_observation_schedule').get();
+const recovery = database.query('SELECT * FROM activation_observation_recovery').get();
+const attempts = database
+  .query('SELECT * FROM activation_observation_attempt ORDER BY sequence')
+  .all();
+const version = database.query('PRAGMA user_version').get();
+database.close();
+writeFileSync(
+  join(output, 'burokrat-written-v10.state.json'),
+  `${JSON.stringify({ attempts, bootstrap, binding, policy, recovery, schedule, version }, null, 2)}\n`,
+);
+```
+
+Its run printed `initialized`, `migrated`, `initialized`, `migrated`,
+`{"kind":"owned","value":{"kind":"complete"},"terminalOutcome":"complete"}`,
+`provider-failure recorded`.
+
+| File                               | SHA-256                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `activation.v10.sqlite-dump`       | `6509e4c32161425553f90eb9af5877a044023283a70591cf6ebeee142506f9e7` |
+| `burokrat-written-v10.sqlite-dump` | `89cbd380b5d8e439aa6d9d4dbb3b78cff1144a120479dcef94e5f16a983b69b4` |
+| `burokrat-written-v10.state.json`  | `e9f96d35347d0dfa54e203948beaac9e561f9760150e423c93349d371717c2ef` |

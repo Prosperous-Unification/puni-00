@@ -22,8 +22,8 @@ in verify.md.
 
 ## 4. Observation store (S3)
 
-- [ ] 4.1 `bootstrap-observation` and `migrate-observation` with typed refusals and a mutation canary.
-- [ ] 4.2 Golden v10 and Burokrat-written v10 fixtures, checked by `schema-golden.test.ts`.
+- [x] 4.1 `bootstrap-observation` and `migrate-observation` with typed refusals and a mutation canary.
+- [x] 4.2 Golden v10 and Burokrat-written v10 fixtures, checked by `schema-golden.test.ts`.
 
 ## 5. Launcher and units (S4)
 

@@ -54,7 +54,8 @@ The store SHALL stay `<stateDirectory>/activation.sqlite` with the `activation_*
 `user_version 10` and the `observation.lock` file. `bootstrap-observation <service.json>` SHALL
 create it only when absent. `migrate-observation <service.json>` SHALL step v8 to v9 to v10. Both
 commands SHALL parse their arguments before touching state, and SHALL refuse with `absent`,
-`unreadable`, `exists`, `current` or `unsupported-version` without creating a file. A v10 store
+`unreadable`, `exists`, `current` or `unsupported-version` without creating a file. Neither
+command SHALL create the state directory; `bootstrap-observation` refuses an absent one. A v10 store
 written by the pre-relocation Burokrat code SHALL open in Dash and continue its attempt sequence,
 and the pre-relocation code SHALL open a Dash-written store.
 
@@ -62,3 +63,10 @@ and the pre-relocation code SHALL open a Dash-written store.
 
 - **WHEN** `migrate-observation` runs against a v10 store
 - **THEN** it refuses `current` and leaves the bytes unchanged
+
+#### Scenario: Refused commands create nothing
+
+- **WHEN** `migrate-observation` runs where no store exists, or `bootstrap-observation` runs where
+  the state directory is absent
+- **THEN** it refuses without creating `activation.sqlite` or `observation.lock`, and an absent
+  state directory stays absent
