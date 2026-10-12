@@ -151,6 +151,20 @@ describe('domain settings', () => {
     expect(await screen.findByRole('status')).toHaveProperty('textContent', copy);
   });
 
+  it('renders the release refusal while company sign-in uses the domain', async () => {
+    stubServer({
+      'GET /api/organization/domains': [() => answer(200, { domains: [claim('c', 'acme.test')] })],
+      'DELETE /api/organization/domains/c': [() => answer(409, { error: 'sso_connection_exists' })],
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Release acme.test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm releasing acme.test' }));
+    expect(await screen.findByRole('status')).toHaveProperty(
+      'textContent',
+      'Company sign-in still uses this domain. Remove its connection first.',
+    );
+  });
+
   it.each([
     ['invalid_domain', 400, 'Enter a domain name such as example.com.'],
     [

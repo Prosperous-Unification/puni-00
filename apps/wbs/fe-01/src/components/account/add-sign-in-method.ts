@@ -77,6 +77,8 @@ function refusalWords(
         : 'Sign in with Google, GitHub or an email code to add another method, or link from onboarding with your password.';
     case 'onboarding_inactive':
       return 'Adding sign-in methods is not available yet.';
+    case 'sso_connection_not_found':
+      return 'That company sign-in is not set up. Check its address and try again.';
     case 'invalid_client':
     case 'invalid_origin':
     case 'invalid_body':
