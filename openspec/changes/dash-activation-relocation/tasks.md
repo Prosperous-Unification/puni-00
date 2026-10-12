@@ -27,8 +27,8 @@ in verify.md.
 
 ## 5. Launcher and units (S4)
 
-- [ ] 5.1 `twilight-dash:build` bundles `observation-service.mjs` and prints its SHA-256. The launcher marker test is added.
-- [ ] 5.2 The `render-observation-units` command, renamed units, and a `systemd-analyze verify` run that throws when the tool is absent.
+- [x] 5.1 `twilight-dash:build` bundles `observation-service.mjs` and prints its SHA-256. The launcher marker test is added.
+- [x] 5.2 The `render-observation-units` command, renamed units, and a `systemd-analyze verify` run that throws when the tool is absent.
 
 ## 6. Rollback and documents (S5)
 

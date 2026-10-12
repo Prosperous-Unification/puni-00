@@ -84,3 +84,66 @@ Load-sensitive tests:
 read inside the tick, before any GET, which `service refuses absent injected clocks before any
 provider call` shows (exit 1 and zero fetches for each omission; exit 0 with fetches once both are
 present). An explicit check there could not be made to fail distinguishably, so none was added.
+
+## S4: launcher bundle and units
+
+Observed 2026-10-12 on branch `batch-10/080-activation-relocation-s4` (from S2 `025bcc28a`).
+
+`src/packaging/build.ts` exports `launcherBuildConfig()` (Bun.build, target `bun`, format `esm`,
+entry `activation/observation-service-cli.ts`) and `buildLauncher(destination)`, which
+`twilight-dash:build` runs to write
+`dist/apps/twilight-structure/twilight-dash/cli/observation-service.mjs` (git-ignored by `dist/`)
+and print its SHA-256. The target is uncached and has no `dependsOn`, as Burokrat's `build` is
+uncached; its inputs name the three source roots the bundle reads. `render-cli.ts` became
+`units/bundle.ts` without its `import.meta.main` block, so `render-observation-units` in `runDash`
+is the only way to render (V5 names no other CLI). The rendered units are
+`twilight-dash-observation.{service,timer}`; the template file names and every other byte except
+the timer's `Unit=` are unchanged, and host directories, account and digests stay layout inputs.
+Before S4, `units.test.ts` never ran `systemd-analyze`; it now runs `systemd-analyze verify` on
+the rendered pair, requires exit 0 and empty output (an unknown key exits 0 with a warning), and
+throws when `Bun.which('systemd-analyze')` is null. This host has `/usr/bin/systemd-analyze`
+(systemd 255).
+
+| Command                                                                                                                     | Result                                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run twilight-dash:build --skip-nx-cache`                                                                           | `c549751b4ade830bef29d6d680b676041bd78da6d7e2add0f0df1ea4d789140f  …/dist/apps/twilight-structure/twilight-dash/cli/observation-service.mjs`; target succeeded |
+| Dash suite at S2 head `025bcc28a`                                                                                           | 1526 pass, 0 fail, 5451 `expect()` calls, 34 files                                                                                                             |
+| Dash suite after S4                                                                                                         | 1533 pass, 0 fail, 5473 `expect()` calls, 35 files                                                                                                             |
+| the same with `TMPDIR=/var/tmp`                                                                                             | 1533 pass, 0 fail, 5477 `expect()` calls, 35 files (second run; see below)                                                                                     |
+| `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                          | exit 0                                                                                                                                                         |
+| `bunx nx run twilight-dash:lint --skip-nx-cache`                                                                            | `Successfully ran target lint for project twilight-dash`                                                                                                       |
+| `bun test tools/tool-devsync/src/{workspace-targets,eslint-boundaries,workspace-projects,adr-index,toolchain-pins}.test.ts` | 87 pass, 0 fail                                                                                                                                                |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                    | 183 items, 183 passed, 0 failed                                                                                                                                |
+
+The first `TMPDIR=/var/tmp` run overlapped an uncached `twilight-dash:lint` and an OpenSpec
+validation on this host and failed 11 `enrollment-plan.test.ts` subprocess tests (for example
+`retains fleet refusal for digest through Dash`: `Expected … /lacks reviewed inventory/`,
+`Received: ""`, each child ending in about 240 ms with empty stderr). That file alone under
+`TMPDIR=/var/tmp` then passed 33/33, and the full rerun without concurrent load passed. S4 does not
+touch the enrollment path; the empty-stderr failure under load is recorded, not explained.
+
+Dash count change: `packaging/bundle.test.ts` adds 5 tests (marker scan, reported SHA-256, two
+malformed-argv runs of the built launcher, refused ambiguous build) and `units.test.ts` adds 2
+(`rendered units pass systemd-analyze verify`, `render-observation-units refuses a malformed
+grammar before any effect`): 1526 + 7 = 1533. Every moved test kept its name.
+
+The launcher is 9.7 MB: the judge facade's relationship analysis bundles the TypeScript compiler,
+and Bun inlines that CommonJS module's `__dirname`, so the bundle names the absolute
+`node_modules` path it was built from. Two builds at the same path gave the same SHA-256; a build
+from another checkout path would give another digest (inferred from the embedded path, not built). The units README says to rebuild from the same
+path to reproduce `launcherIdentity`.
+
+| Injected fault                                                                                           | Observed failure                                                                                                                                           | Restored |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `import { openAuthority } from '../authority/authority-store'` plus an argv-guarded call in the launcher | `the observation launcher carries no admission authority or fleet planner`: `+ "authority_generation"`                                                     | pass     |
+| bare `import '../authority/authority-store'` in the launcher                                             | none: tree-shaken, no marker in the bundle (recorded in the test's `Proof:`)                                                                               | n/a      |
+| `built.outputs.length !== 1` dropped from `buildLauncher`                                                | `an unsuccessful or ambiguous launcher build refuses before writing`: `TypeError: undefined is not an object`                                              | pass     |
+| `@LAUNCHER_PATH@ @SERVICE_CONFIG_PATH@` swapped in the service template                                  | `renderer binds exact …`: exact `ExecStart=` equality, `- …observation-service.mjs /etc/…/service.json`, `+ …/service.json /opt/…/observation-service.mjs` | pass     |
+| `Restart=no` renamed `Restartt=no` in the service template                                               | `rendered units pass systemd-analyze verify`: `Unknown key name 'Restartt' in section 'Service', ignoring.` (exit stayed 0)                                | pass     |
+| PATH holding only `bun`                                                                                  | same test: `error: systemd-analyze is required to verify the observation units; install systemd`                                                           | pass     |
+| timer `Unit=` restored to `tool-wiki-observation.service`                                                | `timer artifact cannot grant execution authority`: `Expected to contain: "\nUnit=twilight-dash-observation.service\n"`                                     | pass     |
+| `argv.length !== 2` dropped from `renderObservationUnitsCommand`                                         | `render-observation-units refuses a malformed grammar …` at `[]`: `Received: "Error: observation unit rendering refused; …"`                               | pass     |
+| empty-or-`--` argument check dropped                                                                     | same test at `["--layout", …]`: the same received refusal                                                                                                  | pass     |
+| re-observed: `Restart=no` removed (template `Proof: restart`)                                            | `observation service template requires …` and `renderer binds exact …`: `Expected to contain: "Restart=no"`                                                | pass     |
+| re-observed: `ExecStart=/bin/true` added to the timer (template `Proof: timerexec`)                      | `timer artifact cannot grant execution authority`: `Expected to not contain: "ExecStart"`                                                                  | pass     |
+| re-observed: the root-account check in `render.ts` replaced by `false` (`Proof: account`)                | `renderer refuses root account unsafe layout …`: `Received function did not throw`                                                                         | pass     |
