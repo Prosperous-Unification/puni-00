@@ -41,7 +41,7 @@
 
   Fault: compare the prefix without its trailing `|`, and observe the `acme-saml-2` test fail. Restore and add `Proof:`.
 
-- [ ] 2.4 Enterprise email trust: honour `email_verified` only for a proven prefix on the connection's canonical domain.
+- [x] 2.4 Enterprise email trust: honour `email_verified` only for a proven prefix on the connection's canonical domain.
 
   Red: the `organization-sso` email-trust scenarios. A foreign-domain email gives no `account_exists` and holds no verified address; an unproven connection's email is unverified; the canonical comparison activates.
 

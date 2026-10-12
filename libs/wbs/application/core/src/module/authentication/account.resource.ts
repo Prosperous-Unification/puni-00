@@ -1,6 +1,11 @@
 import type { OidcIdentity } from '@wbs/contracts';
 
 import type { Clock } from '../../ports/clock';
+import {
+  type EnterpriseConnections,
+  isAttestedEmail,
+  isEnterpriseSubject,
+} from '../../ports/enterprise-connections';
 import type { OidcIdentityStore, User, UserStore } from '../../ports/user-store';
 
 /** Repository collaborators for one account resource instance. */
@@ -8,7 +13,18 @@ export interface AccountResourceOptions {
   readonly users: UserStore;
   readonly identities?: OidcIdentityStore;
   readonly clock: Clock;
+  /** Which enterprise connections are proven, for email trust (D4). */
+  readonly enterprise: Pick<EnterpriseConnections, 'provenFor'>;
 }
+
+/**
+ * Answers that no enterprise connection is proven: every enterprise identity's
+ * email is then untrusted, the fail-closed answer. Only for compositions that
+ * hold no enterprise connection records at all.
+ */
+export const NO_PROVEN_CONNECTIONS: Pick<EnterpriseConnections, 'provenFor'> = {
+  provenFor: () => Promise.resolve(null),
+};
 
 /** Account creation, lookup, and federated resolution over the admitted store. */
 export class AccountResource {
@@ -25,7 +41,31 @@ export class AccountResource {
   async linkIdentity(userId: string, identity: OidcIdentity) {
     if (this.opts.identities?.linkIdentity === undefined)
       throw new Error('explicit OIDC link store is not configured');
-    return this.opts.identities.linkIdentity(userId, identity, this.opts.clock.stampFor(userId));
+    return this.opts.identities.linkIdentity(
+      userId,
+      await this.withTrustedEmail(identity),
+      this.opts.clock.stampFor(userId),
+    );
+  }
+
+  /**
+   * `identity` as the stores may see it (`organization-sso` requirement 3,
+   * D4): an enterprise identity's `emailVerified` stands only when its email
+   * is attested by a proven connection on that connection's domain, so it can
+   * neither hold another domain's address as verified nor reach
+   * `account_exists` for it. Every other identity is unchanged.
+   *
+   * Proof: 2026-10-12, honouring `email_verified` for every enterprise
+   * identity made `trusts no foreign-domain email from a proven connection,
+   * and answers no account_exists` in
+   * `enterprise-email-trust.controller.db.test.ts` answer account_exists.
+   */
+  private async withTrustedEmail(identity: OidcIdentity): Promise<OidcIdentity> {
+    if (!identity.emailVerified || !isEnterpriseSubject(identity.subject)) return identity;
+    const proven = await this.opts.enterprise.provenFor(identity.subject);
+    return isAttestedEmail(identity.email, proven)
+      ? identity
+      : { ...identity, emailVerified: false };
   }
 
   /**
@@ -61,15 +101,21 @@ export class AccountResource {
     return this.opts.identities.findExistingOidcIdentity(identity);
   }
 
-  /** Mint a candidate ID before resolving a verified OIDC identity. */
+  /**
+   * Mint a candidate ID before resolving a verified OIDC identity, whose
+   * email is first held to the enterprise trust rule ({@link withTrustedEmail}).
+   * Login and every OIDC bearer authentication resolve through here.
+   */
   resolveIdentity(identity: OidcIdentity): Promise<User | null> {
+    const identities = this.opts.identities;
     // Proof (2026-09-27): forcing this guard false failed `direct account
     // resource reports an absent OIDC identity store` (0 pass, 1 fail).
-    if (this.opts.identities === undefined) {
+    if (identities === undefined) {
       throw new Error('OIDC identity store is not configured');
     }
-    const id = this.opts.clock.newId();
-    const stamp = this.opts.clock.stampFor(id);
-    return this.opts.identities.resolveOidcIdentity(identity, { id }, stamp);
+    return this.withTrustedEmail(identity).then((trusted) => {
+      const id = this.opts.clock.newId();
+      return identities.resolveOidcIdentity(trusted, { id }, this.opts.clock.stampFor(id));
+    });
   }
 }

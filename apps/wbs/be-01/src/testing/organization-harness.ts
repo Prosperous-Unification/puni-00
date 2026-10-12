@@ -323,6 +323,7 @@ export class OrganizationHarness {
       clock: testClock,
       users,
       identities: users,
+      enterprise: new EnterpriseConnectionRepository(db, gate),
       tokens: joseTokenCodec(sessionKey),
       passwords: fastPasswordHasher,
       ...(upstreamCredential === undefined
@@ -521,6 +522,7 @@ export class OrganizationHarness {
     onCapturedFanout,
     onBorrowedUnitOfWork,
     supportedCapacityModes,
+    provider,
   }: ComposedHarnessOptions): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
@@ -540,6 +542,15 @@ export class OrganizationHarness {
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       pushFetch,
+      ...(provider === undefined
+        ? {}
+        : {
+            oidc: buildOidcVerifier(provider.verifier, {
+              groupPrefix: 'dev',
+              groupsClaim: 'wbs_groups',
+            }),
+            passwordSessions: true,
+          }),
       ...(withOptimizer
         ? {
             optimizer: {
@@ -558,6 +569,7 @@ export class OrganizationHarness {
       appOrigin: 'http://localhost',
       clock: services.clock,
       migrationsApplied: true,
+      ...(provider === undefined ? {} : { oidc: provider.routeOptions('http://localhost') }),
       auth: services.auth,
       loginThrottle: services.loginThrottle,
       projects: services.projects,
@@ -601,7 +613,7 @@ export class OrganizationHarness {
       },
       internalAuthSecret: 'x'.repeat(32),
     });
-    return new OrganizationHarness(
+    const harness = new OrganizationHarness(
       dir,
       app,
       openDatabase(path),
@@ -642,6 +654,8 @@ export class OrganizationHarness {
       source.history.savedPlanCapture,
       source,
     );
+    harness.federated = provider !== undefined;
+    return harness;
   }
 
   /** Token captured by the test-only injected sink; no message is sent. */
@@ -817,6 +831,8 @@ export interface ComposedHarnessOptions {
   onBorrowedUnitOfWork?: () => void;
   /** The release's capacity modes; production's `SUPPORTED_CAPACITY_MODES` when absent. */
   supportedCapacityModes?: readonly CapacityMode[];
+  /** Mounts the browser OIDC routes over this fake provider; see {@link OrganizationHarnessOptions}. */
+  provider?: FakeOidcProvider;
 }
 
 /**

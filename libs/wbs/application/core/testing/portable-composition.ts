@@ -2,6 +2,7 @@ import { noopLogger } from '@wbs/contracts';
 import { openMemorySource } from '@wbs/store-memory';
 
 import { composeServices, type RuntimePorts, type SharedComposition } from '../src/compose';
+import { NO_PROVEN_CONNECTIONS } from '../src/module/authentication/account.resource';
 import { createPlanCommandRunner } from '../src/module/plan-commands/composition';
 import { runCommandBatch } from '../src/module/plan-commands/run-command-batch';
 import { replay } from '../src/module/realtime/realtime.feature';
@@ -98,6 +99,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
         sign: ({ subject, username }) => Promise.resolve(`${subject}:${username}`),
         verify: () => Promise.resolve(null),
       },
+      enterprise: NO_PROVEN_CONNECTIONS,
     },
     shared,
   });

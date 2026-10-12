@@ -1,9 +1,10 @@
-import { AccountResource } from '../module/authentication/account.resource';
+import { AccountResource, NO_PROVEN_CONNECTIONS } from '../module/authentication/account.resource';
 import {
   AuthService as AuthenticationFeature,
   type AuthServiceOptions as AuthenticationOptions,
 } from '../module/authentication/authentication.feature';
 import type { Clock } from '../ports/clock';
+import type { EnterpriseConnections } from '../ports/enterprise-connections';
 import type { OidcIdentityStore, UserStore } from '../ports/user-store';
 
 export type {
@@ -19,6 +20,12 @@ export interface AuthServiceOptions extends Omit<AuthenticationOptions, 'account
   users: UserStore;
   identities?: OidcIdentityStore;
   clock: Clock;
+  /**
+   * Which enterprise connections are proven. Absent, none is: every
+   * enterprise identity's email is untrusted, which is the fail-closed answer
+   * for the adapter tests this compatibility constructor serves.
+   */
+  enterprise?: Pick<EnterpriseConnections, 'provenFor'>;
 }
 
 /** Compatibility construction over repository stores; sealed graphs install the feature directly. */
@@ -36,6 +43,7 @@ export class AuthService extends AuthenticationFeature {
         users: options.users,
         ...(options.identities === undefined ? {} : { identities: options.identities }),
         clock: options.clock,
+        enterprise: options.enterprise ?? NO_PROVEN_CONNECTIONS,
       }),
     });
   }
