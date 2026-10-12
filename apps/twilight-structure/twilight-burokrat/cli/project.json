@@ -18,8 +18,7 @@
         "{projectRoot}/package.json",
         "{projectRoot}/NOTICE",
         "{workspaceRoot}/infra/ci/burokrat/**/*",
-        "{workspaceRoot}/bin/tool-wiki-*.sh",
-        "{workspaceRoot}/.bun-version"
+        "{workspaceRoot}/bin/tool-wiki-*.sh"
       ],
       "options": {
         "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --path-ignore-patterns '**/packaging/consumer-bootstrap.test.ts' --preload ../../../../tools/test/scratch/preload.ts --timeout=60000",
