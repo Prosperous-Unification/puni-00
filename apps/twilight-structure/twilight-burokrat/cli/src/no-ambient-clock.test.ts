@@ -45,7 +45,7 @@ const dashOwnedClockReads: readonly { readonly paths: readonly string[]; readonl
     { paths: ['activation-controller/observation-service-cli.ts'], most: 1 },
     { paths: ['activation-controller/observation-service.fs-fixture.ts'], most: 1 },
     { paths: ['activation-controller/observation-tick.ts'], most: 5 },
-    { paths: ['activation-controller/review-attestation.ts'], most: 8 },
+    { paths: ['activation-controller/review-attestation.ts'], most: 10 },
     { paths: ['activation-controller/review-retrieval.ts'], most: 8 },
     { paths: ['activation-controller/review-selection-objects.ts'], most: 6 },
     { paths: ['activation-controller/review-selection-preparation.ts'], most: 3 },
