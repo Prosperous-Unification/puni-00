@@ -2418,3 +2418,40 @@ The complete affected shard 3 command `CI=1 E2E_PORT_SHIFT=3900 bunx playwright 
 After every injected fault was removed, the two original hover tests passed again, 2/2 in 13.0s (`/tmp/round13-final-focused.log`). `bunx tsc -p apps/wbs/fe-01/tsconfig.json --noEmit`, changed-file Prettier and `git diff --check` passed. Direct changed-file ESLint exited 0 but explicitly skipped `@nx/enforce-module-boundaries` because no cached ProjectGraph was available; that rule remains for the coordinator's canonical gate. No standalone `openspec` executable was available on this local PATH, so standalone OpenSpec validation was not run. The coordinator owns `bin/h2puni-gate.sh <integrated-sha>` and its OpenSpec validation after integration.
 
 The dedicated fourth-shard command `CI=1 E2E_PORT_SHIFT=4400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts --shard=4/4 --output=/tmp/round13-shard4-owned-results --reporter=line` exited 0: 76 passed, 39 skipped in 5.0m (`/tmp/round13-pixel-shard4-owned.log`). Those 39 suite-declared skips were not executed. All seven formerly failing Steps cases passed in this complete shard. Full pixel shards 1/4 and 2/4 were not rerun locally; the changed folded-budget case and the changed visible-pair case from those shards were run separately as recorded above.
+
+## 2026-10-13 — cancellation fixture readiness race
+
+PR #380 workspace job `115045539439`, source `a478c109d`, failed the cancellation
+fixture at `expect(ready).toBe(true)` after its 60-second readiness wait. The CI
+log retained no supervisor diagnostic, so the precise cause of that invocation
+cannot be recovered. The coordinator reported that the same source passed this
+suite in the host gate and passed the workspace gate through stacked PR #387.
+
+The focused unchanged cancellation test passed locally in 2.68s. Its readiness
+probe actively bound each service port while production preflight independently
+required those ports to be free. Injecting a 1000ms scheduling pause between the
+probe's successful bind and close reproduced the CI assertion failure in 60.27s;
+the retained supervisor diagnostic was `Performance shifted port 9100 is occupied`
+with `EADDRINUSE` from production `assertShiftedPortsFree`. A 100ms pause passed.
+This proves a scheduling-dependent self-collision, though the original CI run's
+missing diagnostic prevents attributing that particular failure conclusively.
+
+Readiness now observes HTTP 200 from each fixture service, retries only connection
+refusal, and surfaces early supervisor failure. The post-cancellation bind checks
+still prove the shifted ports are free. The corrected cancellation test passed in
+2.92s and passed in 4.69s with the same 1000ms pause before the observer returned.
+A separately injected foreign listener on 10200 produced the named production
+occupied-port refusal in 241ms instead of obscuring it behind the 60-second wait.
+All injected faults were removed.
+
+Validation:
+
+- `bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-devsync/src/performance-level.test.ts tools/tool-devsync/src/performance-supervisor-test.test.ts --test-name-pattern 'a cancelled supervisor|occupied shifted port|failed service readiness|drains a full stderr|bounds a'`: 18 passed, 51 filtered, 0 failed, 59.54s.
+- `NX_DAEMON=false bunx nx run tool-devsync:lint:fast`: passed in 9.0s, including the module-boundary rule. Earlier direct ESLint lacked a cached graph; the Nx run resolved that limitation.
+- `bunx tsc --build --force tools/tool-devsync/tsconfig.json`: passed.
+- Changed-file Prettier and `git diff --check`: passed.
+
+Port-binding tests required sandbox escalation because sandboxed listeners fail
+with `Failed to listen at ::`. No full Nx suite, canonical host gate, full
+Performance test file, or standalone OpenSpec validation was run for this
+isolated test-only patch; the coordinator owns the integrated revision's gate.
