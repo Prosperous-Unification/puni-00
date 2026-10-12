@@ -32,8 +32,10 @@ import {
   isWithin,
   isWritableRelationshipType,
   lastWorkdayOf,
+  MAX_ESTIMATE_DAYS,
   MEASURE_METRICS,
   type MeasureMetric,
+  minuteTrioProblem,
   nextWorkday,
   type NodeReading,
   orderSteps,
@@ -800,6 +802,9 @@ export type WorkItemRefusal =
    * foreign keys, so without this the write reaches the database and answers
    * 500 for a request whose only fault is being out of date.
    */
+  | 'minutes_not_integer'
+  | 'minutes_above_max'
+  | 'invalid_estimate'
   | 'unknown_step'
   /**
    * A figure in a unit this release does not keep — anything outside
@@ -4049,8 +4054,16 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    if (!(await this.holdsStep(workItem.projectId, stepId)))
-      return { ok: false, reason: 'unknown_step' };
+    const step = (await this.opts.projects.stepsOf(workItem.projectId)).find(
+      (each) => each.id === stepId,
+    );
+    if (step === undefined) return { ok: false, reason: 'unknown_step' };
+    // Proof: skipping the unit branch admitted 1.5 minutes, 200 instead of 422 in the mounted estimate-unit boundary test (2026-10-12).
+    if (step.estimateUnit === 'minutes') {
+      const problem = minuteTrioProblem(days);
+      if (problem !== null) return { ok: false, reason: problem };
+    } else if (days.pessimistic > MAX_ESTIMATE_DAYS)
+      return { ok: false, reason: 'invalid_estimate' };
     const before = await this.storedTrio(workItem.projectId, id, stepId);
     const stamp = this.clock.stampFor(actorId);
     const written = await this.opts.estimates.set({ workItemId: id, stepId, ...days }, stamp);

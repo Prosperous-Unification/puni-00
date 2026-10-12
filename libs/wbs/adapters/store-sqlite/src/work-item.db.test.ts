@@ -66,7 +66,17 @@ beforeEach(async () => {
       id: projectId,
       ownerId,
     }),
-    [{ id: stepId, projectId, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 }],
+    [
+      {
+        id: stepId,
+        projectId,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
+    ],
     wrote(),
   );
   personId = (

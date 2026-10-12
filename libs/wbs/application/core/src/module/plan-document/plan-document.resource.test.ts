@@ -124,6 +124,7 @@ const TREE: WorkItemTree = {
       position: 10,
       code: 'build',
       allowancePercent: 30,
+      estimateUnit: 'workdays' as const,
     },
   ],
   assignedPeople: [{ id: 'person-used', name: 'Kat' }],

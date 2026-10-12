@@ -142,5 +142,6 @@ export type EstimateUnit = (typeof ESTIMATE_UNITS)[number];
 
 /** Admits the two stored and posted estimate units described in ADR 0042. */
 export function isEstimateUnit(value: unknown): value is EstimateUnit {
+  // Proof: accepting every string reached SQLite's CHECK and returned 500 instead of 422 for hours in step.controller.db.test.ts (2026-10-12).
   return typeof value === 'string' && (ESTIMATE_UNITS as readonly string[]).includes(value);
 }

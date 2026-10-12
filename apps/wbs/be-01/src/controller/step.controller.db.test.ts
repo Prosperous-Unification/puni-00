@@ -17,13 +17,14 @@ import { buildApp } from '../app';
 import type { Step, WorkItem, WriteStamp } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
-import { openDrizzle } from '../repository/db';
+import { openDatabase, openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
-import { OPEN } from '../repository/gate';
+import { OPEN, WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
+import { sqliteUnitOfWork } from '../repository/sqlite-unit-of-work';
 import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
@@ -31,6 +32,7 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { fastScheduler } from '../service/optimizer-wiring';
+import { buildStores } from '../services';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
@@ -187,7 +189,7 @@ beforeEach(async () => {
       priorityBands: inMemoryPriorityBands(),
       subtrees: new SubtreeRepository(db, OPEN),
       journal: new CommandJournalRepository(db, OPEN),
-      broadcast: recordingBroadcaster(),
+      broadcast: announcements,
     }),
   };
   writes = testWrites(broadcast, writing);
@@ -213,7 +215,7 @@ beforeEach(async () => {
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
-    writes,
+    writes: { ...writes, uow: sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN)) },
     migrationsApplied: true,
   });
 });
@@ -551,6 +553,7 @@ describe('PATCH /api/projects/:id/steps/:stepId', () => {
         position: 20,
         code: 'qa',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
     });
   });
@@ -1137,5 +1140,127 @@ describe('a project step allowance over HTTP', () => {
 
     expect(undone.status).toBe(409);
     expect(await undone.json()).toMatchObject({ error: 'stale_undo' });
+  });
+});
+
+describe('estimate unit boundary', () => {
+  it('creates a minute step and absent unit reads workdays', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    expect(await stepStore.findById(project.devId)).toMatchObject({ estimateUnit: 'workdays' });
+    const response = await send(`/api/projects/${project.id}/steps`, token, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Agent', estimateUnit: 'minutes' }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ step: { estimateUnit: 'minutes' } });
+  });
+  it('refuses an unknown unit and changing a unit over three estimates, then changes after clearing', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    const patch = (unit: string) =>
+      send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ estimateUnit: unit }),
+      });
+    const unknown = await patch('hours');
+    expect(unknown.status).toBe(422);
+    expect(await unknown.json()).toEqual({ error: 'invalid_estimate_unit' });
+    for (const name of ['A', 'B', 'C']) {
+      const id = await newWorkItem(project.id, token, name);
+      expect(
+        (
+          await planCommand(project.id, token, {
+            kind: 'setEstimate',
+            workItemId: id,
+            stepId: project.devId,
+            days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+          })
+        ).status,
+      ).toBe(200);
+    }
+    const conflict = await patch('minutes');
+    expect(conflict.status).toBe(409);
+    expect(await conflict.json()).toEqual({ error: 'estimates_present', count: 3 });
+    for (const row of await workItems.listByProject(project.id))
+      expect(
+        (
+          await planCommand(project.id, token, {
+            kind: 'clearEstimate',
+            workItemId: row.id,
+            stepId: project.devId,
+          })
+        ).status,
+      ).toBe(200);
+    const changed = await patch('minutes');
+    expect(changed.status).toBe(200);
+    expect(await changed.json()).toMatchObject({ step: { estimateUnit: 'minutes' } });
+  });
+  it('stores whole minutes and refuses fractional and above-max minute commands atomically', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    const added = await send(`/api/projects/${project.id}/steps`, token, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Agent', estimateUnit: 'minutes' }),
+    });
+    expect(added.status).toBe(200);
+    const { step } = (await added.json()) as { step: Step };
+    const id = await newWorkItem(project.id, token, 'A');
+    const initial = await planCommand(project.id, token, {
+      kind: 'setEstimate',
+      workItemId: id,
+      stepId: step.id,
+      days: { optimistic: 30, realistic: 40, pessimistic: 90 },
+    });
+    expect(initial.status).toBe(200);
+    const connection = openDatabase(join(dir, 'test.db'));
+    const counts = () => ({
+      journal: connection.query('SELECT * FROM command_journal').all(),
+      events: connection.query('SELECT * FROM plan_event').all(),
+    });
+    const before = counts();
+    const emitted = broadcast.published.length;
+    for (const [point, reason] of [
+      [1.5, 'minutes_not_integer'],
+      [21_474_836_161, 'minutes_above_max'],
+    ] as const) {
+      const response = await send(`/api/projects/${project.id}/commands`, token, {
+        method: 'POST',
+        body: JSON.stringify({
+          commands: [
+            { kind: 'patchWorkItem', workItemId: id, patch: { name: 'Should roll back' } },
+            {
+              kind: 'setEstimate',
+              workItemId: id,
+              stepId: step.id,
+              days: { optimistic: point, realistic: point, pessimistic: point },
+            },
+          ],
+        }),
+      });
+      expect(response.status).toBe(422);
+      expect(await response.json()).toMatchObject({ error: reason, at: 1 });
+      expect(await workItems.findById(id)).toMatchObject({ name: 'A' });
+      expect(counts()).toEqual(before);
+      expect(broadcast.published.length).toBe(emitted);
+    }
+    connection.close();
+  });
+  it('refuses workday overflow after structural parsing with the command index', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    const id = await newWorkItem(project.id, token, 'A');
+    const response = await planCommand(project.id, token, {
+      kind: 'setEstimate',
+      workItemId: id,
+      stepId: project.devId,
+      days: { optimistic: 44_739_243, realistic: 44_739_243, pessimistic: 44_739_243 },
+    });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({
+      error: 'invalid_estimate',
+      at: 0,
+      kind: 'setEstimate',
+    });
   });
 });

@@ -300,7 +300,13 @@ describe('the write coordinator', () => {
 
     const writes = [
       stepStore.add(
-        { id: crypto.randomUUID(), projectId, name: 'Wiring', allowancePercent: 0 },
+        {
+          id: crypto.randomUUID(),
+          projectId,
+          name: 'Wiring',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
         stamp,
       ),
       publicDirectory.addTag({ id: crypto.randomUUID(), name: 'urgent' }, stamp),

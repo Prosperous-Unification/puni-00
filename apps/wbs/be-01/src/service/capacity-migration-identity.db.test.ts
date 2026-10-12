@@ -648,6 +648,7 @@ describe('every plan schedules identically across the migration', () => {
       code: `step-${String(place)}`,
       position: (place + 1) * STEP_POSITION_STEP,
       allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
     }));
     await projects.create(project, steps, STAMP);
     for (const row of plan.rows) {

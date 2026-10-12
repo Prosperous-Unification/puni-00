@@ -65,3 +65,61 @@ Rollback CLI usage and unmigrated database test: 1 pass, 7 assertions.
 
 Save/remove/restore round-trip and its remove-row fault await slice 3's column. No minute
 writes are enabled. Domain lint/typecheck passed at slice 1; canonical saved-plan tests 29 pass.
+
+## Slice 3 — storage (2026-10-12)
+
+Allocated `20261012130000_add_step_estimate_unit` after main `99f588257`'s latest
+`20261012120000_add_step_node_attempts` and the puni-plan integration queue. PM independently
+confirmed no collision. Storage focused migration tests 4 pass; step repository suite 37 pass;
+CLI unit usage + roundtrip 2 pass, 31 assertions. Migration lint exit 0. Store SQLite typecheck
+exit 0 after adding the required field to existing step builders and fixtures.
+
+| Check                     | Fault injected                     | Test that observed it                    | Observed                                                  |
+| ------------------------- | ---------------------------------- | ---------------------------------------- | --------------------------------------------------------- |
+| Rollback minute guard     | remove guard statements            | refuses rollback over a minutes step     | exit 1; rollback returned instead of naming CLI           |
+| SQLite unit vocabulary    | remove CHECK                       | refuses hours through its CHECK          | exit 1; invalid UPDATE did not throw                      |
+| Remove saved minute trios | omit DELETE                        | minute-unit CLI roundtrip                | exit 1; four trios remained after remove                  |
+| Unmigrated column         | bypass assertUnitColumn            | estimate unit CLI usage/unmigrated       | exit 1; raw missing-column stack instead of named refusal |
+| Save version              | widen version schema to number     | minute-unit CLI roundtrip malformed save | exit 1; version refusal absent                            |
+| Stale save                | bypass current comparison          | minute-unit CLI roundtrip stale save     | exit 1; remove succeeded after estimate changed           |
+| Missing restored step     | bypass current-step guard          | minute-unit CLI roundtrip missing step   | exit 1; restore succeeded for missing step                |
+| Occupied restored step    | bypass estimate-count guard        | minute-unit CLI roundtrip occupied step  | exit 1; raw primary-key failure replaced named refusal    |
+| Orphan saved row          | bypass saved-step membership guard | minute-unit CLI roundtrip orphan row     | exit 1; raw foreign-key failure replaced named refusal    |
+
+All files restored. Unit patching remains for slice 4, so task 3.2 stays open until that
+store operation is implemented. No public minute writes are enabled at this checkpoint.
+
+## Slice 4 — transactional write boundary (2026-10-12)
+
+Full step controller and step contract suites: 43 pass, 248 assertions. Focused unit boundary
+suite after adding ordinary workday overflow: 4 pass, 29 assertions. Contract and core
+(including module) typechecks exit 0. The migration ordering regression suite is 91 pass,
+427 assertions; its initial failures were expected migration ordering/newest-stamp assertions,
+now updated. The memory step count test passes and its count-bypass mutation fails.
+
+The normalizer remains pure and now checks finite, nonnegative, ordered figures with no
+unit maximum. Astra approved reading the Step in `WorkItemService.setEstimate` inside the
+command UoW; D6 and tasks 4.2/4.3 now record this correction. Mounted invalid minute batches
+prove rollback of the preceding rename, command journal and plan history, and no captured
+broadcast escapes. The original harness counted rollback without performing one; this
+SQLite harness now uses the real SQLite UoW. Whole-minute figures above the workday maximum
+parse structurally; a successful mounted write at that size awaits slice 5's minute placement.
+
+| Check                      | Fault injected              | Test that observed it             | Observed                                         |
+| -------------------------- | --------------------------- | --------------------------------- | ------------------------------------------------ |
+| Unit change with estimates | bypass SQLite count refusal | mounted three-estimate step patch | 200 instead of 409                               |
+| Minute write validation    | skip service unit branch    | mounted fractional minute command | 200 instead of 422                               |
+| Posted vocabulary          | accept every string         | mounted hours step patch          | SQLite CHECK/500 instead of 422                  |
+| Memory count parity        | bypass memory count refusal | step-unit.test.ts                 | conversion succeeds instead of estimates_present |
+
+All mutated files restored. This isolated branch enables minute writes and MUST NOT be
+released until slices 6 and 7 preserve documents/saved plans and validate/render frontend units.
+Task 4.1 remains open for the valid above-workday-cap mounted minute write and tool-document
+coverage. Slices 5–8 and the final host gate have not run.
+
+Additional R5 proofs: removing the structural finite check admitted Infinity (EstimateTrio
+nonfinite test, exit 1). Injecting an absent estimate-count row and removing its guard
+produced raw TypeError instead of the named refusal (step.db.test.ts, exit 1). Both restored.
+Checkpoint focused tests: 92 pass/270 assertions before the added missing-count test;
+core, store-memory and store-sqlite typechecks all exit 0. Direct affected-file ESLint exit 0;
+OpenSpec estimate-units validation valid=true. Final all-change validation and host gate pending.

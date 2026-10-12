@@ -3,6 +3,7 @@ import {
   type AllowancePercent,
   ATTEMPT_OUTCOMES,
   DOMAIN_CLAIM_STATUSES,
+  type EstimateUnit,
   HOLDS,
   INVITABLE_ROLES,
   JOIN_REQUEST_STATUSES,
@@ -822,9 +823,12 @@ export const step = sqliteTable(
      * back to what it was. Not part of `Step`: nothing but the journal reads it.
      */
     allowanceRevision: integer('allowance_revision').notNull().default(0),
+    /** Trio units on this step; legacy writers omit it and record their workday arithmetic (ADR 0042). */
+    estimateUnit: text('estimate_unit').$type<EstimateUnit>().notNull().default('workdays'),
     ...auditColumns(),
   },
   (t) => [
+    check('step_estimate_unit', sql`${t.estimateUnit} IN ('workdays', 'minutes')`),
     uniqueIndex('step_project_name').on(t.projectId, t.name),
     uniqueIndex('step_project_code')
       .on(t.projectId, t.code)

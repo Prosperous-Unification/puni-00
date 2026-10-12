@@ -18,8 +18,8 @@ export const MAX_ESTIMATE_DAYS = 44_739_242;
 /**
  * Three durations in the step’s estimate unit for one work item and one step.
  *
- * Days, not hours, and fractional days are allowed: half a day is a real
- * estimate and rounding it up is a lie the plan then carries.
+ * Structural parsing is unit neutral. Workday fractions and whole-minute
+ * bounds are checked by the boundary that knows the addressed step.
  *
  * The ordering is part of the type rather than a rule the callers remember.
  * `optimistic` is the run where no unknown unknowns appear, `pessimistic` is the
@@ -27,19 +27,25 @@ export const MAX_ESTIMATE_DAYS = 44_739_242;
  * rather than the midpoint of the two — which is why it is asserted to sit
  * between them and not computed from them.
  */
-export const ThreePointEstimate = type({
+export const EstimateTrio = type({
   optimistic: 'number>=0',
   realistic: 'number>=0',
   pessimistic: 'number>=0',
 }).narrow((estimate, ctx) => {
+  // Proof: removing finite validation admitted Infinity in EstimateTrio's nonfinite case (2026-10-12).
+  if (![estimate.optimistic, estimate.realistic, estimate.pessimistic].every(Number.isFinite))
+    return ctx.mustBe('finite durations');
   if (!(estimate.optimistic <= estimate.realistic && estimate.realistic <= estimate.pessimistic)) {
     return ctx.mustBe('ordered optimistic <= realistic <= pessimistic');
   }
-  if (estimate.pessimistic > MAX_ESTIMATE_DAYS) {
-    return ctx.mustBe(`no point above ${String(MAX_ESTIMATE_DAYS)} days`);
-  }
   return true;
 });
+/** Workday trio boundary; minute maxima are checked against their step inside the write transaction (ADR 0042). */
+export const ThreePointEstimate = EstimateTrio.narrow(
+  (estimate, ctx) =>
+    estimate.pessimistic <= MAX_ESTIMATE_DAYS ||
+    ctx.mustBe(`no point above ${String(MAX_ESTIMATE_DAYS)} days`),
+);
 export type ThreePointEstimate = typeof ThreePointEstimate.infer;
 
 /** A three-point estimate together with the step it was given for. */

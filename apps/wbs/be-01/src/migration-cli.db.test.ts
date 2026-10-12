@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
+import type { SavedEstimateUnits } from '@wbs/store-sqlite/estimate-unit-rollback';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
 import { afterEach, describe, expect, it } from 'bun:test';
 
@@ -304,7 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261012120000_add_step_node_attempts');
+    expect(baselineLedger.at(-1)?.name).toBe('20261012130000_add_step_estimate_unit');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1328,6 +1329,127 @@ describe('migration deploy entrypoints', () => {
     expect(missingArgument.exitCode).not.toBe(0);
     expect(missingArgument.stderr).toContain('usage:');
   }, 60_000);
+
+  it('saves, removes and restores minute-unit steps through the rollback CLI', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-unit-round-trip-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const savedPath = join(root, 'units.json');
+    runMigrations(dbPath, MIGRATIONS);
+    const read = () => {
+      const sqlite = openDatabase(dbPath);
+      try {
+        return {
+          steps: sqlite.query('SELECT id,estimate_unit FROM step ORDER BY id').all(),
+          rows: sqlite.query('SELECT * FROM estimate ORDER BY work_item_id,step_id').all(),
+        };
+      } finally {
+        sqlite.close();
+      }
+    };
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run(
+        "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
+      );
+      sqlite.run("INSERT INTO project (id,name,owner_id,created_at) VALUES ('p','Project','u',1)");
+      sqlite.run(
+        "INSERT INTO step (id,project_id,name,position,estimate_unit) VALUES ('dev','p','Dev',10,'minutes'),('qa','p','QA',20,'minutes')",
+      );
+      sqlite.run(
+        "INSERT INTO work_item (id,project_id,position,name) VALUES ('a','p',1,'A'),('b','p',2,'B')",
+      );
+      sqlite.run(
+        "INSERT INTO estimate (work_item_id,step_id,optimistic,realistic,pessimistic,created_at,updated_at,created_by) VALUES ('a','dev',30,40,90,1,2,'u'),('a','qa',4,5,6,3,4,'u'),('b','dev',10,12,15,5,6,'u'),('b','qa',0,0,0,7,8,'u')",
+      );
+    } finally {
+      sqlite.close();
+    }
+    const before = read();
+    expect(before.rows).toHaveLength(4);
+    const save = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'save', savedPath);
+    expect(save.stderr).toBe('');
+    expect(save.exitCode).toBe(0);
+    const saved = (await Bun.file(savedPath).json()) as SavedEstimateUnits;
+    const invalidPath = join(root, 'invalid.json');
+    await Bun.write(invalidPath, JSON.stringify({ ...saved, version: 2 }));
+    const malformed = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'remove', invalidPath);
+    expect(malformed.exitCode).not.toBe(0);
+    expect(malformed.stderr).toContain('version');
+    const changed = openDatabase(dbPath);
+    try {
+      changed.run("UPDATE estimate SET realistic=41 WHERE work_item_id='a' AND step_id='dev'");
+    } finally {
+      changed.close();
+    }
+    const stale = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'remove', savedPath);
+    expect(stale.exitCode).not.toBe(0);
+    expect(stale.stderr).toContain('does not match');
+    const reset = openDatabase(dbPath);
+    try {
+      reset.run("UPDATE estimate SET realistic=40 WHERE work_item_id='a' AND step_id='dev'");
+    } finally {
+      reset.close();
+    }
+    const remove = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'remove', savedPath);
+    expect(remove.stderr).toBe('');
+    expect(remove.exitCode).toBe(0);
+    expect(read()).toEqual({
+      steps: [
+        { id: 'dev', estimate_unit: 'workdays' },
+        { id: 'qa', estimate_unit: 'workdays' },
+      ],
+      rows: [],
+    });
+    const down = await runCli(
+      'migrate-down-cli.ts',
+      dbPath,
+      '--to=20261012120000_add_step_node_attempts',
+    );
+    expect(down.stderr).toBe('');
+    expect(down.exitCode).toBe(0);
+    expect((await runCli('migrate-cli.ts', dbPath)).exitCode).toBe(0);
+    for (const [fault, damaged, message] of [
+      [
+        'missing-step',
+        { ...saved, steps: [...saved.steps, { id: 'gone', estimate_unit: 'minutes' }] },
+        'missing or no longer workdays',
+      ],
+      [
+        'orphan-row',
+        { ...saved, rows: [{ ...saved.rows[0], step_id: 'gone' }] },
+        'has no minute step',
+      ],
+    ] as const) {
+      const damagedPath = join(root, `${fault}.json`);
+      await Bun.write(damagedPath, JSON.stringify(damaged));
+      const refused = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'restore', damagedPath);
+      expect(refused.exitCode).not.toBe(0);
+      expect(refused.stderr).toContain(message);
+      expect(read().rows).toEqual([]);
+    }
+    const occupied = openDatabase(dbPath);
+    try {
+      occupied.run(
+        "INSERT INTO estimate (work_item_id,step_id,optimistic,realistic,pessimistic) VALUES ('a','dev',1,1,1)",
+      );
+    } finally {
+      occupied.close();
+    }
+    const conflict = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'restore', savedPath);
+    expect(conflict.exitCode).not.toBe(0);
+    expect(conflict.stderr).toContain('holds new estimates');
+    const cleared = openDatabase(dbPath);
+    try {
+      cleared.run('DELETE FROM estimate');
+    } finally {
+      cleared.close();
+    }
+    const restore = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'restore', savedPath);
+    expect(restore.stderr).toBe('');
+    expect(restore.exitCode).toBe(0);
+    expect(read()).toEqual(before);
+  }, 60000);
 
   it('saves, removes and restores attempts through the rollback CLI', async () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-attempt-round-trip-'));

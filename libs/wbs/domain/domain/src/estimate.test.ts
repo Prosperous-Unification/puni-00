@@ -15,6 +15,7 @@ import {
   ESTIMATE_ROUNDINGS,
   type EstimateMethod,
   type EstimateRule,
+  EstimateTrio,
   expectedDays,
   isEstimateMethod,
   isEstimateRounding,
@@ -415,5 +416,24 @@ describe('minute estimates', () => {
     expect(
       minuteTrioProblem({ optimistic: 0, realistic: 1, pessimistic: MAX_ESTIMATE_MINUTES }),
     ).toBeNull();
+  });
+});
+
+describe('EstimateTrio', () => {
+  it('accepts finite minute figures above the workday cap before unit validation', () => {
+    const points = {
+      optimistic: MAX_ESTIMATE_DAYS + 1,
+      realistic: MAX_ESTIMATE_DAYS + 1,
+      pessimistic: MAX_ESTIMATE_DAYS + 1,
+    };
+    expect(parseOrThrow(EstimateTrio, points)).toEqual(points);
+  });
+  it('refuses nonfinite, negative and unordered points', () => {
+    for (const points of [
+      { optimistic: 1, realistic: 2, pessimistic: Infinity },
+      { optimistic: -1, realistic: 2, pessimistic: 3 },
+      { optimistic: 3, realistic: 2, pessimistic: 4 },
+    ])
+      expect(() => parseOrThrow(EstimateTrio, points)).toThrow(ValidationError);
   });
 });

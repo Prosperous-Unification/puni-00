@@ -37,25 +37,25 @@
       `ESTIMATE_UNITS`; `libs/wbs/adapters/store-sqlite/src/estimate-unit-rollback.ts`
       (`save`, `remove`, `restore`) and `apps/wbs/be-01/src/estimate-unit-rollback-cli.ts`;
       runbook anchor `#estimate-unit-rollback` in `docs/runbook-prod-deploy.md`.
-- [ ] 2.3 Negatives: `ESTIMATE_UNITS_VOCABULARY` left out of `STORED_VOCABULARIES` → the three
+- [x] 2.3 Negatives: `ESTIMATE_UNITS_VOCABULARY` left out of `STORED_VOCABULARIES` → the three
       swap cases; the CLI's directory check replaced by an unconditional `['workdays']` → the
       missing-`src` docker case; the rollback CLI's usage guard bypassed → the usage case;
       `remove` leaving the estimate rows → the round-trip case reads minute trios as days.
 
 ## 3. Storage and migration
 
-- [ ] 3.1 Red: `libs/wbs/adapters/store-sqlite/src/step-estimate-unit-migration.db.test.ts`
+- [x] 3.1 Red: `libs/wbs/adapters/store-sqlite/src/step-estimate-unit-migration.db.test.ts`
       (apply; an old-writer three-column insert reads `workdays`; a `CHECK` refusal of
       `hours`; rollback refused over a `minutes` step naming the CLI; rollback and re-apply
       over workday steps); `step.db.test.ts` reads and writes the unit;
       `migration-cli.db.test.ts` "saves, removes and restores minute-unit steps through the
       rollback CLI" (two steps, four rows, verbatim); every migration-enumerating db test lists
       the new folder.
-- [ ] 3.2 Green: stamp allocated now against `origin/main` and the integration queue, written
+- [x] 3.2 Green: stamp allocated now against `origin/main` and the integration queue, written
       into `design.md`; `apps/wbs/be-01/drizzle/<stamp>_add_step_estimate_unit/{migration,down}.sql`;
       `schema.ts` column; `StepRepository` reads and patches `estimateUnit`; migration lint
       (`bun run tools/tool-git-hooks/src/hooks/migration-lint.ts`) exit 0.
-- [ ] 3.3 Negatives: the `down.sql` guard removed → "rollback refused over a minutes step";
+- [x] 3.3 Negatives: the `down.sql` guard removed → "rollback refused over a minutes step";
       the `CHECK` dropped → "refuses hours".
 
 ## 4. Route and command boundary
@@ -68,11 +68,13 @@
       stored; `1.5` → `422 minutes_not_integer` at its index, earlier commands rolled back;
       above-max → `422 minutes_above_max`); `plan-command-shapes.test.ts` kind count unchanged;
       `document-from-shapes.test.ts` tool descriptions name the unit.
-- [ ] 4.2 Green: `step-shapes.ts` `estimateUnit?` on create and patch, `estimateUnit` on
+- [x] 4.2 Green: `step-shapes.ts` `estimateUnit?` on create and patch, `estimateUnit` on
       reads; `StepService.addWithin`/`patchUnitWithin` with the count in the same transaction;
-      `command-normalizers.ts` `setEstimate` reading the step's unit; refusals in `refusal.ts`.
-- [ ] 4.3 Negatives: the count check removed → the `409` case answers `200`; the unit read
-      skipped in the normalizer (always `workdays`) → the `422 minutes_not_integer` case
+      `command-normalizers.ts` parses finite/nonnegative/ordered trios without a unit cap;
+      `WorkItemService.setEstimate` reads the step inside the command transaction and checks
+      its unit bounds; refusals in `refusal.ts`.
+- [x] 4.3 Negatives: the count check removed → the `409` case answers `200`; the unit read
+      skipped in `WorkItemService.setEstimate` (always `workdays`) → the `422 minutes_not_integer` case
       answers `200`; `isEstimateUnit` reduced to `typeof === 'string'` → `hours` answers `200`.
 
 ## 5. Read shape, roll-up and placement

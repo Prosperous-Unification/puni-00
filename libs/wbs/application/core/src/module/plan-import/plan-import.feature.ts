@@ -298,6 +298,7 @@ export class ImportService {
           position: step.position,
           code: step.code,
           allowancePercent: step.allowancePercent,
+          estimateUnit: 'workdays' as const,
         }));
         const stepsByFileId = new Map(
           prepared.steps.map((step, at) => {

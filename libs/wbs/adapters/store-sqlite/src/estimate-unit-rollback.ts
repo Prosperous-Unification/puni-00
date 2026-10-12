@@ -14,6 +14,7 @@ const SavedEstimate = type({
   created_by: 'string | null',
 });
 const SavedUnit = type({ id: 'string', estimate_unit: "'minutes'" });
+// Proof: widening version to number failed the malformed-save CLI case at its named version refusal (2026-10-12).
 const SavedUnits = type({
   format: "'estimate-unit-save'",
   version: '1',
@@ -29,7 +30,7 @@ type Reader = Pick<Drizzle, 'all'>;
 /** Refuses an unmigrated database rather than claiming an empty save. */
 function assertUnitColumn(db: Reader): void {
   const columns = db.all<{ name: string }>(sql`PRAGMA table_info(step)`);
-  // Proof: CLI unmigrated-database case observes the named refusal rather than a missing-column query failure.
+  // Proof: bypassing this guard failed the CLI unmigrated-database case: a raw missing-column error replaced the named refusal (2026-10-12).
   if (!columns.some((column) => column.name === 'estimate_unit')) {
     throw new Error(
       'step.estimate_unit does not exist: database is not migrated to _add_step_estimate_unit',
@@ -59,8 +60,10 @@ export function removeSavedEstimateUnits(
 ): { steps: number; rows: number } {
   const held = parseOrThrow(SavedUnits, saved);
   return db.transaction((tx) => {
+    // Proof: removing the comparison let remove erase an estimate edited after save; the stale-save CLI assertion failed (2026-10-12).
     if (JSON.stringify(saveEstimateUnits(tx)) !== JSON.stringify(held))
       throw new Error('estimate unit save does not match current steps and estimates');
+    // Proof: leaving these rows failed the CLI roundtrip empty-store assertion with four minute trios left as days (2026-10-12).
     tx.run(
       sql`DELETE FROM estimate WHERE step_id IN (SELECT id FROM step WHERE estimate_unit = 'minutes')`,
     );
@@ -78,16 +81,19 @@ export function restoreEstimateUnits(db: Drizzle, saved: unknown): { steps: numb
       const current = tx.get<{ estimate_unit: string } | undefined>(
         sql`SELECT estimate_unit FROM step WHERE id = ${step.id}`,
       );
+      // Proof: bypassing this guard let a missing saved step restore successfully; CLI roundtrip negative failed (2026-10-12).
       if (current?.estimate_unit !== 'workdays')
         throw new Error(`saved minute step ${step.id} is missing or no longer workdays`);
       const estimates = tx.get<{ count: number } | undefined>(
         sql`SELECT count(*) AS count FROM estimate WHERE step_id = ${step.id}`,
       );
+      // Proof: bypassing this guard reached a raw primary-key conflict instead of the named occupied-step refusal (2026-10-12).
       if (estimates?.count !== 0)
         throw new Error(`saved minute step ${step.id} holds new estimates`);
       tx.run(sql`UPDATE step SET estimate_unit = 'minutes' WHERE id = ${step.id}`);
     }
     for (const row of held.rows) {
+      // Proof: bypassing this guard reached a raw foreign-key failure instead of the named orphan-row refusal (2026-10-12).
       if (!held.steps.some((step) => step.id === row.step_id))
         throw new Error(`saved estimate has no minute step: ${row.step_id}`);
       tx.run(

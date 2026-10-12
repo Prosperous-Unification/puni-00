@@ -132,6 +132,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    '20261012130000_add_step_estimate_unit',
     '20261012120000_add_step_node_attempts',
     '20261012090200_widen_organization_audit',
     '20261012090100_add_browser_auth_times',
@@ -257,6 +258,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        '20261012130000_add_step_estimate_unit',
         '20261012120000_add_step_node_attempts',
         '20261012090200_widen_organization_audit',
         '20261012090100_add_browser_auth_times',
@@ -347,6 +349,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        '20261012130000_add_step_estimate_unit',
         '20261012120000_add_step_node_attempts',
         '20261012090200_widen_organization_audit',
         '20261012090100_add_browser_auth_times',

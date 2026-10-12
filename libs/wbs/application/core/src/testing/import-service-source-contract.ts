@@ -748,6 +748,7 @@ export function importServiceSourceContract(
             position,
             code: suggestStepCode(name, new Set()),
             allowancePercent,
+            estimateUnit: 'workdays' as const,
           })),
           STAMP,
         );

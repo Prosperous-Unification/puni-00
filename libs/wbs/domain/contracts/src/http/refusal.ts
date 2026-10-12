@@ -111,6 +111,8 @@ export type CommandRefusalCode =
    * order the reader did not pick (ADR 0022's reasoning about unmarked dates).
    */
   | 'schedule_not_ready'
+  | 'minutes_not_integer'
+  | 'minutes_above_max'
   | 'rolled_up'
   | 'has_children'
   | 'ancestor'
@@ -284,6 +286,7 @@ type BareRefusalCode =
   | 'unauthorized'
   | 'invalid_body'
   | 'invalid_allowance'
+  | 'invalid_estimate_unit'
   | 'invalid_query'
   | 'unsupported_format'
   | 'bad_start_date'
@@ -384,6 +387,7 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
+    estimates_present: { count: number };
     nothing_to_undo: { detail: string | null };
     stale_undo: { detail: string | null };
     stale_address_revision: { addressRevision: string };

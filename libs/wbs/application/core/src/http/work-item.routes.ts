@@ -317,6 +317,9 @@ function answerBatch(
     case 'no_running_attempt':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     // The instant itself is wrong against any plan state.
+    case 'minutes_not_integer':
+    case 'minutes_above_max':
+    case 'invalid_estimate':
     case 'attempt_in_future':
     case 'attempt_ends_before_start':
       return { ok: false, status: 422, body: { ...context, error: outcome.reason } };

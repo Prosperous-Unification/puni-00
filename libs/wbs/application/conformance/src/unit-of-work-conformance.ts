@@ -43,7 +43,13 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
     stamp: WriteStamp,
   ): Promise<void> => {
     await stores.steps.add(
-      { id: crypto.randomUUID(), projectId, name: 'Wiring', allowancePercent: 0 },
+      {
+        id: crypto.randomUUID(),
+        projectId,
+        name: 'Wiring',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
       stamp,
     );
     await stores.directory.addTag({ id: crypto.randomUUID(), name: 'urgent' }, stamp);
@@ -113,7 +119,13 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
     const { uow, projectId, stamp } = open();
     const answer = await uow.run(async (scope) => {
       await scope.stores.steps.add(
-        { id: crypto.randomUUID(), projectId, name: 'Wiring', allowancePercent: 0 },
+        {
+          id: crypto.randomUUID(),
+          projectId,
+          name: 'Wiring',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
         stamp,
       );
       return { commit: true, value: 'reached the end' as const };
@@ -129,7 +141,13 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
     const survivor = crypto.randomUUID();
     await uow.run<'refused'>(async (scope) => {
       await scope.stores.steps.add(
-        { id: crypto.randomUUID(), projectId, name: 'Wiring', allowancePercent: 0 },
+        {
+          id: crypto.randomUUID(),
+          projectId,
+          name: 'Wiring',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
         stamp,
       );
       return {
@@ -137,7 +155,13 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
         value: 'refused',
         afterRollback: async (repair) => {
           await repair.stores.steps.add(
-            { id: survivor, projectId, name: 'Repaired', allowancePercent: 0 },
+            {
+              id: survivor,
+              projectId,
+              name: 'Repaired',
+              allowancePercent: 0,
+              estimateUnit: 'workdays' as const,
+            },
             stamp,
           );
         },
@@ -152,7 +176,13 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
     const { uow, reader, projectId, stamp } = open();
     const failing = uow.run<'refused'>(async (scope) => {
       await scope.stores.steps.add(
-        { id: crypto.randomUUID(), projectId, name: 'Wiring', allowancePercent: 0 },
+        {
+          id: crypto.randomUUID(),
+          projectId,
+          name: 'Wiring',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
         stamp,
       );
       return {
@@ -168,7 +198,13 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
     // out of the next batch instead of this one.
     const answer = await uow.run(async (scope) => {
       await scope.stores.steps.add(
-        { id: crypto.randomUUID(), projectId, name: 'After', allowancePercent: 0 },
+        {
+          id: crypto.randomUUID(),
+          projectId,
+          name: 'After',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
         stamp,
       );
       return { commit: true, value: 'applied' as const };

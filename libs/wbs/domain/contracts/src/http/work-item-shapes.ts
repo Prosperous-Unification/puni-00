@@ -615,6 +615,9 @@ const batchRefusals = [
     status: 422,
     schema: responseSchema(
       type.or(
+        type({ ...context, error: "'minutes_not_integer'" }),
+        type({ ...context, error: "'minutes_above_max'" }),
+        type({ ...context, error: "'invalid_estimate'" }),
         type({ ...context, error: "'calendar_range'" }),
         type({ ...context, error: "'unsupported_relationship_type'" }),
         type({ ...context, error: "'attempt_in_future'" }),

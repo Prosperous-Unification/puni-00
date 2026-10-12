@@ -54,6 +54,7 @@ describe('calendar_marker', () => {
           position: 10,
           code: 'build',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       wrote,

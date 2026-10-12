@@ -250,7 +250,7 @@ function bindStores(
   workItems = inMemoryWorkItems(directory, state.tables.workItems);
   const dependencies = inMemoryDependencies([], state.tables.dependencies, workItems);
   const typedDependencies = inMemoryTypedDependencies([], state.tables.typedDependencies);
-  const steps = inMemorySteps([], state.tables.steps);
+  const steps = inMemorySteps([], state.tables.steps, state.tables.estimates);
   const estimates = inMemoryEstimates(workItems, state.tables.estimates, steps);
   const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
   const measures = inMemoryMeasures(workItems, state.tables.measures, steps);
@@ -400,7 +400,7 @@ function coordinatedStores(
     ),
     eventLog: coordinatedStore(stores.eventLog, ['recordEvent', 'pruneBeyond'], coordinator),
     planEvents: coordinatedStore(stores.planEvents, ['pruneOlderThan'], coordinator),
-    steps: coordinatedStore(stores.steps, ['add', 'rename', 'remove'], coordinator),
+    steps: coordinatedStore(stores.steps, ['add', 'rename', 'patchUnit', 'remove'], coordinator),
     workItems: coordinatedStore(
       stores.workItems,
       ['insert', 'patch', 'move', 'setPositions', 'setFrozenNumbers', 'remove'],

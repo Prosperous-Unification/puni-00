@@ -374,7 +374,14 @@ describe('adding and renaming a step', () => {
                 JSON.stringify({
                   project: PROJECT,
                   steps: [
-                    { id: 'r3', projectId: 'p1', name: 'QA', position: 0, allowancePercent: 30 },
+                    {
+                      id: 'r3',
+                      projectId: 'p1',
+                      name: 'QA',
+                      position: 0,
+                      allowancePercent: 30,
+                      estimateUnit: 'workdays' as const,
+                    },
                   ],
                 }),
               )
@@ -387,6 +394,7 @@ describe('adding and renaming a step', () => {
                     name: 'Review',
                     position: 0,
                     allowancePercent: 30,
+                    estimateUnit: 'workdays' as const,
                   },
                 }),
               ),
@@ -410,7 +418,14 @@ describe('adding and renaming a step', () => {
         response(
           200,
           JSON.stringify({
-            step: { id: 'r3', projectId: 'p1', name: 'QA', position: 0, allowancePercent: 30 },
+            step: {
+              id: 'r3',
+              projectId: 'p1',
+              name: 'QA',
+              position: 0,
+              allowancePercent: 30,
+              estimateUnit: 'workdays' as const,
+            },
           }),
         ),
       ),
@@ -456,6 +471,7 @@ describe('adding and renaming a step', () => {
               position: 0,
               code: 'design',
               allowancePercent: 0,
+              estimateUnit: 'workdays' as const,
             },
           }),
         ),

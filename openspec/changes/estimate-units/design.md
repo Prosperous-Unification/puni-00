@@ -11,13 +11,13 @@ Nothing here allocates a number. The packet that opens slice 3 (storage) and sli
 `puni-plan/batch-10/integration-queue.txt`, writes the values into this table and records the
 check in `verify.md`.
 
-| What                                  | Pinned on `origin/main` `a3b1526b` (2026-10-11)                                  | Pinning test                                                                                | This change                                                                                      |
-| ------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `PLAN_DOCUMENT_VERSION`               | 6 (`plan-document-shapes.ts`)                                                    | `plan-document.resource.test.ts` "JSON export is a versioned plan document…" (`version: 6`) | next free, allocated at packet time                                                              |
-| `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` | 4 (`canonical-plan-input.ts`)                                                    | `canonical-plan-input.test.ts`; `saved-plans/module.test.ts` (`schemaVersion` 4)            | next free, allocated at packet time                                                              |
-| `SCHEDULER_CONTRACT_VERSION`          | 15 (`contract-version.ts`; 14 in the interview was stale: `432eff1ab` bumped it) | `contract-version.test.ts` (`'15+'`), `wire-contract-version.test.ts`                       | unchanged unless the corpus lint says a new minute-step golden case moves it; decided at slice 5 |
-| Migration stamp                       | newest `20261005110000_add_shared_people`                                        | every migration-enumerating `*.db.test.ts` in `store-sqlite`                                | `<stamp>_add_step_estimate_unit`, allocated at packet time, sorting after the queue              |
-| ADR                                   | 0040 highest; 0041 also on `batch-10/070-12-restore-applied-migration-set`       | `adr-index.test.ts` (contiguous)                                                            | 0041; whichever of the two lands second renumbers                                                |
+| What                                  | Pinned on `origin/main` `a3b1526b` (2026-10-11)                                  | Pinning test                                                                                | This change                                                                                                   |
+| ------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `PLAN_DOCUMENT_VERSION`               | 6 (`plan-document-shapes.ts`)                                                    | `plan-document.resource.test.ts` "JSON export is a versioned plan document…" (`version: 6`) | next free, allocated at packet time                                                                           |
+| `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` | 4 (`canonical-plan-input.ts`)                                                    | `canonical-plan-input.test.ts`; `saved-plans/module.test.ts` (`schemaVersion` 4)            | next free, allocated at packet time                                                                           |
+| `SCHEDULER_CONTRACT_VERSION`          | 15 (`contract-version.ts`; 14 in the interview was stale: `432eff1ab` bumped it) | `contract-version.test.ts` (`'15+'`), `wire-contract-version.test.ts`                       | unchanged unless the corpus lint says a new minute-step golden case moves it; decided at slice 5              |
+| Migration stamp                       | newest `20261005110000_add_shared_people`                                        | every migration-enumerating `*.db.test.ts` in `store-sqlite`                                | `20261012130000_add_step_estimate_unit` (allocated 2026-10-12; main `99f588257`, queue latest 20261012120000) |
+| ADR                                   | 0040 highest; 0041 also on `batch-10/070-12-restore-applied-migration-set`       | `adr-index.test.ts` (contiguous)                                                            | 0041; whichever of the two lands second renumbers                                                             |
 
 ## D1 — Vocabulary in `@wbs/domain`
 
@@ -71,11 +71,15 @@ and it is what lets a rollback deploy over a store holding only workday steps pa
 
 ## D6 — Command and route boundary
 
-The refusals and shapes are in `specs/plan-command-registry/spec.md`. Shape only: `setEstimate`'s
-normalizer reads the step's unit from the step row the transaction already holds for the
-allowance; the `409 estimates_present` count comes from the `estimate_by_step` index in the same
-transaction as the write; `estimateUnit?` lives in `step-shapes.ts` for create and patch and
-`estimateUnit` on reads; the MCP tools derive from the descriptors.
+The refusals and shapes are in `specs/plan-command-registry/spec.md`. The pure
+`setEstimate` normalizer checks finite, nonnegative, ordered points without a unit cap.
+`WorkItemService.setEstimate` reads the step inside the command unit of work, then checks
+workday bounds or whole-minute bounds before writing. This preserves the pure normalizer
+boundary and makes the unit and write observe the same transaction. A later refusal rolls
+back earlier writes, journal entries and history, and publishes no captured events.
+The `409 estimates_present` count comes from the `estimate_by_step` index in the same
+transaction as the unit write. `estimateUnit?` lives in `step-shapes.ts` for create and patch
+and `estimateUnit` on reads; the MCP tools derive from the descriptors.
 
 ## D7 — Documents
 

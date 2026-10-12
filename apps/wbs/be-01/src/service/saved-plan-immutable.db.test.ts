@@ -94,6 +94,7 @@ describe('a saved plan does not move when the live plan does', () => {
           position: 10,
           code: 'dev',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
         {
           id: 'st-2',
@@ -102,6 +103,7 @@ describe('a saved plan does not move when the live plan does', () => {
           position: 20,
           code: 'review',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       wrote,

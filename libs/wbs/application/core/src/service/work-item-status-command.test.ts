@@ -33,6 +33,7 @@ async function newProject(withSteps: boolean): Promise<string> {
             position: 10,
             code: 'dev',
             allowancePercent: 0,
+            estimateUnit: 'workdays' as const,
           },
           {
             id: QA,
@@ -41,6 +42,7 @@ async function newProject(withSteps: boolean): Promise<string> {
             position: 20,
             code: 'qa',
             allowancePercent: 0,
+            estimateUnit: 'workdays' as const,
           },
         ]
       : [],
@@ -552,6 +554,7 @@ describe('the attempt is the better witness (step-node-attempts D4)', () => {
           position: 10,
           code: 'dev',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
         {
           id: QA,
@@ -560,6 +563,7 @@ describe('the attempt is the better witness (step-node-attempts D4)', () => {
           position: 20,
           code: 'qa',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       { at: 1, by: OWNER },
