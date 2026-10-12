@@ -2004,15 +2004,22 @@ test('pointing a visible paired row neither scrolls nor requests row navigation'
     ) {
       throw new Error('a pointed-row pane, target row or target bar is missing');
     }
+    const hit = [...chartPanel.querySelectorAll('[data-gantt-hit]')].find(
+      (surface) => surface.getAttribute('data-gantt-hit') === bar.getAttribute('data-gantt-bar'),
+    );
+    // Proof: removing production hit attributes made Chromium refuse the absent target surface.
+    if (hit === undefined) throw new Error('the target bar has no paired hit surface');
     const tableBox = table.getBoundingClientRect();
     const rowBox = row.getBoundingClientRect();
     const chartBox = chartPanel.getBoundingClientRect();
     const barBox = bar.getBoundingClientRect();
+    const hitBox = hit.getBoundingClientRect();
+    // Proof: translating production hit surfaces 1000 SVG units failed the outside-clip refusal in Chromium.
     const visible = {
-      left: Math.max(barBox.left, chartBox.left, 0),
-      right: Math.min(barBox.right, chartBox.right, window.innerWidth),
-      top: Math.max(barBox.top, chartBox.top, 0),
-      bottom: Math.min(barBox.bottom, chartBox.bottom, window.innerHeight),
+      left: Math.max(barBox.left, hitBox.left, chartBox.left, 0),
+      right: Math.min(barBox.right, hitBox.right, chartBox.right, window.innerWidth),
+      top: Math.max(barBox.top, hitBox.top, chartBox.top, 0),
+      bottom: Math.min(barBox.bottom, hitBox.bottom, chartBox.bottom, window.innerHeight),
     };
     if (visible.left >= visible.right || visible.top >= visible.bottom)
       throw new Error('the first bar is outside the chart client clip or viewport');
@@ -2028,7 +2035,8 @@ test('pointing a visible paired row neither scrolls nor requests row navigation'
       },
       targetInsideTable: rowBox.top >= tableBox.top && rowBox.bottom <= tableBox.bottom,
       point,
-      targetHit: document.elementFromPoint(point.x, point.y)?.closest('[data-gantt-bar]') === bar,
+      // Proof: disabling the production hit rect's pointer events failed the covered-target assertion in Chromium.
+      targetHit: document.elementFromPoint(point.x, point.y)?.closest('[data-gantt-hit]') === hit,
       focused: document.activeElement?.outerHTML,
     };
   });

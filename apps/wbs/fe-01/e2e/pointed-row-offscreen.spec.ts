@@ -66,13 +66,21 @@ test('pointing a visible bar leaves its linked offscreen table row in place', as
         );
         if (label === null || bar === undefined)
           throw new Error(`row ${number} has no paired label or bar`);
+        const hit = [...panel.querySelectorAll('[data-gantt-hit]')].find(
+          (surface) =>
+            surface.getAttribute('data-gantt-hit') === bar.getAttribute('data-gantt-bar'),
+        );
+        // Proof: removing production hit attributes made Chromium refuse row 010's absent paired surface.
+        if (hit === undefined) throw new Error(`row ${number} has no paired bar hit surface`);
         const rowBox = row.getBoundingClientRect();
         const labelBox = label.getBoundingClientRect();
         const barBox = bar.getBoundingClientRect();
-        const left = Math.max(barBox.left, panelBox.left, 0);
-        const right = Math.min(barBox.right, panelBox.right, innerWidth);
-        const top = Math.max(barBox.top, chartTop, panelBox.top, 0);
-        const bottom = Math.min(barBox.bottom, panelBox.bottom, innerHeight);
+        const hitBox = hit.getBoundingClientRect();
+        // Proof: translating production hit surfaces 1000 SVG units made the offscreen premise fail in Chromium.
+        const left = Math.max(barBox.left, hitBox.left, panelBox.left, 0);
+        const right = Math.min(barBox.right, hitBox.right, panelBox.right, innerWidth);
+        const top = Math.max(barBox.top, hitBox.top, chartTop, panelBox.top, 0);
+        const bottom = Math.min(barBox.bottom, hitBox.bottom, panelBox.bottom, innerHeight);
         const point = { x: (left + right) / 2, y: (top + bottom) / 2 };
         return {
           index,
@@ -84,10 +92,11 @@ test('pointing a visible bar leaves its linked offscreen table row in place', as
           barBottom: barBox.bottom,
           rowBelow: rowBox.top >= frameBox.bottom,
           barVisible: left < right && top < bottom,
+          // Proof: disabling the production hit rect's pointer events made the offscreen premise fail in Chromium.
           exactHit:
             left < right &&
             top < bottom &&
-            document.elementFromPoint(point.x, point.y)?.closest('[data-gantt-bar]') === bar,
+            document.elementFromPoint(point.x, point.y)?.closest('[data-gantt-hit]') === hit,
           point,
         };
       });

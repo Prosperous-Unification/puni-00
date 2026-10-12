@@ -67,7 +67,7 @@ async function openSteps(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Project settings' }).click();
   await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
   await page.getByRole('tab', { name: 'Steps' }).click();
-  await expect(page.getByLabel('New step')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'New step', exact: true })).toBeVisible();
 }
 
 let account = 0;
@@ -131,7 +131,7 @@ test.describe('the steps surface, in a browser', () => {
     await signInWithAProject(page, throwaway());
     await openSteps(page);
 
-    await page.getByLabel('New step').fill('Design');
+    await page.getByRole('textbox', { name: 'New step', exact: true }).fill('Design');
     // The whole point of the split `F` shipped on review: the capture listener
     // on `window` claims `?`, Cmd+Z and the command chords for a target on the
     // page, and lets a chord through for a target on the surface. If it did
@@ -163,7 +163,7 @@ test.describe('the steps surface, in a browser', () => {
     await signInWithAProject(page, throwaway());
     await openSteps(page);
 
-    await page.getByLabel('New step').fill('Design');
+    await page.getByRole('textbox', { name: 'New step', exact: true }).fill('Design');
     await page.keyboard.press('Enter');
 
     await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();
@@ -191,7 +191,7 @@ test.describe('the steps surface, in a browser', () => {
     expect(minWidthBefore).toBeGreaterThan(0);
 
     await openSteps(page);
-    await page.getByLabel('New step').fill('Design');
+    await page.getByRole('textbox', { name: 'New step', exact: true }).fill('Design');
     await page.getByRole('button', { name: 'Add step' }).click();
     await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();
 
