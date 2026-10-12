@@ -102,7 +102,8 @@ async function awaitRelease(phase: 'provider' | 'install'): Promise<void> {
   refreshBarrier.phase = null;
 }
 const lifecycle: BrowserAuthLifecycle = {
-  open: (correlation, credential) => storedLifecycle.open(correlation, credential),
+  open: (correlation, credential) =>
+    storedLifecycle.open(correlation, credential, { openedAt: 1, reauthenticatedAt: null }),
   generation: (correlation) => storedLifecycle.generation(correlation),
   proveAssociation: (correlation, presented) =>
     storedLifecycle.proveAssociation(correlation, presented),

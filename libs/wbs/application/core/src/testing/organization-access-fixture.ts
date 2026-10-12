@@ -63,6 +63,8 @@ export const refusingEnterpriseConnections: EnterpriseConnections = {
     Promise.reject(new Error('a login was routed by slug in a suite not about SSO')),
   routeByDomain: () =>
     Promise.reject(new Error('a login was routed by email in a suite not about SSO')),
+  reauthenticationRoute: () =>
+    Promise.reject(new Error('a reauthentication login was routed in a suite not about SSO')),
   provenFor: () =>
     Promise.reject(new Error('an enterprise subject was resolved in a suite not about SSO')),
   linkThroughConnection: () =>

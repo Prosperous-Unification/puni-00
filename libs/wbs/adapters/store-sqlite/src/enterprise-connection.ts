@@ -9,6 +9,7 @@ import {
   type EnterpriseRoute,
   isAttestedEmail,
   type ProvenConnection,
+  type ReauthenticationRoute,
   type RoutedIdentity,
   type RoutedLink,
   subjectPrefixOf,
@@ -388,6 +389,23 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
       .get();
     if (row === undefined) return null;
     return routeOf(this.db, checkedConnection(row));
+  }
+
+  async reauthenticationRoute(organizationId: string): Promise<ReauthenticationRoute> {
+    await Promise.resolve();
+    const enforced = selectConnections(this.db)
+      .where(
+        and(
+          eq(organizationSsoConnection.organizationId, organizationId),
+          eq(organizationSsoConnection.enforced, 1),
+        ),
+      )
+      .orderBy(organizationSsoConnection.loginSlug)
+      .get();
+    return {
+      auth0Connection: enforced === undefined ? null : checkedConnection(enforced).auth0Connection,
+      policy: readSessionPolicy(this.db, organizationId),
+    };
   }
 
   /**

@@ -7,6 +7,13 @@ export interface OidcTransactionInput {
   nonce: string;
   state: string;
   verifier: string;
+  /**
+   * What the transaction asked of the provider for an interactive sign-in:
+   * `prompt=login`, and the `max_age` bound in seconds. The callback reads
+   * them to decide what `auth_time` or its own time proves
+   * (`organization-session-policy`).
+   */
+  reauthentication?: { readonly prompt: 'login'; readonly maxAge: number | null };
 }
 
 /** One bounded explicit link proof, separate from login's account-creating transaction. */
@@ -96,6 +103,7 @@ export class InMemoryOidcLinkStore {
 export interface ConsumedOidcTransaction {
   nonce: string;
   verifier: string;
+  reauthentication?: OidcTransactionInput['reauthentication'];
 }
 
 /**
@@ -235,7 +243,14 @@ export class InMemoryOidcTransactionStore implements OidcTransactionStore {
     if (!sameSecret(transaction.state, state)) return { outcome: 'state_mismatch' };
 
     this.records.delete(key);
-    return { nonce: transaction.nonce, outcome: 'consumed', verifier: transaction.verifier };
+    return {
+      nonce: transaction.nonce,
+      outcome: 'consumed',
+      verifier: transaction.verifier,
+      ...(transaction.reauthentication === undefined
+        ? {}
+        : { reauthentication: transaction.reauthentication }),
+    };
   }
 
   /**

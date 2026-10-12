@@ -53,7 +53,9 @@ test('open, replace and historical close are durable across connections', async 
       secondConnection.db,
       new WriteCoordinator(),
     );
-    expect(await writer.open('opaque-session', first)).toBe(1);
+    expect(
+      await writer.open('opaque-session', first, { openedAt: 1, reauthenticatedAt: null }),
+    ).toBe(1);
     expect(await closer.generation('opaque-session')).toEqual({ generation: 1, current: first });
     await closer.proveAssociation('opaque-session', { kind: 'oidc', digest: first.digest });
     expect(await writer.replace('opaque-session', 1, first, second, 1234)).toBe(2);
@@ -85,8 +87,8 @@ test('generation CAS loses after closure or another replacement without revoking
     const revoked = new SqliteBrowserCredentialRevocations(connection.db, new WriteCoordinator());
     const third = { ...first, digest: 'c'.repeat(64) };
     const independent = { ...first, digest: 'd'.repeat(64) };
-    await lifecycle.open('one', first);
-    await lifecycle.open('independent', independent);
+    await lifecycle.open('one', first, { openedAt: 1, reauthenticatedAt: null });
+    await lifecycle.open('independent', independent, { openedAt: 1, reauthenticatedAt: null });
     expect(
       await failureOf(() =>
         lifecycle.proveAssociation('independent', { kind: 'oidc', digest: first.digest }),
@@ -119,7 +121,10 @@ test('generation CAS loses after closure or another replacement without revoking
 test('two Bun processes capturing one generation publish exactly one successor', async () => {
   const seed = openConnection(path);
   try {
-    await new SqliteBrowserAuthLifecycle(seed.db, new WriteCoordinator()).open('one', first);
+    await new SqliteBrowserAuthLifecycle(seed.db, new WriteCoordinator()).open('one', first, {
+      openedAt: 1,
+      reauthenticatedAt: null,
+    });
   } finally {
     seed.close();
   }
@@ -181,7 +186,7 @@ test('identical bytes and foreign user cannot become a successor', async () => {
   try {
     const lifecycle = new SqliteBrowserAuthLifecycle(connection.db, new WriteCoordinator());
     const revoked = new SqliteBrowserCredentialRevocations(connection.db, new WriteCoordinator());
-    await lifecycle.open('one', first);
+    await lifecycle.open('one', first, { openedAt: 1, reauthenticatedAt: null });
     expect(await failureOf(() => lifecycle.replace('one', 1, first, first, 2))).toBeInstanceOf(
       BrowserLifecycleRefusedError,
     );
@@ -200,7 +205,7 @@ test('replace refuses a predecessor independently revoked through B1', async () 
   try {
     const lifecycle = new SqliteBrowserAuthLifecycle(connection.db, new WriteCoordinator());
     const revoked = new SqliteBrowserCredentialRevocations(connection.db, new WriteCoordinator());
-    await lifecycle.open('one', first);
+    await lifecycle.open('one', first, { openedAt: 1, reauthenticatedAt: null });
     await revoked.revoke(first, 1);
     expect(await failureOf(() => lifecycle.generation('one'))).toBeInstanceOf(
       BrowserLifecycleRefusedError,
@@ -220,7 +225,7 @@ test('corrupt matching B1 revocation is a storage fault, not stale authenticatio
   try {
     const lifecycle = new SqliteBrowserAuthLifecycle(connection.db, new WriteCoordinator());
     const revoked = new SqliteBrowserCredentialRevocations(connection.db, new WriteCoordinator());
-    await lifecycle.open('one', first);
+    await lifecycle.open('one', first, { openedAt: 1, reauthenticatedAt: null });
     await revoked.revoke(first, 1);
     connection.db.run(sql`PRAGMA ignore_check_constraints = ON`);
     connection.db.run(sql`UPDATE browser_credential_revocations SET revoked_at = 0.5`);
@@ -241,10 +246,10 @@ test('open and successor replacement refuse valid previously revoked bytes', asy
     const lifecycle = new SqliteBrowserAuthLifecycle(connection.db, new WriteCoordinator());
     const revoked = new SqliteBrowserCredentialRevocations(connection.db, new WriteCoordinator());
     await revoked.revoke(first, 1);
-    expect(await failureOf(() => lifecycle.open('one', first))).toBeInstanceOf(
-      BrowserLifecycleRefusedError,
-    );
-    await lifecycle.open('one', second);
+    expect(
+      await failureOf(() => lifecycle.open('one', first, { openedAt: 1, reauthenticatedAt: null })),
+    ).toBeInstanceOf(BrowserLifecycleRefusedError);
+    await lifecycle.open('one', second, { openedAt: 1, reauthenticatedAt: null });
     const third = { ...first, digest: 'c'.repeat(64) };
     await revoked.revoke(third, 2);
     expect(await failureOf(() => lifecycle.replace('one', 1, second, third, 3))).toBeInstanceOf(
@@ -260,7 +265,7 @@ test('close refuses malformed historical expiry and impossible generation', asyn
   const connection = openConnection(path);
   try {
     const lifecycle = new SqliteBrowserAuthLifecycle(connection.db, new WriteCoordinator());
-    await lifecycle.open('one', first);
+    await lifecycle.open('one', first, { openedAt: 1, reauthenticatedAt: null });
     await lifecycle.replace('one', 1, first, second, 1);
     connection.db.run(sql`PRAGMA ignore_check_constraints = ON`);
     connection.db.run(sql`UPDATE browser_auth_association SET expires_at = -1
@@ -293,7 +298,7 @@ test('already-closed retry still reads B1 revocation authority', async () => {
   const connection = openConnection(path);
   try {
     const lifecycle = new SqliteBrowserAuthLifecycle(connection.db, new WriteCoordinator());
-    await lifecycle.open('one', first);
+    await lifecycle.open('one', first, { openedAt: 1, reauthenticatedAt: null });
     await lifecycle.close('one', { kind: 'oidc', digest: first.digest }, 1);
     connection.db.run(sql`DROP TABLE browser_credential_revocations`);
     expect(
@@ -308,7 +313,7 @@ test('missing authority and failed writes throw without acknowledging a transiti
   const connection = openConnection(path);
   try {
     const lifecycle = new SqliteBrowserAuthLifecycle(connection.db, new WriteCoordinator());
-    await lifecycle.open('one', first);
+    await lifecycle.open('one', first, { openedAt: 1, reauthenticatedAt: null });
     connection.db.run(sql`DROP TABLE browser_auth_association`);
     expect(await failureOf(() => lifecycle.generation('one'))).toBeInstanceOf(Error);
     expect(
@@ -320,7 +325,11 @@ test('missing authority and failed writes throw without acknowledging a transiti
   const readOnly = openReadOnlyConnection(path);
   try {
     const lifecycle = new SqliteBrowserAuthLifecycle(readOnly.db, new WriteCoordinator());
-    expect(await failureOf(() => lifecycle.open('two', second))).toBeInstanceOf(Error);
+    expect(
+      await failureOf(() =>
+        lifecycle.open('two', second, { openedAt: 1, reauthenticatedAt: null }),
+      ),
+    ).toBeInstanceOf(Error);
   } finally {
     readOnly.close();
   }
@@ -333,7 +342,7 @@ test('absent correlation is typed refusal while malformed stored state is a serv
     expect(await failureOf(() => lifecycle.generation('absent'))).toBeInstanceOf(
       BrowserLifecycleRefusedError,
     );
-    await lifecycle.open('one', first);
+    await lifecycle.open('one', first, { openedAt: 1, reauthenticatedAt: null });
     connection.db.run(sql`PRAGMA ignore_check_constraints = ON`);
     connection.db.run(sql`UPDATE browser_auth_lifecycle SET state = 'nonsense'`);
     const fault = await failureOf(() => lifecycle.generation('one'));
@@ -348,7 +357,7 @@ test('rollback refuses retained lifecycle and association rows', async () => {
   const connection = openConnection(path);
   try {
     const lifecycle = new SqliteBrowserAuthLifecycle(connection.db, new WriteCoordinator());
-    await lifecycle.open('one', first);
+    await lifecycle.open('one', first, { openedAt: 1, reauthenticatedAt: null });
   } finally {
     connection.close();
   }
@@ -368,7 +377,7 @@ test('rollback independently refuses lifecycle-only and association-only residue
     const connection = openConnection(dbPath);
     try {
       const lifecycle = new SqliteBrowserAuthLifecycle(connection.db, new WriteCoordinator());
-      await lifecycle.open(retainedTable, first);
+      await lifecycle.open(retainedTable, first, { openedAt: 1, reauthenticatedAt: null });
       if (retainedTable === 'browser_auth_lifecycle') {
         connection.db.run(sql`DELETE FROM browser_auth_association`);
       } else {

@@ -55,6 +55,12 @@ export interface EnterpriseRoute {
   readonly policy: SessionPolicy | null;
 }
 
+/** What a reauthentication login sends for one organization. */
+export interface ReauthenticationRoute {
+  readonly auth0Connection: string | null;
+  readonly policy: SessionPolicy | null;
+}
+
 /** A proven connection whose prefix a subject carries. */
 export interface ProvenConnection {
   readonly connectionId: string;
@@ -225,6 +231,13 @@ export interface EnterpriseConnections {
   routeBySlug(slug: string): Promise<EnterpriseRoute | null>;
   /** The connection on a `verified` claim of `domain`; a suspended claim routes nothing. */
   routeByDomain(domain: string): Promise<EnterpriseRoute | null>;
+  /**
+   * Where a `reauthentication_required` refusal's login goes for
+   * `organizationId`: its enforced connection, if any, and its session
+   * policy. An unknown organization has neither, so the answer reveals
+   * nothing about it.
+   */
+  reauthenticationRoute(organizationId: string): Promise<ReauthenticationRoute>;
   /** The proven connection whose whole prefix `subject` carries, if any. */
   provenFor(subject: string): Promise<ProvenConnection | null>;
   /**

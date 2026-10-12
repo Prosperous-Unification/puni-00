@@ -36,7 +36,12 @@ export const startOidcLogin = defineEndpointShape({
   operationId: 'getApiAuthLogin',
   policies: [],
   query: requestSchema(
-    type({ 'method?': methodId, 'organization?': enterpriseLoginSlug, 'email?': 'string' }),
+    type({
+      'method?': methodId,
+      'organization?': enterpriseLoginSlug,
+      'email?': 'string',
+      'reauthenticate?': 'string',
+    }),
   ),
   responses: [{ kind: 'empty', status: 302 }],
   refusals: [

@@ -26,10 +26,11 @@ import {
   startAuth0Link,
   startOidcLogin,
 } from '@wbs/contracts';
-import type { EnterpriseConnections, EnterpriseRoute } from '@wbs/core';
+import type { EnterpriseConnections, EnterpriseRoute, ReauthenticationRoute } from '@wbs/core';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { BrowserLifecycleRefusedError, canonicalOidcEmail } from '@wbs/store-sqlite';
+import { decodeJwt, errors } from 'jose';
 
 import {
   bind,
@@ -43,6 +44,7 @@ import { cookiesIn, cookieValue } from '../middleware/authenticated';
 import { clientIpOf } from './auth-password-endpoints';
 import {
   accessOf,
+  type BrowserPredecessor,
   type BrowserSessionAuthority,
   correlationOf,
   credentialDigest,
@@ -51,6 +53,7 @@ import {
   retireBrowserPredecessor,
 } from './browser-session';
 import type { OidcRouteOptions } from './oidc-options';
+import { reauthenticatedAtOf, type ReplacedCredential } from './reauthentication-time';
 
 const reportable = new Set([
   'access_denied',
@@ -225,6 +228,8 @@ interface LoginHints {
   readonly method?: AuthMethodId;
   readonly organization?: string;
   readonly email?: string;
+  /** The organization whose `reauthentication_required` refusal sent the browser here. */
+  readonly reauthenticate?: string;
 }
 
 /**
@@ -236,6 +241,7 @@ type LoginChoice =
   | { readonly kind: 'chooser' }
   | { readonly kind: 'method'; readonly connection: string }
   | { readonly kind: 'enterprise'; readonly route: EnterpriseRoute }
+  | { readonly kind: 'reauthenticate'; readonly route: ReauthenticationRoute }
   | { readonly kind: 'invalid_query' | 'sso_connection_not_found' };
 
 /**
@@ -247,15 +253,27 @@ type LoginChoice =
 async function loginChoice(
   hints: LoginHints,
   enabled: readonly AuthMethodId[],
-  enterprise: Pick<EnterpriseConnections, 'routeBySlug' | 'routeByDomain'>,
+  enterprise: Pick<
+    EnterpriseConnections,
+    'routeBySlug' | 'routeByDomain' | 'reauthenticationRoute'
+  >,
 ): Promise<LoginChoice> {
-  const given = [hints.method, hints.organization, hints.email].filter(
+  // Proof: leaving `reauthenticate` out of this count made `routes a
+  // reauthentication login by organization` admit a second hint; watched 2026-10-12.
+  const given = [hints.method, hints.organization, hints.email, hints.reauthenticate].filter(
     (hint) => hint !== undefined,
   );
   // Proof: 2026-10-12, admitting two hints made `refuses two hints, a
   // malformed email or slug, and saves no transaction` in
   // `enterprise-login.controller.db.test.ts` route `organization=acme&method=google`.
   if (given.length > 1) return { kind: 'invalid_query' };
+  if (hints.reauthenticate !== undefined) {
+    if (hints.reauthenticate.length === 0) return { kind: 'invalid_query' };
+    return {
+      kind: 'reauthenticate',
+      route: await enterprise.reauthenticationRoute(hints.reauthenticate),
+    };
+  }
   if (hints.organization !== undefined) {
     const route = await enterprise.routeBySlug(hints.organization);
     return route === null ? { kind: 'sso_connection_not_found' } : { kind: 'enterprise', route };
@@ -278,14 +296,30 @@ async function loginChoice(
  * with a session policy also asks for an interactive sign-in, bounded by
  * `max_age` when it sets a reauthentication bound.
  */
-function loginParameters(choice: LoginChoice) {
+function loginParameters(choice: LoginChoice): {
+  readonly connection?: string;
+  readonly prompt?: 'login';
+  readonly maxAge?: number;
+} {
   if (choice.kind === 'method') return { connection: choice.connection };
+  if (choice.kind === 'reauthenticate') {
+    const { auth0Connection, policy } = choice.route;
+    // A reauthentication login always prompts, whether or not the
+    // organization still has a policy.
+    return {
+      ...(auth0Connection === null ? {} : { connection: auth0Connection }),
+      prompt: 'login',
+      ...(policy?.reauthenticateAfterSeconds == null
+        ? {}
+        : { maxAge: policy.reauthenticateAfterSeconds }),
+    };
+  }
   if (choice.kind !== 'enterprise') return {};
   const { auth0Connection, policy } = choice.route;
   if (policy === null) return { connection: auth0Connection };
   return {
     connection: auth0Connection,
-    prompt: 'login' as const,
+    prompt: 'login',
     ...(policy.reauthenticateAfterSeconds === null
       ? {}
       : { maxAge: policy.reauthenticateAfterSeconds }),
@@ -429,6 +463,28 @@ function linkCallbackFailure(
   return { ok: false, status: 400, body: { error: failure.code } };
 }
 /**
+ * What the callback knows of the credential its sign-in replaces. An OIDC
+ * predecessor's access token was proved associated with its lifecycle by
+ * {@link proveBrowserPredecessor}, so its bytes are ones this server verified
+ * when it issued them, and reading their `sub` unverified is safe.
+ */
+function replacedCredentialOf(
+  predecessor: BrowserPredecessor | { readonly kind: 'none' },
+  request: RequestMetadata,
+): ReplacedCredential {
+  if (predecessor.kind !== 'oidc') return { kind: predecessor.kind };
+  const access = accessOf(request);
+  if (access === null) return { kind: 'oidc', subject: null };
+  try {
+    const { sub } = decodeJwt(access);
+    return { kind: 'oidc', subject: typeof sub === 'string' ? sub : null };
+  } catch (cause) {
+    if (cause instanceof errors.JOSEError) return { kind: 'oidc', subject: null };
+    throw cause;
+  }
+}
+
+/**
  * Browser OIDC bindings. Composition registers these only when OIDC options exist.
  * Exchange failures carry their owned classification; account and token-store failures remain throws.
  */
@@ -438,7 +494,7 @@ export function authOidcEndpoints(
   passwordThrottle: LoginThrottle,
   enterprise: Pick<
     EnterpriseConnections,
-    'routeBySlug' | 'routeByDomain' | 'linkThroughConnection'
+    'routeBySlug' | 'routeByDomain' | 'reauthenticationRoute' | 'linkThroughConnection'
   >,
   browserSession?: BrowserSessionAuthority,
 ) {
@@ -471,13 +527,24 @@ export function authOidcEndpoints(
       const state = random();
       const nonce = random();
       const verifier = random();
-      options.transactions.save({ browserBinding, state, nonce, verifier });
+      const parameters = loginParameters(choice);
+      options.transactions.save({
+        browserBinding,
+        state,
+        nonce,
+        verifier,
+        ...(parameters.prompt === undefined
+          ? {}
+          : {
+              reauthentication: { prompt: parameters.prompt, maxAge: parameters.maxAge ?? null },
+            }),
+      });
       const location = await options.client.authorizationUrl({
         nonce,
         state,
         verifier,
         redirectUri: options.redirectUri,
-        ...loginParameters(choice),
+        ...parameters,
       });
       const held = selectBrowserBindings(options.transactions, browserBindingsOf(request), now());
       const evicted = [
@@ -701,13 +768,31 @@ export function authOidcEndpoints(
         if (browserSession !== undefined)
           await retireBrowserPredecessor(predecessor, browserSession, now());
         const correlation = random();
-        if (options.browserLifecycle !== undefined && accessEvidence !== null)
-          await options.browserLifecycle.open(correlation, {
-            kind: 'oidc',
-            userId: account.id,
-            digest: accessEvidence.digest,
-            expiresAt: accessEvidence.expiresAt,
-          });
+        if (options.browserLifecycle !== undefined && accessEvidence !== null) {
+          const callbackAt = now();
+          // Proof: opening the lifecycle with a null reauthentication time made
+          // `records when a prompted sign-in reauthenticated` in
+          // `oidc-identity.controller.db.test.ts` store null; watched 2026-10-12.
+          await options.browserLifecycle.open(
+            correlation,
+            {
+              kind: 'oidc',
+              userId: account.id,
+              digest: accessEvidence.digest,
+              expiresAt: accessEvidence.expiresAt,
+            },
+            {
+              openedAt: callbackAt,
+              reauthenticatedAt: reauthenticatedAtOf({
+                requested: transaction.reauthentication,
+                authTime: tokens.idTokenClaims['auth_time'],
+                replaced: replacedCredentialOf(predecessor, request),
+                subject: identity.subject,
+                callbackAt,
+              }),
+            },
+          );
+        }
         if (tokens.refreshToken !== undefined)
           options.tokens.save({
             expiresAt: now() + 30 * 86400000,

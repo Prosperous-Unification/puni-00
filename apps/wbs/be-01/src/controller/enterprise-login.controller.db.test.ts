@@ -119,6 +119,36 @@ describe('enterprise login routing', () => {
     expect(provider.savedTransactions).toBe(0);
   });
 
+  // The login path a `reauthentication_required` refusal names
+  // (`organization-session-policy`): always an interactive sign-in, bounded by
+  // the organization's `max_age`, through its connection only when enforced.
+  it('routes a reauthentication login by organization', async () => {
+    harness.sqlite.run(
+      'INSERT INTO organization_session_policy (organization_id, max_session_seconds, reauthenticate_after_seconds, created_at) VALUES (?, 28800, 3600, 1)',
+      ['org-a'],
+    );
+    const plain = await login('reauthenticate=org-a');
+    expect(plain.response.status).toBe(302);
+    expect(plain.authorization).toMatchObject({ prompt: 'login', maxAge: 3600 });
+    expect(plain.authorization?.connection).toBeUndefined();
+    harness.sqlite.run(
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('prover', 'prover', 'x', 1)",
+    );
+    harness.sqlite.run(
+      "UPDATE organization_sso_connection SET proven_at = 2, proven_by = 'prover', enforced = 1 WHERE id = 'conn-a'",
+    );
+    expect((await login('reauthenticate=org-a')).authorization).toMatchObject({
+      connection: 'acme-saml',
+      prompt: 'login',
+    });
+    const unknown = await login('reauthenticate=org-nowhere');
+    expect(unknown.authorization).toMatchObject({ prompt: 'login' });
+    expect(unknown.authorization?.maxAge).toBeUndefined();
+    const saves = provider.savedTransactions;
+    expect((await login('reauthenticate=org-a&organization=acme')).response.status).toBe(400);
+    expect(provider.savedTransactions).toBe(saves);
+  });
+
   it('answers an unknown slug 404 and saves no transaction', async () => {
     const { response, authorization } = await login('organization=nope');
     expect(response.status).toBe(404);

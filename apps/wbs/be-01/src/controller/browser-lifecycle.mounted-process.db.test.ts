@@ -422,7 +422,9 @@ test('logout in another mounted process denies an old intact selected OIDC pair 
   const credential = oidcCredential(access);
   try {
     seedAccounts(sqlite);
-    await withLifecycle(path, (lifecycle) => lifecycle.open('correlation-a', credential));
+    await withLifecycle(path, (lifecycle) =>
+      lifecycle.open('correlation-a', credential, { openedAt: 1, reauthenticatedAt: null }),
+    );
     const first = await openWorker(path);
     const second = await openWorker(path);
     await first.send({
@@ -485,7 +487,9 @@ for (const expires of ['5m', '-1s']) {
       const successorAccess = await signed('ada');
       const other = await signed('ada');
       const credential = oidcCredential(access);
-      await withLifecycle(path, (lifecycle) => lifecycle.open('lost-process', credential));
+      await withLifecycle(path, (lifecycle) =>
+        lifecycle.open('lost-process', credential, { openedAt: 1, reauthenticatedAt: null }),
+      );
       const owner = await openWorker(path);
       await owner.send({
         kind: 'seed',
@@ -591,7 +595,12 @@ for (const fault of ['missing', 'unreadable'] as const) {
       seedAccounts(sqlite);
       const access = await signed('ada');
       const credential = oidcCredential(access);
-      await withLifecycle(path, (lifecycle) => lifecycle.open('authority-correlation', credential));
+      await withLifecycle(path, (lifecycle) =>
+        lifecycle.open('authority-correlation', credential, {
+          openedAt: 1,
+          reauthenticatedAt: null,
+        }),
+      );
       const worker = await openWorker(path);
       const selected = await worker.send(request('/api/organization/active', access));
       expect(selected.status).toBe(200);
@@ -644,7 +653,9 @@ for (const nextSecret of ['same', 'rotated'] as const) {
           const oldAccess = await signed('ada');
           const nextAccess = await signed('ada');
           const first = oidcCredential(oldAccess);
-          await withLifecycle(path, (lifecycle) => lifecycle.open('race-correlation', first));
+          await withLifecycle(path, (lifecycle) =>
+            lifecycle.open('race-correlation', first, { openedAt: 1, reauthenticatedAt: null }),
+          );
           const refresher = await openWorker(path);
           const closer = await openWorker(path);
           await refresher.send({
