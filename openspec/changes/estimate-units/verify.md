@@ -177,3 +177,29 @@ Native read schema follow-up: work-item-response suite passes positive workday/m
 and refuses fractional/negative minute charges and unknown units. Weakening minutes to number
 and weakening the minute discriminator to string each failed this production response-schema
 suite (exit 1), then restored with adjacent Proof. This check is separate from input validation.
+
+## Review corrections — rollback history and recovery trios (2026-10-12)
+
+Astra's P1 reproduced: the stored-unit probe omitted retained minute bindings and down.sql
+rolled back over minute undo/redo history after the live unit became workdays. CLI remove
+also succeeded while leaving minute history. New-image replay was safe, but old code would
+ignore bindings. The probe now includes journal minute bindings regardless of live step;
+down and recovery remove refuse whole affected history unchanged. Journal quarantine is
+not supported. Tests cover redo, nested batch inverse and missing live step. Malformed
+binding maps fail closed; absent legacy maps remain workday-only.
+
+P2 reproduced: CLI restore accepted a fractional saved minute trio. Saved rows now pass
+EstimateTrio finite/nonnegative/order and minuteTrioProblem integer/maximum checks before
+any recovery mutations. CLI negatives cover fractional, unordered, nonfinite and above-max
+figures, asserting identical unit/estimate state after refusal.
+
+Fault proofs observed exit 1 and restored: remove the history guard from down; skip recovery
+history refusal; skip structural trio parse; skip minute refusal; omit history minutes from
+probe; remove probe precondition/map/vocabulary checks. Adjacent Proof comments record each.
+The first null-map fault was caught only by incidental TypeError; its check was strengthened
+to assert the named refusal and rerun red, then restored.
+
+Focused command probes: 36 pass, 106 assertions. Recovery CLI round trip and negatives:
+1 pass, 36 assertions. Store-sqlite and remote-scripts typechecks passed; affected ESLint,
+Prettier and migration lint exited 0. An initial full docker suite exposed an overbroad test
+edit in two unrelated fixtures; corrected and the focused command suites rerun green.

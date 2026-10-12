@@ -101,6 +101,10 @@
       `charged` omitted from the read → the read test; a golden case edited by hand → the
       corpus test reddens (watched, then the writer rerun).
 
+- [x] 5.4 Review blockers: include retained minute journal bindings in swap/down/remove refusals;
+      prove direct and CLI refusal without mutation. Validate recovery trios before writes;
+      prove fractional, unordered, nonfinite and above-max refusal with guard mutations.
+
 ## 6. Plan document and saved plans
 
 - [ ] 6.1 Red: `plan-document.resource.test.ts` (round trip keeps unit and minutes; version 6

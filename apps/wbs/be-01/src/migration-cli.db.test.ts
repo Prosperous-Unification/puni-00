@@ -1391,6 +1391,23 @@ describe('migration deploy entrypoints', () => {
     } finally {
       reset.close();
     }
+    const withHistory = openDatabase(dbPath);
+    withHistory.run(
+      `INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('minute-history','p','u',1,'clear_estimate','{}','{}','{"expected":{},"from":{},"estimateUnits":{"dev":"minutes"}}',1,1)`,
+    );
+    const journalBefore = withHistory.query('SELECT * FROM command_journal').all();
+    const journalRefusal = await runCli(
+      'estimate-unit-rollback-cli.ts',
+      dbPath,
+      'remove',
+      savedPath,
+    );
+    expect(journalRefusal.exitCode).not.toBe(0);
+    expect(journalRefusal.stderr).toContain('minute journal');
+    expect(read()).toEqual(before);
+    expect(withHistory.query('SELECT * FROM command_journal').all()).toEqual(journalBefore);
+    withHistory.run('DELETE FROM command_journal');
+    withHistory.close();
     const remove = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'remove', savedPath);
     expect(remove.stderr).toBe('');
     expect(remove.exitCode).toBe(0);
@@ -1427,6 +1444,28 @@ describe('migration deploy entrypoints', () => {
       expect(refused.exitCode).not.toBe(0);
       expect(refused.stderr).toContain(message);
       expect(read().rows).toEqual([]);
+    }
+    for (const [fault, figures] of [
+      ['fractional', { optimistic: 1.5, realistic: 2, pessimistic: 3 }],
+      ['unordered', { optimistic: 3, realistic: 2, pessimistic: 4 }],
+      [
+        'above-max',
+        { optimistic: 21_474_836_161, realistic: 21_474_836_161, pessimistic: 21_474_836_161 },
+      ],
+      ['nonfinite', { optimistic: null, realistic: 2, pessimistic: 3 }],
+    ] as const) {
+      const invalidPath = join(root, `${fault}-trio.json`);
+      await Bun.write(
+        invalidPath,
+        JSON.stringify({
+          ...saved,
+          rows: saved.rows.map((row, index) => (index === 0 ? { ...row, ...figures } : row)),
+        }),
+      );
+      const beforeRefusal = read();
+      const refused = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'restore', invalidPath);
+      expect(refused.exitCode).not.toBe(0);
+      expect(read()).toEqual(beforeRefusal);
     }
     const occupied = openDatabase(dbPath);
     try {

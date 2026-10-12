@@ -1606,12 +1606,38 @@ describe('estimate unit commands', () => {
         return parsed;
       };
       expect(await readUnits()).toEqual([{ unit: 'workdays', count: 2 }]);
+      db.run('CREATE TABLE command_journal (preconditions text NOT NULL)');
       db.run("ALTER TABLE step ADD COLUMN estimate_unit text NOT NULL DEFAULT 'workdays'");
       db.run("UPDATE step SET estimate_unit='minutes' WHERE id='a'");
       expect(await readUnits()).toEqual([
         { unit: 'minutes', count: 1 },
         { unit: 'workdays', count: 1 },
       ]);
+      db.run("UPDATE step SET estimate_unit='workdays'");
+      db.run(
+        `INSERT INTO command_journal VALUES ('{"expected":{},"from":{},"estimateUnits":{"gone":"minutes"}}')`,
+      );
+      expect(await readUnits()).toEqual([
+        { unit: 'minutes', count: 1 },
+        { unit: 'workdays', count: 2 },
+      ]);
+      for (const [preconditions, message] of [
+        [[], 'journal preconditions are malformed'],
+        [{ estimateUnits: null }, 'journal estimate units are malformed'],
+        [{ estimateUnits: { s: 'hours' } }, 'journal estimate unit is unknown'],
+      ] as const) {
+        db.run('DELETE FROM command_journal');
+        db.query('INSERT INTO command_journal VALUES (?)').run(JSON.stringify(preconditions));
+        const probe = Bun.spawn(storedEstimateUnitsCommand('be-01-green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        await new Response(probe.stdout).text();
+        const stderr = await new Response(probe.stderr).text();
+        expect(await probe.exited).not.toBe(0);
+        expect(stderr).toContain(message);
+      }
       db.close();
     } finally {
       rmSync(directory, { recursive: true, force: true });

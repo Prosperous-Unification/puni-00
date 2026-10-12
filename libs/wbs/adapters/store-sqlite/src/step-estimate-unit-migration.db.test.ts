@@ -87,3 +87,31 @@ describe('step estimate unit migration', () => {
     }
   });
 });
+
+it('refuses rollback over minute-bound undo and redo history after clearing and changing the live unit', () => {
+  const sqlite = seed();
+  try {
+    for (const undone of [0, 1]) {
+      sqlite.run('DELETE FROM command_journal');
+      sqlite.run(
+        `INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('j','p','u',1,'batch','{"forward":{"do":"batch","steps":[{"do":"clear_estimate","workItemId":"w","stepId":"s"}]}}','{"do":"batch","steps":[{"do":"set_estimate","workItemId":"w","stepId":"s","days":{"optimistic":240,"realistic":240,"pessimistic":240}}]}','{"expected":{},"from":{},"estimateUnits":{"s":"minutes"}}',?,1)`,
+        [undone],
+      );
+      expect(() => rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts')).toThrow(
+        'minute journal',
+      );
+      expect(sqlite.query('SELECT estimate_unit FROM step').get()).toEqual({
+        estimate_unit: 'workdays',
+      });
+      expect(sqlite.query('SELECT count(*) AS count FROM command_journal').get()).toEqual({
+        count: 1,
+      });
+    }
+    sqlite.run('DELETE FROM step');
+    expect(() => rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts')).toThrow(
+      'minute journal',
+    );
+  } finally {
+    sqlite.close();
+  }
+});

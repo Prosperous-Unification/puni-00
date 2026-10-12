@@ -1,3 +1,4 @@
+import { EstimateTrio, minuteTrioProblem } from '@wbs/domain';
 import { parseOrThrow, type } from '@wbs/validation';
 import { sql } from 'drizzle-orm';
 
@@ -24,6 +25,24 @@ const SavedUnits = type({
 
 /** A verbatim save of minute steps and their trios for the guarded rollback (ADR 0042). */
 export type SavedEstimateUnits = typeof SavedUnits.infer;
+
+/** Validates saved minute figures before any recovery transaction can change units. */
+function readSavedEstimateUnits(saved: unknown): SavedEstimateUnits {
+  const held = parseOrThrow(SavedUnits, saved);
+  for (const row of held.rows) {
+    // Proof: bypassing structural parsing restored an unordered saved trio (migration-cli.db.test.ts minute recovery).
+    const trio = parseOrThrow(EstimateTrio, {
+      optimistic: row.optimistic,
+      realistic: row.realistic,
+      pessimistic: row.pessimistic,
+    });
+    const problem = minuteTrioProblem(trio);
+    // Proof: bypassing this refusal restored fractional/above-max minute trios (migration-cli.db.test.ts minute recovery).
+    if (problem !== null)
+      throw new Error(`saved minute estimate ${row.work_item_id}/${row.step_id}: ${problem}`);
+  }
+  return held;
+}
 
 type Reader = Pick<Drizzle, 'all'>;
 
@@ -53,13 +72,29 @@ export function saveEstimateUnits(db: Reader): SavedEstimateUnits {
   });
 }
 
+/** Old images ignore journal bindings, so recovery refuses retained minute history intact. */
+function assertWorkdayJournal(db: Reader): void {
+  const entries = db.all<{
+    count: number;
+  }>(sql`SELECT count(*) AS count FROM command_journal j WHERE CASE
+    WHEN json_type(j.preconditions, '$.estimateUnits') IS NULL THEN 0
+    WHEN json_type(j.preconditions, '$.estimateUnits') != 'object' THEN 1
+    ELSE EXISTS (SELECT 1 FROM json_each(j.preconditions, '$.estimateUnits') WHERE type != 'text' OR value != 'workdays') END`);
+  if (entries.length !== 1 || entries[0]?.count !== 0)
+    throw new Error(
+      'minute journal entries exist: rollback refused; keep this image until supported journal recovery is available',
+    );
+}
+
 /** Removes trios before changing their units; refuses any write made since the save. */
 export function removeSavedEstimateUnits(
   db: Drizzle,
   saved: unknown,
 ): { steps: number; rows: number } {
-  const held = parseOrThrow(SavedUnits, saved);
+  const held = readSavedEstimateUnits(saved);
   return db.transaction((tx) => {
+    // Proof: bypassing this guard let CLI remove leave minute redo history for an old image (migration-cli.db.test.ts).
+    assertWorkdayJournal(tx);
     // Proof: removing the comparison let remove erase an estimate edited after save; the stale-save CLI assertion failed (2026-10-12).
     if (JSON.stringify(saveEstimateUnits(tx)) !== JSON.stringify(held))
       throw new Error('estimate unit save does not match current steps and estimates');
@@ -74,7 +109,7 @@ export function removeSavedEstimateUnits(
 
 /** Restores units and trios verbatim, all or none; preexisting rows refuse through their primary key. */
 export function restoreEstimateUnits(db: Drizzle, saved: unknown): { steps: number; rows: number } {
-  const held = parseOrThrow(SavedUnits, saved);
+  const held = readSavedEstimateUnits(saved);
   return db.transaction((tx) => {
     assertUnitColumn(tx);
     for (const step of held.steps) {

@@ -52,3 +52,7 @@ ADR 0011 stays accepted with its scope narrowed to workday-unit steps.
   mean workdays explicitly; damaged present maps throw. Equality allows away-and-back edits
   without a new unit-revision column. An attempted conflicting replay still discards its entry
   under the existing stale-history policy.
+
+Rollback to pre-unit code must refuse retained minute-bound command history even when live
+steps use workdays or are absent. Recovery remove preserves and refuses that history;
+quarantine is not implemented. Saved minute trios are validated before recovery writes.

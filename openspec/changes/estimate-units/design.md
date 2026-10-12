@@ -113,3 +113,11 @@ one decimal and a trailing `.0` dropped (`480` → `1 d`, `720` → `1.5 d`, `12
 minute slice adds the line "placed on the working calendar".
 
 During a rolling swap the read contracts permit absent `estimateUnit` and `charged` from a pre-unit backend. Only absent wire units map to historical workdays; present units remain validated. New backend responses always emit both fields.
+
+## Review correction — rollback history and saved trios
+
+Old images ignore journal unit bindings. Live-unit probes therefore also count retained
+minute bindings from command_journal, including undo/redo and bindings for removed steps.
+The down migration and recovery remove refuse such history unchanged. Whole-entry quarantine
+is deferred; operators must keep a compatible release while minute history is retained.
+Recovery saved figures pass EstimateTrio and minuteTrioProblem before any transaction writes.

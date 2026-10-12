@@ -1016,6 +1016,28 @@ try {
   if (columns.length === 0) throw new Error('step table does not exist');
   const hasUnit = columns.some((column) => column.name === 'estimate_unit');
   const rows = db.query(hasUnit ? 'SELECT estimate_unit AS unit, count(*) AS count FROM step GROUP BY estimate_unit ORDER BY estimate_unit' : "SELECT 'workdays' AS unit, count(*) AS count FROM step HAVING count(*) > 0").all();
+  if (hasUnit) {
+    for (const entry of db.query('SELECT preconditions FROM command_journal').all()) {
+      const preconditions = JSON.parse(entry.preconditions);
+      // Proof: removing shape validation accepted array preconditions (docker.test.ts stored-unit probe).
+      if (typeof preconditions !== 'object' || preconditions === null || Array.isArray(preconditions)) throw new Error('journal preconditions are malformed');
+      if (!Object.hasOwn(preconditions, 'estimateUnits')) continue;
+      const units = preconditions.estimateUnits;
+      // Proof: removing map validation lost the named null-map refusal (docker.test.ts stored-unit probe).
+      if (typeof units !== 'object' || units === null || Array.isArray(units)) throw new Error('journal estimate units are malformed');
+      for (const unit of Object.values(units)) {
+        // Proof: removing vocabulary validation accepted hours (docker.test.ts stored-unit probe).
+        if (unit !== 'workdays' && unit !== 'minutes') throw new Error('journal estimate unit is unknown');
+        // Proof: skipping history minutes lost the gone-step binding (docker.test.ts stored-unit probe).
+        if (unit === 'minutes') {
+          const retained = rows.find((row) => row.unit === 'minutes');
+          if (retained) retained.count += 1;
+          else rows.push({ unit: 'minutes', count: 1 });
+        }
+      }
+    }
+    rows.sort((a, b) => a.unit.localeCompare(b.unit));
+  }
   console.log(JSON.stringify(rows));
 } finally { db.close(); }`,
   ];
