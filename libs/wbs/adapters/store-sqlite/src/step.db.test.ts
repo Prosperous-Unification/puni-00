@@ -17,6 +17,7 @@ import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { StepRepository } from './step';
 import { StepMeasureRepository } from './step-measure';
+import { StepNodeAttemptRepository } from './step-node-attempt';
 import { StepProgressRepository } from './step-progress';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
@@ -39,6 +40,7 @@ let estimates: EstimateRepository;
 let actuals: ActualRepository;
 let progress: StepProgressRepository;
 let measures: StepMeasureRepository;
+let attempts: StepNodeAttemptRepository;
 let directory: DirectoryRepository;
 let workItems: WorkItemRepository;
 let projectId: string;
@@ -96,6 +98,7 @@ beforeEach(async () => {
   actuals = new ActualRepository(db, OPEN);
   progress = new StepProgressRepository(db, OPEN);
   measures = new StepMeasureRepository(db, OPEN);
+  attempts = new StepNodeAttemptRepository(db, OPEN);
   directory = new DirectoryRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
 
@@ -569,6 +572,7 @@ describe('StepRepository', () => {
         actuals: 0,
         progress: 0,
         measures: 0,
+        attempts: 0,
         assignments: [{ workItemId: 'strip', stepId: qaId, personId: ada.id }],
       },
     });
@@ -641,12 +645,13 @@ describe('StepRepository', () => {
       actuals: 1,
       progress: 0,
       measures: 0,
+      attempts: 0,
       assignments: [],
     });
     expect(refused).toEqual({
       ok: false,
       reason: 'in_use',
-      usage: { estimates: 0, actuals: 1, progress: 0, measures: 0, assignments: [] },
+      usage: { estimates: 0, actuals: 1, progress: 0, measures: 0, attempts: 0, assignments: [] },
     });
     expect(await steps.findById(qaId)).not.toBeNull();
     expect(await actuals.listByProject(projectId)).toHaveLength(1);
@@ -679,12 +684,13 @@ describe('StepRepository', () => {
       actuals: 0,
       progress: 1,
       measures: 0,
+      attempts: 0,
       assignments: [],
     });
     expect(refused).toEqual({
       ok: false,
       reason: 'in_use',
-      usage: { estimates: 0, actuals: 0, progress: 1, measures: 0, assignments: [] },
+      usage: { estimates: 0, actuals: 0, progress: 1, measures: 0, attempts: 0, assignments: [] },
     });
     expect(await steps.findById(qaId)).not.toBeNull();
     expect(await progress.listByProject(projectId)).toHaveLength(1);
@@ -719,6 +725,7 @@ describe('StepRepository', () => {
         actuals: 0,
         progress: 1,
         measures: 0,
+        attempts: 0,
         assignments: 0,
         workItemIds: ['strip'],
       },
@@ -729,6 +736,43 @@ describe('StepRepository', () => {
     expect(await progress.listByProject(projectId)).toEqual([
       { workItemId: 'sand', stepId: devId, state: 'in_progress', statedAt: 1000 },
     ]);
+    expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
+  });
+
+  /**
+   * Proof: the holdings' `attempts` written as `0` made the unconfirmed
+   * removal go through (`toEqual` failed, `- Expected - 4 / + Received + 6`);
+   * with `tx.delete(stepNodeAttempt)` struck the confirmed one threw
+   * `SQLiteError: FOREIGN KEY constraint failed`; watched 2026-10-12.
+   */
+  it('counts the attempts, refusing an unconfirmed removal of a step holding only those, and a confirmed one deletes them', async () => {
+    const node = { workItemId: 'strip', stepId: qaId, executorPersonId: null, note: null };
+    await attempts.start({ ...node, startedAt: 100, reference: 'PR #1' }, wrote());
+    await attempts.end(
+      { workItemId: 'strip', stepId: qaId, endedAt: 110, outcome: 'failed' },
+      wrote(),
+    );
+    await attempts.start({ ...node, startedAt: 120, reference: null }, wrote());
+    const before = await revisionOf(projectId);
+
+    const counted = await steps.usageOf(projectId, qaId);
+    const refused = await steps.remove(projectId, qaId, false, wrote());
+
+    const usage = { estimates: 0, actuals: 0, progress: 0, measures: 0, attempts: 2 };
+    expect(counted).toEqual({ ...usage, assignments: [] });
+    expect(refused).toEqual({ ok: false, reason: 'in_use', usage: { ...usage, assignments: [] } });
+    expect(await steps.findById(qaId)).not.toBeNull();
+    expect(await revisionOf(projectId)).toBe(before);
+
+    const stripBefore = await workItemRevisionOf('strip');
+    const removed = await steps.remove(projectId, qaId, true, wrote());
+
+    expect(removed).toEqual({
+      ok: true,
+      removal: { ...usage, assignments: 0, workItemIds: ['strip'] },
+    });
+    expect(await steps.findById(qaId)).toBeNull();
+    expect(await attempts.listByProject(projectId)).toEqual([]);
     expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
   });
 
@@ -773,12 +817,13 @@ describe('StepRepository', () => {
       actuals: 0,
       progress: 0,
       measures: 2,
+      attempts: 0,
       assignments: [],
     });
     expect(refused).toEqual({
       ok: false,
       reason: 'in_use',
-      usage: { estimates: 0, actuals: 0, progress: 0, measures: 2, assignments: [] },
+      usage: { estimates: 0, actuals: 0, progress: 0, measures: 2, attempts: 0, assignments: [] },
     });
     expect(await steps.findById(qaId)).not.toBeNull();
     expect(await measures.listByProject(projectId)).toHaveLength(2);
@@ -835,6 +880,7 @@ describe('StepRepository', () => {
         actuals: 0,
         progress: 0,
         measures: 2,
+        attempts: 0,
         assignments: 0,
         workItemIds: ['strip'],
       },
@@ -865,6 +911,7 @@ describe('StepRepository', () => {
         actuals: 1,
         progress: 0,
         measures: 0,
+        attempts: 0,
         assignments: 0,
         workItemIds: ['strip'],
       },

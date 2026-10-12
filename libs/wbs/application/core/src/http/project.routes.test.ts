@@ -47,7 +47,12 @@ test('direct project bindings create, read, patch and record opening with admitt
     principal,
     request,
   };
-  expect(await endpoints[4].handle(input)).toEqual({ ok: true, status: 200, body: made.body });
+  // The read carries the project's zone, `UTC` until set (`step-node-attempts` D3).
+  expect(await endpoints[4].handle(input)).toEqual({
+    ok: true,
+    status: 200,
+    body: { ...made.body, project: { ...made.body.project, timezone: 'UTC' } },
+  });
   expect(await endpoints[2].handle(input)).toEqual({ ok: true, status: 204, body: EMPTY });
   const patched = await endpoints[5].handle({ ...input, body: { name: 'Renamed' } });
   if (!patched.ok) throw new Error('patch refused');

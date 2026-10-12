@@ -57,7 +57,7 @@
 
 ## 4. Commands and the timezone route
 
-- [ ] 4.1 Red: `work-item.resource.test.ts` mounted: start (no `at` → the stamp; the
+- [x] 4.1 Red: `work-item.resource.test.ts` mounted: start (no `at` → the stamp; the
       refusals `node_done`, `attempt_running` and `attempt_in_future`), end (the refusals
       `no_running_attempt` and `attempt_ends_before_start`; reference and note stored), remove
       (`unknown_attempt`; numbers never reused), one undo per command restores verbatim,
@@ -67,9 +67,9 @@
       `timezone` patch (`Europe/Kyiv` stored; `Kyiv` → `422 invalid_timezone`; read carries it);
       `timezones.controller.db.test.ts` `GET /api/timezones` returns the server's list including
       `UTC` and the derived MCP tool exists.
-- [ ] 4.2 Green: `definitions.ts` three kinds; `command-normalizers.ts`; `compensating.ts`
+- [x] 4.2 Green: `definitions.ts` three kinds; `command-normalizers.ts`; `compensating.ts`
       inverses; `refusal.ts` codes; `project-shapes.ts` `timezone?`; `GET /api/timezones`; history words.
-- [ ] 4.3 Negatives: each refusal removed → its case answers `200`; the `endAttempt` inverse
+- [x] 4.3 Negatives: each refusal removed → its case answers `200`; the `endAttempt` inverse
       written as a delete → the one-undo case loses the row; the future check compared to the
       client's `at` instead of the stamp → "attempt_in_future".
 

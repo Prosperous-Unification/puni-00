@@ -3,6 +3,7 @@ import {
   allowanceOf,
   type AllowancePercent,
   assumedAssignee,
+  type AttemptOutcome,
   byTreeOrder,
   CalendarRangeError,
   canDepend,
@@ -21,6 +22,7 @@ import {
   findTypedEndpointDefect,
   firstWorkdayOf,
   formatStepNodeId,
+  formatStepReference,
   formatTypedDependencyKey,
   haveSameSliceOrder,
   type Hold,
@@ -106,7 +108,11 @@ import type {
   LivePlanRead,
   PlanDocumentReads,
 } from '../../ports/shared-people-values';
-import type { StepNodeAttemptStore } from '../../ports/step-node-attempt-store';
+import type {
+  RunningStoredAttempt,
+  StepNodeAttemptStore,
+  StoredAttempt,
+} from '../../ports/step-node-attempt-store';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
 import type {
@@ -817,7 +823,19 @@ export type WorkItemRefusal =
   /** `setStatus` `on_hold` or `blocked` on a row reading done. */
   | 'cannot_hold_done'
   /** `setStatus` `in_progress` or `done` in a project with no steps to speak for. */
-  | 'no_steps';
+  | 'no_steps'
+  /** `startAttempt` on a node stated `done`: reopen it first (`step-node-attempts` D2). */
+  | 'node_done'
+  /** `startAttempt` while the node's attempt runs: at most one runs per node. */
+  | 'attempt_running'
+  /** An attempt's `at` after the act's own write stamp. */
+  | 'attempt_in_future'
+  /** `endAttempt` on a node with nothing running. */
+  | 'no_running_attempt'
+  /** `endAttempt` at an instant before the running attempt began. */
+  | 'attempt_ends_before_start'
+  /** `removeAttempt` naming a number the node does not hold. */
+  | 'unknown_attempt';
 
 export type WorkItemOutcome<T> =
   | { ok: true; value: T }
@@ -2380,6 +2398,13 @@ export class WorkItemService {
         : (await this.opts.measures.listByProject(projectId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
+    // The attempts go down with the statements, numbers kept. Read before the
+    // move for the undo: the child's delete would cascade them away, so the
+    // undo writes these back onto the parent verbatim.
+    const attemptedHandedDown =
+      gainsFirstChild === null
+        ? []
+        : [...(await this.opts.attempts.listOfWorkItem(gainsFirstChild)).values()].flat();
     const assignedHandedDown =
       gainsFirstChild === null ? [] : await this.opts.directory.assignmentsFor(gainsFirstChild);
     const stepNodeMapping =
@@ -2463,6 +2488,7 @@ export class WorkItemService {
       actuals: recordedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
       progress: statedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
       measures: measuredHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+      attempts: attemptedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
       assignments: assignedHandedDown.map((assignment) => ({
         ...assignment,
         workItemId: workItem.id,
@@ -2492,6 +2518,11 @@ export class WorkItemService {
         stepId: each.stepId,
         metric: each.metric,
       })),
+      removedAttempts: attemptedHandedDown.map(({ workItemId, stepId, attemptNumber }) => ({
+        workItemId,
+        stepId,
+        attemptNumber,
+      })),
     };
     const inverse: CompensatingCommand = {
       do: 'delete_subtree',
@@ -2514,6 +2545,12 @@ export class WorkItemService {
       // Undoing this create makes the parent a leaf again, and a leaf reports
       // what it holds — in every unit, not the one the scheduler reads.
       setMeasures: measuredHandedDown,
+      // And the attempts, verbatim with their numbers: the child's delete
+      // cascades its copies, so without these an undo loses the history.
+      // Proof: left out, `gives a leaf's attempts back when its first child's
+      // create is undone` in `work-item.resource.test.ts` read `[]` on the
+      // parent (`- Expected - 24 / + Received + 1`); watched 2026-10-12.
+      setAttempts: attemptedHandedDown,
     };
     // The subtree commands remain readable by older binaries. Assignment changes
     // are ordinary journal steps, so their owners also enter undo/redo revisions.
@@ -3233,6 +3270,10 @@ export class WorkItemService {
     // and in every metric at once: one read feeds three folds, which is what
     // `listByProject` takes no metric for.
     const storedMeasures = await this.opts.measures.listByProject(workItem.projectId);
+    // Read before anything is deleted, for the same cascade:
+    // `step_node_attempt.work_item_id` cascades, and an undo must put the
+    // branch back with the history of every attempt at it.
+    const storedAttempts = await this.opts.attempts.listByProject(workItem.projectId);
     const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
     const authored = await this.opts.typedDependencies.listByProject(workItem.projectId);
     const survivor = workItem.parentId;
@@ -3457,6 +3498,8 @@ export class WorkItemService {
               // returns the branch with its days and none of its tokens — the plan
               // looks whole and the record of what the work cost to run is gone.
               measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
+              // Every attempt at the branch's nodes, verbatim with its number.
+              attempts: storedAttempts.filter((each) => inside.has(each.workItemId)),
               assignments: doomedAssignments,
               internalDependencies: cut.filter(
                 (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
@@ -3578,6 +3621,9 @@ export class WorkItemService {
           // leaf becomes representable. Written from the same source as the three
           // beside it rather than hard-coded, so it stays true if that changes.
           measures: storedMeasures.filter((each) => each.workItemId === id),
+          // The promoted row's own attempts: none on a row with children, read
+          // from the same source for the figures' reason.
+          attempts: storedAttempts.filter((each) => each.workItemId === id),
           assignments: deletedAssignments,
           internalDependencies: [],
           externalDependencies: cut,
@@ -4290,6 +4336,209 @@ export class WorkItemService {
         },
       );
     }
+    return { ok: true, value: null };
+  }
+
+  /**
+   * Starts the next attempt at one step node (`step-node-attempts` D2): number
+   * the node's highest plus one, assigned by the store inside the write.
+   *
+   * Refused in order: `rolled_up` on a parent and `unknown_step`, as
+   * {@link setProgress}; `node_done` when the node's statement is `done` (it
+   * must be reopened first); `attempt_running` while one runs, which the
+   * store's unique partial index also refuses; `attempt_in_future` when `at` is
+   * after this act's own write stamp — the server's clock, never the client's;
+   * `unknown_person` for an executor the directory does not hold. `at` absent
+   * is the stamp.
+   *
+   * Writes no statement: an attempt is history, and the progress a reader sees
+   * stays whatever was said. One journal entry, whose inverse removes the
+   * attempt by its number and whose forward writes it back verbatim.
+   */
+  async startAttempt(
+    id: string,
+    actorId: string,
+    stepId: string,
+    start: {
+      at?: number;
+      executorPersonId?: string;
+      reference?: string;
+      note?: string;
+    },
+  ): Promise<WorkItemOutcome<{ attemptNumber: number }>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { rows, workItem } = context.value;
+    if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    // Proof: this refusal removed made `refuses node_done, attempt_running and
+    // attempt_in_future at their command index` in
+    // `step-node-attempt.controller.db.test.ts` answer 200 for the done node
+    // (`- "status": 409 / + "status": 200`); watched 2026-10-12.
+    if ((await this.storedProgress(workItem.projectId, id, stepId)) === 'done')
+      return { ok: false, reason: 'node_done' };
+    // Proof: this refusal removed, the same case still passed on the store's
+    // own `attempt_running` — the partial index's face, as D1 intends; with
+    // the store's refusal also removed it answered 500, the index refusing
+    // the row (never 200); watched 2026-10-12.
+    if ((await this.runningAttempt(id, stepId)) !== null)
+      return { ok: false, reason: 'attempt_running' };
+    const stamp = this.clock.stampFor(actorId);
+    const startedAt = start.at ?? stamp.at;
+    // Proof: compared to `Date.now()` instead of the stamp, `takes the write
+    // stamp as the start and refuses an at after it, never the client clock`
+    // in `work-item.resource.test.ts` started the attempt (`- Expected - 2 /
+    // + Received + 4`); removed, the mounted future case answered 200 where
+    // 422 was owed; watched 2026-10-12.
+    if (startedAt > stamp.at) return { ok: false, reason: 'attempt_in_future' };
+    const executorPersonId = start.executorPersonId ?? null;
+    if (executorPersonId !== null && !(await this.holdsPerson(executorPersonId)))
+      return { ok: false, reason: 'unknown_person' };
+    const started = await this.opts.attempts.start(
+      {
+        workItemId: id,
+        stepId,
+        startedAt,
+        executorPersonId,
+        reference: start.reference ?? null,
+        note: start.note ?? null,
+      },
+      stamp,
+    );
+    if (!started.ok) return { ok: false, reason: started.reason };
+    const { attempt } = started;
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      'start_attempt',
+      `started attempt ${String(attempt.attemptNumber)} of ${await this.nodeLabel(rows, workItem, stepId)}`,
+      {
+        forward: { do: 'restore_attempt', attempt },
+        inverse: {
+          do: 'remove_attempt',
+          workItemId: id,
+          stepId,
+          attemptNumber: attempt.attemptNumber,
+        },
+        touched: [id],
+        before: rows,
+      },
+    );
+    return { ok: true, value: { attemptNumber: attempt.attemptNumber } };
+  }
+
+  /**
+   * Ends the node's running attempt with an outcome (`step-node-attempts` D2).
+   *
+   * Refused in order: `rolled_up`, `unknown_step`; `no_running_attempt`;
+   * `attempt_in_future` when `at` is after the write stamp;
+   * `attempt_ends_before_start` when `at` precedes the running attempt's start —
+   * checked here because the database's order `CHECK` would otherwise throw. A
+   * reference or note given replaces the stored one; absent keeps it.
+   *
+   * One journal entry whose inverse writes the running row back **verbatim** —
+   * a patch of the prior values, never a delete — so one undo leaves the
+   * attempt running with no outcome, as it was.
+   */
+  async endAttempt(
+    id: string,
+    actorId: string,
+    stepId: string,
+    end: { outcome: AttemptOutcome; at?: number; reference?: string; note?: string },
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { rows, workItem } = context.value;
+    if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    const running = await this.runningAttempt(id, stepId);
+    // Proof: this refusal removed made `refuses no_running_attempt and
+    // attempt_ends_before_start` in `step-node-attempt.controller.db.test.ts`
+    // answer 500 (`null is not an object (evaluating 'running.startedAt')`)
+    // where 409 was owed; watched 2026-10-12.
+    if (running === null) return { ok: false, reason: 'no_running_attempt' };
+    const stamp = this.clock.stampFor(actorId);
+    const endedAt = end.at ?? stamp.at;
+    if (endedAt > stamp.at) return { ok: false, reason: 'attempt_in_future' };
+    // Proof: this refusal removed made the same case answer 500, `CHECK
+    // constraint failed: step_node_attempt_order`, where 422 was owed;
+    // watched 2026-10-12.
+    if (endedAt < running.startedAt) return { ok: false, reason: 'attempt_ends_before_start' };
+    const ended = await this.opts.attempts.end(
+      {
+        workItemId: id,
+        stepId,
+        endedAt,
+        outcome: end.outcome,
+        ...(end.reference === undefined ? {} : { reference: end.reference }),
+        ...(end.note === undefined ? {} : { note: end.note }),
+      },
+      stamp,
+    );
+    if (!ended.ok) return { ok: false, reason: ended.reason };
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      'end_attempt',
+      `ended attempt ${String(ended.attempt.attemptNumber)} of ${await this.nodeLabel(rows, workItem, stepId)} ${end.outcome}`,
+      {
+        forward: { do: 'restore_attempt', attempt: ended.attempt },
+        // Proof: written as a `remove_attempt` (a delete), `one undo per
+        // command restores the row verbatim` in `work-item.resource.test.ts`
+        // read `[]` where the running attempt was owed (`- Expected - 13 /
+        // + Received + 1`); watched 2026-10-12.
+        inverse: { do: 'restore_attempt', attempt: ended.prior },
+        touched: [id],
+        before: rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
+  /**
+   * Takes one attempt off a node by its number, as a correction
+   * (`step-node-attempts` D2); `unknown_attempt` when the node holds no such
+   * number. A later start takes the highest remaining plus one, so a removed
+   * number below the highest is never reused.
+   *
+   * One journal entry whose inverse writes the row back verbatim, number and
+   * all.
+   */
+  async removeAttempt(
+    id: string,
+    actorId: string,
+    stepId: string,
+    attemptNumber: number,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { rows, workItem } = context.value;
+    if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    const stamp = this.clock.stampFor(actorId);
+    const removed = await this.opts.attempts.remove(id, stepId, attemptNumber, stamp);
+    // Proof: answered `ok` instead, `refuses unknown_attempt` in
+    // `step-node-attempt.controller.db.test.ts` answered 200 where 404 was
+    // owed; watched 2026-10-12.
+    if (removed === null) return { ok: false, reason: 'unknown_attempt' };
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      'remove_attempt',
+      `removed attempt ${String(attemptNumber)} of ${await this.nodeLabel(rows, workItem, stepId)}`,
+      {
+        forward: { do: 'remove_attempt', workItemId: id, stepId, attemptNumber },
+        inverse: { do: 'restore_attempt', attempt: removed },
+        touched: [id],
+        before: rows,
+      },
+    );
     return { ok: true, value: null };
   }
 
@@ -5336,6 +5585,19 @@ export class WorkItemService {
           }
         }
         return { ok: true, detail: null };
+      case 'restore_attempt':
+        return this.applyRestoreAttempt(projectId, command.attempt, stamp);
+      case 'remove_attempt': {
+        const removed = await this.opts.attempts.remove(
+          command.workItemId,
+          command.stepId,
+          command.attemptNumber,
+          stamp,
+        );
+        return removed === null
+          ? { ok: false, detail: 'that attempt is no longer there.' }
+          : { ok: true, detail: null };
+      }
       case 'add_dependency': {
         const rows = await this.opts.workItems.listByProject(projectId);
         const existing = await this.opts.dependencies.listByProject(projectId);
@@ -5567,6 +5829,8 @@ export class WorkItemService {
     // with a surviving descendant-step relationship return 500 instead of 409.
     if (invalid !== undefined)
       return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
+    const attemptsRefused = await this.attemptsRefusal(projectId, command.setAttempts ?? []);
+    if (attemptsRefused !== null) return attemptsRefused;
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
     await this.opts.workItems.remove(command.remove, command.reparented, stamp);
@@ -5583,7 +5847,59 @@ export class WorkItemService {
     // re-applied delete that handed up the days and not the tokens would leave
     // the surviving parent reporting a fortnight of work that cost nothing.
     for (const each of command.setMeasures) await this.opts.measures.set(each, stamp);
+    // And the attempts, verbatim with their numbers, onto the leaf they came
+    // from: the undo of a first-child create, whose child's delete above has
+    // already cascaded the child's copies away.
+    for (const each of command.setAttempts ?? []) await this.opts.attempts.restore(each, stamp);
     return { ok: true, detail: null };
+  }
+
+  /**
+   * Writes one attempt back verbatim, refusing as stale rather than letting a
+   * foreign key or the running index answer 500: the step removed since, the
+   * executor removed from the directory since, or another attempt running on
+   * the node now.
+   */
+  private async applyRestoreAttempt(
+    projectId: string,
+    attempt: StoredAttempt,
+    stamp: WriteStamp,
+  ): Promise<ApplyOutcome> {
+    const refused = await this.attemptsRefusal(projectId, [attempt]);
+    if (refused !== null) return refused;
+    const running = await this.runningAttempt(attempt.workItemId, attempt.stepId);
+    if (
+      attempt.endedAt === null &&
+      running !== null &&
+      running.attemptNumber !== attempt.attemptNumber
+    ) {
+      return { ok: false, detail: 'another attempt is running at that step now.' };
+    }
+    await this.opts.attempts.restore(attempt, stamp);
+    return { ok: true, detail: null };
+  }
+
+  /**
+   * Why these attempts cannot be written back, asked before any write of the
+   * replay that carries them: a step removed since, or an executor the
+   * directory no longer holds. Null when nothing stands in the way.
+   */
+  private async attemptsRefusal(
+    projectId: string,
+    attempts: readonly StoredAttempt[],
+  ): Promise<ApplyOutcome | null> {
+    for (const attempt of attempts) {
+      if (!(await this.holdsStep(projectId, attempt.stepId))) {
+        return { ok: false, detail: 'that step is no longer in this project.' };
+      }
+      if (
+        attempt.executorPersonId !== null &&
+        !(await this.holdsPerson(attempt.executorPersonId))
+      ) {
+        return { ok: false, detail: 'that person is no longer in the directory.' };
+      }
+    }
+    return null;
   }
 
   private async applyRestore(
@@ -5640,6 +5956,8 @@ export class WorkItemService {
       .sort((a, b) => a.position - b.position)
       .at(-1);
     const placed = placeAfter(projected, wasAfter?.id ?? null);
+    const attemptsRefused = await this.attemptsRefusal(projectId, command.attempts ?? []);
+    if (attemptsRefused !== null) return attemptsRefused;
 
     await this.opts.subtrees.insertSubtree(
       {
@@ -5668,6 +5986,13 @@ export class WorkItemService {
       },
       stamp,
     );
+    // The attempts after the rows they hang off: off the surviving parent
+    // first (the redo of a first-child create), then onto the restored rows,
+    // verbatim with their numbers.
+    for (const key of command.removedAttempts ?? []) {
+      await this.opts.attempts.remove(key.workItemId, key.stepId, key.attemptNumber, stamp);
+    }
+    for (const each of command.attempts ?? []) await this.opts.attempts.restore(each, stamp);
 
     // The edges that leave the branch, one at a time and through the same
     // guard an ordinary request goes through. This is the one part of a
@@ -5962,6 +6287,51 @@ export class WorkItemService {
       (each) => each.workItemId === workItemId && each.stepId === stepId,
     );
     return found?.state ?? null;
+  }
+
+  /** The node's running attempt, or null when none runs. */
+  private async runningAttempt(
+    workItemId: string,
+    stepId: string,
+  ): Promise<RunningStoredAttempt | null> {
+    const held = (await this.opts.attempts.listOfWorkItem(workItemId)).get(stepId) ?? [];
+    const running = held.find((attempt) => attempt.endedAt === null);
+    return running === undefined ? null : { ...running, endedAt: null, outcome: null };
+  }
+
+  /**
+   * Whether the directory holds this person. Asked before an attempt names an
+   * executor, for {@link holdsStep}'s reason: `executor_person_id` is a
+   * foreign key, and an out-of-date picker must answer `unknown_person`, not 500.
+   */
+  private async holdsPerson(personId: string): Promise<boolean> {
+    return (await this.opts.directory.listPeople()).some((person) => person.id === personId);
+  }
+
+  /**
+   * The step node as a history sentence names it: its reference (`010.dev`),
+   * or the step's name on the quoted work item when the step has no code.
+   *
+   * The number is the one derived at the write, so a later renumbering leaves
+   * the sentence naming the node as it was then — the spec's wording
+   * (`plan-command-registry`), at {@link quoteName}'s known cost.
+   *
+   * @throws when the step or the work item's number is missing: both were
+   * checked by the caller in the same request.
+   */
+  private async nodeLabel(
+    rows: readonly WorkItem[],
+    workItem: WorkItem,
+    stepId: string,
+  ): Promise<string> {
+    const step = (await this.opts.projects.stepsOf(workItem.projectId)).find(
+      (each) => each.id === stepId,
+    );
+    if (step === undefined) throw new Error(`step ${stepId} left the project mid-write`);
+    if (step.code === null) return `${step.name} of ${quoteName(workItem.name)}`;
+    const number = deriveNumbers(rows).get(workItem.id);
+    if (number === undefined) throw new Error(`no effective number for work item ${workItem.id}`);
+    return formatStepReference(number, step.code);
   }
 
   private async announceTree(projectId: string): Promise<void> {

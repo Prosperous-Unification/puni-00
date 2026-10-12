@@ -1004,7 +1004,7 @@ function fixture() {
   const projects = testProjectService();
   const announcements = recordingBroadcaster();
   const projectRead = spyOn(projects, 'readWithin').mockResolvedValue({
-    project: projectRow({ id: 'p' }),
+    project: { ...projectRow({ id: 'p' }), timezone: 'UTC' },
     steps: [],
   });
   const save = spyOn(plans, 'save').mockResolvedValue({ outcome: 'saved', record });

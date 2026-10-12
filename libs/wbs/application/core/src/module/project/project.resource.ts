@@ -4,6 +4,7 @@ import {
   classifyProjectEdit,
   DEFAULT_ESTIMATE_RULE,
   isIsoDate,
+  isTimezone,
   PertWeights,
 } from '@wbs/domain';
 import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain';
@@ -41,8 +42,24 @@ export interface ProjectWithSteps {
   steps: Step[];
 }
 
+/**
+ * A project as its read and its PATCH publish it: the stored settings and the
+ * IANA zone every day derived from an instant is read in (`step-node-attempts`
+ * D3), stored beside them and read through {@link ProjectStore.timezoneOf}.
+ */
+export type ZonedProject = Project & { timezone: string };
+
+/** {@link ProjectWithSteps} with its project {@link ZonedProject zoned}. */
+export interface ZonedProjectWithSteps {
+  project: ZonedProject;
+  steps: Step[];
+}
+
+/** A PATCH's settings: the stored ones, and the zone kept beside them. */
+export type ProjectSettingsPatch = ProjectPatch & { timezone?: string };
+
 export type UpdateOutcome =
-  | { ok: true; value: Project }
+  | { ok: true; value: ZonedProject }
   | {
       ok: false;
       reason:
@@ -50,6 +67,8 @@ export type UpdateOutcome =
         | 'forbidden'
         | 'bad_start_date'
         | 'bad_pert_weights'
+        /** A zone the runtime does not support — `isTimezone` refuses it. */
+        | 'invalid_timezone'
         /**
          * The write would have switched this project **on** to an optimizer this
          * deployment has not got. A state of the deployment rather than a fault
@@ -304,10 +323,10 @@ export class ProjectService {
    * {@link read} through the caller's access: under scoped access a foreign
    * project is null exactly like an absent one, so the route answers one 404.
    */
-  async readWithin(id: string, access: ResourceAccess): Promise<ProjectWithSteps | null> {
+  async readWithin(id: string, access: ResourceAccess): Promise<ZonedProjectWithSteps | null> {
     const project = await this.find(id, access);
     if (project === null) return null;
-    return { project, steps: await this.opts.projects.stepsOf(id) };
+    return { project: await this.zoned(project), steps: await this.opts.projects.stepsOf(id) };
   }
 
   /**
@@ -372,7 +391,7 @@ export class ProjectService {
     return { project, steps: await this.opts.projects.stepsOf(project.id) };
   }
 
-  update(id: string, actorId: string, patch: ProjectPatch): Promise<UpdateOutcome> {
+  update(id: string, actorId: string, patch: ProjectSettingsPatch): Promise<UpdateOutcome> {
     return this.updateWithin(id, actorId, patch, LEGACY);
   }
 
@@ -380,9 +399,19 @@ export class ProjectService {
   async updateWithin(
     id: string,
     actorId: string,
-    patch: ProjectPatch,
+    settings: ProjectSettingsPatch,
     access: ResourceAccess,
   ): Promise<UpdateOutcome> {
+    const { timezone, ...patch } = settings;
+    // Checked against the runtime's own list, the one `GET /api/timezones`
+    // serves, before anything is read: a zone `Intl` cannot format would throw
+    // on every later read of the project's days.
+    // Proof: this check removed made `refuses Kyiv 422 invalid_timezone and
+    // keeps the zone` in `project.controller.db.test.ts` store `Kyiv` and
+    // answer 500 where 422 was owed; watched 2026-10-12.
+    if (timezone !== undefined && !isTimezone(timezone)) {
+      return { ok: false, reason: 'invalid_timezone' };
+    }
     // `2026-02-31` matches the route's pattern and is not a day. Refused here
     // rather than stored: the column is text, and a date the scheduler cannot
     // parse would throw on every later read of this project.
@@ -465,6 +494,11 @@ export class ProjectService {
     // Gone between the read and the write. Reporting success would tell the
     // caller their rename landed on a project that no longer exists.
     if (updated === null) return { ok: false, reason: 'not_found' };
+    // In the same unit of work as the settings (`admitted-write.ts`), so the
+    // two land or roll back together.
+    if (timezone !== undefined && !(await this.opts.projects.setTimezone(id, timezone, stamp))) {
+      return { ok: false, reason: 'not_found' };
+    }
     // After the write and only on success, so nothing is announced that the
     // store refused or that landed on a project that had gone. `forbidden` and
     // both `not_found` arms return above this line, which is what makes
@@ -478,7 +512,19 @@ export class ProjectService {
         scheduleObjective: updated.scheduleObjective,
       });
     }
-    return { ok: true, value: updated };
+    return { ok: true, value: await this.zoned(updated) };
+  }
+
+  /**
+   * The project with its stored zone.
+   *
+   * @throws when the project has no zone row: it was just read, so a miss is
+   * a store that lost it, never a project to answer without one.
+   */
+  private async zoned(project: Project): Promise<ZonedProject> {
+    const timezone = await this.opts.projects.timezoneOf(project.id);
+    if (timezone === null) throw new Error(`project ${project.id} has no timezone`);
+    return { ...project, timezone };
   }
 
   private find(id: string, access: ResourceAccess): Promise<Project | null> {

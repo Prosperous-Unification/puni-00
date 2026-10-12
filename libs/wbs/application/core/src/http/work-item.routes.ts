@@ -311,6 +311,17 @@ function answerBatch(
     case 'cannot_hold_done':
     case 'no_steps':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    // A node's state stands in the way; the same command succeeds once it moves.
+    case 'node_done':
+    case 'attempt_running':
+    case 'no_running_attempt':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    // The instant itself is wrong against any plan state.
+    case 'attempt_in_future':
+    case 'attempt_ends_before_start':
+      return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
+    case 'unknown_attempt':
+      return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'too_many_commands':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'project_required':

@@ -792,6 +792,10 @@ function directoryReferencesOf(
     const person = context.id(command.personId, command.personRef);
     return [['people', person === null ? [] : [person], 'unknown_person']];
   }
+  if (command.kind === 'startAttempt') {
+    const executor = command.executorPersonId;
+    return [['people', executor === undefined ? [] : [executor], 'unknown_person']];
+  }
   if (command.kind !== 'patchWorkItem') return [];
   const { patch } = command;
   const teams = context.ids(patch.teamIds, patch.teamRefs);
@@ -814,9 +818,11 @@ function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
     case 'actual_step':
     case 'step_progress_step':
     case 'step_measure_step':
+    case 'step_node_attempt_step':
     case 'assignment_step':
       return 'unknown_step';
     case 'assignment_person':
+    case 'step_node_attempt_person':
       return 'unknown_person';
     case 'work_item_tag':
       return 'unknown_tag';

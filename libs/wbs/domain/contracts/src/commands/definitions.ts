@@ -152,6 +152,38 @@ export const commandDefinitions = {
     description:
       'Take a step back to not started. Accepts stepNodeId in place of the work-item and step pair.',
   }),
+  startAttempt: defineCommand('startAttempt', {
+    schema: type({
+      kind: "'startAttempt'",
+      ...step,
+      'at?': 'number',
+      'executorPersonId?': 'string',
+      'reference?': 'string',
+      'note?': 'string',
+    }),
+    scope: 'project',
+    description:
+      'Start the next attempt at one step node, numbered its highest plus one. at is epoch ms, absent means now. Refused node_done on a node stated done, attempt_running while one runs, attempt_in_future after now. reference is a URL or label. Accepts stepNodeId in place of the work-item and step pair.',
+  }),
+  endAttempt: defineCommand('endAttempt', {
+    schema: type({
+      kind: "'endAttempt'",
+      ...step,
+      outcome: "'succeeded' | 'failed' | 'cancelled'",
+      'at?': 'number',
+      'reference?': 'string',
+      'note?': 'string',
+    }),
+    scope: 'project',
+    description:
+      'End the running attempt at one step node with an outcome. at is epoch ms, absent means now. Refused no_running_attempt, attempt_in_future, or attempt_ends_before_start. Accepts stepNodeId in place of the work-item and step pair.',
+  }),
+  removeAttempt: defineCommand('removeAttempt', {
+    schema: type({ kind: "'removeAttempt'", ...step, attemptNumber: 'number' }),
+    scope: 'project',
+    description:
+      'Remove one attempt at a step node by its number, as a correction; refused unknown_attempt. A removed number is never reused. Accepts stepNodeId in place of the work-item and step pair.',
+  }),
   setStatus: defineCommand('setStatus', {
     schema: type({
       kind: "'setStatus'",

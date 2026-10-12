@@ -99,6 +99,7 @@ import {
   renameSpace,
 } from './space-shapes';
 import { addStep, removeStep, renameStep } from './step-shapes';
+import { readTimezones } from './timezone-shapes';
 import {
   applyDirectoryCommands,
   applyProjectCommands,
@@ -157,6 +158,7 @@ export const httpShapes = [
   listServices,
   listWorkItemTypes,
   listExternalSystems,
+  readTimezones,
   readOrganizationLoad,
   readPersonLoad,
   readProjectRank,

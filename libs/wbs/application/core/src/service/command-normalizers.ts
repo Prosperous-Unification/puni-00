@@ -2,6 +2,8 @@ import type { commandDefinitions, PlanCommandKind } from '@wbs/contracts';
 import {
   type AllowancePercent,
   allowancePercentOf,
+  type AttemptOutcome,
+  isAttemptOutcome,
   isDependencyEndpointScope,
   isIsoDate,
   type IsoDate,
@@ -305,6 +307,39 @@ function parseProgress(body: CommandInput<'setProgress'>) {
   const state = body.state;
   if (!isStepState(state)) throw new CommandNormalizationError('invalid_progress');
   return state;
+}
+
+/** The outcome an attempt ends with, one of `ATTEMPT_OUTCOMES`, checked by hand for `parseProgress`'s reason. */
+function parseOutcome(body: CommandInput<'endAttempt'>): AttemptOutcome {
+  const outcome: unknown = body.outcome;
+  if (!isAttemptOutcome(outcome)) throw new CommandNormalizationError('invalid_outcome');
+  return outcome;
+}
+
+/**
+ * An attempt's instant: a whole epoch millisecond from 0, or absent for the
+ * write stamp. Whether it is in the future is the service's question, asked
+ * against the stamp it writes with.
+ */
+function asOptionalInstant(value: unknown): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw new CommandNormalizationError('at_must_be_an_instant');
+  }
+  return value;
+}
+
+/** An attempt's number: a whole number from 1, the lowest a node ever assigns. */
+function parseAttemptNumber(body: CommandInput<'removeAttempt'>): number {
+  const attemptNumber: unknown = body.attemptNumber;
+  if (
+    typeof attemptNumber !== 'number' ||
+    !Number.isSafeInteger(attemptNumber) ||
+    attemptNumber < 1
+  ) {
+    throw new CommandNormalizationError('attemptNumber_must_be_a_whole_number_from_1');
+  }
+  return attemptNumber;
 }
 
 function parseStatus(body: CommandInput<'setStatus'>) {
@@ -747,6 +782,29 @@ export const commandNormalizers = {
   clearProgress: (raw: CommandInput<'clearProgress'>) => ({
     kind: 'clearProgress' as const,
     ...normalizeStepAddress(raw),
+  }),
+  startAttempt: (raw: CommandInput<'startAttempt'>) =>
+    present({
+      kind: 'startAttempt' as const,
+      ...normalizeStepAddress(raw),
+      at: asOptionalInstant(raw.at),
+      executorPersonId: asOptionalId(raw.executorPersonId, 'executorPersonId'),
+      reference: asOptionalText(raw.reference, 'reference'),
+      note: asOptionalText(raw.note, 'note'),
+    }),
+  endAttempt: (raw: CommandInput<'endAttempt'>) =>
+    present({
+      kind: 'endAttempt' as const,
+      ...normalizeStepAddress(raw),
+      outcome: parseOutcome(raw),
+      at: asOptionalInstant(raw.at),
+      reference: asOptionalText(raw.reference, 'reference'),
+      note: asOptionalText(raw.note, 'note'),
+    }),
+  removeAttempt: (raw: CommandInput<'removeAttempt'>) => ({
+    kind: 'removeAttempt' as const,
+    ...normalizeStepAddress(raw),
+    attemptNumber: parseAttemptNumber(raw),
   }),
   setStatus: (raw: CommandInput<'setStatus'>) =>
     present({

@@ -213,6 +213,9 @@ export const patchProject = defineEndpointShape({
       // Proof: accepting any engine string made the mounted structural-settings test receive 500, not 422.
       'scheduleEngine?': "'fast' | 'optimized'",
       'scheduleObjective?': "'pri' | 'time'",
+      // An IANA zone; the service checks it against the runtime's list, which
+      // `GET /api/timezones` serves (`step-node-attempts` D3).
+      'timezone?': 'string',
     }),
   ),
   bodyMedia,
@@ -224,7 +227,9 @@ export const patchProject = defineEndpointShape({
     forbidden,
     {
       status: 422,
-      schema: responseSchema(type({ error: "'bad_start_date' | 'bad_pert_weights'" })),
+      schema: responseSchema(
+        type({ error: "'bad_start_date' | 'bad_pert_weights' | 'invalid_timezone'" }),
+      ),
     },
     {
       status: 409,

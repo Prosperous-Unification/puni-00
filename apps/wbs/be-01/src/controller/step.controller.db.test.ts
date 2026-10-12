@@ -610,6 +610,7 @@ describe('DELETE /api/projects/:id/steps/:stepId', () => {
         actuals: 0,
         progress: 0,
         measures: 0,
+        attempts: 0,
         assignments: 1,
         assumedAssignees: [{ workItemId: 'strip', assumedNow: ada.id, assumedAfter: null }],
       },

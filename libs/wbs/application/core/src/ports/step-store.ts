@@ -107,6 +107,12 @@ export interface StepUsageRows {
    * "1 figure" for them would understate what the cascade takes.
    */
   measures: number;
+  /**
+   * How many attempts this step's nodes hold — a count of rows, for
+   * {@link StepUsageRows.actuals}' reason: an attempt is the history of work
+   * that ran (ADR 0045), and a step holding one and nothing else is `in_use`.
+   */
+  attempts: number;
   assignments: readonly Assignment[];
 }
 
@@ -117,6 +123,7 @@ export interface StepRemoval {
   progress: number;
   /** Rows, not pairs — {@link StepUsageRows.measures}. */
   measures: number;
+  attempts: number;
   assignments: number;
   /** Every work item that lost an estimate, an actual, a state, a figure or an assignment, and whose revision therefore moved. */
   workItemIds: readonly string[];

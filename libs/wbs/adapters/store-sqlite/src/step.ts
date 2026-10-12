@@ -19,7 +19,16 @@ import { auditOnCreate, auditOnUpdate } from './audit';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import type { Gate } from './gate';
 import { bumpProject, bumpWorkItems } from './revision';
-import { actual, assignment, estimate, step, stepMeasure, stepProgress, workItem } from './schema';
+import {
+  actual,
+  assignment,
+  estimate,
+  step,
+  stepMeasure,
+  stepNodeAttempt,
+  stepProgress,
+  workItem,
+} from './schema';
 
 /**
  * The columns a {@link Step} is, named once because four reads and writes in
@@ -239,6 +248,11 @@ export class StepRepository implements StepStore {
       .select({ workItemId: stepMeasure.workItemId })
       .from(stepMeasure)
       .where(eq(stepMeasure.stepId, stepId));
+    // Read through `step_node_attempt_by_step`, for `actual_by_step`'s reason.
+    const attempted = await this.db
+      .select({ workItemId: stepNodeAttempt.workItemId })
+      .from(stepNodeAttempt)
+      .where(eq(stepNodeAttempt.stepId, stepId));
     const ids = await this.db
       .select({ id: workItem.id })
       .from(workItem)
@@ -251,6 +265,7 @@ export class StepRepository implements StepStore {
         actuals: recorded.length,
         progress: spoken.length,
         measures: measured.length,
+        attempts: attempted.length,
         assignments: [],
       };
     const assignments = await this.db
@@ -271,6 +286,7 @@ export class StepRepository implements StepStore {
       actuals: recorded.length,
       progress: spoken.length,
       measures: measured.length,
+      attempts: attempted.length,
       assignments,
     };
   }
@@ -365,6 +381,14 @@ export class StepRepository implements StepStore {
           .from(stepMeasure)
           .where(inArray(stepMeasure.stepId, stepInProject))
           .all();
+        // And the attempts, counted for the recorded days' reason: an attempt
+        // is history of work that ran (ADR 0045), and a step holding one and
+        // nothing else is `in_use`.
+        const attempted = tx
+          .select({ workItemId: stepNodeAttempt.workItemId })
+          .from(stepNodeAttempt)
+          .where(inArray(stepNodeAttempt.stepId, stepInProject))
+          .all();
         const assigned = tx
           .select({ workItemId: assignment.workItemId })
           .from(assignment)
@@ -375,6 +399,7 @@ export class StepRepository implements StepStore {
           actuals: recorded.length,
           progress: spoken.length,
           measures: measured.length,
+          attempts: attempted.length,
           assignments: assigned.length,
         };
         if (!cascade && stepIsInUse(held)) {
@@ -402,6 +427,9 @@ export class StepRepository implements StepStore {
         // a confirmed cascade — the exact failure the estimates' delete was added
         // for in 2026-08-08, one table later.
         tx.delete(stepMeasure).where(inArray(stepMeasure.stepId, stepInProject)).run();
+        // Explicit once more: `step_node_attempt.step_id` carries no cascade
+        // either, so the step delete below would hit its foreign key.
+        tx.delete(stepNodeAttempt).where(inArray(stepNodeAttempt.stepId, stepInProject)).run();
         tx.delete(assignment).where(inArray(assignment.stepId, stepInProject)).run();
         const removed = tx
           .delete(step)
@@ -415,7 +443,7 @@ export class StepRepository implements StepStore {
         if (removed.length === 0) return { ok: false, reason: 'not_found' };
         const workItemIds = [
           ...new Set(
-            [...estimated, ...recorded, ...spoken, ...measured, ...assigned].map(
+            [...estimated, ...recorded, ...spoken, ...measured, ...attempted, ...assigned].map(
               (row) => row.workItemId,
             ),
           ),
@@ -429,6 +457,7 @@ export class StepRepository implements StepStore {
             actuals: recorded.length,
             progress: spoken.length,
             measures: measured.length,
+            attempts: attempted.length,
             assignments: assigned.length,
             workItemIds,
           },

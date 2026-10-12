@@ -534,6 +534,22 @@ export class ProjectRepository implements ProjectStore {
         "l.work_item_id || '/' || l.step_id || '/' || l.metric",
       ),
       stepRow(
+        'step_node_attempt',
+        'step_node_attempt_step',
+        "l.work_item_id || '/' || l.step_id || '/' || l.attempt_number",
+      ),
+      // The executor is nullable, unlike every catalog link above: a null one
+      // references nothing, and `NULL IS NOT o` would report it.
+      // Proof: this arm and the attempt step arm above removed made `fails the
+      // schedule read closed over a crossing step_node_attempt_person` (and
+      // `…_step`) in `schedule-organization.controller.db.test.ts` answer 200
+      // where 500 was owed; watched 2026-10-12.
+      sql`SELECT 'step_node_attempt_person' AS kind,
+          l.work_item_id || '/' || l.step_id || '/' || l.attempt_number AS id
+        FROM step_node_attempt AS l JOIN work_item AS w ON w.id = l.work_item_id
+        WHERE w.project_id = ${p} AND l.executor_person_id IS NOT NULL
+          AND ${ownerOf('person_organization', 'l.executor_person_id')} IS NOT ${o}`,
+      stepRow(
         'assignment',
         'assignment_step',
         "l.work_item_id || '/' || l.step_id || '/' || l.person_id",
@@ -604,6 +620,7 @@ export class ProjectRepository implements ProjectStore {
           ['actual', "l.work_item_id || '/' || l.step_id"],
           ['step_progress', "l.work_item_id || '/' || l.step_id"],
           ['step_measure', "l.work_item_id || '/' || l.step_id || '/' || l.metric"],
+          ['step_node_attempt', "l.work_item_id || '/' || l.step_id || '/' || l.attempt_number"],
           ['assignment', "l.work_item_id || '/' || l.step_id || '/' || l.person_id"],
         ] as const
       ).map(

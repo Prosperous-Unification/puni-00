@@ -30,11 +30,12 @@ const noTrees = () => ({
 });
 const VIEWER = scoped('viewer');
 
-const readable = (id: string): ProjectWithAccess => ({
+const readable = (id: string): ProjectWithAccess & { timezone: string } => ({
   ...projectRow({ id, name: id, ownerId: 'ada' }),
   ownerName: 'ada',
   lastOpenedAt: null,
   updatedAt: null,
+  timezone: 'UTC',
 });
 
 /**

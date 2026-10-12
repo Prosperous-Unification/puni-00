@@ -20,6 +20,12 @@ export const project = type({
   optimizationEnabled: 'boolean',
   scheduleEngine: "'fast' | 'optimized'",
   scheduleObjective: "'pri' | 'time'",
+  /**
+   * The IANA zone every day derived from an instant is read in
+   * (`step-node-attempts` D3). Optional on the wire only so a newer client can
+   * read an older be-01 mid-swap; every be-01 that knows it sends it.
+   */
+  'timezone?': 'string',
 });
 
 /**

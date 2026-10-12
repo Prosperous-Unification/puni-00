@@ -87,6 +87,7 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'forbidden':
     case 'bad_start_date':
     case 'bad_pert_weights':
+    case 'invalid_timezone':
     case 'optimizer_unavailable':
     case 'solution_taken':
     case 'dependency_cycle':
@@ -398,6 +399,18 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'no_active_organization':
     case 'not_a_member':
     case 'allowancePercent_must_be_0_to_1000_with_two_decimals':
+    case 'invalid_outcome':
+    case 'at_must_be_an_instant':
+    case 'reference_must_be_text':
+    case 'note_must_be_text':
+    case 'executorPersonId_must_be_an_id':
+    case 'attemptNumber_must_be_a_whole_number_from_1':
+    case 'node_done':
+    case 'attempt_running':
+    case 'attempt_in_future':
+    case 'no_running_attempt':
+    case 'attempt_ends_before_start':
+    case 'unknown_attempt':
       return refusal.error;
     default:
       return unreachable(refusal);

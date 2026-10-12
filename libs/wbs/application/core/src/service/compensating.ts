@@ -6,6 +6,7 @@ import type { Assignment } from '../ports/directory-store';
 import type { StoredEstimate } from '../ports/estimate-store';
 import type { MeasureKey, StoredMeasure } from '../ports/measure-store';
 import type { ProgressKey, StoredProgress } from '../ports/progress-store';
+import type { StoredAttempt } from '../ports/step-node-attempt-store';
 import type { EstimateKey } from '../ports/subtree-store';
 import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { FrozenNumber, Reparented, WorkItem, WorkItemPatch } from '../ports/work-item-store';
@@ -65,6 +66,20 @@ export type CompensatingCommand =
   | { do: 'set_progress'; workItemId: string; stepId: string; state: StepState }
   | { do: 'clear_progress'; workItemId: string; stepId: string }
   | { do: 'assign'; workItemId: string; stepId: string; personId: string | null }
+  /**
+   * One attempt written back **verbatim** under its own number, its instants,
+   * outcome, executor, reference and note exactly as carried
+   * (`step-node-attempts` D2): the redo of a start or an end, and the undo of
+   * an end or a removal. An undo of an end is this patch of the prior row,
+   * never a delete — the attempt existed before the end and exists after its
+   * undo, running again.
+   *
+   * Unlike `set_progress` the instants **are** carried: they say when the work
+   * ran, not when somebody typed it, and an undo must not move them.
+   */
+  | { do: 'restore_attempt'; attempt: StoredAttempt }
+  /** Takes one attempt off by its number: the undo of a start and the redo of a removal. */
+  | { do: 'remove_attempt'; workItemId: string; stepId: string; attemptNumber: number }
   | { do: 'add_dependency'; successorId: string; predecessorId: string }
   | { do: 'remove_dependency'; successorId: string; predecessorId: string }
   | { do: 'add_typed_dependency'; dependency: StoredTypedDependency }
@@ -171,6 +186,14 @@ export interface DeleteSubtree {
    * row is how "nobody has said" is spelled in every unit.
    */
   setMeasures: StoredMeasure[];
+  /**
+   * Attempts handed **up** to the surviving parent verbatim, numbers kept: the
+   * undo of a create that handed a leaf's attempts down to its first child
+   * (`step-node-attempts` D1). Without them the child's delete would cascade
+   * the attempts away. Absent from journals written before attempts existed,
+   * which hand nothing up.
+   */
+  setAttempts?: StoredAttempt[];
 }
 
 /**
@@ -228,6 +251,13 @@ export interface RestoreSubtree {
    * {@link SubtreeCopy.measures}.
    */
   measures: StoredMeasure[];
+  /**
+   * The attempts at the restored rows' step nodes, put back verbatim with
+   * their numbers: every attempt a delete's cascade took, or, for the redo of a
+   * first-child create, the ones the create handed down. Absent from journals
+   * written before attempts existed.
+   */
+  attempts?: StoredAttempt[];
   assignments: Assignment[];
   /** New journals carry the parent-to-child node IDs; old journals omit them because older creates recorded no mapping. */
   stepNodeMapping?: { from: string; to: string }[];
@@ -263,6 +293,19 @@ export interface RestoreSubtree {
    * restore never wrote.
    */
   removedMeasures: MeasureKey[];
+  /**
+   * Attempts to take off the surviving parent by number, for
+   * {@link RestoreSubtree.removedEstimates}' reason: the redo of a first-child
+   * create hands them down again. Absent from older journals.
+   */
+  removedAttempts?: AttemptKey[];
+}
+
+/** One attempt's identity: its node and its number. */
+export interface AttemptKey {
+  workItemId: string;
+  stepId: string;
+  attemptNumber: number;
 }
 
 /** What a journalled command did, in the words an undo says back. */
@@ -332,6 +375,8 @@ const COMMANDS = [
   'set_progress',
   'clear_progress',
   'assign',
+  'restore_attempt',
+  'remove_attempt',
   'add_dependency',
   'remove_dependency',
   'add_typed_dependency',
@@ -427,9 +472,12 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'set_progress':
     case 'clear_progress':
     case 'assign':
+    case 'remove_attempt':
       // Proof: omitting assignment owners made the SQLite assignment-only redo
       // conflict test fail at `Expected: 409, Received: 200`; watched 2026-09-27.
       return [command.workItemId];
+    case 'restore_attempt':
+      return [command.attempt.workItemId];
     case 'add_dependency':
     case 'remove_dependency':
       return [command.successorId, command.predecessorId];
@@ -464,6 +512,7 @@ export function touchedBy(command: CompensatingCommand): string[] {
         ...command.setActuals.map((each) => each.workItemId),
         ...command.setProgress.map((each) => each.workItemId),
         ...command.setMeasures.map((each) => each.workItemId),
+        ...(command.setAttempts ?? []).map((each) => each.workItemId),
       ];
     case 'restore_subtree':
       return [
@@ -473,6 +522,7 @@ export function touchedBy(command: CompensatingCommand): string[] {
         ...command.removedActuals.map((each) => each.workItemId),
         ...command.removedProgress.map((each) => each.workItemId),
         ...command.removedMeasures.map((each) => each.workItemId),
+        ...(command.removedAttempts ?? []).map((each) => each.workItemId),
         ...command.externalDependencies.flatMap((edge) => [edge.predecessorId, edge.successorId]),
       ];
     case 'batch':
@@ -532,6 +582,10 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
   const placed = (each: Reparented): void => {
     rows(each.id, each.parentId);
   };
+  const attempted = (each: StoredAttempt): void => {
+    onStep(each);
+    if (each.executorPersonId !== null) found.people.push(each.executorPersonId);
+  };
   switch (command.do) {
     case 'patch': {
       rows(command.workItemId);
@@ -560,6 +614,12 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
       onStep(command);
       if (command.personId !== null) found.people.push(command.personId);
       return;
+    case 'restore_attempt':
+      attempted(command.attempt);
+      return;
+    case 'remove_attempt':
+      onStep(command);
+      return;
     case 'add_dependency':
     case 'remove_dependency':
       rows(command.successorId, command.predecessorId);
@@ -583,6 +643,7 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
         ...command.setProgress,
         ...command.setMeasures,
       ].forEach(onStep);
+      (command.setAttempts ?? []).forEach(attempted);
       return;
     case 'restore_subtree':
       for (const row of command.rows) {
@@ -607,7 +668,9 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
         ...command.removedActuals,
         ...command.removedProgress,
         ...command.removedMeasures,
+        ...(command.removedAttempts ?? []),
       ].forEach(onStep);
+      (command.attempts ?? []).forEach(attempted);
       for (const assignment of command.assignments) {
         onStep(assignment);
         found.people.push(assignment.personId);
@@ -655,7 +718,10 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
     case 'set_progress':
     case 'clear_progress':
     case 'assign':
+    case 'remove_attempt':
       return { workItemId: command.workItemId, stepId: command.stepId };
+    case 'restore_attempt':
+      return { workItemId: command.attempt.workItemId, stepId: command.attempt.stepId };
     case 'patch':
     case 'move':
       return { workItemId: command.workItemId, stepId: null };
