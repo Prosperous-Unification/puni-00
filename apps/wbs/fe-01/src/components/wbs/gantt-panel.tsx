@@ -6846,6 +6846,8 @@ function GanttChart({
         name is the month caption above it would be no name at all.
       */}
         <select
+          // Proof: removing this label makes the normal/refusal-title role-name regression fail.
+          aria-label="Day scale — how wide one day is drawn"
           data-gantt-day-scale
           title={
             isSubDayUnavailable

@@ -10237,7 +10237,7 @@ describe('sub-day offer limit', () => {
   });
 });
 
-itDom('clears a rung notice at the same day width', () => {
+itDom('clears a rung notice at the same day width and keeps the scale accessible name', () => {
   const plan = planOf({});
   const pointed = pointedAtRow(null);
   const draw = (rungNotice: string | null) => (
@@ -10254,12 +10254,11 @@ itDom('clears a rung notice at the same day width', () => {
       onPointRow={() => undefined}
     />
   );
-  const { rerender } = render(draw('Remembered rung was unknown; reset to Days'));
-  expect(document.querySelector<HTMLSelectElement>('[data-gantt-day-scale]')?.title).toContain(
-    'reset to Days',
-  );
+  const name = 'Day scale — how wide one day is drawn';
+  const { rerender } = render(draw(null));
+  expect(screen.getByRole('combobox', { name }).getAttribute('title')).toBe('One day is 28px wide');
+  rerender(draw('Remembered rung was unknown; reset to Days'));
+  expect(screen.getByRole('combobox', { name }).getAttribute('title')).toContain('reset to Days');
   rerender(draw(null));
-  expect(document.querySelector<HTMLSelectElement>('[data-gantt-day-scale]')?.title).not.toContain(
-    'reset to Days',
-  );
+  expect(screen.getByRole('combobox', { name }).getAttribute('title')).toBe('One day is 28px wide');
 });
