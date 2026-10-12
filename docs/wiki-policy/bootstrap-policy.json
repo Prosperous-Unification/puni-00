@@ -423,6 +423,15 @@
     ],
     "binaryDeclarations": [
       {
+        "path": "apps/twilight-structure/twilight-dash/cli/fixtures/activation/pre-relocation-activation.tar",
+        "format": "application/x-tar",
+        "consumer": "apps/twilight-structure/twilight-dash/cli/src/activation/rollback.db.test.ts",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/twilight-structure/twilight-dash/cli/fixtures/activation/README.md"
+        }
+      },
+      {
         "path": "apps/twilight-structure/twilight-dash/cli/fixtures/authority/pre-relocation-burokrat.tar",
         "format": "application/x-tar",
         "consumer": "apps/twilight-structure/twilight-dash/cli/src/authority/integration-races.test.ts",
