@@ -792,6 +792,43 @@ describe('step node readings (step-node-readings D4)', () => {
     );
   });
 
+  itDom('draws the ring glyphs larger, so each reads the size of ◇ and ✓', async () => {
+    // DejaVu Sans, which `sans-serif` resolves to for these on a Linux
+    // Chromium (canvas `measureText`, 2026-10-12), inks ◐ 6×5 and ○ 5×4 at 10px against ◇ 8×9 and ✓ 6×7; at 14px the two
+    // rings ink 7×7, a ✓'s height. Every corner keeps one 10px line box, so the
+    // larger glyph does not push the corner down or the figure over.
+    await readingTable([
+      ['done', 'waiting'],
+      ['in_progress', 'on_hold'],
+      ['blocked', 'blocked_by_proxy'],
+      ['unknown', 'skipped'],
+    ]);
+    const sizeOf = (step: string, number: string) => {
+      const row = screen.getByLabelText(`Name of ${number}`).closest('tr');
+      const corner = row?.querySelector<HTMLElement>(`[data-final="${step}"] [data-node-reading]`);
+      const glyph = corner?.querySelector<HTMLElement>('[aria-hidden="true"]');
+      if (corner === null || corner === undefined || glyph === null || glyph === undefined) {
+        throw new Error(`No corner on ${number}`);
+      }
+      return `${corner.getAttribute('data-node-reading') ?? ''} ${glyph.style.fontSize} ${corner.style.lineHeight}`;
+    };
+    expect(
+      ['010', '020', '030', '040'].flatMap((number) => [
+        sizeOf(DEV.id, number),
+        sizeOf(QA.id, number),
+      ]),
+    ).toEqual([
+      'done 10px 10px',
+      'waiting 10px 10px',
+      'in_progress 14px 10px',
+      'on_hold 10px 10px',
+      'blocked 10px 10px',
+      'blocked_by_proxy 10px 10px',
+      'unknown 14px 10px',
+      'skipped 10px 10px',
+    ]);
+  });
+
   itDom('keeps the row fold in the Status column', async () => {
     showEveryColumn();
     const api = await readingTable([['done', 'waiting']]);

@@ -604,6 +604,15 @@ test.describe('node readings in the step cells, in a browser (step-node-readings
     await page.emulateMedia({ colorScheme: 'light' });
 
     await page.setViewportSize({ width: 390, height: 844 });
+    // The phone's card lists the steps one per line; QA's line on 010 carries
+    // the waiting reading the table drew in the cell's corner.
+    const qaLine = page
+      .getByLabel('QA estimate for 010')
+      .locator('xpath=ancestor::*[@data-step][1]')
+      .locator('[data-card-reading]');
+    await expect(qaLine).toHaveAttribute('data-card-reading', 'waiting');
+    await expect(qaLine.locator('[aria-hidden="true"]')).toHaveText('◇');
+    await expect(qaLine.locator('.sr-only')).toHaveText('Reading: Waiting');
     await page.screenshot({ path: testInfo.outputPath('readings-table-390.png'), fullPage: true });
   });
 });
