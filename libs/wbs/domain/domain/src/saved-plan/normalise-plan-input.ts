@@ -58,7 +58,25 @@ export const PLAN_INPUT_UPGRADES: ReadonlyMap<number, PlanInputUpgrade> = new Ma
   [1, withZeroStepAllowances],
   [2, withNoTypedDependencies],
   [3, withNoStatusFacts],
+  [4, withUtcTimezone],
 ]);
+
+/**
+ * Version 4 to 5: the project timezone did not exist, so every project read
+ * its instants in `UTC` (`step-node-attempts` D5). Attempts are not captured,
+ * so nothing else changes.
+ *
+ * Proof: returning the body unchanged made `reads a version-4 body as UTC
+ * and schedules it identically` fail on `schemaVersion` and the missing
+ * `timezone`; watched 2026-10-12.
+ */
+function withUtcTimezone(body: Record<string, unknown>): Record<string, unknown> {
+  const project = body['project'];
+  if (typeof project !== 'object' || project === null || Array.isArray(project)) {
+    throw new Error('a version-4 plan input body holds no project object');
+  }
+  return { ...body, schemaVersion: 5, project: { ...project, timezone: 'UTC' } };
+}
 
 /**
  * Version 3 to 4: readiness and holds did not exist, so every captured work

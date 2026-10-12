@@ -547,6 +547,34 @@ export interface WorkItemView {
    * branch. Both are true, and the table labels them so.
    */
   schedule: ScheduleView | null;
+  /**
+   * A leaf's attempts by step id, ascending number (`step-node-attempts` D4).
+   * Absent with {@link spans} and {@link span} when the row holds none, and
+   * from an older be-01 mid-swap.
+   */
+  attempts?: Record<string, AttemptView[] | undefined>;
+  /** Each attempted node's span: first start to last end, `end` null while one runs. */
+  spans?: Record<string, SpanView | undefined>;
+  /** The same fold over every node of the row. */
+  span?: SpanView;
+}
+
+/** One attempt at a step node: instants in epoch milliseconds, UTC. */
+export interface AttemptView {
+  attemptNumber: number;
+  startedAt: number;
+  /** Null while it runs, together with {@link outcome}. */
+  endedAt: number | null;
+  outcome: 'succeeded' | 'failed' | 'cancelled' | null;
+  executorPersonId: string | null;
+  reference: string | null;
+  note: string | null;
+}
+
+/** When some attempts ran; `end` is null while any still runs. */
+export interface SpanView {
+  start: number;
+  end: number | null;
 }
 
 export interface StepView {

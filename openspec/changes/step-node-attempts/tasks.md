@@ -75,7 +75,7 @@
 
 ## 5. Reads, fills, documents and saved plans
 
-- [ ] 5.1 Red: `work-item.resource.test.ts` "reads attempts ascending and derived spans per
+- [x] 5.1 Red: `work-item.resource.test.ts` "reads attempts ascending and derived spans per
       node and leaf"; `work-item-status-command.test.ts` "done fills the fact end from the last
       attempt's end day in the project zone", "in_progress fills the fact start from the first
       attempt's start day", "no attempt fills the day of the act, byte-identical to today",
@@ -83,11 +83,15 @@
       `live-plan-identity.test.ts` and the golden corpora unchanged;
       `plan-document.resource.test.ts` (round trip; version 6 imports `UTC` and no attempts;
       each refusal); `normalise-plan-input.test.ts` (previous schema upgrades with `UTC`);
-      `diff-plans.test.ts` (`timezone` under `settings`); spreadsheet attempt counts.
-- [ ] 5.2 Green: versions allocated now, written into `design.md`; `attempts`, `spans`, `span`
+      `diff-plans.test.ts` (`timezone` under `settings`); spreadsheet attempt counts. Landed
+      (2026-10-12): the read case is mounted, isolated and shared, in
+      `step-node-attempt.controller.db.test.ts`, beside the full export → import round trip
+      and the refusals with no project created; classification cases in
+      `plan-document.resource.test.ts`; the CSV column in fe-01 `plan-export.test.ts`.
+- [x] 5.2 Green: versions allocated now, written into `design.md`; `attempts`, `spans`, `span`
       on `work-item-response.ts`; the fill rules in `setStatus`; export and import converters;
       `PLAN_INPUT_UPGRADES` entry; `CanonicalProject.timezone`.
-- [ ] 5.3 Negatives: the attempt witness skipped → "done fills the fact end from the last
+- [x] 5.3 Negatives: the attempt witness skipped → "done fills the fact end from the last
       attempt's end day" reads the act's day; the zone dropped from the fill → the Kyiv case;
       each import check disabled → its case answers `200`.
 

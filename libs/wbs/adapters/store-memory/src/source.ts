@@ -908,7 +908,9 @@ async function capturePlanInput(
 ): Promise<PlanInputReads | null> {
   const project = await stores.projects.findById(projectId);
   if (project === null) return null;
-  await captureRead.afterFirstRead({ projectId, project });
+  const timezone = await stores.projects.timezoneOf(projectId);
+  if (timezone === null) throw new Error(`project "${projectId}" has no timezone`);
+  await captureRead.afterFirstRead({ projectId, project: { ...project, timezone } });
   const [
     steps,
     workItems,
@@ -947,7 +949,7 @@ async function capturePlanInput(
     stores.directory.listExternalSystems(),
   ]);
   return structuredClone({
-    project,
+    project: { ...project, timezone },
     steps,
     workItems,
     estimates,

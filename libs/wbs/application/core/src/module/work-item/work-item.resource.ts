@@ -3,6 +3,7 @@ import {
   allowanceOf,
   type AllowancePercent,
   assumedAssignee,
+  type Attempt,
   type AttemptOutcome,
   byTreeOrder,
   CalendarRangeError,
@@ -27,7 +28,7 @@ import {
   haveSameSliceOrder,
   type Hold,
   type IsoDate,
-  isoDateOfInstant,
+  isoDateOfInstantIn,
   isWithin,
   isWritableRelationshipType,
   lastWorkdayOf,
@@ -57,6 +58,8 @@ import {
   sliceKey,
   SOLVER_OBJECTIVES,
   type SolverObjectiveName,
+  type Span,
+  spanOfAttempts,
   type StepAllowances,
   type StepNodeCycle,
   type StepPolicy,
@@ -577,6 +580,75 @@ function assignmentFieldsOf(assignees: Record<string, string>): {
   doesEveryStep: string | null;
 } {
   return { assignees, doesEveryStep: assumedAssignee(assignees) };
+}
+
+/**
+ * What a leaf's attempts witness about when its work ran, as days in the
+ * project's zone: the day its first attempt started, and the day its last
+ * ended attempt ended, or none while no attempt has ended
+ * (`step-node-attempts` D4, the fills `setStatus` writes).
+ */
+function attemptWitness(
+  held: readonly StoredAttempt[],
+  zone: string,
+): ReadonlyMap<string, { startedOn: IsoDate; endedOn: IsoDate | undefined }> {
+  const spans = new Map<string, { start: number; end: number | undefined }>();
+  for (const attempt of held) {
+    const span = spans.get(attempt.workItemId);
+    const end =
+      attempt.endedAt === null
+        ? span?.end
+        : Math.max(attempt.endedAt, span?.end ?? Number.NEGATIVE_INFINITY);
+    spans.set(attempt.workItemId, {
+      start: Math.min(attempt.startedAt, span?.start ?? Number.POSITIVE_INFINITY),
+      end,
+    });
+  }
+  return new Map(
+    [...spans].map(([workItemId, { start, end }]) => [
+      workItemId,
+      {
+        startedOn: isoDateOfInstantIn(zone, start),
+        endedOn: end === undefined ? undefined : isoDateOfInstantIn(zone, end),
+      },
+    ]),
+  );
+}
+
+/**
+ * A row's attempts by step id, each list in ascending number, with the
+ * {@link Span} of each node and of the row (`step-node-attempts` D4). Empty
+ * when the row holds none, so the read carries no key at all: no attempts, no
+ * span. Steps are walked in project order, so two reads of an unchanged plan
+ * answer the same key order.
+ */
+function attemptFieldsOf(
+  held: readonly StoredAttempt[],
+  steps: readonly Step[],
+): Pick<NumberedWorkItem, 'attempts' | 'spans' | 'span'> {
+  if (held.length === 0) return {};
+  const attempts: Record<string, Attempt[]> = {};
+  const spans: Record<string, Span> = {};
+  for (const step of steps) {
+    const atStep = held
+      .filter((attempt) => attempt.stepId === step.id)
+      .sort((left, right) => left.attemptNumber - right.attemptNumber)
+      .map(({ workItemId: _workItemId, stepId: _stepId, ...attempt }) => attempt);
+    const span = spanOfAttempts(atStep);
+    if (span === undefined) continue;
+    attempts[step.id] = atStep;
+    spans[step.id] = span;
+  }
+  const answered = Object.values(attempts).flat();
+  // A step removal deletes its attempts in the same transaction, so an attempt
+  // at a step this list lacks is trusted state that moved underneath the read,
+  // never a history to answer with a hole in it.
+  if (answered.length !== held.length) {
+    throw new Error(`${String(held.length - answered.length)} attempts held at no project step`);
+  }
+  const span = spanOfAttempts(answered);
+  if (span === undefined) throw new Error('attempts were held but none was answered');
+  return { attempts, spans, span };
 }
 
 /**
@@ -1684,14 +1756,25 @@ export class WorkItemService {
     | { kind: 'not_found' }
     | AccessRefused
     | EngineUnavailable
-    | { kind: 'shared'; project: Project; tree: PlanTree; document: PlanDocumentReads }
+    | {
+        kind: 'shared';
+        project: Project & { timezone: string };
+        tree: PlanTree;
+        document: PlanDocumentReads;
+      }
   > {
     if (this.opts.livePlans === undefined) return { kind: 'isolated' };
     const captured = await this.opts.livePlans.readExport(projectId, access);
     if (captured.kind !== 'shared') return captured;
     const tree = projectSharedTree(captured);
     if ('kind' in tree) return tree;
-    return { kind: 'shared', project: captured.project, tree, document: captured.document };
+    return {
+      kind: 'shared',
+      // The zone from the same observation as the rows: the capture's own.
+      project: { ...captured.project, timezone: captured.chain.reads.project.timezone },
+      tree,
+      document: captured.document,
+    };
   }
 
   /**
@@ -2227,6 +2310,8 @@ export class WorkItemService {
         authored,
         assigned,
         assignedPeople,
+        // Read for the payload alone, like the actuals above: no engine sees it.
+        attempts: await this.opts.attempts.listByProject(projectId),
         seq,
         steps,
         slotsOf,
@@ -4552,8 +4637,15 @@ export class WorkItemService {
    * work item the act speaks for — the leaves and, for a parent, the parent
    * itself — takes `on` as its fact end when it holds none, and `factStart`,
    * when given, as its fact start when it holds none; a typed day is never
-   * overwritten. `on` absent, the day is the UTC day of this act's own stamp
-   * ({@link isoDateOfInstant}): one clock read, never a second `now()`.
+   * overwritten. `on` absent, a leaf holding an ended attempt takes the day
+   * its last attempt ended, and every other row the day of this act's own
+   * stamp; `factStart` absent, `done` and `in_progress` give a leaf holding
+   * any attempt the day its first attempt started (`step-node-attempts` D4).
+   * Every such day is read in the project's timezone
+   * ({@link isoDateOfInstantIn}), so a `UTC` project with no attempts fills
+   * exactly what it always did: one clock read, never a second `now()`.
+   *
+   * @throws when the project has no stored timezone: trusted state.
    *
    * `unknown` takes every statement off every leaf in scope and, off every
    * in-scope work item that **read done** before the act — the leaves and the
@@ -4616,12 +4708,23 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
     const stamp = this.clock.stampFor(actorId);
-    const day = on ?? isoDateOfInstant(stamp.at);
+    const zone = await this.opts.projects.timezoneOf(workItem.projectId);
+    // `contextFor` has just read the project, so a missing zone is a store
+    // that lost its row, never a project to read in some default zone.
+    if (zone === null) throw new Error(`project ${workItem.projectId} has no timezone`);
+    // Proof: `zone` replaced by 'UTC' here made `Kyiv at 23:30Z fills the
+    // next day` read `factEnd: "2026-09-12"` for `"2026-09-13"`; watched
+    // 2026-10-12.
+    const day = on ?? isoDateOfInstantIn(zone, stamp.at);
     const hasChildren = new Set(rows.map((row) => row.parentId));
     const order = treeOrder(rows);
     const leaves = subtreeOf(rows, id)
       .filter((each) => !hasChildren.has(each))
       .sort((left, right) => (order.get(left) ?? 0) - (order.get(right) ?? 0));
+    const witness = attemptWitness(
+      await this.opts.attempts.listByWorkItems(workItem.projectId, leaves),
+      zone,
+    );
     const projectSteps = await this.opts.projects.stepsOf(workItem.projectId);
     // Proof: this refusal removed made `refuses in progress and done with
     // no_steps` fail on `Expected: {ok: false, reason: "no_steps"}, Received:
@@ -4719,7 +4822,9 @@ export class WorkItemService {
       if (silent !== undefined) setStep(leafId, silent.id, 'in_progress');
       patchRow(leafId, {
         hold: null,
-        ...(rowOf(leafId).factStart === null ? { factStart: factStart ?? day } : {}),
+        ...(rowOf(leafId).factStart === null
+          ? { factStart: factStart ?? witness.get(leafId)?.startedOn ?? day }
+          : {}),
       });
     };
 
@@ -4730,11 +4835,20 @@ export class WorkItemService {
       }
       for (const spokenFor of new Set([...leaves, id])) {
         const row = rowOf(spokenFor);
+        // A leaf's attempts are the better witness than the day of the mark:
+        // the work ended when its last attempt did, and began with its first.
+        // Proof: the witness skipped (`attempted` read as undefined) made
+        // `done fills the fact end from the last attempt's end day in the
+        // project zone` read the act's day — `factEnd: "2026-10-11"` for
+        // `"2026-10-10"` and `factStart: null` for `"2026-10-08"`; watched
+        // 2026-10-12.
+        const attempted = witness.get(spokenFor);
+        const startedOn = factStart ?? attempted?.startedOn;
         // The two fills, each only where the row holds nothing: a typed day is
         // the planner's record and is never overwritten by a mark.
         patchRow(spokenFor, {
-          ...(row.factEnd === null ? { factEnd: day } : {}),
-          ...(factStart !== undefined && row.factStart === null ? { factStart } : {}),
+          ...(row.factEnd === null ? { factEnd: on ?? attempted?.endedOn ?? day } : {}),
+          ...(startedOn !== undefined && row.factStart === null ? { factStart: startedOn } : {}),
         });
       }
     } else if (status === 'unknown') {
@@ -6421,6 +6535,8 @@ interface TreeReads {
   authored: readonly TypedDependency[];
   assigned: readonly Assignment[];
   assignedPeople: { id: string; name: string }[];
+  /** Every attempt in the project, read beside the statements and handed to no engine. */
+  attempts: readonly StoredAttempt[];
   seq: number;
   steps: Step[];
   slotsOf: ReadonlyMap<string, number>;
@@ -6464,6 +6580,10 @@ function projectSharedTree(
       assignedPeople: reads.people
         .filter((person) => people.has(person.id))
         .map(({ id, name }) => ({ id, name })),
+      // Proof: `[]` here made `reads attempts ascending and derived spans per
+      // node and leaf (shared)` read no attempts (`received value must be a
+      // non-null object`) while the isolated case passed; watched 2026-10-12.
+      attempts: captured.attempts,
       slotsOf: reads.capacity,
       priorityBands: [...reads.priorityBands],
       elsewhereHolders: chain.kind === 'scheduled' ? chain.holders : [],
@@ -6488,6 +6608,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     authored,
     assigned,
     assignedPeople,
+    attempts,
     seq,
     steps,
     slotsOf,
@@ -6719,6 +6840,10 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   // `rows.some(...)` **inside** the map over `rows` — O(rows × edges × rows),
   // on the read every write and every socket frame performs.
   const idsOnThisPlan = new Set(rows.map((row) => row.id));
+  const attemptsOf = new Map<string, StoredAttempt[]>();
+  for (const attempt of attempts) {
+    attemptsOf.set(attempt.workItemId, [...(attemptsOf.get(attempt.workItemId) ?? []), attempt]);
+  }
   const workItems = rows
     .map((row) => ({
       ...row,
@@ -6774,6 +6899,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       // otherwise be reported as a dependency on a number nobody can see.
       dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => idsOnThisPlan.has(id)),
       ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
+      ...attemptFieldsOf(attemptsOf.get(row.id) ?? [], steps),
       // A row the hold reduction took out has no schedule and no dates: it
       // takes no part in the plan, and a placeholder span would draw it.
       // Proof: the placeholder kept here made `lets a successor start at day

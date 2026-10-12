@@ -4,6 +4,7 @@ import type { CalendarMarker } from '../../ports/calendar-marker-store';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { NewProject } from '../../ports/project-values';
+import type { StoredAttempt } from '../../ports/step-node-attempt-store';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeCopy } from '../../ports/subtree-store';
 import type { StoredTypedDependency } from '../../ports/typed-dependency-store';
@@ -153,6 +154,22 @@ export class ImportedPlanResource {
   /** Inserts the whole prepared tree, parents first, with its step values and edges. */
   async insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void> {
     await this.#scope.stores.subtrees.insertSubtree(copy, stamp);
+  }
+
+  /**
+   * Stores the created project's zone. `createProject` writes the column's
+   * `UTC`, so only a document naming another zone calls this.
+   *
+   * @throws when the created project is not there to take it.
+   */
+  async setTimezone(projectId: string, timezone: string, stamp: WriteStamp): Promise<void> {
+    if (!(await this.#scope.stores.projects.setTimezone(projectId, timezone, stamp)))
+      throw new Error(`created project refused its timezone: ${projectId}`);
+  }
+
+  /** Writes one attempt verbatim under its own number onto a created leaf. */
+  async restoreAttempt(attempt: StoredAttempt, stamp: WriteStamp): Promise<void> {
+    await this.#scope.stores.attempts.restore(attempt, stamp);
   }
 
   async addTypedDependency(row: StoredTypedDependency, stamp: WriteStamp): Promise<void> {

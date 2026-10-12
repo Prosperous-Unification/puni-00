@@ -17,6 +17,10 @@ let strip: string;
 
 beforeEach(async () => {
   h = OrganizationHarness.openComposed();
+  await populate();
+});
+
+async function populate(): Promise<void> {
   await h.register('ada');
   h.organization('org-a');
   h.member('org-a', 'ada', 'member');
@@ -34,7 +38,7 @@ beforeEach(async () => {
   const id = (leaf.body as { results?: { id?: string }[] }).results?.[0]?.id;
   if (id === undefined) throw new Error(`no leaf: ${JSON.stringify(leaf)}`);
   strip = id;
-});
+}
 
 afterEach(() => {
   h.close();
@@ -212,5 +216,298 @@ describe('the attempt commands', () => {
 
     expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
     expect(stored(dev)).toEqual(held);
+  });
+});
+
+describe('the work-item read', () => {
+  interface ReadRow {
+    name: string;
+    attempts?: Record<string, { attemptNumber: number; endedAt: number | null }[]>;
+    spans?: Record<string, { start: number; end: number | null }>;
+    span?: { start: number; end: number | null };
+  }
+
+  async function readRows(): Promise<Map<string, ReadRow>> {
+    const read = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+    if (read.status !== 200) throw new Error(`read refused: ${JSON.stringify(read)}`);
+    return new Map(
+      (read.body as { workItems: ReadRow[] }).workItems.map((row) => [row.name, row] as const),
+    );
+  }
+
+  /**
+   * The spec's "a running attempt leaves the span open" and "no attempts, no
+   * span", read through both live-plan paths: the isolated read and the shared
+   * observation `readLiveProjectIn` captures.
+   */
+  for (const mode of ['isolated', 'shared'] as const) {
+    it(`reads attempts ascending and derived spans per node and leaf (${mode})`, async () => {
+      if (mode === 'shared') {
+        h.close();
+        h = OrganizationHarness.openComposedWith({
+          supportedCapacityModes: ['isolated', 'shared'],
+        });
+        await populate();
+        h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+      }
+      await batch([{ kind: 'createWorkItem', parentId: null, afterId: strip, name: 'Plaster' }]);
+      const now = Date.now();
+      const first = now - 7_200_000;
+      const firstEnd = now - 5_400_000;
+      const second = now - 3_600_000;
+      const qaStart = now - 6_000_000;
+      const qaEnd = now - 4_000_000;
+      for (const commands of [
+        [{ kind: 'startAttempt', workItemId: strip, stepId: dev, at: first }],
+        [{ kind: 'endAttempt', workItemId: strip, stepId: dev, outcome: 'failed', at: firstEnd }],
+        [{ kind: 'startAttempt', workItemId: strip, stepId: dev, at: second }],
+        [{ kind: 'startAttempt', workItemId: strip, stepId: qa, at: qaStart }],
+        [{ kind: 'endAttempt', workItemId: strip, stepId: qa, outcome: 'succeeded', at: qaEnd }],
+      ]) {
+        const answered = await batch(commands);
+        if (answered.status !== 200) throw new Error(`refused: ${JSON.stringify(answered)}`);
+      }
+
+      const rows = await readRows();
+      const leaf = rows.get('Strip');
+      expect(leaf?.attempts?.[dev]).toMatchObject([
+        { attemptNumber: 1, startedAt: first, endedAt: firstEnd, outcome: 'failed' },
+        { attemptNumber: 2, startedAt: second, endedAt: null, outcome: null },
+      ]);
+      expect(leaf?.attempts?.[qa]).toMatchObject([
+        { attemptNumber: 1, startedAt: qaStart, endedAt: qaEnd, outcome: 'succeeded' },
+      ]);
+      expect(leaf?.spans).toEqual({
+        [dev]: { start: first, end: null },
+        [qa]: { start: qaStart, end: qaEnd },
+      });
+      expect(leaf?.span).toEqual({ start: first, end: null });
+
+      const silent = rows.get('Plaster');
+      expect(silent).toBeDefined();
+      expect(silent !== undefined && 'attempts' in silent).toBe(false);
+      expect(silent !== undefined && 'spans' in silent).toBe(false);
+      expect(silent !== undefined && 'span' in silent).toBe(false);
+    });
+  }
+});
+
+describe('the plan document carries the zone and the attempts (version 7)', () => {
+  interface DocumentRow {
+    name: string;
+    attempts?: Record<string, Record<string, unknown>[]>;
+    spans?: unknown;
+  }
+  interface Document {
+    document: { version: number };
+    settings: { timezone: string };
+    workItems: DocumentRow[];
+    directory: { people: { name: string }[] };
+  }
+
+  const began = Date.UTC(2026, 9, 10, 8, 0);
+  const failed = Date.UTC(2026, 9, 10, 9, 30);
+  const retried = Date.UTC(2026, 9, 10, 10, 0);
+
+  /** `Strip` in a Kyiv project: Dev attempt 1 failed by Ana, attempt 2 running. */
+  async function attemptedExport(): Promise<Document> {
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${project}`, { timezone: 'Europe/Kyiv' }))
+        .status,
+    ).toBe(200);
+    h.sqlite.run("INSERT INTO person (id, name) VALUES ('pe-ana', 'root-Ana')");
+    h.sqlite.run(
+      "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('pe-ana', 'org-a', 'Ana')",
+    );
+    for (const commands of [
+      [
+        {
+          kind: 'startAttempt',
+          workItemId: strip,
+          stepId: dev,
+          at: began,
+          executorPersonId: 'pe-ana',
+          reference: 'PR #11',
+          note: 'first go',
+        },
+      ],
+      [{ kind: 'endAttempt', workItemId: strip, stepId: dev, outcome: 'failed', at: failed }],
+      [{ kind: 'startAttempt', workItemId: strip, stepId: dev, at: retried }],
+    ]) {
+      const answered = await batch(commands);
+      if (answered.status !== 200) throw new Error(`refused: ${JSON.stringify(answered)}`);
+    }
+    const exported = await h.call('ada', 'GET', `/api/projects/${project}/export?format=json`);
+    if (exported.status !== 200) throw new Error(`export refused: ${JSON.stringify(exported)}`);
+    return exported.body as Document;
+  }
+
+  const projectCount = () =>
+    h.sqlite.query<{ n: number }, []>('SELECT count(*) AS n FROM project').get()?.n;
+
+  it('round-trips a Kyiv project whose 010.dev holds attempts 1 failed and 2 running', async () => {
+    const document = await attemptedExport();
+    expect(document.document.version).toBe(7);
+    expect(document.settings.timezone).toBe('Europe/Kyiv');
+    const row = document.workItems.find((each) => each.name === 'Strip');
+    expect(row?.spans).toBeUndefined();
+    expect(row?.attempts).toEqual({
+      dev: [
+        {
+          number: 1,
+          startedAt: '2026-10-10T08:00:00.000Z',
+          endedAt: '2026-10-10T09:30:00.000Z',
+          outcome: 'failed',
+          executor: 'Ana',
+          reference: 'PR #11',
+          note: 'first go',
+        },
+        {
+          number: 2,
+          startedAt: '2026-10-10T10:00:00.000Z',
+          endedAt: null,
+          outcome: null,
+          executor: null,
+          reference: null,
+          note: null,
+        },
+      ],
+    });
+    expect(document.directory.people.map(({ name }) => name)).toContain('Ana');
+
+    const imported = await h.call('ada', 'POST', '/api/projects/import', document);
+    expect(imported.status).toBe(201);
+    const copy = (imported.body as { projectId: string }).projectId;
+    const read = await h.call('ada', 'GET', `/api/projects/${copy}`);
+    expect((read.body as { project: { timezone: string } }).project.timezone).toBe('Europe/Kyiv');
+    const tree = await h.call('ada', 'GET', `/api/projects/${copy}/work-items`);
+    const body = tree.body as {
+      steps: { id: string; code: string }[];
+      workItems: (DocumentRow & { attempts?: Record<string, unknown[]> })[];
+    };
+    const copiedDev = body.steps.find((step) => step.code === 'dev')?.id ?? '';
+    const copied = body.workItems.find((each) => each.name === 'Strip');
+    expect(copied?.attempts?.[copiedDev]).toMatchObject([
+      {
+        attemptNumber: 1,
+        startedAt: began,
+        endedAt: failed,
+        outcome: 'failed',
+        executorPersonId: 'pe-ana',
+        reference: 'PR #11',
+        note: 'first go',
+      },
+      { attemptNumber: 2, startedAt: retried, endedAt: null, outcome: null },
+    ]);
+  });
+
+  it('imports a version-6 document as UTC with no attempts', async () => {
+    const document = await attemptedExport();
+    document.document.version = 6;
+    const imported = await h.call('ada', 'POST', '/api/projects/import', document);
+    expect(imported.status).toBe(201);
+    const copy = (imported.body as { projectId: string }).projectId;
+    const read = await h.call('ada', 'GET', `/api/projects/${copy}`);
+    expect((read.body as { project: { timezone: string } }).project.timezone).toBe('UTC');
+    const rows = h.sqlite
+      .query<{ n: number }, [string]>(
+        `SELECT count(*) AS n FROM step_node_attempt
+          JOIN work_item ON work_item.id = step_node_attempt.work_item_id
+          WHERE work_item.project_id = ?`,
+      )
+      .get(copy);
+    expect(rows?.n).toBe(0);
+  });
+
+  /**
+   * Each refusal answers `400 invalid_body` at its path and creates no
+   * project. Proofs, watched 2026-10-12, each check in `classifyPlanDocument`
+   * disabled in turn: recorded beside the check.
+   */
+  it('refuses an unknown zone, an unknown outcome, an end before its start, two running and a running attempt not the highest', async () => {
+    const document = await attemptedExport();
+    const at = document.workItems.findIndex((each) => each.name === 'Strip');
+    const attempts = (edit: (dev: Record<string, unknown>[]) => void): Document => {
+      const changed = structuredClone(document);
+      const row = changed.workItems[at];
+      const dev = row.attempts?.['dev'];
+      if (dev === undefined) throw new Error('the export lost the attempts');
+      edit(dev);
+      return changed;
+    };
+    const zone = structuredClone(document);
+    zone.settings.timezone = 'Kyiv';
+    const cases: [string, Document, string][] = [
+      ['an unknown zone', zone, 'settings.timezone'],
+      [
+        'an unknown outcome',
+        attempts((dev) => {
+          Object.assign(dev[0], { outcome: 'won' });
+        }),
+        `workItems[${String(at)}].attempts.dev[0]`,
+      ],
+      [
+        'an end before its start',
+        attempts((dev) => {
+          Object.assign(dev[0], { endedAt: '2026-10-10T07:00:00.000Z' });
+        }),
+        `workItems[${String(at)}].attempts.dev[0].endedAt`,
+      ],
+      [
+        'two running on one node',
+        attempts((dev) => {
+          Object.assign(dev[0], { endedAt: null, outcome: null });
+        }),
+        `workItems[${String(at)}].attempts.dev`,
+      ],
+      [
+        'a running attempt not the highest',
+        attempts((dev) => {
+          dev.push({
+            number: 3,
+            startedAt: '2026-10-10T11:00:00.000Z',
+            endedAt: '2026-10-10T11:30:00.000Z',
+            outcome: 'cancelled',
+            executor: null,
+            reference: null,
+            note: null,
+          });
+        }),
+        `workItems[${String(at)}].attempts.dev`,
+      ],
+    ];
+    const before = projectCount();
+    const answers = [];
+    for (const [named, file] of cases) {
+      const refused = await h.call('ada', 'POST', '/api/projects/import', file);
+      answers.push({ named, status: refused.status, body: refused.body });
+    }
+    expect(answers).toEqual(
+      cases.map(([named, , path]) => ({
+        named,
+        status: 400,
+        body: { error: 'invalid_body', path, detail: null },
+      })),
+    );
+    expect(projectCount()).toBe(before);
+  });
+
+  it('refuses an attempt executor the directory does not name, creating no project', async () => {
+    const document = await attemptedExport();
+    const at = document.workItems.findIndex((each) => each.name === 'Strip');
+    const first = document.workItems[at]?.attempts?.['dev']?.[0];
+    if (first === undefined) throw new Error('the export lost the attempts');
+    first['executor'] = 'Nobody';
+    const before = projectCount();
+    const refused = await h.call('ada', 'POST', '/api/projects/import', document);
+    expect(refused).toEqual({
+      status: 400,
+      body: {
+        error: 'unknown_ref',
+        path: `workItems[${String(at)}].attempts[0].executor`,
+        detail: null,
+      },
+    });
+    expect(projectCount()).toBe(before);
   });
 });

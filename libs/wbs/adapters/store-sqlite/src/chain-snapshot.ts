@@ -41,6 +41,7 @@ import { readPlanInputIn } from './saved-plan-capture';
 import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
 import { projectOrganization } from './schema';
 import { readCapacityMode } from './shared-people-mode';
+import { StepNodeAttemptRepository } from './step-node-attempt';
 import { WorkItemRepository } from './work-item';
 
 export interface ChainSnapshotOptions {
@@ -404,6 +405,7 @@ async function readLiveAggregateIn(
         project,
         steps: await projects.stepsOf(project.id),
         workItems: await new WorkItemRepository(db, OPEN).listByProject(project.id),
+        attempts: await new StepNodeAttemptRepository(db, OPEN).listByProject(project.id),
         seq: await new DrizzleEventLogStore(db, OPEN).latestSeq(`project:${project.id}`),
       },
     });
@@ -488,6 +490,7 @@ async function readLiveProjectIn(
     project: owned,
     steps: await projects.stepsOf(projectId),
     workItems: await new WorkItemRepository(db, OPEN).listByProject(projectId),
+    attempts: await new StepNodeAttemptRepository(db, OPEN).listByProject(projectId),
     // Proof: reading the bare project ID failed mounted metadata cases with seq -1 instead of 11.
     seq: await new DrizzleEventLogStore(db, OPEN).latestSeq(`project:${projectId}`),
   };

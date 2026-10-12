@@ -131,6 +131,11 @@ export interface ExportRow {
   } | null;
   assignees: Record<string, string | undefined>;
   doesEveryStep: string | null;
+  /**
+   * The leaf's attempts by step id, as the read carries them, counted per step
+   * into the sheet. Optional because the read leaves it out on a row with none.
+   */
+  attempts?: Record<string, readonly unknown[] | undefined>;
 }
 
 /**
@@ -764,6 +769,15 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
         cell: (row) => figure(row, row.finalDays[step.id]),
       },
       { header: `${step.name} by`, cell: (row) => assigneeCell(plan, row, step.id) },
+      // How many runs this node took, beside who ran it. Blank where there were
+      // none, the Priority column's bargain: a count of nothing is no run.
+      {
+        header: `${step.name} attempts`,
+        cell: (row) => {
+          const held = row.attempts?.[step.id]?.length ?? 0;
+          return held === 0 ? '' : String(held);
+        },
+      },
     ]),
     {
       header: `Total days (${method})`,

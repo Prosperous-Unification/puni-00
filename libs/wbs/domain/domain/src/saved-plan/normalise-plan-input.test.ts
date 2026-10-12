@@ -166,7 +166,7 @@ describe('the version-1 to version-2 upgrade — step allowances', () => {
   });
 
   it('writes version 2 with each step’s allowance', () => {
-    expect(CANONICAL_PLAN_INPUT_SCHEMA_VERSION).toBe(4);
+    expect(CANONICAL_PLAN_INPUT_SCHEMA_VERSION).toBe(5);
     const body = JSON.parse(bytes) as { steps: { allowancePercent: unknown }[] };
     for (const step of body.steps) expect(typeof step.allowancePercent).toBe('number');
   });
@@ -239,6 +239,33 @@ describe('the version-3 to version-4 upgrade — readiness and holds', () => {
     );
     expect(() => normalisePlanInputForward({ schemaVersion: 3, workItems: [7] }, 3)).toThrow(
       'a version-3 plan input body holds a work item that is not an object',
+    );
+  });
+});
+
+describe('the version-4 to version-5 upgrade — the project timezone', () => {
+  it('reads a version-4 body as UTC and compares clean, leaving the stored bytes alone', () => {
+    const current = canonicalisePlanInput({
+      ...planFixtureRows,
+      project: { ...planFixtureRows.project, timezone: 'UTC' },
+    });
+    const { timezone: _timezone, ...project } = current.project;
+    const versionFour = { ...current, schemaVersion: 4, project };
+    const storedBytes = JSON.stringify(versionFour);
+    const parsed = JSON.parse(storedBytes) as Record<string, unknown>;
+
+    // Proof: the upgrade returning the body unchanged made this fail on
+    // `schemaVersion` (4 for 5) and the missing `project.timezone`; watched
+    // 2026-10-12.
+    const upgraded = normalisePlanInputForward(parsed, 4);
+    expect(upgraded).toEqual(current);
+    expect(upgraded.project.timezone).toBe('UTC');
+    expect(JSON.stringify(parsed)).toBe(storedBytes);
+  });
+
+  it('refuses a version-4 body that holds no project object', () => {
+    expect(() => normalisePlanInputForward({ schemaVersion: 4, project: null }, 4)).toThrow(
+      'a version-4 plan input body holds no project object',
     );
   });
 });

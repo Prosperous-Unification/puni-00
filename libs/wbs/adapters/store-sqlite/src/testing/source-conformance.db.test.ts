@@ -891,6 +891,7 @@ function emptyMissingCapture(): PlanInputReads {
       scheduleObjective: 'pri',
       optimizationEnabled: false,
       solutionRef: null,
+      timezone: 'UTC',
     },
     steps: [],
     workItems: [],

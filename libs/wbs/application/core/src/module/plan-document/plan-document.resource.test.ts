@@ -10,7 +10,7 @@ import type { CalendarMarker, DirectoryStore, Project } from '../../index';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import { classifyPlanDocument, PlanDocumentService } from './plan-document.resource';
 
-const PROJECT: Project = {
+const PROJECT: Project & { timezone: string } = {
   id: 'project-1',
   name: 'Release plan',
   ownerId: 'owner-1',
@@ -26,6 +26,7 @@ const PROJECT: Project = {
   optimizationEnabled: true,
   scheduleEngine: 'optimized',
   scheduleObjective: 'time',
+  timezone: 'Europe/Kyiv',
 };
 
 const TREE: WorkItemTree = {
@@ -191,6 +192,7 @@ function directory(): Pick<
       Promise.resolve([
         { id: 'person-used', name: 'Kat', kind: 'agent', teamIds: ['team-membership'] },
         { id: 'person-unused', name: 'Nobody', kind: 'person', teamIds: [] },
+        { id: 'person-attempt', name: 'Ana', kind: 'person', teamIds: [] },
       ]),
     listTags: () =>
       Promise.resolve([
@@ -262,7 +264,7 @@ test('JSON export is a versioned plan document and settings says what project sa
   expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
   expect(exported.document).toEqual({
     format: 'wbs-plan',
-    version: 6,
+    version: 7,
     exportedAt: '2026-09-13T12:30:00.000Z',
   });
   expect(exported.settings).toEqual({
@@ -277,6 +279,7 @@ test('JSON export is a versioned plan document and settings says what project sa
     optimizationEnabled: PROJECT.optimizationEnabled,
     scheduleEngine: PROJECT.scheduleEngine,
     scheduleObjective: PROJECT.scheduleObjective,
+    timezone: 'Europe/Kyiv',
   });
   expect(exported.capacity).toEqual([{ teamId: 'team-capacity', size: 4 }]);
   expect(exported.calendarMarkers).toEqual([
@@ -331,7 +334,7 @@ test('malformed priority names workItems[3].priority', async () => {
 
 test('unknown version precedes version-specific validation', async () => {
   const future = structuredClone(await exportDocument());
-  Reflect.set(future.document, 'version', 7);
+  Reflect.set(future.document, 'version', 8);
   const row = future.workItems[0];
   future.workItems = Array.from({ length: 4 }, () => structuredClone(row));
   Reflect.set(future.workItems[3] ?? {}, 'priority', 'high');
@@ -398,7 +401,7 @@ test('version 5 refuses a missing relationship type', async () => {
   });
 });
 
-test('version 6 export keeps SS and FF types from the trusted tree', async () => {
+test('the current export keeps SS and FF types from the trusted tree', async () => {
   const tree = structuredClone(TREE);
   tree.typedDependencies = [
     {
@@ -418,7 +421,7 @@ test('version 6 export keeps SS and FF types from the trusted tree', async () =>
   expect(exported).toMatchObject({
     ok: true,
     value: {
-      document: { version: 6 },
+      document: { version: 7 },
       typedDependencies: [
         { id: 'start-link', type: 'SS' },
         { id: 'finish-link', type: 'FF' },
@@ -609,7 +612,7 @@ test('spells each leaf’s step nodes beside their IDs', async () => {
 
 test('version 6 carries each row’s readiness and hold, and earlier versions read as nothing said', async () => {
   const exported = structuredClone(await exportDocument());
-  expect(exported.document.version).toBe(6);
+  expect(exported.document.version).toBe(7);
   const row = exported.workItems.find(
     (each) => !exported.workItems.some((c) => c.parentId === each.id),
   );
@@ -682,4 +685,158 @@ test('refuses a version-6 hold or readiness outside its vocabulary or on a paren
     code: 'invalid_body',
     path: `workItems[${String(leafAt)}].hold`,
   });
+});
+
+/** `TREE` with its leaf's Build node holding attempt 1 failed by Ana and attempt 2 running. */
+function attemptedTree(): WorkItemTree {
+  const tree = structuredClone(TREE);
+  const [row] = tree.workItems;
+  row.attempts = {
+    'step-1': [
+      {
+        attemptNumber: 1,
+        startedAt: Date.parse('2026-10-10T08:00:00.000Z'),
+        endedAt: Date.parse('2026-10-10T09:30:00.000Z'),
+        outcome: 'failed',
+        executorPersonId: 'person-attempt',
+        reference: 'PR #11',
+        note: null,
+      },
+      {
+        attemptNumber: 2,
+        startedAt: Date.parse('2026-10-10T10:00:00.000Z'),
+        endedAt: null,
+        outcome: null,
+        executorPersonId: null,
+        reference: null,
+        note: 'retry',
+      },
+    ],
+  };
+  row.spans = { 'step-1': { start: Date.parse('2026-10-10T08:00:00.000Z'), end: null } };
+  row.span = { start: Date.parse('2026-10-10T08:00:00.000Z'), end: null };
+  return tree;
+}
+
+test('exports a Kyiv project’s zone and each leaf’s attempts by step code, executors by name', async () => {
+  const exported = await exportDocument(attemptedTree());
+  expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
+  expect(exported.settings.timezone).toBe('Europe/Kyiv');
+  const [row] = exported.workItems;
+  expect(row).not.toHaveProperty('spans');
+  expect(row).not.toHaveProperty('span');
+  expect(row.attempts).toEqual({
+    build: [
+      {
+        number: 1,
+        startedAt: '2026-10-10T08:00:00.000Z',
+        endedAt: '2026-10-10T09:30:00.000Z',
+        outcome: 'failed',
+        executor: 'Ana',
+        reference: 'PR #11',
+        note: null,
+      },
+      {
+        number: 2,
+        startedAt: '2026-10-10T10:00:00.000Z',
+        endedAt: null,
+        outcome: null,
+        executor: null,
+        reference: null,
+        note: 'retry',
+      },
+    ],
+  });
+  expect(exported.directory.people.map(({ name }) => name)).toEqual(['Kat', 'Ana']);
+});
+
+test('reads a version-7 file’s zone and attempts back, and a version-6 file as UTC with none', async () => {
+  const exported = await exportDocument(attemptedTree());
+  const current = await classifyPlanDocument(exported);
+  if (!current.ok) throw new Error(`current file refused at ${current.path}`);
+  expect(current.value.settings.timezone).toBe('Europe/Kyiv');
+  expect(current.value.workItems[0]?.attempts).toEqual([
+    {
+      stepId: 'step-1',
+      attemptNumber: 1,
+      startedAt: Date.parse('2026-10-10T08:00:00.000Z'),
+      endedAt: Date.parse('2026-10-10T09:30:00.000Z'),
+      outcome: 'failed',
+      executor: 'Ana',
+      reference: 'PR #11',
+      note: null,
+    },
+    {
+      stepId: 'step-1',
+      attemptNumber: 2,
+      startedAt: Date.parse('2026-10-10T10:00:00.000Z'),
+      endedAt: null,
+      outcome: null,
+      executor: null,
+      reference: null,
+      note: 'retry',
+    },
+  ]);
+
+  const older = structuredClone(exported);
+  Reflect.set(older.document, 'version', 6);
+  const previous = await classifyPlanDocument(older);
+  if (!previous.ok) throw new Error(`version 6 refused at ${previous.path}`);
+  expect(previous.value.settings.timezone).toBe('UTC');
+  expect(previous.value.workItems.every((each) => each.attempts.length === 0)).toBe(true);
+});
+
+/** Proof: each check's own, beside it in `classifyPlanDocument` (mounted, `step-node-attempt.controller.db`). */
+test('refuses a version-7 zone, outcome, order, running pair or running number it cannot hold', async () => {
+  const exported = await exportDocument(attemptedTree());
+  const edited = (edit: (attempts: Record<string, unknown>[]) => void) => {
+    const changed = structuredClone(exported);
+    const attempts = changed.workItems[0]?.attempts?.['build'];
+    if (attempts === undefined) throw new Error('the export lost its attempts');
+    edit(attempts);
+    return changed;
+  };
+  const zone = structuredClone(exported);
+  zone.settings.timezone = 'Kyiv';
+  const local = edited((attempts) => {
+    Object.assign(attempts[0], { startedAt: '2026-10-10T08:00:00' });
+  });
+  const onParent = edited(() => undefined);
+  const [attempted] = onParent.workItems;
+  const { attempts: _attempts, ...child } = structuredClone(attempted);
+  onParent.workItems.push({ ...child, id: 'row-child', parentId: 'row-1' });
+  const cases: [unknown, string][] = [
+    [zone, 'settings.timezone'],
+    [
+      edited((attempts) => Object.assign(attempts[0] ?? {}, { outcome: 'won' })),
+      'workItems[0].attempts.build[0]',
+    ],
+    [
+      edited((attempts) =>
+        Object.assign(attempts[0] ?? {}, { endedAt: '2026-10-10T07:00:00.000Z' }),
+      ),
+      'workItems[0].attempts.build[0].endedAt',
+    ],
+    [
+      edited((attempts) => Object.assign(attempts[0] ?? {}, { outcome: null })),
+      'workItems[0].attempts.build[0].outcome',
+    ],
+    [
+      edited((attempts) => Object.assign(attempts[0] ?? {}, { endedAt: null, outcome: null })),
+      'workItems[0].attempts.build',
+    ],
+    [
+      edited((attempts) => attempts.push({ ...attempts[0], number: 3 })),
+      'workItems[0].attempts.build',
+    ],
+    [
+      edited((attempts) => Object.assign(attempts[1] ?? {}, { number: 1 })),
+      'workItems[0].attempts.build[1].number',
+    ],
+    [local, 'workItems[0].attempts.build[0].startedAt'],
+    [onParent, 'workItems[0].attempts.build'],
+  ];
+  for (const [file, path] of cases) {
+    expect(await classifyPlanDocument(file)).toEqual({ ok: false, code: 'invalid_body', path });
+  }
 });

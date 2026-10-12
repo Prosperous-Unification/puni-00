@@ -264,6 +264,22 @@ describe('diffPlans — 7.2, the presentation categories', () => {
     }
   });
 
+  it('names a timezone change under settings with both values', () => {
+    const kyiv: CanonicalPlanInput = {
+      ...input,
+      project: { ...input.project, timezone: 'Europe/Kyiv' },
+    };
+    expect(inputDiff(kyiv)).toEqual([
+      {
+        category: 'settings',
+        path: 'project.timezone',
+        left: input.project.timezone,
+        right: 'Europe/Kyiv',
+      },
+    ]);
+    expect(input.project.timezone).toBe('UTC');
+  });
+
   it('groups dependency and assignment changes as themselves', () => {
     const noDeps: CanonicalPlanInput = { ...input, dependencies: [] };
     const noAssignments: CanonicalPlanInput = { ...input, assignments: [] };

@@ -31,6 +31,7 @@ function plan(
       scheduleObjective: 'pri',
       optimizationEnabled: false,
       solutionRef: null,
+      timezone: 'UTC',
     },
     steps: people.map((_, index) => ({
       id: `s${String(index)}`,

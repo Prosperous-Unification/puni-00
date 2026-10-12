@@ -2,6 +2,7 @@ import type { PlanDocumentImport } from '@wbs/contracts';
 import {
   type AllowancePercent,
   allowancePercentOf,
+  type AttemptOutcome,
   canDepend,
   cleanName,
   findTypedEndpointDefect,
@@ -109,6 +110,18 @@ export interface PreparedAssignment {
   personFileId: string;
 }
 
+/** One attempt a leaf is imported with, its executor resolved to the file's person. */
+export interface PreparedAttempt {
+  stepFileId: string;
+  attemptNumber: number;
+  startedAt: number;
+  endedAt: number | null;
+  outcome: AttemptOutcome | null;
+  personFileId: string | null;
+  reference: string | null;
+  note: string | null;
+}
+
 export interface PreparedWorkItem {
   fileId: string;
   parentFileId: string | null;
@@ -138,6 +151,8 @@ export interface PreparedWorkItem {
   progress: PreparedProgress[];
   measures: PreparedMeasure[];
   assignments: PreparedAssignment[];
+  /** The leaf's attempts by number within each node; none on a parent or before version 7. */
+  attempts: PreparedAttempt[];
 }
 
 export interface PreparedDependency {
@@ -331,7 +346,7 @@ function preparedRow(
   row: DocumentRow,
 ): Omit<
   PreparedWorkItem,
-  'isLeaf' | 'estimates' | 'actuals' | 'progress' | 'measures' | 'assignments'
+  'isLeaf' | 'estimates' | 'actuals' | 'progress' | 'measures' | 'assignments' | 'attempts'
 > {
   return {
     fileId: row.id,
@@ -581,6 +596,9 @@ export function prepareImport(
     const normalized = normalizedNamed(rows, `directory.${kind}`);
     if ('ok' in normalized) return normalized;
   }
+  // Names are distinct once normalized, so an attempt's executor, which the
+  // file names rather than identifies, resolves to at most one person.
+  const personFileIdOf = new Map(document.directory.people.map(({ id, name }) => [name, id]));
 
   const teams = indexById(document.directory.teams, 'directory.teams');
   if (isRefusal(teams)) return teams;
@@ -761,7 +779,23 @@ export function prepareImport(
       ? parseLeaf(row, at, steps.byId)
       : { estimates: [], actuals: [], progress: [], measures: [], assignments: [] };
     if ('ok' in values) return values;
-    preparedRows.push({ ...preparedRow(row), isLeaf: leaf, ...values, assignments });
+    const attempts: PreparedAttempt[] = [];
+    for (const [index, { stepId, executor, ...attempt }] of row.attempts.entries()) {
+      // `classifyPlanDocument` has keyed every attempt to a step of the file.
+      if (!steps.byId.has(stepId)) throw new Error(`attempt step ${stepId} left the file`);
+      const personFileId = executor === null ? null : personFileIdOf.get(cleanName(executor) ?? '');
+      // Proof: a miss here defaulted to another file person made `refuses an
+      // attempt executor the directory does not name, creating no project`
+      // answer 500 (`prepared attempt executor mapping disappeared`) for 400
+      // `unknown_ref`; watched 2026-10-12.
+      if (personFileId === undefined)
+        return refuses(
+          'unknown_ref',
+          `workItems[${String(at)}].attempts[${String(index)}].executor`,
+        );
+      attempts.push({ ...attempt, stepFileId: stepId, personFileId });
+    }
+    preparedRows.push({ ...preparedRow(row), isLeaf: leaf, ...values, assignments, attempts });
   }
 
   // Proof: bypassing graph validation made the mounted dangling-dependency test return 204.

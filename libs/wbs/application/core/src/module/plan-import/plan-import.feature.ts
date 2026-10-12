@@ -1,5 +1,5 @@
 import type { PlanDocumentImport } from '@wbs/contracts';
-import { canWriteInOrganization } from '@wbs/domain';
+import { attemptOf, canWriteInOrganization } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type { Clock } from '../../ports/clock';
@@ -454,6 +454,30 @@ export class ImportService {
           },
           stamp,
         );
+        // Plan document version 7 names the zone; `createProject` wrote `UTC`.
+        // Proof: this write skipped made `round-trips a Kyiv project whose
+        // 010.dev holds attempts…` read the copy's zone as `UTC` for
+        // `Europe/Kyiv`; watched 2026-10-12.
+        if (settings.timezone !== 'UTC')
+          await writes.setTimezone(projectId, settings.timezone, stamp);
+        for (const row of prepared.workItems) {
+          for (const { stepFileId, personFileId, ...attempt } of row.attempts) {
+            await writes.restoreAttempt(
+              {
+                ...attemptOf({
+                  ...attempt,
+                  executorPersonId:
+                    personFileId === null
+                      ? null
+                      : resolvedId(peopleByFileId, personFileId, 'attempt executor'),
+                }),
+                workItemId: resolvedId(rowsByFileId, row.fileId, 'attempted work item'),
+                stepId: resolvedId(stepsByFileId, stepFileId, 'attempt step'),
+              },
+              stamp,
+            );
+          }
+        }
         for (const relationship of prepared.typedDependencies) {
           const remapEndpoint = (endpoint: typeof relationship.predecessor) =>
             endpoint.scope === 'whole'

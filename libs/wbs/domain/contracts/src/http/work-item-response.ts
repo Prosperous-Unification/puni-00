@@ -23,6 +23,22 @@ const typedEndpoint = type({
   // fields while allowing additive metadata` accept a numeric node ID; watched 2026-09-27.
   'stepNodeId?': 'string',
 });
+/**
+ * One attempt at a step node as the work-item read answers it
+ * (`step-node-attempts` D4): instants in epoch milliseconds, UTC; end and
+ * outcome both null while it runs.
+ */
+export const attemptShape = type({
+  attemptNumber: 'number',
+  startedAt: 'number',
+  endedAt: 'number | null',
+  outcome: "'succeeded' | 'failed' | 'cancelled' | null",
+  executorPersonId: 'string | null',
+  reference: 'string | null',
+  note: 'string | null',
+});
+/** First start to last end of some attempts, the end null while one runs. */
+export const spanShape = type({ start: 'number', end: 'number | null' });
 export const numberedWorkItem = type({
   id: 'string',
   projectId: 'string',
@@ -68,6 +84,12 @@ export const numberedWorkItem = type({
   dates: type({ startsOn: 'string', endsOn: 'string' }).or('null'),
   assignees: type({ '[string]': 'string' }),
   doesEveryStep: 'string | null',
+  // A leaf's attempts by step id, ascending number, and the spans derived from
+  // them per node and for the leaf; each absent when there are none. Optional
+  // because an older be-01 answers neither during a blue/green swap.
+  'attempts?': type({ '[string]': attemptShape.array() }),
+  'spans?': type({ '[string]': spanShape }),
+  'span?': spanShape,
 });
 export const workItemSlice = scheduled.and({
   id: 'string',

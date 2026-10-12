@@ -19,6 +19,11 @@ It sorts after every folder on `origin/main` and every `batch-10/*` branch, whos
 `20261011200000_add_shared_people_audit` (main, integration-7) and
 `20261012090200_widen_organization_audit` (`batch-10/010-5-5-enterprise-sso-impl`).
 
+Document and schema versions, allocated in slice 5 (2026-10-12): `PLAN_DOCUMENT_VERSION` **7**
+and `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` **5**. `origin/main` (`835d1bcd`) and every one of the
+66 `origin/batch-10/*` branches hold 6 and 4; no open change on them claims 7 or 5.
+`SCHEDULER_CONTRACT_VERSION` stays 15: the engines read no attempt and no zone.
+
 ## D1 — Storage
 
 ```
