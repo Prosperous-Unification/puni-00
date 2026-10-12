@@ -1,4 +1,4 @@
-import { readCandidateBlob } from '../inventory/read-blob';
+import { readSelectedBlob } from '../inventory/read-blob';
 import type { CandidateEntry } from '../inventory/read-candidate';
 import type { RuleObservation, RuleOutcome } from './rule';
 
@@ -60,7 +60,10 @@ export function measureSizes(
     if (entry.mode !== '100644' && entry.mode !== '100755') continue;
     if (!isMeasuredSource(entry.path)) continue;
     if (!underOneRoot(entry.path, ceilings.roots)) continue;
-    measured.set(entry.path, countLines(readCandidateBlob(repository, entry.blob, entry.path)));
+    measured.set(
+      entry.path,
+      countLines(readSelectedBlob(repository, entries, entry.blob, entry.path)),
+    );
   }
   const pinnedByPath = new Map(ceilings.pinned.map((pin) => [pin.path, pin.maximum]));
   // Proof: on 2026-09-20, deleting this loop made the stale-pin test exit 0 instead of 1.

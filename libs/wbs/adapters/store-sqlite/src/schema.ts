@@ -3051,7 +3051,9 @@ export const savedPlanOrganization = sqliteTable(
 /**
  * One audited act per row, written in the act's own transaction; see
  * `20260927220000_add_organization_audit`. `subject_id` references nothing
- * so the record outlives its subject.
+ * so the record outlives its subject. `20261012090200_widen_organization_audit`
+ * widened the vocabulary for enterprise SSO and made the table append-only
+ * through triggers, which this declaration cannot express.
  */
 export const organizationAudit = sqliteTable(
   'organization_audit',
@@ -3068,11 +3070,143 @@ export const organizationAudit = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (t) => [
-    check('organization_audit_action', sql`${t.action} IN ('restricted_project_recovery')`),
-    check('organization_audit_subject_kind', sql`${t.subjectKind} IN ('project')`),
+    check(
+      'organization_audit_action',
+      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed')`,
+    ),
+    check(
+      'organization_audit_subject_kind',
+      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy')`,
+    ),
     index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
   ],
 );
+
+/**
+ * One Auth0 enterprise connection on one verified domain claim; see
+ * `20261012090000_add_enterprise_sso_records`. At most one proven record
+ * names an Auth0 connection, and only a proven record is enforced.
+ */
+export const organizationSsoConnection = sqliteTable(
+  'organization_sso_connection',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    domainClaimId: text('domain_claim_id')
+      .notNull()
+      .references(() => organizationDomainClaim.id),
+    auth0Connection: text('auth0_connection').notNull(),
+    strategy: text('strategy', { enum: ['samlp', 'oidc'] }).notNull(),
+    loginSlug: text('login_slug').notNull(),
+    enforced: integer('enforced').notNull().default(0),
+    provenAt: integer('proven_at'),
+    provenBy: text('proven_by').references(() => users.id),
+    lastPrefixMismatchAt: integer('last_prefix_mismatch_at'),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    uniqueIndex('organization_sso_connection_claim').on(t.domainClaimId),
+    uniqueIndex('organization_sso_connection_slug').on(t.loginSlug),
+    uniqueIndex('organization_sso_connection_proven')
+      .on(t.auth0Connection)
+      .where(sql`${t.provenAt} IS NOT NULL`),
+    index('organization_sso_connection_organization').on(t.organizationId),
+    check('organization_sso_connection_strategy', sql`${t.strategy} IN ('samlp', 'oidc')`),
+    check('organization_sso_connection_enforced', sql`${t.enforced} IN (0, 1)`),
+    check(
+      'organization_sso_connection_proof',
+      sql`(${t.provenAt} IS NULL) = (${t.provenBy} IS NULL)`,
+    ),
+    check(
+      'organization_sso_connection_enforced_proven',
+      sql`${t.enforced} = 0 OR ${t.provenAt} IS NOT NULL`,
+    ),
+  ],
+);
+
+export type OrganizationSsoConnectionRow = typeof organizationSsoConnection.$inferSelect;
+
+/** One provisioning token of one organization, stored only as its SHA-256 digest. */
+export const organizationScimToken = sqliteTable(
+  'organization_scim_token',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    digest: text('digest').notNull(),
+    expiresAt: integer('expires_at'),
+    revokedAt: integer('revoked_at'),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    uniqueIndex('organization_scim_token_digest').on(t.digest),
+    index('organization_scim_token_organization').on(t.organizationId),
+  ],
+);
+
+export type OrganizationScimTokenRow = typeof organizationScimToken.$inferSelect;
+
+/**
+ * One SCIM `User` of one organization. Active and unbound is a pending
+ * membership; the local user and the upstream pair are bound together.
+ */
+export const organizationScimUser = sqliteTable(
+  'organization_scim_user',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    userName: text('user_name').notNull(),
+    externalId: text('external_id'),
+    active: integer('active').notNull(),
+    userId: text('user_id').references(() => users.id),
+    issuer: text('issuer'),
+    subject: text('subject'),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    uniqueIndex('organization_scim_user_name').on(t.organizationId, t.userName),
+    uniqueIndex('organization_scim_user_bound')
+      .on(t.organizationId, t.userId)
+      .where(sql`${t.userId} IS NOT NULL`),
+    check('organization_scim_user_active', sql`${t.active} IN (0, 1)`),
+    check(
+      'organization_scim_user_binding',
+      sql`(${t.userId} IS NULL) = (${t.issuer} IS NULL) AND (${t.issuer} IS NULL) = (${t.subject} IS NULL)`,
+    ),
+  ],
+);
+
+export type OrganizationScimUserRow = typeof organizationScimUser.$inferSelect;
+
+/** An organization's session bounds in seconds; a missing row is no policy. */
+export const organizationSessionPolicy = sqliteTable(
+  'organization_session_policy',
+  {
+    organizationId: text('organization_id')
+      .primaryKey()
+      .references(() => organization.id),
+    maxSessionSeconds: integer('max_session_seconds'),
+    reauthenticateAfterSeconds: integer('reauthenticate_after_seconds'),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    check(
+      'organization_session_policy_bound',
+      sql`${t.maxSessionSeconds} IS NOT NULL OR ${t.reauthenticateAfterSeconds} IS NOT NULL`,
+    ),
+  ],
+);
+
+export type OrganizationSessionPolicyRow = typeof organizationSessionPolicy.$inferSelect;
 
 /**
  * One switch of an organization between isolated and shared people, written

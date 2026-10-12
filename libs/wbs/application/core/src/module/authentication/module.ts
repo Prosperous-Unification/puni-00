@@ -43,6 +43,7 @@ export const authenticationModule = DiBag.createBuilder()
           users: account.users,
           identities: account.users,
           clock: account.clock,
+          enterprise: account.enterprise,
         }),
       }),
       { factoryReturnKind: 'sync-value' },

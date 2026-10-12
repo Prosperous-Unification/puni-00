@@ -58,6 +58,7 @@ The record's subject prefix is `{strategy}|{auth0_connection}|`. A record become
 - The query takes exactly one of `organization`, `email` and `method` (from `social-sign-in`). Two of them, a malformed email or a malformed slug answer `400 invalid_query` before any transaction is saved. An unknown slug answers `404 sso_connection_not_found`.
 - A suspended claim stops email routing. Slug routing and enforcement continue, so suspension never weakens enforcement.
 - The routed connection is a hint only. Authority comes from the subject that comes back.
+- `GET /api/auth/login?reauthenticate=<organizationId>` is the fourth alternative and the login path a `reauthentication_required` refusal names. It always sends `prompt=login`, sends `max_age` when the organization's policy sets `reauthenticate_after_seconds`, and sends the organization's connection only when SSO is enforced there. An unknown organization gets the bare `prompt=login`, so the path reveals nothing. (Implementation, 2026-10-12.)
 
 ### Enforced SSO (W6)
 
@@ -121,7 +122,7 @@ For OIDC credentials both times are new nullable columns on `browser_auth_lifecy
 
 The rule runs at the same points as enforcement and refuses with `403 reauthentication_required` and `{ reason: "max_session" | "reauthenticate_after", login }`, where `login` sends `prompt=login` through the organization's route. A null time in an organization with a policy refuses; a lifecycle opened before the migration therefore reauthenticates once. Refresh never resets `opened_at`.
 
-A delegation in an organization with a policy is refused (`reauthentication_required`) until the MCP cutover adds an `authenticated_at` claim from the grant's consent. This is deliberately fail-closed, and the same check exists in mcp-01's refresh path.
+A delegation in an organization with a policy is refused (`reauthentication_required`) until the MCP cutover adds an `authenticated_at` claim from the grant's consent. A direct context carries no authentication facts at all, so in an organization that enforces SSO or has a policy it is refused on use; at issue the rules read the native session's own `iat`. (Implementation, 2026-10-12.) This is deliberately fail-closed, and the same check exists in mcp-01's refresh path.
 
 ### Audit
 
@@ -160,6 +161,8 @@ None of this activates anything. The routes are inert until organization activat
 - **Per-process SCIM admission** is approximate across colours. The bound is documented, not hidden.
 - **Load-bearing invariant V6: never Auth0 account linking** (`social-sign-in`). If a tenant admin enables Auth0 account linking (an Action or extension), an enterprise sign-in returns the primary identity's `sub`, for example `google-oauth2|…`. Enforcement then fails closed: every linked member of an enforced organization receives `sso_required`. Tenant configuration is Dany-only, and enabling linking requires a new decision.
 - **mcp-01 consent UX gap.** mcp-01's consent completes the upstream login through Universal Login without WBS's `organization=`/`email=` routing. A member of an enforced organization must therefore pick the company connection in Auth0's chooser, or be routed there by Auth0's own home realm discovery if Dany enables it. Otherwise the delegation is refused with `sso_required`. Routing consent is left to the MCP cutover.
+- **Enterprise strategies outside the record.** Email trust (`isEnterpriseSubject`) and enforcement know only `samlp|` and `oidc|`, the two strategies a connection record may name. If a tenant admin enabled `waad|`, `adfs|`, `google-apps|` or `okta|` connections, those identities would keep social-style email trust (their `email_verified` honoured as for `google-oauth2`) and could never satisfy enforcement. Enabling such a strategy is a tenant change and needs this change extended first.
+- **No model-based test (conscious exception).** Activation and deprovisioning, the two writers that race on one SCIM record and membership, each run in one `BEGIN IMMEDIATE` transaction that rereads the record, so SQLite serializes them and no interleaving inside either exists to model; `ScimAdmission` is a deterministic per-process window over the injected clock, pinned by unit tests at both edges. Example-based tests with injected faults cover both.
 - **Unverified prefix format.** The proof login turns the unverified prefix format into a per-connection observation instead of an assumption. If no proof can succeed, enforcement stays off and the Action-claim fallback becomes a new decision.
 
 ## Open questions

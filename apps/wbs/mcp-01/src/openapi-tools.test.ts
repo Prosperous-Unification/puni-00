@@ -36,6 +36,12 @@ const fixture = (): FixtureDocument => ({
     '/api/smoke/echo': { post: { operationId: 'postApiSmokeEcho' } },
     '/api/organization/memberships': { get: { operationId: 'getApiOrganizationMemberships' } },
     '/api/organization/active': { post: { operationId: 'postApiOrganizationActive' } },
+    '/api/organization/provisioning-tokens': {
+      post: { operationId: 'postApiOrganizationProvisioningTokens' },
+    },
+    '/api/organization/provisioning-tokens/{id}': {
+      delete: { operationId: 'deleteApiOrganizationProvisioningTokensById' },
+    },
     '/api/auth/login': { post: { operationId: 'postApiAuthLogin' } },
     '/internal/forward': { post: { operationId: 'postInternalForward' } },
     '/api/projects/': {
@@ -246,7 +252,7 @@ describe('toolsFromDocument, on the generated document', () => {
       'workItems',
     ]);
     expect(JSON.stringify(importDocument.inputSchema)).not.toContain('"$ref"');
-    expect(EXCLUDED_PATHS).toHaveLength(5);
+    expect(EXCLUDED_PATHS).toHaveLength(7);
   });
 
   it('never offers the sign-in method list as a tool', () => {

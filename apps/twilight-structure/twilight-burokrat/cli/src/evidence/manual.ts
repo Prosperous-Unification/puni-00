@@ -5,8 +5,9 @@ import { parseOrThrow, type } from '@shared/validation';
 
 import { RelativePath } from '../contracts/records';
 import { checkIndexes } from '../indexes/check-indexes';
-import { readCandidateBlob } from '../inventory/read-blob';
+import { readSelectedBlob } from '../inventory/read-blob';
 import {
+  type CandidateEntry,
   CandidateReadError,
   readCandidate,
   resolveCandidateRoot,
@@ -379,7 +380,7 @@ function readExternal(
 
 function readCandidateRecord(
   repository: string,
-  entries: readonly { path: string; mode: string; blob: string }[],
+  entries: readonly CandidateEntry[],
   path: string,
   subject: string,
 ): { input: unknown; digest: string } {
@@ -388,7 +389,7 @@ function readCandidateRecord(
   if (matches.length !== 1 || (matches[0]?.mode !== '100644' && matches[0]?.mode !== '100755'))
     throw new Error(`${subject} is absent or not a regular committed blob: ${path}`);
   const selected = matches[0];
-  const bytes = readCandidateBlob(repository, selected.blob, path);
+  const bytes = readSelectedBlob(repository, entries, selected.blob, path);
   const input = readJson(bytes, subject);
   return { input, digest: hashBytes(bytes) };
 }
@@ -563,7 +564,7 @@ function selectedRequirement(
     if (entry.mode !== '100644' && entry.mode !== '100755')
       throw new Error(`Manual historical specification is not a regular blob: ${entry.path}`);
     const markdown = new TextDecoder('utf-8', { fatal: true }).decode(
-      readCandidateBlob(repository, entry.blob, entry.path),
+      readSelectedBlob(repository, snapshot.entries, entry.blob, entry.path),
     );
     specs.push({
       path: entry.path,

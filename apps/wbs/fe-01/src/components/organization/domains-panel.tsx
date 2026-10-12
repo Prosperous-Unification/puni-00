@@ -90,7 +90,7 @@ export function DomainsPanel({
         setView({ kind: 'failure', message: failureMessage(reply.failure) });
         return;
       case 'refusal': {
-        const outcome = domainRefusal(reply.body.error, 'view domains');
+        const outcome = domainRefusal(reply.body, 'view domains');
         if (outcome.kind === 'lost') onAccessLost(outcome.loss);
         else setView({ kind: 'failure', message: outcome.text });
         return;
@@ -133,7 +133,7 @@ export function DomainsPanel({
           setMessage(failureMessage(reply.failure));
           return;
         case 'refusal': {
-          const outcome = domainRefusal(reply.body.error, 'manage domains');
+          const outcome = domainRefusal(reply.body, 'manage domains');
           if (outcome.kind === 'lost') {
             onAccessLost(outcome.loss);
             return;
@@ -406,7 +406,7 @@ function moment(at: number | null): string {
   return at === null ? 'never' : new Date(at).toLocaleString();
 }
 
-type DomainRefusalCode = Extract<
+type DomainRefusal = Extract<
   ClientReply<
     | typeof listOrganizationDomains
     | typeof createDomainChallenge
@@ -415,7 +415,7 @@ type DomainRefusalCode = Extract<
     | typeof releaseDomainClaim
   >,
   { kind: 'refusal' }
->['body']['error'];
+>['body'];
 
 /**
  * Every modeled domain refusal receives its own copy.
@@ -423,12 +423,15 @@ type DomainRefusalCode = Extract<
  * Proof: 2026-09-29, answering `dns_unavailable` with the proof-mismatch copy
  * failed `renders the dns_unavailable verify refusal`.
  */
-function domainRefusal(error: DomainRefusalCode, action: string): RefusalOutcome {
-  switch (error) {
+function domainRefusal(refusal: DomainRefusal, action: string): RefusalOutcome {
+  switch (refusal.error) {
     case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
-      return lostAccess(error);
+      return lostAccess(refusal.error);
+    case 'sso_required':
+    case 'reauthentication_required':
+      return lostAccess(refusal);
     case 'forbidden':
       return said(`Your role cannot ${action}.`);
     case 'invalid_domain':
@@ -440,6 +443,8 @@ function domainRefusal(error: DomainRefusalCode, action: string): RefusalOutcome
       return said('Another organization already owns that domain.');
     case 'stale':
       return said('That domain changed since the page loaded. Check its state and try again.');
+    case 'sso_connection_exists':
+      return said('Company sign-in still uses this domain. Remove its connection first.');
     case 'proof_mismatch':
       return said('The TXT record was not found or does not match. Check the record and retry.');
     case 'dns_unavailable':
@@ -455,6 +460,6 @@ function domainRefusal(error: DomainRefusalCode, action: string): RefusalOutcome
     case 'invalid_origin':
       return said(RELOAD);
     default:
-      return unreachable(error);
+      return unreachable(refusal);
   }
 }

@@ -11,7 +11,7 @@ import {
 } from '@shared/test-evidence';
 import { SaxesParser } from 'saxes';
 
-import { readCandidateBlob } from '../inventory/read-blob';
+import { readSelectedBlob } from '../inventory/read-blob';
 import {
   type CandidateSnapshot,
   readCandidate,
@@ -85,7 +85,7 @@ function boundBlob(repository: string, candidate: CandidateSnapshot, path: strin
   // TypeError on entry.blob instead of the named candidate-blob refusal.
   if (entry === undefined || (entry.mode !== '100644' && entry.mode !== '100755'))
     throw new Error(`Browser candidate config is not a regular blob: ${path}`);
-  return readCandidateBlob(repository, entry.blob, path);
+  return readSelectedBlob(repository, candidate.entries, entry.blob, path);
 }
 
 function caseIdentity(browserCase: BrowserCase): string {

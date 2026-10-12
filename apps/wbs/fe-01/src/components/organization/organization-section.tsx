@@ -1,29 +1,17 @@
 import { type ReactNode } from 'react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SELECT_CLASS } from '@/components/ui/control';
 
-/**
- * The height every organization control takes: 44px, a fingertip, below the
- * `sm` breakpoint and the chrome's own 36px above it — the Directory's `TAP`
- * rule, so a phone can hit Remove without hitting Change role beside it.
- */
-export const CONTROL_HEIGHT = 'h-11 sm:h-9';
-
-/**
- * A native `<select>` drawn with the `Input` tokens, as the Directory's Kind
- * select is: the platform's own list stays (keyboard and screen-reader
- * behaviour for free) and only its box is restyled.
- */
-export const SELECT_CLASS = `border-input bg-background text-foreground focus-visible:ring-ring focus-visible:ring-offset-background rounded-md border px-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_HEIGHT}`;
-
-/** A one-line organization form: fields stacked on a phone, side by side from `sm`. */
-export const FORM_CLASS = 'flex flex-col gap-3 sm:flex-row sm:items-end';
+export {
+  CONTROL_HEIGHT,
+  FIELD_LABEL_CLASS,
+  FORM_CLASS,
+  SELECT_CLASS,
+} from '@/components/ui/control';
 
 /** One field of an organization form: its caption above its control. */
 export const FIELD_CLASS = 'flex flex-col gap-1.5';
-
-/** The caption above a field in an organization form. */
-export const FIELD_LABEL_CLASS = 'text-sm font-medium';
 
 /**
  * An organization list, with the user agent's bullet, indent and margins taken

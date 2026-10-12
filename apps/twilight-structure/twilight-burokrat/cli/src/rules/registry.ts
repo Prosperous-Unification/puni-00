@@ -3,7 +3,7 @@ import { decodePerformanceCases } from '@shared/test-evidence';
 import { hashBytes } from '../evidence/content-manifest';
 import { evaluatePerformanceRun } from '../evidence/performance';
 import { classifyEntries } from '../inventory/classify-entries';
-import { readCandidateBlob } from '../inventory/read-blob';
+import { readSelectedBlob } from '../inventory/read-blob';
 import {
   type Direction,
   directionObservations,
@@ -40,7 +40,7 @@ const classificationRule: RegisteredRule = {
       // Proof: on 2026-09-20, skipping classification made an unclassifiable candidate exit 0;
       // the adapter test expected exit 1 and received 0.
       classifyEntries(context.candidate.entries, classificationPolicy, (blob, path) =>
-        readCandidateBlob(context.repository, blob, path),
+        readSelectedBlob(context.repository, context.candidate.entries, blob, path),
       );
       return [];
     });
@@ -178,7 +178,12 @@ const performanceRule: RegisteredRule = {
       return { kind: 'not-evaluated', reason: 'the Performance declaration is absent' };
     }
     return evaluateWrapped(() => {
-      const bytes = readCandidateBlob(context.repository, declared.blob, declared.path);
+      const bytes = readSelectedBlob(
+        context.repository,
+        context.candidate.entries,
+        declared.blob,
+        declared.path,
+      );
       const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
       const input: unknown = JSON.parse(source);
       const declaration = decodePerformanceCases(input);
@@ -193,7 +198,12 @@ const performanceRule: RegisteredRule = {
       // Proof: disabling this guard made the removed-config production test fail with a
       // TypeError instead of the named absent-config refusal.
       if (config === undefined) throw new Error('Performance config is absent from candidate');
-      const configBytes = readCandidateBlob(context.repository, config.blob, config.path);
+      const configBytes = readSelectedBlob(
+        context.repository,
+        context.candidate.entries,
+        config.blob,
+        config.path,
+      );
       // Proof: disabling this check made the changed-config production test reach the later
       // candidate-identity refusal instead of naming changed reviewed config content.
       if (hashBytes(configBytes) !== authority.configDigest) {

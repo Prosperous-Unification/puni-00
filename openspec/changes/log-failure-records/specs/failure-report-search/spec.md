@@ -69,17 +69,32 @@ The platform SHALL provide a Kibana dashboard over the last 7 days that shows on
 
 ### Requirement: Loss during an Elasticsearch outage is bounded and counted
 
-While Elasticsearch refuses connections, failure lines SHALL wait in the collector's persistent sending queue and SHALL all be stored once it returns, until that queue's 5000 requests fill. A request whose connection hangs SHALL be abandoned after the exporter's 90 second request timeout; its batch is then dropped without retry, and the dropped records SHALL be counted in `otelcol_exporter_send_failed_log_records`. Making the hanging case lossless is open (task 2.6).
+While Elasticsearch refuses connections, failure lines SHALL wait in the collector's persistent sending queue and SHALL all be stored once it returns, until that queue's 5000 requests fill. A request whose connection hangs SHALL be abandoned when the exporter's 90 second request timeout or an earlier dial timeout expires; its batch is then dropped without retry, and the dropped records SHALL be counted in `otelcol_exporter_send_failed_log_records`. Every drop SHALL raise the `PuniLogRecordsDropped` alert in Alertmanager, including the first drop after the collector starts, and an outage that drops nothing SHALL NOT raise it. A full queue SHALL stop intake rather than drop, and SHALL raise `PuniLogQueueFull` while it stays full. Making the hanging case lossless is open (task 2.6).
 
 #### Scenario: Elasticsearch refuses connections
 
 - **GIVEN** a service writing failure lines continuously
 - **WHEN** Elasticsearch refuses connections and returns before the persistent queue fills
 - **THEN** every line written is stored exactly once
+- **AND** `PuniLogRecordsDropped` does not fire
 
 #### Scenario: A connection to Elasticsearch hangs
 
 - **GIVEN** an export request whose connection to Elasticsearch hangs
-- **WHEN** 90 seconds pass without an answer
+- **WHEN** 90 seconds pass without an answer, or a new connection's dial times out first
 - **THEN** that request's batch is dropped and not retried
 - **AND** `otelcol_exporter_send_failed_log_records` grows by the batch's record count
+- **AND** `PuniLogRecordsDropped` fires for that collector pod and reaches Alertmanager
+
+#### Scenario: The first drop after the collector starts
+
+- **GIVEN** a collector that has dropped nothing since it started, so its drop counters do not exist yet
+- **WHEN** a batch is dropped and the counter appears already incremented
+- **THEN** `PuniLogRecordsDropped` fires
+
+#### Scenario: The persistent queue is full
+
+- **GIVEN** a collector whose persistent queue is at capacity
+- **WHEN** a minute passes without the queue draining
+- **THEN** `PuniLogQueueFull` fires
+- **AND** the queue does not drop queued records to make room

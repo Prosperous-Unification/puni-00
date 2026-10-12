@@ -346,6 +346,9 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20261012090200_widen_organization_audit',
+        '20261012090100_add_browser_auth_times',
+        '20261012090000_add_enterprise_sso_records',
         '20261011200000_add_shared_people_audit',
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
@@ -393,6 +396,10 @@ describe('the optimizer migration', () => {
             name !== 'shared_people_audit' &&
             name !== 'browser_credential_revocations' &&
             name !== 'email_challenge' &&
+            name !== 'organization_sso_connection' &&
+            name !== 'organization_scim_token' &&
+            name !== 'organization_scim_user' &&
+            name !== 'organization_session_policy' &&
             !ADDED_TABLES.includes(name as never) &&
             !ALSO_ROLLED_BACK.includes(name as never),
         ),

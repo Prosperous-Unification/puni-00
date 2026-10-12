@@ -10,6 +10,7 @@ import { SKIP, visit } from 'unist-util-visit';
 
 import { IndexMetadata, type IndexMetadata as IndexMetadataRecord } from '../contracts';
 import { hashCanonical } from '../evidence/content-manifest';
+import { readSelectedBlob } from '../inventory/read-blob';
 import type { CandidateSnapshot } from '../inventory/read-candidate';
 
 const MetadataPattern = /^<!--\s*module-index\s+([\s\S]*?)-->$/;
@@ -31,25 +32,23 @@ export type CandidateBytes = ReadonlyMap<string, Uint8Array>;
 const compareText = (left: string, right: string): number =>
   Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
 
-function readBlob(repository: string, path: string, blob: string): Uint8Array {
+function readBlob(
+  repository: string,
+  candidate: CandidateSnapshot,
+  path: string,
+  blob: string,
+): Uint8Array {
   // Proof: reading `${repository}/${path}` instead made the immutable-candidate test parse the
   // dirty host README and refuse its version 99 metadata; the selected committed blob is stable.
-  const invocation = Bun.spawnSync(['git', '-C', repository, 'cat-file', 'blob', blob], {
-    // Proof: removing this setting made inspect-manual's replacement-index CLI case refuse
-    // a forged index in place of the selected immutable blob (expected current).
-    env: { ...process.env, GIT_NO_REPLACE_OBJECTS: '1' },
-    stderr: 'pipe',
-    stdout: 'pipe',
-  });
-  if (invocation.exitCode !== 0) {
-    const detail = invocation.stderr.toString('utf8').trim();
-    // Proof: returning the failed invocation's empty stdout moved the unreadable-index CLI
-    // failure to `selected candidate contains no module indexes`, hiding the unreadable blob.
-    throw new Error(
-      `cannot read selected index ${path}: ${detail.length === 0 ? `git exited ${String(invocation.exitCode)}` : detail}`,
-    );
+  // Proof (2026-10-12): rethrowing without this context made `[TEST-AXES-051] absent, malformed
+  // UTF-8 and unreadable committed indexes retain distinct refusals` and both reader-fault cases in
+  // `indexes.test.ts` lose `cannot read selected index <path>`.
+  try {
+    return readSelectedBlob(repository, candidate.entries, blob, path);
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(`cannot read selected index ${path}: ${detail}`, { cause });
   }
-  return invocation.stdout;
 }
 
 function decodeUtf8(
@@ -141,7 +140,7 @@ export function readIndexes(
   const indexes: ReadIndex[] = [];
   for (const entry of candidate.entries) {
     if (entry.mode === '160000') continue;
-    const selectedBytes = readBlob(repository, entry.path, entry.blob);
+    const selectedBytes = readBlob(repository, candidate, entry.path, entry.blob);
     bytes.set(entry.path, selectedBytes);
     if (posix.basename(entry.path) !== 'README.md' || entry.mode === '120000') continue;
     const source = decodeMarkdown(entry.path, selectedBytes);

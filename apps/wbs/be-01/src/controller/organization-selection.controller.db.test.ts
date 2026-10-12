@@ -74,7 +74,7 @@ test('lists zero, one and multiple current memberships without silently selectin
   const one = await list();
   expect(await one?.json()).toEqual({
     state: 'selection_required',
-    memberships: [{ organizationId: 'org-a', name: 'org-a', role: 'member' }],
+    memberships: [{ organizationId: 'org-a', name: 'org-a', role: 'member', ssoRequired: false }],
   });
   expect(one?.headers.get('set-cookie')).toBeNull();
   harness.organization('org-b');
@@ -83,8 +83,8 @@ test('lists zero, one and multiple current memberships without silently selectin
   expect(await many?.json()).toEqual({
     state: 'selection_required',
     memberships: [
-      { organizationId: 'org-a', name: 'org-a', role: 'member' },
-      { organizationId: 'org-b', name: 'org-b', role: 'viewer' },
+      { organizationId: 'org-a', name: 'org-a', role: 'member', ssoRequired: false },
+      { organizationId: 'org-b', name: 'org-b', role: 'viewer', ssoRequired: false },
     ],
   });
 });
@@ -436,7 +436,7 @@ test('binds a real verified OIDC access cookie to its mapped local member and re
     expect(listed.status).toBe(200);
     expect(await listed.json()).toEqual({
       state: 'selection_required',
-      memberships: [{ organizationId: 'org-a', name: 'org-a', role: 'member' }],
+      memberships: [{ organizationId: 'org-a', name: 'org-a', role: 'member', ssoRequired: false }],
     });
     const selected = await harness.app.handle(
       cookieRequest(ada, 'POST', '/api/organization/active', { organizationId: 'org-a' }),

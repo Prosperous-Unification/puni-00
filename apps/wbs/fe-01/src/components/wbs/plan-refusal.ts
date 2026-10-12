@@ -18,6 +18,8 @@ function directoryReadCode(refusal: RefusalOf<'getApiPeople'>): string {
     case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -35,6 +37,8 @@ function projectCreateCode(refusal: RefusalOf<'postApiProjects'>): string {
     case 'invalid_body':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
     case 'forbidden':
       return refusal.error;
     default:
@@ -53,6 +57,8 @@ function projectOpenCode(refusal: RefusalOf<'postApiProjectsByIdOpened'>): strin
     case 'invalid_body':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -68,6 +74,8 @@ function projectReadCode(refusal: RefusalOf<'getApiProjectsById'>): string {
     case 'not_found':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -92,6 +100,8 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'dependency_cycle':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -107,6 +117,8 @@ function treeReadCode(refusal: RefusalOf<'getApiProjectsByIdWork-items'>): strin
     case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
     case 'not_found':
     case 'engine_unavailable':
       return refusal.error;
@@ -130,6 +142,8 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
     case 'stale_undo':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -147,6 +161,8 @@ function markerListCode(refusal: RefusalOf<'getApiProjectsByIdCalendar-markers'>
     case 'insufficient_scope':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
     case 'forbidden':
     case 'not_found':
     case 'taken':
@@ -167,6 +183,8 @@ function markerWriteCode(refusal: RefusalOf<'postApiProjectsByIdCalendar-markers
     case 'insufficient_scope':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
     case 'forbidden':
     case 'not_found':
     case 'taken':
@@ -191,6 +209,8 @@ function markerRemoveCode(
     case 'insufficient_scope':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
     case 'forbidden':
     case 'not_found':
     case 'taken':
@@ -212,6 +232,8 @@ function stepWriteCode(
     case 'insufficient_scope':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
     case 'forbidden':
     case 'not_found':
     case 'invalid_json':
@@ -241,6 +263,8 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
     case 'insufficient_scope':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
     case 'forbidden':
     case 'not_found':
     case 'invalid_body':
@@ -397,6 +421,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'no_steps':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
     case 'allowancePercent_must_be_0_to_1000_with_two_decimals':
       return refusal.error;
     default:
@@ -423,6 +449,8 @@ function optimizationRetryCode(refusal: RefusalOf<'postApiProjectsByIdOptimizati
     case 'not_found':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
       return refusal.error;
     default:
       return unreachable(refusal);

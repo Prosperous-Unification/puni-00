@@ -98,6 +98,9 @@ describe('shared people audit', () => {
       stamp(11),
       'audit-1',
     );
+    // The newer, empty enterprise SSO migrations roll back first and are not
+    // what this refusal is about.
+    rollbackTo(path, MIGRATIONS_FOLDER, '20261011200000_add_shared_people_audit');
     const ledger = execute('SELECT * FROM __drizzle_migrations');
     expect(() =>
       rollbackTo(path, MIGRATIONS_FOLDER, '20261011120000_add_browser_auth_lifecycle'),
@@ -123,7 +126,12 @@ describe('shared people audit', () => {
   it('rolls back the empty audit table', () => {
     expect(
       rollbackTo(path, MIGRATIONS_FOLDER, '20261011120000_add_browser_auth_lifecycle'),
-    ).toEqual(['20261011200000_add_shared_people_audit']);
+    ).toEqual([
+      '20261012090200_widen_organization_audit',
+      '20261012090100_add_browser_auth_times',
+      '20261012090000_add_enterprise_sso_records',
+      '20261011200000_add_shared_people_audit',
+    ]);
     expect(
       execute("SELECT name FROM sqlite_master WHERE name LIKE 'shared_people_audit%'"),
     ).toEqual([]);

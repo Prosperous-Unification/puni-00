@@ -151,11 +151,13 @@ it('falls back from invalid OIDC only when password sessions are enabled', async
   });
 
   expect(await oidcOnly.authenticate(login.value.token)).toBeNull();
-  expect(await oidcWithPasswordFallback.authenticate(login.value.token)).toEqual({
+  const fallback = await oidcWithPasswordFallback.authenticate(login.value.token);
+  expect(fallback).toMatchObject({
     id: 'legacy',
     username: 'legacy',
     scopes: ['read', 'write', 'editor'],
   });
+  expect(fallback?.authentication?.kind).toBe('first_party');
 });
 
 it('admits a password session as link proof only when password sessions are explicitly enabled', async () => {

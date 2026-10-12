@@ -27,7 +27,7 @@ export function capacityModeRoutes(modes: CapacityModeResource, organizations: O
   return [
     bind(readCapacityMode, async ({ principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await modes.read(resolved.access, principal.delegation !== undefined);
       return outcome.ok
         ? {
@@ -43,7 +43,7 @@ export function capacityModeRoutes(modes: CapacityModeResource, organizations: O
     }),
     bind(switchCapacityMode, async ({ body, principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await modes.switch(
         principal.id,
         resolved.access,

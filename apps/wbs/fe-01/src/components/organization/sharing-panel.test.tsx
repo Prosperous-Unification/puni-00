@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { answerJson as answer, stubServer } from '@/testing/stub-server';
 
+import { type AccessLoss } from './organization-access';
 import { SharingPanel } from './sharing-panel';
 
 afterEach(() => {
@@ -10,7 +11,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderPanel(onAccessLost: (loss: string) => void = () => undefined) {
+function renderPanel(onAccessLost: (loss: AccessLoss) => void = () => undefined) {
   render(<SharingPanel onAccessLost={onAccessLost} />);
 }
 
@@ -161,7 +162,7 @@ describe('shared people', () => {
   });
 
   it('hands an organization-less session to the page', async () => {
-    const losses: string[] = [];
+    const losses: AccessLoss[] = [];
     stubServer({
       'GET /api/organization': [() => answer(409, { error: 'organization_required' })],
     });
