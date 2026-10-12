@@ -248,6 +248,7 @@ describe('folded step card attempts (step-node-attempts D7)', () => {
   ) {
     render(
       <FoldedStepCard
+        estimateUnit="workdays"
         stepName="Dev"
         number="010"
         id="dev-card"
@@ -351,6 +352,7 @@ describe('folded step card attempts (step-node-attempts D7)', () => {
     const exits = vi.fn();
     render(
       <FoldedStepCard
+        estimateUnit="workdays"
         stepName="Dev"
         number="010"
         id="dev-card"

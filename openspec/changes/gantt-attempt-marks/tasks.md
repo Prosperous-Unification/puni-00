@@ -44,11 +44,11 @@
       cards and hits agree after left-range translation; SVG export preserves the range and
       paint. Put card assertions against the real panel or an extracted card component:
       `gantt-detail.ts` owns the detail toggle, not the cards.
-- [ ] 2.2 Green: paint styles and cards; explicit unavailable messages; panel clock prop
+- [x] 2.2 Green: paint styles and cards; explicit unavailable messages; panel clock prop
       and memoization; translated hit geometry and headers; export parity. Add browser
       fixtures for three attempts over one slice, all four outcomes, a completed row and
       an attempt before the forecast origin, at `15 min`.
-- [ ] 2.3 Negatives: keep `data-attempt` intact and swap the actual hatch/dot mappings or
+- [x] 2.3 Negatives: keep `data-attempt` intact and swap the actual hatch/dot mappings or
       pattern definitions → the actual-paint assertion fails; format cards in the browser
       zone → zoned-instants test fails under `TZ=America/Los_Angeles`; substitute today or
       browser zone for an absent input → availability cases fail; translate paint without
@@ -68,3 +68,6 @@ translation proof after estimate-units integration. No browser acceptance is cla
       `sub-day-gantt-axis/design.md` D4 for the oversized renderer-only measurement; label
       it separately from production panel behavior. Neither a production bypass nor a
       changed `SUB_DAY_MARK_LIMIT` is permitted for the measurement; no CI timing gate.
+
+Checkpoint 2026-10-13: combined real-stack browser cases and translated-hit mutation
+proof are recorded in `verify.md`; tasks 2.2–2.3 are now complete. Host gate remains open.

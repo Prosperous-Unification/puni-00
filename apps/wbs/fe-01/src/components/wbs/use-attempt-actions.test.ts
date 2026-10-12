@@ -7,7 +7,12 @@ import type { PlanCommands } from '@/modules/plan-commands/contract';
 import { useAttemptActions } from './use-attempt-actions';
 import type { TreeRow } from './wbs-rows';
 
-const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
+const DEV: StepView = {
+  id: 'step-dev',
+  name: 'Dev',
+  estimateUnit: 'workdays',
+  allowancePercent: 0,
+};
 
 const attempt = (overrides: Partial<AttemptView>): AttemptView => ({
   attemptNumber: 1,

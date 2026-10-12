@@ -71,7 +71,13 @@ async function seedAttemptChart(page: Page): Promise<void> {
         outcome: 'succeeded',
         reference: 'run/success',
       },
-      { kind: 'setProgress', workItemRef: 'done', stepId: qa, state: 'done' },
+      {
+        kind: 'setStatus',
+        workItemRef: 'done',
+        status: 'done',
+        on: '2026-08-10',
+        factStart: '2026-08-09',
+      },
       { kind: 'startAttempt', workItemRef: 'running', stepId: dev, at: instant('09:00') },
       {
         kind: 'endAttempt',
@@ -97,6 +103,8 @@ async function seedAttemptChart(page: Page): Promise<void> {
   await page.locator('[data-gantt-day-scale]').selectOption('896');
 }
 
+test.use({ timezoneId: 'America/Los_Angeles' });
+
 test('paint, completed forecast, translated hits and tick collision list agree at 15 min', async ({
   page,
 }) => {
@@ -109,9 +117,23 @@ test('paint, completed forecast, translated hits and tick collision list agree a
   const tick = page.locator('[data-attempt="cancelled"] [data-attempt-hit]');
   const box = await tick.boundingBox();
   if (box === null) throw new Error('attempt tick has no pointer box');
-  expect(box.width).toBeGreaterThanOrEqual(18);
+  expect(box.width).toBeCloseTo(18, 1);
+  const authoredHit = await tick.evaluate((mark) => {
+    if (!(mark instanceof SVGRectElement)) throw new Error('Attempt pointer is not a rect');
+    const transform = mark.getScreenCTM();
+    if (transform === null) throw new Error('Attempt pointer has no screen transform');
+    return mark.width.baseVal.value * transform.a;
+  });
+  expect(authoredHit).toBeCloseTo(18, 2);
+  const paintBox = await tick.locator('xpath=..').locator('[data-attempt-paint]').boundingBox();
+  if (paintBox === null) throw new Error('Attempt tick has no painted box');
+  expect(box.x + box.width / 2).toBeCloseTo(paintBox.x + paintBox.width / 2, 2);
+  expect(Number(await tick.getAttribute('width')) * 896).toBeCloseTo(18, 6);
   await tick.focus();
   await expect(page.getByText('Reference: run/tick', { exact: true })).toBeVisible();
+  await expect(page.getByRole('tooltip')).toContainText(
+    '2026-08-09 09:00:00 — 2026-08-09 09:02:00 (Europe/Kyiv)',
+  );
   await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
   await expect(page.getByRole('tooltip', { name: 'Choose a mark' })).toBeVisible();
   await page
@@ -119,4 +141,8 @@ test('paint, completed forecast, translated hits and tick collision list agree a
     .getByRole('button', { name: /Attempt 1.*cancelled/ })
     .click();
   await expect(page.getByText('Reference: run/tick', { exact: true })).toBeVisible();
+  await page.locator('[data-gantt-day-scale]').selectOption('28');
+  await expect(page.locator('[data-attempt]')).toHaveCount(0);
+  await expect(page.locator('[data-gantt-bar]')).toHaveCount(3);
+  await expect(page.locator('[data-axis-day="0"]')).toHaveAttribute('data-axis-date', '2026-08-10');
 });

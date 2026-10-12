@@ -307,3 +307,61 @@ names document 8/canonical 6/contract 16 and the implemented migration with its 
 check still open. Directly stale task text now permits the identity expectations and names
 legacy document 7. No runtime edits. Changed-document Prettier and OpenSpec validation pass;
 task 8/full browser/host gate/migration integration collision remain open.
+
+## Combined minute-axis acceptance (2026-10-13)
+
+Integration branch `batch-10/minute-axis-integration` starts at corrected attempt head
+`e0c1ed53cfa4eeee6dc6e1dd8997bc1b417c5cc6` and normally merges estimate head
+`a52de9458d32042023f131cccd4243c0d80e2006`, its final intent correction
+`893407a5310a35cdb9ccb7b5a408917eb738d424`, and renderer evidence head
+`ca1822547a3590be7a6f5ee7557ad0b4e60afeb5`. Source histories are retained.
+
+Six initial conflicts were resolved by retaining both `attemptNodes` and `charged`,
+both imports and test groups, and both node-suite entries. Three attempt test fixtures
+now explicitly use `estimateUnit: 'workdays'` as the merged type requires.
+
+- Real stack: `CI=1 E2E_PORT_SHIFT=4000 bunx playwright test --config
+apps/wbs/fe-01/playwright.config.ts gantt-minute-estimate.spec.ts gantt-attempts.spec.ts
+--workers=1 --timeout=30000`: five cases pass. API commands write two native minutes;
+  a fresh HTTP read returns `{ unit: 'minutes', minutes: 2 }`, minute step unit and
+  schedule duration `2 / 480`. Browser reload consumes that stored plan.
+- At `15 min`, authored forecast fill `width * 896` is 4px and pointer width is 18px.
+  Browser transform floating point gives approximately 3.99989/17.99992px; tolerances
+  are 0.005px for transformed widths and 0.05px for bounds. Existing 2px outline makes
+  the forecast's stroke-inclusive bounding box approximately 5.99989px, separately
+  asserted as 6px. The test does not call that full outline a 4px box.
+- Slice identifiers contain a NUL separator; hit lookup uses the painted bar's parent
+  and `[data-gantt-hit]`. Pointer moves to `(pointer.x + pointer.width / 2,
+pointer.y + pointer.height / 2)`, where the native Dev tick and zero-duration QA hit
+  overlap. The real chooser's `010 · Dev · 2 min` button opens the card containing
+  `2 min · placed on the working calendar`; no forced event or synthetic hit is used.
+- Both browser files use `America/Los_Angeles`. Attempt cards retain original Kyiv
+  instants, including `2026-08-09 09:00:00 — 2026-08-09 09:02:00 (Europe/Kyiv)`.
+- Broken dependency: stripping trusted `charged` from the real API read renders the
+  router's visible `Something went wrong!` Error Boundary and no chart. This is the
+  observed outer boundary, not the nested plan boundary used by the component case.
+- The real API refuses fractional minute commands with `422 minutes_not_integer`;
+  a subsequent read still contains two native minutes. Removing the optional project
+  timezone from the API read visibly reports attempt marks unavailable while retaining
+  the forecast after reopening Gantt.
+- Six merged frontend suites (`gantt-panel`, `gantt-attempt-panel`, `folded-step-card`,
+  `gantt-geometry`, `plan-chart-input`, `use-attempt-actions`): 576 tests pass.
+- `bun test apps/wbs/be-01/src/migration-cli.db.test.ts`: 50 pass. Separately,
+  `bun test libs/wbs/adapters/store-sqlite/src/step-estimate-unit-migration.db.test.ts`:
+  14 pass, including malformed/unreadable rollback and direct-down refusal coverage.
+- Canonical `NX_DAEMON=false bunx nx run wbs-fe-01:lint:fast`: pass. Nx sandbox socket
+  warnings triggered its in-process plugin fallback; the lint task ran and exited zero.
+  `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`: pass. Changed-file Prettier
+  checks pass. OpenSpec CLI 1.14.1 installed temporarily with Bun because `openspec`
+  was absent from PATH; `validate --all --json`: 184/184 pass.
+
+Migration stamp inspection found no duplicates: current `origin/main`
+`e9acebd6ae148f039bca9d0bf1a6b1f67c38f97e`, integration-11
+`13977965d267576a9cb838f119a64f5d7d2dfede`, and integration-12
+`403a0462442cb66751d5a8bb5bb69c4236579225` have 68 migrations and no
+`20261012130000` stamp. Combined checkout has 69, including that unique estimate
+migration with its adjacent `down.sql`.
+
+Full host gate, full frontend suite, full historical Gantt browser shard and broad
+backend/domain suites have not been run by this worker. The final exact-SHA host gate
+is queued by the PM after the preceding integration merges; task 8.1 stays open.

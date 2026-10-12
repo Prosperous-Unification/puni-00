@@ -326,3 +326,29 @@ Outputs are `/tmp/attempt-dispatch-{final-tests,typecheck,lint-final,zoned,spec,
 The isolated 4347 Vite server is stopped. These checks do not close real-stack browser
 acceptance, attempt-inclusive performance or the full integration host gate. Tasks 2.2,
 2.3 and 3 remain open pending estimate-units integration and reviewed integration checks.
+
+## Combined real-stack browser acceptance (2026-10-13)
+
+The combined estimate/API/renderer evidence and commands are in
+[estimate-units verification](../estimate-units/verify.md#combined-minute-axis-acceptance-2026-10-13).
+The browser fixture persists three attempts over one completed slice, all four outcomes,
+a two-minute cancelled attempt, and a running row before the forecast origin. At 15 min
+it checks four forecast slices under attempts, translated header date, actual hit width,
+real collision chooser, and original Kyiv card instants under a Los Angeles browser zone.
+The completed fixture now explicitly issues `setStatus: done`; a successful end attempt
+alone does not mark its step done. This corrects the earlier fixture label rather than
+assuming completion from its name. Switching that same fixture to Days hides attempts
+and restores the forecast origin and
+three coalesced/planned bars. Missing optional timezone visibly disables attempt marks
+while retaining forecast paint in the companion minute estimate browser case.
+
+R5 browser translation proof: inject `+ 1` only into `AttemptMark`'s hit rect x, leaving
+paint unchanged. `gantt-attempts.spec.ts` fails its hit/paint center assertion: expected
+204.00000762939453, received 1099.9999389648438 (895.9999313354492px apart).
+The fault was restored; its adjacent production `Proof:` comment names the observed case.
+The browser proof checks actual translated surfaces, independent of outcome attributes.
+
+Renderer measurement is supplied by merged benchmark head
+`ca1822547a3590be7a6f5ee7557ad0b4e60afeb5`; its source and measurements remain in
+[sub-day axis verification](../sub-day-gantt-axis/verify.md). Final host gate and broad
+historical browser shard remain unrun here; task 3.1 remains open.

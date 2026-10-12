@@ -155,6 +155,7 @@ export function AttemptMark({
         data-attempt-hit
         data-gantt-mark={identifyAttemptMark(mark)}
         // Proof: omitting translated mark.x failed the translated header/forecast/hit panel case (2026-10-12).
+        // Proof: adding one day only to this hit x failed the real-stack translated-hit center assertion in gantt-attempts.spec.ts by 896px (2026-10-13).
         x={x + width / 2 - hitWidth / 2}
         y={y + height / 2 - 9 / rowPx}
         width={hitWidth}
