@@ -7393,6 +7393,40 @@ describe('downloading the chart as a standalone .svg', () => {
     fireEvent.click(button);
   };
 
+  itDom.each([
+    [56, 2, ['09:00', '13:00']],
+    [224, 8, ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00']],
+    [896, 32, ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00']],
+  ] as const)('exports the clock cells at %s px', async (dayPx, cells, words) => {
+    const captured = captureDownloads();
+    render(
+      <GanttPanel
+        plan={planOf({ rows: [rowAt('one', 0, 1)], slices: [sliceAt('one-dev', 'one', 0, 1)] })}
+        dayPx={dayPx}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    clickDownload();
+    const doc = new DOMParser().parseFromString(
+      await readBlobText(captured.blobs[0]),
+      'image/svg+xml',
+    );
+    const clocks = [...doc.querySelectorAll('[data-axis-minute]')];
+    expect(
+      clocks
+        .slice(0, cells)
+        .map((clock) => clock.textContent)
+        .filter(Boolean),
+    ).toEqual(words);
+    expect(Number(clocks[1]?.getAttribute('x')) - Number(clocks[0]?.getAttribute('x'))).toBe(28);
+  });
+
   itDom('puts a download control in the panel corner, without a toolbar button', () => {
     render(
       <GanttPanel
@@ -10043,4 +10077,189 @@ describe('each status on the chart (add-work-item-statuses)', () => {
       ['paint->prime', 'rgb(220, 38, 38)'],
     ]);
   });
+});
+
+describe('sub-day axis rungs', () => {
+  const drawRung = (dayPx: 56 | 224 | 896): void => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('one', 0, 1), rowAt('later', 5, 6)],
+          slices: [sliceAt('one-dev', 'one', 0, 1), sliceAt('later-dev', 'later', 5, 6)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        dayPx={dayPx}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+  };
+
+  itDom('the control offers six rungs with exact widths in their titles', () => {
+    drawRung(224);
+    const options = [
+      ...document.querySelectorAll<HTMLOptionElement>('[data-gantt-day-scale] option'),
+    ];
+    expect(options.map((option) => [option.textContent, option.title])).toEqual([
+      ['Days', 'One day is 28px wide'],
+      ['Weeks', 'One day is 12px wide'],
+      ['Months', 'One day is 4px wide'],
+      ['4 h', 'One day is 56px wide'],
+      ['1 h', 'One day is 224px wide'],
+      ['15 min', 'One day is 896px wide'],
+    ]);
+  });
+
+  itDom.each([
+    [56, ['09:00', '13:00']],
+    [224, ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00']],
+    [
+      896,
+      Array.from({ length: 32 }, (_, quarter) =>
+        quarter % 4 === 0 ? `${String(9 + quarter / 4).padStart(2, '0')}:00` : '',
+      ),
+    ],
+  ] as const)('sub-day cells are labelled by clock time from 09:00 at %s px', (dayPx, labels) => {
+    drawRung(dayPx);
+    const day = document.querySelector('[data-axis-day="0"]');
+    const cells = [...(day?.querySelectorAll<HTMLElement>('[data-axis-minute]') ?? [])];
+    expect(cells.map((cell) => cell.textContent)).toEqual(labels);
+    expect(cells.map((cell) => cell.style.width)).toEqual(labels.map(() => '28px'));
+    expect(cells[0]?.getAttribute('data-axis-minute')).toBe('540');
+    const bar = document.querySelector<SVGRectElement>('[data-gantt-bar="one-dev"]');
+    const canvas = bar?.ownerSVGElement;
+    const scale =
+      Number(canvas?.getAttribute('width')) /
+      Number(canvas?.getAttribute('viewBox')?.split(' ')[2]);
+    expect(Number(bar?.getAttribute('width')) * scale).toBeCloseTo(dayPx, 6);
+
+    expect(day?.getAttribute('data-axis-date')).toBe('2026-08-10');
+  });
+
+  itDom('weekends stay greyed at a sub-day rung', () => {
+    drawRung(224);
+    const saturday = document.querySelector('[data-axis-date="2026-08-15"]');
+    expect(saturday).toHaveAttribute('data-axis-weekend', 'true');
+    expect(saturday).toHaveClass('bg-muted-foreground/10');
+    expect(saturday?.querySelectorAll('[data-axis-minute]')).toHaveLength(8);
+    expect(document.querySelector('[data-gantt-weekend="5"]')).toHaveAttribute('width', '1');
+  });
+});
+
+describe('sub-day offer limit', () => {
+  const densePlan = (leaves: number, steps: number): GanttPlan =>
+    planOf({
+      rows: Array.from({ length: leaves }, (_, leaf) => rowAt(String(leaf), 0, 1)),
+      steps: Array.from({ length: steps }, (_, step) => ({ id: String(step), name: String(step) })),
+    });
+  const draw = (
+    plan: GanttPlan,
+    dayPx: 28 | 224 = 28,
+    onPickDayPx: (px: DayPx, notice?: string) => void = (_px: DayPx): void => undefined,
+    rungNotice: string | null = null,
+  ) => (
+    <GanttPanel
+      plan={plan}
+      startDate={MONDAY_START}
+      scheduleError={null}
+      generation={0}
+      heightPx={null}
+      dayPx={dayPx}
+      rungNotice={rungNotice}
+      onPickDayPx={onPickDayPx}
+      onPickRow={() => undefined}
+      onPointRow={() => undefined}
+      pointed={pointedAtRow(null)}
+    />
+  );
+  const subDayOptions = (): HTMLOptionElement[] =>
+    [...document.querySelectorAll<HTMLOptionElement>('[data-gantt-day-scale] option')].slice(3);
+
+  itDom.each([
+    [600, 5, 3000],
+    [1, 2501, 2501],
+  ])('refuses %s leaves by %s steps with an explicit %s marks state', (leaves, steps, count) => {
+    render(draw(densePlan(leaves, steps)));
+    expect(subDayOptions()).toHaveLength(3);
+    for (const option of subDayOptions()) {
+      expect(option).toBeDisabled();
+      expect(option).toHaveAttribute('data-not-offered');
+      expect(option.textContent).toContain(`not offered at ${String(count)} marks`);
+    }
+  });
+  itDom.each([
+    [400, 5],
+    [1, 2500],
+  ])('offers %s leaves by %s steps', (leaves, steps) => {
+    render(draw(densePlan(leaves, steps)));
+    for (const option of subDayOptions()) {
+      expect(option).not.toBeDisabled();
+      expect(option).not.toHaveAttribute('data-not-offered');
+    }
+  });
+  itDom('a filter past the limit moves to Days and says so', () => {
+    const picked: DayPx[] = [];
+    let notice: string | null = null;
+    const pick = (px: DayPx, reason?: string): void => {
+      picked.push(px);
+      notice = reason ?? null;
+    };
+    const { rerender } = render(draw(densePlan(400, 5), 224, pick));
+    rerender(draw(densePlan(600, 5), 224, pick));
+    const control = document.querySelector<HTMLSelectElement>('[data-gantt-day-scale]');
+    expect(control?.value).toBe('28');
+    expect(control?.title).toContain('3000 marks; moved to Days');
+    expect(picked).toEqual([28]);
+    expect(document.querySelector<HTMLElement>('[data-axis-day="0"]')?.style.width).toBe('28px');
+    expect(notice).toBe('3000 marks; moved to Days');
+    rerender(draw(densePlan(600, 5), 28, pick, notice));
+    expect(control?.title).toContain('3000 marks; moved to Days');
+    rerender(draw(densePlan(600, 5), 28, pick, null));
+    expect(control?.title).not.toContain('moved to Days');
+  });
+  itDom('a restored sub-day selection above the limit opens at Days and says so', () => {
+    const picked: DayPx[] = [];
+    render(
+      draw(densePlan(1, 2501), 224, (px) => {
+        picked.push(px);
+      }),
+    );
+    const control = document.querySelector<HTMLSelectElement>('[data-gantt-day-scale]');
+    expect(control?.value).toBe('28');
+    expect(control?.title).toContain('2501 marks; moved to Days');
+    expect(picked).toEqual([28]);
+    fireEvent.change(control!, { target: { value: '224' } });
+    expect(picked).toEqual([28]);
+  });
+});
+
+itDom('clears a rung notice at the same day width', () => {
+  const plan = planOf({});
+  const pointed = pointedAtRow(null);
+  const draw = (rungNotice: string | null) => (
+    <GanttPanel
+      plan={plan}
+      pointed={pointed}
+      rungNotice={rungNotice}
+      dayPx={28}
+      startDate={null}
+      scheduleError={null}
+      generation={0}
+      heightPx={null}
+      onPickRow={() => undefined}
+      onPointRow={() => undefined}
+    />
+  );
+  const { rerender } = render(draw('Remembered rung was unknown; reset to Days'));
+  expect(document.querySelector<HTMLSelectElement>('[data-gantt-day-scale]')?.title).toContain(
+    'reset to Days',
+  );
+  rerender(draw(null));
+  expect(document.querySelector<HTMLSelectElement>('[data-gantt-day-scale]')?.title).not.toContain(
+    'reset to Days',
+  );
 });

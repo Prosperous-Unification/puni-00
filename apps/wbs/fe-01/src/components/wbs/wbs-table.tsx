@@ -681,7 +681,9 @@ export function WbsTable({
     ganttRoomPx,
     setGanttRoomPx,
     ganttDayPx,
+    ganttRungNotice,
     setGanttDayPx,
+    setGanttRungNotice,
     ganttLabelsShown,
     setGanttLabelsShown,
     mermaidSectionMode,
@@ -763,6 +765,7 @@ export function WbsTable({
     setStoredHiddenColumns,
     setGanttHeightPx,
     setGanttDayPx,
+    setGanttRungNotice,
     setGanttLabelsShown,
   });
 
@@ -1153,6 +1156,7 @@ export function WbsTable({
       projectId,
       setGanttHeightPx,
       setGanttDayPx,
+      setGanttRungNotice,
       setGanttLabelsShown,
       setStoredHiddenColumns,
       resetTargetHiddenColumnIds,
@@ -1843,11 +1847,12 @@ export function WbsTable({
     typedDependencies,
   });
   const pickGanttDayPx = useCallback<NonNullable<ComponentProps<typeof GanttPanel>['onPickDayPx']>>(
-    (picked) => {
+    (picked, notice) => {
       setGanttDayPx(picked);
+      setGanttRungNotice(notice ?? null);
       rememberGanttDayPx(projectId, picked);
     },
-    [projectId, setGanttDayPx],
+    [projectId, setGanttDayPx, setGanttRungNotice],
   );
   const pickGanttLabels = useCallback<
     NonNullable<ComponentProps<typeof GanttPanel>['onPickLabelsShown']>
@@ -2347,7 +2352,10 @@ export function WbsTable({
           <PlanToolbarSheet active={planActive}>
             <div aria-busy={busy} className="flex flex-wrap items-center gap-2">
               {toolbarControls}
-              {(ganttHeightPx !== null || ganttDayPx !== DAY_PX || !ganttLabelsShown) && (
+              {(ganttHeightPx !== null ||
+                ganttDayPx !== DAY_PX ||
+                ganttRungNotice !== null ||
+                !ganttLabelsShown) && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -2408,6 +2416,7 @@ export function WbsTable({
               columnsDiffer ||
               ganttHeightPx !== null ||
               ganttDayPx !== DAY_PX ||
+              ganttRungNotice !== null ||
               !ganttLabelsShown) && (
               <Button
                 variant="outline"
@@ -3080,6 +3089,7 @@ export function WbsTable({
             heightPx={appliedGanttHeight(ganttHeightPx, ganttRoomPx)}
             roomPx={ganttRoomPx}
             dayPx={ganttDayPx}
+            rungNotice={ganttRungNotice}
             // Stored where it is set and nowhere else, exactly as a let-go drag
             // is: opening a project must not write to it.
             onPickDayPx={pickGanttDayPx}

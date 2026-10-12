@@ -13,6 +13,7 @@ import {
   widthOverridesKey,
 } from '@/modules/preferences/preference-keys';
 
+import { type AxisRungId, isAxisRungId, resolveAxisRung, resolveRungWidth } from './gantt-axis';
 import { type DayPx, GANTT_CEILING_PX, GANTT_MIN_PX, isDayPx } from './gantt-panel';
 import { isSectionMode, type SectionMode } from './plan-mermaid';
 import {
@@ -152,27 +153,34 @@ export function rememberGanttHeight(projectId: string, heightPx: number): boolea
   return storedGanttHeight(projectId).write(heightPx);
 }
 
-/** One project's day scale, judged against the same `DAY_SCALES` the control offers. */
-export const storedGanttDayPx = (projectId: string): RuntimeRemembered<DayPx> =>
-  remembered(ganttDayPxKey(projectId), isDayPx);
-
 /**
- * The day scale this browser last picked for `projectId`, or none where it has
- * never picked one — which opens the chart at {@link DAY_PX}.
- *
- * The stored value is a claim, not a fact: user-editable storage read at a
- * boundary. Checked with {@link isDayPx} against the same `DAY_SCALES` array
- * the control offers — **not** against a range — because the rungs are discrete
- * and a stored `9` is a width no control can get back to, so a chart opened at
- * it would be one nothing could return to a rung. Anything else takes the key
- * with it.
- *
- * Deliberately not the "unknown is not OK" throw, for
- * {@link rememberedGanttHeight}'s reason: the alternative is a chart nobody can
- * open until they clear storage by hand, over a preference about its zoom.
+ * One project's rung, accepting legacy numeric widths at the storage boundary.
+ * Proof: accepting every number/string let 9 survive; the production layout refusal case failed (2026-10-12).
  */
-export function rememberedGanttDayPx(projectId: string): Recalled<DayPx | null> {
-  return storedGanttDayPx(projectId).readAndDrop();
+export const storedGanttDayPx = (projectId: string): RuntimeRemembered<DayPx | AxisRungId> =>
+  remembered(
+    ganttDayPxKey(projectId),
+    (claimed): claimed is DayPx | AxisRungId => isDayPx(claimed) || isAxisRungId(claimed),
+  );
+
+/** Reads a rung by id or legacy width, dropping unknown claims and reporting the reset. */
+export function rememberedGanttDayPx(
+  projectId: string,
+): Recalled<DayPx | null> & { wasReset: boolean } {
+  const stored = storedGanttDayPx(projectId);
+  const recalled = stored.claim();
+  if (recalled.value.status !== 'held') {
+    // Proof: replacing this predicate with false retained the key and removed the reset title; the width-refusal case failed (2026-10-12).
+    const isRefused = recalled.value.status === 'refused';
+    if (isRefused) stored.forget();
+    return { value: null, persists: recalled.persists, wasReset: isRefused };
+  }
+  const width = recalled.value.value;
+  return {
+    value: typeof width === 'string' ? resolveRungWidth(width) : width,
+    persists: recalled.persists,
+    wasReset: false,
+  };
 }
 
 /**
@@ -183,7 +191,7 @@ export function rememberedGanttDayPx(projectId: string): Recalled<DayPx | null> 
  * is remembered about it.
  */
 export function rememberGanttDayPx(projectId: string, dayPx: DayPx): boolean {
-  return storedGanttDayPx(projectId).write(dayPx);
+  return storedGanttDayPx(projectId).write(resolveAxisRung(dayPx).id);
 }
 
 /** Forgets the remembered day scale for `projectId` — the third part of a {@link Layout reset}. */

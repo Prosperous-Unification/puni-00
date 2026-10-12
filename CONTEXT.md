@@ -814,6 +814,12 @@ by exactly the weekend between two workdays, which is what puts a gap between wo
 ended on the Friday and work that begins on the Monday.
 _Avoid_: converter, mapping, projection
 
+**Sub-day rung**:
+One of the three discrete widths below a day the Gantt ladder offers — 4 hours, 1 hour, 15
+minutes per cell — offered only while the panel would draw at most 2,500 marks; a rung not
+offered is a rendered state.
+_Avoid_: zoom level, slider position, minute view
+
 **Calendar marker**:
 A named annotation on an absolute calendar date, scoped to one project. Not a work item
 and not visible to the scheduler.

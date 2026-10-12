@@ -1373,8 +1373,44 @@ describe('the day scale this browser picked for this project', () => {
     const control = await openTheChart();
     expect(localStorage.getItem(KEY)).toBeNull();
     fireEvent.change(control, { target: { value: '12' } });
-    expect(localStorage.getItem(KEY)).toBe('12');
+    expect(localStorage.getItem(KEY)).toBe('"weeks"');
     expect(document.querySelector<HTMLElement>('[data-axis-day="0"]')?.style.width).toBe('12px');
+  });
+
+  itDom('opens a remembered sub-day rung by id and persists new picks by id', async () => {
+    localStorage.setItem(KEY, '"1h"');
+    const control = await openTheChart();
+    expect(control.value).toBe('224');
+    expect(document.querySelector<HTMLElement>('[data-axis-day="0"]')?.style.width).toBe('224px');
+    fireEvent.change(control, { target: { value: '896' } });
+    expect(localStorage.getItem(KEY)).toBe('"15m"');
+  });
+
+  itDom('switching projects clears the old rung refusal notice', async () => {
+    localStorage.setItem(KEY, '9');
+    const api = fakeApi();
+    const services = projectServicesOf(api);
+    const { rerender } = render(<WbsTableOverClient projectId="p1" projectServices={services} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    await waitFor(() => {
+      expect(document.querySelector<HTMLSelectElement>('[data-gantt-day-scale]')?.title).toContain(
+        'reset to Days',
+      );
+    });
+    rerender(<WbsTableOverClient projectId="p2" projectServices={services} />);
+    await waitFor(() => {
+      expect(
+        document.querySelector<HTMLSelectElement>('[data-gantt-day-scale]')?.title,
+      ).not.toContain('reset to Days');
+    });
+  });
+
+  itDom('layout reset clears a rung refusal notice at Days', async () => {
+    localStorage.setItem(KEY, '9');
+    const control = await openTheChart();
+    expect(control.title).toContain('reset to Days');
+    fireEvent.click(screen.getByRole('button', { name: 'Reset layout' }));
+    expect(control.title).not.toContain('reset to Days');
   });
 
   itDom('refuses a width that is not one of the rungs, and drops the key', async () => {
@@ -1384,6 +1420,7 @@ describe('the day scale this browser picked for this project', () => {
     localStorage.setItem(KEY, '9');
     const control = await openTheChart();
     expect(control.value).toBe(String(DAY_PX));
+    expect(control.title).toContain('Remembered rung was unknown; reset to Days');
     expect(localStorage.getItem(KEY)).toBeNull();
   });
 
@@ -1391,6 +1428,7 @@ describe('the day scale this browser picked for this project', () => {
     localStorage.setItem(KEY, 'wide please');
     const control = await openTheChart();
     expect(control.value).toBe(String(DAY_PX));
+    expect(control.title).toContain('Remembered rung was unknown; reset to Days');
     expect(localStorage.getItem(KEY)).toBeNull();
   });
 });
