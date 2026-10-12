@@ -7346,8 +7346,12 @@ export function GanttRenderer({
         if (pointer.pointerType !== 'touch' || open === null) return;
         const target = pointer.target;
         if (target instanceof Element) {
-          const bar = target.closest('[data-gantt-bar]');
-          if (bar?.getAttribute('data-gantt-bar') === open.sliceId) return;
+          const mark = target.closest('[data-gantt-hit], [data-gantt-bar]');
+          // Proof: recognizing only the painted bar made Chromium's deliberate
+          // second tap on its paired hit surface keep full screen open (2026-10-13).
+          const sliceId =
+            mark?.getAttribute('data-gantt-hit') ?? mark?.getAttribute('data-gantt-bar');
+          if (sliceId === open.sliceId) return;
         }
         dismiss();
       }}

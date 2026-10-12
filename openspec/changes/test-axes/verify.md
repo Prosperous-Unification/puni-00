@@ -2455,3 +2455,60 @@ Port-binding tests required sandbox escalation because sandboxed listeners fail
 with `Failed to listen at ::`. No full Nx suite, canonical host gate, full
 Performance test file, or standalone OpenSpec validation was run for this
 isolated test-only patch; the coordinator owns the integrated revision's gate.
+
+### PR #380 pixel shard 1 target reconciliation — 2026-10-13
+
+Investigated exact head `a478c109d13233ffb61df874adf90c23fc583e75` in an isolated
+worktree. CI run `38319854625`, job `115045505553`, artifact `11778373875`
+(SHA256 `ecf2bda22a057912e651abc715b0ad71f7c6d0267bcb649933cb8886a242e81c`)
+contains the arrow paint-probe failure and eight pointer-action timeouts. Every
+timeout trace names the transparent paired `[data-gantt-hit]` as intercepting
+a gesture aimed at `[data-gantt-bar]`. The arrow probe likewise found that
+transparent surface. Local focused replay reproduced both failures; WebSocket
+EPIPE messages also occur during successful runs and do not explain these traces.
+
+Browser gestures now use the paired pointer surface; keyboard and rectangle
+checks retain the painted bar. The synchronous arrow paint probe temporarily
+ignores only transparent hit surfaces and restores their pointer attributes in
+`finally`, retaining SVG clipping and every painted mark.
+
+The corrected touch gesture exposed a production defect: full-screen capture
+recognized only the painted bar, so a second tap on its hit surface dismissed
+the facts before the click could navigate. The guard now recognizes either
+representation's slice ID. This restores the existing deliberate-second-tap
+specification without changing hit geometry, attempt marks or retry budgets.
+
+Sequential checks from the isolated workspace (`CI=1 E2E_PORT_SHIFT=7400
+BUN_TMPDIR=/tmp` for browser commands):
+
+- `bun install --frozen-lockfile --offline`: exit 0.
+- `bun run e2e -- --grep 'opens facts first in full screen'` before the guard
+  fix: exit 1, expected full-screen count 0, received 1
+  (`/tmp/pr380-pixel1-touch-red.log`). Reverting the guard after the clean green
+  replay reproduced the same failure (`/tmp/pr380-pixel1-touch-mutation.log`);
+  the fix was restored before the full shard.
+- Focused arrow, navigation, phone, surface-placement and touch replay: 18 passed,
+  exit 0 (`/tmp/pr380-pixel1-focused-clean.log`).
+- `bun run e2e -- --shard=1/4`: 120 passed, 1 declared skip, exit 0, 9m56s
+  (`/tmp/pr380-pixel1-shard1.log`). This includes all original CI failures,
+  all six pointed-row cases, native-minute ticks, attempt mark paint, translated
+  hits, collision choice, malformed native-minute refusal and missing-zone
+  forecast retention. `dragging up moves the boundary up` remains the suite-declared skip.
+- Gantt panel view tests filtered to touch/tap/two-minute/collision/pointer
+  surface behavior: 22 passed, 277 excluded by the filter, exit 0
+  (`/tmp/pr380-pixel1-view.log`).
+- Scoped ESLint and Prettier, app and e2e TypeScript checks: exit 0.
+
+The paint and pointer mutation proofs use disposable copies of the real browser
+cases. Removing the production SVG's left viewBox padding makes the arrow probe
+find the row-label button. Setting the paired production target's pointer events
+to `none` makes row navigation reject the intercepted click. Adjacent `Proof:`
+comments identify these faults. The sequential clean proof run exited 1 with both expected failures in 23s
+(`/tmp/pr380-pixel1-mutations-clean.log`). Disposable cases were removed afterwards.
+
+The first exploratory browser runs overlapped the default Playwright output
+directory and produced artifact-close ENOENT errors; they are excluded from the
+passing evidence above. The authoritative affected replay, guard reversion and
+full shard are sequential. Browser shards 2–4, the full view suite and the host
+release gate were not run in this repair; the coordinator owns the combined
+release head and its gate.
