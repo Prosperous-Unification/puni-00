@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { FoldedStepCard } from './folded-step-card';
+import type { AttemptView } from '@/lib/wbs-api';
+
+import { FoldedStepCard, type FoldedStepCardProps } from './folded-step-card';
 
 /** A card with no step node: these cases are about the estimate lines alone. */
 const UNADDRESSED = {
@@ -10,6 +12,7 @@ const UNADDRESSED = {
   onExitActions: () => undefined,
   onPointerArrives: () => undefined,
   pushToast: () => undefined,
+  node: null,
 };
 
 describe('folded step estimate detail', () => {
@@ -115,5 +118,87 @@ describe('folded step estimate detail', () => {
     );
     expect(screen.getByText('Before rounding 2.0002 days')).toBeInTheDocument();
     expect(screen.getByText('Charged 3 days')).toBeInTheDocument();
+  });
+});
+
+/** One ended attempt; `n` is its number and its start in days from the epoch. */
+const ended = (
+  n: number,
+  outcome: 'succeeded' | 'failed' | 'cancelled',
+  executorPersonId: string | null = 'p-ada',
+  reference: string | null = null,
+): AttemptView => ({
+  attemptNumber: n,
+  startedAt: n * 86_400_000,
+  endedAt: n * 86_400_000 + 3_600_000,
+  outcome,
+  executorPersonId,
+  reference,
+  note: null,
+});
+
+function nodeCard(node: FoldedStepCardProps['node']) {
+  render(
+    <FoldedStepCard
+      stepName="QA"
+      number="010"
+      id="qa-card"
+      points={[{ point: 'realistic', days: '' }]}
+      final=""
+      allowancePercent={0}
+      rule={{
+        method: 'pert',
+        pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+        rounding: 'ceil',
+      }}
+      doing={null}
+      problem={null}
+      {...UNADDRESSED}
+      node={node}
+    />,
+  );
+  return screen.getByRole('tooltip');
+}
+
+describe('folded step card node reading (step-node-readings D4)', () => {
+  it('reads the reading, the attempts and the last attempt first', () => {
+    const card = nodeCard({
+      reading: 'waiting',
+      attempts: [ended(1, 'failed'), ended(2, 'failed'), ended(3, 'cancelled', 'p-ada', 'PR-42')],
+      executorName: 'Ada Lovelace',
+    });
+    expect(screen.getByText('Waiting')).toBeInTheDocument();
+    expect(screen.getByText('3 attempts, last cancelled')).toBeInTheDocument();
+    expect(screen.getByText('By Ada Lovelace · PR-42')).toBeInTheDocument();
+    expect(card.textContent.indexOf('Waiting')).toBeLessThan(
+      card.textContent.indexOf('QA for 010'),
+    );
+  });
+
+  it('says one attempt in the singular', () => {
+    nodeCard({ reading: 'unknown', attempts: [ended(1, 'failed')], executorName: 'Ada Lovelace' });
+    expect(screen.getByText('Unknown')).toBeInTheDocument();
+    expect(screen.getByText('1 attempt, last failed')).toBeInTheDocument();
+    expect(screen.getByText('By Ada Lovelace')).toBeInTheDocument();
+  });
+
+  it('says a running last attempt is running', () => {
+    nodeCard({
+      reading: 'in_progress',
+      attempts: [
+        ended(1, 'failed'),
+        { ...ended(2, 'failed', null, 'run-7'), endedAt: null, outcome: null },
+      ],
+      executorName: null,
+    });
+    expect(screen.getByText('In progress')).toBeInTheDocument();
+    expect(screen.getByText('2 attempts, one running')).toBeInTheDocument();
+    expect(screen.getByText('run-7')).toBeInTheDocument();
+  });
+
+  it('omits the attempt lines for a node nobody has attempted', () => {
+    const card = nodeCard({ reading: 'done', attempts: [], executorName: null });
+    expect(screen.getByText('Done')).toBeInTheDocument();
+    expect(card.textContent).not.toMatch(/attempt/);
   });
 });

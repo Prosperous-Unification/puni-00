@@ -28,7 +28,8 @@
       "@wbs/domain/arrange-siblings": ["../../../libs/wbs/domain/domain/src/arrange-siblings.ts"],
       "@wbs/domain/priority-band": ["../../../libs/wbs/domain/domain/src/priority-band.ts"],
       "@wbs/domain/dependency-reach": ["../../../libs/wbs/domain/domain/src/dependency-reach.ts"],
-      "@wbs/domain/external-system": ["../../../libs/wbs/domain/domain/src/external-system.ts"]
+      "@wbs/domain/external-system": ["../../../libs/wbs/domain/domain/src/external-system.ts"],
+      "@wbs/domain/node-reading": ["../../../libs/wbs/domain/domain/src/node-reading.ts"]
     }
   },
   "files": [],

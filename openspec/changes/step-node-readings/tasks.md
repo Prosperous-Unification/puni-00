@@ -37,15 +37,20 @@
 
 ## 3. fe-01
 
-- [ ] 3.1 Red: `status-cell.test.tsx` "gives every reading its own glyph" (eight distinct);
+- [x] 3.1 Red: `status-cell.test.tsx` "gives every reading its own glyph" (eight distinct);
       `plan-cells.test.tsx` (the corner glyph and its sr-only words per reading; the Status
       column still shows the row fold; `paused` renders the query-failure state);
       `folded-step-card.test.tsx` ("Waiting", "3 attempts, last cancelled", executor and
       reference); `e2e/status.spec.ts` a waiting QA glyph in a browser.
-- [ ] 3.2 Green: `NODE_READING_GLYPH`, `NODE_READING_TOKEN`, the corner glyph in the step
+- [x] 3.2 Green: `NODE_READING_GLYPH`, `NODE_READING_TOKEN`, the corner glyph in the step
       cell, the card's first lines.
-- [ ] 3.3 Negatives: `skipped` set to `⊖` → "every reading its own glyph" fails with seven
+- [x] 3.3 Negatives: `skipped` set to `⊖` → "every reading its own glyph" fails with seven
       distinct glyphs; the unknown-word guard removed → `paused` renders a blank corner.
+      The unknown-word guard is the response contract's `nodeReadings` union
+      (`work-item-response.ts`), which both the HTTP client and the test harness answer
+      through; a second `isNodeReading` pass in fe-01 would validate the boundary twice
+      (R5), so the fault was injected there. The `e2e/status.spec.ts` case is written and
+      typechecked but not run: see `verify.md` "Not run" (2026-10-12).
 
 ## 4. Verify
 

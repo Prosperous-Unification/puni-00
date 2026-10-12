@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
 
 import { createProject } from './create-project';
+import { seedStepReadings } from './step-readings-seed';
 
 /**
  * `work-item-status-and-facts` and `status-at-a-glance` in a browser: choosing
@@ -439,6 +440,10 @@ test.describe('status colours on table surfaces, in a browser (add-work-item-sta
       '--status-on-hold',
       '--status-blocked',
       '--status-done',
+      // The two node readings no status shares (`step-node-readings` D4): the
+      // corner glyph is text on these same surfaces.
+      '--reading-waiting',
+      '--reading-skipped',
     ];
     const measure = async (surface: string, rowIndex: number): Promise<void> => {
       // Cell backgrounds fade for 100ms when a row changes state.
@@ -529,6 +534,49 @@ test.describe('status colours on table surfaces, in a browser (add-work-item-sta
       for (const [token, measured] of Object.entries(colours)) {
         expect(measured, `${token} glyph on ${surface}`).toBeGreaterThanOrEqual(4.5);
       }
+    }
+  });
+});
+
+test.describe('node readings in the step cells, in a browser (step-node-readings D4)', () => {
+  test('draws a waiting QA glyph in its step cell corner, clear of the figure and initials', async ({
+    page,
+  }) => {
+    await seedStepReadings(page);
+    const box = page.getByLabel('QA estimate for 010');
+    const cell = box.locator('xpath=ancestor::*[@data-final][1]');
+    const corner = cell.locator('[data-node-reading]');
+    await expect(corner).toHaveAttribute('data-node-reading', 'waiting');
+    await expect(corner.locator('[aria-hidden="true"]')).toHaveText('◇');
+    await expect(box).toHaveAccessibleDescription(/^Reading: Waiting/);
+    // The token resolved, not a fallback: the glyph is ready's hue.
+    const painted = await corner.evaluate((mark) => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--reading-waiting)';
+      mark.parentElement?.append(probe);
+      const expected = getComputedStyle(probe).color;
+      probe.remove();
+      return { drawn: getComputedStyle(mark).color, expected };
+    });
+    expect(painted.drawn).toBe(painted.expected);
+    // Dev reads done beside it, and the row's Status keeps the fold.
+    await expect(
+      page
+        .getByLabel('Dev estimate for 010')
+        .locator('xpath=ancestor::*[@data-final][1]')
+        .locator('[data-node-reading]'),
+    ).toHaveAttribute('data-node-reading', 'done');
+
+    const glyph = await boxOf(corner.locator('[aria-hidden="true"]'), 'the waiting glyph');
+    const td = await boxOf(cell.locator('xpath=ancestor::td[1]'), 'the QA cell');
+    expect(glyph.right, 'the glyph stays inside its cell').toBeLessThanOrEqual(td.right);
+    for (const [name, mark] of [
+      ['the QA figure', cell.locator('[data-folded-final]')],
+      ['the assignee initials', cell.locator('[data-folded-assignee]')],
+    ] as const) {
+      if ((await mark.count()) === 0) continue;
+      const drawn = await boxOf(mark, name);
+      expect(glyph.left, `the glyph clears ${name}`).toBeGreaterThanOrEqual(drawn.right);
     }
   });
 });

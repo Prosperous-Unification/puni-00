@@ -1,3 +1,4 @@
+import type { NodeReading } from '@wbs/domain/node-reading';
 import type { SettableStatus, WorkItemStatus } from '@wbs/domain/progress';
 import { type KeyboardEvent, useEffect, useState } from 'react';
 
@@ -66,6 +67,49 @@ export const STATUS_GLYPH: Readonly<Record<WorkItemStatus, string>> = {
   blocked: '⊘',
   done: '✓',
 };
+
+/**
+ * The word each node reading reads as (`step-node-readings` D4), on the step
+ * card's first line and in its cell's sr-only words. Shared words read as
+ * their status does.
+ */
+export const NODE_READING_LABEL: Readonly<Record<NodeReading, string>> = {
+  skipped: 'Skipped',
+  done: STATUS_LABEL.done,
+  on_hold: STATUS_LABEL.on_hold,
+  blocked: STATUS_LABEL.blocked,
+  in_progress: STATUS_LABEL.in_progress,
+  blocked_by_proxy: STATUS_LABEL.blocked_by_proxy,
+  waiting: 'Waiting',
+  unknown: STATUS_LABEL.unknown,
+};
+
+/**
+ * The glyph each node reading is drawn as, in its step cell's top-right corner
+ * (`step-node-readings` D4).
+ *
+ * Every word a row status shares takes that status's glyph, so a reader who
+ * has learnt the Status column has learnt these. The two of its own: `◇`
+ * waiting, the empty diamond of something lined up and not begun, and `∅`
+ * skipped, "not part of the work". The interview's `⊖` for skipped is
+ * blocked-by-proxy's glyph already.
+ */
+export const NODE_READING_GLYPH: Readonly<Record<NodeReading, string>> = {
+  // Proof: this set to `⊖`, and `gives every reading its own glyph` failed on
+  // `expected 7 to be 8`; watched 2026-10-12.
+  skipped: '∅',
+  done: STATUS_GLYPH.done,
+  on_hold: STATUS_GLYPH.on_hold,
+  blocked: STATUS_GLYPH.blocked,
+  in_progress: STATUS_GLYPH.in_progress,
+  blocked_by_proxy: STATUS_GLYPH.blocked_by_proxy,
+  waiting: '◇',
+  unknown: STATUS_GLYPH.unknown,
+};
+
+/** A node reading as a screen reader is told it — `Reading: Waiting`. */
+export const readingWords = (reading: NodeReading): string =>
+  `Reading: ${NODE_READING_LABEL[reading]}`;
 
 /**
  * The status as a screen reader is told it — `Status: On hold` — wherever a

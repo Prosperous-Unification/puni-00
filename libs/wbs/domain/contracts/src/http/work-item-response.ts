@@ -93,6 +93,10 @@ export const numberedWorkItem = type({
   // A leaf's node readings by step id (`step-node-readings` D3); absent on a
   // parent and from an older be-01 mid-swap. `skipped` is in the union before
   // anything produces it, so a later reader never meets a word it cannot name.
+  // Proof: the union loosened to `'string'`, and fe-01's `renders the
+  // query-failure state for an unknown reading word` failed on a null
+  // `[data-stale-tree]` banner while the Dev cell drew a blank corner glyph
+  // with `Reading: undefined`; watched 2026-10-12.
   'nodeReadings?': type({
     '[string]':
       "'skipped' | 'done' | 'on_hold' | 'blocked' | 'in_progress' | 'blocked_by_proxy' | 'waiting' | 'unknown'",
