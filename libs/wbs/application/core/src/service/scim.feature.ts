@@ -133,12 +133,16 @@ export class ScimService {
     const route = /^\/scim\/v2\/Users(?:\/([^/]+))?$/.exec(request.url.pathname);
     if (route === null) return UNSUPPORTED;
     const segment = route.at(1);
-    const id = segment === undefined ? null : decodeURIComponent(segment);
-    if (id === null) {
+    if (segment === undefined) {
       if (request.method === 'GET') return this.listUsers(token, request.url.searchParams);
       if (request.method === 'POST') return this.createUser(token, request);
       return UNSUPPORTED;
     }
+    // Proof: decoding with a bare decodeURIComponent made mounted `reads one
+    // user and answers an absent identifier 404` answer `%E0%A4%A` 500;
+    // watched 2026-10-12.
+    const id = decodedId(segment);
+    if (id === null) return NOT_FOUND;
     if (request.url.search !== '') return UNSUPPORTED;
     if (request.method === 'GET') return this.readUser(token, id);
     // Proof: routing PUT to the PATCH handler made mounted `answers PUT,
@@ -415,6 +419,16 @@ function listResponse(resources: readonly unknown[], startIndex: number) {
 function whole(raw: string | null): number | null | 'malformed' {
   if (raw === null) return null;
   return /^-?\d{1,9}$/.test(raw) ? Number(raw) : 'malformed';
+}
+
+/** A path identifier, or null for percent-encoding no resource can carry. */
+function decodedId(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment);
+  } catch (error) {
+    if (!(error instanceof URIError)) throw error;
+    return null;
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

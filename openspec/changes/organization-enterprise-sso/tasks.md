@@ -63,19 +63,19 @@
 
 ## 4. SCIM
 
-- [ ] 4.1 Add provisioning-token issue, rotate, revoke and list for super-admins: digest only, at most two live, a 24-hour rotation overlap, and the secret shown once.
+- [x] 4.1 Add provisioning-token issue, rotate, revoke and list for super-admins: digest only, at most two live, a 24-hour rotation overlap, and the secret shown once.
 
   Red: the `organization-scim` token scenarios.
 
   Fault: store the raw token, and observe the storage assertion fail. Then permit a third live token and observe `token_limit` fail. Restore and add `Proof:`.
 
-- [ ] 4.2 Add SCIM authentication: an identical `401` body for every bad token, per-token admission returning `429` with `Retry-After`, and the organization selected by the token alone.
+- [x] 4.2 Add SCIM authentication: an identical `401` body for every bad token, per-token admission returning `429` with `Retry-After`, and the organization selected by the token alone.
 
   Red: revoked-token replay on every verb; unknown, expired and malformed tokens all give byte-identical bodies; the 301st request in the window gets 429 with no effect.
 
   Fault: look up revoked tokens as live, and observe the replay test fail. Restore and add `Proof:`.
 
-- [ ] 4.3 Add the Users subset (GET with filter, POST, GET by id, PATCH, DELETE) and `501` for everything else, with RFC 7644 errors.
+- [x] 4.3 Add the Users subset (GET with filter, POST, GET by id, PATCH, DELETE) and `501` for everything else, with RFC 7644 errors.
 
   Red: POST creating a pending membership; off-domain `invalidValue`; duplicate `uniqueness`; cross-organization PATCH answering 404 with nothing changed; PUT answering 501.
 
@@ -87,7 +87,7 @@
 
   Fault: activate on email alone, and observe the non-SSO test fail. Restore and add `Proof:`.
 
-- [ ] 4.5 Add transactional deprovisioning: membership deleted, the organization's browser bindings revoked and the audit row written together; the last super-admin refused; reactivation creating a pending membership only.
+- [x] 4.5 Add transactional deprovisioning: membership deleted, the organization's browser bindings revoked and the audit row written together; the last super-admin refused; reactivation creating a pending membership only.
 
   Red: the `organization-scim` deprovisioning scenarios across browser, gateway lease and MCP tool call; the audit failure rolling back; B unaffected.
 

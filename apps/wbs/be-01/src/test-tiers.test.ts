@@ -35,9 +35,11 @@ const SRC = new URL('.', import.meta.url).pathname;
  * each migrates and opens a SQLite file for the organization boundary suites.
  * `BootedBrowserProcess.open` is the sixth: it migrates a file and boots be-01
  * over it.
+ * `openScimWorld` is the seventh: it opens an `OrganizationHarness` for the
+ * SCIM suites.
  */
 const OPENS_A_DATABASE =
-  /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open(Composed)?|BootedBrowserProcess\.open)\b/;
+  /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open(Composed)?|BootedBrowserProcess\.open|openScimWorld)\b/;
 
 /** Every `*.test.ts` under `src`, as a path relative to it. */
 function suites(dir = SRC, prefix = ''): string[] {

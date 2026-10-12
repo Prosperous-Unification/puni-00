@@ -70,7 +70,7 @@ describe('POST /scim/v2/Users', () => {
     expect(created.headers.get('content-type')).toBe('application/scim+json');
     const body = created.body as { id: string };
     expect(created.headers.get('location')).toBe(`http://localhost/scim/v2/Users/${body.id}`);
-    expect(body).toEqual({
+    expect(created.body).toEqual({
       schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
       id: body.id,
       userName: 'carol@acme.test',
@@ -234,6 +234,9 @@ describe('/scim/v2/Users/:id', () => {
     const absent = await scim(h, tokenA.token, 'GET', '/scim/v2/Users/absent');
     expect(absent.status).toBe(404);
     expect(absent.body).toEqual({ schemas: [ERROR], status: '404', detail: 'not_found' });
+    const malformed = await scim(h, tokenA.token, 'GET', '/scim/v2/Users/%E0%A4%A');
+    expect(malformed.status).toBe(404);
+    expect(malformed.text).toBe(absent.text);
   });
 
   it('answers another organization’s user 404 exactly as an absent one, changing nothing', async () => {
