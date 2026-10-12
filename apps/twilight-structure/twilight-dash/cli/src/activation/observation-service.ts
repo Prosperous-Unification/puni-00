@@ -4,6 +4,7 @@ import { isAbsolute, join, resolve, sep } from 'node:path';
 import { parseOrThrow, type } from '@shared/validation';
 import { serializeCanonical } from '@twilight-burokrat/judge';
 
+import type { Monotonic, WallClock } from '../clock';
 import { decodeBootstrapConfiguration } from './bootstrap';
 import { createGitHubRestReader, type GitHubFetch } from './github-reader';
 import { type ObservationCliDiagnostic, runObservationCli } from './observation-cli';
@@ -157,8 +158,10 @@ export interface ObservationServiceOptions {
   /** The CLI composition supplies global fetch; tests supply fake HTTP. */
   readonly fetcher: GitHubFetch;
   readonly reportDiagnostic?: typeof reportObservationServiceDiagnostic;
-  /** The CLI composition supplies `Date.now`; the service never reads an ambient clock. */
-  readonly clock: () => number;
+  /** Stamps state and reader records; `observation-service-cli.ts` composes `wallClock()`. */
+  readonly clock: WallClock;
+  /** Measures the tick deadlines; `observation-service-cli.ts` composes `monotonicClock()`. */
+  readonly monotonic: Monotonic;
 }
 
 /** Executes one configured observation tick; it never initializes or migrates state. */
@@ -178,8 +181,11 @@ export async function runObservationService(
     const bootstrapBytes = protectedBytes(configuration.bootstrapPath, 16 * 1024);
     decodeBootstrapConfiguration(bootstrapBytes, configuration.pin);
     const token = credential(configuration.credentialPath);
-    // The reader refuses an absent transport or clock before any GET; see its Proof.
-    const { clock } = options;
+    // The reader refuses an absent transport before any GET; see its Proof. An absent clock
+    // throws at its first read, before any GET: `service refuses absent injected clocks before
+    // any provider call`.
+    const { monotonic } = options;
+    const clock = () => options.clock.read();
     const state: ObservationStateConfig = {
       stateDirectory: configuration.stateDirectory,
       bootstrapPath: configuration.bootstrapPath,
@@ -194,6 +200,7 @@ export async function runObservationService(
       state,
       reader,
       cleanupMs: configuration.cleanupMs,
+      monotonic,
       reportDiagnostic,
     });
   } catch {

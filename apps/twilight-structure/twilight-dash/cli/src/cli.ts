@@ -3,8 +3,8 @@ import {
   inspectAuthorityCommand,
   recoverPublicationCommand,
 } from './authority/authority-commands';
-import type { AuthorityClock } from './authority/authority-store';
 import { submitAdmission } from './authority/submit-admission';
+import type { Monotonic, WallClock } from './clock';
 
 const enrollmentFlags = [
   '--fleet',
@@ -22,7 +22,9 @@ type PlanEnrollment = (argv: readonly string[]) => Promise<void>;
 /** Everything `runDash` reaches outside its arguments, composed once by `entrypoint.ts`. */
 export interface DashDependencies {
   readonly planEnrollment: PlanEnrollment;
-  readonly clock: AuthorityClock;
+  readonly clock: WallClock;
+  /** Deadlines for the activation commands; composed now so no later command defaults it. */
+  readonly monotonic: Monotonic;
   readonly stdout: { write(text: string): unknown };
 }
 
@@ -43,8 +45,8 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
   // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.
   // Proof: giving `clock` a `wallClock()` default here failed `only clock.ts reads the wall
   // clock` naming `cli.ts`; dropping this check let `runDash refuses missing dependencies`
-  // reach the dispatcher (2026-10-11).
-  for (const name of ['planEnrollment', 'clock', 'stdout'] as const) {
+  // reach the dispatcher (2026-10-11); dropping `monotonic` from it did the same (2026-10-12).
+  for (const name of ['planEnrollment', 'clock', 'monotonic', 'stdout'] as const) {
     if ((deps as Partial<DashDependencies> | undefined)?.[name] === undefined) {
       throw new Error(`Dash dependency is required: ${name}`);
     }

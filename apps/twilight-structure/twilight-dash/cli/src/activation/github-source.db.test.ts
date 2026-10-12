@@ -6,6 +6,7 @@ import { hashBytes, serializeCanonical } from '@twilight-burokrat/judge';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
+import { monotonicClock } from '../clock';
 import { type ObservedCandidate, openActivationController } from './controller';
 import { createGitHubPullRequestSource, type GitHubPullRequestReader } from './github-source';
 
@@ -81,7 +82,7 @@ function controllerFor(source: ReturnType<typeof fixture>, reader: GitHubPullReq
     bootstrapPath: source.bootstrapPath,
     pin: source.pin,
     clock: () => 1000,
-    ...createGitHubPullRequestSource(source.binding, reader),
+    ...createGitHubPullRequestSource(source.binding, reader, monotonicClock()),
     selectObligations: () => {
       throw new Error('no evaluation in source test');
     },
@@ -118,21 +119,25 @@ async function finishWithin<T>(read: Promise<T>, milliseconds: number): Promise<
 test('timer discovers a ready PR but commits only a fresh exact current read', async () => {
   const source = fixture();
   const reads: string[] = [];
-  const github = createGitHubPullRequestSource(source.binding, {
-    listOpenPullRequests: (_owner, _name, page) => {
-      reads.push(`list:${String(page)}`);
-      return Promise.resolve(
-        page === 1 ? { pulls: [source.pull], nextPage: 2 } : { pulls: [], nextPage: null },
-      );
+  const github = createGitHubPullRequestSource(
+    source.binding,
+    {
+      listOpenPullRequests: (_owner, _name, page) => {
+        reads.push(`list:${String(page)}`);
+        return Promise.resolve(
+          page === 1 ? { pulls: [source.pull], nextPage: 2 } : { pulls: [], nextPage: null },
+        );
+      },
+      getPullRequest: (_owner, _name, number) => {
+        reads.push(`get:${String(number)}`);
+        return Promise.resolve({
+          ...source.pull,
+          head: { ...source.pull.head, sha: '9'.repeat(40) },
+        });
+      },
     },
-    getPullRequest: (_owner, _name, number) => {
-      reads.push(`get:${String(number)}`);
-      return Promise.resolve({
-        ...source.pull,
-        head: { ...source.pull.head, sha: '9'.repeat(40) },
-      });
-    },
-  });
+    monotonicClock(),
+  );
   const controller = openActivationController({
     databasePath: source.databasePath,
     bootstrapPath: source.bootstrapPath,
@@ -178,6 +183,7 @@ test('cancelled held current response cannot commit an observation', async () =>
     const tick = controller.reconcileReady({
       signal: aborter.signal,
       deadline: performance.now() + 1000,
+      monotonic: monotonicClock(),
     });
     await finishWithin(started, 500);
     aborter.abort();
@@ -212,6 +218,7 @@ test('cancelled held discovery aborts the reader and cannot report a complete sc
     const tick = controller.reconcileReady({
       signal: aborter.signal,
       deadline: performance.now() + 1000,
+      monotonic: monotonicClock(),
     });
     await finishWithin(started, 500);
     aborter.abort();
@@ -233,10 +240,14 @@ test('cancellation during final list validation refuses a complete scan', async 
     },
     nextPage: null,
   };
-  const observed = createGitHubPullRequestSource(source.binding, {
-    listOpenPullRequests: () => Promise.resolve(page),
-    getPullRequest: () => Promise.reject(new Error('unexpected current read')),
-  });
+  const observed = createGitHubPullRequestSource(
+    source.binding,
+    {
+      listOpenPullRequests: () => Promise.resolve(page),
+      getPullRequest: () => Promise.reject(new Error('unexpected current read')),
+    },
+    monotonicClock(),
+  );
   await expectRefusal(() => observed.readyCandidates(aborter.signal), 'cancel');
 });
 
@@ -245,13 +256,17 @@ test('source refuses an already-cancelled discovery before invoking its reader',
   const aborter = new AbortController();
   aborter.abort();
   let reads = 0;
-  const observed = createGitHubPullRequestSource(source.binding, {
-    listOpenPullRequests: () => {
-      reads += 1;
-      return Promise.resolve({ pulls: [], nextPage: null });
+  const observed = createGitHubPullRequestSource(
+    source.binding,
+    {
+      listOpenPullRequests: () => {
+        reads += 1;
+        return Promise.resolve({ pulls: [], nextPage: null });
+      },
+      getPullRequest: () => Promise.reject(new Error('unexpected current read')),
     },
-    getPullRequest: () => Promise.reject(new Error('unexpected current read')),
-  });
+    monotonicClock(),
+  );
   await expectRefusal(() => observed.readyCandidates(aborter.signal), 'cancel');
   expect(reads).toBe(0);
 });
@@ -266,10 +281,14 @@ test('cancellation during current response validation refuses ready selection', 
       return source.pull.head;
     },
   };
-  const observed = createGitHubPullRequestSource(source.binding, {
-    listOpenPullRequests: () => Promise.resolve({ pulls: [], nextPage: null }),
-    getPullRequest: () => Promise.resolve(pull),
-  });
+  const observed = createGitHubPullRequestSource(
+    source.binding,
+    {
+      listOpenPullRequests: () => Promise.resolve({ pulls: [], nextPage: null }),
+      getPullRequest: () => Promise.resolve(pull),
+    },
+    monotonicClock(),
+  );
   await expectRefusal(
     () =>
       observed.currentCandidate(
@@ -312,6 +331,7 @@ test('cancelled tick refuses before the first provider read', async () => {
         controller.reconcileReady({
           signal: aborter.signal,
           deadline: performance.now() + 1000,
+          monotonic: monotonicClock(),
         }),
       'cancel',
     );
@@ -348,6 +368,7 @@ test('malformed monotonic deadline never invokes a provider read', async () => {
         controller.reconcileReady({
           signal: new AbortController().signal,
           deadline: Number.NaN,
+          monotonic: monotonicClock(),
         }),
       'deadline malformed',
     );
@@ -389,6 +410,7 @@ test('cancelled discovery stops before scanning durable active subjects', async 
         controller.reconcileReady({
           signal: aborter.signal,
           deadline: performance.now() + 1000,
+          monotonic: monotonicClock(),
         }),
       'cancel',
     );
@@ -412,10 +434,14 @@ test('abort-ignoring current response is fenced by the controller after await', 
   const held = new Promise<{ kind: 'ready'; candidate: ObservedCandidate }>((resolve) => {
     releaseCurrent = resolve;
   });
-  const observed = createGitHubPullRequestSource(source.binding, {
-    listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
-    getPullRequest: () => Promise.resolve(source.pull),
-  });
+  const observed = createGitHubPullRequestSource(
+    source.binding,
+    {
+      listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
+      getPullRequest: () => Promise.resolve(source.pull),
+    },
+    monotonicClock(),
+  );
   const controller = openActivationController({
     databasePath: source.databasePath,
     bootstrapPath: source.bootstrapPath,
@@ -439,6 +465,7 @@ test('abort-ignoring current response is fenced by the controller after await', 
     const tick = controller.reconcileReady({
       signal: aborter.signal,
       deadline: performance.now() + 1000,
+      monotonic: monotonicClock(),
     });
     await finishWithin(started, 500);
     Database.prototype.run = function (sql: string, ...bindings: unknown[]) {
@@ -465,10 +492,14 @@ test('abort-ignoring current response is fenced by the controller after await', 
 test('shutdown after one current read never starts the next subject read', async () => {
   const source = fixture();
   const second = { ...source.pull, number: 283 };
-  const observed = createGitHubPullRequestSource(source.binding, {
-    listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull, second], nextPage: null }),
-    getPullRequest: () => Promise.resolve(source.pull),
-  });
+  const observed = createGitHubPullRequestSource(
+    source.binding,
+    {
+      listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull, second], nextPage: null }),
+      getPullRequest: () => Promise.resolve(source.pull),
+    },
+    monotonicClock(),
+  );
   const aborter = new AbortController();
   let currentReads = 0;
   const controller = openActivationController({
@@ -496,6 +527,7 @@ test('shutdown after one current read never starts the next subject read', async
         controller.reconcileReady({
           signal: aborter.signal,
           deadline: performance.now() + 1000,
+          monotonic: monotonicClock(),
         }),
       'cancel',
     );
@@ -542,6 +574,7 @@ test('cancellation at observation transaction entry starts no subject write', as
         controller.reconcileReady({
           signal: aborter.signal,
           deadline: performance.now() + 1000,
+          monotonic: monotonicClock(),
         }),
       'cancel',
     );
@@ -559,10 +592,14 @@ test('cancellation at observation transaction entry starts no subject write', as
 
 test('cancellation after stale source-version retry starts no second current read', async () => {
   const source = fixture();
-  const observed = createGitHubPullRequestSource(source.binding, {
-    listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
-    getPullRequest: () => Promise.resolve(source.pull),
-  });
+  const observed = createGitHubPullRequestSource(
+    source.binding,
+    {
+      listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
+      getPullRequest: () => Promise.resolve(source.pull),
+    },
+    monotonicClock(),
+  );
   const selected = await observed.currentCandidate(source.binding.repositoryId, {
     kind: 'pull-request',
     number: source.pull.number,
@@ -612,6 +649,7 @@ test('cancellation after stale source-version retry starts no second current rea
         primary.reconcileReady({
           signal: aborter.signal,
           deadline: performance.now() + 1000,
+          monotonic: monotonicClock(),
         }),
       'cancel',
     );
@@ -648,6 +686,7 @@ test('shutdown after a committed subject retains it without reporting complete s
         controller.reconcileReady({
           signal: aborter.signal,
           deadline: performance.now() + 1000,
+          monotonic: monotonicClock(),
         }),
       'cancel',
     );
@@ -676,6 +715,7 @@ test('configured subject cap refuses ready candidates before any current read or
         controller.reconcileReady({
           signal: new AbortController().signal,
           deadline: performance.now() + 1000,
+          monotonic: monotonicClock(),
           maxSubjects: 1,
         }),
       'subject limit',
@@ -706,6 +746,7 @@ test('malformed subject cap refuses before discovery or current reads', async ()
       await controller.reconcileReady({
         signal: new AbortController().signal,
         deadline: performance.now() + 1000,
+        monotonic: monotonicClock(),
         maxSubjects: Number.NaN,
       });
     } catch (cause) {
@@ -741,6 +782,7 @@ test('configured subject cap refuses ready plus durable active union before any 
         controller.reconcileReady({
           signal: new AbortController().signal,
           deadline: performance.now() + 1000,
+          monotonic: monotonicClock(),
           maxSubjects: 1,
         }),
       'subject limit',

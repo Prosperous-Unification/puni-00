@@ -30,6 +30,7 @@ import {
   serializeCanonical,
 } from '@twilight-burokrat/judge';
 
+import type { Monotonic } from '../clock';
 import { type GitHubRepositoryBinding, validateGitHubRepositoryBinding } from './github-source';
 import { type ActivationRequest, assertActivationRequest } from './request';
 import { readOwnedReviewCandidate } from './review-selection-preparation';
@@ -102,6 +103,8 @@ export interface LocalReviewAcquisitionInput {
   readonly gitObjectFormat: 'sha1' | 'sha256';
   readonly classificationPolicy: ClassificationPolicy;
   readonly maximumPreparationMs: number;
+  /** Measures `maximumPreparationMs` for each acquisition; installation retains it. */
+  readonly monotonic: Monotonic;
   readonly maximumCandidateEntries: number;
   readonly maximumCandidateBytes: number;
   readonly maximumParserReads: number;
@@ -570,9 +573,9 @@ function prepareRetainedLocalReviewCandidate(
   ) {
     throw new Error('review acquisition Git runtime differs from installed pin');
   }
-  const deadline = performance.now() + input.maximumPreparationMs;
+  const deadline = input.monotonic.now() + input.maximumPreparationMs;
   const invokeGit = (args: string[]) => {
-    const remaining = deadline - performance.now();
+    const remaining = deadline - input.monotonic.now();
     if (remaining <= 0) throw new Error('review acquisition deadline exceeded');
     const invocation = Bun.spawnSync([input.gitExecutablePath, ...args], {
       // Proof: inheriting process.env let GIT_OBJECT_DIRECTORY redirect the real local
@@ -603,7 +606,7 @@ function prepareRetainedLocalReviewCandidate(
       invocation.exitCode !== 0 ||
       invocation.stdout.length > input.maximumCandidateBytes ||
       invocation.stderr.length > input.maximumCandidateBytes ||
-      performance.now() > deadline
+      input.monotonic.now() > deadline
     ) {
       throw new Error('review acquisition Git operation failed or exceeded bound');
     }
@@ -646,14 +649,15 @@ function prepareRetainedLocalReviewCandidate(
       headSha: request.headSha,
       baseSha: request.baseSha,
       classificationPolicy: input.classificationPolicy,
-      maximumPreparationMs: Math.max(1, Math.floor(deadline - performance.now())),
+      maximumPreparationMs: Math.max(1, Math.floor(deadline - input.monotonic.now())),
+      monotonic: input.monotonic,
       maximumCandidateEntries: input.maximumCandidateEntries,
       maximumCandidateBytes: input.maximumCandidateBytes,
     });
     // Proof: injecting a canonical SHA-1 tree in the reader result after a real SHA-256
     // fetch published it when this join was removed; the named ready-store test failed.
     requireGitObjectFormat(candidate.manifest, input.gitObjectFormat);
-    if (performance.now() > deadline) throw new Error('review acquisition deadline exceeded');
+    if (input.monotonic.now() > deadline) throw new Error('review acquisition deadline exceeded');
     rmSync(gitDirectory, { recursive: true });
     const blobDirectory = join(pending, 'sha256');
     mkdirSync(blobDirectory, { mode: 0o700 });
@@ -788,7 +792,7 @@ function prepareRetainedLocalReviewCandidate(
   // returned a ready snapshot after the deadline; the final-cleanup test was RED.
   // Proof: the same cleanup clock fault after a missing Git head now keeps both the
   // Git failure and deadline cause; omitting this fence failed the aggregate test.
-  if (performance.now() > deadline)
+  if (input.monotonic.now() > deadline)
     failures.push(new Error('review acquisition deadline exceeded'));
   // Proof: injected pending rm failure after an absent Git head preserved both causes;
   // omitting aggregation failed the pending-cleanup production test.

@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 import { Database } from 'bun:sqlite';
 
+import { monotonicClock } from '../../clock';
 import { ActivationController } from '../controller';
 import type { ObservationStateConfig } from '../observation-state';
 import { runObservationTick } from '../observation-tick';
@@ -43,6 +44,7 @@ const outcome = await runObservationTick({
   state,
   signal: new AbortController().signal,
   cleanupMs: 30,
+  monotonic: monotonicClock(),
   reader: {
     listOpenPullRequests: () => Promise.resolve({ pulls: [], nextPage: null }),
     getPullRequest: () => Promise.reject(new Error('unexpected current read')),

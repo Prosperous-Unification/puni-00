@@ -2,9 +2,10 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 import { Database } from 'bun:sqlite';
 
-import { ActivationController } from './controller';
-import type { ObservationStateConfig } from './observation-state';
-import { runObservationTick } from './observation-tick';
+import { monotonicClock } from '../../clock';
+import { ActivationController } from '../controller';
+import type { ObservationStateConfig } from '../observation-state';
+import { runObservationTick } from '../observation-tick';
 
 const configurationPath = process.argv.at(2);
 const enteredPath = process.argv.at(3);
@@ -38,6 +39,7 @@ await runObservationTick({
   state,
   signal: aborter.signal,
   cleanupMs: 100,
+  monotonic: monotonicClock(),
   reader: {
     listOpenPullRequests: () => Promise.reject(new Error('fixture reader must remain unused')),
     getPullRequest: () => Promise.reject(new Error('fixture reader must remain unused')),

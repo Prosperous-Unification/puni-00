@@ -44,6 +44,8 @@ import {
   serializeCanonical,
 } from '@twilight-burokrat/judge';
 
+import type { WallClock } from '../clock';
+
 function decodeUtf8(bytes: Uint8Array, subject: string): string {
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -106,9 +108,9 @@ function isExistingLock(cause: unknown): boolean {
   return cause instanceof Error && Reflect.get(cause, 'code') === 'EEXIST';
 }
 
-/** Waits on the host clock for at most `waitMs`, polling every 10 ms. */
-function createLockDirectory(path: string, waitMs: number): void {
-  const deadline = Date.now() + waitMs;
+/** Waits on the injected wall clock for at most `waitMs`, polling every 10 ms. */
+function createLockDirectory(path: string, waitMs: number, clock: WallClock): void {
+  const deadline = clock.read() + waitMs;
   let lastConflict: unknown;
   do {
     try {
@@ -121,7 +123,7 @@ function createLockDirectory(path: string, waitMs: number): void {
       lastConflict = cause;
     }
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
-  } while (Date.now() < deadline);
+  } while (clock.read() < deadline);
   throw new Error(`timed out waiting for invocation journal lock: ${path}`, {
     cause: lastConflict,
   });
@@ -136,9 +138,9 @@ export class FileJournalLock {
     private readonly owner: string,
   ) {}
 
-  static acquire(journalPath: string, waitMs = 5000): FileJournalLock {
+  static acquire(journalPath: string, clock: WallClock, waitMs = 5000): FileJournalLock {
     const path = `${journalPath}.lock`;
-    createLockDirectory(path, waitMs);
+    createLockDirectory(path, waitMs, clock);
     const owner = `${String(process.pid)}.${crypto.randomUUID()}\n`;
     try {
       writeFileSync(join(path, 'owner'), owner, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
@@ -166,10 +168,10 @@ export class FileJournalLock {
   }
 }
 
-function withJournalLock<T>(path: string, waitMs: number, action: () => T): T {
+function withJournalLock<T>(path: string, clock: WallClock, waitMs: number, action: () => T): T {
   // Proof: bypassing this lock let both held-lock registration workers finish early; the overlap
   // test observed `[0, 0]` instead of `[null, null]` before the owner released the lock.
-  const lock = FileJournalLock.acquire(path, waitMs);
+  const lock = FileJournalLock.acquire(path, clock, waitMs);
   try {
     return action();
   } finally {
@@ -184,11 +186,17 @@ export class FileInvocationJournal implements InvocationJournal {
   private constructor(
     private readonly path: string,
     readonly journalId: string,
+    private readonly clock: WallClock,
     private readonly lockWaitMs: number,
   ) {}
 
-  static create(path: string, journalId: string, lockWaitMs = 5000): FileInvocationJournal {
-    return withJournalLock(path, lockWaitMs, () => {
+  static create(
+    path: string,
+    journalId: string,
+    clock: WallClock,
+    lockWaitMs = 5000,
+  ): FileInvocationJournal {
+    return withJournalLock(path, clock, lockWaitMs, () => {
       const journal = parseOrThrow(InvocationJournalRecord, {
         schemaVersion: 1,
         journalId,
@@ -200,13 +208,13 @@ export class FileInvocationJournal implements InvocationJournal {
       if (hashCanonical(stored) !== hashCanonical(journal)) {
         throw new Error(`durable invocation journal creation differs after read-back: ${path}`);
       }
-      return new FileInvocationJournal(path, journalId, lockWaitMs);
+      return new FileInvocationJournal(path, journalId, clock, lockWaitMs);
     });
   }
 
-  static open(path: string, lockWaitMs = 5000): FileInvocationJournal {
+  static open(path: string, clock: WallClock, lockWaitMs = 5000): FileInvocationJournal {
     const journal = readInvocationJournal(path);
-    return new FileInvocationJournal(path, journal.journalId, lockWaitMs);
+    return new FileInvocationJournal(path, journal.journalId, clock, lockWaitMs);
   }
 
   read(): InvocationJournalRecord {
@@ -222,7 +230,7 @@ export class FileInvocationJournal implements InvocationJournal {
     // Proof: bypassing this preflight durably appended `invocation.malformed-json`; the unchanged-
     // byte assertion reported `Expected - 0 / Received + 306` before any duplicate could apply.
     decodeInvocationRegistration(checked);
-    return withJournalLock(this.path, this.lockWaitMs, () => {
+    return withJournalLock(this.path, this.clock, this.lockWaitMs, () => {
       const journal = this.read();
       if (
         journal.entries.some((entry) => entry.registration.invocationId === checked.invocationId)
@@ -242,7 +250,7 @@ export class FileInvocationJournal implements InvocationJournal {
 
   acknowledgeCold(invocationId: string, cold: ColdAcknowledgement): DurableAcceptance {
     const checked = parseOrThrow(ColdAcknowledgement, cold);
-    return withJournalLock(this.path, this.lockWaitMs, () => {
+    return withJournalLock(this.path, this.clock, this.lockWaitMs, () => {
       const journal = this.read();
       const index = journal.entries.findIndex(
         (entry) => entry.registration.invocationId === invocationId,
@@ -279,7 +287,7 @@ export class FileInvocationJournal implements InvocationJournal {
 
   complete(invocationId: string, terminal: InvocationTerminal): DurableAcceptance {
     const checked = parseOrThrow(InvocationTerminal, terminal);
-    return withJournalLock(this.path, this.lockWaitMs, () => {
+    return withJournalLock(this.path, this.clock, this.lockWaitMs, () => {
       const journal = this.read();
       const index = journal.entries.findIndex(
         (entry) => entry.registration.invocationId === invocationId,
@@ -336,13 +344,14 @@ export class FileInvocationJournal implements InvocationJournal {
   }
 }
 
-/** Records the host clock around the harness run: a Twilight Dash measurement, not a judgment. */
+/** Records the injected wall clock around the harness run: a Twilight Dash measurement, not a judgment. */
 function phaseObservation(
   phase: 'cold' | 'informed',
   stdinBytes: string,
   harnessArgv: readonly string[],
+  clock: WallClock,
 ): { observation: ProcessObservation; stdout: Uint8Array } {
-  const startedAt = new Date().toISOString();
+  const startedAt = new Date(clock.read()).toISOString();
   let processResult: Bun.SyncSubprocess<'pipe', 'pipe'>;
   // Only a throw from Bun.spawnSync is a launch failure. Proof: routing a returned SIGTERM through
   // this recovery erased both streams; the cold negative observed exact stdout base64 versus `""`,
@@ -354,7 +363,7 @@ function phaseObservation(
       stderr: 'pipe',
     });
   } catch (cause) {
-    const endedAt = new Date().toISOString();
+    const endedAt = new Date(clock.read()).toISOString();
     const empty = new Uint8Array();
     return {
       observation: parseOrThrow(ProcessObservation, {
@@ -372,7 +381,7 @@ function phaseObservation(
       stdout: empty,
     };
   }
-  const endedAt = new Date().toISOString();
+  const endedAt = new Date(clock.read()).toISOString();
   const signalCode = processResult.signalCode;
   const exit =
     // Proof: classifying returned SIGTERM as unresolved made both production harness negatives
@@ -405,8 +414,12 @@ function phaseObservation(
   };
 }
 
-function coldAttempt(stdinBytes: string, harnessArgv: readonly string[]): ColdAttempt {
-  const captured = phaseObservation('cold', stdinBytes, harnessArgv);
+function coldAttempt(
+  stdinBytes: string,
+  harnessArgv: readonly string[],
+  clock: WallClock,
+): ColdAttempt {
+  const captured = phaseObservation('cold', stdinBytes, harnessArgv, clock);
   if (captured.observation.exit.kind === 'launch-failed') {
     return parseOrThrow(ColdAttempt, {
       observation: captured.observation,
@@ -431,8 +444,12 @@ function coldAttempt(stdinBytes: string, harnessArgv: readonly string[]): ColdAt
   }
 }
 
-function informedAttempt(stdinBytes: string, harnessArgv: readonly string[]): InformedAttempt {
-  const captured = phaseObservation('informed', stdinBytes, harnessArgv);
+function informedAttempt(
+  stdinBytes: string,
+  harnessArgv: readonly string[],
+  clock: WallClock,
+): InformedAttempt {
+  const captured = phaseObservation('informed', stdinBytes, harnessArgv, clock);
   if (captured.observation.exit.kind === 'launch-failed') {
     return parseOrThrow(InformedAttempt, {
       observation: captured.observation,
@@ -459,13 +476,14 @@ function informedAttempt(stdinBytes: string, harnessArgv: readonly string[]): In
 
 /**
  * Invokes cold and informed phases with a durable acknowledgement between their launches. It
- * launches processes and stamps the journal from the host clock; Burokrat's
+ * launches processes and stamps the journal from the injected wall clock; Burokrat's
  * `validate-review-provenance` judges the journal it writes.
  */
 export class ProcessReviewInvoker implements ReviewInvoker {
   constructor(
     private readonly journal: InvocationJournal,
     private readonly harnessArgv: readonly string[],
+    private readonly clock: WallClock,
   ) {
     if (harnessArgv.length === 0) throw new Error('review harness argv must not be empty');
   }
@@ -476,7 +494,7 @@ export class ProcessReviewInvoker implements ReviewInvoker {
     const registration = parseOrThrow(InvocationRegistration, {
       invocationId: checked.invocationId,
       receiptId: checked.receiptId,
-      registeredAt: new Date().toISOString(),
+      registeredAt: new Date(this.clock.read()).toISOString(),
       harnessArgv: [...this.harnessArgv],
       stdinArtifact: hashBytes(registrationBytes),
       stdinBytes: registrationBytes,
@@ -489,9 +507,9 @@ export class ProcessReviewInvoker implements ReviewInvoker {
     }
 
     const coldInput = serializeCanonical(coldHarnessRequest(checked));
-    const cold = coldAttempt(coldInput, this.harnessArgv);
+    const cold = coldAttempt(coldInput, this.harnessArgv, this.clock);
     const coldAcknowledgement = parseOrThrow(ColdAcknowledgement, {
-      acknowledgedAt: new Date().toISOString(),
+      acknowledgedAt: new Date(this.clock.read()).toISOString(),
       attempt: cold,
     });
     let coldOutput: ColdHarnessOutput | null = null;
@@ -505,7 +523,7 @@ export class ProcessReviewInvoker implements ReviewInvoker {
     if (coldFailure !== null || coldOutput === null) {
       const terminal = parseOrThrow(InvocationTerminal, {
         status: 'unverified',
-        completedAt: new Date().toISOString(),
+        completedAt: new Date(this.clock.read()).toISOString(),
         phase: 'cold',
         reason: coldFailure ?? 'cold output unavailable',
         attempt: cold,
@@ -531,7 +549,7 @@ export class ProcessReviewInvoker implements ReviewInvoker {
     }
 
     const informedInput = serializeCanonical(informedHarnessRequest(checked, coldAcknowledgement));
-    const informed = informedAttempt(informedInput, this.harnessArgv);
+    const informed = informedAttempt(informedInput, this.harnessArgv, this.clock);
     let informedOutput: InformedHarnessOutput | null = null;
     let informedSemanticFailure: string | null = null;
     try {
@@ -556,7 +574,7 @@ export class ProcessReviewInvoker implements ReviewInvoker {
     if (informedFailure !== null || informedOutput === null || evidence === null) {
       const terminal = parseOrThrow(InvocationTerminal, {
         status: 'unverified',
-        completedAt: new Date().toISOString(),
+        completedAt: new Date(this.clock.read()).toISOString(),
         phase: 'informed',
         reason: informedFailure ?? 'informed output unavailable',
         attempt: informed,
@@ -573,7 +591,7 @@ export class ProcessReviewInvoker implements ReviewInvoker {
     }
     const terminal = parseOrThrow(InvocationTerminal, {
       status: 'reviewed',
-      completedAt: new Date().toISOString(),
+      completedAt: new Date(this.clock.read()).toISOString(),
       informed,
       evidence,
     });

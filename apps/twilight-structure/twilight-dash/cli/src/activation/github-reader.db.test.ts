@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { hashBytes, serializeCanonical } from '@twilight-burokrat/judge';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
+import { monotonicClock } from '../clock';
 import { openActivationController } from './controller';
 import { createGitHubRestReader, type GitHubFetch, GitHubReadFailure } from './github-reader';
 import { createGitHubPullRequestSource } from './github-source';
@@ -84,6 +85,7 @@ function mountedReader(source: ReturnType<typeof fixture>, fetcher: GitHubFetch,
     ...createGitHubPullRequestSource(
       source.binding,
       createGitHubRestReader({ clock: Date.now, fetcher, token }),
+      monotonicClock(),
     ),
     selectObligations: () => {
       throw new Error('no evaluation in reader test');

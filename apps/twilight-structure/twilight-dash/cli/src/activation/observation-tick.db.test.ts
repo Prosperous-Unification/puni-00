@@ -6,6 +6,7 @@ import { hashBytes, serializeCanonical } from '@twilight-burokrat/judge';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
+import { monotonicClock } from '../clock';
 import { ActivationController } from './controller';
 import { GitHubReadFailure } from './github-reader';
 import { observationExitCode, runObservationCli } from './observation-cli';
@@ -15,6 +16,7 @@ import {
   withObservationAttempt,
 } from './observation-state';
 import { runObservationTick } from './observation-tick';
+import { scriptedMonotonic } from './testing/scripted-monotonic';
 
 const scratch: string[] = [];
 afterEach(() => {
@@ -48,6 +50,7 @@ test('scheduled tick refuses a version-nine marker even when recovery tables exi
   let reads = 0;
   await expectTickRefusal(
     runObservationTick({
+      monotonic: monotonicClock(),
       state: source.state,
       signal: new AbortController().signal,
       cleanupMs: 100,
@@ -78,6 +81,7 @@ test('provider cooldown is committed with a failed attempt and survives reopen',
   };
   await expectTickRefusal(
     runObservationTick({
+      monotonic: monotonicClock(),
       state: source.state,
       signal: new AbortController().signal,
       cleanupMs: 100,
@@ -111,6 +115,7 @@ test('provider cooldown is committed with a failed attempt and survives reopen',
   }
   expect(
     await runObservationTick({
+      monotonic: monotonicClock(),
       state: source.state,
       signal: new AbortController().signal,
       cleanupMs: 100,
@@ -138,7 +143,13 @@ test('an exhausted burst remains failed until a complete recovery probe', async 
     getPullRequest: () => Promise.reject(new Error('unexpected current read')),
   };
   const tick = () =>
-    runObservationTick({ state, reader, signal: new AbortController().signal, cleanupMs: 100 });
+    runObservationTick({
+      monotonic: monotonicClock(),
+      state,
+      reader,
+      signal: new AbortController().signal,
+      cleanupMs: 100,
+    });
   await expectTickRefusal(tick(), 'observation tick failed');
   clock = 1200;
   await expectTickRefusal(tick(), 'observation tick failed');
@@ -225,6 +236,7 @@ test('provider minimum beyond the local horizon is never shortened', async () =>
   };
   const tick = () =>
     runObservationTick({
+      monotonic: monotonicClock(),
       state: source.state,
       reader,
       signal: new AbortController().signal,
@@ -265,6 +277,7 @@ for (const corruption of [
     if (corruption === 'missing-attempt')
       expect(
         await runObservationTick({
+          monotonic: monotonicClock(),
           state: source.state,
           reader: emptyReader,
           signal: new AbortController().signal,
@@ -301,6 +314,7 @@ for (const corruption of [
     };
     await expectTickRefusal(
       runObservationTick({
+        monotonic: monotonicClock(),
         state: source.state,
         reader,
         signal: new AbortController().signal,
@@ -340,6 +354,7 @@ test('corrupt exhausted burst cannot start a third burst', async () => {
     clock = at;
     await expectTickRefusal(
       runObservationTick({
+        monotonic: monotonicClock(),
         state,
         reader: failureReader,
         signal: new AbortController().signal,
@@ -359,6 +374,7 @@ test('corrupt exhausted burst cannot start a third burst', async () => {
   let refusal: unknown;
   try {
     await runObservationTick({
+      monotonic: monotonicClock(),
       state,
       signal: new AbortController().signal,
       cleanupMs: 100,
@@ -406,6 +422,7 @@ test('attempt sequence overflow refuses before provider read', async () => {
   let refusal: unknown;
   try {
     await runObservationTick({
+      monotonic: monotonicClock(),
       state: source.state,
       signal: new AbortController().signal,
       cleanupMs: 100,
@@ -444,6 +461,7 @@ test('reservation insert failure rolls back sequence before any provider read', 
   try {
     await expectTickRefusal(
       runObservationTick({
+        monotonic: monotonicClock(),
         state: source.state,
         signal: new AbortController().signal,
         cleanupMs: 100,
@@ -498,6 +516,7 @@ test('terminal singleton write failure rolls back attempt outcome and cooldown t
   try {
     await expectTickRefusal(
       runObservationTick({
+        monotonic: monotonicClock(),
         state: source.state,
         signal: new AbortController().signal,
         cleanupMs: 100,
@@ -543,6 +562,7 @@ for (const corruption of ['classification', 'history'] as const)
     };
     await expectTickRefusal(
       runObservationTick({
+        monotonic: monotonicClock(),
         state: source.state,
         reader: failureReader,
         signal: new AbortController().signal,
@@ -563,6 +583,7 @@ for (const corruption of ['classification', 'history'] as const)
     let refusal: unknown;
     try {
       await runObservationTick({
+        monotonic: monotonicClock(),
         state: { ...source.state, clock: () => 1200 },
         signal: new AbortController().signal,
         cleanupMs: 100,
@@ -757,6 +778,7 @@ test('one complete tick records the selected PR without downstream work', async 
   let outcome;
   try {
     outcome = await runObservationTick({
+      monotonic: monotonicClock(),
       state: source.state,
       signal: aborter.signal,
       cleanupMs: 500,
@@ -782,6 +804,7 @@ test('composed tick binds protected subject cap before any current read', async 
   let refusal: unknown;
   try {
     await runObservationTick({
+      monotonic: monotonicClock(),
       state,
       signal: new AbortController().signal,
       cleanupMs: 500,
@@ -818,6 +841,7 @@ test('CLI status mapping never reports busy, cancellation or failure as success'
   const diagnostics: unknown[] = [];
   expect(
     await runObservationCli({
+      monotonic: monotonicClock(),
       state: source.state,
       cleanupMs: 200,
       reportDiagnostic: (diagnostic) => {
@@ -847,6 +871,7 @@ test('CLI diagnostic redacts provider credentials and never reports raw errors',
   expect(await initializeTickState(source.state)).toBe('initialized');
   const diagnostics: unknown[] = [];
   const code = await runObservationCli({
+    monotonic: monotonicClock(),
     state: source.state,
     cleanupMs: 200,
     reportDiagnostic: (diagnostic) => {
@@ -870,6 +895,7 @@ test('already cancelled tick acquires no lock and calls no provider', async () =
   aborter.abort();
   let reads = 0;
   const outcome = await runObservationTick({
+    monotonic: monotonicClock(),
     state: source.state,
     signal: aborter.signal,
     cleanupMs: 200,
@@ -907,6 +933,7 @@ test('cleanup and whole-tick budgets refuse malformed values before provider wor
     let caught: unknown;
     try {
       await runObservationTick({
+        monotonic: monotonicClock(),
         state: source.state,
         signal: new AbortController().signal,
         cleanupMs,
@@ -921,6 +948,7 @@ test('cleanup and whole-tick budgets refuse malformed values before provider wor
     let caught: unknown;
     try {
       await runObservationTick({
+        monotonic: monotonicClock(),
         state: { ...source.state, policy: { ...source.state.policy, wholeTickMs } },
         signal: new AbortController().signal,
         cleanupMs: 200,
@@ -949,6 +977,7 @@ test('tick preserves both provider failure and controller cleanup failure', asyn
     let caught: unknown;
     try {
       await runObservationTick({
+        monotonic: monotonicClock(),
         state: source.state,
         signal: new AbortController().signal,
         cleanupMs: 200,
@@ -991,6 +1020,7 @@ test('abort-ignoring current reader settles before terminal journal close', asyn
   };
   try {
     const tick = runObservationTick({
+      monotonic: monotonicClock(),
       state: source.state,
       signal: aborter.signal,
       cleanupMs: 200,
@@ -1042,6 +1072,7 @@ test('synchronous current work cannot commit after whole-tick deadline', async (
   const state = { ...source.state, policy: { ...source.state.policy, wholeTickMs: 5 } };
   expect(await initializeTickState(state)).toBe('initialized');
   const outcome = await runObservationTick({
+    monotonic: monotonicClock(),
     state,
     signal: new AbortController().signal,
     cleanupMs: 200,
@@ -1084,6 +1115,7 @@ test('transaction crossing monotonic deadline rolls back every subject write', a
   });
   try {
     const outcome = await runObservationTick({
+      monotonic: monotonicClock(),
       state,
       signal: new AbortController().signal,
       cleanupMs: 200,
@@ -1114,6 +1146,7 @@ test('cancelled later subject preserves the earlier committed observation', asyn
   };
   const aborter = new AbortController();
   const tick = runObservationTick({
+    monotonic: monotonicClock(),
     state: source.state,
     signal: aborter.signal,
     cleanupMs: 200,
@@ -1144,7 +1177,7 @@ test('unsettled local continuation terminates with the process lock still owned'
   const child = Bun.spawn(
     [
       'bun',
-      join(import.meta.dir, 'observation-tick-process.ts'),
+      join(import.meta.dir, 'testing', 'observation-tick-process.ts'),
       configurationPath,
       enteredPath,
       closedPath,
@@ -1195,6 +1228,7 @@ test('unsettled local continuation terminates with the process lock still owned'
   };
   expect(
     await runObservationTick({
+      monotonic: monotonicClock(),
       state: source.state,
       reader,
       signal: new AbortController().signal,
@@ -1223,6 +1257,7 @@ test('unsettled local continuation terminates with the process lock still owned'
   }
   expect(
     await runObservationTick({
+      monotonic: monotonicClock(),
       state: { ...source.state, clock: () => 1100 },
       reader,
       signal: new AbortController().signal,
@@ -1294,6 +1329,7 @@ test('synchronous close crossing the tick deadline within cleanup grace cannot r
   };
   try {
     const outcome = await runObservationTick({
+      monotonic: monotonicClock(),
       state,
       signal: new AbortController().signal,
       cleanupMs: 500,
@@ -1328,6 +1364,7 @@ test('cancelled last burst reservation reopens in recovery mode', async () => {
   const aborter = new AbortController();
   expect(
     await runObservationTick({
+      monotonic: monotonicClock(),
       state,
       signal: aborter.signal,
       cleanupMs: 100,
@@ -1357,6 +1394,7 @@ test('cancelled last burst reservation reopens in recovery mode', async () => {
   clock = 10_000;
   expect(
     await runObservationTick({
+      monotonic: monotonicClock(),
       state,
       signal: new AbortController().signal,
       cleanupMs: 100,
@@ -1401,6 +1439,7 @@ test('scheduler close crossing deadline cannot persist complete attempt', async 
   try {
     expect(
       await runObservationTick({
+        monotonic: monotonicClock(),
         state,
         signal: new AbortController().signal,
         cleanupMs: 500,
@@ -1427,7 +1466,11 @@ test('scheduler close crossing deadline cannot persist complete attempt', async 
 
 test('terminal close crossing only the tick deadline preserves committed completion', async () => {
   const source = fixture();
-  const state = { ...source.state, policy: { ...source.state.policy, wholeTickMs: 80 } };
+  // The scripted clock crosses the tick deadline only inside the terminal close, however loaded
+  // the host; the real deadline timer is set far beyond any test run.
+  const wholeTickMs = 60_000;
+  const monotonic = scriptedMonotonic();
+  const state = { ...source.state, policy: { ...source.state.policy, wholeTickMs } };
   await initializeTickState(state);
   const queryDescriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'query');
   const originalQuery: unknown = queryDescriptor?.value;
@@ -1447,17 +1490,14 @@ test('terminal close crossing only the tick deadline preserves committed complet
     },
   });
   Database.prototype.close = function closeAfterCommit() {
-    if (terminals.has(this)) {
-      const until = performance.now() + 90;
-      while (performance.now() < until) {
-        /* Model post-commit cleanup. */
-      }
-    }
+    // Model post-commit cleanup past the tick deadline but within the 500 ms cleanup grace.
+    if (terminals.has(this)) monotonic.advance(wholeTickMs + 10);
     originalClose.call(this);
   };
   try {
     expect(
       await runObservationTick({
+        monotonic,
         state,
         signal: new AbortController().signal,
         cleanupMs: 500,
@@ -1505,6 +1545,7 @@ test('terminal close failure reports cleanup while retaining committed completio
   try {
     await expectTickRefusal(
       runObservationTick({
+        monotonic: monotonicClock(),
         state: source.state,
         signal: new AbortController().signal,
         cleanupMs: 100,
@@ -1531,24 +1572,26 @@ test('terminal close failure reports cleanup while retaining committed completio
 
 test('deadline crossing during terminal write records cancellation before COMMIT', async () => {
   const source = fixture();
+  const wholeTickMs = 60_000;
+  const monotonic = scriptedMonotonic();
   let clockCalls = 0;
   const state = {
     ...source.state,
-    policy: { ...source.state.policy, wholeTickMs: 80 },
+    policy: { ...source.state.policy, wholeTickMs },
     clock: () => {
       clockCalls += 1;
-      if (clockCalls === 2) {
-        const until = performance.now() + 90;
-        while (performance.now() < until) {
-          /* Model synchronous terminal validation. */
-        }
-      }
+      // Model synchronous terminal validation that crosses the tick deadline.
+      // Proof: a scripted clock that never advances made this test fail on
+      // `Expected: { kind: "cancelled" }` with `Received: { kind: "complete", requestCount: 0 }`
+      // (2026-10-12).
+      if (clockCalls === 2) monotonic.advance(wholeTickMs + 10);
       return 1000;
     },
   };
   await initializeTickState(state);
   expect(
     await runObservationTick({
+      monotonic,
       state,
       signal: new AbortController().signal,
       cleanupMs: 500,
@@ -1575,6 +1618,7 @@ test('missing cooldown timestamp cannot bypass retained provider minimum', async
   let reads = 0;
   await expectTickRefusal(
     runObservationTick({
+      monotonic: monotonicClock(),
       state: source.state,
       signal: new AbortController().signal,
       cleanupMs: 100,
@@ -1596,6 +1640,7 @@ test('missing cooldown timestamp cannot bypass retained provider minimum', async
   }
   await expectTickRefusal(
     runObservationTick({
+      monotonic: monotonicClock(),
       state: source.state,
       signal: new AbortController().signal,
       cleanupMs: 100,
@@ -1620,7 +1665,12 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     const enteredPath = join(source.state.stateDirectory, 'cli-entered');
     writeFileSync(configurationPath, JSON.stringify(source.state), { mode: 0o600 });
     const child = Bun.spawn(
-      ['bun', join(import.meta.dir, 'observation-cli-process.ts'), configurationPath, enteredPath],
+      [
+        'bun',
+        join(import.meta.dir, 'testing', 'observation-cli-process.ts'),
+        configurationPath,
+        enteredPath,
+      ],
       { stdout: 'pipe', stderr: 'pipe' },
     );
     try {

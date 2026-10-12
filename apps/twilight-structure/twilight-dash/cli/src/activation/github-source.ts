@@ -1,5 +1,6 @@
 import { parseOrThrow, type } from '@shared/validation';
 
+import type { Monotonic } from '../clock';
 import { type ActivationControllerOptions, type ObservedCandidate } from './controller';
 import { type ActivationSubject } from './request';
 
@@ -70,9 +71,10 @@ async function readBeforeDeadline<T>(
   read: (signal: AbortSignal) => Promise<T>,
   deadline: number,
   aborter: AbortController,
+  monotonic: Monotonic,
   parentSignal?: AbortSignal,
 ): Promise<T> {
-  const remaining = requireBeforeDeadline(deadline, aborter);
+  const remaining = requireBeforeDeadline(deadline, aborter, monotonic);
   // Proof: removing this already-aborted preflight called the mounted
   // discovery reader once despite a cancelled parent signal.
   if (parentSignal?.aborted) throw new Error('GitHub PR read cancelled');
@@ -113,8 +115,12 @@ async function readBeforeDeadline<T>(
   }
 }
 
-function requireBeforeDeadline(deadline: number, aborter: AbortController): number {
-  const remaining = deadline - performance.now();
+function requireBeforeDeadline(
+  deadline: number,
+  aborter: AbortController,
+  monotonic: Monotonic,
+): number {
+  const remaining = deadline - monotonic.now();
   if (remaining <= 0) {
     aborter.abort();
     throw new Error('GitHub PR read deadline exceeded');
@@ -165,19 +171,21 @@ function isEligible(pull: Pull, binding: GitHubRepositoryBinding): boolean {
 export function createGitHubPullRequestSource(
   rawBinding: GitHubRepositoryBinding,
   reader: GitHubPullRequestReader,
+  monotonic: Monotonic,
 ): Pick<ActivationControllerOptions, 'readyCandidates' | 'currentCandidate'> {
   const binding = validateGitHubRepositoryBinding(rawBinding);
   return {
     readyCandidates: async (parentSignal?: AbortSignal) => {
       const candidates: ObservedCandidate[] = [];
       const seen = new Set<number>();
-      const deadline = performance.now() + binding.readDeadlineMs;
+      const deadline = monotonic.now() + binding.readDeadlineMs;
       const aborter = new AbortController();
       for (let page = 1; page <= 100; page += 1) {
         const response = await readBeforeDeadline(
           (signal) => reader.listOpenPullRequests(binding.owner, binding.name, page, signal),
           deadline,
           aborter,
+          monotonic,
           // Proof: substituting undefined kept the mounted held discovery
           // reader's signal live after caller shutdown.
           parentSignal,
@@ -199,7 +207,7 @@ export function createGitHubPullRequestSource(
         if (listed.nextPage === null) {
           // Proof: omitting this final check returned a last page whose validation itself
           // exhausted the whole-list budget in the mounted source test.
-          requireBeforeDeadline(deadline, aborter);
+          requireBeforeDeadline(deadline, aborter, monotonic);
           // Proof: removing this parent-signal check returned a complete scan
           // after a consumed page getter cancelled the tick during validation.
           if (parentSignal?.aborted) throw new Error('GitHub PR read cancelled');
@@ -220,12 +228,13 @@ export function createGitHubPullRequestSource(
       if (repositoryId !== binding.repositoryId || subject.kind !== 'pull-request') {
         throw new Error('GitHub source cannot observe this repository subject');
       }
-      const deadline = performance.now() + binding.readDeadlineMs;
+      const deadline = monotonic.now() + binding.readDeadlineMs;
       const aborter = new AbortController();
       const response = await readBeforeDeadline(
         (signal) => reader.getPullRequest(binding.owner, binding.name, subject.number, signal),
         deadline,
         aborter,
+        monotonic,
         // Proof: substituting undefined kept the mounted held current reader's
         // signal live after caller shutdown.
         parentSignal,
@@ -238,7 +247,7 @@ export function createGitHubPullRequestSource(
         : { kind: 'closed' as const };
       // Proof: this final check prevents post-read response validation from granting a
       // current observation after the source budget has elapsed.
-      requireBeforeDeadline(deadline, aborter);
+      requireBeforeDeadline(deadline, aborter, monotonic);
       // Proof: removing this parent-signal check selected ready after a
       // consumed current-response getter cancelled during validation.
       if (parentSignal?.aborted) throw new Error('GitHub PR read cancelled');

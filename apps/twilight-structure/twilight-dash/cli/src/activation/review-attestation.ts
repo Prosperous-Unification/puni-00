@@ -5,6 +5,7 @@ import { kill as killProcess } from 'node:process';
 
 import { hashBytes, serializeCanonical } from '@twilight-burokrat/judge';
 
+import type { Monotonic } from '../clock';
 import type { ReviewProviderAuthority } from './review-provider';
 
 const Sha256 = /^[0-9a-f]{64}$/;
@@ -108,8 +109,8 @@ const GroupSettleMs = 2_000;
  * means reaped rather than merely signalled. A loaded host can leave a SIGKILLed descendant
  * runnable for a while; this bounded wait throws instead of returning while it still exists.
  */
-async function awaitProcessGroupGone(groupId: number): Promise<void> {
-  const settleBy = performance.now() + GroupSettleMs;
+async function awaitProcessGroupGone(groupId: number, monotonic: Monotonic): Promise<void> {
+  const settleBy = monotonic.now() + GroupSettleMs;
   for (;;) {
     try {
       killProcess(-groupId, 0);
@@ -117,7 +118,7 @@ async function awaitProcessGroupGone(groupId: number): Promise<void> {
       if (cause instanceof Error && 'code' in cause && cause.code === 'ESRCH') return;
       throw cause;
     }
-    if (performance.now() >= settleBy)
+    if (monotonic.now() >= settleBy)
       throw new Error('review verifier descendant survived its process-group kill');
     await Bun.sleep(5);
   }
@@ -125,27 +126,28 @@ async function awaitProcessGroupGone(groupId: number): Promise<void> {
 
 /** Runs an absolute executable with private inputs and an empty environment after the caller independently validates its runtime and trust pins. */
 export async function runPinnedOfflineGh(
-  process: OfflineVerifierProcess,
+  verifier: OfflineVerifierProcess,
+  monotonic: Monotonic,
   signal?: AbortSignal,
 ): Promise<OfflineVerifierExit> {
   // Proof: preaborted omission staged private files before the second cancel fence.
   if (signal?.aborted) throw new Error('review verifier process cancelled');
   // Proof: runner_path omission executed the noncanonical /bin/../bin/true fixture.
-  assertProtectedPath(process.executablePath);
+  assertProtectedPath(verifier.executablePath);
   // Proof: duration_lower/upper, output_lower/upper and duration_safe/output_safe
   // each admitted an invalid bound and launched /bin/true on its one omission.
   if (
-    !Number.isSafeInteger(process.maximumDurationMs) ||
-    process.maximumDurationMs < 1 ||
-    process.maximumDurationMs > ProcessDeadlineMs ||
-    !Number.isSafeInteger(process.maximumOutputBytes) ||
-    process.maximumOutputBytes < 1 ||
-    process.maximumOutputBytes > MaximumOutputBytes
+    !Number.isSafeInteger(verifier.maximumDurationMs) ||
+    verifier.maximumDurationMs < 1 ||
+    verifier.maximumDurationMs > ProcessDeadlineMs ||
+    !Number.isSafeInteger(verifier.maximumOutputBytes) ||
+    verifier.maximumOutputBytes < 1 ||
+    verifier.maximumOutputBytes > MaximumOutputBytes
   )
     throw new Error('review verifier process bounds malformed');
   // Proof: stage_deadline omission spawned /bin/true after a synchronous
   // staging write had already consumed the whole process budget.
-  const startedAt = performance.now();
+  const startedAt = monotonic.now();
   // Proof: the literal '/tmp/review-attestation-' ignored the gate host's TMPDIR=/var/tmp;
   // `pinned runner stages its private inputs under the configured temporary root` failed.
   const directory = mkdtempSync(join(tmpdir(), 'review-attestation-'));
@@ -186,18 +188,18 @@ export async function runPinnedOfflineGh(
   try {
     // Proof: manifest_mode and bundle_mode separately made the child observe 0644
     // instead of the required private 0600 staged files.
-    writeFileSync(manifestPath, process.manifestBytes, { flag: 'wx', mode: 0o600 });
-    writeFileSync(bundlePath, process.bundleBytes, { flag: 'wx', mode: 0o600 });
+    writeFileSync(manifestPath, verifier.manifestBytes, { flag: 'wx', mode: 0o600 });
+    writeFileSync(bundlePath, verifier.bundleBytes, { flag: 'wx', mode: 0o600 });
     if (signal?.aborted) throw new Error('review verifier process cancelled');
     // Proof: stage_deadline omission launched after the 30 ms deadline.
-    if (performance.now() - startedAt >= process.maximumDurationMs)
+    if (monotonic.now() - startedAt >= verifier.maximumDurationMs)
       throw new Error('review verifier process timed out');
-    const argv = process.argv.map((argument) =>
+    const argv = verifier.argv.map((argument) =>
       argument === '@manifest' ? manifestPath : argument === '@bundle' ? bundlePath : argument,
     );
     // Proof: empty_env admitted the harmless GH_TOKEN sentinel to the child;
     // restored execution kept it absent. Runtime pin checks precede this launch.
-    child = Bun.spawn([process.executablePath, ...argv], {
+    child = Bun.spawn([verifier.executablePath, ...argv], {
       cwd: directory,
       env: {},
       stdin: 'ignore',
@@ -218,12 +220,12 @@ export async function runPinnedOfflineGh(
         // than settling after the 30 ms deadline.
         killTree();
       },
-      Math.max(0, process.maximumDurationMs - (performance.now() - startedAt)),
+      Math.max(0, verifier.maximumDurationMs - (monotonic.now() - startedAt)),
     );
     stdoutRead = readBoundedOutput(
       child.stdout,
       child,
-      process.maximumOutputBytes,
+      verifier.maximumOutputBytes,
       readers.signal,
       cleanupFailures,
     );
@@ -231,7 +233,7 @@ export async function runPinnedOfflineGh(
     stderrRead = readBoundedOutput(
       child.stderr,
       child,
-      process.maximumOutputBytes,
+      verifier.maximumOutputBytes,
       readers.signal,
       cleanupFailures,
     );
@@ -240,7 +242,7 @@ export async function runPinnedOfflineGh(
       throw new Error('review verifier process cancelled');
     // Proof: monotonic_clock omission accepted the injected late completion
     // when the event-loop timer had not fired yet.
-    if (processState.timedOut || performance.now() - startedAt >= process.maximumDurationMs)
+    if (processState.timedOut || monotonic.now() - startedAt >= verifier.maximumDurationMs)
       throw new Error('review verifier process timed out');
     exit = { exitCode, stdout, stderr };
   } catch (cause) {
@@ -250,7 +252,7 @@ export async function runPinnedOfflineGh(
     failure =
       processState.cancelled || signal?.aborted
         ? new Error('review verifier process cancelled', { cause })
-        : processState.timedOut || performance.now() - startedAt >= process.maximumDurationMs
+        : processState.timedOut || monotonic.now() - startedAt >= verifier.maximumDurationMs
           ? new Error('review verifier process timed out', { cause })
           : cause instanceof Error && cause.message.startsWith('review verifier process ')
             ? cause
@@ -268,7 +270,7 @@ export async function runPinnedOfflineGh(
       // read /proc state "R" in 3 of 10 runs (h2puni's gate symptom); restored: 0 of 10.
       if (tree.killed) {
         try {
-          await awaitProcessGroupGone(child.pid);
+          await awaitProcessGroupGone(child.pid, monotonic);
         } catch (cause) {
           cleanupFailures.push(cause);
         }
@@ -294,7 +296,7 @@ export async function runPinnedOfflineGh(
   const settlementFailure =
     signal?.aborted && !processState.cancelled
       ? new Error('review verifier process cancelled')
-      : performance.now() - startedAt >= process.maximumDurationMs && !processState.timedOut
+      : monotonic.now() - startedAt >= verifier.maximumDurationMs && !processState.timedOut
         ? new Error('review verifier process timed out')
         : undefined;
   if (
@@ -439,7 +441,7 @@ export async function verifyOfflineReviewBundle(
   const runtime = await invocation.resolveRuntime();
   // Proof: the runtime-policy fault must make the absent-runtime fixture launch.
   assertRuntime(runtime, policy);
-  const process = await invocation.run({
+  const exit = await invocation.run({
     executablePath: policy.executablePath,
     // Proof: argv_manifest/bundle/repo/host/cert/signer/source/ref/issuer/
     // predicate/root/format and deny_self_hosted/no_public_good each broke
@@ -480,13 +482,13 @@ export async function verifyOfflineReviewBundle(
     maximumDurationMs: ProcessDeadlineMs,
   });
   // Proof: exit_status omission accepted an exit-one fake with otherwise valid JSON.
-  if (process.exitCode !== 0) throw new Error('review verifier process refused');
+  if (exit.exitCode !== 0) throw new Error('review verifier process refused');
   // Proof: result_bytes omission accepted a valid JSON record over the cap.
-  if (Buffer.byteLength(process.stdout, 'utf8') > MaximumOutputBytes)
+  if (Buffer.byteLength(exit.stdout, 'utf8') > MaximumOutputBytes)
     throw new Error('review verifier output too large');
   let output: unknown;
   try {
-    output = JSON.parse(process.stdout);
+    output = JSON.parse(exit.stdout);
   } catch (cause) {
     throw new Error('review verifier output malformed', { cause });
   }

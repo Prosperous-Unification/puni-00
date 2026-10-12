@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import type { Monotonic } from '../clock';
 import { openActivationController } from './controller';
 import { createGitHubPullRequestSource, type GitHubPullRequestReader } from './github-source';
 import { type ObservationStateConfig, withRecoveryObservation } from './observation-state';
@@ -9,6 +10,8 @@ export interface ObservationTickConfig {
   readonly reader: GitHubPullRequestReader;
   readonly signal: AbortSignal;
   readonly cleanupMs: number;
+  /** Measures the whole-tick and cleanup deadlines; the composition root supplies it. */
+  readonly monotonic: Monotonic;
 }
 
 export type ObservationTickOutcome =
@@ -36,15 +39,15 @@ export async function runObservationTick(
   // Proof: omitting this preflight let an already-aborted signal acquire the
   // owner and report a complete scan in the mounted zero-provider-read test.
   if (config.signal.aborted) return { kind: 'cancelled' };
-  const deadline = performance.now() + config.state.policy.wholeTickMs;
+  const deadline = config.monotonic.now() + config.state.policy.wholeTickMs;
   let cleanupDeadline = deadline + config.cleanupMs;
   const aborter = new AbortController();
-  const isCancelled = (): boolean => aborter.signal.aborted || performance.now() >= deadline;
+  const isCancelled = (): boolean => aborter.signal.aborted || config.monotonic.now() >= deadline;
   let cleanupTimer: ReturnType<typeof setTimeout> | undefined;
   let settled = false;
   const onAbort = () => {
     aborter.abort();
-    cleanupDeadline = Math.min(cleanupDeadline, performance.now() + config.cleanupMs);
+    cleanupDeadline = Math.min(cleanupDeadline, config.monotonic.now() + config.cleanupMs);
     // A continuation that ignores cancellation may not release SQLite or the
     // process lock. The supervised process must exit while still owning both.
     cleanupTimer ??= setTimeout(
@@ -53,7 +56,7 @@ export async function runObservationTick(
         // past the cleanup budget in the real child/second-owner witness.
         if (!settled) process.exit(124);
       },
-      Math.max(0, cleanupDeadline - performance.now()),
+      Math.max(0, cleanupDeadline - config.monotonic.now()),
     );
   };
   config.signal.addEventListener('abort', onAbort, { once: true });
@@ -63,7 +66,11 @@ export async function runObservationTick(
       config.state,
       async () => {
         if (aborter.signal.aborted) return { kind: 'cancelled' as const };
-        const source = createGitHubPullRequestSource(config.state.binding, config.reader);
+        const source = createGitHubPullRequestSource(
+          config.state.binding,
+          config.reader,
+          config.monotonic,
+        );
         const controller = openActivationController({
           databasePath: join(config.state.stateDirectory, 'activation.sqlite'),
           bootstrapPath: config.state.bootstrapPath,
@@ -88,6 +95,7 @@ export async function runObservationTick(
           const requests = await controller.reconcileReady({
             signal: aborter.signal,
             deadline,
+            monotonic: config.monotonic,
             // Proof: omitting this protected cap made the mounted one-subject
             // tick reconcile two PRs and report complete instead of refusing.
             maxSubjects: config.state.policy.maxSubjects,
@@ -124,7 +132,7 @@ export async function runObservationTick(
         // Proof: omitting this monotonic lock-held fence returned complete after
         // synchronous close exceeded both tick and cleanup deadlines; timers
         // cannot fire while synchronous close blocks the event loop.
-        if (performance.now() >= cleanupDeadline) process.exit(124);
+        if (config.monotonic.now() >= cleanupDeadline) process.exit(124);
       },
       isCancelled,
     );

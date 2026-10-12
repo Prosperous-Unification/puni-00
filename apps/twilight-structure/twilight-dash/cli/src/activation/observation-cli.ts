@@ -1,3 +1,4 @@
+import type { Monotonic } from '../clock';
 import type { GitHubPullRequestReader } from './github-source';
 import type { ObservationStateConfig } from './observation-state';
 import { type ObservationTickOutcome, runObservationTick } from './observation-tick';
@@ -6,6 +7,7 @@ export interface ObservationCliConfig {
   readonly state: ObservationStateConfig;
   readonly reader: GitHubPullRequestReader;
   readonly cleanupMs: number;
+  readonly monotonic: Monotonic;
   readonly reportDiagnostic: (diagnostic: ObservationCliDiagnostic) => void;
 }
 

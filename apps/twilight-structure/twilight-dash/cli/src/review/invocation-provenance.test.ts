@@ -25,6 +25,7 @@ import {
 } from '@twilight-burokrat/judge';
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { wallClock } from '../clock';
 import { FileInvocationJournal, FileJournalLock, ProcessReviewInvoker } from './invoker';
 
 const SHA_A = 'a'.repeat(64);
@@ -205,11 +206,16 @@ if (('${mode}' === 'cold-nonzero' && phase === 'cold') || ('${mode}' === 'inform
 function invoke(mode: HarnessMode = 'verified', harnessArgv?: string[]) {
   const directory = createScratch();
   const journalPath = join(directory, 'journal.json');
-  const journal = FileInvocationJournal.create(journalPath, 'journal.integration-test');
+  const journal = FileInvocationJournal.create(
+    journalPath,
+    'journal.integration-test',
+    wallClock(),
+  );
   const harnessPath = writeHarness(directory, mode);
   const invoker = new ProcessReviewInvoker(
     journal,
     harnessArgv ?? [process.execPath, 'run', harnessPath, journalPath],
+    wallClock(),
   );
   return {
     directory,
@@ -246,9 +252,13 @@ function invokeWithIncompleteRuntimeExit(signalCode: '' | undefined) {
   try {
     const directory = createScratch();
     const journalPath = join(directory, 'journal.json');
-    const journal = FileInvocationJournal.create(journalPath, 'journal.integration-test');
+    const journal = FileInvocationJournal.create(
+      journalPath,
+      'journal.integration-test',
+      wallClock(),
+    );
     return {
-      invocation: new ProcessReviewInvoker(journal, ['not-reached']).invoke(request()),
+      invocation: new ProcessReviewInvoker(journal, ['not-reached'], wallClock()).invoke(request()),
       journalPath,
     };
   } finally {
@@ -372,10 +382,11 @@ function writeWorker(directory: string): string {
   writeFileSync(
     path,
     `import { readFileSync, writeFileSync } from 'node:fs';
+import { wallClock } from '${join(import.meta.dir, '..', 'clock.ts')}';
 import { FileInvocationJournal } from '${join(import.meta.dir, 'invoker.ts')}';
 const [journalPath, commandPath, readyPath] = process.argv.slice(2);
 const command = JSON.parse(readFileSync(commandPath, 'utf8'));
-const journal = FileInvocationJournal.open(journalPath, 5000);
+const journal = FileInvocationJournal.open(journalPath, wallClock(), 5000);
 writeFileSync(readyPath, 'ready\\n');
 if (command.kind === 'register') journal.register(command.registration);
 else journal.complete(command.invocationId, command.terminal);
@@ -876,7 +887,11 @@ describe('review invocation provenance', () => {
   test('rejects invalid embedded registration requests without changing durable state', () => {
     const directory = createScratch();
     const journalPath = join(directory, 'journal.json');
-    const journal = FileInvocationJournal.create(journalPath, 'journal.registration-preflight');
+    const journal = FileInvocationJournal.create(
+      journalPath,
+      'journal.registration-preflight',
+      wallClock(),
+    );
     const seed = registerRecord('invocation.seed');
     journal.register(seed);
     const snapshot = readFileSync(journalPath);
@@ -957,8 +972,8 @@ describe('review invocation provenance', () => {
   test('serializes overlapping registrations without losing either acknowledgement', async () => {
     const directory = createScratch();
     const journalPath = join(directory, 'journal.json');
-    FileInvocationJournal.create(journalPath, 'journal.concurrent-register');
-    const lock = FileJournalLock.acquire(journalPath, 100);
+    FileInvocationJournal.create(journalPath, 'journal.concurrent-register', wallClock());
+    const lock = FileJournalLock.acquire(journalPath, wallClock(), 100);
     const worker = writeWorker(directory);
     const readyPaths = [join(directory, 'ready-a'), join(directory, 'ready-b')];
     const processes = ['a', 'b'].map((suffix, index) => {
@@ -994,7 +1009,11 @@ describe('review invocation provenance', () => {
   test('makes exact completion idempotent and refuses conflicting terminal transitions', () => {
     const directory = createScratch();
     const journalPath = join(directory, 'journal.json');
-    const journal = FileInvocationJournal.create(journalPath, 'journal.terminal-safety');
+    const journal = FileInvocationJournal.create(
+      journalPath,
+      'journal.terminal-safety',
+      wallClock(),
+    );
     const registration = registerRecord('invocation.terminal-safety');
     const terminal = launchFailureTerminal(registration);
     if (terminal.status !== 'unverified' || terminal.phase !== 'cold') {
@@ -1023,10 +1042,14 @@ describe('review invocation provenance', () => {
   test('serializes overlapping completions and enforces lock ownership without stealing stale locks', async () => {
     const directory = createScratch();
     const journalPath = join(directory, 'journal.json');
-    const journal = FileInvocationJournal.create(journalPath, 'journal.concurrent-complete');
+    const journal = FileInvocationJournal.create(
+      journalPath,
+      'journal.concurrent-complete',
+      wallClock(),
+    );
     const registrations = [registerRecord('invocation.a'), registerRecord('invocation.b')];
     for (const registration of registrations) journal.register(registration);
-    const lock = FileJournalLock.acquire(journalPath, 100);
+    const lock = FileJournalLock.acquire(journalPath, wallClock(), 100);
     const ownerPath = join(`${journalPath}.lock`, 'owner');
     const owner = readFileSync(ownerPath, 'utf8');
     writeFileSync(ownerPath, 'different-owner\n', 'utf8');
@@ -1072,7 +1095,9 @@ describe('review invocation provenance', () => {
     mkdirSync(`${journalPath}.lock`, { mode: 0o700 });
     writeFileSync(ownerPath, 'stale-owner\n', 'utf8');
     expect(() =>
-      FileInvocationJournal.open(journalPath, 20).register(registerRecord('invocation.c')),
+      FileInvocationJournal.open(journalPath, wallClock(), 20).register(
+        registerRecord('invocation.c'),
+      ),
     ).toThrow('timed out waiting for invocation journal lock');
     expect(readFileSync(ownerPath, 'utf8')).toBe('stale-owner\n');
     rmSync(`${journalPath}.lock`, { force: true, recursive: true });

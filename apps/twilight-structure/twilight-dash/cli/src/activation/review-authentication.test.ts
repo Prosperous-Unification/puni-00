@@ -15,6 +15,7 @@ import { join, relative } from 'node:path';
 import { hashBytes } from '@twilight-burokrat/judge';
 import { expect, spyOn, test } from 'bun:test';
 
+import { monotonicClock } from '../clock';
 import { runPinnedOfflineGh, verifyOfflineReviewBundle } from './review-attestation';
 import {
   assertRegisteredReviewClaim,
@@ -57,7 +58,7 @@ async function verifyTestOwnedAttestation(
         runtimeIdentity: policy.runtimeIdentity,
         trustedRootIdentity: policy.trustedRootIdentity,
       }),
-    run: (process) => runPinnedOfflineGh(process),
+    run: (process) => runPinnedOfflineGh(process, monotonicClock()),
   });
 }
 

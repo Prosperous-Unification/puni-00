@@ -1,5 +1,5 @@
-import { wallClock } from './authority/clock';
 import { runDash, runFleetPlan } from './cli';
+import { monotonicClock, wallClock } from './clock';
 
 /**
  * One `error: ` line, Bun's own prefix for an uncaught error, without its stack trace or source
@@ -20,6 +20,7 @@ function refusalLine(cause: unknown): string {
 try {
   await runDash(process.argv.slice(2), {
     clock: wallClock(),
+    monotonic: monotonicClock(),
     planEnrollment: runFleetPlan,
     stdout: process.stdout,
   });

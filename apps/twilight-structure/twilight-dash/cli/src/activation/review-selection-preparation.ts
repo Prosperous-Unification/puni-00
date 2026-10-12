@@ -13,6 +13,8 @@ import {
   serializeCanonical,
 } from '@twilight-burokrat/judge';
 
+import type { Monotonic } from '../clock';
+
 const GitIdentity = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 const Sha256 = /^[0-9a-f]{64}$/;
 const compareText = (left: string, right: string): number =>
@@ -27,6 +29,8 @@ export interface OwnedReviewCandidateInput {
   baseSha: string;
   classificationPolicy: ClassificationPolicy;
   maximumPreparationMs: number;
+  /** Measures `maximumPreparationMs` from the first Git invocation's preflight. */
+  monotonic: Monotonic;
   maximumCandidateEntries: number;
   maximumCandidateBytes: number;
 }
@@ -100,9 +104,9 @@ export function readOwnedReviewCandidate(input: OwnedReviewCandidateInput): {
   if (!isAbsolute(input.objectStorePath) || !lstatSync(input.objectStorePath).isDirectory()) {
     throw new Error('review candidate object store must be an owned directory');
   }
-  const deadline = performance.now() + input.maximumPreparationMs;
+  const deadline = input.monotonic.now() + input.maximumPreparationMs;
   const invokeGit = (args: string[]): Uint8Array => {
-    const remaining = deadline - performance.now();
+    const remaining = deadline - input.monotonic.now();
     // Proof: omitting this pre-spawn fence let a zero-ms remaining deadline run every Git
     // command and publish a manifest; the production exhausted-deadline test failed.
     if (remaining <= 0) throw new Error('review candidate preparation deadline exceeded');
@@ -215,7 +219,7 @@ export function readOwnedReviewCandidate(input: OwnedReviewCandidateInput): {
   const manifestBytes = serializeCanonical(manifest);
   // Proof: omitting the final fence let a 10,001-ms monotonic advance after the last Git
   // invocation return a manifest; the production deadline-overrun test failed.
-  if (performance.now() > deadline)
+  if (input.monotonic.now() > deadline)
     throw new Error('review candidate preparation deadline exceeded');
   return { manifest, manifestBytes, snapshotIdentity: hashBytes(manifestBytes), rawBlobs };
 }

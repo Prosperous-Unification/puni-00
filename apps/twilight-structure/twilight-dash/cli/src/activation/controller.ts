@@ -15,6 +15,7 @@ import {
 } from '@twilight-burokrat/judge';
 import { Database } from 'bun:sqlite';
 
+import type { Monotonic } from '../clock';
 import { readBootstrapConfiguration, type TrustedBootstrapPin } from './bootstrap';
 import {
   type CheckCandidateSnapshot,
@@ -626,7 +627,10 @@ export interface ActivationControllerOptions {
 /** A monotonic observation-only fence; it grants no evaluation or dispatch authority. */
 export interface ObservationFence {
   readonly signal: AbortSignal;
+  /** A reading of {@link ObservationFence.monotonic}, never of a wall clock. */
   readonly deadline: number;
+  /** The clock `deadline` was measured on; the fence rereads it at every check. */
+  readonly monotonic: Monotonic;
   readonly maxSubjects?: number;
 }
 
@@ -646,7 +650,7 @@ function requireObservationFence(fence?: ObservationFence): void {
   if (!Number.isFinite(fence.deadline) || fence.deadline < 0)
     throw new Error('activation observation deadline malformed');
   if (fence.signal.aborted) throw new Error('activation observation cancelled');
-  if (performance.now() >= fence.deadline)
+  if (fence.monotonic.now() >= fence.deadline)
     throw new Error('activation observation deadline exceeded');
 }
 

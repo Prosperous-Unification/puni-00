@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { hashBytes } from '@twilight-burokrat/judge';
 import { expect, spyOn, test } from 'bun:test';
 
+import { monotonicClock } from '../clock';
 import {
   type OfflineVerifierInvocation,
   offlineVerifierPolicy,
@@ -210,29 +211,35 @@ test.each([
   ['excessive output cap', { maximumDurationMs: 100, maximumOutputBytes: 262_145 }],
 ])('pinned runner refuses %s before starting its executable', async (_, bounds) => {
   await expectFailure(
-    runPinnedOfflineGh({
-      executablePath: '/bin/true',
-      argv: [],
-      env: {},
-      manifestBytes: '{}',
-      bundleBytes: '{}',
-      ...bounds,
-    }),
+    runPinnedOfflineGh(
+      {
+        executablePath: '/bin/true',
+        argv: [],
+        env: {},
+        manifestBytes: '{}',
+        bundleBytes: '{}',
+        ...bounds,
+      },
+      monotonicClock(),
+    ),
     'review verifier process bounds malformed',
   );
 });
 
 test('pinned process runner refuses a noncanonical executable path before launch', async () => {
   await expectFailure(
-    runPinnedOfflineGh({
-      executablePath: '/bin/../bin/true',
-      argv: [],
-      env: {},
-      manifestBytes: '{}',
-      bundleBytes: '{}',
-      maximumOutputBytes: 100,
-      maximumDurationMs: 100,
-    }),
+    runPinnedOfflineGh(
+      {
+        executablePath: '/bin/../bin/true',
+        argv: [],
+        env: {},
+        manifestBytes: '{}',
+        bundleBytes: '{}',
+        maximumOutputBytes: 100,
+        maximumDurationMs: 100,
+      },
+      monotonicClock(),
+    ),
     'review verifier protected path malformed',
   );
 });
@@ -245,15 +252,18 @@ test('pinned runner rejects monotonic expiry even when the timer has not fired',
   });
   try {
     await expectFailure(
-      runPinnedOfflineGh({
-        executablePath: '/bin/true',
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 100,
-      }),
+      runPinnedOfflineGh(
+        {
+          executablePath: '/bin/true',
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 100,
+        },
+        monotonicClock(),
+      ),
       'review verifier process timed out',
     );
   } finally {
@@ -270,15 +280,18 @@ test('pinned runner preserves the primary process failure when cleanup also fail
   try {
     let failure: unknown;
     try {
-      await runPinnedOfflineGh({
-        executablePath: '/bin/does-not-exist',
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 100,
-      });
+      await runPinnedOfflineGh(
+        {
+          executablePath: '/bin/does-not-exist',
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 100,
+        },
+        monotonicClock(),
+      );
     } catch (cause) {
       failure = cause;
     }
@@ -307,15 +320,18 @@ test('pinned process runner stages only local bytes and removes ambient credenti
     const originalToken = process.env['GH_TOKEN'];
     process.env['GH_TOKEN'] = 'harmless-sentinel';
     try {
-      const exit = await runPinnedOfflineGh({
-        executablePath,
-        argv: ['@manifest', '@bundle'],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 1000,
-      });
+      const exit = await runPinnedOfflineGh(
+        {
+          executablePath,
+          argv: ['@manifest', '@bundle'],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 1000,
+        },
+        monotonicClock(),
+      );
       expect(exit).toEqual({ exitCode: 0, stdout: 'clean', stderr: '' });
     } finally {
       if (originalToken === undefined) delete process.env['GH_TOKEN'];
@@ -337,15 +353,18 @@ test('pinned process runner kills an overlong local process and settles promptly
     chmodSync(executablePath, 0o700);
     const started = performance.now();
     await expectFailure(
-      runPinnedOfflineGh({
-        executablePath,
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 30,
-      }),
+      runPinnedOfflineGh(
+        {
+          executablePath,
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 30,
+        },
+        monotonicClock(),
+      ),
       'review verifier process timed out',
     );
     expect(performance.now() - started).toBeLessThan(200);
@@ -362,15 +381,18 @@ test('pinned runner settles a descendant-held output pipe within its deadline', 
     chmodSync(executablePath, 0o700);
     const started = performance.now();
     await expectFailure(
-      runPinnedOfflineGh({
-        executablePath,
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 30,
-      }),
+      runPinnedOfflineGh(
+        {
+          executablePath,
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 30,
+        },
+        monotonicClock(),
+      ),
       'review verifier process timed out',
     );
     expect(performance.now() - started).toBeLessThan(250);
@@ -387,15 +409,18 @@ test('pinned runner terminates the descendant process rather than only cancellin
     writeFileSync(executablePath, `#!/bin/sh\n/bin/sleep 1 & echo "$!" > '${childPath}'\nwait\n`);
     chmodSync(executablePath, 0o700);
     await expectFailure(
-      runPinnedOfflineGh({
-        executablePath,
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 30,
-      }),
+      runPinnedOfflineGh(
+        {
+          executablePath,
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 30,
+        },
+        monotonicClock(),
+      ),
       'review verifier process timed out',
     );
     const childPid = Number(readFileSync(childPath, 'utf8').trim());
@@ -424,15 +449,18 @@ test('pinned runner cancels readers when an escaped harmless child retains the p
     chmodSync(executablePath, 0o700);
     const started = performance.now();
     await expectFailure(
-      runPinnedOfflineGh({
-        executablePath,
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 30,
-      }),
+      runPinnedOfflineGh(
+        {
+          executablePath,
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 30,
+        },
+        monotonicClock(),
+      ),
       'review verifier process timed out',
     );
     expect(performance.now() - started).toBeLessThan(250);
@@ -458,15 +486,18 @@ test('pinned runner retains a stream-cancellation error with the timeout failure
     chmodSync(executablePath, 0o700);
     let failure: unknown;
     try {
-      await runPinnedOfflineGh({
-        executablePath,
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 30,
-      });
+      await runPinnedOfflineGh(
+        {
+          executablePath,
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 30,
+        },
+        monotonicClock(),
+      );
     } catch (cause) {
       failure = cause;
     }
@@ -505,15 +536,18 @@ test('pinned runner settles both reader cancellations before returning', async (
     writeFileSync(executablePath, '#!/bin/sh\n/bin/sleep 1 & wait\n');
     chmodSync(executablePath, 0o700);
     await expectFailure(
-      runPinnedOfflineGh({
-        executablePath,
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 30,
-      }),
+      runPinnedOfflineGh(
+        {
+          executablePath,
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 30,
+        },
+        monotonicClock(),
+      ),
       'review verifier process timed out',
     );
     expect(settled).toBe(2);
@@ -542,15 +576,18 @@ test('pinned runner retains delayed sibling cancellation failure after stdout ov
     chmodSync(executablePath, 0o700);
     let failure: unknown;
     try {
-      await runPinnedOfflineGh({
-        executablePath,
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 1000,
-      });
+      await runPinnedOfflineGh(
+        {
+          executablePath,
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 1000,
+        },
+        monotonicClock(),
+      );
     } catch (cause) {
       failure = cause;
     }
@@ -586,15 +623,18 @@ test('pinned runner refuses to spawn after staging consumes its deadline', async
   const spawn = spyOn(Bun, 'spawn');
   try {
     await expectFailure(
-      runPinnedOfflineGh({
-        executablePath: '/bin/true',
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 30,
-      }),
+      runPinnedOfflineGh(
+        {
+          executablePath: '/bin/true',
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 30,
+        },
+        monotonicClock(),
+      ),
       'review verifier process timed out',
     );
     expect(spawn).not.toHaveBeenCalled();
@@ -613,15 +653,18 @@ test('pinned runner reports cleanup overrun instead of returning success', async
   });
   try {
     await expectFailure(
-      runPinnedOfflineGh({
-        executablePath: '/bin/true',
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 50,
-      }),
+      runPinnedOfflineGh(
+        {
+          executablePath: '/bin/true',
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 50,
+        },
+        monotonicClock(),
+      ),
       'review verifier process timed out',
     );
   } finally {
@@ -648,6 +691,7 @@ test('pinned runner treats cancellation during cleanup as cancellation', async (
           maximumOutputBytes: 100,
           maximumDurationMs: 1000,
         },
+        monotonicClock(),
         aborter.signal,
       ),
       'review verifier process cancelled',
@@ -674,6 +718,7 @@ test('pinned runner refuses an already-aborted launch before staging or spawn', 
           maximumOutputBytes: 100,
           maximumDurationMs: 1000,
         },
+        monotonicClock(),
         aborter.signal,
       ),
       'review verifier process cancelled',
@@ -693,16 +738,19 @@ test.each([
   const spawn = spyOn(Bun, 'spawn');
   try {
     await expectFailure(
-      runPinnedOfflineGh({
-        executablePath: '/bin/true',
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 100,
-        ...changed,
-      }),
+      runPinnedOfflineGh(
+        {
+          executablePath: '/bin/true',
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 100,
+          ...changed,
+        },
+        monotonicClock(),
+      ),
       'review verifier process bounds malformed',
     );
     expect(spawn).not.toHaveBeenCalled();
@@ -721,15 +769,18 @@ test.each(['stdout', 'stderr'])('pinned runner rejects invalid UTF-8 in %s', asy
     );
     chmodSync(executablePath, 0o700);
     await expectFailure(
-      runPinnedOfflineGh({
-        executablePath,
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 1000,
-      }),
+      runPinnedOfflineGh(
+        {
+          executablePath,
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 1000,
+        },
+        monotonicClock(),
+      ),
       'review verifier process unavailable',
     );
   } finally {
@@ -747,15 +798,18 @@ test('pinned runner applies the output cap to stderr independently', async () =>
     );
     chmodSync(executablePath, 0o700);
     await expectFailure(
-      runPinnedOfflineGh({
-        executablePath,
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 1000,
-      }),
+      runPinnedOfflineGh(
+        {
+          executablePath,
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 1000,
+        },
+        monotonicClock(),
+      ),
       'review verifier process output too large',
     );
   } finally {
@@ -773,15 +827,18 @@ test('pinned process runner rejects excessive output and kills the process', asy
     );
     chmodSync(executablePath, 0o700);
     await expectFailure(
-      runPinnedOfflineGh({
-        executablePath,
-        argv: [],
-        env: {},
-        manifestBytes: '{}',
-        bundleBytes: '{}',
-        maximumOutputBytes: 100,
-        maximumDurationMs: 1000,
-      }),
+      runPinnedOfflineGh(
+        {
+          executablePath,
+          argv: [],
+          env: {},
+          manifestBytes: '{}',
+          bundleBytes: '{}',
+          maximumOutputBytes: 100,
+          maximumDurationMs: 1000,
+        },
+        monotonicClock(),
+      ),
       'review verifier process output too large',
     );
   } finally {
@@ -807,6 +864,7 @@ test('pinned process runner aborts and settles an active local process', async (
         maximumOutputBytes: 100,
         maximumDurationMs: 1000,
       },
+      monotonicClock(),
       aborter.signal,
     );
     setTimeout(() => {
@@ -1152,15 +1210,18 @@ test('pinned runner stages its private inputs under the configured temporary roo
     const staging = join(root, 'staging-root');
     filesystem.mkdirSync(staging, { mode: 0o700 });
     process.env['TMPDIR'] = staging;
-    await runPinnedOfflineGh({
-      executablePath,
-      argv: [],
-      env: {},
-      manifestBytes: '{}',
-      bundleBytes: '{}',
-      maximumOutputBytes: 100,
-      maximumDurationMs: 5_000,
-    });
+    await runPinnedOfflineGh(
+      {
+        executablePath,
+        argv: [],
+        env: {},
+        manifestBytes: '{}',
+        bundleBytes: '{}',
+        maximumOutputBytes: 100,
+        maximumDurationMs: 5_000,
+      },
+      monotonicClock(),
+    );
     expect(readFileSync(cwdPath, 'utf8').trim().startsWith(`${staging}/review-attestation-`)).toBe(
       true,
     );

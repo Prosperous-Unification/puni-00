@@ -14,6 +14,7 @@ import { parseOrThrow } from '@shared/validation';
 import { ClassificationPolicy, hashBytes, serializeCanonical } from '@twilight-burokrat/judge';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
+import { monotonicClock } from '../clock';
 import { readOwnedReviewCandidate } from './review-selection-preparation';
 
 const roots: string[] = [];
@@ -70,6 +71,7 @@ function candidateFixture(largeSource = false) {
     baseSha,
     classificationPolicy,
     maximumPreparationMs: 10_000,
+    monotonic: monotonicClock(),
     maximumCandidateEntries: 10,
     maximumCandidateBytes: 1024,
   };

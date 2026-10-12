@@ -1,3 +1,4 @@
+import { monotonicClock, wallClock } from '../clock';
 import { reportObservationServiceDiagnostic, runObservationService } from './observation-service';
 
 const configurationPath = process.argv.at(2);
@@ -12,6 +13,7 @@ if (configurationPath === undefined || process.argv.length !== 3) {
 process.exit(
   await runObservationService(configurationPath, {
     fetcher: (url, init) => fetch(url, init),
-    clock: Date.now,
+    clock: wallClock(),
+    monotonic: monotonicClock(),
   }),
 );

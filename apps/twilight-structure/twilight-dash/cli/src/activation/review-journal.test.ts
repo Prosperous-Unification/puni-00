@@ -956,7 +956,12 @@ try {
   console.log('REFUSED');
 }`,
     );
-    const probe = Bun.spawnSync({ cmd: ['timeout', '2s', 'bun', probePath] });
+    // A blocking open(2) on the FIFO never returns, so the bound only detects the hang; no
+    // in-process clock can interrupt it. It is wide so a loaded host's Bun start-up cannot fail
+    // the refusal. Proof: dropping O_NONBLOCK from the registration open made the child time out
+    // at exit 124 under this bound and this test fail on `Expected: 0`, `Received: 124`
+    // (2026-10-12).
+    const probe = Bun.spawnSync({ cmd: ['timeout', '30s', 'bun', probePath] });
     expect(probe.exitCode).toBe(0);
     expect(Buffer.from(probe.stdout).toString()).toContain('REFUSED');
   } finally {

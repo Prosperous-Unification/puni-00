@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
-import { runObservationCli } from './observation-cli';
-import type { ObservationStateConfig } from './observation-state';
+import { monotonicClock } from '../../clock';
+import { runObservationCli } from '../observation-cli';
+import type { ObservationStateConfig } from '../observation-state';
 
 const configurationPath = process.argv.at(2);
 const enteredPath = process.argv.at(3);
@@ -15,6 +16,7 @@ const state: ObservationStateConfig = { ...serialized, clock: () => 1000 };
 const code = await runObservationCli({
   state,
   cleanupMs: 500,
+  monotonic: monotonicClock(),
   reportDiagnostic: () => {
     throw new Error('unexpected diagnostic');
   },

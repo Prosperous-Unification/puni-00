@@ -29,6 +29,7 @@ import {
 } from '@twilight-burokrat/judge';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
+import { monotonicClock } from '../clock';
 import { validateGitHubRepositoryBinding } from './github-source';
 import { createActivationRequest } from './request';
 import { deriveHistoricalSelections } from './review-selection-history';
@@ -111,6 +112,7 @@ function fixture(gitObjectFormat: 'sha1' | 'sha256' = 'sha1') {
     gitExecutableIdentity: hashBytes(readFileSync('/usr/bin/git')),
     gitObjectFormat,
     maximumPreparationMs: 10_000,
+    monotonic: monotonicClock(),
     maximumCandidateEntries: 10,
     maximumCandidateBytes: 1024,
     maximumParserReads: 100,

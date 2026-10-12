@@ -17,6 +17,7 @@ import { join } from 'node:path';
 import { hashBytes, serializeCanonical } from '@twilight-burokrat/judge';
 import { expect, spyOn, test } from 'bun:test';
 
+import { monotonicClock } from '../clock';
 import type { ReviewExpectation } from './controller';
 import type { ReviewJournalRegistration } from './review-journal';
 import * as reviewJournal from './review-journal';
@@ -131,6 +132,7 @@ function fixture(
       lateFailures.push(failure);
     },
     fetcher,
+    monotonic: monotonicClock(),
   };
   return { stageRoot, manifestBytes, options, calls, lateFailures };
 }

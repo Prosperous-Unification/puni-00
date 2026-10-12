@@ -2,6 +2,8 @@ import * as fs from 'node:fs';
 
 import { mock } from 'bun:test';
 
+import { monotonicClock, wallClock } from '../../clock';
+
 const originalLstat = fs.lstatSync.bind(fs);
 const originalFstat = fs.fstatSync.bind(fs);
 const originalReadlink = fs.readlinkSync.bind(fs);
@@ -37,7 +39,8 @@ const { runObservationService } = await import('../observation-service');
 let fetches = 0;
 const diagnostics: unknown[] = [];
 const code = await runObservationService(configurationPath, {
-  clock: Date.now,
+  clock: wallClock(),
+  monotonic: monotonicClock(),
   fetcher: () => {
     fetches += 1;
     return Promise.resolve(new Response('[]'));

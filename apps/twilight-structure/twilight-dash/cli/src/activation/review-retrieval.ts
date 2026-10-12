@@ -14,6 +14,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { parseOrThrow, type } from '@shared/validation';
 import { hashBytes } from '@twilight-burokrat/judge';
 
+import type { Monotonic } from '../clock';
 import type { ReviewExpectation } from './controller';
 import { decodeReviewJournalManifest, type ReviewJournalRegistration } from './review-journal';
 
@@ -80,6 +81,8 @@ export interface ReviewRetrievalOptions {
   /** Supplied by the production composition; the controller never reaches for global fetch. */
   readonly fetcher: ReviewResourceFetch;
   readonly signal?: AbortSignal;
+  /** Measures the whole-operation and per-request deadlines. */
+  readonly monotonic: Monotonic;
   /** Must record redacted cleanup failures reported after the caller's refusal has settled. */
   readonly observeLateFailure: (failure: ReviewRetrievalFailure) => void;
 }
@@ -295,10 +298,10 @@ export interface RetrievedReviewJournal {
 export async function retrieveReviewJournal(
   options: ReviewRetrievalOptions,
 ): Promise<RetrievedReviewJournal> {
-  const startedAt = performance.now();
+  const startedAt = options.monotonic.now();
   const remaining = () => {
     if (options.signal?.aborted) throw refusal('cancelled', 'review retrieval cancelled');
-    const left = OperationDeadlineMs - (performance.now() - startedAt);
+    const left = OperationDeadlineMs - (options.monotonic.now() - startedAt);
     if (left <= 0) throw refusal('limit-exceeded', 'review retrieval deadline exceeded');
     return left;
   };
@@ -331,10 +334,10 @@ export async function retrieveReviewJournal(
     maximumBytes: number,
   ): Promise<{ bytes: Buffer; link: string | null }> => {
     const requestDeadlineMs = Math.min(RequestDeadlineMs, remaining());
-    const requestDeadlineAt = performance.now() + requestDeadlineMs;
+    const requestDeadlineAt = options.monotonic.now() + requestDeadlineMs;
     const assertRequestAlive = () => {
       remaining();
-      if (performance.now() >= requestDeadlineAt)
+      if (options.monotonic.now() >= requestDeadlineAt)
         throw refusal('limit-exceeded', 'review request deadline exceeded');
     };
     const controller = new AbortController();
@@ -369,7 +372,7 @@ export async function retrieveReviewJournal(
         if (
           options.signal?.aborted ||
           controller.signal.aborted ||
-          performance.now() >= requestDeadlineAt
+          options.monotonic.now() >= requestDeadlineAt
         )
           throw cleanupCause;
         const primary =
@@ -424,7 +427,7 @@ export async function retrieveReviewJournal(
                     refusal('limit-exceeded', 'review late response cleanup deadline exceeded'),
                   );
                 },
-                Math.max(0, requestDeadlineAt - performance.now()),
+                Math.max(0, requestDeadlineAt - options.monotonic.now()),
               );
             });
             // Proof: mounted late cancel rejection and stall now reach the required,
@@ -434,7 +437,7 @@ export async function retrieveReviewJournal(
                 clearTimeout(deadlineTimer);
                 // Proof: a mounted finite cancel advanced the monotonic clock past
                 // ten seconds before timer delivery and previously reported no failure.
-                if (performance.now() >= requestDeadlineAt)
+                if (options.monotonic.now() >= requestDeadlineAt)
                   options.observeLateFailure(
                     refusal('limit-exceeded', 'review late response cleanup deadline exceeded'),
                   );
@@ -531,7 +534,7 @@ export async function retrieveReviewJournal(
     } catch (cause) {
       abandoned = true;
       if (options.signal?.aborted) throw refusal('cancelled', 'review retrieval cancelled');
-      if (controller.signal.aborted || performance.now() >= requestDeadlineAt)
+      if (controller.signal.aborted || options.monotonic.now() >= requestDeadlineAt)
         throw refusal('limit-exceeded', 'review retrieval deadline exceeded');
       if (cause instanceof ReviewRetrievalFailure) throw cause;
       // Proof: retaining the transport cause exposed a signed bundle query sentinel.

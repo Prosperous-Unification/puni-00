@@ -16,6 +16,7 @@ import {
 } from '@twilight-burokrat/judge';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
+import { monotonicClock } from '../clock';
 import { validateGitHubRepositoryBinding } from './github-source';
 import { createActivationRequest } from './request';
 import { installLocalReviewSource } from './review-selection-objects';
@@ -78,6 +79,7 @@ test('common freeze core uses only explicit retained input ports after Git metad
       fixture.documents.classificationPolicy.input,
     ),
     maximumPreparationMs: 10_000,
+    monotonic: monotonicClock(),
     maximumCandidateEntries: 100,
     maximumCandidateBytes: 100_000,
     maximumParserReads: 100,
