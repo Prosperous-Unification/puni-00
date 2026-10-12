@@ -36,7 +36,7 @@ const snapshot = () => ({
   memberships: world.h.sqlite
     .query('SELECT * FROM organization_membership ORDER BY organization_id, user_id')
     .all(),
-  audits: world.h.sqlite.query('SELECT * FROM organization_audit ORDER BY id').all(),
+  audits: world.h.sqlite.query('SELECT * FROM organization_audit ORDER BY rowid').all(),
 });
 
 describe('SCIM authentication', () => {

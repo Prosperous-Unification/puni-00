@@ -141,6 +141,9 @@ export class ScimService {
     }
     if (request.url.search !== '') return UNSUPPORTED;
     if (request.method === 'GET') return this.readUser(token, id);
+    // Proof: routing PUT to the PATCH handler made mounted `answers PUT,
+    // other methods and other resources 501, changing nothing` answer 400
+    // instead of 501; watched 2026-10-12.
     if (request.method === 'PATCH') return this.patchUser(token, id, request);
     if (request.method === 'DELETE') return this.deleteUser(token, id);
     return UNSUPPORTED;
@@ -199,6 +202,9 @@ export class ScimService {
     let filter: ScimUserFilter | null = null;
     if (rawFilter !== null) {
       const matched = FILTER.exec(rawFilter);
+      // Proof: listing everyone for an unsupported filter made mounted
+      // `answers any other filter or query parameter 501` answer 200;
+      // watched 2026-10-12.
       if (matched === null) return UNSUPPORTED;
       const [, attribute = '', quoted = ''] = matched;
       let value: unknown;

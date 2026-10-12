@@ -56,6 +56,9 @@ function userIn(tx: Reader, organizationId: string, id: string): Row | undefined
   // Proof: dropping the organization predicate made `answers another
   // organization's user as absent, changing nothing` in
   // `enterprise-sso-stores.db.test.ts` deprovision B's user; watched 2026-10-12.
+  // The same fault made mounted `answers another organization’s user 404
+  // exactly as an absent one, changing nothing` (`scim-users.controller.db
+  // .test.ts`) answer the cross-organization PATCH 200; watched 2026-10-12.
   return tx
     .select()
     .from(organizationScimUser)
