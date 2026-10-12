@@ -1,5 +1,6 @@
 import { type } from '@wbs/validation';
 
+import type { EstimateUnit } from './stored-vocabularies';
 import { snapWorkdays } from './workday';
 
 /**
@@ -15,7 +16,7 @@ import { snapWorkdays } from './workday';
 export const MAX_ESTIMATE_DAYS = 44_739_242;
 
 /**
- * Three durations in days for one work item and one step.
+ * Three durations in the step’s estimate unit for one work item and one step.
  *
  * Days, not hours, and fractional days are allowed: half a day is a real
  * estimate and rounding it up is a lie the plan then carries.
@@ -187,14 +188,14 @@ export const DEFAULT_ESTIMATE_RULE: EstimateRule = {
 };
 
 /**
- * The figure one step's three points combine to under `rule`'s method, in days
+ * The unit-free figure one step's three points combine to under `rule`'s method (ADR 0042)
  * and **before** its rounding.
  *
  * Separate from {@link chargedDays} because the two answer different questions: a
  * reader asking what the estimate means wants this, and everything that plans,
  * schedules or sums wants the rounded one. Nothing is charged in these units.
  */
-export function combinedDays(estimate: ThreePointEstimate, rule: EstimateRule): number {
+export function combinedFigure(estimate: ThreePointEstimate, rule: EstimateRule): number {
   if (rule.method === 'pert') return expectedDays(estimate, rule.pertWeights);
   // Not a defensive flourish: `estimate[method]` for a method this does not
   // know returns `undefined`, and the arithmetic downstream turns that into
@@ -300,12 +301,12 @@ function hundredthsOf(allowance: AllowancePercent): number {
  *   every one reaching here was validated at a boundary or read from storage
  *   that holds a range CHECK.
  */
-export function beforeRoundingDays(
+export function beforeRoundingFigure(
   estimate: ThreePointEstimate,
   rule: EstimateRule,
   allowance: AllowancePercent,
 ): number {
-  return (combinedDays(estimate, rule) * (10_000 + hundredthsOf(allowance))) / 10_000;
+  return (combinedFigure(estimate, rule) * (10_000 + hundredthsOf(allowance))) / 10_000;
 }
 
 /**
@@ -335,7 +336,7 @@ export function chargedDays(
   rule: EstimateRule,
   allowance: AllowancePercent,
 ): number {
-  return roundDays(beforeRoundingDays(estimate, rule, allowance), rule.rounding);
+  return roundDays(beforeRoundingFigure(estimate, rule, allowance), rule.rounding);
 }
 
 /** A project step as the charge reads it: its id and its allowance. */
@@ -366,4 +367,45 @@ export function allowanceOf(allowances: StepAllowances, stepId: string): Allowan
     throw new Error(`no allowance is known for step ${stepId}: the step is not in this plan read`);
   }
   return held;
+}
+
+/** Minutes on today's workday axis; ADR 0042 fixes this conversion until working windows exist. */
+export const WORKDAY_MINUTES = 480;
+
+/** Largest authored minute point fitting the solver axis, as described in ADR 0042. */
+export const MAX_ESTIMATE_MINUTES = MAX_ESTIMATE_DAYS * WORKDAY_MINUTES;
+
+/** Refusal at a minute-trio boundary; ordering is validated by the enclosing shape (ADR 0042). */
+export function minuteTrioProblem(
+  estimate: ThreePointEstimate,
+): 'minutes_not_integer' | 'minutes_above_max' | null {
+  const points = [estimate.optimistic, estimate.realistic, estimate.pessimistic];
+  // Proof: removing Number.isInteger admitted 1.5; refuses a fractional minute point failed (2026-10-12).
+  if (points.some((point) => !Number.isInteger(point) || point < 0)) return 'minutes_not_integer';
+  // Proof: dropping this bound admitted 21_474_836_161; refuses a minute point above MAX_ESTIMATE_MINUTES failed (2026-10-12).
+  if (points.some((point) => point > MAX_ESTIMATE_MINUTES)) return 'minutes_above_max';
+  return null;
+}
+
+/** Charges whole minutes after allowance, independently of project rounding (ADR 0042). */
+export function chargedMinutes(
+  estimate: ThreePointEstimate,
+  rule: EstimateRule,
+  allowance: AllowancePercent,
+): number {
+  // Proof: Math.round charged 51 rather than 52; charges a minute step to the whole minute failed (2026-10-12).
+  // Proof: roundDays with rule.rounding charged 51 under floor; never consults the project rounding failed (2026-10-12).
+  return Math.ceil(beforeRoundingFigure(estimate, rule, allowance));
+}
+
+/** Places charged minutes exactly on the workday axis, keeping workday charge unchanged (ADR 0042). */
+export function chargedWorkdaysOf(
+  unit: EstimateUnit,
+  estimate: ThreePointEstimate,
+  rule: EstimateRule,
+  allowance: AllowancePercent,
+): number {
+  return unit === 'minutes'
+    ? chargedMinutes(estimate, rule, allowance) / WORKDAY_MINUTES
+    : chargedDays(estimate, rule, allowance);
 }

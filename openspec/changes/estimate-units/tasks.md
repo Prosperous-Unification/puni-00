@@ -2,23 +2,23 @@
 
 - [x] 0.1 Intent, delta specs, design and ADR 0042; OpenSpec validation green (020.11,
       2026-10-11). Glossary entries are task 0.2, not applied by the packet-writing lane.
-- [ ] 0.2 Apply glossary entries (Estimate, Charged estimate, Estimate rounding rewritten;
+- [x] 0.2 Apply glossary entries (Estimate, Charged estimate, Estimate rounding rewritten;
       Estimate unit, Workday minutes) to `CONTEXT.md` verbatim from
       `puni-plan/batch-10/interviews/glossary-delta.md`, in the first green commit of slice 1.
 
 ## 1. Vocabulary and charge in `@wbs/domain` (nothing stores a unit yet)
 
-- [ ] 1.1 Red: `stored-vocabularies.test.ts` "admits exactly the two estimate units";
+- [x] 1.1 Red: `stored-vocabularies.test.ts` "admits exactly the two estimate units";
       `estimate.test.ts` "charges a minute step to the whole minute after its allowance"
       (`30/40/90`, `+10 %` → `52`), "never consults the project rounding for a minute step"
       (`floor`, `exact`, `ceil` give `52`), "places 240 minutes as half a workday exactly",
       "refuses a fractional minute point", "refuses a minute point above
       MAX_ESTIMATE_MINUTES", "renaming the unit-free arithmetic moves no workday figure".
       Files: `libs/wbs/domain/domain/src/{stored-vocabularies,estimate}.ts` and tests.
-- [ ] 1.2 Green: `ESTIMATE_UNITS`, `isEstimateUnit`, `WORKDAY_MINUTES`, `MAX_ESTIMATE_MINUTES`,
+- [x] 1.2 Green: `ESTIMATE_UNITS`, `isEstimateUnit`, `WORKDAY_MINUTES`, `MAX_ESTIMATE_MINUTES`,
       `minuteTrioProblem`, `combinedFigure`/`beforeRoundingFigure` (renamed), `chargedMinutes`,
       `chargedWorkdaysOf`; JSDoc on each naming ADR 0042.
-- [ ] 1.3 Negatives, each watched red then restored with an adjacent `Proof:`: `Math.ceil`
+- [x] 1.3 Negatives, each watched red then restored with an adjacent `Proof:`: `Math.ceil`
       replaced by `Math.round` in `chargedMinutes` → "charges a minute step to the whole
       minute…"; `rule.rounding` consulted in `chargedMinutes` → "never consults…";
       `Number.isInteger` dropped from `minuteTrioProblem` → "refuses a fractional minute point";

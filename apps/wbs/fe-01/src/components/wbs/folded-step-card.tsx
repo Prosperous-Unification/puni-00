@@ -1,4 +1,4 @@
-import { beforeRoundingDays, combinedDays, type EstimateRule } from '@wbs/domain/estimate';
+import { beforeRoundingFigure, combinedFigure, type EstimateRule } from '@wbs/domain/estimate';
 import type { KeyboardEvent } from 'react';
 
 import type { Days, PlanRead } from '@/lib/wbs-api';
@@ -235,10 +235,10 @@ export function FoldedStepCard({
       </div>
       {estimate !== undefined && allowancePercent !== 0 ? (
         <>
-          <div>Base estimate {auditDays(combinedDays(estimate, rule))} days</div>
+          <div>Base estimate {auditDays(combinedFigure(estimate, rule))} days</div>
           <div>Allowance +{String(allowancePercent)}%</div>
           <div>
-            Before rounding {auditDays(beforeRoundingDays(estimate, rule, allowancePercent))} days
+            Before rounding {auditDays(beforeRoundingFigure(estimate, rule, allowancePercent))} days
           </div>
           <div>Charged {final} days</div>
         </>

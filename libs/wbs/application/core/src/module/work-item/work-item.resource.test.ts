@@ -1593,7 +1593,7 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
    * are two days under `ceil`; summing them first and rounding once is one.
    *
    * Proof: with the other order in place — `rollUpFinals` charging
-   * `combinedDays` and `finalsOf` rounding the **sum** with a `Math.ceil` — this
+   * `combinedFigure` and `finalsOf` rounding the **sum** with a `Math.ceil` — this
    * failed on `Expected: 1 / Received: 0.5` at the Dev step, which is the
    * fraction a plan that rounds its total still carries per step. Watched
    * 2026-08-30.

@@ -135,3 +135,12 @@ export type CapacityMode = 'isolated' | 'shared';
  * Proof: advertising shared fails the physical incoming-release isolated-only capability test.
  */
 export const SUPPORTED_CAPACITY_MODES: readonly CapacityMode[] = ['isolated'];
+
+/** A step's estimate units, independent of its executor kind (ADR 0042). */
+export const ESTIMATE_UNITS = ['workdays', 'minutes'] as const;
+export type EstimateUnit = (typeof ESTIMATE_UNITS)[number];
+
+/** Admits the two stored and posted estimate units described in ADR 0042. */
+export function isEstimateUnit(value: unknown): value is EstimateUnit {
+  return typeof value === 'string' && (ESTIMATE_UNITS as readonly string[]).includes(value);
+}
