@@ -281,6 +281,16 @@ describe('enforced SSO', () => {
     expect(
       h.sqlite.query("SELECT enforced FROM organization_sso_connection WHERE id = 'conn-a'").get(),
     ).toEqual({ enforced: 1 });
+    // The refused attempt wrote nothing; the change wrote exactly one row.
+    expect(h.sqlite.query('SELECT actor_id, action, detail FROM organization_audit').all()).toEqual(
+      [
+        {
+          actor_id: h.userId('mia'),
+          action: 'sso_enforcement_changed',
+          detail: '{"enforced":true,"prefix":"samlp|acme-saml|"}',
+        },
+      ],
+    );
   });
 
   it('marks the memberships this credential cannot enter', async () => {

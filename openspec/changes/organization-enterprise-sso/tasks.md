@@ -4,7 +4,7 @@
 
 ## 1. Tables and stores
 
-- [ ] 1.1 Add the additive migrations and their `down.sql`:
+- [x] 1.1 Add the additive migrations and their `down.sql`:
   - `organization_sso_connection`, `organization_scim_token`, `organization_scim_user` and `organization_session_policy`;
   - the nullable `opened_at` and `reauthenticated_at` on `browser_auth_lifecycle`;
   - the `organization_audit` CHECK widening as a `compatible-table-rebuild`.
@@ -15,7 +15,7 @@
 
   Fault: drop the partial unique index and observe the concurrent-proof test fail. Separately, drop the audit rebuild's `CHECK (violations = 0)` guard and observe migration lint fail. Restore both and add `Proof:` comments.
 
-- [ ] 1.2 Add store ports `EnterpriseConnections`, `ProvisioningTokens`, `ScimUsers`, `SessionPolicies` and the widened `OrganizationAudit`. Every write takes the audit row in the same unit of work.
+- [x] 1.2 Add store ports `EnterpriseConnections`, `ProvisioningTokens`, `ScimUsers`, `SessionPolicies` and the widened `OrganizationAudit`. Every write takes the audit row in the same unit of work.
 
   Red: audit insertion failure rolls back each write; missing tables, unreadable state and malformed rows throw.
 
@@ -49,7 +49,7 @@
 
 ## 3. Enforcement
 
-- [ ] 3.1 Add one `EnforcedSso` rule inside `OrganizationAccess`, applied at selection, binding resolution, direct context and delegation verification. The rule uses the pair that authenticated this credential. The refusal is typed `403 sso_required` in contracts. Membership listing marks such organizations.
+- [x] 3.1 Add one `EnforcedSso` rule inside `OrganizationAccess`, applied at selection, binding resolution, direct context and delegation verification. The rule uses the pair that authenticated this credential. The refusal is typed `403 sso_required` in contracts. Membership listing marks such organizations.
 
   Red: the `organization-sso` enforcement scenarios. They are SSO admitted; `google-oauth2|7` refused in A but admitted in B; a linked SSO pair not lending authority; a password refused; enforcement applying at once to an existing binding and a gateway lease; and an MCP delegation with `github|9` refused.
 
@@ -103,13 +103,13 @@
 
   Fault: reset `opened_at` on refresh and observe the session-bound test fail. Then set `reauthenticated_at` on a link callback, and observe the link-callback test fail. Restore and add `Proof:`.
 
-- [ ] 5.2 Add one `SessionPolicy` rule at selection, resolution, direct context and delegation verification, with typed `reauthentication_required`. An unknown time is refused, and a delegation is refused until it carries `authenticated_at`. fe-01 renders the refusal as a state.
+- [x] 5.2 Add one `SessionPolicy` rule at selection, resolution, direct context and delegation verification, with typed `reauthentication_required`. An unknown time is refused, and a delegation is refused until it carries `authenticated_at`. fe-01 renders the refusal as a state.
 
   Red: a fake injected `now()` pins equality admitted and +1 ms refused for both bounds; the policy is read in the existing lifecycle and revocation query (query count unchanged); a link callback does not reauthenticate; a different connection does not reauthenticate; the prompted sign-in is admitted; an unknown time refused; a delegation refused; another organization unaffected; the cleared policy.
 
   Fault: treat a null `opened_at` as now, and observe the unknown-time test fail. Restore and add `Proof:`.
 
-- [ ] 5.3 Audit completeness: for every act in `organization-audit`, a mounted test asserts exactly one row, a refused act writes none, and no detail contains a token, a digest or a full subject.
+- [x] 5.3 Audit completeness: for every act in `organization-audit`, a mounted test asserts exactly one row, a refused act writes none, and no detail contains a token, a digest or a full subject.
 
   Fault: skip the audit write for `sso_connection_proven`, and observe the completeness test fail. Restore and add `Proof:`.
 
