@@ -4,12 +4,12 @@
       (020.11, 2026-10-11). Architecture rulings are in `design.md`. Depends on
       `sub-day-gantt-axis` slices 1–3 and `step-node-attempts` slices 5–6, including timezone
       on the chart read. The glossary entry is task 0.2.
-- [ ] 0.2 Apply the glossary entry Attempt mark to `CONTEXT.md` verbatim from
+- [x] 0.2 Apply the glossary entry Attempt mark to `CONTEXT.md` verbatim from
       `puni-plan/batch-10/interviews/glossary-delta.md`, in the first green commit of slice 1.
 
 ## 1. Inputs, geometry and display range
 
-- [ ] 1.1 Red: `gantt-geometry.test.ts` "one mark per eligible attempt over the planned
+- [x] 1.1 Red: `gantt-geometry.test.ts` "one mark per eligible attempt over the planned
       slice at a sub-day rung", "completed leaves keep planned slices under their attempts",
       "a running mark ends at the given now", "an instant is placed by its project-zone day
       and minute", "early and late attempts clamp to selectable edge ticks", "overnight and
@@ -20,13 +20,13 @@
       `plan-chart-input.test.ts` "only eligible visible attempts count toward markCount",
       "unavailable overlay adds no attempt count". Files:
       `apps/wbs/fe-01/src/components/wbs/{gantt-geometry,plan-chart-input}.ts`.
-- [ ] 1.2 Green: carry node identities, attempts and project zone in the chart input;
+- [x] 1.2 Green: carry node identities, attempts and project zone in the chart input;
       explicit overlay availability; pure attempt projection with the supplied `now`;
       reuse the axis foundation's `STAGE_ONE_DAY_START_MINUTE = 540` with JSDoc naming its
       retirement by `agent-calendar-instant-axis`; one start-day-clamped mark per attempt;
       sub-day forecast slices on completed leaves; shared eligibility for mark count and
       display range; range translation without rewriting schedule coordinates.
-- [ ] 1.3 Negatives: `Date.now()` inside geometry → the supplied-now case; the clamp removed
+- [x] 1.3 Negatives: `Date.now()` inside geometry → the supplied-now case; the clamp removed
       → overnight paint enters the next day's cell; done-row coalescing retained at sub-day
       rungs → the two-slice completed-row case; attempts dropped from count → 2,501 offered;
       hidden attempts included → filtered count/range cases; forecast-only bounds retained

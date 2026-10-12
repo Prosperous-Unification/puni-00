@@ -10206,6 +10206,58 @@ describe('sub-day offer limit', () => {
       expect(option).not.toHaveAttribute('data-not-offered');
     }
   });
+  itDom('attempt and zone changes update the offer through panel memoization', () => {
+    const plan = densePlan(1, 2500);
+    plan.startDate = MONDAY_START;
+    plan.timezone = 'UTC';
+    const pointed = pointedAtRow(null);
+    const drawStable = (next: GanttPlan) => (
+      <GanttPanel
+        plan={next}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointed}
+      />
+    );
+    const { rerender } = render(drawStable(plan));
+    expect(subDayOptions()[0]).not.toBeDisabled();
+    const attempted = {
+      ...plan,
+      rows: [
+        {
+          ...plan.rows[0],
+          attemptNodes: [
+            {
+              id: 'sn',
+              stepId: '0',
+              reference: null,
+              attempts: [
+                {
+                  attemptNumber: 1,
+                  startedAt: 0,
+                  endedAt: 1,
+                  outcome: 'succeeded' as const,
+                  executorPersonId: null,
+                  reference: null,
+                  note: null,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      slices: [sliceAt('0-step', '0', 0, 1, { stepId: '0' })],
+    };
+    rerender(drawStable(attempted));
+    expect(subDayOptions()[0]).toBeDisabled();
+    expect(subDayOptions()[0].textContent).toContain('2501 marks');
+    rerender(drawStable({ ...attempted, timezone: null }));
+    expect(subDayOptions()[0]).not.toBeDisabled();
+  });
   itDom('a filter past the limit moves to Days and says so', () => {
     const picked: DayPx[] = [];
     let notice: string | null = null;

@@ -113,6 +113,8 @@ export type PlanReadScope = 'all' | 'tree' | 'tree-and-steps';
  * parts came from different moments.
  */
 export interface ChartRead {
+  /** Materialized identities from the same read as the rows and attempt histories. */
+  stepNodes?: PlanRead['stepNodes'];
   slices: SliceView[];
   steps: StepView[];
   people: AssignedPersonView[];
@@ -179,6 +181,7 @@ export function chartReadOf(read: PlanRead, generation: number): ChartRead {
     estimateRounding: read.estimateRounding,
     ...(read.optimization === undefined ? {} : { optimization: read.optimization }),
     timezone: read.timezone ?? null,
+    stepNodes: read.stepNodes,
     generation,
   };
 }

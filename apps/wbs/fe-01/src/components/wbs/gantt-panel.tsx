@@ -2921,9 +2921,16 @@ export const GanttPanel = memo(
     before.pointed === after.pointed &&
     before.markers === after.markers &&
     before.typedDependencies === after.typedDependencies &&
+    // Proof: omitting zone/history comparisons failed `attempt and zone changes update the offer through panel memoization` (2026-10-12).
+    before.plan.timezone === after.plan.timezone &&
+    before.plan.startDate === after.plan.startDate &&
     before.plan.narrowedByFilter === after.plan.narrowedByFilter &&
     before.plan.rows.length === after.plan.rows.length &&
-    before.plan.rows.every((row, index) => row.id === after.plan.rows[index]?.id),
+    before.plan.rows.every(
+      (row, index) =>
+        row.id === after.plan.rows[index]?.id &&
+        row.attemptNodes === after.plan.rows[index]?.attemptNodes,
+    ),
 );
 
 function GanttPanelContent({

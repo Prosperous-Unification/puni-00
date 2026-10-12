@@ -10,9 +10,9 @@ import {
   snapWorkdays,
 } from '@wbs/domain/workday';
 
-import type { PriorityBandView } from '@/lib/wbs-api';
+import type { AttemptView, PriorityBandView } from '@/lib/wbs-api';
 
-import { AXIS_RUNGS, type AxisRung } from './gantt-axis';
+import { AXIS_RUNGS, type AxisRung, STAGE_ONE_DAY_START_MINUTE } from './gantt-axis';
 import { shortIsoDate } from './short-date';
 import { resolveTypedGanttArrows } from './typed-gantt-arrows';
 
@@ -340,6 +340,8 @@ export interface EstimateTrio {
  * {@link PlacedBracket}.
  */
 export interface GanttRow {
+  /** Attempt history on materialized nodes; absent on legacy reads without attempts. */
+  attemptNodes?: readonly GanttAttemptNode[];
   id: string;
   /**
    * The derived number the plan's Number column shows for this row — `010`,
@@ -591,6 +593,9 @@ export interface ElsewhereHolderLabel {
  * depends on the order people are in.
  */
 export interface GanttPlan {
+  /** Calendar inputs from the same read; legacy absence disables only the overlay. */
+  startDate?: string | null;
+  timezone?: string | null;
   rows: readonly GanttRow[];
   slices: readonly GanttSlice[];
   /**
@@ -2291,7 +2296,8 @@ export function layOutGantt(plan: GanttPlan, rung: AxisRung = AXIS_RUNGS[0]): Ga
       return;
     }
     const own = slicesByWorkItem.get(row.id) ?? [];
-    if (row.status === 'done' && own.length > 0) {
+    // Proof: removing the rung check failed `completed leaves keep planned slices under their attempts` (2026-10-12).
+    if (rung.cellsPerWorkday === 1 && row.status === 'done' && own.length > 0) {
       // One bar for the whole row, over what happened rather than what was
       // planned: the slices are forecasts the fact has overtaken (ADR 0024).
       // Registered under every slice id so a link that names any of them
@@ -3304,4 +3310,209 @@ function withPlaceholderLanes(bars: readonly GanttBar[]): GanttBar[] {
     split(cluster);
   }
   return laned;
+}
+
+/** A materialized step node, retaining history and the canonical reference for its card. */
+export interface GanttAttemptNode {
+  id: string;
+  stepId: string;
+  reference: string | null;
+  attempts: readonly AttemptView[];
+}
+
+/** An overlay needs both calendar facts; a day rung never asks for an overlay. */
+export type AttemptAvailability =
+  | { state: 'day' }
+  | { state: 'unavailable'; missing: ('startDate' | 'timezone')[] }
+  | { state: 'available'; startDate: string; timezone: string };
+
+/**
+ * Validates supplied calendar facts and models legacy absences without inventing defaults.
+ * @throws GanttDataError for an unsupported supplied zone; calendar errors for invalid dates.
+ */
+export function attemptAvailability(
+  startDate: string | null,
+  timezone: string | null | undefined,
+): Exclude<AttemptAvailability, { state: 'day' }> {
+  // Proof: skipping date validation failed `validates supplied calendar facts even when the other input is unavailable` (2026-10-12).
+  if (startDate !== null) calendarScale(startDate);
+  if (timezone !== null && timezone !== undefined) {
+    try {
+      // Proof: validating UTC instead failed `validates supplied calendar facts even when the other input is unavailable` (2026-10-12).
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(0);
+    } catch (cause) {
+      throw new GanttDataError(`invalid attempt timezone ${timezone}: ${String(cause)}`);
+    }
+  }
+  if (startDate === null || timezone === null || timezone === undefined) {
+    const missing: ('startDate' | 'timezone')[] = [];
+    if (startDate === null) missing.push('startDate');
+    if (timezone === null || timezone === undefined) missing.push('timezone');
+    return { state: 'unavailable', missing };
+  }
+  return { state: 'available', startDate, timezone };
+}
+
+/**
+ * The same visible scheduled nodes feed count and projection. Missing slices exclude a node;
+ * a hidden row is a modeled absence, independent of whether it still exists in the full tree.
+ */
+export function eligibleAttemptNodes(
+  plan: GanttPlan,
+): { node: GanttAttemptNode; slice: GanttSlice; rowIndex: number }[] {
+  const slices = new Map<string, Map<string, GanttSlice>>();
+  for (const slice of plan.slices) {
+    if (slice.stepId === null) continue;
+    let steps = slices.get(slice.workItemId);
+    if (steps === undefined) {
+      steps = new Map();
+      slices.set(slice.workItemId, steps);
+    }
+    steps.set(slice.stepId, slice);
+  }
+  // Proof: adding a hidden scheduled copy failed `hidden and held attempts do not widen the axis` (2026-10-12).
+  return plan.rows.flatMap((row, rowIndex) => {
+    if (!row.leaf || row.schedule === null || row.held || plan.heldLeafIds.has(row.id)) return [];
+    return (row.attemptNodes ?? []).flatMap((node) => {
+      const slice = slices.get(row.id)?.get(node.stepId);
+      return slice === undefined ? [] : [{ node, slice, rowIndex }];
+    });
+  });
+}
+
+/** One attempt in calendar-day coordinates; the untouched history is used by its card. */
+export interface GanttAttemptMark {
+  nodeId: string;
+  nodeReference: string | null;
+  sliceId: string;
+  rowIndex: number;
+  attempt: AttemptView;
+  x: number;
+  width: number;
+  running: boolean;
+  clamped: boolean;
+  tick: boolean;
+  hitWidthPx: number;
+}
+
+/** Overlay geometry and a shared translated forecast; rangeStart is relative to schedule origin. */
+export interface AttemptProjection {
+  availability: AttemptAvailability;
+  marks: GanttAttemptMark[];
+  forecast: PlacedGantt;
+  rangeStart: number;
+}
+
+/**
+ * Projects one mark per eligible attempt using one supplied clock reading, never reading a clock.
+ * The stage-one 09:00 anchor is retired by agent-calendar-instant-axis. Whole start-date cells
+ * widen the display, while schedule offsets and original timestamps remain untouched.
+ * @throws GanttDataError for malformed instants or reversed intervals.
+ */
+export function projectAttemptMarks(
+  plan: GanttPlan,
+  forecast: PlacedGantt,
+  startDate: string | null,
+  rung: AxisRung,
+  now: number,
+): AttemptProjection {
+  if (rung.cellsPerWorkday === 1)
+    return { availability: { state: 'day' }, marks: [], forecast, rangeStart: 0 };
+  const availability = attemptAvailability(startDate, plan.timezone);
+  if (availability.state === 'unavailable')
+    return { availability, marks: [], forecast, rangeStart: 0 };
+  const origin = addWorkdays(availability.startDate, 0);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: availability.timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const readInstant = (instant: number) => {
+    // Proof: removing this guard failed the GanttDataError assertion in `rejects malformed supplied start, instant and reversed intervals` (2026-10-12).
+    if (!Number.isFinite(instant) || !Number.isFinite(new Date(instant).getTime()))
+      throw new GanttDataError('invalid attempt instant');
+    const parts = new Map(formatter.formatToParts(instant).map((part) => [part.type, part.value]));
+    const readPart = (type: Intl.DateTimeFormatPartTypes): string => {
+      const part = parts.get(type);
+      // Proof: omitting required formatter parts failed `rejects a formatter that omits required clock parts` before this check (2026-10-12).
+      if (part === undefined) throw new GanttDataError(`missing attempt clock part ${type}`);
+      return part;
+    };
+    const date = `${readPart('year')}-${readPart('month')}-${readPart('day')}`;
+    const minute =
+      Number(readPart('hour')) * 60 +
+      Number(readPart('minute')) +
+      Number(readPart('second')) / 60 +
+      (((instant % 1000) + 1000) % 1000) / 60000;
+    return { date, minute };
+  };
+  const clampMinute = (minute: number) =>
+    Math.min(STAGE_ONE_DAY_START_MINUTE + 480, Math.max(STAGE_ONE_DAY_START_MINUTE, minute));
+  let rangeStart = 0;
+  let rangeEnd = forecast.horizon;
+  const marks = eligibleAttemptNodes(plan).flatMap(({ node, slice, rowIndex }) =>
+    node.attempts.map((attempt) => {
+      // Proof: Date.now() instead of now failed `a running mark ends at the given now` (2026-10-12).
+      const endInstant = attempt.endedAt ?? now;
+      const start = readInstant(attempt.startedAt);
+      const end = readInstant(endInstant);
+      // Proof: removing the order check failed `rejects malformed supplied start, instant and reversed intervals` (2026-10-12).
+      if (endInstant < attempt.startedAt) throw new GanttDataError('attempt ends before its start');
+      const day = calendarDaysBetween(origin, start.date);
+      // Proof: forecast-only bounds failed `attempt start dates extend both sides of the forecast range without changing forecast coordinates` (2026-10-12).
+      rangeStart = Math.min(rangeStart, day);
+      rangeEnd = Math.max(rangeEnd, day + 1);
+      const startMinute = clampMinute(start.minute);
+      // Proof: using the unclamped end minute failed `overnight and multi-day attempts stop at the start day 17:00` (2026-10-12).
+      const endMinute =
+        end.date === start.date ? clampMinute(end.minute) : STAGE_ONE_DAY_START_MINUTE + 480;
+      const width = (endMinute - startMinute) / 480;
+      const tick = width * rung.pxPerWorkday < 4;
+      return {
+        nodeId: node.id,
+        nodeReference: node.reference,
+        sliceId: slice.id,
+        rowIndex,
+        attempt,
+        x: day + (startMinute - STAGE_ONE_DAY_START_MINUTE) / 480,
+        width,
+        running: attempt.endedAt === null,
+        clamped:
+          startMinute !== start.minute || endMinute !== end.minute || end.date !== start.date,
+        tick,
+        hitWidthPx: Math.max(18, width * rung.pxPerWorkday),
+      };
+    }),
+  );
+  const shift = -rangeStart;
+  const translateArrow = <Arrow extends { fromX: number; toX: number }>(arrow: Arrow): Arrow => ({
+    ...arrow,
+    fromX: arrow.fromX + shift,
+    toX: arrow.toX + shift,
+  });
+  return {
+    availability,
+    marks: marks.map((mark) => ({ ...mark, x: mark.x + shift })),
+    rangeStart,
+    forecast: {
+      ...forecast,
+      bars: forecast.bars.map((bar) => ({ ...bar, x: bar.x + shift })),
+      brackets: forecast.brackets.map((bracket) => ({
+        ...bracket,
+        from: bracket.from + shift,
+        to: bracket.to + shift,
+      })),
+      arrows: forecast.arrows.map(translateArrow),
+      typedArrows: forecast.typedArrows.map(translateArrow),
+      personLinks: forecast.personLinks.map(translateArrow),
+      capacityLinks: forecast.capacityLinks.map(translateArrow),
+      notBeforeFlags: forecast.notBeforeFlags.map((flag) => ({ ...flag, x: flag.x + shift })),
+      horizon: rangeEnd - rangeStart,
+    },
+  };
 }

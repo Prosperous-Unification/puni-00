@@ -5,13 +5,17 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type {
   ElsewhereHolderView,
+  PlanRead,
   PriorityBandView,
   TeamView,
   TypedDependencyView,
 } from '@/lib/wbs-api';
 
 import {
+  attemptAvailability,
+  eligibleAttemptNodes,
   elsewhereHolderKey,
+  type GanttAttemptNode,
   GanttDataError,
   type GanttPlan,
   type ServiceTeamLabel,
@@ -222,8 +226,11 @@ export function usePlanChartInput({
   );
   const ganttPlan: GanttPlan = useMemo<GanttPlan>(
     () => ({
+      startDate,
+      timezone: chartRead.timezone,
       rows: structuralRows.map((row) => ({
         id: row.source.id,
+        attemptNodes: chartAttemptNodes(row.source, chartRead.stepNodes),
         // The Number column's own number, not a second derivation of it: the
         // chart's labels read `010 - Strip` because that is how the plan is
         // spoken about.
@@ -463,7 +470,33 @@ export function usePlanSchedule({
   return { hasSchedule, showSchedule, spanOf };
 }
 
-/** Counts the marks a sub-day rung would draw from visible leaves and project steps. */
+/** Counts forecast marks plus eligible attempts when both calendar inputs are available. */
 export function markCount(plan: GanttPlan): number {
-  return plan.rows.filter((row) => row.leaf).length * plan.steps.length;
+  const forecastCount = plan.rows.filter((row) => row.leaf).length * plan.steps.length;
+  if (attemptAvailability(plan.startDate ?? null, plan.timezone).state === 'unavailable')
+    return forecastCount;
+  // Proof: dropping attempts from the sum failed `attempts make 2500 forecast marks exceed the sub-day offer limit` (2026-10-12).
+  return (
+    forecastCount +
+    eligibleAttemptNodes(plan).reduce((count, { node }) => count + node.attempts.length, 0)
+  );
+}
+
+/**
+ * Carries the node identity from the same delivered read as its attempts.
+ * @throws GanttDataError when an attempted node has lost its materialized identity.
+ */
+export function chartAttemptNodes(
+  row: Pick<TreeRow, 'id' | 'attempts'>,
+  stepNodes: PlanRead['stepNodes'],
+): GanttAttemptNode[] {
+  return Object.entries(row.attempts ?? {}).flatMap(([stepId, attempts]) => {
+    if (attempts === undefined || attempts.length === 0) return [];
+    const node = stepNodes?.find(
+      (candidate) => candidate.workItemId === row.id && candidate.stepId === stepId,
+    );
+    // Proof: returning [] here failed `carries attempted node identity and rejects missing trusted references` (2026-10-12).
+    if (node === undefined) throw new GanttDataError(`missing attempted node ${row.id}/${stepId}`);
+    return [{ id: node.id, stepId, reference: node.reference, attempts }];
+  });
 }

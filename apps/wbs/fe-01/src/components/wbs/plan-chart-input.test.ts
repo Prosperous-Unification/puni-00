@@ -6,6 +6,7 @@ import type { PlanRead } from '@/lib/wbs-api';
 import { planOf, rowAt, sliceAt } from './gantt-fixtures';
 import { GanttDataError, layOutGantt } from './gantt-geometry';
 import {
+  chartAttemptNodes,
   chartTypedDependencies,
   elsewhereHoldersOf,
   factEndStopOf,
@@ -173,4 +174,88 @@ it('counts marks as visible leaves times project steps', () => {
     ),
   ).toBe(4);
   expect(markCount(planOf({ rows: [] }))).toBe(0);
+});
+
+it('only eligible visible attempts count toward markCount and unavailable overlay adds no count', () => {
+  const attempts = [
+    {
+      attemptNumber: 1,
+      startedAt: 0,
+      endedAt: 1,
+      outcome: 'succeeded' as const,
+      executorPersonId: null,
+      reference: null,
+      note: null,
+    },
+  ];
+  const nodes = [{ id: 'sn', stepId: 'dev', reference: null, attempts }];
+  const plan = planOf({
+    startDate: '2026-08-10',
+    timezone: 'UTC',
+    rows: [
+      rowAt('a', 0, 1, { attemptNodes: nodes }),
+      rowAt('held', 0, 1, { held: true, attemptNodes: nodes }),
+      rowAt('branch', 0, 1, { leaf: false, attemptNodes: nodes }),
+      rowAt('unsliced', 0, 1, { attemptNodes: nodes }),
+    ],
+    slices: [sliceAt('a-dev', 'a', 0, 1), sliceAt('held-dev', 'held', 0, 1)],
+  });
+  expect(markCount(plan)).toBe(4);
+  expect(markCount({ ...plan, timezone: null })).toBe(3);
+  expect(markCount({ ...plan, startDate: null })).toBe(3);
+  expect(markCount({ ...plan, rows: [] })).toBe(0);
+});
+it('attempts make 2500 forecast marks exceed the sub-day offer limit', () => {
+  const rows = Array.from({ length: 2500 }, (_, index) => rowAt(String(index), 0, 1));
+  rows[0] = {
+    ...rows[0],
+    attemptNodes: [
+      {
+        id: 'sn',
+        stepId: 'dev',
+        reference: null,
+        attempts: [
+          {
+            attemptNumber: 1,
+            startedAt: 0,
+            endedAt: 1,
+            outcome: 'succeeded',
+            executorPersonId: null,
+            reference: null,
+            note: null,
+          },
+        ],
+      },
+    ],
+  };
+  expect(
+    markCount(
+      planOf({
+        startDate: '2026-08-10',
+        timezone: 'UTC',
+        rows,
+        slices: [sliceAt('0-dev', '0', 0, 1)],
+      }),
+    ),
+  ).toBe(2501);
+});
+
+it('carries attempted node identity and rejects missing trusted references', () => {
+  const attempts = [
+    {
+      attemptNumber: 1,
+      startedAt: 0,
+      endedAt: 1,
+      outcome: 'failed' as const,
+      executorPersonId: null,
+      reference: null,
+      note: null,
+    },
+  ];
+  const row = { id: 'a', attempts: { dev: attempts } };
+  expect(
+    chartAttemptNodes(row, [{ id: 'sn', workItemId: 'a', stepId: 'dev', reference: '010.dev' }]),
+  ).toEqual([{ id: 'sn', stepId: 'dev', reference: '010.dev', attempts }]);
+  expect(() => chartAttemptNodes(row, [])).toThrow(GanttDataError);
+  expect(chartAttemptNodes({ id: 'a' }, undefined)).toEqual([]);
 });

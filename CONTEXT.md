@@ -576,6 +576,12 @@ How an attempt ended — `succeeded`, `failed` or `cancelled`; absent while it r
 nothing about the node's progress, which is said separately.
 _Avoid_: result, status (which is the node's), verdict
 
+**Attempt mark**:
+The drawing of one attempt on the Gantt panel at a sub-day rung, over its node's planned
+slice: solid when succeeded, hatched when failed, dotted when cancelled, open to now while
+running. Narrower than 4 px it is a tick.
+_Avoid_: actual bar (which is the work item's done bar), run bar
+
 **Project timezone**:
 The IANA zone a project's instants are read as days in — attempts, fact fills and the
 working window. One per project, `UTC` unless the project says otherwise, never the

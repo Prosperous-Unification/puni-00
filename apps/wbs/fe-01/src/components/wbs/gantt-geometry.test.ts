@@ -25,6 +25,7 @@ import {
   type PlacedGantt,
   placeOnCalendar,
   placeOnWorkdays,
+  projectAttemptMarks,
   routeArrow,
   startFloorByRow,
   type TagLabel,
@@ -4279,5 +4280,226 @@ describe('rung pixel geometry', () => {
       AXIS_RUNGS[4],
     );
     expect(chart.bars[0].drawnSpan * chart.pxPerWorkday).toBe(112);
+  });
+});
+
+describe('attempt mark projection', () => {
+  const instant = (clock: string) => Date.parse(`2026-08-10T${clock}:00Z`);
+  const attempt = (start: number, end: number | null) => ({
+    attemptNumber: 1,
+    startedAt: start,
+    endedAt: end,
+    outcome: end === null ? null : ('failed' as const),
+    executorPersonId: null,
+    reference: 'evidence',
+    note: null,
+  });
+  const attemptedPlan = (attempts = [attempt(instant('09:10'), instant('09:40'))]) =>
+    planOf({
+      startDate: '2026-08-10',
+      timezone: 'UTC',
+      rows: [
+        fixtureRow('a', 0, 1, {
+          attemptNodes: [{ id: 'node-a', stepId: 'dev', reference: '010.dev', attempts }],
+        }),
+      ],
+      slices: [fixtureSlice('a-dev', 'a', 0, 1)],
+    });
+  const project = (plan: GanttPlan, now = instant('11:45')) =>
+    projectAttemptMarks(
+      plan,
+      placeOnCalendar(layOutGantt(plan, AXIS_RUNGS[5]), '2026-08-10'),
+      '2026-08-10',
+      AXIS_RUNGS[5],
+      now,
+    );
+  it('one mark per eligible attempt over the planned slice at a sub-day rung', () => {
+    const projected = project(
+      attemptedPlan([
+        attempt(instant('09:10'), instant('09:40')),
+        attempt(instant('10:00'), instant('10:20')),
+      ]),
+    );
+    expect(projected.availability.state).toBe('available');
+    expect(projected.marks).toHaveLength(2);
+    expect(projected.marks[0]).toMatchObject({
+      nodeId: 'node-a',
+      sliceId: 'a-dev',
+      rowIndex: 0,
+      x: 10 / 480,
+      width: 30 / 480,
+      clamped: false,
+    });
+    expect(projected.forecast.bars).toHaveLength(1);
+  });
+  it('completed leaves keep planned slices under their attempts', () => {
+    const plan = attemptedPlan();
+    plan.rows = [{ ...plan.rows[0], status: 'done', factStartOffset: 0, factEndStop: 1 }];
+    plan.steps = [...plan.steps, { id: 'qa', name: 'QA' }];
+    plan.slices = [...plan.slices, fixtureSlice('a-qa', 'a', 1, 2, { stepId: 'qa' })];
+    expect(layOutGantt(plan, AXIS_RUNGS[5]).bars.map((bar) => bar.done)).toEqual([false, false]);
+    expect(layOutGantt(plan).bars.map((bar) => bar.done)).toEqual([true]);
+  });
+  it('a running mark ends at the given now', () => {
+    expect(project(attemptedPlan([attempt(instant('11:00'), null)])).marks[0]).toMatchObject({
+      x: 120 / 480,
+      width: 45 / 480,
+      running: true,
+    });
+  });
+  it('project-zone dates cross UTC midnight independently of forecast workdays', () => {
+    const plan = attemptedPlan([attempt(instant('21:30'), instant('22:30'))]);
+    plan.timezone = 'Pacific/Auckland';
+    expect(project(plan).marks[0]).toMatchObject({ x: 1 + 30 / 480, width: 60 / 480 });
+  });
+  it('a two-minute attempt is a selectable tick', () => {
+    expect(
+      project(attemptedPlan([attempt(instant('10:00'), instant('10:02'))])).marks[0],
+    ).toMatchObject({ tick: true, hitWidthPx: 18 });
+  });
+  it('an instant is placed by its project-zone day and minute', () => {
+    const plan = attemptedPlan([attempt(instant('00:30'), instant('01:30'))]);
+    plan.timezone = 'Pacific/Auckland';
+    expect(project(plan).marks[0]).toMatchObject({ x: 210 / 480, width: 60 / 480 });
+  });
+  it.each([
+    ['07:00', '08:00', 0],
+    ['18:00', '19:00', 1],
+  ])('early and late attempts clamp to selectable edge ticks: %s', (start, end, x) => {
+    expect(project(attemptedPlan([attempt(instant(start), instant(end))])).marks[0]).toMatchObject({
+      x,
+      width: 0,
+      clamped: true,
+      tick: true,
+      hitWidthPx: 18,
+    });
+  });
+  it.each(['2026-08-11T02:10:00Z', '2026-08-12T10:00:00Z'])(
+    'overnight and multi-day attempts stop at the start day 17:00: %s',
+    (end) => {
+      expect(
+        project(attemptedPlan([attempt(instant('16:30'), Date.parse(end))])).marks[0],
+      ).toMatchObject({ x: 450 / 480, width: 30 / 480, clamped: true });
+    },
+  );
+  it('running overnight marks retain an open capped edge', () => {
+    expect(
+      project(attemptedPlan([attempt(instant('16:30'), null)]), Date.parse('2026-08-11T10:00:00Z'))
+        .marks[0],
+    ).toMatchObject({ x: 450 / 480, width: 30 / 480, running: true, clamped: true });
+  });
+  it('attempt start dates extend both sides of the forecast range without changing forecast coordinates', () => {
+    const plan = attemptedPlan([
+      attempt(Date.parse('2026-08-09T10:00:00Z'), Date.parse('2026-08-09T11:00:00Z')),
+      attempt(Date.parse('2026-08-17T10:00:00Z'), Date.parse('2026-08-17T11:00:00Z')),
+    ]);
+    const forecast = placeOnCalendar(layOutGantt(plan, AXIS_RUNGS[5]), '2026-08-10');
+    forecast.arrows = [
+      {
+        predecessorId: 'a',
+        successorId: 'b',
+        fromRowIndex: 0,
+        toRowIndex: 1,
+        fromX: 1,
+        toX: 2,
+        blocked: false,
+      },
+    ];
+    const projected = projectAttemptMarks(
+      plan,
+      forecast,
+      '2026-08-10',
+      AXIS_RUNGS[5],
+      instant('12:00'),
+    );
+    expect(projected.rangeStart).toBe(-1);
+    expect(projected.forecast.horizon).toBe(9);
+    expect(projected.forecast.bars[0].x).toBe(forecast.bars[0].x + 1);
+    expect(projected.forecast.bars[0].width).toBe(forecast.bars[0].width);
+    expect(projected.forecast.arrows[0]).toMatchObject({ fromX: 2, toX: 3 });
+    expect(forecast.arrows[0].fromX).toBe(1);
+    expect(projected.marks.map((mark) => mark.x)).toEqual([60 / 480, 8 + 60 / 480]);
+  });
+  it('hidden and held attempts do not widen the axis', () => {
+    const plan = attemptedPlan();
+    plan.rows = [{ ...plan.rows[0], held: true }];
+    expect(project(plan).marks).toEqual([]);
+    plan.rows = [];
+    expect(project(plan).rangeStart).toBe(0);
+  });
+  it.each(AXIS_RUNGS.slice(0, 3))('no mark or range change at day rung $id', (rung) => {
+    const plan = attemptedPlan();
+    const forecast = placeOnCalendar(layOutGantt(plan), '2026-08-10');
+    const projected = projectAttemptMarks(plan, forecast, null, rung, instant('12:00'));
+    expect(projected.marks).toEqual([]);
+    expect(projected.forecast).toBe(forecast);
+  });
+  it.each([
+    { startDate: null, timezone: 'UTC', missing: ['startDate'] },
+    { startDate: '2026-08-10', timezone: null, missing: ['timezone'] },
+    { startDate: null, timezone: null, missing: ['startDate', 'timezone'] },
+  ])('models unavailable calendar inputs: $missing', ({ startDate, timezone, missing }) => {
+    const plan = attemptedPlan();
+    plan.timezone = timezone;
+    const projected = projectAttemptMarks(
+      plan,
+      placeOnCalendar(layOutGantt(plan), '2026-08-10'),
+      startDate,
+      AXIS_RUNGS[5],
+      instant('12:00'),
+    );
+    expect(projected.availability).toEqual({ state: 'unavailable', missing });
+    expect(projected.marks).toEqual([]);
+  });
+  it.each(['bad-zone', ''])('rejects a malformed supplied zone %s', (timezone) => {
+    const plan = attemptedPlan();
+    plan.timezone = timezone;
+    expect(() => project(plan)).toThrow(GanttDataError);
+  });
+  it('rejects a formatter that omits required clock parts', () => {
+    const format = vi.spyOn(Intl.DateTimeFormat.prototype, 'formatToParts').mockReturnValue([]);
+    try {
+      expect(() => project(attemptedPlan())).toThrow(GanttDataError);
+    } finally {
+      format.mockRestore();
+    }
+  });
+  it('validates supplied calendar facts even when the other input is unavailable', () => {
+    const plan = attemptedPlan();
+    const forecast = placeOnWorkdays(layOutGantt(plan));
+    expect(() =>
+      projectAttemptMarks(
+        { ...plan, timezone: null },
+        forecast,
+        'bad-date',
+        AXIS_RUNGS[5],
+        instant('12:00'),
+      ),
+    ).toThrow();
+    expect(() =>
+      projectAttemptMarks(
+        { ...plan, timezone: 'bad-zone' },
+        forecast,
+        null,
+        AXIS_RUNGS[5],
+        instant('12:00'),
+      ),
+    ).toThrow(GanttDataError);
+  });
+  it('rejects malformed supplied start, instant and reversed intervals', () => {
+    const plan = attemptedPlan();
+    expect(() =>
+      projectAttemptMarks(
+        plan,
+        placeOnWorkdays(layOutGantt(plan)),
+        'bad-date',
+        AXIS_RUNGS[5],
+        instant('12:00'),
+      ),
+    ).toThrow();
+    expect(() => project(attemptedPlan([attempt(NaN, instant('10:00'))]))).toThrow(GanttDataError);
+    expect(() => project(attemptedPlan([attempt(instant('12:00'), instant('10:00'))]))).toThrow(
+      GanttDataError,
+    );
   });
 });
