@@ -18,14 +18,8 @@ export const MAIN_CLASS = 'bg-background text-foreground min-h-0 flex-1 overflow
  */
 export const LIST_CLASS = 'divide-border m-0 flex list-none flex-col divide-y p-0';
 
-/** A form under a card's rows: its field stacked over its button on a phone, side by side from `sm`. */
-export const FORM_CLASS = 'flex flex-col gap-3 sm:flex-row sm:items-end';
-
 /** One field of a spaces form: its caption above its control. */
 export const FIELD_CLASS = 'flex min-w-0 flex-1 flex-col gap-1.5';
-
-/** The caption above a field. */
-export const FIELD_LABEL_CLASS = 'text-sm font-medium';
 
 /**
  * An in-place outcome or loading sentence. Outcomes quote names (`Moved … up.`),

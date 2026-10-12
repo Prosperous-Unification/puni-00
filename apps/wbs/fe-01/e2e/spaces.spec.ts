@@ -70,6 +70,9 @@ for (const width of [1280, 375]) {
         // renamed at `radius: "0px"` (`/spaces` failed at both widths).
         expect(controls.filter((control) => control.radius !== '6px')).toEqual([]);
         // A fingertip below `sm`, the chrome's own 36px above it.
+        // Proof: 2026-10-12, dropping `className={CONTROL_HEIGHT}` from the
+        // Rename button failed this on `/spaces` at 375px, listing the Rename
+        // buttons of the two spaces not being renamed at `height: 36`.
         const height = width === 375 ? 44 : 36;
         expect(controls.filter((control) => Math.round(control.height) !== height)).toEqual([]);
 

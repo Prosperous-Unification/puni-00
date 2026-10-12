@@ -3,16 +3,15 @@ import { type ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SELECT_CLASS } from '@/components/ui/control';
 
-export { CONTROL_HEIGHT, SELECT_CLASS } from '@/components/ui/control';
-
-/** A one-line organization form: fields stacked on a phone, side by side from `sm`. */
-export const FORM_CLASS = 'flex flex-col gap-3 sm:flex-row sm:items-end';
+export {
+  CONTROL_HEIGHT,
+  FIELD_LABEL_CLASS,
+  FORM_CLASS,
+  SELECT_CLASS,
+} from '@/components/ui/control';
 
 /** One field of an organization form: its caption above its control. */
 export const FIELD_CLASS = 'flex flex-col gap-1.5';
-
-/** The caption above a field in an organization form. */
-export const FIELD_LABEL_CLASS = 'text-sm font-medium';
 
 /**
  * An organization list, with the user agent's bullet, indent and margins taken

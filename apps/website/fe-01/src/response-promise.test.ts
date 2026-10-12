@@ -4,16 +4,17 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
 
 // W11: "a person reads every request and replies by email" is the only response promise; no page
-// states a response time until Dany sets one. A response time is `in` or `within`, a count (digits
-// or a number word) and hour(s), day(s) or business or working day(s); a digit count joined to
-// `hour`; "same day"; or "next business day". The private site's `response-promise.ts` (puni-pr-00)
-// reads the same forms.
+// states a response time until Dany sets one. A response time is `in` or `within`, a count (digits,
+// a, an, the or a number word) and hour(s), day(s), business or working day(s) or week(s); `in` or
+// `within` and digits joined to `h`; digits joined to `hour`; "same day"; or "next business day". The block from `COUNT` to `responseTimePattern` is
+// byte-identical to the private site's `src/content/response-promise.ts` (puni-pr-00).
 const COUNT =
-  '(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty[- ]four|forty[- ]eight|seventy[- ]two)';
-const UNIT = '(?:(?:business|working)\\s+)?(?:hours?|days?)';
-const responseTime = new RegExp(
+  '(?:\\d+|an?|the|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty[- ]four|forty[- ]eight|seventy[- ]two)';
+const UNIT = '(?:(?:business|working)\\s+)?(?:hours?|days?|weeks?)';
+const responseTimePattern = new RegExp(
   [
     `\\b(?:in|within)\\s+${COUNT}\\s+${UNIT}\\b`,
+    '\\b(?:in|within)\\s+\\d+h\\b',
     '\\b\\d+-hours?\\b',
     '\\bsame[- ]day\\b',
     '\\bnext\\s+(?:business|working)\\s+day\\b',
@@ -29,9 +30,9 @@ test('no app copy promises a response time', () => {
   expect(copyFiles.length).toBeGreaterThan(5);
   // Proof: adding "We reply within 2 days." to the manual receipt lead failed this list with main.tsx.
   // Proof (2026-10-12): adding "We reply the same day." after that lead failed it with main.tsx.
-  expect(copyFiles.filter((file) => responseTime.test(file.text)).map((file) => file.name)).toEqual(
-    [],
-  );
+  expect(
+    copyFiles.filter((file) => responseTimePattern.test(file.text)).map((file) => file.name),
+  ).toEqual([]);
 });
 
 describe('response time forms', () => {
@@ -39,7 +40,10 @@ describe('response time forms', () => {
   // this failed on its seven sentences; with `COUNT` cut to digits, on the one, two and
   // forty-eight sentences; without the business/working prefix, on the business and working
   // sentences; without `\d+-hours?`, on "24-hour"; without `same[- ]day`, on both same-day
-  // sentences; without `next … day`, on both next-day sentences.
+  // sentences; without `next … day`, on both next-day sentences. Review follow-up: without `an?` in
+  // `COUNT` this failed on the an-hour, a-day and a-business-day sentences; without `the`, on
+  // "within the hour"; without `weeks?`, on "within two weeks"; without the `\d+h` form, on
+  // "in 48h".
   test.each([
     'We reply within 2 days.',
     'Expect an answer in 24 hours.',
@@ -53,8 +57,14 @@ describe('response time forms', () => {
     'We reply the same day.',
     'A reply by the next business day.',
     'Answers on the next working day.',
+    'We reply within an hour.',
+    'Expect a reply within a day.',
+    'We answer in a business day.',
+    'A person replies within the hour.',
+    'A proposal within two weeks.',
+    'Replies in 48h.',
   ])('finds %j', (text) => {
-    expect(responseTime.test(text)).toBe(true);
+    expect(responseTimePattern.test(text)).toBe(true);
   });
 
   test.each([
@@ -63,7 +73,7 @@ describe('response time forms', () => {
     'Please try again in 2 minutes.',
     'A person will review your brief and reply by email.',
   ])('finds nothing in %j', (text) => {
-    expect(responseTime.test(text)).toBe(false);
+    expect(responseTimePattern.test(text)).toBe(false);
   });
 });
 

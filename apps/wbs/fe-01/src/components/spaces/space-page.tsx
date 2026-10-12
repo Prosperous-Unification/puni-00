@@ -13,7 +13,12 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { AppHeader } from '@/components/chrome/app-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CONTROL_HEIGHT, SELECT_CLASS } from '@/components/ui/control';
+import {
+  CONTROL_HEIGHT,
+  FIELD_LABEL_CLASS,
+  FORM_CLASS,
+  SELECT_CLASS,
+} from '@/components/ui/control';
 import { STATUS_GLYPH, STATUS_LABEL } from '@/components/wbs/status-cell';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
@@ -23,8 +28,6 @@ import { spaceRefusal } from './space-access';
 import {
   ALERT_CLASS,
   FIELD_CLASS,
-  FIELD_LABEL_CLASS,
-  FORM_CLASS,
   LINK_CLASS,
   MAIN_CLASS,
   NOTE_CLASS,
