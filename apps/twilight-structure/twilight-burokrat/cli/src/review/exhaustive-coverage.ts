@@ -29,6 +29,7 @@ import {
   type ContentClassification,
   type ReadBlob,
 } from '../inventory/classify-entries';
+import { readSelectedBlob } from '../inventory/read-blob';
 import { type CandidateSnapshot, readCandidate } from '../inventory/read-candidate';
 import { extractRelationships } from '../relationships';
 import {
@@ -485,22 +486,6 @@ export function deriveExhaustivePopulation(input: ExhaustivePopulationInput): Ex
   return deriveExhaustivePopulationWithPreimages(input).population;
 }
 
-function readBlob(repository: string): ReadBlob {
-  return (blob, path) => {
-    const invocation = Bun.spawnSync(['git', '-C', repository, 'cat-file', 'blob', blob], {
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    if (invocation.exitCode !== 0) {
-      const detail = invocation.stderr.toString('utf8').trim();
-      throw new Error(
-        `cannot read exhaustive candidate blob ${blob} for ${path}: ${detail.length === 0 ? `git exited ${String(invocation.exitCode)}` : detail}`,
-      );
-    }
-    return invocation.stdout;
-  };
-}
-
 function selectionIdentity(snapshot: CandidateSnapshot): object {
   return snapshot.selection;
 }
@@ -909,7 +894,7 @@ export function freezeExhaustivePlan(
   return freezeExhaustivePlanFromSource(
     {
       snapshot,
-      readBlob: readBlob(repository),
+      readBlob: (blob, path) => readSelectedBlob(repository, snapshot.entries, blob, path),
       extractRelationships: (request) => extractRelationships(repository, snapshot, request),
     },
     documents,
@@ -978,7 +963,7 @@ export function verifyExhaustivePlan(
   return verifyExhaustivePlanFromSource(
     {
       snapshot,
-      readBlob: readBlob(repository),
+      readBlob: (blob, path) => readSelectedBlob(repository, snapshot.entries, blob, path),
       extractRelationships: (request) => extractRelationships(repository, snapshot, request),
     },
     expectedIdentity,

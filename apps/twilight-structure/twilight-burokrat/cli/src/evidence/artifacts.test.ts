@@ -4,6 +4,8 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { installChangedBatchGit } from '../inventory/changed-batch-git.fixture';
+
 const removals: string[] = [];
 const cliPath = join(import.meta.dir, '..', 'cli.ts');
 const policyPath = join(
@@ -354,26 +356,30 @@ describe('finite evidence artifact validation production CLI', () => {
 
   test('rejects unreadable bytes, malformed evidence and descriptor mismatches', () => {
     const fixture = committedEvidence();
-    const wrapperDirectory = mkdtempSync(join(tmpdir(), 'tool-wiki-artifact-git-'));
-    removals.push(wrapperDirectory);
-    const wrapperPath = join(wrapperDirectory, 'git');
-    const realGit = Bun.which('git');
-    expect(realGit).not.toBeNull();
-    if (realGit === null) throw new Error('required git executable disappeared during test');
-    writeFileSync(
-      wrapperPath,
-      '#!/bin/sh\nif [ "$3" = "cat-file" ] && [ "$5" = "$WIKI_UNREADABLE_BLOB" ]; then echo "injected unreadable artifact" >&2; exit 23; fi\nexec "$WIKI_REAL_GIT" "$@"\n',
-      { mode: 0o755 },
-    );
-    chmodSync(wrapperPath, 0o755);
     const graphPath = writeGraph(fixture.repository, graph(fixture.first, fixture.second));
-    const unreadable = runArtifacts(fixture.repository, fixture.revision, graphPath, {
-      PATH: `${wrapperDirectory}:${process.env['PATH'] ?? ''}`,
-      WIKI_REAL_GIT: realGit,
-      WIKI_UNREADABLE_BLOB: fixture.second.blob,
-    });
+    const unreadableFixture = committedEvidence();
+    const unreadableBlob = unreadableFixture.second.blob;
+    rmSync(
+      join(
+        unreadableFixture.repository,
+        '.git',
+        'objects',
+        unreadableBlob.slice(0, 2),
+        unreadableBlob.slice(2),
+      ),
+    );
+    const unreadable = runArtifacts(
+      unreadableFixture.repository,
+      unreadableFixture.revision,
+      writeGraph(
+        unreadableFixture.repository,
+        graph(unreadableFixture.first, unreadableFixture.second),
+      ),
+    );
     expect(unreadable.exitCode, output(unreadable)).toBe(1);
-    expect(output(unreadable)).toContain('injected unreadable artifact');
+    expect(output(unreadable)).toContain(
+      `cannot read selected blob ${unreadableBlob} for ${unreadableFixture.second.path}: missing from the repository`,
+    );
 
     const mismatched = structuredClone(graph(fixture.first, fixture.second)) as {
       artifacts: EvidenceArtifact[];
@@ -408,22 +414,16 @@ describe('finite evidence artifact validation production CLI', () => {
     expect(output(malformed)).toContain('does not match exactly one allowlisted evidence schema');
   });
 
-  test('strictly decodes the bytes read during artifact validation', () => {
+  test('refuses batch bytes whose digest differs from the selected index', () => {
     const fixture = committedEvidence();
-    const wrapperDirectory = mkdtempSync(join(tmpdir(), 'tool-wiki-artifact-decode-git-'));
+    const wrapperDirectory = installChangedBatchGit();
     removals.push(wrapperDirectory);
-    const wrapperPath = join(wrapperDirectory, 'git');
-    const counterPath = join(wrapperDirectory, 'target-read');
     const malformed = '{"schemaVersion":1,"recordKind":"unknown"}\n';
     const realGit = Bun.which('git');
     expect(realGit).not.toBeNull();
     if (realGit === null) throw new Error('required git executable disappeared during test');
-    writeFileSync(
-      wrapperPath,
-      '#!/bin/sh\nif [ "$3" = "cat-file" ] && [ "$5" = "$WIKI_CHANGED_BLOB" ]; then if [ -e "$WIKI_READ_COUNTER" ]; then printf \'%s\' "$WIKI_CHANGED_BYTES"; exit 0; fi; : > "$WIKI_READ_COUNTER"; fi\nexec "$WIKI_REAL_GIT" "$@"\n',
-      { mode: 0o755 },
-    );
-    chmodSync(wrapperPath, 0o755);
+    // The graph binds the substituted bytes, so without the digest binding the one batch read
+    // would carry them through classification and the graph identity to decoding.
     const changedIdentity = sha256(malformed);
     const changedGraph = structuredClone(graph(fixture.first, fixture.second)) as {
       artifacts: EvidenceArtifact[];
@@ -438,13 +438,14 @@ describe('finite evidence artifact validation production CLI', () => {
         PATH: `${wrapperDirectory}:${process.env['PATH'] ?? ''}`,
         WIKI_CHANGED_BLOB: fixture.second.blob,
         WIKI_CHANGED_BYTES: malformed,
-        WIKI_READ_COUNTER: counterPath,
         WIKI_REAL_GIT: realGit,
       },
     );
 
     expect(invocation.exitCode, output(invocation)).toBe(1);
-    expect(output(invocation)).toContain('recordKind must be');
+    expect(output(invocation)).toContain(
+      `batch read digest differs from the index for selected blob ${fixture.second.blob} at ${fixture.second.path}`,
+    );
   });
 
   test('rejects unknown graph versions before artifact traversal', () => {
