@@ -503,6 +503,53 @@ describe('the enterprise SSO stores', () => {
       ).toEqual([{ actor_id: 'carol' }]);
     });
 
+    // Proof: dropping the domain comparison in `ScimUserRepository.activate`
+    // made acme's IdP activate the pending record on other.test (one
+    // activation instead of none); watched 2026-10-12.
+    it("does not let one connection's IdP activate another domain's pending record", async () => {
+      sql(
+        `INSERT INTO organization_domain_claim (id, organization_id, domain, status, proof_digest, last_success_at, created_at)
+         VALUES ('claim-o', 'org-a', 'other.test', 'verified', '${digest('a')}', 1, 1)`,
+      );
+      expect(
+        (
+          await connections().create(
+            'org-a',
+            'ada',
+            {
+              domainClaimId: 'claim-o',
+              auth0Connection: 'other-saml',
+              strategy: 'samlp',
+              loginSlug: 'other',
+            },
+            'conn-o',
+            act('ada'),
+          )
+        ).kind,
+      ).toBe('created');
+      sql(
+        "UPDATE organization_sso_connection SET proven_at = 5, proven_by = 'ada' WHERE id = 'conn-o'",
+      );
+      await scim().provision(
+        'org-a',
+        'u-o',
+        { userName: 'carol@other.test', externalId: null, active: true },
+        scimAct(),
+      );
+      expect(
+        await scim().activate(
+          'carol',
+          { issuer: 'https://idp.test/', subject: 'samlp|acme-saml|carol' },
+          'carol@other.test',
+          { stamp: { at: 20, by: 'carol' }, actor: 'carol', auditIds: () => 'audit-act' },
+        ),
+      ).toEqual([]);
+      expect(rows("SELECT user_id FROM organization_scim_user WHERE id = 'u-o'")).toEqual([
+        { user_id: null },
+      ]);
+      expect(rows("SELECT role FROM organization_membership WHERE user_id = 'carol'")).toEqual([]);
+    });
+
     it('keeps an existing role when it activates', async () => {
       await scim().provision(
         'org-a',

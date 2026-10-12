@@ -328,6 +328,10 @@ export class ScimUserRepository implements ScimUsers {
       if (readOrganizationActivation(tx) !== 'activated') return [];
       const proven = provenConnectionFor(tx, pair.subject);
       if (proven === null) return [];
+      // Proof: dropping this comparison made `does not let one connection's IdP
+      // activate another domain's pending record` in
+      // `enterprise-sso-stores.db.test.ts` activate acme's assertion of an
+      // other.test address; watched 2026-10-12.
       if (canonicalEmail.slice(canonicalEmail.lastIndexOf('@') + 1) !== proven.domain) return [];
       const pending = tx
         .select()

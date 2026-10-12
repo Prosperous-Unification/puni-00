@@ -19,13 +19,22 @@ export const SCIM_ERROR_SCHEMA = 'urn:ietf:params:scim:api:messages:2.0:Error';
 /** The media type of every SCIM response body (RFC 7644 §3.1). */
 export const SCIM_MEDIA = 'application/scim+json';
 
-/** One SCIM request as the HTTP adapter read it; the body is its raw text. */
+/** The most body bytes a SCIM request may carry; a Users resource is a few hundred. */
+export const SCIM_MOST_BODY_BYTES = 64 * 1024;
+
+/**
+ * One SCIM request as the HTTP adapter presents it. The body is read only
+ * through `readBody`, which the service calls after the bearer token and its
+ * admission passed, so an unauthenticated caller can make the server buffer
+ * nothing. It answers the raw text, or null when it exceeded
+ * {@link SCIM_MOST_BODY_BYTES} (read no further).
+ */
 export interface ScimRequest {
   readonly method: string;
   readonly url: URL;
   readonly authorization: string | null;
   readonly contentType: string | null;
-  readonly body: string;
+  readonly readBody: () => Promise<string | null>;
 }
 
 /** One SCIM answer: a JSON text body, or null for 204. */
@@ -250,7 +259,7 @@ export class ScimService {
     token: AuthenticatedProvisioning,
     request: ScimRequest,
   ): Promise<ScimReply> {
-    const parsed = parseBody(request, SCIM_USER_SCHEMA);
+    const parsed = await parseBody(request, SCIM_USER_SCHEMA);
     if (!parsed.ok) return parsed.reply;
     const { userName, externalId, active } = parsed.body;
     if (typeof userName !== 'string') return scimError(400, 'invalidValue', 'userName is required');
@@ -293,7 +302,7 @@ export class ScimService {
     id: string,
     request: ScimRequest,
   ): Promise<ScimReply> {
-    const parsed = parseBody(request, SCIM_PATCH_SCHEMA);
+    const parsed = await parseBody(request, SCIM_PATCH_SCHEMA);
     if (!parsed.ok) return parsed.reply;
     const operations = parsed.body['Operations'] ?? parsed.body['operations'];
     if (!Array.isArray(operations) || operations.length === 0)
@@ -439,16 +448,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * The request body as a JSON object declaring `schema`, validated once at
  * this boundary; a SCIM `400 invalidSyntax` otherwise.
  */
-function parseBody(
+async function parseBody(
   request: ScimRequest,
   schema: string,
-): { ok: true; body: Record<string, unknown> } | { ok: false; reply: ScimReply } {
+): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; reply: ScimReply }> {
   const media = (request.contentType ?? '').split(';')[0]?.trim().toLowerCase();
   if (media !== SCIM_MEDIA && media !== 'application/json')
     return { ok: false, reply: scimError(400, 'invalidSyntax', 'unsupported media type') };
+  const text = await request.readBody();
+  if (text === null) return { ok: false, reply: scimError(413, null, 'body_too_large') };
   let body: unknown;
   try {
-    body = JSON.parse(request.body);
+    body = JSON.parse(text);
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error;
     return { ok: false, reply: scimError(400, 'invalidSyntax', 'body is not JSON') };
