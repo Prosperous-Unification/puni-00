@@ -61,20 +61,30 @@ tests:
             exp_annotations:
               summary: c dropped log records it could not deliver to Elasticsearch
 
-  - name: records refused by a full persistent queue alert
+  - name: an old drop on one pod does not hide a new drop on another
     interval: 1m
     input_series:
-      - series: 'otelcol_exporter_queue_size{exporter="elasticsearch",data_type="logs",pod="c"}'
-        values: '5000x20'
-      - series: 'otelcol_exporter_enqueue_failed_log_records{exporter="elasticsearch",pod="c"}'
-        values: '_x10 300x10'
+      - series: 'otelcol_exporter_send_failed_log_records{exporter="elasticsearch",pod="c"}'
+        values: '49x80'
+      - series: 'otelcol_exporter_send_failed_log_records{exporter="elasticsearch",pod="d"}'
+        values: '10x70 60x10'
     alert_rule_test:
-      - eval_time: 12m
+      - eval_time: 72m
         alertname: PuniLogRecordsDropped
         exp_alerts:
-          - exp_labels: { severity: critical, pod: c }
+          - exp_labels: { severity: critical, pod: d }
             exp_annotations:
-              summary: c dropped log records it could not deliver to Elasticsearch
+              summary: d dropped log records it could not deliver to Elasticsearch
+
+  - name: a scrape gap does not replay an old drop
+    interval: 1m
+    input_series:
+      - series: 'otelcol_exporter_send_failed_log_records{exporter="elasticsearch",pod="c"}'
+        values: '49x30 _x10 49x20'
+    alert_rule_test:
+      - eval_time: 42m
+        alertname: PuniLogRecordsDropped
+        exp_alerts: []
 
   - name: a backlog the queue absorbs drops nothing
     interval: 1m
@@ -86,6 +96,31 @@ tests:
     alert_rule_test:
       - eval_time: 8m
         alertname: PuniLogRecordsDropped
+        exp_alerts: []
+
+  - name: a full persistent queue alerts while it stays full
+    interval: 1m
+    input_series:
+      - series: 'otelcol_exporter_queue_size{exporter="elasticsearch",data_type="logs",pod="c"}'
+        values: '0+500x9 5000x10 4000x5'
+      - series: 'otelcol_exporter_queue_capacity{exporter="elasticsearch",data_type="logs",pod="c"}'
+        values: '5000x24'
+      - series: 'otelcol_exporter_queue_size{exporter="prometheusremotewrite",data_type="metrics",pod="c"}'
+        values: '10000x24'
+      - series: 'otelcol_exporter_queue_capacity{exporter="prometheusremotewrite",data_type="metrics",pod="c"}'
+        values: '10000x24'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: PuniLogQueueFull
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: PuniLogQueueFull
+        exp_alerts:
+          - exp_labels: { severity: critical, pod: c }
+            exp_annotations:
+              summary: c stopped reading logs because its Elasticsearch queue is full
+      - eval_time: 22m
+        alertname: PuniLogQueueFull
         exp_alerts: []
 
   - name: a failed backup run alerts until a later run succeeds

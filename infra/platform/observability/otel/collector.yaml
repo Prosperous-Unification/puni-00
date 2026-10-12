@@ -213,6 +213,9 @@ spec:
             enabled: true
             storage: file_storage/queue
             queue_size: 5000
+            # The exporter's default, stated because the alert rules depend on it: a full queue
+            # stops intake instead of dropping, so PuniLogQueueFull, not a drop counter, reports it.
+            block_on_overflow: true
           # Consumers keep retrying a refused connection while the persistent queue absorbs the
           # outage (openspec/changes/k3s-fleet/verify.md). A request whose connection hangs instead
           # ends in a timeout the exporter does not retry, and its batch is dropped: a 60 s outage
