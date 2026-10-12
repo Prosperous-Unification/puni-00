@@ -476,11 +476,19 @@ function fail(cause: unknown): void {
   process.exitCode = 1;
 }
 
-if (import.meta.main) {
+/**
+ * Runs one command as the process entry does: output goes to `process.stdout`, a refusal is
+ * written to `process.stderr` and sets `process.exitCode` to 1. Never rejects.
+ *
+ * Tests call this in-process instead of spawning `bun run cli.ts`, which cost a Bun start per
+ * case on the gate host; only cases about the process boundary itself still spawn.
+ */
+export async function executeCli(argv: readonly string[]): Promise<void> {
   try {
-    const pending = runCli(process.argv.slice(2));
-    if (pending !== undefined) void pending.catch(fail);
+    await runCli(argv);
   } catch (cause) {
     fail(cause);
   }
 }
+
+if (import.meta.main) void executeCli(process.argv.slice(2));

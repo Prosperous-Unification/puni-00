@@ -509,6 +509,14 @@ test('service refuses malformed explicit token before any provider read', async 
   ]);
 });
 
+/**
+ * How long a service child may run on a FIFO before it counts as blocked. Opening a FIFO with no
+ * writer blocks forever, so any bound proves the refusal; the bound only has to outlast a loaded
+ * Bun start. At 2 seconds the bootstrap case timed out on a host at load 20 under four parallel
+ * test workers (2026-10-12), where a bare Bun start took about 3 seconds.
+ */
+const FIFO_HANG_BOUND_MS = 20_000;
+
 test('service refuses a credential FIFO promptly rather than blocking its tick', async () => {
   const source = fixture();
   const fifoPath = join(dirname(source.configurationPath), 'credential-fifo');
@@ -531,7 +539,7 @@ test('service refuses a credential FIFO promptly rather than blocking its tick',
     new Promise<'timeout'>((resolve) => {
       timeout = setTimeout(() => {
         resolve('timeout');
-      }, 2000);
+      }, FIFO_HANG_BOUND_MS);
     }),
   ]);
   if (timeout !== undefined) clearTimeout(timeout);
@@ -560,7 +568,7 @@ test('service refuses a bootstrap FIFO before its tick can hang', async () => {
     new Promise<'timeout'>((resolve) => {
       timeout = setTimeout(() => {
         resolve('timeout');
-      }, 2000);
+      }, FIFO_HANG_BOUND_MS);
     }),
   ]);
   if (timeout !== undefined) clearTimeout(timeout);

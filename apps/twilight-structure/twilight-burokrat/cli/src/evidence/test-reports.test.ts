@@ -14,6 +14,7 @@ import { digestEvidenceBytes } from '@shared/test-evidence';
 import { afterEach, expect, test } from 'bun:test';
 
 import { readCandidate } from '../inventory/read-candidate';
+import { invokeCli } from '../invoke-cli';
 import { registeredRules } from '../rules/registry';
 import { hashCanonical } from './content-manifest';
 
@@ -162,28 +163,22 @@ afterEach(() => {
   for (const path of scratch.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
-function inspect(setup: ReturnType<typeof fixture>): {
+async function inspect(setup: ReturnType<typeof fixture>): Promise<{
   exitCode: number;
   stdout: string;
   stderr: string;
-} {
-  const call = Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      join(import.meta.dir, '..', 'cli.ts'),
-      'inspect-test-reports',
-      setup.root,
-      setup.revision,
-      setup.policyPath,
-      mode,
-    ],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+}> {
+  const call = await invokeCli([
+    'inspect-test-reports',
+    setup.root,
+    setup.revision,
+    setup.policyPath,
+    mode,
+  ]);
   return {
     exitCode: call.exitCode,
-    stdout: call.stdout.toString(),
-    stderr: call.stderr.toString(),
+    stdout: call.stdout,
+    stderr: call.stderr,
   };
 }
 
@@ -264,15 +259,15 @@ function publishCases(
   writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
 }
 
-function observation(setup: ReturnType<typeof fixture>): Record<string, unknown> {
-  const call = inspect(setup);
+async function observation(setup: ReturnType<typeof fixture>): Promise<Record<string, unknown>> {
+  const call = await inspect(setup);
   expect(call.exitCode, call.stderr).toBe(0);
   return JSON.parse(call.stdout) as Record<string, unknown>;
 }
 
-test('[TEST-AXES-042] production CLI binds a committed case source and provenance without credit', () => {
+test('[TEST-AXES-042] production CLI binds a committed case source and provenance without credit', async () => {
   const setup = fixture();
-  const report = observation(setup);
+  const report = await observation(setup);
   const cases = report['cases'] as {
     caseId: string;
     source: { mode: string; contentDigest: string };
@@ -298,7 +293,7 @@ test('[TEST-AXES-042] production CLI binds a committed case source and provenanc
   expect(observationDigest).toBe(hashCanonical(payload));
 });
 
-test('[TEST-AXES-042] nested Browser titles retain the full ordered title path', () => {
+test('[TEST-AXES-042] nested Browser titles retain the full ordered title path', async () => {
   const setup = fixture();
   const prefix = 'parent suite';
   const bindings = setup.manifest['raw'] as {
@@ -353,16 +348,16 @@ test('[TEST-AXES-042] nested Browser titles retain the full ordered title path',
     },
   ];
   writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
-  const report = observation(setup);
+  const report = await observation(setup);
   const cases = report['cases'] as { caseId: string; titlePath: string[] }[];
   expect(cases[0]?.titlePath).toEqual([prefix, title]);
   expect(cases[0]?.caseId).toBe(hashCanonical([config, 'chromium', file, [prefix, title]]));
 });
 
-test('[TEST-AXES-043] missing committed case source refuses even if a working file exists', () => {
+test('[TEST-AXES-043] missing committed case source refuses even if a working file exists', async () => {
   const setup = fixture('missing');
   writeFileSync(join(setup.root, file), 'working tree is not committed\n');
-  const call = inspect(setup);
+  const call = await inspect(setup);
   expect(call.exitCode, `${call.stdout} ${call.stderr}`).toBe(1);
   expect(call.stdout).toBe('');
   expect(call.stderr).toContain(
@@ -370,8 +365,8 @@ test('[TEST-AXES-043] missing committed case source refuses even if a working fi
   );
 });
 
-test('[TEST-AXES-043] nonregular committed case source refuses', () => {
-  const call = inspect(fixture('symlink'));
+test('[TEST-AXES-043] nonregular committed case source refuses', async () => {
+  const call = await inspect(fixture('symlink'));
   expect(call.exitCode).toBe(1);
   expect(call.stdout).toBe('');
   expect(call.stderr).toContain(
@@ -379,10 +374,10 @@ test('[TEST-AXES-043] nonregular committed case source refuses', () => {
   );
 });
 
-test('[TEST-AXES-043] escaping case source refuses before any selected blob read', () => {
+test('[TEST-AXES-043] escaping case source refuses before any selected blob read', async () => {
   const setup = fixture();
   publishCases(setup, [{ title, status: 'passed' }], '../escape.spec.ts');
-  const call = inspect(setup);
+  const call = await inspect(setup);
   expect(call.exitCode).toBe(1);
   expect(call.stdout).toBe('');
   expect(call.stderr).toContain('path is not a normalized workspace path');
@@ -393,7 +388,7 @@ test.each([
   ['differing', ['passed', 'failed']],
 ] as const)(
   '[TEST-AXES-044] duplicated source identity refuses with %s outcomes',
-  (_, statuses) => {
+  async (_, statuses) => {
     const setup = fixture();
     // Proof: removing the shared Browser decoder's duplicate-selection dependency made both
     // production CLI assertions fail on a later "Browser JUnit identity is ambiguous" refusal.
@@ -402,20 +397,20 @@ test.each([
       setup,
       statuses.map((status) => ({ title, status })),
     );
-    const call = inspect(setup);
+    const call = await inspect(setup);
     expect(call.exitCode).toBe(1);
     expect(call.stdout).toBe('');
     expect(call.stderr).toContain('Browser case selection is empty or duplicated');
   },
 );
 
-test('[TEST-AXES-045] failed and skipped observations remain noncertifying outcomes', () => {
+test('[TEST-AXES-045] failed and skipped observations remain noncertifying outcomes', async () => {
   const setup = fixture();
   publishCases(setup, [
     { title, status: 'failed' },
     { title: 'opted out', status: 'skipped' },
   ]);
-  const report = observation(setup);
+  const report = await observation(setup);
   const cases = report['cases'] as { status: string }[];
   expect(cases.map((entry) => entry.status)).toEqual(['failed', 'skipped']);
   expect(report['certifies']).toBe(false);
@@ -424,23 +419,23 @@ test('[TEST-AXES-045] failed and skipped observations remain noncertifying outco
   expect(Object.hasOwn(report, 'admission')).toBe(false);
 });
 
-test('[TEST-AXES-046] normalized digest is order-independent and status-sensitive', () => {
+test('[TEST-AXES-046] normalized digest is order-independent and status-sensitive', async () => {
   const setup = fixture();
   const cases = [
     { title, status: 'passed' },
     { title: 'opted out', status: 'skipped' },
   ] as const;
   publishCases(setup, cases);
-  const first = observation(setup);
+  const first = await observation(setup);
   publishCases(setup, [...cases].reverse());
-  const reordered = observation(setup);
+  const reordered = await observation(setup);
   expect(reordered['observationDigest']).toBe(first['observationDigest']);
   expect(reordered['cases']).toEqual(first['cases']);
   publishCases(setup, [
     { title, status: 'failed' },
     { title: 'opted out', status: 'skipped' },
   ]);
-  const changed = observation(setup);
+  const changed = await observation(setup);
   const originalCases = first['cases'] as { caseId: string; status: string }[];
   const changedCases = changed['cases'] as { caseId: string; status: string }[];
   expect(changedCases.map((entry) => entry.caseId)).toEqual(
@@ -449,9 +444,9 @@ test('[TEST-AXES-046] normalized digest is order-independent and status-sensitiv
   expect(changed['observationDigest']).not.toBe(first['observationDigest']);
 });
 
-test('[TEST-AXES-046] source and external policy identities change observation digest', () => {
+test('[TEST-AXES-046] source and external policy identities change observation digest', async () => {
   const setup = fixture();
-  const original = observation(setup);
+  const original = await observation(setup);
   writeFileSync(
     join(setup.root, file),
     'test("example runs", () => { expect(true).toBe(true); });\n',
@@ -467,7 +462,7 @@ test('[TEST-AXES-046] source and external policy identities change observation d
     untracked: selected.untracked,
   });
   writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
-  const changedSource = observation(setup);
+  const changedSource = await observation(setup);
   const sourceCases = changedSource['cases'] as {
     caseId: string;
     source: { contentDigest: string };
@@ -491,7 +486,7 @@ test('[TEST-AXES-046] source and external policy identities change observation d
     untracked: executable.untracked,
   });
   writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
-  const changedMode = observation(setup);
+  const changedMode = await observation(setup);
   const executableCases = changedMode['cases'] as {
     source: { mode: string; contentDigest: string };
   }[];
@@ -501,12 +496,12 @@ test('[TEST-AXES-046] source and external policy identities change observation d
   const policy = JSON.parse(readFileSync(setup.policyPath, 'utf8')) as Record<string, unknown>;
   policy['policyId'] = 'browser-fixture-revised';
   writeFileSync(setup.policyPath, JSON.stringify(policy));
-  const changedPolicy = observation(setup);
+  const changedPolicy = await observation(setup);
   expect(changedPolicy['policyDigest']).not.toBe(changedMode['policyDigest']);
   expect(changedPolicy['observationDigest']).not.toBe(changedMode['observationDigest']);
 });
 
-test('[TEST-AXES-047] inherited policy, candidate, report parity and token refusals survive the adapter', () => {
+test('[TEST-AXES-047] inherited policy, candidate, report parity and token refusals survive the adapter', async () => {
   const setup = fixture();
   const policy = readFileSync(setup.policyPath, 'utf8');
   const manifest = JSON.stringify(setup.manifest);
@@ -514,8 +509,8 @@ test('[TEST-AXES-047] inherited policy, candidate, report parity and token refus
   const report = readFileSync(join(setup.bundle, 'report.xml'), 'utf8');
   const tokenPath = join(setup.root, 'tmp/junit/browser/ordinary.latest-request');
   const token = readFileSync(tokenPath, 'utf8');
-  const assertRefusal = (diagnostic: string): void => {
-    const call = inspect(setup);
+  const assertRefusal = async (diagnostic: string): Promise<void> => {
+    const call = await inspect(setup);
     expect(call.exitCode).toBe(1);
     expect(call.stdout).toBe('');
     expect(call.stderr).toContain(diagnostic);
@@ -523,60 +518,51 @@ test('[TEST-AXES-047] inherited policy, candidate, report parity and token refus
   const withoutMode = JSON.parse(policy) as Record<string, unknown>;
   delete withoutMode['browser'];
   writeFileSync(setup.policyPath, JSON.stringify(withoutMode));
-  assertRefusal('external policy pin');
+  await assertRefusal('external policy pin');
   writeFileSync(setup.policyPath, policy);
   setup.manifest['candidate'] = '0'.repeat(64);
   writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
-  assertRefusal('candidate identity differs');
+  await assertRefusal('candidate identity differs');
   setup.manifest['candidate'] = originalCandidate;
   writeFileSync(join(setup.bundle, 'manifest.json'), manifest);
   const changedReport = report.replace('name="example runs"', 'name="other case"');
   writeFileSync(join(setup.bundle, 'report.xml'), changedReport);
   setup.manifest['reportDigest'] = digestEvidenceBytes(changedReport);
   writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
-  assertRefusal('normalized JUnit cases differ');
+  await assertRefusal('normalized JUnit cases differ');
   writeFileSync(join(setup.bundle, 'report.xml'), report);
   writeFileSync(join(setup.bundle, 'manifest.json'), manifest);
   writeFileSync(tokenPath, 'revoked');
-  assertRefusal('publication token differs');
+  await assertRefusal('publication token differs');
   writeFileSync(tokenPath, token);
-  expect(observation(setup)['certifies']).toBe(false);
+  expect((await observation(setup))['certifies']).toBe(false);
 });
 
-test('[TEST-AXES-047] symbolic revision is refused before Browser inspection', () => {
+test('[TEST-AXES-047] symbolic revision is refused before Browser inspection', async () => {
   const setup = fixture();
-  const call = Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      join(import.meta.dir, '..', 'cli.ts'),
-      'inspect-test-reports',
-      setup.root,
-      'HEAD',
-      setup.policyPath,
-      mode,
-    ],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const call = await invokeCli([
+    'inspect-test-reports',
+    setup.root,
+    'HEAD',
+    setup.policyPath,
+    mode,
+  ]);
   expect(call.exitCode).toBe(1);
-  expect(call.stdout.toString()).toBe('');
-  expect(call.stderr.toString()).toContain('requires a full committed SHA');
+  expect(call.stdout).toBe('');
+  expect(call.stderr).toContain('requires a full committed SHA');
 });
 
-test('[TEST-AXES-047] CLI refuses omitted and unsupported Browser modes at its own boundary', () => {
+test('[TEST-AXES-047] CLI refuses omitted and unsupported Browser modes at its own boundary', async () => {
   const setup = fixture();
   for (const arguments_ of [
     ['inspect-test-reports', setup.root, setup.revision, setup.policyPath],
     ['inspect-test-reports', setup.root, setup.revision, setup.policyPath, 'future'],
     ['inspect-test-reports', setup.root, setup.revision, setup.policyPath, mode, 'extra'],
   ]) {
-    const call = Bun.spawnSync(
-      [process.execPath, 'run', join(import.meta.dir, '..', 'cli.ts'), ...arguments_],
-      { stdout: 'pipe', stderr: 'pipe' },
-    );
+    const call = await invokeCli([...arguments_]);
     expect(call.exitCode).toBe(1);
-    expect(call.stdout.toString()).toBe('');
-    expect(call.stderr.toString()).toContain('usage: twilight-burokrat inspect-test-reports');
+    expect(call.stdout).toBe('');
+    expect(call.stderr).toContain('usage: twilight-burokrat inspect-test-reports');
   }
 });
 

@@ -5,25 +5,19 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
-const cliPath = join(import.meta.dir, '..', 'cli.ts');
+import { type CliInvocation, invokeCli } from '../invoke-cli';
 
-function runCli(argv: string[]): ReturnType<typeof Bun.spawnSync> {
-  return Bun.spawnSync([process.execPath, 'run', cliPath, ...argv], {
-    cwd: import.meta.dir,
-    env: process.env,
-    stderr: 'pipe',
-    stdout: 'pipe',
-  });
+/** Runs one CLI command in this process through the CLI entry; see {@link invokeCli}. */
+function runCli(argv: string[]): Promise<CliInvocation> {
+  return invokeCli(argv);
 }
 
-function stdoutOf(invocation: ReturnType<typeof Bun.spawnSync>): string {
-  if (invocation.stdout === undefined) throw new Error('stdout pipe was unavailable');
-  return Buffer.from(invocation.stdout).toString('utf8');
+function stdoutOf(invocation: CliInvocation): string {
+  return invocation.stdout;
 }
 
-function stderrOf(invocation: ReturnType<typeof Bun.spawnSync>): string {
-  if (invocation.stderr === undefined) throw new Error('stderr pipe was unavailable');
-  return Buffer.from(invocation.stderr).toString('utf8');
+function stderrOf(invocation: CliInvocation): string {
+  return invocation.stderr;
 }
 
 interface TemplateListing {
@@ -39,8 +33,8 @@ interface ShownTemplate {
 }
 
 describe('template registry CLI', () => {
-  test('lists every registered template in identifier order', () => {
-    const invocation = runCli(['template', 'list']);
+  test('lists every registered template in identifier order', async () => {
+    const invocation = await runCli(['template', 'list']);
     expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
     const listing = JSON.parse(stdoutOf(invocation)) as TemplateListing;
     expect(listing.schemaVersion).toBe(1);
@@ -58,8 +52,8 @@ describe('template registry CLI', () => {
     ]);
   }, 30_000);
 
-  test('shows one template with its skeleton files and its constrained requirements', () => {
-    const invocation = runCli(['template', 'show', 'repository']);
+  test('shows one template with its skeleton files and its constrained requirements', async () => {
+    const invocation = await runCli(['template', 'show', 'repository']);
     expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
     const shown = JSON.parse(stdoutOf(invocation)) as ShownTemplate;
     expect(shown.files.map((file) => file.path)).toEqual([
@@ -84,16 +78,16 @@ describe('template registry CLI', () => {
     ]);
   }, 30_000);
 
-  test('refuses an unregistered template identifier and names every registered template', () => {
-    const invocation = runCli(['template', 'show', 'NO-SUCH-TEMPLATE']);
+  test('refuses an unregistered template identifier and names every registered template', async () => {
+    const invocation = await runCli(['template', 'show', 'NO-SUCH-TEMPLATE']);
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain(
       'unknown template: NO-SUCH-TEMPLATE (registered: feature-service, module, repository, resource-service)',
     );
   }, 30_000);
 
-  test('refuses an unknown template action', () => {
-    const invocation = runCli(['template', 'summon']);
+  test('refuses an unknown template action', async () => {
+    const invocation = await runCli(['template', 'summon']);
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain('usage: twilight-burokrat template <list|show');
   }, 30_000);
@@ -213,7 +207,7 @@ interface Verification {
   certifies: boolean;
 }
 
-function verificationOf(invocation: ReturnType<typeof Bun.spawnSync>): Verification {
+function verificationOf(invocation: CliInvocation): Verification {
   return JSON.parse(stdoutOf(invocation)) as Verification;
 }
 
@@ -222,14 +216,14 @@ function verify(
   repository: string,
   revision: string,
   subject: string,
-): ReturnType<typeof Bun.spawnSync> {
+): Promise<CliInvocation> {
   return runCli(['template', 'verify', templateId, 'committed', repository, revision, subject]);
 }
 
 describe('template verify, one file', () => {
-  test('allows a repository adapter that names its port and has its sibling test', () => {
+  test('allows a repository adapter that names its port and has its sibling test', async () => {
     const { repository, revision } = createConformingCandidate();
-    const invocation = verify(
+    const invocation = await verify(
       'repository',
       repository,
       revision,
@@ -247,9 +241,9 @@ describe('template verify, one file', () => {
     });
   }, 30_000);
 
-  test('reports a file whose name lacks the kind suffix', () => {
+  test('reports a file whose name lacks the kind suffix', async () => {
     const { repository, revision } = createConformingCandidate();
-    const invocation = verify(
+    const invocation = await verify(
       'feature-service',
       repository,
       revision,
@@ -270,7 +264,7 @@ describe('template verify, one file', () => {
     ]);
   }, 30_000);
 
-  test('reports a service that states two declaration tags', () => {
+  test('reports a service that states two declaration tags', async () => {
     const { repository } = createConformingCandidate();
     write(
       repository,
@@ -278,7 +272,7 @@ describe('template verify, one file', () => {
       `${conformingFeature}// @capability widget-sharing\n`,
     );
     const revision = commit(repository, 'two capabilities');
-    const invocation = verify(
+    const invocation = await verify(
       'feature-service',
       repository,
       revision,
@@ -294,7 +288,7 @@ describe('template verify, one file', () => {
     ]);
   }, 30_000);
 
-  test('counts a declaration tag only when it is a real line comment', () => {
+  test('counts a declaration tag only when it is a real line comment', async () => {
     const { repository } = createConformingCandidate();
     write(
       repository,
@@ -302,7 +296,7 @@ describe('template verify, one file', () => {
       `const quoted = \`\n// @capability quoted-widget\n\`;\n/*\n// @capability commented-widget\n*/\nexport const sample = quoted;\n`,
     );
     const revision = commit(repository, 'tags that are not declarations');
-    const invocation = verify(
+    const invocation = await verify(
       'feature-service',
       repository,
       revision,
@@ -318,7 +312,7 @@ describe('template verify, one file', () => {
     ]);
   }, 30_000);
 
-  test('does not count a fake declaration inside a nested template literal', () => {
+  test('does not count a fake declaration inside a nested template literal', async () => {
     const { repository } = createConformingCandidate();
     write(
       repository,
@@ -326,7 +320,7 @@ describe('template verify, one file', () => {
       `const quoted = \`outer \${\`\n// @capability fake\n\`} tail\`;\nexport const sample = quoted;\n`,
     );
     const revision = commit(repository, 'a fake tag inside a nested template');
-    const invocation = verify(
+    const invocation = await verify(
       'feature-service',
       repository,
       revision,
@@ -342,7 +336,7 @@ describe('template verify, one file', () => {
     ]);
   }, 30_000);
 
-  test('counts a genuine declaration inside a template interpolation', () => {
+  test('counts a genuine declaration inside a template interpolation', async () => {
     const { repository } = createConformingCandidate();
     write(
       repository,
@@ -350,7 +344,7 @@ describe('template verify, one file', () => {
       `import type { Widget } from './contract';\n\nconst label = \`outer \${(() => {\n// @capability widget-editing\nreturn 'inner';\n})()} tail\`;\nexport function createWidget(): Widget {\n  return { ready: true };\n}\n`,
     );
     const revision = commit(repository, 'a real declaration inside an interpolation');
-    const invocation = verify(
+    const invocation = await verify(
       'feature-service',
       repository,
       revision,
@@ -360,7 +354,7 @@ describe('template verify, one file', () => {
     expect(verificationOf(invocation).findings).toEqual([]);
   }, 30_000);
 
-  test('reports a side-effect import of a repository and ignores comments and strings', () => {
+  test('reports a side-effect import of a repository and ignores comments and strings', async () => {
     const { repository } = createConformingCandidate();
     write(
       repository,
@@ -368,7 +362,7 @@ describe('template verify, one file', () => {
       `import './store.repository';\n// import { store } from './other.repository';\nconst sample = "from './third.repository'";\n${conformingFeature}export const used = sample;\n`,
     );
     const revision = commit(repository, 'a side-effect import');
-    const invocation = verify(
+    const invocation = await verify(
       'feature-service',
       repository,
       revision,
@@ -384,7 +378,7 @@ describe('template verify, one file', () => {
     ]);
   }, 30_000);
 
-  test('reports a resource that imports a feature and a repository that imports a resource', () => {
+  test('reports a resource that imports a feature and a repository that imports a resource', async () => {
     const { repository } = createConformingCandidate();
     write(
       repository,
@@ -397,7 +391,7 @@ describe('template verify, one file', () => {
       `import { widget } from './widget.resource';\n${conformingRepository}export const held = widget;\n`,
     );
     const revision = commit(repository, 'forbidden imports');
-    const resource = verify(
+    const resource = await verify(
       'resource-service',
       repository,
       revision,
@@ -411,7 +405,7 @@ describe('template verify, one file', () => {
         message: 'the file imports ./widget.feature, which declares the feature kind',
       },
     ]);
-    const adapter = verify(
+    const adapter = await verify(
       'repository',
       repository,
       revision,
@@ -427,11 +421,11 @@ describe('template verify, one file', () => {
     ]);
   }, 30_000);
 
-  test('reports a repository adapter with no sibling test', () => {
+  test('reports a repository adapter with no sibling test', async () => {
     const { repository } = createConformingCandidate();
     rmSync(join(repository, 'src/modules/widget/store.repository.test.ts'));
     const revision = commit(repository, 'drop the conformance test');
-    const invocation = verify(
+    const invocation = await verify(
       'repository',
       repository,
       revision,
@@ -447,11 +441,11 @@ describe('template verify, one file', () => {
     ]);
   }, 30_000);
 
-  test('reports a standalone file whose name declares two kinds', () => {
+  test('reports a standalone file whose name declares two kinds', async () => {
     const { repository } = createConformingCandidate();
     write(repository, 'src/modules/widget/widget.feature.resource.ts', conformingFeature);
     const revision = commit(repository, 'two kinds in one name');
-    const invocation = verify(
+    const invocation = await verify(
       'resource-service',
       repository,
       revision,
@@ -464,11 +458,11 @@ describe('template verify, one file', () => {
     ]);
   }, 30_000);
 
-  test('refuses a file that does not parse', () => {
+  test('refuses a file that does not parse', async () => {
     const { repository } = createConformingCandidate();
     write(repository, 'src/modules/widget/widget.feature.ts', 'import { a } from ;;;\n');
     const revision = commit(repository, 'unparsable');
-    const invocation = verify(
+    const invocation = await verify(
       'feature-service',
       repository,
       revision,
@@ -481,14 +475,14 @@ describe('template verify, one file', () => {
     expect(stdoutOf(invocation)).toBe('');
   }, 30_000);
 
-  test('refuses a candidate file that is not UTF-8', () => {
+  test('refuses a candidate file that is not UTF-8', async () => {
     const { repository } = createConformingCandidate();
     writeFileSync(
       join(repository, 'src/modules/widget/widget.feature.ts'),
       Buffer.from([0x2f, 0x2f, 0x20, 0xff, 0x0a]),
     );
     const revision = commit(repository, 'invalid bytes');
-    const invocation = verify(
+    const invocation = await verify(
       'feature-service',
       repository,
       revision,
@@ -500,9 +494,9 @@ describe('template verify, one file', () => {
     );
   }, 30_000);
 
-  test('refuses a subject that selects nothing', () => {
+  test('refuses a subject that selects nothing', async () => {
     const { repository, revision } = createConformingCandidate();
-    const invocation = verify(
+    const invocation = await verify(
       'feature-service',
       repository,
       revision,
@@ -514,27 +508,27 @@ describe('template verify, one file', () => {
     );
   }, 30_000);
 
-  test('refuses a subject that is not candidate-relative', () => {
+  test('refuses a subject that is not candidate-relative', async () => {
     const { repository, revision } = createConformingCandidate();
-    const invocation = verify('feature-service', repository, revision, '/etc/passwd');
+    const invocation = await verify('feature-service', repository, revision, '/etc/passwd');
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain(
       'subject must be a candidate-relative path: /etc/passwd',
     );
   }, 30_000);
 
-  test('refuses a file template pointed at a directory', () => {
+  test('refuses a file template pointed at a directory', async () => {
     const { repository, revision } = createConformingCandidate();
-    const invocation = verify('feature-service', repository, revision, 'src/modules/widget');
+    const invocation = await verify('feature-service', repository, revision, 'src/modules/widget');
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain(
       'template feature-service verifies one file; src/modules/widget is not one',
     );
   }, 30_000);
 
-  test('refuses an unknown candidate selection kind', () => {
+  test('refuses an unknown candidate selection kind', async () => {
     const { repository, revision } = createConformingCandidate();
-    const invocation = runCli([
+    const invocation = await runCli([
       'template',
       'verify',
       'feature-service',
@@ -606,9 +600,9 @@ describe('the template record drives verification', () => {
 });
 
 describe('template verify, one module', () => {
-  test('allows a module that satisfies every requirement', () => {
+  test('allows a module that satisfies every requirement', async () => {
     const { repository, revision } = createConformingCandidate();
-    const invocation = verify('module', repository, revision, 'src/modules/widget');
+    const invocation = await verify('module', repository, revision, 'src/modules/widget');
     expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
     expect(verificationOf(invocation)).toEqual({
       schemaVersion: 1,
@@ -621,11 +615,11 @@ describe('template verify, one module', () => {
     });
   }, 30_000);
 
-  test('reports a module with no index, no contract, no kind file and no test', () => {
+  test('reports a module with no index, no contract, no kind file and no test', async () => {
     const repository = initFixture('twilight-templates-bare-');
     write(repository, 'src/modules/bare/helper.ts', 'export const helper = 1;\n');
     const revision = commit(repository, 'a bare module');
-    const invocation = verify('module', repository, revision, 'src/modules/bare');
+    const invocation = await verify('module', repository, revision, 'src/modules/bare');
     expect(invocation.exitCode).toBe(1);
     expect(verificationOf(invocation).findings).toEqual([
       {
@@ -651,7 +645,7 @@ describe('template verify, one module', () => {
     ]);
   }, 30_000);
 
-  test('reports an index that omits one of its sections', () => {
+  test('reports an index that omits one of its sections', async () => {
     const { repository } = createConformingCandidate();
     write(
       repository,
@@ -659,7 +653,7 @@ describe('template verify, one module', () => {
       conformingReadme.slice(0, conformingReadme.indexOf('\n## Checks\n') + 1),
     );
     const revision = commit(repository, 'drop a section');
-    const invocation = verify('module', repository, revision, 'src/modules/widget');
+    const invocation = await verify('module', repository, revision, 'src/modules/widget');
     expect(invocation.exitCode).toBe(1);
     expect(verificationOf(invocation).findings).toEqual([
       {
@@ -670,7 +664,7 @@ describe('template verify, one module', () => {
     ]);
   }, 30_000);
 
-  test('reports an index with no title', () => {
+  test('reports an index with no title', async () => {
     const { repository } = createConformingCandidate();
     write(
       repository,
@@ -678,7 +672,7 @@ describe('template verify, one module', () => {
       conformingReadme.replace('# Widget', 'Widget'),
     );
     const revision = commit(repository, 'drop the title');
-    const invocation = verify('module', repository, revision, 'src/modules/widget');
+    const invocation = await verify('module', repository, revision, 'src/modules/widget');
     expect(invocation.exitCode).toBe(1);
     expect(verificationOf(invocation).findings).toEqual([
       {
@@ -689,11 +683,11 @@ describe('template verify, one module', () => {
     ]);
   }, 30_000);
 
-  test('reports a file that sits below the module directory', () => {
+  test('reports a file that sits below the module directory', async () => {
     const { repository } = createConformingCandidate();
     write(repository, 'src/modules/widget/inner/deep.ts', 'export const deep = 1;\n');
     const revision = commit(repository, 'a nested file');
-    const invocation = verify('module', repository, revision, 'src/modules/widget');
+    const invocation = await verify('module', repository, revision, 'src/modules/widget');
     expect(invocation.exitCode).toBe(1);
     expect(verificationOf(invocation).findings).toEqual([
       {
@@ -704,11 +698,11 @@ describe('template verify, one module', () => {
     ]);
   }, 30_000);
 
-  test('reports a module file that declares two kinds', () => {
+  test('reports a module file that declares two kinds', async () => {
     const { repository } = createConformingCandidate();
     write(repository, 'src/modules/widget/widget.feature.resource.ts', conformingFeature);
     const revision = commit(repository, 'two kinds in one name');
-    const invocation = verify('module', repository, revision, 'src/modules/widget');
+    const invocation = await verify('module', repository, revision, 'src/modules/widget');
     expect(invocation.exitCode).toBe(1);
     expect(verificationOf(invocation).findings).toEqual([
       {
@@ -719,7 +713,7 @@ describe('template verify, one module', () => {
     ]);
   }, 30_000);
 
-  test('reports a kind file inside a module that breaks its own template', () => {
+  test('reports a kind file inside a module that breaks its own template', async () => {
     const { repository } = createConformingCandidate();
     write(
       repository,
@@ -727,7 +721,7 @@ describe('template verify, one module', () => {
       conformingFeature.replace('// @capability widget-editing\n', ''),
     );
     const revision = commit(repository, 'drop the capability');
-    const invocation = verify('module', repository, revision, 'src/modules/widget');
+    const invocation = await verify('module', repository, revision, 'src/modules/widget');
     expect(invocation.exitCode).toBe(1);
     expect(verificationOf(invocation).findings).toEqual([
       {
@@ -748,11 +742,11 @@ describe('template verify, one module', () => {
   ] as const) {
     test(
       name,
-      () => {
+      async () => {
         const { repository } = createConformingCandidate();
         write(repository, path, 'export const = ;\n');
         const revision = commit(repository, 'one malformed file');
-        const invocation = verify('module', repository, revision, 'src/modules/widget');
+        const invocation = await verify('module', repository, revision, 'src/modules/widget');
         expect(invocation.exitCode).toBe(1);
         expect(stderrOf(invocation)).toContain('cannot scan the imports of ' + path);
         expect(stdoutOf(invocation)).toBe('');
@@ -761,8 +755,8 @@ describe('template verify, one module', () => {
     );
   }
 
-  test("observes this repository's directory module at its committed revision", () => {
-    const invocation = verify(
+  test("observes this repository's directory module at its committed revision", async () => {
+    const invocation = await verify(
       'module',
       join(import.meta.dir, '..', '..'),
       'HEAD',
