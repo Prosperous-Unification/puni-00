@@ -15,7 +15,7 @@
 ## 3. Goldens and packed suite
 
 - [x] 3.1 Reproducible relocation candidate and `relocation-fixture-cli.ts`
-- [x] 3.2 `fixtures/check-runs/{passing,skipping}` written by Dash, pinned, judged and reproduced byte for byte by Dash
+- [x] 3.2 `fixtures/check-runs/{passing,skipping}` written by Dash, pinned, judged, and reproduced by Dash from their parts
 - [x] 3.3 Packed suite prepares from `passing` and refuses `skipping` through the installed `bin.mjs`
 
 ## 4. Docs

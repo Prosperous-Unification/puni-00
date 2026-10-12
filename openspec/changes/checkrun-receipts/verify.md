@@ -83,14 +83,35 @@ forbidden` on the runner's judge import.
 
 ## Findings
 
-- **Facade reach.** `check-runs.ts` first imported `relocation-activation.ts`, which pulled
-  `trust.ts` and its mdast imports into everything that reaches the facade. That includes Dash's
-  bundled observation launcher, and `packaging/reproducible.test.ts` failed on unresolved
-  `mdast-util-*` in its copied roots. The fix moved the check derivation into `check-plan.ts` and
-  the refusal class into `relocation-refusal.ts`; `relocation-activation.ts` re-exports both.
+- **Facade reach.** `check-runs.ts` first imported `relocation-activation.ts`, which put
+  `trust.ts` and its mdast readers in the facade's input closure. Tree shaking kept them out of the
+  launcher bytes: the review built the launcher and grepped it, and none of them was there.
+  `packaging/reproducible.test.ts` copies that closure, taken from the pre-shake metafile, into two
+  roots, and it failed there on unresolved `mdast-util-*`. The fix moved the check derivation into
+  `check-plan.ts` and the refusal class into `relocation-refusal.ts`; `relocation-activation.ts`
+  re-exports both. `judge-facade.test.ts` now asserts that the facade reaches neither `trust.ts`
+  nor `relocation-activation.ts`. Proof: re-importing the derivation from `relocation-activation`
+  failed it with `Expected to not contain: "policy/trust.ts"`.
 - **The `.bun-version` input.** Adding `.bun-version` to `twilight-burokrat:test` inputs failed
   `pilot-policy.test.ts`. The bootstrap relationship declaration pins that target's configuration
   byte for byte, so the input was reverted.
+
+## Review fixes (Fable, MERGE AFTER FIXES)
+
+- **F1.** The facade closure assertion and its Proof are above.
+- **F2.** The root `.gitattributes` now marks `fixtures/check-runs/*/**` `-text`.
+  - Before the rule, a clone with `core.autocrlf=true` rewrote three LF-only streams to other
+    digests (`6043908c…` became `8a1725a8…`).
+  - After it, the same clone kept all six stream digests and both ledger digests.
+  - Nothing else in the repository uses `.gitattributes` or relies on `autocrlf`.
+- **F3.** Records now say Dash "reproduces both ledgers from their parts", meaning it replays the
+  recorded streams and instants through a scripted executor and clock.
+- **F4.** The `check-runs.ts` Proof comments now say they were observed through `readCheckRuns`.
+  Only the absent and mismatched-candidate cases are CLI-path proofs, in
+  `relocation-activation.test.ts`.
+- **After the fixes:**
+  - `judge-facade`, `check-run-golden`, `check-runs` and `no-ambient-clock` gave 17 pass, 0 fail.
+  - eslint and tsc (lib and spec) for Burokrat were clean.
 
 ## Not run
 
