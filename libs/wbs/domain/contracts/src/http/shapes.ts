@@ -77,6 +77,12 @@ import {
   retryProjectOptimization,
 } from './project-shapes';
 import {
+  issueProvisioningToken,
+  listProvisioningTokens,
+  revokeProvisioningToken,
+  rotateProvisioningToken,
+} from './provisioning-token-shapes';
+import {
   compareSavedPlans,
   deleteSavedPlan,
   listSavedPlans,
@@ -138,6 +144,10 @@ export const httpShapes = [
   releaseDomainClaim,
   createDomainChallenge,
   verifyDomainClaim,
+  listProvisioningTokens,
+  issueProvisioningToken,
+  rotateProvisioningToken,
+  revokeProvisioningToken,
   rotateDomainProof,
   listInvitations,
   createInvitation,

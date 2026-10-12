@@ -33,8 +33,10 @@ import {
   openSqliteSource,
   OrganizationRepository,
   ProjectRankRepository,
+  ProvisioningTokenRepository,
   readOrganizationActivation,
   scheduleInputHash,
+  ScimUserRepository,
   SpaceRepository,
   SqliteBrowserCredentialRevocations,
   SqliteDelegationUse,
@@ -117,7 +119,10 @@ export interface OrganizationHarnessOptions {
     readonly groupPrefix: string;
     readonly groupsClaim: string;
   };
-  /** The clock the credential rules read; a test fixes it to pin session-policy edges. */
+  /**
+   * The clock the credential rules and SCIM provisioning read; a test fixes it
+   * to pin session-policy edges, token lifetimes and SCIM admission.
+   */
   readonly now?: () => number;
 }
 
@@ -393,6 +398,11 @@ export class OrganizationHarness {
           }),
       memberships: new OrganizationRepository(db, OPEN),
       domains,
+      provisioning: {
+        tokens: new ProvisioningTokenRepository(db, gate),
+        users: new ScimUserRepository(db, gate),
+        clock: { now },
+      },
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),

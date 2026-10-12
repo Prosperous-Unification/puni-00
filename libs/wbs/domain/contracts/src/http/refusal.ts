@@ -320,7 +320,11 @@ type BareRefusalCode =
   | 'unknown_parent'
   // Capacity mode (`share-people-across-projects` 8.1): a mode this release
   // does not list in `SUPPORTED_CAPACITY_MODES`.
-  | 'capacity_mode_unsupported';
+  | 'capacity_mode_unsupported'
+  // Provisioning tokens (`organization-scim`): no proven enterprise connection
+  // to provision through; two tokens already live.
+  | 'sso_connection_unproven'
+  | 'token_limit';
 
 type SharedCommandCode =
   'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use' | 'calendar_range';

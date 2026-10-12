@@ -29,6 +29,7 @@ import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
 import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
+import { provisioningTokenRoutes } from '@wbs/core/http/provisioning-token.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
@@ -88,6 +89,7 @@ import {
   type OrganizationSelection,
   REFUSE_ORGANIZATION_SELECTION,
 } from './runtime/organization-selection';
+import { type Provisioning, REFUSE_PROVISIONING } from './runtime/provisioning';
 import type { WritingServices } from './services';
 
 export interface AppOptions {
@@ -130,6 +132,12 @@ export interface AppOptions {
   memberships: MembershipAdministration;
   /** Checked policy and transactional challenge storage; omission is a composition error. */
   domains: DomainChallenges;
+  /**
+   * SCIM provisioning (`organization-scim`). Absent, it is
+   * `REFUSE_PROVISIONING`: administration refuses and no token authenticates.
+   * Production wires the SQLite stores (`boot.db.test.ts`).
+   */
+  provisioning?: Provisioning;
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
   /** Required durable challenge boundary; absence is a boot configuration error. */
@@ -388,6 +396,11 @@ export function mountedEndpoints(
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
     ...organizationSelectionRoutes(opts.organizationSelection ?? REFUSE_ORGANIZATION_SELECTION),
     ...domainRoutes(opts.organizations, opts.domains, opts.clock),
+    ...provisioningTokenRoutes(
+      opts.organizations,
+      (opts.provisioning ?? REFUSE_PROVISIONING).tokens,
+      (opts.provisioning ?? REFUSE_PROVISIONING).clock,
+    ),
     ...onboardingRoutes(opts.onboarding, opts.clock),
     ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),
     ...invitationRoutes(

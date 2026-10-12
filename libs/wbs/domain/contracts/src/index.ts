@@ -26,6 +26,7 @@ export * from './http/plan-document-shapes';
 export * from './http/project-rank-shapes';
 export * from './http/project-response';
 export * from './http/project-shapes';
+export * from './http/provisioning-token-shapes';
 export * from './http/refusal';
 export * from './http/saved-plan-shapes';
 export * from './http/schema-shape';
