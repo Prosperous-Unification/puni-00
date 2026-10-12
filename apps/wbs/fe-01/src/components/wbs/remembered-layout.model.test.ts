@@ -700,3 +700,11 @@ describe('the Mermaid lane’s handle, against a reference model', () => {
     ).toBeGreaterThan(0);
   }, 300_000);
 });
+
+it('classifies a preference with no live runtime as absent and not persisted', () => {
+  const slot = createLifetimeSlot<ApplicationServices>(DISPOSAL_BUDGET_MS);
+  expect(remembered(MERMAID_SECTION_MODE_KEY, isSectionMode, slot).claim()).toEqual({
+    value: { status: 'absent' },
+    persists: false,
+  });
+});

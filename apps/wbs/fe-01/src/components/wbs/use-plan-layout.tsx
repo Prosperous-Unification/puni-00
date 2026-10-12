@@ -424,8 +424,10 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
    * such thing as a chart drawn at no scale. What "never picked" buys is
    * {@link resetLayout}'s answer, and that is `DAY_PX` either way.
    */
-  const [ganttDayPx, setGanttDayPx] = useState<DayPx>(
-    () => rememberedGanttDayPx(projectId).value ?? DAY_PX,
+  const [initialGanttRung] = useState(() => rememberedGanttDayPx(projectId));
+  const [ganttDayPx, setGanttDayPx] = useState<DayPx>(initialGanttRung.value ?? DAY_PX);
+  const [ganttRungNotice, setGanttRungNotice] = useState<string | null>(
+    initialGanttRung.wasReset ? 'Remembered rung was unknown; reset to Days' : null,
   );
 
   /**
@@ -469,6 +471,8 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
     setGanttRoomPx,
     ganttDayPx,
     setGanttDayPx,
+    ganttRungNotice,
+    setGanttRungNotice,
     ganttLabelsShown,
     setGanttLabelsShown,
     mermaidSectionMode,
@@ -491,6 +495,7 @@ export function usePlanLayoutSwap({
   setStoredHiddenColumns,
   setGanttHeightPx,
   setGanttDayPx,
+  setGanttRungNotice,
   setGanttLabelsShown,
 }: {
   widthProject: React.RefObject<string>;
@@ -498,7 +503,8 @@ export function usePlanLayoutSwap({
   setWidthOverrides: React.Dispatch<React.SetStateAction<Map<string, number>>>;
   setStoredHiddenColumns: React.Dispatch<React.SetStateAction<readonly string[]>>;
   setGanttHeightPx: React.Dispatch<React.SetStateAction<number | null>>;
-  setGanttDayPx: React.Dispatch<React.SetStateAction<4 | 12 | 28>>;
+  setGanttDayPx: React.Dispatch<React.SetStateAction<DayPx>>;
+  setGanttRungNotice: React.Dispatch<React.SetStateAction<string | null>>;
   setGanttLabelsShown: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
   /**
@@ -516,11 +522,15 @@ export function usePlanLayoutSwap({
     setWidthOverrides(rememberedWidthOverrides(projectId).value);
     setStoredHiddenColumns(rememberedHiddenColumns(projectId).value);
     setGanttHeightPx(rememberedGanttHeight(projectId).value);
-    setGanttDayPx(rememberedGanttDayPx(projectId).value ?? DAY_PX);
+    const recalledRung = rememberedGanttDayPx(projectId);
+    setGanttDayPx(recalledRung.value ?? DAY_PX);
+    // Proof: removing this update left p1's refusal title on p2; the project-switch case failed (2026-10-12).
+    setGanttRungNotice(recalledRung.wasReset ? 'Remembered rung was unknown; reset to Days' : null);
     setGanttLabelsShown(rememberedGanttLabels(projectId).value ?? true);
   }, [
     projectId,
     setGanttDayPx,
+    setGanttRungNotice,
     setGanttHeightPx,
     setGanttLabelsShown,
     setStoredHiddenColumns,
@@ -675,6 +685,7 @@ export function usePlanLayout({
   projectId,
   setGanttHeightPx,
   setGanttDayPx,
+  setGanttRungNotice,
   setGanttLabelsShown,
   setStoredHiddenColumns,
   resetTargetHiddenColumnIds,
@@ -686,7 +697,8 @@ export function usePlanLayout({
   setWidthOverrides: React.Dispatch<React.SetStateAction<Map<string, number>>>;
   projectId: string;
   setGanttHeightPx: React.Dispatch<React.SetStateAction<number | null>>;
-  setGanttDayPx: React.Dispatch<React.SetStateAction<4 | 12 | 28>>;
+  setGanttDayPx: React.Dispatch<React.SetStateAction<DayPx>>;
+  setGanttRungNotice: React.Dispatch<React.SetStateAction<string | null>>;
   setGanttLabelsShown: React.Dispatch<React.SetStateAction<boolean>>;
   setStoredHiddenColumns: React.Dispatch<React.SetStateAction<readonly string[]>>;
   resetTargetHiddenColumnIds: readonly string[];
@@ -785,6 +797,8 @@ export function usePlanLayout({
     setGanttHeightPx(null);
     forgetGanttHeight(projectId);
     setGanttDayPx(DAY_PX);
+    // Proof: removing this update kept the title after Reset layout; the layout-reset notice case failed (2026-10-12).
+    setGanttRungNotice(null);
     forgetGanttDayPx(projectId);
     setGanttLabelsShown(true);
     forgetGanttLabels(projectId);

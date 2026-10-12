@@ -9,14 +9,14 @@ No ADR: every choice here is reversible presentation.
 
 `DAY_SCALES` becomes `AXIS_RUNGS`, one record per rung: `{ id, pxPerWorkday, cellsPerWorkday,
 label }`. Day rungs keep their pixel values and labels (`28`/`12`/`4` px per day; `Days`,
-`Weeks`, `Months`), so `DayPx` callers and every pixel assertion stand. Sub-day rungs are
+`Weeks`, `Months`), so `DayPx` callers retain a numeric width API (expanded for sub-day widths), and every day pixel assertion stands. `DAY_SCALES` remains a compatibility list derived from `AXIS_RUNGS`. Sub-day rungs are
 `{ '4h', 56, 2, '4 h' }`, `{ '1h', 224, 8, '1 h' }`, `{ '15m', 896, 32, '15 min' }` — 28 px
 per cell, as the day rung has, so the cell grid reads the same at every rung. The control
 is the existing rung control with six positions; the title carries the exact width.
 
 ## D2 — Geometry
 
-`layOutGantt` takes the rung. A slice's drawn width is `effort workdays × pxPerWorkday`; at a
+`layOutGantt` takes the rung. A slice's drawn width is its scheduled elapsed span (`drawnSpan × pxPerWorkday`), not its effort: parallel capacity may shorten its duration; at a
 sub-day rung a calendar day is drawn as its 480 working minutes (one day cell = one workday
 cell), weekends greyed as today, so before the instant axis nothing changes for a workday-unit plan but
 the width. Sub-day cells are labelled by project-zone clock time from the
