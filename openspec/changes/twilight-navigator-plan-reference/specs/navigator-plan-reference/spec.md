@@ -14,7 +14,7 @@ creating any output.
 
 ### Requirement: Navigator writes a plan reference from a WBS plan export
 
-`twin plan-reference` SHALL read one WBS plan export of version 6 and one requirements file and
+`twin plan-reference` SHALL read one WBS plan export of version 7 and one requirements file and
 write `tasks.json` and `plan-reference.json` into an existing output directory, each created
 exclusively with mode 0600. The plan reference SHALL decode through Burokrat's `decodeRecord`,
 bind the task export by digest, and take its `createdAt` from the export. Identical inputs SHALL
@@ -22,12 +22,12 @@ produce identical bytes. Nothing is sent over a network.
 
 #### Scenario: Valid export
 
-- **WHEN** a version-6 export, a requirements file and valid identifiers are supplied
+- **WHEN** a version-7 export, a requirements file and valid identifiers are supplied
 - **THEN** both files are written, the plan reference decodes, and stdout prints its digest
 
 #### Scenario: Wrong document version
 
-- **WHEN** the export's document version is not 6
+- **WHEN** the export's document version is not 7
 - **THEN** the command fails and creates no file
 
 #### Scenario: Missing, unreadable or malformed input

@@ -25,12 +25,13 @@ functions, non-finite numbers). A record's digest is SHA-256 over the canonical 
 record without its own digest field. `verifyDigest` recomputes and compares.
 
 **Plan reference record.** `{ schemaVersion: '1', kind: 'plan-reference', planRef,
-planDocumentVersion: 6, exportDigest, tasksDigest, taskCount, createdAt, referenceDigest }`.
+planDocumentVersion: 7, exportDigest, tasksDigest, taskCount, createdAt, referenceDigest }`.
 `planRef` is the glossary tuple `{ repository, plan, change, planningCommit, sourceBaseCommit,
 requirementsDigest }`. Two fields beyond the intent's list: `tasksDigest` binds the task export
 so `receipt-to-commands` cannot pair a receipt with another plan's tasks, and
 `referenceDigest` is the record's own digest. `createdAt` is the export's
 `document.exportedAt`: Navigator reads no clock, so identical inputs give identical bytes.
+Burokrat also accepts previously prepared version-6 references; Navigator emits version 7.
 
 **Identifiers.** `plan` and `taskId` are WBS identifiers (`/^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$/`)
 rather than Burokrat's `OpaqueId`, because WBS ids may begin with a digit. `repository` is the
@@ -43,8 +44,12 @@ receiptDigest }`; each entry `{ taskId, stepCode, status: 'in_progress'|'done', 
 path or `{ kind: 'external', authority }`. Entries are nonempty.
 
 **Inputs.** The export is read as bytes, `exportDigest` is SHA-256 of those bytes, and the parsed
-JSON passes `@wbs/contracts`' `planDocumentResponse` after its header names version 6. The
-requirements file is any nonempty, valid UTF-8 file; `requirementsDigest` is SHA-256 of its
+JSON passes `decodePlanExport` in Navigator's `src/plan-reference.ts` after its header names
+version 7. Its `StrictPlanDocument` derives the v7 wire shape from `@wbs/contracts`'
+`planDocument`: the header stays at 7, steps omit `estimateUnit`, and work items omit
+`charged`. Deep undeclared-key rejection validates that shape before the decoder normalizes
+the internal document to v8 with workday steps. The export digest still binds the original
+bytes, and the reference still names version 7. The requirements file is any nonempty, valid UTF-8 file; `requirementsDigest` is SHA-256 of its
 bytes. Missing (`ENOENT`), unreadable (other read errors) and malformed (bad JSON, bad UTF-8,
 schema failure) are distinct refusals naming the path.
 

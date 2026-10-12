@@ -1799,9 +1799,10 @@ test.describe('a pointed row the plan stops drawing', () => {
     await page.getByLabel('Find').fill('Survey');
     await expect(page.locator('[data-gantt-label]')).toHaveCount(1);
 
-    // The pointer now arrives on the one bar left. That is the reading being
-    // made, and the chart has to light the row it belongs to.
-    await page.locator('[data-gantt-bar][aria-label^="010 - "]').first().hover();
+    // The pointer arrives on the bar's transparent hit surface; the painted
+    // rect beneath it keeps the accessible name and keyboard focus.
+    const bar = page.locator('[data-gantt-bar][aria-label^="010 - "]').first();
+    await bar.locator('..').locator('[data-gantt-hit]').hover();
 
     // Proof: the shown-row guard dropped to a bare fallthrough — today that
     // is `resolve`'s `tableShown` taken straight from `tablePointed` in
@@ -1812,6 +1813,8 @@ test.describe('a pointed row the plan stops drawing', () => {
     // 0` — the chart dark under the pointer, the remembered row winning.
     // Watched in Chromium 2026-09-01, which is also the measurement that the
     // browser leaves the id behind at all.
+    // Proof: repeated 2026-10-13 through the paired hit surface with
+    // `tableShown = tablePointed`; this assertion received 0 bands instead of 1.
     await expect(bands, 'the chart drew no band for the bar under the pointer').toHaveCount(1);
     await expect(bands.first()).toHaveAttribute('data-gantt-row-lit', '0');
 
