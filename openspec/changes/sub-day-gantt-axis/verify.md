@@ -118,3 +118,33 @@ and final task 5.1 remain open. Browser Gantt e2e shards, full frontend suite, b
 CI secrets/migration lint and the h2puni host gate have not run for this checkpoint.
 This local host is `pop-os`; the eventual host gate must pin the reviewed checkpoint SHA
 under its lock. No main release, merge, deployment, or readiness for slice 2 is claimed.
+
+## Round 12 integration — 2026-10-12
+
+Integrated PR #372 (`9b44b3eec`) and PR #373 (`87976f796`) over corrected
+round 11 (`13977965d`), with merge checkpoint `636a220c4`. Both independent
+design/task edits and all earlier verification entries are preserved. The only
+conflict was in `gantt-attempt-marks/verify.md`; both historical entries were retained.
+PR #374 (`2065563ca`) is not an ancestor and its attempt slice is excluded.
+
+- `BUN_TMPDIR=/tmp bun install --frozen-lockfile`: checked 1,573 installs, no changes.
+  The initial sandboxed install failed because its temporary directory was read-only.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 184 passed
+  (166 changes, 18 specs), 0 failed. Log: `/tmp/integration-12-openspec.log`.
+- Changed-file `bunx prettier --check` and `git diff --check 13977965d..HEAD`: passed.
+- The five-suite Final regression command above: 554 tests passed in five files.
+  Log: `/tmp/integration-12-regressions.log`.
+- The Final timezone regression command above: 1 test passed.
+  Log: `/tmp/integration-12-zoned.log`.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck`:
+  both targets passed with no cache hits. Log: `/tmp/integration-12-types.log`.
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:lint:fast`: passed
+  without a cache hit. Log: `/tmp/integration-12-lint.log`.
+
+The bare OpenSpec executable is unavailable; the pinned Bun invocation supplied it.
+Existing Vite native-loader warnings remain. No new behavior or safety check was
+introduced by integration; previous mutation observations were preserved and not rerun.
+Browser/e2e, performance, full frontend suite, full host gate, CI secrets and migration
+lint remain unrun for this integration checkpoint. Final merge requires the host gate
+and CI on the final published SHA.
