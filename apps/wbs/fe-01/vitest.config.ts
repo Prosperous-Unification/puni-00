@@ -45,6 +45,10 @@ export default defineConfig({
         __dirname,
         '../../../libs/wbs/domain/domain/src/step-node.ts',
       ),
+      '@wbs/domain/step-reference': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/domain/src/step-reference.ts',
+      ),
       '@wbs/domain/workday': resolve(__dirname, '../../../libs/wbs/domain/domain/src/workday.ts'),
       '@wbs/domain/estimate': resolve(__dirname, '../../../libs/wbs/domain/domain/src/estimate.ts'),
       '@wbs/domain/progress': resolve(__dirname, '../../../libs/wbs/domain/domain/src/progress.ts'),
