@@ -287,11 +287,13 @@ describe('every plan schedules identically across the migration', () => {
         // `code` is lifted by `address-step-nodes` and asserted: the oracle
         // predates step codes, and each replayed step carries the code its
         // name suggests. A step code names a step; it moves no date.
-        steps: tree.steps.map(({ code, allowancePercent, ...step }) => {
+        steps: tree.steps.map(({ code, allowancePercent, estimateUnit, ...step }) => {
           expect(code).toBe(suggestStepCode(step.name, new Set()));
           // The capture also predates step allowances: every replayed step carries
           // the 0% the migration gives it.
           expect(allowancePercent).toBe(0);
+          // The capture predates estimate units; every legacy step remains workdays.
+          expect(estimateUnit).toBe('workdays');
           return step;
         }),
         // `capacityTeamId` is lifted off every slice for `teamIds`' reason and
@@ -338,8 +340,21 @@ describe('every plan schedules identically across the migration', () => {
             readiness,
             hold,
             nodeReadings,
+            charged,
             ...row
           }) => {
+            // Native charges are new wire fields. Their workday values must equal
+            // finalDays, which the unchanged historical oracle pins below.
+            // Proof: returning empty charged from production finalsOf failed this
+            // assertion on 2026-10-13; restoring the field passed the oracle suite.
+            expect(charged).toEqual(
+              Object.fromEntries(
+                Object.entries(row.finalDays).map(([stepId, days]) => [
+                  stepId,
+                  { unit: 'workdays', days },
+                ]),
+              ),
+            );
             // Lifted by `add-work-item-statuses` and asserted null for the fact
             // dates' reason: the oracle predates both columns and nothing in the
             // replayed plans says a readiness or a hold.
