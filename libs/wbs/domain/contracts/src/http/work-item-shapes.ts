@@ -669,6 +669,9 @@ export const getWorkItems = defineEndpointShape({
             stepId: 'string',
             reference: 'string | null',
           }).array(),
+          // The zone a step card reads attempt instants in
+          // (`step-node-attempts` D7); optional for an older be-01 mid-swap.
+          'timezone?': 'string',
         }),
       ),
     },

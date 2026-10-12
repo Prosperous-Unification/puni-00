@@ -5277,6 +5277,19 @@ export class WorkItemService {
   }
 
   /**
+   * The project's IANA zone, which the tree read carries so a step card reads
+   * attempt instants in it without a second request (`step-node-attempts` D7).
+   *
+   * @throws when the project has no zone row: the caller has just read its
+   * tree, so a miss is a store that lost it, never a plan to draw without one.
+   */
+  async timezoneOf(projectId: string): Promise<string> {
+    const timezone = await this.opts.projects.timezoneOf(projectId);
+    if (timezone === null) throw new Error(`project ${projectId} has no timezone`);
+    return timezone;
+  }
+
+  /**
    * Reverses this account's newest command on this project — **if nothing it
    * touched has moved since**.
    *
