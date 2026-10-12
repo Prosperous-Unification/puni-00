@@ -205,7 +205,11 @@ describe('twilight-dash run-activation-checks', () => {
         '2026-10-12T09:00:00.005Z',
         '2026-10-12T09:00:00.010Z',
       ]);
-      const measured = Buffer.concat([run.measured.stdout, run.measured.stderr]).toString('utf8');
+      // Under Nx, Bun colours its summary; the escape is built from its code point, as Burokrat's
+      // skip measurement does, because a literal one in a regex is a lint error.
+      const measured = Buffer.concat([run.measured.stdout, run.measured.stderr])
+        .toString('utf8')
+        .replaceAll(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '');
       // The probe really ran `bun test` in the declared directory and measured its one skip; the
       // passing candidate's Nx target printed its own line.
       expect(measured).toContain(skipping ? ' 1 skip' : 'relocation fixture check');

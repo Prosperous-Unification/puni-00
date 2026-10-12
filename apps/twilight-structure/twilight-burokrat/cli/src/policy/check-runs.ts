@@ -16,7 +16,7 @@ import {
   type RecordedCheck,
   resolveSkipProbe,
   type SkipProbeInvocation,
-} from './relocation-activation';
+} from './check-plan';
 import { writeBytes } from './trusted-modules';
 
 /** Who recorded a check run: a product and the command of it that measured. */
