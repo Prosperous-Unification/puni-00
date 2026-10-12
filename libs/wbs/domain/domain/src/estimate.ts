@@ -1,6 +1,7 @@
 import { type } from '@wbs/validation';
 
 import type { EstimateUnit } from './stored-vocabularies';
+export type { EstimateUnit } from './stored-vocabularies';
 import { snapWorkdays } from './workday';
 
 /**
@@ -349,6 +350,7 @@ export function chargedDays(
 export interface StepPolicy {
   readonly id: string;
   readonly allowancePercent: AllowancePercent;
+  readonly estimateUnit: EstimateUnit;
 }
 
 /**
@@ -376,6 +378,7 @@ export function allowanceOf(allowances: StepAllowances, stepId: string): Allowan
 }
 
 /** Minutes on today's workday axis; ADR 0042 fixes this conversion until working windows exist. */
+// Proof: using 60 made the mounted 240-minute read/schedule report 4 workdays instead of 0.5 (2026-10-12).
 export const WORKDAY_MINUTES = 480;
 
 /** Largest authored minute point fitting the solver axis, as described in ADR 0042. */
@@ -414,4 +417,24 @@ export function chargedWorkdaysOf(
   return unit === 'minutes'
     ? chargedMinutes(estimate, rule, allowance) / WORKDAY_MINUTES
     : chargedDays(estimate, rule, allowance);
+}
+
+/** Native charge sent to every presentation surface; minutes stay integral. */
+export type ChargedEstimate =
+  { unit: 'workdays'; days: number } | { unit: 'minutes'; minutes: number };
+
+/** Each step unit from the same plan read as its estimates. */
+export type StepUnits = ReadonlyMap<string, EstimateUnit>;
+
+/** Reads the unit without guessing when trusted plan reads disagree. */
+export function estimateUnitOf(units: StepUnits, stepId: string): EstimateUnit {
+  const unit = units.get(stepId);
+  // Proof: defaulting an absent unit to workdays made the missing-unit roll-up case stop throwing (2026-10-12).
+  if (unit === undefined) throw new Error(`no estimate unit is known for step ${stepId}`);
+  return unit;
+}
+
+/** Converts a native charge to the schedule axis without rounding. */
+export function chargedWorkdays(charged: ChargedEstimate): number {
+  return charged.unit === 'minutes' ? charged.minutes / WORKDAY_MINUTES : charged.days;
 }

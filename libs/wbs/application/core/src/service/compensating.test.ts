@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'bun:test';
 
-import { type CompensatingCommand, readCommand, subjectOf, touchedBy } from './compensating';
+import {
+  boundEstimateUnits,
+  type CompensatingCommand,
+  estimateStepsOf,
+  readCommand,
+  readPreconditions,
+  subjectOf,
+  touchedBy,
+} from './compensating';
 
 const rename: CompensatingCommand = { do: 'patch', workItemId: 'w1', patch: { name: 'Strip' } };
 const estimate: CompensatingCommand = {
@@ -56,5 +64,46 @@ describe('a batch as one compensating command', () => {
   it('reads back from the journal as a command this release can apply', () => {
     expect(readCommand({ do: 'batch', steps: [rename] })).toEqual({ do: 'batch', steps: [rename] });
     expect(() => readCommand({ do: 'bulk', steps: [] })).toThrow(/cannot apply/);
+  });
+});
+
+describe('journal estimate unit bindings', () => {
+  it('collects nested estimate-bearing commands in both directions', () => {
+    const subtree = readCommand({
+      do: 'restore_subtree',
+      estimates: [{ stepId: 'restored' }],
+      removedEstimates: [{ stepId: 'removed' }],
+    });
+    const deleted = readCommand({ do: 'delete_subtree', setEstimates: [{ stepId: 'handed-up' }] });
+    expect(
+      [
+        ...estimateStepsOf([
+          { do: 'batch', steps: [estimate, { do: 'batch', steps: [subtree, deleted] }] },
+          { do: 'clear_estimate', workItemId: 'w', stepId: 'cleared' },
+        ]),
+      ].sort(),
+    ).toEqual(['cleared', 'handed-up', 'r1', 'removed', 'restored']);
+  });
+  it('interprets a legacy absent map as workdays and preserves a present map', () => {
+    expect(boundEstimateUnits(readPreconditions({ expected: {}, from: {} }), [estimate])).toEqual({
+      r1: 'workdays',
+    });
+    expect(
+      boundEstimateUnits(
+        readPreconditions({ expected: {}, from: {}, estimateUnits: { r1: 'minutes' } }),
+        [estimate],
+      ),
+    ).toEqual({ r1: 'minutes' });
+  });
+  it('refuses malformed and incomplete present maps as damaged trusted journal state', () => {
+    for (const estimateUnits of [null, [], { r1: 'hours' }, { r1: 3 }])
+      expect(() => readPreconditions({ expected: {}, from: {}, estimateUnits })).toThrow(
+        'estimate units',
+      );
+    expect(() =>
+      boundEstimateUnits(readPreconditions({ expected: {}, from: {}, estimateUnits: {} }), [
+        estimate,
+      ]),
+    ).toThrow('no binding for step r1');
   });
 });

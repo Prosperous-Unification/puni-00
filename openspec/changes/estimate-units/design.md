@@ -11,13 +11,13 @@ Nothing here allocates a number. The packet that opens slice 3 (storage) and sli
 `puni-plan/batch-10/integration-queue.txt`, writes the values into this table and records the
 check in `verify.md`.
 
-| What                                  | Pinned on `origin/main` `a3b1526b` (2026-10-11)                                  | Pinning test                                                                                | This change                                                                                                   |
-| ------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `PLAN_DOCUMENT_VERSION`               | 6 (`plan-document-shapes.ts`)                                                    | `plan-document.resource.test.ts` "JSON export is a versioned plan document…" (`version: 6`) | next free, allocated at packet time                                                                           |
-| `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` | 4 (`canonical-plan-input.ts`)                                                    | `canonical-plan-input.test.ts`; `saved-plans/module.test.ts` (`schemaVersion` 4)            | next free, allocated at packet time                                                                           |
-| `SCHEDULER_CONTRACT_VERSION`          | 15 (`contract-version.ts`; 14 in the interview was stale: `432eff1ab` bumped it) | `contract-version.test.ts` (`'15+'`), `wire-contract-version.test.ts`                       | unchanged unless the corpus lint says a new minute-step golden case moves it; decided at slice 5              |
-| Migration stamp                       | newest `20261005110000_add_shared_people`                                        | every migration-enumerating `*.db.test.ts` in `store-sqlite`                                | `20261012130000_add_step_estimate_unit` (allocated 2026-10-12; main `99f588257`, queue latest 20261012120000) |
-| ADR                                   | 0040 highest; 0041 also on `batch-10/070-12-restore-applied-migration-set`       | `adr-index.test.ts` (contiguous)                                                            | 0041; whichever of the two lands second renumbers                                                             |
+| What                                  | Pinned on `origin/main` `a3b1526b` (2026-10-11)                                  | Pinning test                                                                                | This change                                                                                                            |
+| ------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `PLAN_DOCUMENT_VERSION`               | 6 (`plan-document-shapes.ts`)                                                    | `plan-document.resource.test.ts` "JSON export is a versioned plan document…" (`version: 6`) | next free, allocated at packet time                                                                                    |
+| `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` | 4 (`canonical-plan-input.ts`)                                                    | `canonical-plan-input.test.ts`; `saved-plans/module.test.ts` (`schemaVersion` 4)            | next free, allocated at packet time                                                                                    |
+| `SCHEDULER_CONTRACT_VERSION`          | 15 (`contract-version.ts`; 14 in the interview was stale: `432eff1ab` bumped it) | `contract-version.test.ts` (`'15+'`), `wire-contract-version.test.ts`                       | 16; both new minute-step corpus cases triggered corpus-version lint at 15; old workday case schedules remain identical |
+| Migration stamp                       | newest `20261005110000_add_shared_people`                                        | every migration-enumerating `*.db.test.ts` in `store-sqlite`                                | `20261012130000_add_step_estimate_unit` (allocated 2026-10-12; main `99f588257`, queue latest 20261012120000)          |
+| ADR                                   | 0040 highest; 0041 also on `batch-10/070-12-restore-applied-migration-set`       | `adr-index.test.ts` (contiguous)                                                            | 0041; whichever of the two lands second renumbers                                                                      |
 
 ## D1 — Vocabulary in `@wbs/domain`
 
@@ -44,7 +44,8 @@ for minutes — a fraction, never snapped to the quantum here (R6 A.3).
 
 ## D3 — Read shape and roll-up
 
-`rollUpFinals` folds `chargedWorkdaysOf` per step, so `finalDays` and `finalTotal` stay
+`rollUpCharged` folds native charged figures per step, preserving integral minute totals.
+`rollUpFinals` converts each folded charge onto the 480-minute workday axis, so `finalDays` and `finalTotal` stay
 workday figures (fractional for minute-unit steps) and every reader of them is unchanged.
 The work-item read adds `charged: { [stepId]: { unit: 'workdays'; days } | { unit:
 'minutes'; minutes } }` so a face never reconstructs minutes from a fraction
@@ -81,6 +82,17 @@ The `409 estimates_present` count comes from the `estimate_by_step` index in the
 transaction as the unit write. `estimateUnit?` lives in `step-shapes.ts` for create and patch
 and `estimateUnit` on reads; the MCP tools derive from the descriptors.
 
+### Journal unit bindings
+
+`Preconditions.estimateUnits` records immutable step/unit bindings for both command directions,
+including nested batches, `set_estimate`/`clear_estimate`, `delete_subtree.setEstimates`, and
+`restore_subtree.estimates`/`removedEstimates`. Every new entry writes a map, even empty.
+Capture occurs before append inside the write UoW; replay validates coverage and compares
+all bindings before `apply`. Missing or changed steps use existing `stale_undo`/entry discard
+settlement. Flip and rebase preserve bindings. Legacy absence explicitly binds required steps
+to workdays; present malformed/incomplete maps throw. Equality is sufficient: away-and-back
+unit edits may replay if other guards still hold. No row-unit or unit-revision column is added.
+
 ## D7 — Documents
 
 Plan document: each step carries `estimateUnit`; import reads every earlier version with
@@ -99,3 +111,5 @@ on the table and cards, `daysNumber` on the chart), so no workday-unit pixel or 
 moves. Minute figures: under 60 `N min`; under 480 `H h` or `H h M min`; from 480 `D d` with
 one decimal and a trailing `.0` dropped (`480` → `1 d`, `720` → `1.5 d`, `1200` → `2.5 d`). The Gantt bar card of a
 minute slice adds the line "placed on the working calendar".
+
+During a rolling swap the read contracts permit absent `estimateUnit` and `charged` from a pre-unit backend. Only absent wire units map to historical workdays; present units remain validated. New backend responses always emit both fields.

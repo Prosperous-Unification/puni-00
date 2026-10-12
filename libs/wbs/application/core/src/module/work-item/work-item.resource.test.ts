@@ -1331,7 +1331,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     // last row finishes at 15.000000000000002, and a bare ceil read that
     // drifted bit as a sixteenth day — `endsOn` three calendar days late over
     // the weekend. The successor's own `startsOn` goes through `addWorkdays`'
-    // floor, which upward drift cannot fool (floor of 15+ε is 15); it is
+    // floor, which upward drift cannot fool (floor of 16+ε is 15); it is
     // asserted so the boundary cannot regress. Its `endsOn` is clean by
     // arithmetic — 15.000000000000002 + 1 rounds to exactly 16 in doubles —
     // which is why the drifted `endsOn` is asserted on the chain end, where

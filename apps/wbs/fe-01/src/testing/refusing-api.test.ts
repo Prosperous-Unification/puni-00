@@ -353,7 +353,12 @@ describe('refusingApi contract boundary', () => {
 
   it('refuses a malformed stated request before the answer can mutate', async () => {
     const addStep = vi.fn(() =>
-      Promise.resolve({ id: 'step-dev', name: 'Dev', allowancePercent: 0 }),
+      Promise.resolve({
+        estimateUnit: 'workdays' as const,
+        id: 'step-dev',
+        name: 'Dev',
+        allowancePercent: 0,
+      }),
     );
     const api = refusingApi({ addStep });
 

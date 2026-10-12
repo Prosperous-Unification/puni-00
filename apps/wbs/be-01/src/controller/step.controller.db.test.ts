@@ -1052,7 +1052,12 @@ describe('a project step allowance over HTTP', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      step: { id: project.qaId, name: 'QA', allowancePercent: 30 },
+      step: {
+        estimateUnit: 'workdays' as const,
+        id: project.qaId,
+        name: 'QA',
+        allowancePercent: 30,
+      },
     });
     const charged = (await tree(project.id, token)).workItems.find((row) => row.id === leaf);
     expect(charged?.finalDays[project.qaId]).toBe(2);
@@ -1262,5 +1267,559 @@ describe('estimate unit boundary', () => {
       at: 0,
       kind: 'setEstimate',
     });
+  });
+  it('refuses undo that would restore an estimate under a changed unit', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    const id = await newWorkItem(project.id, token, 'A');
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'setEstimate',
+          workItemId: id,
+          stepId: project.devId,
+          days: { optimistic: 2, realistic: 2, pessimistic: 2 },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'clearEstimate',
+          workItemId: id,
+          stepId: project.devId,
+        })
+      ).status,
+    ).toBe(200);
+    const changed = await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ estimateUnit: 'minutes' }),
+    });
+    expect(changed.status).toBe(200);
+    const undone = await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' });
+    expect(undone.status).toBe(409);
+    expect(await undone.json()).toMatchObject({ error: 'stale_undo' });
+    expect(await estimates.listByProject(project.id)).toHaveLength(0);
+  });
+
+  it('reads charged minutes beside the workday figure and places half a day', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    expect(
+      (
+        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ estimateUnit: 'minutes' }),
+        })
+      ).status,
+    ).toBe(200);
+    const id = await newWorkItem(project.id, token, 'A');
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'setEstimate',
+          workItemId: id,
+          stepId: project.devId,
+          days: { optimistic: 240, realistic: 240, pessimistic: 240 },
+        })
+      ).status,
+    ).toBe(200);
+    const response = await send(`/api/projects/${project.id}/work-items`, token);
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      workItems: {
+        id: string;
+        charged: Record<string, unknown>;
+        finalDays: Record<string, number>;
+        schedule: { duration: number };
+      }[];
+    };
+    const row = payload.workItems.find((each) => each.id === id);
+    expect(row?.charged[project.devId]).toEqual({ unit: 'minutes', minutes: 240 });
+    expect(row?.finalDays[project.devId]).toBe(0.5);
+    expect(row?.schedule.duration).toBe(0.5);
+  });
+
+  it('accepts a whole-minute estimate above the workday maximum', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    expect(
+      (
+        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ estimateUnit: 'minutes' }),
+        })
+      ).status,
+    ).toBe(200);
+    const id = await newWorkItem(project.id, token, 'A');
+    const response = await planCommand(project.id, token, {
+      kind: 'setEstimate',
+      workItemId: id,
+      stepId: project.devId,
+      days: { optimistic: 44_739_243, realistic: 44_739_243, pessimistic: 44_739_243 },
+    });
+    expect(response.status).toBe(200);
+    expect(await estimates.listByProject(project.id)).toMatchObject([
+      { optimistic: 44_739_243, realistic: 44_739_243, pessimistic: 44_739_243 },
+    ]);
+  });
+
+  it('refuses a minute inverse after changing back to workdays', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    expect(
+      (
+        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ estimateUnit: 'minutes' }),
+        })
+      ).status,
+    ).toBe(200);
+    const id = await newWorkItem(project.id, token, 'A');
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'setEstimate',
+          workItemId: id,
+          stepId: project.devId,
+          days: DAYS,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'clearEstimate',
+          workItemId: id,
+          stepId: project.devId,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ estimateUnit: 'workdays' }),
+        })
+      ).status,
+    ).toBe(200);
+    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
+      409,
+    );
+    expect(await estimates.listByProject(project.id)).toHaveLength(0);
+  });
+
+  it('refuses redo after changing the unit of its cleared estimate', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    const id = await newWorkItem(project.id, token, 'A');
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'setEstimate',
+          workItemId: id,
+          stepId: project.devId,
+          days: DAYS,
+        })
+      ).status,
+    ).toBe(200);
+    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
+      200,
+    );
+    expect(
+      (
+        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ estimateUnit: 'minutes' }),
+        })
+      ).status,
+    ).toBe(200);
+    expect((await send(`/api/projects/${project.id}/redo`, token, { method: 'POST' })).status).toBe(
+      409,
+    );
+    expect(await estimates.listByProject(project.id)).toHaveLength(0);
+  });
+
+  it('refuses restoring a deleted estimated subtree after its empty step changes unit', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    const id = await newWorkItem(project.id, token, 'A');
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'setEstimate',
+          workItemId: id,
+          stepId: project.devId,
+          days: DAYS,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'deleteWorkItem',
+          workItemId: id,
+          strategy: 'cascade',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ estimateUnit: 'minutes' }),
+        })
+      ).status,
+    ).toBe(200);
+    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
+      409,
+    );
+    expect(await workItems.findById(id)).toBeNull();
+    expect(await estimates.listByProject(project.id)).toHaveLength(0);
+  });
+
+  it('refuses a mixed batch before its inverse rename and keeps an older independent entry reachable', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    const estimated = await newWorkItem(project.id, token, 'Estimated');
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'setEstimate',
+          workItemId: estimated,
+          stepId: project.devId,
+          days: DAYS,
+        })
+      ).status,
+    ).toBe(200);
+    const renamed = await newWorkItem(project.id, token, 'Original');
+    const older = await newWorkItem(project.id, token, 'Independent');
+    expect(
+      (
+        await send(`/api/projects/${project.id}/commands`, token, {
+          method: 'POST',
+          body: JSON.stringify({
+            commands: [
+              { kind: 'deleteWorkItem', workItemId: estimated, strategy: 'cascade' },
+              { kind: 'patchWorkItem', workItemId: renamed, patch: { name: 'Changed' } },
+            ],
+          }),
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ estimateUnit: 'minutes' }),
+        })
+      ).status,
+    ).toBe(200);
+    const before = await workItems.findById(renamed);
+    const emitted = broadcast.published.length;
+    const connection = openDatabase(join(dir, 'test.db'));
+    const entries = connection
+      .query<{ id: string }, []>('SELECT id FROM command_journal ORDER BY seq')
+      .all();
+    const events = connection.query('SELECT * FROM plan_event').all();
+    const response = await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' });
+    expect(response.status).toBe(409);
+    expect(await workItems.findById(renamed)).toEqual(before);
+    expect(await workItems.findById(estimated)).toBeNull();
+    expect(await estimates.listByProject(project.id)).toHaveLength(0);
+    expect(broadcast.published.length).toBe(emitted);
+    expect(connection.query('SELECT * FROM plan_event').all()).toEqual(events);
+    expect(
+      connection.query<{ id: string }, []>('SELECT id FROM command_journal ORDER BY seq').all(),
+    ).toEqual(entries.slice(0, -1));
+    connection.close();
+    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
+      200,
+    );
+    expect(await workItems.findById(older)).toBeNull();
+  });
+
+  it('retains minute bindings through chained undo redo and rebase', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    expect(
+      (
+        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ estimateUnit: 'minutes' }),
+        })
+      ).status,
+    ).toBe(200);
+    const id = await newWorkItem(project.id, token, 'A');
+    for (const point of [30, 60])
+      expect(
+        (
+          await planCommand(project.id, token, {
+            kind: 'setEstimate',
+            workItemId: id,
+            stepId: project.devId,
+            days: { optimistic: point, realistic: point, pessimistic: point },
+          })
+        ).status,
+      ).toBe(200);
+    for (const [direction, point] of [
+      ['undo', 30],
+      ['undo', null],
+      ['redo', 30],
+      ['redo', 60],
+    ] as const) {
+      expect(
+        (await send(`/api/projects/${project.id}/${direction}`, token, { method: 'POST' })).status,
+      ).toBe(200);
+      const stored = await estimates.listByProject(project.id);
+      if (point === null) expect(stored).toHaveLength(0);
+      else
+        expect(stored).toMatchObject([{ optimistic: point, realistic: point, pessimistic: point }]);
+    }
+  });
+
+  it('treats legacy absent bindings as workdays and refuses malformed present bindings', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    const id = await newWorkItem(project.id, token, 'A');
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'setEstimate',
+          workItemId: id,
+          stepId: project.devId,
+          days: DAYS,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'clearEstimate',
+          workItemId: id,
+          stepId: project.devId,
+        })
+      ).status,
+    ).toBe(200);
+    const connection = openDatabase(join(dir, 'test.db'));
+    const latest = connection
+      .query<{ id: string; preconditions: string }, []>(
+        'SELECT id,preconditions FROM command_journal ORDER BY seq DESC LIMIT 1',
+      )
+      .get();
+    if (latest === null) throw new Error('missing test journal entry');
+    const preconditions = JSON.parse(latest.preconditions) as Record<string, unknown>;
+    for (const estimateUnits of [null, {}]) {
+      connection.run('UPDATE command_journal SET preconditions=? WHERE id=?', [
+        JSON.stringify({ ...preconditions, estimateUnits }),
+        latest.id,
+      ]);
+      expect(
+        (await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status,
+      ).toBe(500);
+      expect(await estimates.listByProject(project.id)).toHaveLength(0);
+    }
+    delete preconditions['estimateUnits'];
+    connection.run('UPDATE command_journal SET preconditions=? WHERE id=?', [
+      JSON.stringify(preconditions),
+      latest.id,
+    ]);
+    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
+      200,
+    );
+    expect((await send(`/api/projects/${project.id}/redo`, token, { method: 'POST' })).status).toBe(
+      200,
+    );
+    connection.run('UPDATE command_journal SET preconditions=? WHERE id=?', [
+      JSON.stringify(preconditions),
+      latest.id,
+    ]);
+    expect(
+      (
+        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ estimateUnit: 'minutes' }),
+        })
+      ).status,
+    ).toBe(200);
+    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
+      409,
+    );
+    expect(await estimates.listByProject(project.id)).toHaveLength(0);
+    connection.close();
+  });
+
+  it('allows same-unit unrelated-step and away-and-back edits before replay', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    const id = await newWorkItem(project.id, token, 'A');
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'setEstimate',
+          workItemId: id,
+          stepId: project.devId,
+          days: DAYS,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ estimateUnit: 'workdays', name: 'Build' }),
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await send(`/api/projects/${project.id}/steps/${project.qaId}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ estimateUnit: 'minutes' }),
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ allowancePercent: 30 }),
+        })
+      ).status,
+    ).toBe(200);
+    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
+      200,
+    );
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'clearEstimate',
+          workItemId: id,
+          stepId: project.devId,
+        })
+      ).status,
+    ).toBe(200);
+    for (const unit of ['minutes', 'workdays'])
+      expect(
+        (
+          await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+            method: 'PATCH',
+            body: JSON.stringify({ estimateUnit: unit }),
+          })
+        ).status,
+      ).toBe(200);
+    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
+      200,
+    );
+    expect(await estimates.listByProject(project.id)).toMatchObject([DAYS]);
+  });
+
+  it('binds first-child hand-down and last-child hand-up estimate arrays', async () => {
+    for (const transfer of ['down', 'up'] as const) {
+      const token = await register(`unit-owner-${transfer}`);
+      const project = await newProject(token);
+      const parent = await newWorkItem(project.id, token, 'Parent');
+      if (transfer === 'down')
+        expect(
+          (
+            await planCommand(project.id, token, {
+              kind: 'setEstimate',
+              workItemId: parent,
+              stepId: project.devId,
+              days: DAYS,
+            })
+          ).status,
+        ).toBe(200);
+      const created = await planCommand(project.id, token, {
+        kind: 'createWorkItem',
+        parentId: parent,
+        name: 'Child',
+      });
+      expect(created.status).toBe(200);
+      const { results } = (await created.json()) as { results: { id: string }[] };
+      const child = results[0].id;
+      if (transfer === 'down') {
+        // Reopen the original create as the top entry after a raw emptying of the current trio;
+        // its immutable bindings, rather than row revision staleness, must protect the hand-up.
+        const connection = openDatabase(join(dir, 'test.db'));
+        connection.run('DELETE FROM estimate');
+        connection.close();
+      } else {
+        expect(
+          (
+            await planCommand(project.id, token, {
+              kind: 'setEstimate',
+              workItemId: child,
+              stepId: project.devId,
+              days: DAYS,
+            })
+          ).status,
+        ).toBe(200);
+        expect(
+          (
+            await send(`/api/projects/${project.id}/commands`, token, {
+              method: 'POST',
+              body: JSON.stringify({
+                commands: [
+                  { kind: 'deleteWorkItem', workItemId: child, strategy: 'cascade' },
+                  { kind: 'clearEstimate', workItemId: parent, stepId: project.devId },
+                ],
+              }),
+            })
+          ).status,
+        ).toBe(200);
+      }
+      expect(await estimates.listByProject(project.id)).toHaveLength(0);
+      expect(
+        (
+          await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+            method: 'PATCH',
+            body: JSON.stringify({ estimateUnit: 'minutes' }),
+          })
+        ).status,
+      ).toBe(200);
+      expect(
+        (await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status,
+      ).toBe(409);
+      expect(await estimates.listByProject(project.id)).toHaveLength(0);
+      expect(await workItems.findById(parent)).not.toBeNull();
+      expect((await workItems.findById(child)) === null).toBe(transfer === 'up');
+    }
+  });
+
+  it('refuses restoring an estimate whose bound step was removed', async () => {
+    const token = await register('unit-owner');
+    const project = await newProject(token);
+    const id = await newWorkItem(project.id, token, 'A');
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'setEstimate',
+          workItemId: id,
+          stepId: project.devId,
+          days: DAYS,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await planCommand(project.id, token, {
+          kind: 'clearEstimate',
+          workItemId: id,
+          stepId: project.devId,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await send(`/api/projects/${project.id}/steps/${project.devId}`, token, {
+          method: 'DELETE',
+        })
+      ).status,
+    ).toBe(204);
+    expect((await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' })).status).toBe(
+      409,
+    );
+    expect(await estimates.listByProject(project.id)).toHaveLength(0);
   });
 });

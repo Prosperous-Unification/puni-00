@@ -60,7 +60,7 @@
 
 ## 4. Route and command boundary
 
-- [ ] 4.1 Red: `apps/wbs/be-01/src/controller/step.controller.db.test.ts` (create with
+- [x] 4.1 Red: `apps/wbs/be-01/src/controller/step.controller.db.test.ts` (create with
       `minutes`; absent unit reads `workdays`; patch `hours` → `422 invalid_estimate_unit`;
       patch over three estimates → `409 estimates_present` `{ count: 3 }`; after clearing,
       the patch succeeds; the generated OpenAPI document carries the field);
@@ -68,8 +68,8 @@
       stored; `1.5` → `422 minutes_not_integer` at its index, earlier commands rolled back;
       above-max → `422 minutes_above_max`); `plan-command-shapes.test.ts` kind count unchanged;
       `document-from-shapes.test.ts` tool descriptions name the unit.
-- [x] 4.2 Green: `step-shapes.ts` `estimateUnit?` on create and patch, `estimateUnit` on
-      reads; `StepService.addWithin`/`patchUnitWithin` with the count in the same transaction;
+- [x] 4.2 Green: `step-shapes.ts` `estimateUnit?` on create and patch, optional `estimateUnit` on
+      reads for old-backend compatibility; new writes always emit it; `StepService.addWithin`/`patchUnitWithin` with the count in the same transaction;
       `command-normalizers.ts` parses finite/nonnegative/ordered trios without a unit cap;
       `WorkItemService.setEstimate` reads the step inside the command transaction and checks
       its unit bounds; refusals in `refusal.ts`.
@@ -77,20 +77,27 @@
       skipped in `WorkItemService.setEstimate` (always `workdays`) → the `422 minutes_not_integer` case
       answers `200`; `isEstimateUnit` reduced to `typeof === 'string'` → `hours` answers `200`.
 
+- [x] 4.4 Red/green: immutable journal unit preconditions, recursive coverage of both
+      directions, preflight stale_undo, legacy workday binding and strict present-map validation.
+      Mounted direct undo/redo, subtree restore, first/last-child transfers, mixed-batch atomicity,
+      stale-entry discard, chained rebase/flip, unrelated and away-and-back edits.
+- [x] 4.5 Negatives: remove compare; omit subtree/batch recursion; drop flip binding; reinterpret
+      legacy units; disable shape/vocabulary/coverage checks. Watch named production-path cases fail.
+
 ## 5. Read shape, roll-up and placement
 
-- [ ] 5.1 Red: `roll-up.test.ts` "folds a minute step as its charged minutes over 480";
+- [x] 5.1 Red: `roll-up.test.ts` "folds a minute step as its charged minutes over 480";
       `work-item.resource.test.ts` "reads charged minutes beside the workday figure";
       `schedule.test.ts` "a 240-minute slice lasts half a workday and its successor starts at
       0.5"; `build-solver-request.test.ts` "a 480-minute slice and a one-day slice send equal
       durationUnits"; `live-plan-identity.test.ts`, `fast-golden-corpus.test.ts`,
       `solver-quantum-golden-corpus.test.ts` and the request-hash tests unchanged and green.
-- [ ] 5.2 Green: `rollUpFinals` over `chargedWorkdaysOf`; `charged` on the work-item read
+- [x] 5.2 Green: `rollUpCharged` in native units and `rollUpFinals` on the workday axis; `charged` on the work-item read
       (`work-item-response.ts`); the schedule input adapter in `work-item.resource.ts`. Add
       one minute-step case to each golden corpus through the corpus writer; the corpus lint
       decides at this slice whether `SCHEDULER_CONTRACT_VERSION` moves, and `design.md`
       records the answer.
-- [ ] 5.3 Negatives: `WORKDAY_MINUTES` read as `60` in the adapter → the half-day case;
+- [x] 5.3 Negatives: `WORKDAY_MINUTES` read as `60` in the adapter → the half-day case;
       `charged` omitted from the read → the read test; a golden case edited by hand → the
       corpus test reddens (watched, then the writer rerun).
 

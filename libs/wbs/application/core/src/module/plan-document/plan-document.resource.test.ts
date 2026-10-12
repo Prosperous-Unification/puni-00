@@ -33,6 +33,7 @@ const TREE: WorkItemTree = {
   typedDependencies: [],
   workItems: [
     {
+      charged: {},
       id: 'row-1',
       projectId: PROJECT.id,
       parentId: null,

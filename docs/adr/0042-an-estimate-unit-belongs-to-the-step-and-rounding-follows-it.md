@@ -45,3 +45,10 @@ ADR 0011 stays accepted with its scope narrowed to workday-unit steps.
   disagree on the unit — the fault ADR 0011 exists to prevent, moved to the unit.
 - An older image reads a minute trio as days, so rollback and the swap refuse code that
   cannot read a stored `minutes` unit, exactly as they refuse an unreadable hold (ADR 0032).
+
+- Journal Preconditions bind the units needed by both replay directions, including nested
+  batches and subtree estimate arrays. Replay refuses a changed or missing bound step before
+  applying anything; flip/rebase retain the original bindings. Old journals without bindings
+  mean workdays explicitly; damaged present maps throw. Equality allows away-and-back edits
+  without a new unit-revision column. An attempted conflicting replay still discards its entry
+  under the existing stale-history policy.

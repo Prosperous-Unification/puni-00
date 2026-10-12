@@ -1,3 +1,4 @@
+import type { ChargedEstimate } from '@wbs/domain';
 import type {
   Attempt,
   Days,
@@ -111,6 +112,8 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    * is: absent and zero mean opposite things.
    */
   finalDays: Record<string, number>;
+  /** Each step's native charge, preserving whole minutes through presentation. */
+  charged: Record<string, ChargedEstimate>;
   /** Every step's final figure, summed — the row's whole planning duration. */
   finalTotal: number;
   /**

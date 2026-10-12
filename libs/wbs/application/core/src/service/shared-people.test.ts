@@ -34,6 +34,7 @@ function plan(
       timezone: 'UTC',
     },
     steps: people.map((_, index) => ({
+      estimateUnit: 'workdays' as const,
       id: `s${String(index)}`,
       code: null,
       name: `s${String(index)}`,
@@ -381,7 +382,7 @@ describe('readSharedPeople', () => {
               optimization: {
                 inputHash: 'captured',
                 generation: null,
-                contractVersion: '15+0.2.0',
+                contractVersion: '16+0.2.0',
                 budgetMs: 1000,
                 variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'idle' } },
                 schedules: { pri: null, time: null },

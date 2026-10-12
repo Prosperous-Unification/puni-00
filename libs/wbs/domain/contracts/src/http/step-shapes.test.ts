@@ -60,7 +60,7 @@ test('declares the full step response and each usage count and assumed-assignee 
           allowancePercent: { type: 'number' },
           estimateUnit: { enum: ['minutes', 'workdays'] },
         },
-        required: ['estimateUnit', 'id', 'name', 'position', 'projectId'],
+        required: ['id', 'name', 'position', 'projectId'],
       },
     },
   });
@@ -139,5 +139,14 @@ test('still reads a step from a be-01 that predates step allowances', async () =
   expect(await validateSchema(reply, current)).toEqual({ value: current });
   expect(
     (await validateSchema(reply, { step: { ...older.step, allowancePercent: '30' } })).issues,
+  ).toBeDefined();
+});
+
+test('reads a pre-unit backend as the historical workday protocol and refuses malformed present units', async () => {
+  const reply = addStep.responses[0].schema;
+  const older = { step: { id: 'step', projectId: 'project', name: 'Dev', position: 10 } };
+  expect((await validateSchema(reply, older)).issues).toBeUndefined();
+  expect(
+    (await validateSchema(reply, { step: { ...older.step, estimateUnit: 'hours' } })).issues,
   ).toBeDefined();
 });

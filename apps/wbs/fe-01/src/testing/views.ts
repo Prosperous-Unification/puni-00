@@ -24,6 +24,7 @@ import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
  */
 export function workItemView(overrides: Partial<WorkItemView> = {}): WorkItemView {
   return {
+    charged: {},
     id: 'w1',
     parentId: null,
     revision: 0,

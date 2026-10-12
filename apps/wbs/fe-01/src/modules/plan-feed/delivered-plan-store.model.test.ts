@@ -111,7 +111,12 @@ function toDelivery(world: PlanWorld, spec: DeliverySpec): PlanFeedDelivery {
   const steps =
     spec.steps === null
       ? null
-      : spec.steps.map((name, i) => ({ id: `s${String(i)}`, name, allowancePercent: 0 }));
+      : spec.steps.map((name, i) => ({
+          estimateUnit: 'workdays' as const,
+          id: `s${String(i)}`,
+          name,
+          allowancePercent: 0,
+        }));
   if (steps !== null) world.deliveredStepArrays.add(steps);
   return {
     // A fresh array every time, as the owner's snapshot may give one.
@@ -157,10 +162,11 @@ function fold(model: PlanModel, delivery: PlanFeedDelivery): void {
   }
   if (delivery.steps !== null) {
     if (stepsKey(delivery.steps) !== stepsKey(model.steps)) {
-      model.steps = delivery.steps.map(({ id, name, allowancePercent }) => ({
+      model.steps = delivery.steps.map(({ id, name, allowancePercent, estimateUnit }) => ({
         id,
         name,
         allowancePercent,
+        estimateUnit,
       }));
       model.stepChanges += 1;
       changed = true;
@@ -289,10 +295,11 @@ class Redeliver implements PlanCommand {
   }
   async run(model: PlanModel, world: PlanWorld): Promise<void> {
     note('redeliver');
-    const steps = model.steps.map(({ id, name, allowancePercent }) => ({
+    const steps = model.steps.map(({ id, name, allowancePercent, estimateUnit }) => ({
       id,
       name,
       allowancePercent,
+      estimateUnit,
     }));
     world.deliveredStepArrays.add(steps);
     const delivery: PlanFeedDelivery = {

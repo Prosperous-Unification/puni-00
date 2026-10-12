@@ -57,7 +57,9 @@ export const stepShape = type({
   position: 'number',
   'code?': 'string | null',
   'allowancePercent?': 'number',
-  estimateUnit: "'workdays' | 'minutes'",
+  // Proof: requiring this field refused the pre-unit backend fixture; malformed present hours remains refused (step-shapes.test.ts, 2026-10-12).
+  // An older backend predates units and can only answer workday steps.
+  'estimateUnit?': "'workdays' | 'minutes'",
 });
 const stepReply = responseSchema(type({ step: stepShape }));
 const policies = [

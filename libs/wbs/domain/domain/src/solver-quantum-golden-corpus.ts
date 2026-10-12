@@ -75,6 +75,7 @@
  */
 
 import { SCHEDULER_CONTRACT_VERSION } from './contract-version';
+import { chargedWorkdaysOf, DEFAULT_ESTIMATE_RULE, NO_ALLOWANCE } from './estimate';
 import type { Slice } from './schedule';
 import { durationRoundedUp, durationUnits } from './solver-quantum';
 
@@ -182,6 +183,18 @@ export const QUANTUM_GOLDEN_CASES: readonly QuantumGoldenCase[] = [
     // chart — would move this byte and nothing else in this file.
     name: 'explicit-zero',
     slice: work(0, 4),
+  },
+  {
+    name: 'minute-step-one-workday',
+    slice: work(
+      chargedWorkdaysOf(
+        'minutes',
+        { optimistic: 480, realistic: 480, pessimistic: 480 },
+        DEFAULT_ESTIMATE_RULE,
+        NO_ALLOWANCE,
+      ),
+      1,
+    ),
   },
 ];
 

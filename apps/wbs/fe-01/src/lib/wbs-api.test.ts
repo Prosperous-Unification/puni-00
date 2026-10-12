@@ -403,9 +403,10 @@ describe('adding and renaming a step', () => {
     );
     const api = httpProjectApi('t');
     await expect(api.steps('p1')).resolves.toEqual([
-      { id: 'r3', name: 'QA', allowancePercent: 30 },
+      { estimateUnit: 'workdays' as const, id: 'r3', name: 'QA', allowancePercent: 30 },
     ]);
     await expect(api.renameStep('p1', 'r3', 'Review')).resolves.toEqual({
+      estimateUnit: 'workdays' as const,
       id: 'r3',
       name: 'Review',
       allowancePercent: 30,
@@ -432,6 +433,7 @@ describe('adding and renaming a step', () => {
     );
     vi.stubGlobal('fetch', fetched);
     await expect(httpProjectApi('t').setStepAllowance('p1', 'r3', 30)).resolves.toEqual({
+      estimateUnit: 'workdays' as const,
       id: 'r3',
       name: 'QA',
       allowancePercent: 30,
@@ -479,6 +481,7 @@ describe('adding and renaming a step', () => {
     );
     vi.stubGlobal('fetch', fetched);
     await expect(httpProjectApi('t').addStep('p1', 'Design')).resolves.toEqual({
+      estimateUnit: 'workdays' as const,
       id: 'r3',
       name: 'Design',
       allowancePercent: 0,

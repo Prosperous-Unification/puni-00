@@ -3561,7 +3561,12 @@ describe('the axis is a calendar', () => {
 /** The Monday the fixture plan begins on, so every offset below is a weekday. */
 const MONDAY = '2026-08-10';
 
-const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
+const DEV: StepView = {
+  estimateUnit: 'workdays' as const,
+  id: 'step-dev',
+  name: 'Dev',
+  allowancePercent: 0,
+};
 
 const NO_DAYS: Days = { optimistic: 0, realistic: 0, pessimistic: 0 };
 
@@ -3588,6 +3593,7 @@ function rowOf(parts: {
   notBefore?: string;
 }): WorkItemView {
   return {
+    charged: {},
     id: parts.id,
     parentId: parts.parentId,
     revision: 0,
@@ -4477,7 +4483,11 @@ describe('the chart is drawn from one read', () => {
     // and lists none of the step every slice **is** under. That is the
     // four-request skew this fix exists for, and nothing about it is malformed —
     // both answers were true when they were given.
-    await showTheChart(MONDAY, { steps: [{ id: 'step-ops', name: 'Ops', allowancePercent: 0 }] });
+    await showTheChart(MONDAY, {
+      steps: [
+        { estimateUnit: 'workdays' as const, id: 'step-ops', name: 'Ops', allowancePercent: 0 },
+      ],
+    });
 
     // Proof: `ganttPlan`'s `steps` put back to the `steps` state — the separate
     // read. This test failed on `expected null not to be null`, with the

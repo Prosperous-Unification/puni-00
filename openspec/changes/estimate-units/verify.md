@@ -123,3 +123,52 @@ produced raw TypeError instead of the named refusal (step.db.test.ts, exit 1). B
 Checkpoint focused tests: 92 pass/270 assertions before the added missing-count test;
 core, store-memory and store-sqlite typechecks all exit 0. Direct affected-file ESLint exit 0;
 OpenSpec estimate-units validation valid=true. Final all-change validation and host gate pending.
+
+## Slice 5 and immutable journal units (2026-10-12)
+
+Mounted step controller: 51 pass, 326 assertions, including 240-minute placement and a
+44,739,243-minute successful write above the workday cap. Focused compensating/work-item,
+roll-up/schedule, both corpus, solver-request and wire suites: 233 pass, 603 assertions.
+Additional contract identity/document/wire suites: 49 pass, 259 assertions. StepView Vitest:
+3 pass. Domain, contracts, core and frontend typechecks (including module targets): exit 0.
+OpenSpec estimate-units validation: valid=true.
+
+Native minute charges are folded before conversion to workdays. New reads emit charged
+figures; historical backend reads may omit charged/unit, with absent wire units explicitly
+mapped to workdays. Fast and Quantum corpora each gained a minute case through their writers.
+The actual corpus-version lint refused version 15 with both new cases (exit 1); version 16
+passes (exit 0). All ten previous Fast workday schedules compared unchanged against HEAD.
+
+| Check                  | Injected fault                         | Observed failure                                   |
+| ---------------------- | -------------------------------------- | -------------------------------------------------- |
+| Placement axis         | WORKDAY_MINUTES = 60                   | mounted half-day expected 0.5, got 4               |
+| Native charged read    | omit charged field                     | mounted minute read loses its charge               |
+| Required internal unit | default absent unit to workdays        | missing-unit throw test fails                      |
+| Corpus ownership       | hand-edit generated Fast case          | corpus comparison fails; writer restores           |
+| Tool unit wording      | replace workdays/whole minutes wording | emitted-description assertion fails                |
+| Wire unit preservation | force StepView unit to workdays        | Vitest minute-preservation test fails              |
+| Replay comparison      | bypass current-unit comparison         | mounted stale undo answers 200, not 409            |
+| Restore coverage       | omit restore estimate arrays           | deleted-subtree undo answers 200, not 409          |
+| Nested coverage        | omit nested batch recursion            | mixed batch replays instead of refusing atomically |
+| Delete coverage        | omit delete setEstimates               | recursive coverage test misses handed-up step      |
+| Flip retention         | omit bindings on flip                  | chained minute redo answers 409, not 200           |
+| Legacy units           | interpret absent map as minutes        | historical workday undo answers 409, not 200       |
+| Binding shape          | skip shape guard                       | malformed trusted-state test gets raw TypeError    |
+| Binding vocabulary     | skip unit validation                   | malformed hours map accepted                       |
+| Binding completeness   | skip coverage guard                    | incomplete trusted map answers 200, not 500        |
+| Missing bound step     | skip missing-step guard                | mounted undo answers 500, not 409                  |
+
+Every injected fault was watched red (exit 1) and restored; adjacent Proof comments name the
+fault and production-path observation. Replay mounted cases cover both unit directions,
+redo, first-child hand-down, last-child hand-up, deleted subtree restore, mixed-batch rollback
+with no revision/journal/event leak, stale-entry discard and access to an older entry, chained
+flip/rebase, historical journals, same-unit/unrelated changes and away-and-back equality.
+
+Slices 6 and 7 and the final host gate remain pending. This checkpoint MUST NOT be released:
+minute writes require plan-document/saved-plan preservation and frontend validation/readout.
+
+Checkpoint final rerun after style fixes: mounted step + compensating suites 58 pass,
+348 assertions; StepView + delivered-plan model Vitest 4 pass. Affected-file ESLint exit 0,
+Prettier write exit 0 and git diff --check exit 0. The four-project typecheck ran six targets,
+all successful (two reused matching Nx cached outputs). Full frontend/browser suites,
+all-change validation, final migration-stamp collision check and host gate remain pending.

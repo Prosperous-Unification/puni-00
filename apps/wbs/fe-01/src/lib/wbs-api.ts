@@ -43,6 +43,7 @@ import {
   validateSchema,
 } from '@wbs/contracts';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
+import type { ChargedEstimate, EstimateUnit } from '@wbs/domain/estimate';
 import type { PriorityBand } from '@wbs/domain/priority-band';
 // The second exception, and the cheaper one: `IsoDate` is `export type IsoDate =
 // string` in a module with no imports of its own, so this erases entirely at
@@ -281,6 +282,7 @@ export interface ElsewhereHolderView {
 }
 
 export interface WorkItemView {
+  charged?: Record<string, ChargedEstimate>;
   id: string;
   parentId: string | null;
   /**
@@ -598,6 +600,7 @@ export interface SpanView {
 }
 
 export interface StepView {
+  estimateUnit: EstimateUnit;
   id: string;
   name: string;
   allowancePercent: number;
@@ -645,8 +648,15 @@ export function stepViewOf(step: {
   id: string;
   name: string;
   allowancePercent?: number;
+  estimateUnit?: EstimateUnit;
 }): StepView {
-  return { id: step.id, name: step.name, allowancePercent: step.allowancePercent ?? 0 };
+  return {
+    // Proof: forcing workdays failed step-view.test.ts minute preservation.
+    estimateUnit: step.estimateUnit ?? 'workdays',
+    id: step.id,
+    name: step.name,
+    allowancePercent: step.allowancePercent ?? 0,
+  };
 }
 
 /**

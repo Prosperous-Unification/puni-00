@@ -39,12 +39,22 @@ import { refusingApi } from './refusing-api';
  */
 
 /** The first step every fixture starts with. */
-export const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
+export const DEV: StepView = {
+  estimateUnit: 'workdays' as const,
+  id: 'step-dev',
+  name: 'Dev',
+  allowancePercent: 0,
+};
 /**
  * A second step, because "one assignee is assumed to do every step" is only
  * observable when there is another step for them to be assumed into.
  */
-export const QA: StepView = { id: 'step-qa', name: 'QA', allowancePercent: 0 };
+export const QA: StepView = {
+  estimateUnit: 'workdays' as const,
+  id: 'step-qa',
+  name: 'QA',
+  allowancePercent: 0,
+};
 
 /**
  * A ProjectApi over an in-memory tree, numbering rows the way be-01 does.
@@ -775,7 +785,12 @@ export function fakeProjectApi(): ProjectApi & {
       if (stepList.some((step) => step.name === clean)) {
         return Promise.reject(new Error('taken'));
       }
-      const step = { id: `step-${clean.toLowerCase()}`, name: clean, allowancePercent: 0 };
+      const step = {
+        estimateUnit: 'workdays' as const,
+        id: `step-${clean.toLowerCase()}`,
+        name: clean,
+        allowancePercent: 0,
+      };
       stepList.push(step);
       renumber();
       return Promise.resolve(step);

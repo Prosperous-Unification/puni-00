@@ -79,6 +79,13 @@ export const numberedWorkItem = type({
   measures: type({ '[string]': numbers }),
   dependsOn: 'string[]',
   finalDays: numbers,
+  // Absent only from a backend that predates estimate units during swap or rollback.
+  'charged?': type({
+    '[string]': type.or(
+      type({ unit: "'workdays'", days: 'number' }),
+      type({ unit: "'minutes'", minutes: 'number%1>=0' }),
+    ),
+  }),
   finalTotal: 'number',
   schedule: scheduled.or('null'),
   dates: type({ startsOn: 'string', endsOn: 'string' }).or('null'),

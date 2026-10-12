@@ -28,8 +28,18 @@ const itDom = hasDom ? it : it.skip;
 
 afterEach(cleanup);
 
-const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
-const QA: StepView = { id: 'step-qa', name: 'QA', allowancePercent: 0 };
+const DEV: StepView = {
+  estimateUnit: 'workdays' as const,
+  id: 'step-dev',
+  name: 'Dev',
+  allowancePercent: 0,
+};
+const QA: StepView = {
+  estimateUnit: 'workdays' as const,
+  id: 'step-qa',
+  name: 'QA',
+  allowancePercent: 0,
+};
 
 /** A plan where no row sets an earliest start, which is what a fresh project is. */
 const UNDATED: FrameLayoutState = {
@@ -55,10 +65,20 @@ const PEOPLE: Record<string, string> = { p1: 'Kat', p2: 'Ada' };
  */
 function stubbed(overrides: Partial<Parameters<typeof StepsPanel>[0]> = {}) {
   const addStep = vi.fn(() =>
-    Promise.resolve({ id: 'step-design', name: 'Design', allowancePercent: 0 }),
+    Promise.resolve({
+      estimateUnit: 'workdays' as const,
+      id: 'step-design',
+      name: 'Design',
+      allowancePercent: 0,
+    }),
   );
   const renameStep = vi.fn(() =>
-    Promise.resolve({ id: 'step-qa', name: 'Review', allowancePercent: 0 }),
+    Promise.resolve({
+      estimateUnit: 'workdays' as const,
+      id: 'step-qa',
+      name: 'Review',
+      allowancePercent: 0,
+    }),
   );
   const setStepAllowance = vi.fn(() => Promise.resolve({ ...QA, allowancePercent: 30 }));
   const removeStep = vi.fn(() => Promise.resolve({ ok: true }));

@@ -72,6 +72,7 @@ test('checks deadline and slice lateness while retaining additive nested respons
     critical: true,
   };
   const row = {
+    charged: {},
     id: 'w',
     projectId: 'p',
     parentId: null,

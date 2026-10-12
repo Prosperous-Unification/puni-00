@@ -856,7 +856,7 @@ export function prepareImport(
       steps: inStepOrder.map(({ id, allowancePercent }) => {
         const checked = allowancePercentOf(allowancePercent);
         if (checked === null) throw new Error(`validated allowance disappeared for step ${id}`);
-        return { id, allowancePercent: checked };
+        return { id, allowancePercent: checked, estimateUnit: 'workdays' };
       }),
       estimates: preparedRows.flatMap(({ fileId, estimates }) =>
         estimates.map(({ stepFileId }) => ({ workItemId: fileId, stepId: stepFileId })),

@@ -1,6 +1,6 @@
 {
   "wireVersion": 3,
-  "contractVersion": "15+0.2.0",
+  "contractVersion": "16+0.2.0",
   "solverVersion": "0.2.0",
   "objective": "time",
   "budgetMs": 1000,
