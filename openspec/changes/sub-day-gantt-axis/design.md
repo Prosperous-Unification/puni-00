@@ -44,6 +44,13 @@ says so in the control's title.
 
 ## D4 — Measurement, not a gate
 
-The 020.07 harness is rerun on the shipped component at the 15-min rung for the 500×5 and
-2000×5 fixtures and the p95 figures are recorded in `verify.md` beside the experiment's.
-Raising the limit later needs a new recorded measurement; nothing pins wall-clock in CI.
+The 020.07 harness is rerun against the shipped renderer at the 15-min rung. The 500×5
+fixture has no attempts and exercises the production panel at its 2,500-mark limit. The
+2000×5 fixture has 10,000 marks, so the production control must refuse that rung; measure
+its rendering cost through a dedicated benchmark entry into the same renderer. Do not add
+a production prop, URL switch or alternate limit that bypasses the offer rule. Record the
+benchmark entry and fixture in `verify.md`, label its p95 mount/interaction figures as
+renderer-only, and record the production refusal separately. Compare both fixtures with
+the experiment's figures. Once attempt marks exist, also measure an attempt-inclusive
+fixture within 2,500 total marks. Raising the limit later needs a new recorded measurement;
+nothing pins wall-clock in CI.
