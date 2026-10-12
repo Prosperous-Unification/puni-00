@@ -2320,3 +2320,75 @@ The growth was lazy collection, not retention: `relationships.test.ts` alone pea
 KB and at 1,190,804 KB with a full collection after each command, in the same time. `invokeCli`
 now forces that collection; `trusted-policy` went from 1,835,400 to 982,648 KB and `rules` from
 1,733,880 to 1,003,940 KB.
+
+## WBS 7774401a (batch 10, under 080) — Burokrat reads selected blobs in one batch — 2026-10-12
+
+Decision A31: every Burokrat command read each selected blob with its own `git cat-file blob`
+process, about three times per path (classification, index reading, relationship extraction or a
+rule). `readSelectedBlob` (`inventory/read-blob.ts`) replaces that. The first read of a candidate's
+entry list starts one `git cat-file --batch` for all of its non-Gitlink blobs, and every later
+consumer of the same list shares that read. The JSDoc names the refusals.
+
+- Each answer is parsed by the documented `<sha> <type> <size>\n<bytes>\n` framing, and its bytes
+  are hashed as a Git blob and compared with the identity the selected tree or index named. The
+  old artifacts fault ("changed bytes on a second read") is now `refuses batch bytes whose digest
+differs from the selected index`, because there is no second read.
+- `<sha> missing` refuses only reads of that blob, so a rule that never reads it is unaffected.
+  Every other refusal applies to the whole selection: the reader failed, the output ended early,
+  the answer named another object or type, the digest differs, or there were trailing bytes. A
+  refused selection stays refused; the reader is not started again.
+- `GIT_NO_REPLACE_OBJECTS=1` now applies to every candidate read. Before, `policy/trust.ts` and
+  `relationships/index.ts` read without it.
+- Converted: `cli.ts`, `policy/trust.ts`, `indexes/read-indexes.ts`, `indexes/root-migration.ts`
+  (selected files), `relationships/index.ts`, `review/exhaustive-coverage.ts`, `rules/registry.ts`,
+  `rules/specifications.ts`, `rules/kind-inventory.ts`, `rules/size-ratchet.ts`,
+  `evidence/manual.ts`, `evidence/browser.ts`, `evidence/test-reports.ts` and `templates/verify.ts`.
+  The template judge batches only the subject's entries.
+- Single-object reads kept: the root migration's historical source blobs, which come from pinned
+  revisions outside the selection. The activation controller's review-selection readers have
+  their own object boundary and were not changed.
+
+### Measurements
+
+Workstation, 24 cores, `bun test --preload ../../../../tools/test/scratch/preload.ts` from the
+project directory under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, with
+`TOOL_WIKI_TRUSTED_NODE_MODULES` set as the target sets it. Base: `21a6bd537`.
+
+| Measure                                                                                   | Base                  | Branch                                     |
+| ----------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------ |
+| `pilot-policy.test.ts`, whole file                                                        | 478.6 s (load 5)      | 159.6 s (load 13 to 33), 188.3 s (load 35) |
+| `pins exact pre-index tuples …` under `strace -f -e execve`: wall                         | 224.9 s               | 16.6 s                                     |
+| same: `git` executions                                                                    | 22,744                | 52                                         |
+| same: `git cat-file` executions (one `check-indexes` and one `lint-local` over this repo) | 22,694 (1 batch)      | 2 (both `--batch`)                         |
+| `nx run twilight-burokrat:test --skip-nx-cache`                                           | 976 s (lane 352d2d65) | 702.0 s; 928.7 s with `TMPDIR=/var/tmp`    |
+
+The earlier lane's strace counted 16,936 `cat-file blob` processes for the `lint-local` alone; the
+rest of the base count is `check-indexes`. The repository has 5,673 tracked files (72.6 MB), and
+one batch over all of them takes 0.33 s. The CI `gate tool wiki` step runs the same target through
+`nx run-many -t test typecheck build`; its time is in the PR's run.
+
+### Proofs
+
+Each fault was applied alone and restored. Reader faults ran against `read-blob.test.ts`.
+
+| Fault                                                               | Failing tests                                                                                                                                                                                                                |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| header newline check disabled                                       | `refuses a batch that ends inside a header or before the announced size`                                                                                                                                                     |
+| answered-identity check disabled                                    | `refuses a batch answer that names another object`                                                                                                                                                                           |
+| object-type check disabled                                          | `refuses a batch header that names another object type`                                                                                                                                                                      |
+| announced-size check disabled                                       | `refuses a batch that ends inside a header or before the announced size`                                                                                                                                                     |
+| digest binding disabled                                             | `refuses batch bytes whose digest differs from the selected object identity`; artifacts CLI `refuses batch bytes whose digest differs from the selected index` (received the allowlisted-schema refusal instead)             |
+| trailing-bytes check disabled                                       | `refuses output the batch did not ask for`                                                                                                                                                                                   |
+| exit-status check disabled                                          | `refuses a reader that exits early and does not start a second one`                                                                                                                                                          |
+| selection not memoized                                              | `reads every selected blob … in a single cat-file batch`; the early-exit case (two readers started)                                                                                                                          |
+| refused selection not rethrown                                      | six refusal cases in `read-blob.test.ts`                                                                                                                                                                                     |
+| not-in-selection check disabled                                     | `refuses a blob that is not part of the selected candidate`                                                                                                                                                                  |
+| missing-object check disabled                                       | `refuses a missing object for its own path and still serves the others`                                                                                                                                                      |
+| the shared view returned instead of a copy                          | `hands each caller its own copy of the selected bytes`                                                                                                                                                                       |
+| `GIT_NO_REPLACE_OBJECTS` removed                                    | `production check ignores local Git replacement objects for a selected journal blob`; `inspect-manual ignores Git replacement objects for module indexes` (`batch read digest differs from the index … at source/README.md`) |
+| `cannot read selected index` context removed from `read-indexes.ts` | `[TEST-AXES-051] … retain distinct refusals`; both reader-fault cases in `indexes.test.ts`                                                                                                                                   |
+
+Checks: `nx run twilight-burokrat:typecheck` and `lint:fast` (`--skip-nx-cache`) passed; the target
+passed `2341 pass, 0 fail` twice, once with `TMPDIR=/var/tmp`. Not run: the whole-repository
+`twilight-burokrat:lint` target (it needs an activation root and reports inactive without one)
+and the h2puni gate.

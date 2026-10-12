@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { installChangedBatchGit } from '../inventory/changed-batch-git.fixture';
 import { type CliInvocation, invokeCli } from '../invoke-cli';
 
 type Membership =
@@ -494,7 +495,7 @@ describe('index production CLI', () => {
     expect(runGit(repository, ['status', '--short'])).toBe('');
   });
 
-  test('fails closed when a selected index blob cannot be read', async () => {
+  test('fails closed when the selected blob reader exits early', async () => {
     const repository = createRepository();
     writeFixture(repository);
     const revision = commit(repository, 'fixture');
@@ -516,7 +517,29 @@ describe('index production CLI', () => {
         PATH: `${wrapperDirectory}:${process.env['PATH'] ?? ''}`,
         WIKI_REAL_GIT: realGit,
       }),
-      'cannot read selected index README.md: injected unreadable index',
+      'cannot read selected index README.md: git cat-file --batch failed: injected unreadable index',
+    );
+  });
+
+  test('refuses an index whose batch bytes differ from the selected blob identity', async () => {
+    const repository = createRepository();
+    writeFixture(repository);
+    const revision = commit(repository, 'fixture');
+    const wrapperDirectory = installChangedBatchGit();
+    repositories.push(wrapperDirectory);
+    const realGit = Bun.which('git');
+    expect(realGit).not.toBeNull();
+    if (realGit === null) throw new Error('required git executable disappeared during test');
+    const blob = runGit(repository, ['rev-parse', `${revision}:README.md`]);
+
+    expectRefusal(
+      await runCheck(repository, revision, {
+        PATH: `${wrapperDirectory}:${process.env['PATH'] ?? ''}`,
+        WIKI_CHANGED_BLOB: blob,
+        WIKI_CHANGED_BYTES: indexSource('Forged map', metadata('module.forged', []), []),
+        WIKI_REAL_GIT: realGit,
+      }),
+      `cannot read selected index README.md: batch read digest differs from the index for selected blob ${blob} at README.md`,
     );
   });
 

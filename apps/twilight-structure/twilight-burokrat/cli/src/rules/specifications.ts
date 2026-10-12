@@ -1,5 +1,5 @@
 import { hashBytes, hashCanonical } from '../evidence/content-manifest';
-import { readCandidateBlob } from '../inventory/read-blob';
+import { readSelectedBlob } from '../inventory/read-blob';
 import { type CandidateSnapshot, readCandidate } from '../inventory/read-candidate';
 import {
   type ActiveSpecSelection,
@@ -116,7 +116,7 @@ function readJournal(
   if (entry.mode !== '100644' && entry.mode !== '100755') {
     throw new Error(`${label} scenario journal must be a regular blob`);
   }
-  const bytes = readCandidateBlob(repository, entry.blob, JournalPath);
+  const bytes = readSelectedBlob(repository, candidate.entries, entry.blob, JournalPath);
   let input: unknown;
   try {
     input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
@@ -140,7 +140,7 @@ function canonicalSpecs(repository: string, candidate: CandidateSnapshot): reado
     if (entry.mode !== '100644' && entry.mode !== '100755') {
       throw new Error(`canonical specification must be a regular blob: ${entry.path}`);
     }
-    const bytes = readCandidateBlob(repository, entry.blob, entry.path);
+    const bytes = readSelectedBlob(repository, candidate.entries, entry.blob, entry.path);
     let markdown: string;
     try {
       markdown = new TextDecoder('utf-8', { fatal: true }).decode(bytes);

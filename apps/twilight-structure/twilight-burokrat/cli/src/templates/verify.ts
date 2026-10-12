@@ -1,5 +1,6 @@
-import { readCandidateBlob } from '../inventory/read-blob';
+import { readSelectedBlob } from '../inventory/read-blob';
 import {
+  type CandidateEntry,
   type CandidateRequest,
   readCandidate,
   resolveCandidateRoot,
@@ -288,9 +289,14 @@ function directoryOf(path: string): string {
  * a malformed support file, contract or test refuses the artifact instead of passing unexamined.
  * @throws Error naming the file when its bytes are not UTF-8 or its source does not parse.
  */
-function decodeArtifact(repository: string, blob: string, path: string): string {
+function decodeArtifact(
+  repository: string,
+  selected: readonly CandidateEntry[],
+  blob: string,
+  path: string,
+): string {
   if (!path.endsWith('.ts') && !path.endsWith('.md')) return '';
-  const bytes = readCandidateBlob(repository, blob, path);
+  const bytes = readSelectedBlob(repository, selected, blob, path);
   let text: string;
   try {
     // Proof: decoding without `fatal` made `refuses a candidate file that is not UTF-8` receive
@@ -352,7 +358,8 @@ export function verifyTemplateInCandidate(request: TemplateVerifyRequest): Templ
   const files: ArtifactFile[] = selected.map((entry) => ({
     path: entry.path,
     relativePath: entry.path.slice(prefix.length),
-    text: decodeArtifact(root, entry.blob, entry.path),
+    // The subject's own entries are the selection: one batch reads exactly the verified files.
+    text: decodeArtifact(root, selected, entry.blob, entry.path),
   }));
   const siblingsOf = (path: string): string[] =>
     snapshot.entries
