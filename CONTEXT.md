@@ -16,6 +16,14 @@ not the commit captured when a process or container first started.
 One lineage of single-use MCP refresh tokens and every access session issued from it. Reusing a consumed token revokes the lineage whole.
 _Avoid_: session, token chain
 
+**MCP family authority**:
+The organization, stable WBS user, upstream issuer and subject, client, granted scope and credential epoch belonging to one refresh family.
+_Avoid_: selected organization, tool organization
+
+**MCP authentication times**:
+The separately trusted opening and most recent reauthentication times of the authentication lifecycle that authorized a refresh family; either may be unknown.
+_Avoid_: refresh time, token issue time
+
 **Upstream refresh lease**:
 The short exclusive claim one mcp-01 process holds while replacing a refresh family's provider credential. It prevents concurrent tool calls from refreshing the same provider token twice.
 _Avoid_: lock, refresh mutex
