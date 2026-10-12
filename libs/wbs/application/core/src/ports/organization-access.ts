@@ -6,6 +6,7 @@ import {
   type ProjectOwnership,
 } from '@wbs/domain';
 
+import type { CredentialRuleRefusal } from './credential-rules';
 import type { Project, ProjectStore } from './project-store';
 
 /**
@@ -21,18 +22,30 @@ export type ResourceAccess =
   { readonly kind: 'legacy' } | { readonly kind: 'scoped'; readonly scope: OrganizationScope };
 
 /**
- * Why an authenticated request may not act in any organization. Both answer a
- * typed 403: the credential is valid, the organization authority is not.
+ * Why an authenticated request may not act in any organization, before any
+ * credential rule. Both answer a typed 403: the credential is valid, the
+ * organization authority is not.
  *
  * - `no_active_organization`: the session carries no bound organization.
  * - `not_a_member`: the bound organization no longer lists the user, for
  *   example after removal while a token was still live.
  */
-export type OrganizationAccessRefusal = 'no_active_organization' | 'not_a_member';
+export type MembershipRefusal = 'no_active_organization' | 'not_a_member';
+
+/**
+ * Every typed 403 an organization context answers: a membership refusal, or
+ * a credential rule's ({@link credentialRuleRefusal}) — enforced SSO
+ * (`sso_required`) or session policy (`reauthentication_required`).
+ */
+export type OrganizationAccessRefusal = MembershipRefusal | CredentialRuleRefusal['refusal'];
+
+/** A refused resolution: the membership refusal alone, or a credential rule's whole body. */
+export type RefusedOrganizationAccess =
+  | { readonly ok: false; readonly refusal: MembershipRefusal }
+  | ({ readonly ok: false } & CredentialRuleRefusal);
 
 export type OrganizationAccessResolution =
-  | { readonly ok: true; readonly access: ResourceAccess }
-  | { readonly ok: false; readonly refusal: OrganizationAccessRefusal };
+  { readonly ok: true; readonly access: ResourceAccess } | RefusedOrganizationAccess;
 
 /**
  * Resolves one authenticated user's access for one request.
@@ -55,7 +68,7 @@ export interface OrganizationAccess {
 /** What {@link OrganizationAccess.resolve} reads of a principal. */
 export type OrganizationPrincipal = Pick<
   AuthenticatedUser,
-  'id' | 'delegation' | 'organizationBinding'
+  'id' | 'delegation' | 'organizationBinding' | 'authentication'
 >;
 
 /** The access every unscoped method uses: deployment-wide, as before organizations. */

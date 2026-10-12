@@ -1,4 +1,4 @@
-import type { DelegationAudience, WbsScope } from '@wbs/contracts';
+import type { CredentialAuthentication, DelegationAudience, WbsScope } from '@wbs/contracts';
 
 import type { Clock } from '../../ports/clock';
 import type { OidcIdentityStore, UserStore } from '../../ports/user-store';
@@ -66,6 +66,11 @@ export interface VerifiedUpstreamSource extends CredentialSource {
 /** Native WBS session, verified without inventing an upstream identity. */
 export interface VerifiedFirstPartySource extends CredentialSource {
   readonly kind: 'verified-first-party-credential';
+  /**
+   * The verified session's own authentication facts, which the credential
+   * rules read at direct-context issue; absent, they fail closed.
+   */
+  readonly authentication?: CredentialAuthentication;
 }
 
 /** A credential-bound source whose identity kind is explicit. */

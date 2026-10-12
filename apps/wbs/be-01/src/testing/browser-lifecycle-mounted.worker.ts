@@ -184,11 +184,17 @@ const selection = organizationSelection(
   new SqliteOrganizationSelection(db),
   organizationCookieBinding(sessionKey),
   revocations,
+  (principal, organizationId) => organizations.admitTo(principal, organizationId),
+);
+const organizations: SqliteOrganizationAccess = new SqliteOrganizationAccess(
+  db,
+  selection.activeOrganizationOf,
+  Date.now,
 );
 const logLines: string[] = [];
 const app = buildApp(
   {
-    organizations: new SqliteOrganizationAccess(db, selection.activeOrganizationOf),
+    organizations,
     organizationSelection: selection.endpoints,
     credentialEvidence: organizationCredentialEvidence(
       auth,

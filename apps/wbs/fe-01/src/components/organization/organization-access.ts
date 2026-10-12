@@ -4,11 +4,22 @@ import { unreachable } from '@/lib/http';
  * Why the organization page can no longer show any organization data. Each
  * one replaces the whole page, so no panel keeps rows it read before the loss.
  */
-export type AccessLoss = 'inactive' | 'signed_out' | 'no_organization' | 'removed';
+export type AccessLoss =
+  | 'inactive'
+  | 'signed_out'
+  | 'no_organization'
+  | 'removed'
+  | 'sso_required'
+  | 'reauthentication_required';
 
 /** The refusal codes every organization route shares that end the page's access. */
 export type LossCode =
-  'onboarding_inactive' | 'unauthenticated' | 'no_active_organization' | 'not_a_member';
+  | 'onboarding_inactive'
+  | 'unauthenticated'
+  | 'no_active_organization'
+  | 'not_a_member'
+  | 'sso_required'
+  | 'reauthentication_required';
 
 /** What a panel does with one refusal: give the page up, or say a sentence in place. */
 export type RefusalOutcome = { kind: 'lost'; loss: AccessLoss } | { kind: 'message'; text: string };
@@ -24,6 +35,9 @@ export function lostAccess(code: LossCode): RefusalOutcome {
       return { kind: 'lost', loss: 'no_organization' };
     case 'not_a_member':
       return { kind: 'lost', loss: 'removed' };
+    case 'sso_required':
+    case 'reauthentication_required':
+      return { kind: 'lost', loss: code };
     default:
       return unreachable(code);
   }
@@ -45,6 +59,10 @@ export function lossCopy(loss: AccessLoss): string {
       return 'No organization is selected for this session.';
     case 'removed':
       return 'You no longer have access to this organization.';
+    case 'sso_required':
+      return 'This organization requires its company sign-in.';
+    case 'reauthentication_required':
+      return 'This organization asks you to sign in again.';
     default:
       return unreachable(loss);
   }

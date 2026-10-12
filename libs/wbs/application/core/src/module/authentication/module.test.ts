@@ -29,7 +29,7 @@ const fakeTokens: TokenCodec = {
   sign: (claims) => Promise.resolve(JSON.stringify(claims)),
   verify: (token) => {
     try {
-      return Promise.resolve(JSON.parse(token) as SessionClaims);
+      return Promise.resolve({ ...(JSON.parse(token) as SessionClaims), issuedAt: 0 });
     } catch {
       return Promise.resolve(null);
     }

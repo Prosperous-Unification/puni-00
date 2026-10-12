@@ -30,6 +30,8 @@ try {
     new SqliteOrganizationSelection(connection.db),
     organizationCookieBinding(TEST_JWT_KEY),
     new SqliteBrowserCredentialRevocations(connection.db, new WriteCoordinator()),
+    // Only the binding read is exercised here; no selection asks the rules.
+    () => Promise.reject(new Error('the revocation reader never selects')),
   );
   const bound = await composition.activeOrganizationOf({
     id: userId,

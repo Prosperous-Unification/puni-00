@@ -23,6 +23,7 @@ import { AuthService } from '@wbs/core/service/auth.service';
 import type { CapacityMode } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import {
+  currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
   ExternalIdentityRepository,
@@ -116,6 +117,8 @@ export interface OrganizationHarnessOptions {
     readonly groupPrefix: string;
     readonly groupsClaim: string;
   };
+  /** The clock the credential rules read; a test fixes it to pin session-policy edges. */
+  readonly now?: () => number;
 }
 
 interface TestMail {
@@ -280,6 +283,7 @@ export class OrganizationHarness {
     resolver,
     sessionBinding,
     upstreamCredential,
+    now = Date.now,
   }: OrganizationHarnessOptions = {}): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
@@ -296,12 +300,14 @@ export class OrganizationHarness {
             new SqliteOrganizationSelection(db),
             organizationCookieBinding(sessionKey),
             new SqliteBrowserCredentialRevocations(db, gate),
+            (principal, organizationId) => organizations.admitTo(principal, organizationId),
           )
         : undefined;
-    const organizations = new SqliteOrganizationAccess(
+    const organizations: SqliteOrganizationAccess = new SqliteOrganizationAccess(
       db,
       selection?.activeOrganizationOf ??
         userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
+      now,
     );
     const users = new UserRepository(db, OPEN);
     const auth = new AuthService({
@@ -426,13 +432,10 @@ export class OrganizationHarness {
               delegationIssuer(
                 directSigningKey,
                 nativeCredentialSource(auth, sessionKey),
-                async (userId, organizationId) => {
-                  const admitted = await organizations.resolve({
-                    id: userId,
-                    delegation: { organizationId, audience: 'wbs-be-01/direct' },
-                  });
-                  return admitted.ok && admitted.access.kind === 'scoped';
-                },
+                // Membership only: the credential rules already ran for this
+                // source in `bearerContextIssuer`'s resolution.
+                (userId, organizationId) =>
+                  Promise.resolve(currentMembershipAccess(db, organizationId, userId).ok),
               ),
               () => readOrganizationActivation(db),
             ),
@@ -525,6 +528,7 @@ export class OrganizationHarness {
     const organizationAccess = new SqliteOrganizationAccess(
       source.db,
       userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
+      () => services.clock.now(),
     );
     const app = buildApp({
       appOrigin: 'http://localhost',

@@ -61,7 +61,7 @@ export function historyRoutes(
       readHistory,
       async ({ params, query, principal }): Promise<HttpReply<typeof readHistory>> => {
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         if ((await projects.readWithin(params.id, resolved.access)) === null)
           return { ok: false, status: 404, body: { error: 'not_found' } };
         const outcome = await history.read(params.id, filterFrom(query));

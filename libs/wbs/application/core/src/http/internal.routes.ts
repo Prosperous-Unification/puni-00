@@ -103,7 +103,7 @@ export function gatewayAccessRoutes(projects: ProjectService, organizations: Org
       const resolved = await organizations.resolve(principal);
       // Proof: bypassing this membership resolution admitted a removed member
       // in `refuses a removed member` (gateway-browser.controller.db.test.ts).
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       // Proof: replacing readWithin with an unscoped lookup answered 204 for a
       // foreign project in `refuses a foreign project as not found`
       // (gateway-browser.controller.db.test.ts).
@@ -117,7 +117,7 @@ export function gatewayAccessRoutes(projects: ProjectService, organizations: Org
       const resolved = await organizations.resolve(principal);
       // Proof: bypassing this membership resolution admitted a removed member in
       // the mounted gateway access test (2026-09-28).
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       // Proof: replacing readWithin with an unscoped lookup answered 204 for a
       // foreign project in the mounted gateway access test (2026-09-28).
       const found = await projects.readWithin(params.projectId, resolved.access);

@@ -78,6 +78,7 @@ export * from './module/capacity/capacity.resource';
 export * from './module/directory/directory.resource';
 export * from './module/plan-commands/command-bindings';
 export * from './module/realtime/gateway-broadcaster';
+export * from './ports/credential-rules';
 export * from './ports/email-delivery';
 export * from './ports/email-verification';
 export * from './ports/enterprise-connections';
@@ -92,7 +93,13 @@ export * from './ports/project-rank-store';
 export * from './ports/project-store';
 export * from './ports/provisioning-tokens';
 export type { PushTransport } from './ports/push-transport';
-export type { Digest, PasswordHasher, SessionClaims, TokenCodec } from './ports/runtime';
+export type {
+  Digest,
+  PasswordHasher,
+  SessionClaims,
+  TokenCodec,
+  VerifiedSessionClaims,
+} from './ports/runtime';
 export type { PlanInputReads, SavedPlanCaptureStore } from './ports/saved-plan-capture-store';
 export type {
   SavedPlanBodyWrite,

@@ -19,7 +19,7 @@ export function personLoadRoutes(load: PersonLoad, organizations: OrganizationAc
       readOrganizationLoad,
       async ({ query, principal }): Promise<HttpReply<typeof readOrganizationLoad>> => {
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         const window = loadWindowOf(query.from, query.to);
         if (window === null) return invalidQuery;
         const read = await load.readOrganization(window, principal.id, resolved.access);
@@ -31,7 +31,7 @@ export function personLoadRoutes(load: PersonLoad, organizations: OrganizationAc
       readPersonLoad,
       async ({ params, query, principal }): Promise<HttpReply<typeof readPersonLoad>> => {
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         const window = loadWindowOf(query.from, query.to);
         if (window === null) return invalidQuery;
         const read = await load.readPerson(params.personId, window, principal.id, resolved.access);

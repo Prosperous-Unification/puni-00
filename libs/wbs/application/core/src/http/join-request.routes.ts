@@ -38,7 +38,7 @@ export function joinRequestRoutes(
       if (principal.delegation !== undefined)
         return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
       const answer = await requests.list(resolved.access.scope.organizationId, principal.id);
       return answer.ok
@@ -52,7 +52,7 @@ export function joinRequestRoutes(
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const token = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
           byte.toString(16).padStart(2, '0'),
@@ -89,7 +89,7 @@ export function joinRequestRoutes(
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const answer = await requests.deny(
           resolved.access.scope.organizationId,

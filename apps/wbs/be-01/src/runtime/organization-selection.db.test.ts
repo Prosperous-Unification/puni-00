@@ -65,6 +65,8 @@ test('a selection in flight before revocation cannot restore authority after its
           return revoked;
         },
       },
+      // No enforcement or policy in this fixture: the rules admit.
+      () => Promise.resolve(null),
     );
     const issued = selection.endpoints.select(principal, 'org-a');
     await answered;

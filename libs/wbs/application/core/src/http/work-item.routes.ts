@@ -416,7 +416,7 @@ export function workItemRoutes(
         // `schedule-organization.controller.db.test.ts` answer 200; watched
         // 2026-09-27.
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         const tree = await workItems.treeWithin(params.id, resolved.access);
         if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         // Proof: removing this branch made the mounted unavailable work-item read
@@ -451,7 +451,7 @@ export function workItemRoutes(
         // `command-organization.controller.db.test.ts` answer 200; watched
         // 2026-09-27.
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         const outcome = await runCommandBatch(commands, {
           projectId: params.id,
           actor: principal,
@@ -481,7 +481,7 @@ export function workItemRoutes(
         const parsed = await parsedBatch(body);
         if (!parsed.ok) return parsed;
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         const outcome = await runCommandBatch(commands, {
           projectId: null,
           actor: principal,
@@ -503,12 +503,12 @@ export function workItemRoutes(
     ),
     bind(undoProject, async ({ params, principal }): Promise<HttpReply<typeof undoProject>> => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       return answerUndo(await commands.undoWithin(params.id, principal.id, resolved.access));
     }),
     bind(redoProject, async ({ params, principal }): Promise<HttpReply<typeof redoProject>> => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       return answerUndo(await commands.redoWithin(params.id, principal.id, resolved.access));
     }),
     bind(
@@ -519,7 +519,7 @@ export function workItemRoutes(
         // `schedule-organization.controller.db.test.ts` answer 409 instead of
         // 403; watched 2026-09-27.
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         const addresses = await workItems.readAddressesWithin(params.id, resolved.access);
         if (addresses === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         const outcome = await resolveAddressedStep(params.id, query, addresses, digest);
@@ -559,7 +559,7 @@ export function workItemRoutes(
         // `work-item-rows.controller.db.test.ts` receive 200 for `limit=0`.
         if (paged === null) return { ok: false, status: 400, body: { error: 'invalid_query' } };
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         // The whole tree through the caller's access before anything is
         // filtered, cut or given a cursor: a foreign project is 404 alike.
         // Proof, observed 2026-09-29: reading both with legacy access made
@@ -591,7 +591,7 @@ export function workItemRoutes(
     ),
     bind(getWorkItem, async ({ params, principal }): Promise<HttpReply<typeof getWorkItem>> => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const tree = await workItems.treeWithin(params.id, resolved.access);
       if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
       if ('kind' in tree && tree.kind === 'access_refused')

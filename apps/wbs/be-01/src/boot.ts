@@ -118,7 +118,9 @@ function browserComposition(
       // project and directory lists after activation until a session
       // binds an organization` in `boot.db.test.ts` receive 200 instead
       // of 403; watched 2026-09-27.
-      organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION),
+      organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION, () =>
+        services.clock.now(),
+      ),
     };
   const revocations = new SqliteBrowserCredentialRevocations(db, services.gate);
   const lifecycle =
@@ -141,6 +143,13 @@ function browserComposition(
     // organization cookie pair list projects after its logout committed
     // (`refuses the whole old token…`, 4 pass, 1 fail, 2026-10-11).
     revocations,
+    // The same rule evaluation resolution applies, read with membership.
+    (principal, organizationId) => organizations.admitTo(principal, organizationId),
+  );
+  const organizations: SqliteOrganizationAccess = new SqliteOrganizationAccess(
+    db,
+    selection.activeOrganizationOf,
+    () => services.clock.now(),
   );
   return {
     oidc,
@@ -155,7 +164,7 @@ function browserComposition(
     // Proof: keeping NO_BOUND_ORGANIZATION here refused the freshly selected
     // pair with 403 before any logout (`refuses the whole old token…`, 4 pass,
     // 1 fail, 2026-10-11).
-    organizations: new SqliteOrganizationAccess(db, selection.activeOrganizationOf),
+    organizations,
   };
 }
 

@@ -382,6 +382,14 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
       status: 'migrating' | 'database_unreachable' | 'schema_missing';
       commit: string | null;
     };
+    /** Enforced SSO refused this credential in this organization only (`organization-sso`). */
+    sso_required: { organizationId: string; login: string; link: true };
+    /** A session policy bound is exceeded or unknown (`organization-session-policy`). */
+    reauthentication_required: {
+      organizationId: string;
+      reason: 'max_session' | 'reauthenticate_after';
+      login: string;
+    };
   };
 
 export type RefusalCode = keyof RefusalDetail;

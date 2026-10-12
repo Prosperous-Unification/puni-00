@@ -2,7 +2,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { CalendarMarker } from './calendar-marker-store';
 import type { DirectoryCatalogRows } from './directory-values';
-import type { OrganizationAccessRefusal } from './organization-access';
+import type { MembershipRefusal } from './organization-access';
 import type { Project } from './project-values';
 import type { PlanInputReads } from './saved-plan-capture-values';
 import type { EngineUnavailable, ScheduleRead } from './scheduler';
@@ -12,7 +12,7 @@ import type { LabelledWorkItem } from './work-item-values';
 /** The entire protected read is refused; this outcome carries no project projection or cache value. */
 export interface AccessRefused {
   readonly kind: 'access_refused';
-  readonly refusal: OrganizationAccessRefusal;
+  readonly refusal: MembershipRefusal;
 }
 
 export interface InfluencerRead {

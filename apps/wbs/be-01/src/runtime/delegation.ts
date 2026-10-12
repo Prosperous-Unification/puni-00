@@ -158,6 +158,18 @@ export function delegationVerifier(
         id: mapped.id,
         username: mapped.username,
         scopes: claims.scopes,
+        // A direct context carries no authentication facts: the credential
+        // rules refuse it in an organization that enforces SSO or a session
+        // policy, failing closed.
+        ...(claims.kind === 'upstream'
+          ? {
+              authentication: {
+                kind: 'upstream' as const,
+                issuer: claims.upstream.issuer,
+                subject: claims.upstream.subject,
+              },
+            }
+          : {}),
         delegation:
           claims.kind === 'first_party'
             ? { organizationId: claims.organizationId, audience: 'wbs-be-01/direct' }

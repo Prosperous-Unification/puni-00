@@ -48,7 +48,7 @@ export function domainRoutes(
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const released = await challenges.releaseClaim(
           resolved.access.scope.organizationId,
@@ -77,7 +77,7 @@ export function domainRoutes(
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const token = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
           byte.toString(16).padStart(2, '0'),
@@ -123,7 +123,7 @@ export function domainRoutes(
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const organizationId = resolved.access.scope.organizationId;
         const claim = await challenges.readClaimForVerification(
@@ -222,7 +222,7 @@ export function domainRoutes(
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const claims = await challenges.listClaims(
           resolved.access.scope.organizationId,
@@ -240,7 +240,7 @@ export function domainRoutes(
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const domain = canonicalDomain(body.domain);
         if (domain === null) return { ok: false, status: 400, body: { error: 'invalid_domain' } };

@@ -384,6 +384,8 @@ function domainRefusal(error: DomainRefusalCode, action: string): RefusalOutcome
     case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
       return lostAccess(error);
     case 'forbidden':
       return said(`Your role cannot ${action}.`);

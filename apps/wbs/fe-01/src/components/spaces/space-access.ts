@@ -5,6 +5,8 @@ export type SpaceRefusalCode =
   | 'unauthenticated'
   | 'no_active_organization'
   | 'not_a_member'
+  | 'sso_required'
+  | 'reauthentication_required'
   | 'organization_required'
   | 'forbidden'
   | 'not_found'
@@ -36,6 +38,10 @@ export function spaceRefusal(code: SpaceRefusalCode): SpaceRefusalOutcome {
       return { kind: 'page', text: 'No organization is selected for this session.' };
     case 'not_a_member':
       return { kind: 'page', text: 'You no longer have access to this organization.' };
+    case 'sso_required':
+      return { kind: 'page', text: 'This organization requires its company sign-in.' };
+    case 'reauthentication_required':
+      return { kind: 'page', text: 'This organization asks you to sign in again.' };
     case 'organization_required':
       return {
         kind: 'page',

@@ -207,6 +207,8 @@ function sharingRefusal(error: SharingRefusalCode): RefusalOutcome {
     case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
       return lostAccess(error);
     // Before activation there is no organization to share people in.
     case 'organization_required':
