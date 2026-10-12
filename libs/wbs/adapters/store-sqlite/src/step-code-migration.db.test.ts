@@ -129,6 +129,11 @@ describe(STEP_CODE, () => {
       seedProjects(sqlite);
       sqlite.run("INSERT INTO step (id, project_id, name, code) VALUES ('s1', 'p', 'Dev', 'dev')");
     });
+    expect(readStepColumns()).toContainEqual({
+      name: 'estimate_unit',
+      notnull: 1,
+      dflt_value: "'workdays'",
+    });
     const before = readStepColumns().map((column) => column.name);
 
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
@@ -157,9 +162,15 @@ describe(STEP_CODE, () => {
       STEP_CODE,
     ]);
 
+    // Proof: removing the estimate-unit down migration's DROP COLUMN left estimate_unit
+    // here and failed this rollback assertion (2026-10-13).
     expect(readStepColumns().map((column) => column.name)).toEqual(
       before.filter(
-        (name) => name !== 'code' && name !== 'allowance_bps' && name !== 'allowance_revision',
+        (name) =>
+          name !== 'code' &&
+          name !== 'allowance_bps' &&
+          name !== 'allowance_revision' &&
+          name !== 'estimate_unit',
       ),
     );
     expect(readStepIndexSql().some((sql) => sql?.includes('step_project_code') === true)).toBe(
@@ -172,6 +183,11 @@ describe(STEP_CODE, () => {
 
     runMigrations(path, FOLDER);
     expect(readStepColumns().map((column) => column.name)).toEqual(before);
+    expect(
+      withDatabase((sqlite) =>
+        sqlite.query<{ estimate_unit: string }, []>('SELECT estimate_unit FROM step').all(),
+      ),
+    ).toEqual([{ estimate_unit: 'workdays' }]);
     // Re-applied uncoded, not restored: the backfill derives it again.
     expect(
       withDatabase((sqlite) =>

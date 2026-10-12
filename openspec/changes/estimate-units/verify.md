@@ -412,3 +412,88 @@ local dependency bin directory. Frontend typecheck was not run because this stac
 diff changes no frontend file. The canonical host gate, full builds, browser checks,
 merge, publication, activation and deployment are reserved for the release coordinator;
 this focused integration verification does not claim those checks.
+
+### PR #380 field-group gate correction — 2026-10-13
+
+Base: `743e0a508905027d8ab9c513e5fe42e73bf1cff8`. This restores the existing
+`list-reads` requirement that every tree field belongs to one page field group,
+and the existing optional tree-field response contract; no new behavior delta.
+`charged` belongs to `estimates`, preserving native minute and workday charges.
+`rowOf` copies only present tree properties, preserving absent optional fields.
+
+- Initial `bun test libs/wbs/domain/contracts/src/http/work-item-fields.test.ts`:
+  0 pass / 1 fail, missing `charged`.
+- Mounted regression exposed explicit undefined `attempts`, `spans`, and `span`
+  copied from a leaf without attempts; response validation returned HTTP 500.
+  A parent also lacks `nodeReadings`; both absent and present optional fields are
+  now covered, including legacy absent `charged` in the core projection test.
+- Mutation: removing `charged` from `estimates` failed both the partition test
+  and mounted `includes native charges only when the estimates group is requested`
+  (missing `charged`). Removing the own-property check restored the mounted HTTP 500. Both mutations were restored; adjacent Proof comments record them.
+- `bun test libs/wbs/domain/contracts/src/http/work-item-fields.test.ts
+libs/wbs/domain/contracts/src/http/work-item-response.test.ts
+libs/wbs/application/core/src/service/work-item-page.test.ts
+apps/wbs/be-01/src/controller/work-item-rows.controller.db.test.ts`:
+  25 pass / 0 fail, 110 assertions.
+- `bunx tsc --build --force libs/wbs/domain/contracts/tsconfig.json
+libs/wbs/application/core/tsconfig.json apps/wbs/be-01/tsconfig.json`: exit 0.
+- Changed source files: Prettier check passes. Initial direct ESLint identified
+  array-index guards typed as unnecessary; using `at` retains checked absence.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast
+-p wbs-contracts,wbs-core,wbs-be-01`: all three targets pass (0/3 cache hits).
+
+Full host gate, full repository suites, build, and OpenSpec validation are not run
+by this worker; the PM will run the exact-SHA host gate after this fix is pushed.
+
+### PR #380 historical migration suite correction — 2026-10-13
+
+Base: `74ce3c8bf3a0070b7af73198d75cdcebae385f14`. The old host gate's five
+SQLite failures reproduce on this head: the historical step-code column comparison
+kept `estimate_unit` after rollback, the SSO rollback list omitted its migration,
+activation reapplication expected attempts as newest, and two WorkingPlan journal
+comparisons omitted `estimateUnits: {}`. Expectations now include the additive
+migration and immutable bindings while retaining exact migration order, schema
+roundtrip, step identity, journal revisions and undo assertions. Step-code coverage
+also asserts the unit column's nullability/default and its reapplied workday value.
+No production behavior or safety checks changed.
+
+- Red: focused four-file run, 53 pass / 5 fail (activation checked separately:
+  29 pass / 1 fail; other three files: 24 pass / 4 fail).
+- Mutation: removing `DROP COLUMN estimate_unit` from its real down migration
+  makes the step-code rollback assertion fail, 4 pass / 1 fail. Restored afterwards;
+  adjacent Proof comment records the observed fault.
+- Green: focused migration/activation/WorkingPlan suite, 111 pass / 0 fail across
+  13 files, 310 assertions. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx
+run-many -t lint:fast,typecheck -p wbs-store-sqlite`: both targets pass, no cache
+  hits. Changed-file Prettier and `git diff --check`: pass.
+
+Full host gate, full SQLite suite, repository build and OpenSpec validation were
+not run by this worker; the PM owns the final exact-SHA host gate.
+
+### Next WBS merge of corrected #380 head — 2026-10-13
+
+Merged exact #380 head `a61ce440dcbe0880559bc6d97e584e055cf7e23d` into
+#383 head `fb881b53a95687337883150733fd8c281bec64b2` with a normal merge.
+The sole conflict appended independent evidence to this file; both sections were
+retained. All nine incoming source and test files match #380 exactly after the
+merge. Existing #381 OAuth and #382 SwitchMode histories remain intact.
+
+Fresh checks on the combined tree:
+
+- Focused field groups, page projection, mounted rows, MCP OpenAPI, historical
+  migrations, activation and WorkingPlan tests: 114 pass, 0 fail across 9 files,
+  622 assertions, 17.99 seconds.
+- OAuth, session store, MCP migrations, coordinator model and capacity-mode
+  controller tests: 235 pass, 0 fail across 5 files, 27,877 assertions, 71.01 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx run-many -t typecheck,lint:fast -p wbs-contracts,wbs-core,wbs-store-sqlite,wbs-be-01,wbs-mcp-01 --skip-nx-cache`:
+  all 12 tasks passed, including two module dependencies; no Nx cache used.
+- `BUN_TMPDIR=/tmp bunx --no-install @fission-ai/openspec validate --all --json`:
+  185 passed (167 changes and 18 specs), 0 failed, exit 0. The cached Bun CLI is
+  available despite no standalone `openspec` on PATH.
+- Changed-file Prettier and `git diff --check` passed after formatting the merged
+  verification log. `SUPPORTED_CAPACITY_MODES` remains `['isolated']`.
+
+No new production behavior or safety checks were introduced by conflict resolution.
+Full host gate, repository build, full suites and browser checks were not run by
+this worker; the release coordinator owns the exact-SHA host gate. This local
+merge does not publish, activate MCP or enable shared capacity.

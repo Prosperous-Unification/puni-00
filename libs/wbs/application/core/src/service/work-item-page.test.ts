@@ -202,6 +202,32 @@ describe('pageWorkItems', () => {
     expect(page('parentId=nobody')).toEqual({ ok: false, refusal: 'unknown_parent' });
   });
 
+  test('the estimates group preserves present optional tree fields', () => {
+    const attempts = {
+      dev: [
+        {
+          attemptNumber: 1,
+          startedAt: 100,
+          endedAt: null,
+          outcome: null,
+          executorPersonId: null,
+          reference: null,
+          note: null,
+        },
+      ],
+    };
+    const span = { start: 100, end: null };
+    const spans = { dev: span };
+    const nodeReadings = { dev: 'in_progress' } as const;
+    const withAttempt = workItem('010', null, { attempts, spans, span, nodeReadings });
+    const query = queryOf('fields=estimates');
+    if (query === null) throw new Error('refused the estimates field group');
+    const answered = pageWorkItems({ workItems: [withAttempt], slices: [] }, instants, query);
+    if (!answered.ok) throw new Error(answered.refusal);
+    expect(answered.rows[0]).toMatchObject({ attempts, spans, span, nodeReadings });
+    expect(answered.rows[0]).not.toHaveProperty('charged');
+  });
+
   test('leaves out a work item deleted after the tree was read', () => {
     const query = queryOf('');
     if (query === null) throw new Error('refused nothing');
