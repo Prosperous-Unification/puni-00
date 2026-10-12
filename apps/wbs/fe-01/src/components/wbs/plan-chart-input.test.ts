@@ -11,6 +11,7 @@ import {
   factEndStopOf,
   heldLeafIdsOf,
   isHeld,
+  markCount,
   notBeforeOffsetOf,
 } from './plan-chart-input';
 import { chartReadOf } from './use-plan-read';
@@ -157,4 +158,19 @@ describe('the holders a plan read labels, on the chart', () => {
     const outranked = { ...read, elsewhereHolders: undefined } as unknown as PlanRead;
     expect(chartReadOf(outranked, 1).elsewhereHolders).toEqual([]);
   });
+});
+
+it('counts marks as visible leaves times project steps', () => {
+  expect(
+    markCount(
+      planOf({
+        rows: [rowAt('branch', 0, 1, { leaf: false }), rowAt('a', 0, 1), rowAt('b', 0, 1)],
+        steps: [
+          { id: 'dev', name: 'Dev' },
+          { id: 'review', name: 'Review' },
+        ],
+      }),
+    ),
+  ).toBe(4);
+  expect(markCount(planOf({ rows: [] }))).toBe(0);
 });

@@ -12,6 +12,7 @@ import {
 
 import type { PriorityBandView } from '@/lib/wbs-api';
 
+import { AXIS_RUNGS, type AxisRung } from './gantt-axis';
 import { shortIsoDate } from './short-date';
 import { resolveTypedGanttArrows } from './typed-gantt-arrows';
 
@@ -1034,6 +1035,8 @@ export function droppedLinkWords(dropped: DroppedLinks): string | null {
  * pixel anywhere.
  */
 export interface GanttGeometry {
+  /** Pixel scale applied to the workday geometry by the renderer. */
+  pxPerWorkday: number;
   labels: GanttRowLabel[];
   bars: GanttBar[];
   brackets: GanttSummaryBracket[];
@@ -2170,7 +2173,7 @@ function personNameOf(slice: GanttSlice, personNames: ReadonlyMap<string, string
  * slice under a step the plan does not list, and a dependency between shown
  * rows whose predecessor has no slice in the payload to anchor its arrow.
  */
-export function layOutGantt(plan: GanttPlan): GanttGeometry {
+export function layOutGantt(plan: GanttPlan, rung: AxisRung = AXIS_RUNGS[0]): GanttGeometry {
   const rowNames = new Map(plan.rows.map((row) => [row.id, spokenNameOf(row)]));
   const placedRows = new Map(plan.rows.map((row, rowIndex) => [row.id, { row, rowIndex }]));
   const sliceById = new Map(plan.slices.map((slice) => [slice.id, slice]));
@@ -2568,6 +2571,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   for (const flag of notBeforeFlags) horizon = Math.max(horizon, flag.offset);
 
   return {
+    pxPerWorkday: rung.pxPerWorkday,
     labels,
     bars: withPlaceholderLanes(bars),
     brackets,

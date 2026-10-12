@@ -3,6 +3,8 @@ import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import type * as WorkdayModule from '@wbs/domain/workday';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AXIS_RUNGS } from './gantt-axis';
+import { rowAt as fixtureRow, sliceAt as fixtureSlice } from './gantt-fixtures';
 import {
   type BarColor,
   type BindingFloor,
@@ -2464,6 +2466,7 @@ describe('the shapes a real schedule makes', () => {
     const chart = layOutGantt(planOf({}));
 
     expect(chart).toEqual({
+      pxPerWorkday: 28,
       labels: [],
       bars: [],
       brackets: [],
@@ -4249,5 +4252,32 @@ describe('a held leaf is no end of an arrow (add-work-item-statuses)', () => {
       }),
     );
     expect(chart.typedArrows).toEqual([]);
+  });
+});
+
+describe('rung pixel geometry', () => {
+  it.each([
+    [0, 28],
+    [1, 12],
+    [2, 4],
+    [3, 56],
+    [4, 224],
+    [5, 896],
+  ])('a one-day slice keeps its span at rung %s', (index, width) => {
+    const chart = layOutGantt(
+      planOf({ rows: [fixtureRow('one', 0, 1)], slices: [fixtureSlice('one-dev', 'one', 0, 1)] }),
+      AXIS_RUNGS[index],
+    );
+    expect(chart.bars[0].drawnSpan * chart.pxPerWorkday).toBe(width);
+  });
+  it('draws scheduled duration rather than effort when capacity exceeds one', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [fixtureRow('one', 0, 0.5)],
+        slices: [fixtureSlice('one-dev', 'one', 0, 0.5, { effort: 1, width: 2 })],
+      }),
+      AXIS_RUNGS[4],
+    );
+    expect(chart.bars[0].drawnSpan * chart.pxPerWorkday).toBe(112);
   });
 });
