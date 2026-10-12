@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { PlanTasks } from './plan-tasks';
 import { runTwin, runTwinInProcess, scratchDirectory, type TwinRun } from './testing/run-twin';
 
-const FIXTURE = join(import.meta.dir, 'fixtures', 'plan-export.v6.json');
+const FIXTURE = join(import.meta.dir, 'fixtures', 'plan-export.v7.json');
 const RECORDS_TASK = '00000000-0000-4000-8000-000000000007';
 const DOCS_TASK = '00000000-0000-4000-8000-000000000013';
 const DEV_STEP = '00000000-0000-4000-8000-000000000002';

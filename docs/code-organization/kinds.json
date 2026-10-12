@@ -92,6 +92,12 @@
       "rationale": "be-01's dormant domain-proof worker calls checkDomainProofs to run one bounded TXT lookup per due retained claim through the DomainProofChecks port; it holds no store or timer of its own"
     },
     {
+      "path": "libs/wbs/application/core/src/service/node-readings.ts",
+      "kind": "support",
+      "disposition": "application support beside dependency-graph.ts; the reading rule itself is nodeReadingOf in @wbs/domain",
+      "rationale": "work-item.resource.ts's projectTree asks it for each leaf node's reading over the resolved step-node graph (resolveDependencyGraph), memoised predecessor first; it reads no store and holds no clock"
+    },
+    {
       "path": "libs/wbs/application/core/src/service/numbered-work-item.ts",
       "kind": "support",
       "disposition": "application support; move into module/work-item (task 6.1 reclassified it from the domain library, 2026-10-11)",

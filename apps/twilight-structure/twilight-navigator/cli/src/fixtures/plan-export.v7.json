@@ -517,7 +517,7 @@
   ],
   "document": {
     "format": "wbs-plan",
-    "version": 6,
+    "version": 7,
     "exportedAt": "2026-10-11T09:00:00.000Z"
   },
   "settings": {
@@ -535,7 +535,8 @@
     "solutionRef": null,
     "optimizationEnabled": false,
     "scheduleEngine": "fast",
-    "scheduleObjective": "pri"
+    "scheduleObjective": "pri",
+    "timezone": "UTC"
   },
   "capacity": [],
   "calendarMarkers": [],
