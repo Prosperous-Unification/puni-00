@@ -539,6 +539,16 @@ async function askForTheDetail(page: Page, heads: number): Promise<void> {
   await expect(page.locator('[data-gantt-detail-toggle]')).toHaveAttribute('aria-pressed', 'true');
 }
 
+/**
+ * The bar's paired pointer surface, including the wider target of a subday tick.
+ * Keyboard focus and geometry still belong to the painted bar.
+ */
+function findBarTarget(bar: Locator): Locator {
+  // Proof: disabling the paired production hit rect's pointer events made the
+  // row-navigation browser case fail on an intercepted click (2026-10-13).
+  return bar.locator('..').locator('[data-gantt-hit]');
+}
+
 /** One rectangle, as the browser lays it out. */
 interface Rect {
   left: number;
@@ -631,10 +641,24 @@ async function paintedAt(page: Page, selector: string, at = 0.25): Promise<strin
       if (box.width <= 0 || box.height <= 0) {
         throw new Error(`${where} is drawn with no area to probe`);
       }
-      const hit = document.elementFromPoint(
-        box.left + box.width * across,
-        box.top + box.height / 2,
-      );
+      // Transparent pointer surfaces change hit testing without covering ink.
+      // Disable only those surfaces for this synchronous paint probe, preserving
+      // SVG clipping and every painted mark, then restore before any gesture.
+      // Proof: removing the production SVG's left viewBox padding made the edge
+      // arrow browser case find the row label instead of its head (2026-10-13).
+      const surfaces = [
+        ...document.querySelectorAll('rect[data-gantt-hit][fill="transparent"]'),
+      ].map((surface) => ({ surface, events: surface.getAttribute('pointer-events') }));
+      let hit: Element | null;
+      try {
+        for (const { surface } of surfaces) surface.setAttribute('pointer-events', 'none');
+        hit = document.elementFromPoint(box.left + box.width * across, box.top + box.height / 2);
+      } finally {
+        for (const { surface, events } of surfaces) {
+          if (events === null) surface.removeAttribute('pointer-events');
+          else surface.setAttribute('pointer-events', events);
+        }
+      }
       if (hit === node) return 'itself';
       if (hit === null) return 'nothing at all — the point is off the viewport';
       const attributes = [...hit.attributes].map((each) => each.name).join(' ');
@@ -1291,7 +1315,7 @@ test.describe('the chart, after the browser has scaled it', () => {
     // focus assertion below a different claim.
     const firstBar = page.locator('[data-gantt-bar]').first();
     await expect(firstBar).toHaveAttribute('data-start', '0');
-    await firstBar.click();
+    await findBarTarget(firstBar).click();
 
     await expect(page.getByLabel('Name of 010.1')).toBeFocused();
     const after = await page.evaluate(() => {
@@ -1586,7 +1610,7 @@ test.describe('the chart on a phone', () => {
     // wrong: on this face a **click** on a bar takes the plan to that row (the
     // case below asserts exactly that), so the card never opened at all —
     // `expect(locator).toBeVisible() failed / element(s) not found` at 390×844.
-    await page.locator('[data-gantt-bar]').first().hover();
+    await findBarTarget(page.locator('[data-gantt-bar]').first()).hover();
     const card = page.getByRole('tooltip');
     await expect(card).toBeVisible();
 
@@ -1711,7 +1735,7 @@ test.describe('the chart on a phone', () => {
       'the card list is not taller than the phone, so nothing had to scroll back',
     ).toBeGreaterThan(0);
 
-    await page.locator('[data-gantt-bar]').first().click();
+    await findBarTarget(page.locator('[data-gantt-bar]').first()).click();
 
     await expect(page.getByLabel('Name of 010.1')).toBeFocused();
     const after = await page.evaluate(() => {
@@ -1835,7 +1859,7 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     // middle: at forty days the bar is wider than the window, and a hover on
     // its centre would have Playwright scroll the chart to find it.
     const bar = barOf(page, '010.2', 'Dev');
-    await bar.hover({ position: { x: 4, y: 4 } });
+    await findBarTarget(bar).hover({ position: { x: 4, y: 4 } });
     const shown = barSurface(page, '010.2');
     await expect(shown).toBeVisible();
 
@@ -1891,7 +1915,7 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     if (number === undefined) {
       throw new Error(`the last bar's name starts with no number: ${label}`);
     }
-    await bar.hover();
+    await findBarTarget(bar).hover();
     const shownSurface = barSurface(page, number);
     await expect(shownSurface).toBeVisible();
 
@@ -1935,7 +1959,7 @@ test.describe('the surface a bar opens, as a browser places it', () => {
 
     const bar = page.locator('[data-gantt-bar]').last();
     await expect(bar).toHaveAttribute('aria-label', /^010\.2 - /);
-    await bar.hover();
+    await findBarTarget(bar).hover();
     // The bar's own card, not any tooltip. Observed in CI run 36482644786's
     // trace: the wait resolved on 010.1's folded Dev card, still up after the
     // Gantt click, and no `Facts for 010.2` card had been drawn when the box
@@ -1979,7 +2003,7 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     await seedPlan(page, nextAccount(), { estimate: '40/40/40' });
     await openTheChart(page);
 
-    await barOf(page, '010.1', 'Dev').hover({ position: { x: 4, y: 4 } });
+    await findBarTarget(barOf(page, '010.1', 'Dev')).hover({ position: { x: 4, y: 4 } });
     await expect(surface(page)).toBeVisible();
 
     await page.evaluate(() => {
@@ -2124,7 +2148,7 @@ test.describe('a bar on a touch screen', () => {
     await expect(page.locator('[data-gantt-fullscreen]')).toHaveCount(1);
 
     const bar = page.locator('[data-gantt-bar]').first();
-    await bar.tap();
+    await findBarTarget(bar).tap();
 
     await expect(surface(page)).toBeVisible();
     await expect(surface(page)).toContainText('010.1');
@@ -2138,9 +2162,9 @@ test.describe('a bar on a touch screen', () => {
 
     // The first tap asks for facts again. The second tap on that same bar is a
     // deliberate navigation, so it leaves full screen and lands on the row.
-    await bar.tap();
+    await findBarTarget(bar).tap();
     await expect(surface(page)).toBeVisible();
-    await bar.tap();
+    await findBarTarget(bar).tap();
     await expect(page.locator('[data-gantt-fullscreen]')).toHaveCount(0);
     await expect(page.getByLabel('Name of 010.1')).toBeFocused();
   });
@@ -2149,7 +2173,7 @@ test.describe('a bar on a touch screen', () => {
     await seedOnALaptop(page, nextAccount(), { extraRows: 12 });
     await openTheChart(page, { throughTheSheet: true });
 
-    await page.locator('[data-gantt-bar]').first().tap();
+    await findBarTarget(page.locator('[data-gantt-bar]').first()).tap();
 
     await expect(page.getByLabel('Name of 010.1')).toBeFocused();
     // Well past the open delay, so this is "no surface" rather than "not yet".
@@ -3148,7 +3172,7 @@ test.describe('the pointed row, across both faces', () => {
 
     const rest = await settledRowBg(rowOf(page, '010.1'));
 
-    await barOf(page, '010.1', 'Dev').hover();
+    await findBarTarget(barOf(page, '010.1', 'Dev')).hover();
 
     // The attributes first, so a colour assertion that failed for want of a
     // hover would fail as itself rather than as a missing tint.
@@ -3260,7 +3284,7 @@ test.describe('the pointed row, across both faces', () => {
     await seedPlan(page, `pointed-cleared-${String(Date.now())}`);
     await openTheChart(page);
 
-    await barOf(page, '010.1', 'Dev').hover();
+    await findBarTarget(barOf(page, '010.1', 'Dev')).hover();
     await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(1);
 
     // Onto the panel's own heading, which is on neither face's rows.
@@ -3281,7 +3305,7 @@ test.describe('the pointed row, across both faces', () => {
     const before = await panelScroll(page);
     const pageBefore = await page.evaluate(() => window.scrollY);
 
-    await barOf(page, '010.1', 'Dev').hover();
+    await findBarTarget(barOf(page, '010.1', 'Dev')).hover();
     await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(1);
 
     expect(await panelScroll(page)).toEqual(before);
@@ -3305,7 +3329,7 @@ test.describe('the pointed row, across both faces', () => {
     await expect(name).toBeFocused();
 
     for (const number of ['010.1', '010.2', '020', '030']) {
-      await barOf(page, number, 'Dev').hover();
+      await findBarTarget(barOf(page, number, 'Dev')).hover();
     }
 
     await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(1);
