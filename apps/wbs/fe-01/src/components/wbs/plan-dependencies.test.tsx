@@ -763,7 +763,7 @@ describe('dependencies in the table', () => {
         screen.getByRole('button', {
           name: /Edit dependency: Dev step of 010 Strip to Dev step of 020 Sand, Finish-to-start/,
         }).textContent,
-      ).toBe('010.dev FS → dev');
+      ).toBe('010.s1-fake-1 FS → s1-fake-1');
     });
   });
 

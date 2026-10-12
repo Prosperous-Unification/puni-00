@@ -65,11 +65,12 @@ export async function readStepAddresses(
     // with effective numbers and null for uncoded steps` receive four nodes
     // instead of two (`- Expected - 0 / + Received + 12`); watched 2026-09-27.
     if (!isLeaf) return [];
-    return ordered.map(({ id: stepId, code }): StepNodeAddress => ({
+    return ordered.map(({ id: stepId, code }, stepAt): StepNodeAddress => ({
       id: formatStepNodeId({ workItemId, stepId }),
       workItemId,
       stepId,
-      reference: code === null ? null : formatStepReference(number, code),
+      reference:
+        code === null ? null : formatStepReference(number, code, stepAt + 1, ordered.length),
     }));
   });
   return {

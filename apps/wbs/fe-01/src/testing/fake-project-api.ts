@@ -4,6 +4,7 @@ import { deriveNumbers, type WorkItemPlacement } from '@wbs/domain/derive-number
 import { allowancePercentOf, chargedDays } from '@wbs/domain/estimate';
 import { automaticColor } from '@wbs/domain/marker-color';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
+import { formatStepReference } from '@wbs/domain/step-reference';
 import { byTreeOrder, treeOrder } from '@wbs/domain/tree-order';
 
 import type {
@@ -551,11 +552,16 @@ export function fakeProjectApi(): ProjectApi & {
         stepNodes: rows
           .filter((row) => !rows.some((child) => child.parentId === row.id))
           .flatMap((row) =>
-            stepList.map((step) => ({
+            stepList.map((step, stepAt) => ({
               id: `sn1.${row.id}.${step.id}`,
               workItemId: row.id,
               stepId: step.id,
-              reference: `${row.number}.${step.name.toLowerCase()}`,
+              reference: formatStepReference(
+                row.number,
+                `fake-${String(stepAt + 1)}`,
+                stepAt + 1,
+                stepList.length,
+              ),
             })),
           ),
         assignedPeople: people.map(({ id, name }) => ({ id, name })),
